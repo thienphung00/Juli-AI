@@ -1,0 +1,28 @@
+---
+description: Observability standards — structured logging, metrics, and tracing
+alwaysApply: true
+---
+
+# Observability
+
+## Structured Logging
+
+- Use structured (JSON) log output so logs are machine-parsable and searchable.
+- Apply correct log levels: `DEBUG` for development detail, `INFO` for normal operations, `WARN` for recoverable issues, `ERROR` for failures requiring attention.
+- Always include timestamps, request/correlation IDs, and relevant context.
+- **Never log sensitive data** — passwords, tokens, PII, or full credit card numbers.
+
+```
+# ❌ BAD — unstructured, leaks password
+print(f"Login failed for {email}, password was {password}")
+
+# ✅ GOOD — structured, safe
+logger.warning("login_failed", extra={"email": email, "reason": "invalid_credentials"})
+```
+
+## Metrics & Tracing
+
+- Expose key health metrics: request latency, error rates, throughput, memory/CPU usage.
+- Use distributed tracing (trace IDs, span IDs) to follow requests across services.
+- Set up alerts on critical thresholds so issues surface before users report them.
+- Instrument new endpoints and background jobs from day one — don't retrofit.

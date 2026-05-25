@@ -1,0 +1,43 @@
+---
+description: Reliability standards — test, protect, and secure the system
+alwaysApply: true
+---
+
+# Reliability
+
+## Automated Testing
+
+- Write unit tests for business logic, integration tests for service boundaries, and E2E tests for critical user flows.
+- Aim for high coverage so refactoring doesn't silently break functionality.
+- Tests must be deterministic — no flaky tests in the suite.
+
+## Defensive Programming & Error Handling
+
+- Anticipate edge cases: null/undefined inputs, empty collections, boundary values.
+- Use proper type safety (type hints, strict types, generics) to catch bugs at compile time.
+- Handle exceptions gracefully — never swallow errors silently.
+
+```
+# ❌ BAD — silent failure
+try:
+    result = process(data)
+except Exception:
+    pass
+
+# ✅ GOOD — log, wrap, re-raise
+try:
+    result = process(data)
+except ValidationError as e:
+    logger.warning("Validation failed", extra={"input": data, "error": str(e)})
+    raise
+except Exception as e:
+    logger.error("Unexpected failure in process()", exc_info=True)
+    raise ProcessingError("Failed to process data") from e
+```
+
+## Security
+
+- Sanitize and validate all external inputs (user input, API payloads, query params).
+- Follow least-privilege for permissions, tokens, and API keys.
+- Stay aligned with OWASP Top 10: prevent injection, broken auth, XSS, and data exposure.
+- Never commit secrets — use environment variables or a secrets manager.

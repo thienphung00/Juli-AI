@@ -1,0 +1,27 @@
+---
+description: Development workflow — version control, reviews, and CI/CD
+alwaysApply: true
+---
+
+# Development Workflow
+
+## Version Control (Git)
+
+- Write clear, conventional commit messages (`fix:`, `feat:`, `refactor:`, `docs:`).
+- Keep commits small and atomic — one logical change per commit.
+- Use feature branches; never push directly to `main`/`master`.
+- Tag releases and maintain a changelog.
+
+## Code Reviews
+
+- All changes go through Pull Requests — no exceptions for production code.
+- PRs should be small enough to review in one sitting (< 400 lines preferred).
+- Reviewers check for correctness, readability, test coverage, and security.
+- Use pair programming for complex or high-risk changes.
+
+## CI/CD
+
+- Every PR must pass automated builds, linting, and tests before merge.
+- Deploy in small, safe batches — prefer frequent small releases over big-bang deploys.
+- Automate everything repeatable: builds, tests, deploys, database migrations.
+- Maintain rollback capability for every deployment.
