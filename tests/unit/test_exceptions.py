@@ -1,69 +1,104 @@
-"""Unit tests for the exception hierarchy and raise_for_status."""
+"""TDD tests for TikTok API exception hierarchy.
 
-from __future__ import annotations
-
+Behaviors under test:
+- Base error carries code, message, and request_id
+- Specific subclasses exist for each error domain
+- Factory function maps API error codes to correct exception types
+- Unknown error codes fall back to base TikTokAPIError
+"""
 import pytest
 
-from src.integrations.kiotviet.exceptions import (
+from src.integrations.tiktok.exceptions import (
+    TikTokAPIError,
     AuthenticationError,
-    ForbiddenError,
-    KiotVietError,
-    NotFoundError,
+    PermissionDeniedError,
     RateLimitError,
-    ServerError,
-    ValidationError,
-    raise_for_status,
-)
-from tests.mocks.kiotviet_responses import (
-    ERROR_400_RESPONSE,
-    ERROR_401_RESPONSE,
-    ERROR_404_RESPONSE,
-    ERROR_429_RESPONSE,
-    ERROR_500_RESPONSE,
+    ResourceNotFoundError,
+    TikTokSystemError,
+    error_from_response,
 )
 
 
-class TestRaiseForStatus:
+class TestTikTokAPIError:
+    def test_carries_code_message_and_request_id(self):
+        err = TikTokAPIError(
+            code=100001,
+            message="Invalid parameter",
+            request_id="req-abc-123",
+        )
+        assert err.code == 100001
+        assert err.message == "Invalid parameter"
+        assert err.request_id == "req-abc-123"
 
-    def test_200_does_not_raise(self) -> None:
-        raise_for_status(200, None)
+    def test_str_includes_code_and_message(self):
+        err = TikTokAPIError(code=100001, message="Invalid parameter")
+        text = str(err)
+        assert "100001" in text
+        assert "Invalid parameter" in text
 
+    def test_request_id_defaults_to_none(self):
+        err = TikTokAPIError(code=100001, message="Invalid parameter")
+        assert err.request_id is None
+
+
+class TestExceptionSubclasses:
     @pytest.mark.parametrize(
-        "status, body, expected_cls, expected_msg",
+        "cls,base",
         [
-            (400, ERROR_400_RESPONSE, ValidationError, "Invalid request"),
-            (401, ERROR_401_RESPONSE, AuthenticationError, "Invalid or expired token"),
-            (404, ERROR_404_RESPONSE, NotFoundError, "Resource not found"),
-            (429, ERROR_429_RESPONSE, RateLimitError, "Rate limit exceeded"),
-            (500, ERROR_500_RESPONSE, ServerError, "Internal server error"),
+            (AuthenticationError, TikTokAPIError),
+            (PermissionDeniedError, TikTokAPIError),
+            (RateLimitError, TikTokAPIError),
+            (ResourceNotFoundError, TikTokAPIError),
+            (TikTokSystemError, TikTokAPIError),
         ],
     )
-    def test_maps_status_to_exception(
-        self,
-        status: int,
-        body: dict,
-        expected_cls: type[KiotVietError],
-        expected_msg: str,
-    ) -> None:
-        with pytest.raises(expected_cls, match=expected_msg) as exc_info:
-            raise_for_status(status, body)
-        assert exc_info.value.status_code == status
+    def test_subclass_inherits_from_base(self, cls, base):
+        err = cls(code=0, message="test")
+        assert isinstance(err, base)
+        assert isinstance(err, Exception)
 
-    def test_unknown_4xx_raises_base(self) -> None:
-        with pytest.raises(KiotVietError, match="HTTP 418"):
-            raise_for_status(418, None)
 
-    def test_unknown_5xx_raises_server_error(self) -> None:
-        with pytest.raises(ServerError, match="HTTP 502"):
-            raise_for_status(502, None)
+class TestErrorFromResponse:
+    """Factory should map TikTok API error codes to the correct exception type."""
 
-    def test_field_errors_propagated(self) -> None:
-        with pytest.raises(ValidationError) as exc_info:
-            raise_for_status(400, ERROR_400_RESPONSE)
-        assert len(exc_info.value.errors) == 1
-        assert exc_info.value.errors[0]["fieldName"] == "name"
+    @pytest.mark.parametrize(
+        "code,expected_type",
+        [
+            (100002, AuthenticationError),
+            (100003, PermissionDeniedError),
+            (100004, ResourceNotFoundError),
+            (100005, RateLimitError),
+            (100006, TikTokSystemError),
+        ],
+    )
+    def test_maps_known_error_codes(self, code, expected_type):
+        response = {
+            "code": code,
+            "message": "Something went wrong",
+            "request_id": "req-xyz-789",
+        }
+        err = error_from_response(response)
+        assert isinstance(err, expected_type)
+        assert err.code == code
+        assert err.message == "Something went wrong"
+        assert err.request_id == "req-xyz-789"
 
-    def test_error_code_propagated(self) -> None:
-        with pytest.raises(AuthenticationError) as exc_info:
-            raise_for_status(401, ERROR_401_RESPONSE)
-        assert exc_info.value.error_code == "Unauthorized"
+    def test_unknown_code_falls_back_to_base(self):
+        response = {
+            "code": 999999,
+            "message": "Unknown error",
+            "request_id": "req-000",
+        }
+        err = error_from_response(response)
+        assert type(err) is TikTokAPIError
+        assert err.code == 999999
+
+    def test_success_code_returns_none(self):
+        response = {"code": 0, "message": "Success", "request_id": "req-ok"}
+        result = error_from_response(response)
+        assert result is None
+
+    def test_missing_request_id_defaults_to_none(self):
+        response = {"code": 100001, "message": "Bad param"}
+        err = error_from_response(response)
+        assert err.request_id is None
