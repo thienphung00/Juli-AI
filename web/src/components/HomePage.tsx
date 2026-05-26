@@ -21,8 +21,8 @@ export function HomePage() {
           localStorage.setItem("active_shop_id", firstShop.id);
           setShop(firstShop);
         }
-      } catch {
-        // Graceful empty state
+      } catch (error) {
+        console.error("Failed to load shop data", { error });
       } finally {
         if (!cancelled) setLoading(false);
       }

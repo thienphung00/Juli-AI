@@ -14,6 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>

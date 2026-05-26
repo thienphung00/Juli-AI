@@ -1,30 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { useAuthGuard } from "@/lib/use-auth-guard";
 import { LoginForm } from "@/components/LoginForm";
 
 export default function LoginPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
+  const { loading } = useAuthGuard("require-guest");
 
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace("/");
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
       </div>
     );
-  }
-
-  if (isAuthenticated) {
-    return null;
   }
 
   return <LoginForm />;
