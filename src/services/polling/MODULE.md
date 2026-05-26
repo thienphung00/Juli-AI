@@ -15,11 +15,22 @@ All workers are async functions with the same calling convention:
   sync_state) -> None`
 - `sync_inventory(*, resource, rate_limiter, publish_fn, app_id, shop_id,
   sync_state) -> None`
+- `sync_creators(*, resource, rate_limiter, publish_fn, app_id, shop_id,
+  sync_state) -> None` — Affiliate API; re-raises `PermissionDeniedError`
+- `sync_livestreams(*, resource, rate_limiter, publish_fn, app_id, shop_id,
+  sync_state) -> None` — post-stream summaries; re-raises `PermissionDeniedError`
+- `sync_settlements(*, resource, rate_limiter, publish_fn, app_id, shop_id,
+  sync_state) -> None` — Finance API; values pending 7-14 days
+- `backfill_shop(*, creators_resource, livestreams_resource,
+  settlements_resource, rate_limiter, publish_fn, app_id, shop_id)
+  -> dict[str, Any]` — 90-day initial backfill; caller must stagger per shop
+- `BACKFILL_WINDOW_SECONDS` — constant: 90 days in seconds
 
 Common parameters:
 
 - `resource` — an instance of `OrdersResource` / `ProductsResource` /
-  `InventoryResource`
+  `InventoryResource` / `CreatorsResource` / `LivestreamsResource` /
+  `SettlementsResource`
 - `rate_limiter: RateLimiter` — Redis-backed limiter (from
   `integrations/tiktok`)
 - `publish_fn: Callable[[str, str, bytes], Awaitable[None]]` — invoked with
@@ -31,8 +42,8 @@ Common parameters:
 
 ## Dependencies
 - `src.integrations.tiktok.rate_limiter` — `RateLimiter`
-- `src.integrations.tiktok.exceptions` — `TikTokAPIError`
-- Standard library: `json`, `logging`
+- `src.integrations.tiktok.exceptions` — `TikTokAPIError`, `PermissionDeniedError`
+- Standard library: `json`, `logging`, `time`
 
 The resource objects are injected by the caller — the worker module does not
 construct `TikTokClient` itself.
@@ -42,13 +53,18 @@ construct `TikTokClient` itself.
   it logs `rate_limited` and returns without publishing
 - `TikTokAPIError` is caught, logged with `exc_info`, and swallowed — the
   caller decides whether to retry on the next schedule tick
+- **Exception:** `sync_creators` and `sync_livestreams` re-raise
+  `PermissionDeniedError` (scope_missing) so the caller can trigger re-consent
 - `sync_state` is updated **only** when at least one record was published
   successfully (no off-by-one on empty fetches)
 - Workers are idempotent at the transport level — re-running with the same
   `sync_state` re-publishes the same window (deduplication is downstream)
 - Kafka topic names are constants per worker (`tiktok.orders.raw`,
-  `tiktok.products.raw`, `tiktok.inventory.raw`) — not derived from input
+  `tiktok.products.raw`, `tiktok.inventory.raw`, `tiktok.creators.raw`,
+  `tiktok.livestreams.raw`, `tiktok.settlements.raw`) — not derived from input
 - Partition key is always `shop_id` — preserves per-shop ordering downstream
+- `backfill_shop` sets a 90-day lookback window and calls all three new sync
+  functions sequentially; the caller must stagger across shops
 
 ## Owners
 - domain: integrations
