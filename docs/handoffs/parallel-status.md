@@ -30,6 +30,7 @@ Protocol is defined in [`_bootstrap.md`](./_bootstrap.md). Brief recap:
 |-------|----------|--------|-----------|-----------|-------|-------|-------------|
 | #42 | `../juli-ai-issue-42` | `feat/issue-42-ios-auth-daily-loop` | `ios` | `api`, `auth` | pr-open | agent-issue-42 | 2026-05-26T07:20:00Z |
 | #45 | `../juli-ai-issue-45` | `feat/issue-45-web-products-inventory-pages` | `web` | `api` | pr-open | agent-issue-45 | 2026-05-26T08:18:00Z |
+| #37 | `../juli-ai-issue-37` | `feat/issue-37-api-orders-products-inventory` | `api` | `data` | merged | agent-issue-37 | 2026-05-26T08:15:00Z |
 
 ## Recently released (keep one cycle)
 

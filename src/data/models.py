@@ -105,6 +105,10 @@ class Product(Base):
     tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
+    revenue: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal("0"), server_default="0", nullable=False
+    )
+    units_sold: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -128,6 +132,9 @@ class InventoryItem(Base):
     tiktok_sku_id: Mapped[str] = mapped_column(String(100), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     warehouse_id: Mapped[str | None] = mapped_column(String(100))
+    velocity: Mapped[str] = mapped_column(
+        String(20), default="low", server_default="low", nullable=False
+    )
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

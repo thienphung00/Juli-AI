@@ -1,5 +1,9 @@
 from fastapi import APIRouter, FastAPI
 
+from src.api.routers.analytics import router as analytics_router
+from src.api.routers.inventory import router as inventory_router
+from src.api.routers.orders import router as orders_router
+from src.api.routers.products import router as products_router
 from src.api.routers.shops import router as shops_router
 
 
@@ -14,6 +18,10 @@ def create_app() -> FastAPI:
 
     v1_router = APIRouter(prefix="/v1")
     v1_router.include_router(shops_router)
+    v1_router.include_router(orders_router)
+    v1_router.include_router(products_router)
+    v1_router.include_router(inventory_router)
+    v1_router.include_router(analytics_router)
     app.include_router(v1_router)
 
     return app
