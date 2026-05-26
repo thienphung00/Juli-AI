@@ -6,6 +6,10 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { href: "/", label: "Trang chủ", icon: "🏠" },
   { href: "/orders", label: "Đơn hàng", icon: "📦" },
+  { href: "/products", label: "Sản phẩm", icon: "🏷️" },
+  { href: "/inventory", label: "Tồn kho", icon: "📊" },
+  { href: "/livestreams", label: "Live", icon: "📹" },
+  { href: "/creators", label: "KOL", icon: "👤" },
 ];
 
 export function NavBar() {

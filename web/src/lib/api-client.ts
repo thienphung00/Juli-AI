@@ -84,6 +84,71 @@ export interface OrdersResponse {
   page_size: number;
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  revenue: number;
+  units_sold: number;
+  velocity: number;
+  velocity_trend: "accelerating" | "decelerating" | "stable";
+}
+
+export interface ProductsResponse {
+  products: Product[];
+  total: number;
+}
+
+export interface InventoryItem {
+  id: string;
+  product_name: string;
+  sku: string;
+  current_stock: number;
+  daily_velocity: number;
+  days_until_depletion: number;
+  reorder_recommended: boolean;
+  reorder_quantity: number;
+}
+
+export interface InventoryResponse {
+  items: InventoryItem[];
+  total: number;
+}
+
+export interface LivestreamSession {
+  id: string;
+  title: string;
+  started_at: string;
+  ended_at: string;
+  duration_minutes: number;
+  viewers_peak: number;
+  viewers_avg: number;
+  gmv: number;
+  orders_count: number;
+  performance_grade: number;
+}
+
+export interface LivestreamsResponse {
+  sessions: LivestreamSession[];
+  total: number;
+}
+
+export interface Creator {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  total_gmv: number;
+  commission_paid: number;
+  commission_rate: number;
+  efficiency_score: number;
+  sessions_count: number;
+}
+
+export interface CreatorsResponse {
+  creators: Creator[];
+  total: number;
+}
+
 export const api = {
   auth: {
     sendOtp(phone: string): Promise<OtpResponse> {
@@ -129,6 +194,30 @@ export const api = {
     },
     confirmShipment(orderId: string): Promise<{ success: boolean }> {
       return request(`/v1/orders/${orderId}/ship`, { method: "POST" });
+    },
+  },
+
+  products: {
+    list(): Promise<ProductsResponse> {
+      return request("/v1/products");
+    },
+  },
+
+  inventory: {
+    list(): Promise<InventoryResponse> {
+      return request("/v1/inventory");
+    },
+  },
+
+  livestreams: {
+    list(): Promise<LivestreamsResponse> {
+      return request("/v1/livestreams");
+    },
+  },
+
+  creators: {
+    list(): Promise<CreatorsResponse> {
+      return request("/v1/creators");
     },
   },
 };
