@@ -9,15 +9,22 @@ and shop-scoped request context for the Juli platform.
 - `get_active_shop(x_shop_id, user, session) -> Shop` — FastAPI dependency resolving X-Shop-Id header to an owned Shop
 - `GET /v1/shops` — list authenticated user's shops
 - `GET /v1/shops/me` — get the shop identified by X-Shop-Id header
+- `GET /v1/orders` — list orders with status/date/product filters, cursor pagination (#37)
+- `POST /v1/orders/{id}/confirm-shipment` — mark order as shipped (#37)
+- `GET /v1/products` — list products ranked by revenue with units sold (#37)
+- `GET /v1/inventory` — list inventory with velocity indicator per SKU (#37)
+- `GET /v1/analytics/revenue` — daily/weekly/monthly GMV with trend direction (#37)
 
 ## Dependencies
 - `auth` — `get_current_user` for JWT-based authentication
-- `data` — `ShopsRepo`, `Shop`, `User`, `get_session` for persistence
+- `data` — `ShopsRepo`, `OrdersRepo`, `ProductsRepo`, `InventoryRepo`, `Shop`, `User`, `Order`, `get_session` for persistence
 
 ## Invariants
 - All /v1/* endpoints require a valid Supabase JWT (401 on failure)
 - X-Shop-Id header is validated against user ownership (403 on mismatch)
 - No endpoint leaks data across tenants — all queries scoped by authenticated user
+- All list endpoints use cursor-based pagination with `limit` + `after` params
+- Confirm-shipment only transitions from AWAITING_SHIPMENT → SHIPPED (409 otherwise)
 
 ## Owners
 - domain: api

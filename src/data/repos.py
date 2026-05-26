@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Generic, TypeVar
 
 from sqlalchemy import and_, or_, select
@@ -222,10 +222,97 @@ class OrdersRepo(ShopScopedRepo[Order]):
     _model = Order
     _lookup_attr = "tiktok_order_id"
 
+    async def list_filtered(
+        self,
+        shop_id: uuid.UUID,
+        *,
+        status: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        limit: int = 50,
+        after: uuid.UUID | None = None,
+    ) -> list[Order]:
+        """List orders with optional filters and cursor pagination."""
+        stmt = select(self._model).where(self._model.shop_id == shop_id)
+
+        if status is not None:
+            stmt = stmt.where(self._model.status == status)
+        if date_from is not None:
+            stmt = stmt.where(self._model.update_time >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(self._model.update_time <= date_to)
+
+        if after is not None:
+            cursor_stmt = select(self._model).where(self._model.id == after)
+            cursor_result = await self._session.execute(cursor_stmt)
+            cursor = cursor_result.scalar_one_or_none()
+            if cursor is not None:
+                stmt = stmt.where(
+                    or_(
+                        self._model.created_at < cursor.created_at,
+                        and_(
+                            self._model.created_at == cursor.created_at,
+                            self._model.id < cursor.id,
+                        ),
+                    )
+                )
+
+        stmt = stmt.order_by(
+            self._model.created_at.desc(), self._model.id.desc()
+        ).limit(limit)
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def confirm_shipment(
+        self, shop_id: uuid.UUID, order_id: uuid.UUID
+    ) -> Order:
+        """Mark an AWAITING_SHIPMENT order as SHIPPED. Raises NotFound or
+        ValueError for invalid transitions."""
+        order = await self.get(shop_id, order_id)
+        if order.status != "AWAITING_SHIPMENT":
+            raise ValueError(
+                f"Cannot ship order in status '{order.status}'"
+            )
+        order.status = "SHIPPED"
+        order.update_time = datetime.now(timezone.utc)
+        await self._session.flush()
+        return order
+
 
 class ProductsRepo(ShopScopedRepo[Product]):
     _model = Product
     _lookup_attr = "tiktok_product_id"
+
+    async def list_by_revenue(
+        self,
+        shop_id: uuid.UUID,
+        *,
+        limit: int = 50,
+        after: uuid.UUID | None = None,
+    ) -> list[Product]:
+        """List products ordered by revenue descending."""
+        stmt = select(self._model).where(self._model.shop_id == shop_id)
+
+        if after is not None:
+            cursor_stmt = select(self._model).where(self._model.id == after)
+            cursor_result = await self._session.execute(cursor_stmt)
+            cursor = cursor_result.scalar_one_or_none()
+            if cursor is not None:
+                stmt = stmt.where(
+                    or_(
+                        self._model.revenue < cursor.revenue,
+                        and_(
+                            self._model.revenue == cursor.revenue,
+                            self._model.id < cursor.id,
+                        ),
+                    )
+                )
+
+        stmt = stmt.order_by(
+            self._model.revenue.desc(), self._model.id.desc()
+        ).limit(limit)
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
 
 
 class InventoryRepo(ShopScopedRepo[InventoryItem]):
