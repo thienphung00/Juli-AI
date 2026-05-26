@@ -1,15 +1,27 @@
 import uuid
 from datetime import datetime
+from typing import Generic, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.data.exceptions import NotFound
 from src.data.models import (
+    AlertConfig,
+    AlertHistory,
+    Creator,
+    InventoryItem,
+    Livestream,
+    Order,
+    Product,
+    Recommendation,
+    Settlement,
     Shop,
     TikTokCredential,
     User,
 )
+
+T = TypeVar("T")
 
 
 class UsersRepo:
@@ -108,3 +120,164 @@ class TikTokCredentialRepo:
         credential.token_expires_at = token_expires_at
         await self._session.flush()
         return credential
+
+
+# ---------------------------------------------------------------------------
+# Shop-scoped base repository (#28)
+# ---------------------------------------------------------------------------
+
+
+class ShopScopedRepo(Generic[T]):
+    """Base repository with mandatory shop_id scoping and cursor pagination.
+
+    Subclasses set ``_model`` and optionally ``_lookup_attr`` (the column
+    name used to match entities during upsert from external sources).
+    """
+
+    _model: type[T]
+    _lookup_attr: str = ""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(
+        self,
+        shop_id: uuid.UUID,
+        *,
+        limit: int = 50,
+        after: uuid.UUID | None = None,
+    ) -> list[T]:
+        """Return entities for *shop_id* with keyset (cursor) pagination."""
+        stmt = select(self._model).where(self._model.shop_id == shop_id)
+
+        if after is not None:
+            cursor = await self._session.get(self._model, after)
+            if cursor is not None:
+                stmt = stmt.where(
+                    or_(
+                        self._model.created_at < cursor.created_at,
+                        and_(
+                            self._model.created_at == cursor.created_at,
+                            self._model.id < cursor.id,
+                        ),
+                    )
+                )
+
+        stmt = stmt.order_by(
+            self._model.created_at.desc(), self._model.id.desc()
+        ).limit(limit)
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get(self, shop_id: uuid.UUID, entity_id: uuid.UUID) -> T:
+        """Return entity or raise ``NotFound`` if missing / wrong shop."""
+        entity = await self._session.get(self._model, entity_id)
+        if entity is None or entity.shop_id != shop_id:
+            raise NotFound(f"{self._model.__name__} {entity_id} not found")
+        return entity
+
+    async def upsert(self, *, shop_id: uuid.UUID, **kwargs) -> T:
+        """Insert or update by ``_lookup_attr``, rejecting stale data via
+        ``update_time`` when present."""
+        if not self._lookup_attr:
+            raise NotImplementedError(
+                f"{type(self).__name__} does not support upsert"
+            )
+
+        lookup_value = kwargs[self._lookup_attr]
+        lookup_col = getattr(self._model, self._lookup_attr)
+
+        stmt = select(self._model).where(
+            self._model.shop_id == shop_id,
+            lookup_col == lookup_value,
+        )
+        result = await self._session.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if existing is not None:
+            incoming_ut = kwargs.get("update_time")
+            if (
+                incoming_ut is not None
+                and getattr(existing, "update_time", None) is not None
+                and incoming_ut <= existing.update_time
+            ):
+                return existing
+            for key, value in kwargs.items():
+                setattr(existing, key, value)
+            await self._session.flush()
+            return existing
+
+        entity = self._model(id=uuid.uuid4(), shop_id=shop_id, **kwargs)
+        self._session.add(entity)
+        await self._session.flush()
+        return entity
+
+
+# ---------------------------------------------------------------------------
+# Commerce repos (#28)
+# ---------------------------------------------------------------------------
+
+
+class OrdersRepo(ShopScopedRepo[Order]):
+    _model = Order
+    _lookup_attr = "tiktok_order_id"
+
+
+class ProductsRepo(ShopScopedRepo[Product]):
+    _model = Product
+    _lookup_attr = "tiktok_product_id"
+
+
+class InventoryRepo(ShopScopedRepo[InventoryItem]):
+    _model = InventoryItem
+    _lookup_attr = "tiktok_sku_id"
+
+
+class SettlementsRepo(ShopScopedRepo[Settlement]):
+    _model = Settlement
+    _lookup_attr = "tiktok_settlement_id"
+
+
+# ---------------------------------------------------------------------------
+# Analytics repos (#28)
+# ---------------------------------------------------------------------------
+
+
+class CreatorsRepo(ShopScopedRepo[Creator]):
+    _model = Creator
+    _lookup_attr = "tiktok_creator_id"
+
+
+class LivestreamsRepo(ShopScopedRepo[Livestream]):
+    _model = Livestream
+    _lookup_attr = "tiktok_livestream_id"
+
+
+class AlertConfigsRepo(ShopScopedRepo[AlertConfig]):
+    _model = AlertConfig
+
+    async def create(self, *, shop_id: uuid.UUID, **kwargs) -> AlertConfig:
+        entity = AlertConfig(id=uuid.uuid4(), shop_id=shop_id, **kwargs)
+        self._session.add(entity)
+        await self._session.flush()
+        return entity
+
+
+class AlertHistoryRepo(ShopScopedRepo[AlertHistory]):
+    _model = AlertHistory
+
+    async def create(self, *, shop_id: uuid.UUID, **kwargs) -> AlertHistory:
+        entity = AlertHistory(id=uuid.uuid4(), shop_id=shop_id, **kwargs)
+        self._session.add(entity)
+        await self._session.flush()
+        return entity
+
+
+class RecommendationsRepo(ShopScopedRepo[Recommendation]):
+    _model = Recommendation
+
+    async def create(self, *, shop_id: uuid.UUID, **kwargs) -> Recommendation:
+        entity = Recommendation(id=uuid.uuid4(), shop_id=shop_id, **kwargs)
+        self._session.add(entity)
+        await self._session.flush()
+        return entity
