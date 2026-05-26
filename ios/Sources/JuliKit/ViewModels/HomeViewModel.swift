@@ -1,7 +1,10 @@
 import Foundation
+import os
 #if canImport(Observation)
 import Observation
 #endif
+
+private let logger = Logger(subsystem: "com.juli.ai", category: "HomeViewModel")
 
 @Observable
 public final class HomeViewModel: @unchecked Sendable {
@@ -32,7 +35,11 @@ public final class HomeViewModel: @unchecked Sendable {
             let fetched: [Shop] = try await apiClient.get(path: "/v1/shops", shopId: nil)
             shops = fetched
             selectedShop = fetched.first
-            try? cache.cache(key: Self.shopsCacheKey, value: fetched)
+            do {
+                try cache.cache(key: Self.shopsCacheKey, value: fetched)
+            } catch {
+                logger.warning("Failed to cache shops: \(error.localizedDescription, privacy: .public)")
+            }
             isUsingCachedData = false
         } catch {
             if let cached = try? cache.retrieve(key: Self.shopsCacheKey, type: [Shop].self) {

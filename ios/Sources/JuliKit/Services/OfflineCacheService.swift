@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.juli.ai", category: "OfflineCacheService")
 
 public protocol OfflineCacheServiceProtocol: Sendable {
     func cache<T: Encodable>(key: String, value: T) throws
@@ -22,7 +25,11 @@ public final class OfflineCacheService: OfflineCacheServiceProtocol, @unchecked 
         let base = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
         self.cacheDirectory = base.appendingPathComponent(cacheDirectoryName)
 
-        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to create cache directory: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func cache<T: Encodable>(key: String, value: T) throws {

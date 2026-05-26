@@ -1,7 +1,10 @@
 import Foundation
+import os
 #if canImport(Observation)
 import Observation
 #endif
+
+private let logger = Logger(subsystem: "com.juli.ai", category: "AuthViewModel")
 
 public enum AuthState: Equatable, Sendable {
     case idle
@@ -57,13 +60,18 @@ public final class AuthViewModel: @unchecked Sendable {
                 state = .authenticated(session)
             }
         } catch {
+            logger.error("Failed to restore session: \(error.localizedDescription, privacy: .public)")
             state = .idle
         }
     }
 
     @MainActor
     public func logout() async {
-        try? await authService.logout()
+        do {
+            try await authService.logout()
+        } catch {
+            logger.warning("Logout cleanup failed: \(error.localizedDescription, privacy: .public)")
+        }
         state = .idle
         phoneNumber = ""
         otpCode = ""
