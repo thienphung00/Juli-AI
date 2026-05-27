@@ -16,9 +16,13 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.data.models import InventoryItem, Order, Product, Shop, User
-from src.recommendations import get_product_push_suggestions
-from src.recommendations.engine import ProductPushSuggestion
+from src.data.models import Creator, InventoryItem, Livestream, Order, Product, Shop, User
+from src.recommendations import (
+    get_host_product_matching,
+    get_product_push_suggestions,
+    get_stream_optimization,
+)
+from src.recommendations.engine import HostProductMatch, ProductPushSuggestion
 
 _ANALYTICS_JARGON = (
     "velocity",
@@ -100,6 +104,52 @@ def _make_order(
         currency="VND",
         update_time=created_at,
         created_at=created_at,
+    )
+
+
+def _make_creator(
+    shop_id: uuid.UUID,
+    *,
+    tiktok_creator_id: str,
+    name: str,
+) -> Creator:
+    now = datetime.now(timezone.utc)
+    return Creator(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        tiktok_creator_id=tiktok_creator_id,
+        name=name,
+        follower_count=10000,
+        update_time=now,
+        created_at=now,
+    )
+
+
+def _make_livestream(
+    shop_id: uuid.UUID,
+    creator_id: uuid.UUID,
+    *,
+    tiktok_livestream_id: str,
+    viewers: int,
+    orders: int,
+    revenue: Decimal,
+    started_hours_ago: int = 2,
+) -> Livestream:
+    end = datetime.now(timezone.utc) - timedelta(hours=started_hours_ago)
+    start = end - timedelta(hours=1)
+    return Livestream(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        tiktok_livestream_id=tiktok_livestream_id,
+        creator_id=creator_id,
+        title="Live bán hàng",
+        start_time=start,
+        end_time=end,
+        viewer_count=viewers,
+        order_count=orders,
+        revenue=revenue,
+        update_time=end,
+        created_at=end,
     )
 
 
@@ -292,3 +342,142 @@ class TestRuleBasedNoLlmDependency:
 
         suggestions = await get_product_push_suggestions(session, shop_id)
         assert isinstance(suggestions, list)
+
+
+@pytest.mark.asyncio
+async def test_stream_optimization_generates_suggestions(session: AsyncSession):
+    shop_id = await _seed_shop(session)
+    creator = _make_creator(shop_id, tiktok_creator_id="creator_1", name="Linh")
+    live = _make_livestream(
+        shop_id,
+        creator.id,
+        tiktok_livestream_id="live_001",
+        viewers=1200,
+        orders=60,
+        revenue=Decimal("12000000"),
+    )
+    session.add_all([creator, live])
+    await session.flush()
+
+    async def fake_llm(_: str) -> str:
+        return "Tăng nhịp demo 3 phút đầu và ghim combo giá tốt để kéo chốt đơn."
+
+    suggestion = await get_stream_optimization(
+        session,
+        shop_id,
+        "live_001",
+        max_calls_per_day=5,
+        llm_generator=fake_llm,
+    )
+    assert suggestion.message
+    assert suggestion.source == "llm"
+    assert suggestion.score_grade >= 0
+
+
+@pytest.mark.asyncio
+async def test_host_product_matching(session: AsyncSession):
+    shop_id = await _seed_shop(session)
+    creator = _make_creator(shop_id, tiktok_creator_id="creator_2", name="Huy")
+    session.add(creator)
+    session.add(
+        _make_livestream(
+            shop_id,
+            creator.id,
+            tiktok_livestream_id="live_002",
+            viewers=900,
+            orders=45,
+            revenue=Decimal("9000000"),
+        )
+    )
+    session.add(
+        _make_product(
+            shop_id,
+            tiktok_product_id="prod_match",
+            name="Sữa rửa mặt dịu nhẹ",
+            revenue=Decimal("2000000"),
+            units_sold=100,
+        )
+    )
+    session.add(
+        _make_inventory(
+            shop_id,
+            tiktok_product_id="prod_match",
+            sku_id="sku_match",
+            quantity=60,
+        )
+    )
+    await _seed_accelerating_orders(session, shop_id, days=15)
+    await session.flush()
+
+    matches = await get_host_product_matching(session, shop_id, limit=1)
+    assert matches
+    assert all(isinstance(m, HostProductMatch) for m in matches)
+    assert matches[0].creator_name == "Huy"
+    assert matches[0].tiktok_product_id == "prod_match"
+
+
+@pytest.mark.asyncio
+async def test_cost_budget_fallback(session: AsyncSession):
+    shop_id = await _seed_shop(session)
+    creator = _make_creator(shop_id, tiktok_creator_id="creator_3", name="Mai")
+    live = _make_livestream(
+        shop_id,
+        creator.id,
+        tiktok_livestream_id="live_003",
+        viewers=600,
+        orders=20,
+        revenue=Decimal("5000000"),
+    )
+    session.add_all([creator, live])
+    await session.flush()
+
+    suggestion = await get_stream_optimization(
+        session,
+        shop_id,
+        "live_003",
+        max_calls_per_day=0,
+        llm_generator=lambda _: (_ for _ in ()).throw(RuntimeError("should not call")),
+    )
+    assert suggestion.source == "rules"
+    assert "Ưu tiên cải thiện" in suggestion.message
+
+
+@pytest.mark.asyncio
+async def test_cta_in_vietnamese(session: AsyncSession):
+    shop_id = await _seed_shop(session)
+    creator = _make_creator(shop_id, tiktok_creator_id="creator_4", name="Nhi")
+    live = _make_livestream(
+        shop_id,
+        creator.id,
+        tiktok_livestream_id="live_004",
+        viewers=700,
+        orders=30,
+        revenue=Decimal("7000000"),
+    )
+    session.add_all([creator, live])
+    session.add(
+        _make_product(
+            shop_id,
+            tiktok_product_id="prod_vn_cta",
+            name="Kem chống nắng",
+            revenue=Decimal("1300000"),
+            units_sold=90,
+        )
+    )
+    session.add(
+        _make_inventory(
+            shop_id,
+            tiktok_product_id="prod_vn_cta",
+            sku_id="sku_vn_cta",
+            quantity=45,
+        )
+    )
+    await _seed_accelerating_orders(session, shop_id, days=12)
+    await session.flush()
+
+    stream_suggestion = await get_stream_optimization(session, shop_id, "live_004")
+    host_matches = await get_host_product_matching(session, shop_id, limit=1)
+
+    assert "Nhấn để" in stream_suggestion.cta
+    assert host_matches
+    assert "Nhấn để" in host_matches[0].cta
