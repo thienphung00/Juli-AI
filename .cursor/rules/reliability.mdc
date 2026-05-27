@@ -1,5 +1,5 @@
 ---
-description: Reliability standards — test, protect, and secure the system
+description: Reliability standards — test, defend, and recover gracefully
 alwaysApply: true
 ---
 
@@ -34,10 +34,3 @@ except Exception as e:
     logger.error("Unexpected failure in process()", exc_info=True)
     raise ProcessingError("Failed to process data") from e
 ```
-
-## Security
-
-- Sanitize and validate all external inputs (user input, API payloads, query params).
-- Follow least-privilege for permissions, tokens, and API keys.
-- Stay aligned with OWASP Top 10: prevent injection, broken auth, XSS, and data exposure.
-- Never commit secrets — use environment variables or a secrets manager.

@@ -28,17 +28,23 @@ Protocol is defined in [`_bootstrap.md`](./_bootstrap.md). Brief recap:
 
 | Issue | Worktree | Branch | Writer of | Reader of | Phase | Owner | Last update |
 |-------|----------|--------|-----------|-----------|-------|-------|-------------|
-| #42 | `../juli-ai-issue-42` | `feat/issue-42-ios-auth-daily-loop` | `ios` | `api`, `auth` | pr-open | agent-issue-42 | 2026-05-26T07:20:00Z |
-| #45 | `../juli-ai-issue-45` | `feat/issue-45-web-products-inventory-pages` | `web` | `api` | pr-open | agent-issue-45 | 2026-05-26T08:18:00Z |
-| #37 | `../juli-ai-issue-37` | `feat/issue-37-api-orders-products-inventory` | `api` | `data` | merged | agent-issue-37 | 2026-05-26T08:15:00Z |
-| #34 | `../juli-ai-issue-34` | `feat/issue-34-livestream-scoring-anomaly` | `intelligence/scoring` | `data` | merged | agent-issue-34 | 2026-05-26T08:20:00Z |
+| _(none)_ | | | | | | | |
 
 ## Recently released (keep one cycle)
 
 | Issue | Modules released | Released at |
 |-------|------------------|-------------|
-| _none yet_ |  |  |
+| #45 | `web` | 2026-05-26 |
+| #42 | `ios` | 2026-05-26 |
+| #37 | `api` | 2026-05-26 |
+| #34 | `intelligence/scoring` | 2026-05-26 |
 
 ## Archive
 
 <!-- Move rows here after one cycle. Newest at top. -->
+| Issue | Worktree | Branch | Writer of | Reader of | Phase | Owner | Last update |
+|-------|----------|--------|-----------|-----------|-------|-------|-------------|
+| #45 | `../juli-ai-issue-45` | `feat/issue-45-web-products-inventory-pages` | `web` | `api` | merged | agent-issue-45 | 2026-05-26T08:18:00Z |
+| #42 | `../juli-ai-issue-42` | `feat/issue-42-ios-auth-daily-loop` | `ios` | `api`, `auth` | merged | agent-issue-42 | 2026-05-26T07:20:00Z |
+| #37 | `../juli-ai-issue-37` | `feat/issue-37-api-orders-products-inventory` | `api` | `data` | merged | agent-issue-37 | 2026-05-26T08:15:00Z |
+| #34 | `../juli-ai-issue-34` | `feat/issue-34-livestream-scoring-anomaly` | `intelligence/scoring` | `data` | merged | agent-issue-34 | 2026-05-26T08:20:00Z |

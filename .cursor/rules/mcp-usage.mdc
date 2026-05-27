@@ -1,0 +1,34 @@
+---
+description: MCP tool routing — use only the servers relevant to the current task
+alwaysApply: true
+---
+
+# MCP Tool Usage
+
+## Principle: Minimal Tool Surface
+
+Only invoke MCP tools from servers that are directly relevant to the task at hand.
+Loading or calling tools from unrelated servers wastes context, adds latency, and
+risks unintended side effects. Match the task to its server before making any call.
+
+## Server → Task Routing
+
+| Task Domain | MCP Server(s) | When to Use |
+|---|---|---|
+| **Database / Auth / Backend** | `plugin-supabase-supabase` | Schema changes, migrations, SQL queries, RLS policies, auth config, edge functions, logs, project management |
+| **UI Components** | `plugin-shadcn-shadcn` or `user-shadcn` | Adding, searching, auditing, or viewing shadcn/ui components and registries |
+| **Library Docs** | `plugin-context7-plugin-context7` | Looking up API references, usage examples, or migration guides for any framework or library |
+| **Browser Testing** | `cursor-ide-browser` or `user-playwright` | UI verification, browser automation, taking screenshots, interacting with web pages |
+| **Figma Design** | `plugin-figma-figma` | Creating or editing Figma files, components, or design tokens |
+| **Message Queues** | `user-kafka` | Kafka topic management, producing/consuming messages, broker inspection |
+| **Task Queues** | `user-celery` | Celery worker monitoring, task inspection via Flower |
+| **Cache / KV Store** | `user-upstash` | Redis/Upstash key-value operations, cache management |
+
+## Rules
+
+1. **Identify the domain first.** Before calling any MCP tool, determine which domain the task belongs to using the table above.
+2. **One domain at a time.** If a task spans multiple domains (e.g. "add a Supabase table and update the UI"), handle each domain sequentially — finish database work before moving to UI components.
+3. **Never speculatively call MCP tools.** Only call a tool when you have a concrete need and know which parameters to pass. Read the tool's schema before the first call.
+4. **Prefer non-MCP alternatives when sufficient.** Use `Grep`, `Read`, `Shell` for tasks that don't require MCP capabilities — don't use `execute_sql` to inspect a local migration file, don't use `browser_navigate` when `curl` suffices.
+5. **Supabase caution.** `apply_migration` and `execute_sql` modify remote state. Always review generated SQL before executing. Prefer local CLI (`supabase`) for development when a shell is available.
+6. **Browser server selection.** Use `cursor-ide-browser` for quick visual checks within the IDE. Use `user-playwright` for automated test flows, form filling, and multi-step browser scenarios.

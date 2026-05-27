@@ -1,0 +1,85 @@
+---
+description: Security standards — protect data, users, and infrastructure
+alwaysApply: true
+---
+
+# Security
+
+## Input Sanitization & Validation
+
+- Sanitize and validate all external inputs (user input, API payloads, query params, headers).
+- Use allowlists over denylists — reject anything that doesn't match expected patterns.
+- Validate on the server even if the client already validates.
+
+```
+# ❌ BAD — trusts raw input, SQL injection risk
+query = f"SELECT * FROM users WHERE id = {request.args['id']}"
+
+# ✅ GOOD — parameterized query
+query = "SELECT * FROM users WHERE id = :id"
+result = db.execute(text(query), {"id": request.args["id"]})
+```
+
+## Authentication & Authorization
+
+- Authenticate every request to protected endpoints — no security through obscurity.
+- Follow least-privilege for permissions, tokens, and API keys.
+- Use short-lived tokens with refresh rotation; never store long-lived secrets client-side.
+- Enforce authorization checks at the service layer, not just the route layer.
+
+```
+# ❌ BAD — checks role only at the router, skippable via direct service call
+@router.get("/admin/users")
+async def list_users(current_user = Depends(get_current_user)):
+    return await user_service.list_all()
+
+# ✅ GOOD — service enforces authorization
+async def list_all(requesting_user: User) -> list[User]:
+    if requesting_user.role != "admin":
+        raise ForbiddenError("Admin access required")
+    return await repo.list_users()
+```
+
+## Secrets Management
+
+- Never commit secrets — use environment variables or a secrets manager.
+- Rotate secrets on a schedule and immediately on suspected compromise.
+- Use `.env.example` with placeholder values; add `.env` to `.gitignore`.
+
+## OWASP Top 10 Alignment
+
+- **Injection**: Use parameterized queries and ORMs; never interpolate user input into SQL/commands.
+- **Broken Auth**: Enforce strong password policies, rate-limit login attempts, use MFA where possible.
+- **XSS**: Escape output in templates; use Content-Security-Policy headers.
+- **Data Exposure**: Encrypt sensitive data at rest and in transit (TLS everywhere).
+- **Security Misconfiguration**: Disable debug mode in production; remove default credentials.
+
+## Dependency Security
+
+- Audit dependencies regularly (`pip audit`, `npm audit`, Dependabot).
+- Pin dependency versions in lock files to prevent supply-chain attacks.
+- Remove unused dependencies — smaller surface area means fewer vulnerabilities.
+
+## CORS & Rate Limiting
+
+- Configure CORS with explicit allowed origins — never use `*` in production.
+- Rate-limit authentication endpoints and expensive operations to prevent abuse.
+
+```
+# ❌ BAD — wide-open CORS
+app.add_middleware(CORSMiddleware, allow_origins=["*"])
+
+# ✅ GOOD — explicit origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://app.juli.vn"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+```
+
+## PII Handling
+
+- Classify data by sensitivity; apply stricter controls to PII and financial data.
+- Log only what's necessary — mask or redact PII in logs and error messages.
+- Honor data deletion requests; design schemas to support GDPR-style erasure.

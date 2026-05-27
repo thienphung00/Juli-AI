@@ -1,0 +1,92 @@
+---
+description: Performance standards — fast responses, efficient resources
+alwaysApply: true
+---
+
+# Performance
+
+## N+1 Query Prevention
+
+- Eager-load related data in a single query instead of looping with individual fetches.
+- Use `joinedload`, `selectinload`, or equivalent ORM strategies for relationships.
+
+```
+# ❌ BAD — N+1: one query per order
+orders = await session.execute(select(Order))
+for order in orders:
+    items = await session.execute(select(Item).where(Item.order_id == order.id))
+
+# ✅ GOOD — single query with eager load
+orders = await session.execute(
+    select(Order).options(selectinload(Order.items))
+)
+```
+
+## Pagination & Bounded Results
+
+- Never return unbounded result sets — always paginate list endpoints.
+- Use cursor-based pagination for large or frequently-updated datasets.
+- Set sensible default and maximum page sizes.
+
+```
+# ❌ BAD — returns entire table
+@router.get("/products")
+async def list_products():
+    return await repo.get_all_products()
+
+# ✅ GOOD — bounded with cursor pagination
+@router.get("/products")
+async def list_products(cursor: str | None = None, limit: int = Query(default=20, le=100)):
+    return await repo.get_products(cursor=cursor, limit=limit)
+```
+
+## Indexing Strategy
+
+- Add database indexes on columns used in WHERE, JOIN, and ORDER BY clauses.
+- Use composite indexes for multi-column query patterns.
+- Monitor slow query logs and add indexes based on real access patterns, not speculation.
+
+## Caching Patterns
+
+- Cache expensive computations and frequently-read, rarely-changed data.
+- Use appropriate TTLs — stale data is often worse than slow data.
+- Invalidate caches on write; prefer cache-aside pattern for simplicity.
+
+## Connection Pooling
+
+- Use connection pools for database and external service connections.
+- Size pools based on expected concurrency — too small causes queuing, too large wastes resources.
+- Configure idle timeouts and health checks to recycle stale connections.
+
+## Async I/O
+
+- Use `async`/`await` for I/O-bound operations (HTTP calls, database queries, file reads).
+- Never block the event loop with synchronous I/O in an async context.
+- Run CPU-bound work in thread/process pools to avoid starving the event loop.
+
+```
+# ❌ BAD — blocking call inside async handler
+@router.get("/report")
+async def get_report():
+    data = requests.get("https://api.example.com/data")  # blocks event loop
+    return process(data)
+
+# ✅ GOOD — async HTTP client
+@router.get("/report")
+async def get_report():
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://api.example.com/data")
+    return process(response)
+```
+
+## Memory Management
+
+- Stream large datasets instead of loading everything into memory.
+- Use generators and iterators for processing large collections.
+- Profile memory usage for data-heavy endpoints and background jobs.
+
+## Unbounded Collection Prevention
+
+- Set size limits on caches, queues, and in-memory buffers.
+- Use bounded data structures; reject or evict when limits are hit.
+- Monitor collection sizes in production and alert on unexpected growth.

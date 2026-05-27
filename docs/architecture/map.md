@@ -106,7 +106,7 @@ skill verifies that any new module added in a PR is also listed here.
 When `build-feature` introduces a new module:
 
 1. Create `<module-path>/MODULE.md` following the template in
-   [focus/SKILL.md](../../.cursor/skills/standalone/focus/SKILL.md#modulemd-template)
+   [focus/SKILL.md](../../.cursor/skills/focus/SKILL.md#modulemd-template)
 2. Add a row to the "Current Modules" table above
 3. Update the dependency graph if it changes
 4. Commit all three changes together with the feature
