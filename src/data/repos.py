@@ -13,6 +13,7 @@ from src.data.models import (
     InventoryItem,
     Livestream,
     Order,
+    ProcessedEvent,
     Product,
     Recommendation,
     Settlement,
@@ -368,3 +369,20 @@ class RecommendationsRepo(ShopScopedRepo[Recommendation]):
         self._session.add(entity)
         await self._session.flush()
         return entity
+
+
+class ProcessedEventsRepo:
+    """Tracks consumed Kafka event IDs for idempotent ETL (#32)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def claim(self, *, event_id: str, shop_id: uuid.UUID) -> bool:
+        """Insert *event_id* if unseen. Returns False when already processed."""
+        stmt = select(ProcessedEvent).where(ProcessedEvent.event_id == event_id)
+        result = await self._session.execute(stmt)
+        if result.scalar_one_or_none() is not None:
+            return False
+        self._session.add(ProcessedEvent(event_id=event_id, shop_id=shop_id))
+        await self._session.flush()
+        return True
