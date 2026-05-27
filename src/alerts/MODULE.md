@@ -2,7 +2,7 @@
 
 ## Responsibility
 Configurable per-shop alert rules evaluated against incoming metric/anomaly
-events, with cooldown deduplication and pluggable channel delivery (FCM in MVP).
+events, with cooldown deduplication and pluggable channel delivery (FCM + Zalo OA).
 
 ## Public Interface
 
@@ -12,8 +12,9 @@ events, with cooldown deduplication and pluggable channel delivery (FCM in MVP).
 
 ### Delivery
 - `deliver_alert(session, alert, adapter, *, device_token) -> DeliveryResult` — send + persist history
-- `ChannelAdapter` — protocol for new channels (Zalo OA #40, etc.)
+- `ChannelAdapter` — protocol for pluggable channels (FCM, Zalo OA, …)
 - `FcmAdapter` — FCM push with exponential backoff retries
+- `ZaloOaAdapter` — Zalo OA text messages (`device_token` = Zalo user id); retries + backoff
 
 ### Types
 - `AlertEvent`, `Alert`, `RuleConfigInput`, `DeliveryResult`
