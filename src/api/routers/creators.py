@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_active_shop
@@ -78,8 +79,6 @@ async def get_creator_content(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Creator not found",
         )
-
-    from sqlalchemy import select
 
     stmt = (
         select(Livestream)
