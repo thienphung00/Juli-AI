@@ -20,7 +20,7 @@ database session management, and Alembic migrations for the Juli-AI platform.
 ### Models — Analytics (#28)
 - `Creator` — affiliate creators per shop
 - `Livestream` — post-stream summaries, FK to `Creator`
-- `AlertConfig` — per-shop alert rules
+- `AlertConfig` — per-shop alert rules (`threshold_json` for per-type thresholds)
 - `AlertHistory` — fired alert log, FK to `AlertConfig`
 - `Recommendation` — system-generated recommendations
 
@@ -39,7 +39,9 @@ database session management, and Alembic migrations for the Juli-AI platform.
 - `ShopScopedRepo.get(shop_id, entity_id) -> T` — raises `NotFound` on miss or wrong shop
 - `ShopScopedRepo.upsert(*, shop_id, **kwargs) -> T` — idempotent write via `_lookup_attr` + `update_time` dedup
 - Concrete repos: `OrdersRepo`, `ProductsRepo`, `InventoryRepo`, `SettlementsRepo`, `CreatorsRepo`, `LivestreamsRepo`
-- CRUD-only repos: `AlertConfigsRepo`, `AlertHistoryRepo`, `RecommendationsRepo` (add `.create()`)
+- `AlertConfigsRepo` — `.create()`, `.get_by_type()`, `.list_active()`
+- `AlertHistoryRepo` — `.create()`, `.has_recent_for_type()` (cooldown dedup)
+- CRUD-only: `RecommendationsRepo` (add `.create()`)
 
 ### Infrastructure
 - `Base` — declarative base for all models

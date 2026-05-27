@@ -29,6 +29,7 @@ skill verifies that any new module added in a PR is also listed here.
 | [`src/intelligence/scoring`](../../src/intelligence/scoring/MODULE.md) | 2 | Post-stream livestream scoring, anomaly detection, retention curves, Vietnamese comment sentiment | `score_livestream`, `detect_anomalies`, `get_stream_retention`, `analyze_comments`, `LivestreamScore`, `Anomaly`, `RetentionPoint`, `SentimentResult` | domain: intelligence |
 | [`src/intelligence/forecasting`](../../src/intelligence/forecasting/MODULE.md) | 2 | SKU inventory depletion forecasting, low-stock risk ranking, velocity change detection | `get_forecast`, `get_low_stock_risks`, `get_velocity_changes`, `ForecastResult`, `LowStockRisk`, `VelocityChange` | domain: intelligence |
 | [`src/recommendations`](../../src/recommendations/MODULE.md) | 2 | Rule-based product push suggestions (trend + stock + margin), plain Vietnamese CTAs | `get_product_push_suggestions`, `ProductPushSuggestion` | domain: recommendations |
+| [`src/alerts`](../../src/alerts/MODULE.md) | 2 | Per-shop alert rules, cooldown dedup, pluggable channel delivery (FCM MVP) | `evaluate_rules`, `configure_rules`, `deliver_alert`, `FcmAdapter`, `ChannelAdapter`, `Alert`, `AlertEvent` | domain: alerts |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web dashboard: phone-OTP login, homepage, orders management | `/login`, `/`, `/orders` | domain: web |
 
 ## Dependency Graph
@@ -72,6 +73,7 @@ skill verifies that any new module added in a PR is also listed here.
                           └──────┬──────┘◄─── src/intelligence/scoring
                                  │          ◄─── src/intelligence/forecasting
                                  │          ◄─── src/recommendations
+                                 │          ◄─── src/alerts
                                  │
                           ┌──────▼──────┐
                           │   src/api   │◄─── ios (HTTP)
@@ -88,7 +90,7 @@ skill verifies that any new module added in a PR is also listed here.
 | Intelligence | Post-stream scoring, forecasting, anomaly detection, sentiment analysis | `src/intelligence/scoring`, `src/intelligence/forecasting` | Python / SQLAlchemy (read-only) |
 | Data | Supabase Postgres, migrations, query layer | `src/data` | Supabase / SQLAlchemy / asyncpg / Alembic |
 | Interface | Web dashboard + iOS app | `web`, `ios` | Next.js (web) / SwiftUI (iOS) |
-| Alerts (planned) | Multi-channel alert delivery | _none yet_ | Zalo OA / Telegram Bot / FCM |
+| Alerts | Multi-channel alert delivery | `src/alerts` | FCM (MVP); Zalo OA (#40) |
 | Infrastructure (planned) | Deployment configs, CI/CD | _none yet_ | Railway / Vercel / GitHub Actions |
 
 ### Key Architectural Decisions

@@ -263,6 +263,7 @@ class AlertConfig(Base):
     )
     alert_type: Mapped[str] = mapped_column(String(50), nullable=False)
     channel: Mapped[str] = mapped_column(String(50), nullable=False)
+    threshold_json: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -271,7 +272,10 @@ class AlertConfig(Base):
 
     history: Mapped[list["AlertHistory"]] = relationship(back_populates="alert_config")
 
-    __table_args__ = (Index("ix_alert_configs_shop", "shop_id"),)
+    __table_args__ = (
+        Index("ix_alert_configs_shop", "shop_id"),
+        Index("ix_alert_configs_shop_type", "shop_id", "alert_type", unique=True),
+    )
 
 
 class AlertHistory(Base):

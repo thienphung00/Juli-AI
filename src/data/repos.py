@@ -349,6 +349,24 @@ class AlertConfigsRepo(ShopScopedRepo[AlertConfig]):
         await self._session.flush()
         return entity
 
+    async def get_by_type(
+        self, shop_id: uuid.UUID, alert_type: str
+    ) -> AlertConfig | None:
+        stmt = select(AlertConfig).where(
+            AlertConfig.shop_id == shop_id,
+            AlertConfig.alert_type == alert_type,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_active(self, shop_id: uuid.UUID) -> list[AlertConfig]:
+        stmt = select(AlertConfig).where(
+            AlertConfig.shop_id == shop_id,
+            AlertConfig.is_active.is_(True),
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
 
 class AlertHistoryRepo(ShopScopedRepo[AlertHistory]):
     _model = AlertHistory
@@ -358,6 +376,26 @@ class AlertHistoryRepo(ShopScopedRepo[AlertHistory]):
         self._session.add(entity)
         await self._session.flush()
         return entity
+
+    async def has_recent_for_type(
+        self,
+        shop_id: uuid.UUID,
+        alert_type: str,
+        *,
+        since: datetime,
+    ) -> bool:
+        stmt = (
+            select(AlertHistory.id)
+            .join(AlertConfig, AlertHistory.alert_config_id == AlertConfig.id)
+            .where(
+                AlertHistory.shop_id == shop_id,
+                AlertConfig.alert_type == alert_type,
+                AlertHistory.triggered_at >= since,
+            )
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
 
 class RecommendationsRepo(ShopScopedRepo[Recommendation]):
