@@ -1,0 +1,62 @@
+{
+  "id": "review-issue-32",
+  "issue": 32,
+  "timestamp": "2026-05-27T18:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "ETL consumer with event_id dedup, DLQ routing, per-shop ordering, and four acceptance tests.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "src/etl",
+    "src/data"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "src/etl",
+      "interface": "EtlConsumer.ingest",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Processes KafkaRecord messages with dedup, transform, and persist."
+    },
+    {
+      "module": "src/data",
+      "interface": "ProcessedEventsRepo.claim",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Idempotency ledger for Kafka event_id values."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "AC1 — Consumer processes events within 60s latency budget",
+          "test": "tests/unit/test_etl.py::test_etl_processes_event_within_latency_budget"
+        },
+        {
+          "criterion": "AC2 — Duplicate event_id skipped idempotently",
+          "test": "tests/unit/test_etl.py::test_etl_deduplicates_by_event_id"
+        },
+        {
+          "criterion": "AC3 — Malformed events route to DLQ with error context",
+          "test": "tests/unit/test_etl.py::test_etl_routes_malformed_to_dlq"
+        },
+        {
+          "criterion": "AC4 — Per-shop ordering under concurrent load",
+          "test": "tests/unit/test_etl.py::test_etl_maintains_shop_ordering_under_load"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 197,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
