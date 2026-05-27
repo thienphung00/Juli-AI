@@ -1,6 +1,7 @@
 import math
 import uuid
 from dataclasses import dataclass
+from typing import Callable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +53,7 @@ async def detect_anomalies(
     if len(streams) < 2:
         return []
 
-    metrics_extractors: dict[str, callable] = {
+    metrics_extractors: dict[str, Callable[[Livestream], float]] = {
         "revenue": lambda s: float(s.revenue or 0),
         "order_count": lambda s: float(s.order_count or 0),
         "viewer_count": lambda s: float(s.viewer_count or 0),

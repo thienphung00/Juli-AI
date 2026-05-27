@@ -1,0 +1,81 @@
+name: Architecture Audit
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  audit-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit MODULE.md drift
+        id: drift
+        run: python scripts/ci/audit_module_drift.py
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-drift
+          path: artifacts/validation/audit-drift-*.json
+
+  audit-cycles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit import cycles
+        id: cycles
+        run: python scripts/ci/audit_cycles.py
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-cycles
+          path: artifacts/validation/audit-cycles-*.json
+
+  audit-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit module size
+        run: python scripts/ci/audit_module_size.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-size
+          path: artifacts/validation/audit-size-*.json
+
+  summarize:
+    runs-on: ubuntu-latest
+    needs: [audit-drift, audit-cycles, audit-size]
+    if: always()
+    steps:
+      - name: Summarize audit results
+        run: |
+          echo "Drift: ${{ needs.audit-drift.result }}"
+          echo "Cycles: ${{ needs.audit-cycles.result }}"
+          echo "Size: ${{ needs.audit-size.result }}"
+
+  file-issue-on-critical:
+    runs-on: ubuntu-latest
+    needs: [audit-drift, audit-cycles, audit-size]
+    if: failure() && github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open architecture debt issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Architecture audit: critical findings $(date -u +%Y-%m-%d)" \
+            --body "Nightly architecture-audit.yml reported failures. Inspect uploaded audit artifacts under Actions."

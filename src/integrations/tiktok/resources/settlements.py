@@ -6,7 +6,7 @@ update_time is the reconciliation key.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from src.integrations.tiktok.client import TikTokClient
 from src.integrations.tiktok.resources import strip_nones
@@ -40,7 +40,7 @@ class SettlementsResource:
         settle_time_from: Optional[int] = None,
         settle_time_to: Optional[int] = None,
         page_size: int = 50,
-    ) -> list[dict]:
+    ) -> List[Dict[str, Any]]:
         body = strip_nones({
             "settle_time_from": settle_time_from,
             "settle_time_to": settle_time_to,
