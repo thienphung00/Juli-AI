@@ -52,19 +52,19 @@
       "mappings": [
         {
           "criterion": "AC1 — GET /v1/livestreams returns per-session metrics",
-          "testId": "tests/unit/test_api_livestream_creator_settlement.py::test_livestreams_endpoint_session_metrics"
+          "test": "tests/unit/test_api_livestream_creator_settlement.py::test_livestreams_endpoint_session_metrics"
         },
         {
           "criterion": "AC2 — GET /v1/creators returns GMV attribution and commission efficiency",
-          "testId": "tests/unit/test_api_livestream_creator_settlement.py::test_creators_endpoint_attribution"
+          "test": "tests/unit/test_api_livestream_creator_settlement.py::test_creators_endpoint_attribution"
         },
         {
           "criterion": "AC3 — GET /v1/creators/{id}/content returns content-to-conversion funnel",
-          "testId": "tests/unit/test_api_livestream_creator_settlement.py::test_creator_content_funnel"
+          "test": "tests/unit/test_api_livestream_creator_settlement.py::test_creator_content_funnel"
         },
         {
           "criterion": "AC4 — GET /v1/settlements returns net revenue after deductions",
-          "testId": "tests/unit/test_api_livestream_creator_settlement.py::test_settlements_net_revenue"
+          "test": "tests/unit/test_api_livestream_creator_settlement.py::test_settlements_net_revenue"
         }
       ]
     },
