@@ -169,6 +169,15 @@ class Settlement(Base):
     status: Mapped[str] = mapped_column(
         String(20), default="pending", server_default="pending", nullable=False
     )
+    platform_commission: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal("0"), server_default="0", nullable=False
+    )
+    affiliate_commission: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal("0"), server_default="0", nullable=False
+    )
+    shipping_fee: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal("0"), server_default="0", nullable=False
+    )
     settlement_time: Mapped[datetime | None] = mapped_column()
     confirmed_at: Mapped[datetime | None] = mapped_column()
     update_time: Mapped[datetime] = mapped_column(nullable=False)
@@ -203,6 +212,12 @@ class Creator(Base):
     tiktok_creator_id: Mapped[str] = mapped_column(String(100), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     follower_count: Mapped[int | None] = mapped_column()
+    total_gmv: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal("0"), server_default="0", nullable=False
+    )
+    commission_rate: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0"), server_default="0", nullable=False
+    )
     update_time: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -234,6 +249,8 @@ class Livestream(Base):
     start_time: Mapped[datetime | None] = mapped_column()
     end_time: Mapped[datetime | None] = mapped_column()
     viewer_count: Mapped[int | None] = mapped_column()
+    peak_concurrent_viewers: Mapped[int | None] = mapped_column()
+    click_count: Mapped[int | None] = mapped_column()
     order_count: Mapped[int | None] = mapped_column()
     revenue: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     update_time: Mapped[datetime | None] = mapped_column()

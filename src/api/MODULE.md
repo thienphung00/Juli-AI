@@ -14,6 +14,10 @@ and shop-scoped request context for the Juli platform.
 - `GET /v1/products` — list products ranked by revenue with units sold (#37)
 - `GET /v1/inventory` — list inventory with velocity indicator per SKU (#37)
 - `GET /v1/analytics/revenue` — daily/weekly/monthly GMV with trend direction (#37)
+- `GET /v1/livestreams` — paginated list of livestream sessions with duration, viewers, peak concurrent, orders (#38)
+- `GET /v1/creators` — paginated list of creators with GMV attribution and commission efficiency (#38)
+- `GET /v1/creators/{id}/content` — content-to-conversion funnel (views → clicks → orders) for a creator (#38)
+- `GET /v1/settlements` — paginated list of settlements with net revenue after deductions (#38)
 
 ## Dependencies
 - `auth` — `get_current_user` for JWT-based authentication
