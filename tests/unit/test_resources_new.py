@@ -152,7 +152,7 @@ class TestLivestreamsResourceGetSessionMetrics:
         ]
         livestreams = LivestreamsResource(mock_client)
 
-        result = livestreams.list_all(creator_id="c1")
+        livestreams.list_all(creator_id="c1")
 
         mock_client.get_all_pages.assert_called_once()
         call_args = mock_client.get_all_pages.call_args
@@ -222,7 +222,7 @@ class TestSettlementsResourceFilterByDateRange:
         ]
         settlements = SettlementsResource(mock_client)
 
-        result = settlements.list_all(settle_time_from=1700000000, settle_time_to=1700100000)
+        settlements.list_all(settle_time_from=1700000000, settle_time_to=1700100000)
 
         mock_client.get_all_pages.assert_called_once()
         call_args = mock_client.get_all_pages.call_args

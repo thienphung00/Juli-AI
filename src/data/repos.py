@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,7 +134,7 @@ class ShopScopedRepo(Generic[T]):
     name used to match entities during upsert from external sources).
     """
 
-    _model: type[T]
+    _model: Any
     _lookup_attr: str = ""
 
     def __init__(self, session: AsyncSession) -> None:

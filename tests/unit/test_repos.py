@@ -4,7 +4,6 @@ UsersRepo.get(user_id) returns user or raises NotFound."""
 import uuid
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.data import User, Shop, UsersRepo, ShopsRepo, NotFound

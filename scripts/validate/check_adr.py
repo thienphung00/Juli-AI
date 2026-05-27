@@ -10,7 +10,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
     ADR_FILE_RE,
-    DECISIONS_DIR,
     REPO_ROOT,
     architectural_change_detected,
     git_changed_files,

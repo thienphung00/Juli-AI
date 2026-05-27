@@ -17,7 +17,6 @@ from common import (  # noqa: E402
 )
 
 REQUIRED_SECTION_RE = re.compile(r"^##\s+Required\b", re.MULTILINE | re.IGNORECASE)
-UNCHECKED_RE = re.compile(r"^\s*-\s+\[\s\]\s+", re.MULTILINE)
 
 
 def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
@@ -34,7 +33,6 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
     if next_section:
         required_body = required_body[: next_section.start()]
 
-    unchecked = UNCHECKED_RE.findall(required_body)
     unchecked_items = [
         line.strip()
         for line in required_body.splitlines()

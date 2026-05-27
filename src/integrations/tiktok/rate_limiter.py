@@ -7,12 +7,13 @@ window expiry.  Uses atomic INCR to avoid TOCTOU races under concurrent access.
 from __future__ import annotations
 
 import redis
+from typing import Any
 
 
 class RateLimiter:
     """Token-bucket rate limiter backed by Redis."""
 
-    def __init__(self, redis_client: redis.Redis) -> None:
+    def __init__(self, redis_client: Any) -> None:
         self._redis = redis_client
 
     def acquire(
@@ -36,7 +37,8 @@ class RateLimiter:
 
     def time_until_reset(self, app_id: str, shop_id: str, endpoint: str) -> int:
         """Seconds until the rate-limit window resets.  Returns 0 if no active window."""
-        ttl = self._redis.ttl(self._key(app_id, shop_id, endpoint))
+        ttl_raw = self._redis.ttl(self._key(app_id, shop_id, endpoint))
+        ttl = int(ttl_raw) if ttl_raw is not None else 0
         return max(ttl, 0)
 
     @staticmethod

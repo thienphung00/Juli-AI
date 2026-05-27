@@ -205,7 +205,7 @@ async def get_stream_optimization(
 
     score = await score_livestream(session, livestream.id)
     if score.breakdown:
-        weakest_metric = min(score.breakdown, key=score.breakdown.get)
+        weakest_metric = min(score.breakdown, key=lambda k: score.breakdown[k])
     else:
         weakest_metric = "conversion_rate"
 

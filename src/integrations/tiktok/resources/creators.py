@@ -5,7 +5,7 @@ Requires separate per-seller Affiliate scope approval.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from src.integrations.tiktok.client import TikTokClient
 from src.integrations.tiktok.resources import strip_nones
@@ -29,7 +29,7 @@ class CreatorsResource:
         })
         return self._client.post("/api/affiliate/creators/search", body=body)
 
-    def list_all(self, *, page_size: int = 50) -> list[dict]:
+    def list_all(self, *, page_size: int = 50) -> List[Dict[str, Any]]:
         return self._client.get_all_pages(
             path="/api/affiliate/creators/search",
             body={},
