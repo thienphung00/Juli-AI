@@ -14,7 +14,7 @@
 | New API endpoints        | **Yes**  | Dashboard REST API (`/api/orders`, `/api/analytics/*`, `/api/sellers/*`, `/api/inventory/*`) |
 | Database changes         | **Yes**  | Full PostgreSQL OLTP schema (sellers, shops, orders, products, inventory, settlements, returns); ClickHouse OLAP tables (Phase 2) |
 | Frontend components      | **Yes**  | Next.js dashboard: revenue, orders, products, inventory, fulfillment views |
-| Background jobs          | **Yes**  | Celery/BullMQ polling workers, token refresh cron, reconciliation jobs, Kafka consumers (ETL) |
+| Background jobs          | **Yes**  | Celery polling (`src/services/polling`), token refresh, reconciliation, Kafka consumers |
 | Integration connector    | **Yes**  | TikTok Shop connector (auth, API client, webhook receiver, HMAC signer) |
 
 ### Triggered Standards
@@ -25,7 +25,6 @@
 | **Security**     | Financial data, encrypted tokens, webhook signature verification, multi-tenant isolation |
 | **Observability**| New service endpoints, distributed pipeline (webhooks → Kafka → DB) |
 | **Performance**  | Redis caching, rate-limit counters, dashboard query optimization |
-| **build-ai**     | AI/ML detected for Phase 2+ (load selectively, not in MVP sessions) |
 
 ---
 
@@ -56,21 +55,22 @@ These are the modules to create or modify for the TikTok integration:
 | API Client | `src/integrations/tiktok/client.py` | HMAC signing, request construction, rate-limit-aware HTTP, error handling |
 | Resources | `src/integrations/tiktok/resources/` | Orders, products, inventory, settlements, returns |
 | Webhook Receiver | `src/services/webhook/` | FastAPI endpoint, signature verification, Kafka publish, ACK |
-| Polling Workers | `src/services/workers/` | Celery/BullMQ tasks: order sync, product sync, inventory sync, reconciliation |
-| ETL Pipeline | `src/services/etl/` | Kafka consumers: transform, enrich, dedup, write to PostgreSQL |
+| Polling Workers | `src/services/polling/` | `sync_orders`, `sync_products`, `sync_inventory` |
+| Kafka consumers | _(planned)_ | Transform, enrich, dedup, write via `src/data` repos |
 | Rate Limiter | `src/integrations/tiktok/rate_limiter.py` | Redis token bucket per (app × shop × endpoint) |
 | Exceptions | `src/integrations/tiktok/exceptions.py` | TikTok-specific error hierarchy (auth, rate-limit, API errors) |
 | DB Migrations | `migrations/` | Alembic migrations for all OLTP tables |
 | API Layer | `src/api/` | Next.js API routes or FastAPI endpoints serving the dashboard |
-| Frontend | `frontend/` | Next.js + Tailwind + shadcn/ui dashboard components |
+| Web dashboard | `web/` | Next.js + shadcn/ui (`/login`, `/`, `/orders`) |
+| iOS app | `ios/` | SwiftUI shell, Supabase OTP, API client |
 
 ### Applicable Skills
 
 | Skill | Path | When to Load |
 |-------|------|-------------|
-| `review` | `.cursor/skills/review/SKILL.md` | Before every PR — run api-endpoint and pre-merge checklists |
-| `review/checklists/api-endpoint` | `.cursor/skills/review/checklists/api-endpoint.md` | When building REST API routes |
-| `ship` | `.cursor/skills/ship/SKILL.md` | When setting up CI/CD, Docker, deployment pipeline |
+| `review` | `.cursor/skills/standalone/review/SKILL.md` | Before every PR — run api-endpoint and pre-merge checklists |
+| `review/checklists/api-endpoint` | `.cursor/skills/standalone/review/checklists/api-endpoint.md` | When building REST API routes |
+| `ship` | `.cursor/skills/standalone/ship/SKILL.md` | When setting up CI/CD, Docker, deployment pipeline |
 
 ---
 
@@ -85,9 +85,8 @@ Load on demand when working on the specific subsystem. Do **not** load preemptiv
 | Risks | `docs/tiktok_api/risks.md` | Assessing technical/policy risk during review, or debugging production incidents |
 | Rate Limits retry matrix | `docs/tiktok_api/rate-limits.md` (§ Retry Decision Matrix) | Debugging 429/5xx error handling logic |
 | Region-specific settlement | `docs/tiktok_api/multi-tenant.md` (§ Regional Variations) | Implementing finance features for specific markets |
-| `build-ai` skill | `.cursor/skills/build-ai/SKILL.md` | Phase 2+ AI/ML implementation only |
-| `review/anti-patterns` | `.cursor/skills/review/anti-patterns.md` | When reviewing reliability patterns (DLQ, circuit breaker, idempotency) |
-| `review/ai-integration` | `.cursor/skills/review/checklists/ai-integration.md` | Phase 2+ AI feature review only |
+| `review/anti-patterns` | `.cursor/skills/standalone/review/anti-patterns.md` | When reviewing reliability patterns (DLQ, circuit breaker, idempotency) |
+| `review/ai-integration` | `.cursor/skills/standalone/review/checklists/ai-integration.md` | Phase 2+ AI feature review only |
 
 ---
 
@@ -147,7 +146,7 @@ These waste context budget and add noise. Explicitly exclude from all MVP sessio
 
 | Priority | Content | Budget | Allocation |
 |----------|---------|--------|------------|
-| 1 (Critical) | Current source files + immediate dependencies | 30% | Auth service, API client, webhook receiver, workers, ETL, migrations |
+| 1 (Critical) | Current source files + immediate dependencies | 30% | Auth, API client, webhook, polling, data repos, migrations |
 | 2 (High) | Feature architecture + API contracts | 15% | `architecture.md`, `endpoints.md`, `authentication.md` |
 | 3 (Medium) | Standards + patterns | 10% | `multi-tenant.md`, `webhooks.md`, `rate-limits.md`, `tech-stack.md`, `mvp-roadmap.md` |
 | 4 (Low) | Examples + anti-patterns (on demand) | 5% | `dashboard-features.md`, `review/anti-patterns.md` |
@@ -208,22 +207,29 @@ Skills: review/api-endpoint
 ### Session: Polling & Sync Workers (Weeks 3-5)
 ```
 Load: endpoints.md, rate-limits.md, architecture.md (§ Polling Workers, § Reconciliation)
-Modules: src/services/workers/, src/integrations/tiktok/resources/
+Modules: src/services/polling/, src/integrations/tiktok/resources/
 Skills: none extra
 ```
 
-### Session: ETL Pipeline (Weeks 3-5)
+### Session: Kafka Consumers (Weeks 3-5)
 ```
-Load: architecture.md (§ ETL Pipeline), tech-stack.md (§ schema)
-Modules: src/services/etl/
+Load: architecture.md (§ event pipeline), tech-stack.md (§ schema)
+Modules: src/data/ (repos), Kafka consumer package when added
 Skills: none extra
 ```
 
-### Session: Dashboard Frontend (Weeks 5-10)
+### Session: Web Dashboard (Weeks 5-10)
 ```
-Load: dashboard-features.md (NOW required), tech-stack.md (§ Frontend)
-Modules: frontend/
-Skip: authentication.md, webhooks.md, rate-limits.md (not relevant)
+Load: dashboard-features.md (NOW required), web/MODULE.md
+Modules: web/
+Skip: TikTok signing internals unless debugging API client from UI
+Skills: shadcn MCP if adding components
+```
+
+### Session: iOS (parallel track)
+```
+Load: ios/MODULE.md, docs/architecture/map.md (Interface layer)
+Modules: ios/
 Skills: none extra
 ```
 

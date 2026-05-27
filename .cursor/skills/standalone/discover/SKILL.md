@@ -39,9 +39,9 @@ Use the AskQuestion tool for structured gathering when available.
 - Fallback on AI failure? Confidence thresholds?
 - Cost budget per request/day?
 
-**Integrations** (TikTok Shop, GrabFood, etc.):
+**Integrations** (TikTok Shop Partner API):
 - Webhook or polling? Rate limits?
-- Data mapping to unified schema?
+- Mapping to `src/data` models and shop scoping?
 - Retry/backoff strategy? Idempotency keys?
 
 **Data features:**
@@ -52,15 +52,16 @@ Use the AskQuestion tool for structured gathering when available.
 ## Step 2: Identify Scope
 
 Map the feature to:
-- Affected architectural layers (see [architecture-context.md](architecture-context.md))
-- Existing services that need modification vs. new services required
+- Affected layers in [`docs/architecture/map.md`](../../../docs/architecture/map.md) and [architecture-context.md](architecture-context.md)
+- Allowed data sources in [`docs/architecture/data-sources.md`](../../../docs/architecture/data-sources.md)
+- Existing modules to modify vs. new modules (update `map.md` when adding modules)
 - Database schema changes and migration strategy
 - API surface changes (breaking vs. additive)
 - Cross-cutting concerns (auth, caching, monitoring)
 
 ## Step 3: Generate Specification Docs
 
-Produce docs in `/context/features/<feature-name>/`:
+Produce docs in `docs/features/<feature-name>/`:
 
 | Document | Purpose | Required? |
 |----------|---------|-----------|
@@ -132,7 +133,7 @@ Before handing off to implementation, every item must be checked:
 
 ## Output
 
-The generated `/context/features/<feature-name>/` directory becomes shared context for all downstream agents (implementation, validation, delivery). The `focus` skill uses these docs to determine what context to load.
+The generated `docs/features/<feature-name>/` directory becomes shared context for all downstream agents (implementation, validation, delivery). The `focus` skill uses these docs plus `docs/architecture/map.md` to determine what context to load.
 
 ## Integration with Other Skills
 
@@ -140,7 +141,6 @@ The generated `/context/features/<feature-name>/` directory becomes shared conte
 |-----------------|---------------------------|
 | `focus` | Feature docs to build context loading plan |
 | `review` | Edge cases and API contracts for validation |
-| `build-ai` | AI eval plan and model tier decisions |
 | `ship` | Architecture docs for deployment planning |
 
 ## Additional Resources

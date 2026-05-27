@@ -1,6 +1,6 @@
 ---
 name: to-issues
-description: Breaks a plan, spec, or PRD into independently-grabbable GitHub issues using tracer-bullet vertical slices. Use when the user wants implementation tickets created from a plan, wants a spec decomposed into reviewable issues, or wants parser or hand-history fixes split into one-test-per-behavior slices with TDD-style acceptance criteria.
+description: Breaks a plan, spec, or PRD into independently-grabbable GitHub issues using tracer-bullet vertical slices. Use when the user wants implementation tickets created from a plan, wants a spec decomposed into reviewable issues, or wants integration bugs split into one-test-per-behavior slices with TDD-style acceptance criteria.
 ---
 
 ## To Issues
@@ -33,15 +33,15 @@ Each slice must be marked:
 
 Prefer **AFK** over **HITL** where possible.
 
-**Parser / hand-history work (TDD-aligned slices)**
+**Integration / API behavior (TDD-aligned slices)**
 
-When the backlog is “hands that don’t parse” or unknown bet/stack line formats, shape slices so each issue is **one behavior**, not a mega-fix:
+When the backlog is webhook handling, TikTok API edge cases, or shop-scoped data bugs, shape slices so each issue is **one behavior**, not a mega-fix:
 
-- **Finding issues**: turn each failure mode into **one failing test** with a **minimal fixture** (raw hand-history text) and a **single expectation**: either a successful parse (assert on the smallest JSON or struct that proves the line is understood) or a **documented error** (assert on exception type/message or on an explicit `parse_error` field—pick what the codebase already uses and stay consistent).
-- **Naming**: test and issue titles should say *what* broke (e.g. scientific notation chip counts, `1.2K` suffix, odd spaces, all-in for less than remaining stack) so CI output points at the format, not “parser broke”.
-- **Implementing**: the vertical slice is **RED** (test committed or on branch, fails) → **GREEN** (smallest parser change that makes only that test pass, without widening behavior blindly) → **REFACTOR** once green if duplication appears. Avoid a large parser rewrite until there is a **regression net** of these fixtures; add tests in the same order you discover failures.
+- **Finding issues**: turn each failure mode into **one failing test** with a **minimal fixture** (sample webhook payload, mocked TikTok JSON, or DB seed) and a **single expectation** on the public interface (`create_app`, repo method, or API response).
+- **Naming**: test and issue titles should name the scenario (e.g. duplicate `order_status_change`, expired refresh token, empty inventory page) so CI output is actionable.
+- **Implementing**: **RED** → **GREEN** → **REFACTOR** per slice. Match existing test layout: `tests/unit/` for Python, `web/src/__tests__/` and `ios/Tests/` for clients.
 
-Repository pattern: inline hand strings plus `_parse_first_hand`-style helpers in `tests/test_parser_filters.py` (and siblings) next to `parser.gg` / `parse_hand_block`—extend that style rather than introducing a second convention.
+Repository pattern: follow `tests/unit/test_scoring.py` and webhook/API tests — one behavior per test class or `describe` block; do not introduce a second fixture convention.
 
 #### 4) Quiz the user
 
@@ -82,7 +82,7 @@ Use this body template.
 - Criterion 1
 - Criterion 2
 - Criterion 3
-<!-- Parser slice example: one new pytest with minimal raw hand fixture; expectation is either parsed field(s) or explicit error contract; no unrelated parser churn. -->
+<!-- Integration slice example: one new pytest with minimal webhook/API fixture; single public-behavior assertion; no unrelated module churn. -->
 
 ## Blocked by
 <!-- "None - can start immediately" OR "Blocked by #123" -->

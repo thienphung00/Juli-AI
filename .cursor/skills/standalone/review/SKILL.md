@@ -127,6 +127,5 @@ The rules enforce standards passively during code generation. Guardrails activel
 | Skill | How Guardrails Interacts |
 |-------|------------------------|
 | `discover` | Uses edge-cases.md and API contracts as validation source |
-| `build-ai` | Defers AI-specific checks to build-ai; focuses on general reliability |
 | `ship` | Pre-merge checklist gates the delivery pipeline |
 | `focus` | Focus loads review selectively based on detected code patterns |

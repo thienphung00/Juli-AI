@@ -1,33 +1,50 @@
 # Architecture Context Reference
 
-Quick reference for mapping features to the AI POS system's architectural layers.
+Quick reference for mapping features to Juli-AI layers. The canonical module
+list and dependency graph live in [`docs/architecture/map.md`](../../../../docs/architecture/map.md).
+External data constraints live in
+[`docs/architecture/data-sources.md`](../../../../docs/architecture/data-sources.md).
 
 ## Layer Map
 
-| Layer | Components | When to Involve |
-|-------|-----------|-----------------|
-| 1. API & Connector | FastAPI, Celery, Redis, SQLAlchemy | External POS integrations, webhooks, data sync |
-| 2. AI Gateway | LiteLLM | Any AI model call, cost tracking, rate limiting |
-| 3. Hybrid AI Model | Gemini Flash, Claude, GPT-4o, Ollama | Model selection, prompt design, embeddings |
-| 4. Interface | Next.js, shadcn/ui, Supabase, Recharts | User-facing features, dashboards, workflows |
-| 5. Caching | Redis, LiteLLM Semantic Cache, PostgreSQL | Performance, repeated queries, analytics |
-| 6. Data Architecture | PostgreSQL, Redis, Cloudflare R2 | Schema changes, storage, exports |
-| 7. Load Balancing & Hosting | Cloudflare, Nginx, Railway/Hetzner | Scaling, deployment topology |
-| 8. Automation & Monitoring | Sentry, Grafana, Langfuse | Observability, error tracking, AI tracing |
+| Layer | Path(s) | When to Involve |
+|-------|---------|-----------------|
+| **Integrations** | `src/integrations/tiktok/` | TikTok API client, OAuth, signing, rate limits, resource clients |
+| **Services** | `src/services/webhook/`, `src/services/polling/` | Webhook ingest, background sync workers |
+| **Intelligence** | `src/intelligence/scoring/` | Post-stream scoring, anomalies, sentiment (read-only vs `src/data`) |
+| **Data** | `src/data/` | Models, repos, Alembic migrations, shop scoping |
+| **Auth** | `src/auth/` | Supabase JWT, TikTok OAuth lifecycle |
+| **API** | `src/api/` | Versioned FastAPI routes, shop-scoped handlers |
+| **Interface** | `web/`, `ios/` | Dashboard and native app (Vietnamese UX, phone OTP) |
+| **Alerts** (planned) | _TBD_ | Zalo OA, Telegram, FCM delivery |
+| **Infrastructure** (planned) | _TBD_ | Railway, Vercel, GitHub Actions |
 
-## Cross-Layer Relationships
+## Cross-Layer Flows
 
-- Interface → AI Gateway → Model Layer (AI request flow)
-- API Connectors → Data Architecture (normalized data storage)
-- AI Gateway → Caching (semantic cache lookup)
-- Monitoring → Gateway + Models (Langfuse traces)
-- Data Architecture → Monitoring (R2 stores logs)
+```
+TikTok API / webhooks
+  → integrations/tiktok + services/webhook|polling
+  → Kafka (raw events)
+  → src/data (Supabase)
+  → src/api ← web / ios
+  → src/intelligence/scoring (read-only analytics)
+```
 
-## Technology Stack Quick Reference
+## Technology Stack
 
-**Backend**: Python, FastAPI, Celery, SQLAlchemy
-**Frontend**: Next.js, TypeScript, shadcn/ui, Recharts
-**Database**: PostgreSQL (primary), Redis (cache/queue)
-**AI**: LiteLLM gateway, Gemini Flash (default), Claude/GPT-4o (complex), Ollama (local)
-**Infra**: Cloudflare, Nginx, Railway (MVP) → Hetzner (scale)
-**Monitoring**: Sentry, Grafana + Loki + Prometheus, Langfuse
+| Concern | Choice |
+|---------|--------|
+| Backend | Python 3, FastAPI, Celery, httpx |
+| Database | Supabase Postgres, SQLAlchemy async, Alembic |
+| Events | Kafka |
+| Cache / queue | Redis (Celery broker, rate limits) |
+| Auth | Supabase phone OTP + TikTok OAuth |
+| Web | Next.js (`web/`) |
+| iOS | SwiftUI (`ios/`) |
+| AI (post-MVP) | OpenAI / rules engine per execution plan — not LiteLLM gateway in repo today |
+
+## Discovery Outputs
+
+Feature specs produced by `discover` live under `docs/features/<feature-name>/`
+(see `discover/SKILL.md`). Domain-wide TikTok integration docs remain under
+`docs/tiktok_api/`.

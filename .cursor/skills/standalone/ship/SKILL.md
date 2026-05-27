@@ -86,8 +86,7 @@ chore(deps): upgrade litellm to 1.40.0
 [How to revert if something goes wrong]
 
 ## Checklist
-- [ ] review passed
-- [ ] build-ai review passed (if AI code)
+- [ ] review passed (include ai-integration checklist if AI code)
 - [ ] No secrets committed
 - [ ] Migrations are reversible
 ```
@@ -213,7 +212,6 @@ Detect (Sentry/Grafana alert)
 |-------|-------------|
 | `discover` | Architecture docs inform deployment topology and rollback plans |
 | `review` | Pre-merge checklist is the gate before ship takes over |
-| `build-ai` | AI evals run in CI; quality metrics are rollback triggers |
 | `focus` | Focus loads ship when deployment/CI work is detected |
 
 ## Additional Resources

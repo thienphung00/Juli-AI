@@ -47,15 +47,15 @@ except Exception as e:
 
 ```python
 # BAD — duplicate webhook creates duplicate order
-@app.post("/webhooks/grabfood")
+@app.post("/webhooks/tiktok")
 async def handle_order(payload: dict):
     order = create_order(payload)
-    return {"id": order.id}
+    return {"code": 0}
 
 # GOOD
-@app.post("/webhooks/grabfood")
+@app.post("/webhooks/tiktok")
 async def handle_order(payload: dict):
-    idempotency_key = payload["order_id"]
+    idempotency_key = f"{payload['type']}:{payload['shop_id']}:{payload['data']['order_id']}"
     existing = await get_order_by_external_id(idempotency_key)
     if existing:
         return {"id": existing.id}

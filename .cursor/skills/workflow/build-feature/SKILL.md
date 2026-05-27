@@ -48,7 +48,7 @@ Orchestrates the full feature lifecycle by invoking skills in a fixed sequence. 
 **Skill:** `discover`
 
 **What it does:**
-- Explores the codebase and relevant docs (`docs/architecture/map.md`, MODULE.md files, existing API contracts)
+- Explores the codebase and relevant docs (`docs/architecture/map.md`, `docs/architecture/data-sources.md`, MODULE.md files, `docs/tiktok_api/` when integrating TikTok)
 - Asks the user clarifying questions (business goals, constraints, dependencies, failure modes)
 - Identifies affected architectural layers and cross-cutting concerns
 - Produces understanding of scope, dependencies, and edge cases
@@ -62,7 +62,8 @@ Orchestrates the full feature lifecycle by invoking skills in a fixed sequence. 
 [One paragraph: what this feature does and why]
 
 ### Scope
-- Affected layers: [list from architecture-context.md]
+- Affected layers: [list from docs/architecture/map.md / architecture-context.md]
+- Data sources: [rows from docs/architecture/data-sources.md]
 - Services to modify: [existing modules]
 - New services needed: [if any]
 - Database changes: [yes/no + brief]
@@ -362,5 +363,5 @@ When all issues in the queue are shipped:
 |-----------|-------------|
 | Fixing a bug | `workflow/fix-bug` |
 | Single skill in isolation (just need a PRD, just need issues) | Invoke that skill directly |
-| AI-specific implementation details | `build-ai` alongside `tdd` in the implementation loop |
+| AI-specific implementation details | `review` ai-integration checklist alongside `tdd` in the implementation loop |
 | Hotfix / SEV1 incident | `ship` incident response directly |

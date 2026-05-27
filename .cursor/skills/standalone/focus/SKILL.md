@@ -31,17 +31,28 @@ Detect what the implementation involves:
 | Detection | Context to Load |
 |-----------|----------------|
 | External API usage | → `review` (reliability section) |
-| AI model integration | → `build-ai` standards |
+| AI model integration | → `review` (ai-integration checklist), reliability, observability |
 | Financial/sensitive data | → `review` (security section) |
 | New API endpoint | → `review` (api-endpoint checklist) |
 | Database changes | → Schema docs, migration patterns |
 | Frontend component | → Component library docs, design system |
 | Background job | → Celery patterns, retry/idempotency standards |
-| Integration connector | → Connector architecture, unified schema |
+| TikTok integration / webhook | → `docs/tiktok_api/`, `data-sources.md`, affected MODULE.md files |
 
-### Step 2: Load Feature Context
+### Step 2: Load Architecture Baseline
 
-From `/context/features/<feature-name>/`:
+Always consult before loading feature docs:
+
+```
+ALWAYS load:
+  - docs/architecture/map.md (module list, tiers, dependency graph)
+  - docs/architecture/data-sources.md (allowed/forbidden external data)
+  - MODULE.md for each affected module under src/, web/, or ios/
+```
+
+### Step 3: Load Feature Context
+
+From `docs/features/<feature-name>/` (output of `discover`):
 
 ```
 ALWAYS load:
@@ -53,52 +64,59 @@ LOAD IF EXISTS:
   - db-changes.md (if touching persistence)
   - ai-eval-plan.md (if AI feature)
 
+DOMAIN DOCS (TikTok integration work):
+  - docs/tiktok_api/*.md as needed (auth, webhooks, endpoints, rate-limits)
+
 DO NOT load:
   - PRD.md (business context, not needed for implementation)
 ```
 
-### Step 3: Load Architectural Context
+### Step 4: Load Layer Context
 
-Based on affected layers (from discover docs):
+Based on affected layers from [`docs/architecture/map.md`](../../../docs/architecture/map.md):
 
 ```
-Layer 1 (Connectors):
-  - Load: connector patterns, unified schema, webhook handlers
-  - Skip: frontend, AI core
+Integrations (src/integrations/tiktok):
+  - Load: authentication.md, rate-limits.md, endpoints.md (docs/tiktok_api/)
+  - Skip: web/ios UI unless building OAuth callback UX
 
-Layer 2 (AI Gateway):
-  - Load: build-ai skill, LiteLLM patterns, model routing
-  - Skip: connectors, infrastructure
+Services (src/services/webhook, src/services/polling):
+  - Load: webhooks.md, reliability/idempotency patterns
+  - Skip: dashboard components
 
-Layer 3 (AI Models):
-  - Load: build-ai skill, prompt registry, eval framework
-  - Skip: connectors, deployment
+Data (src/data):
+  - Load: db-changes.md, Supabase/RLS patterns, performance rules
+  - Skip: TikTok signing details unless migration touches credentials
 
-Layer 4 (Interface):
-  - Load: component library, Supabase patterns, state management
-  - Skip: backend internals, AI models
+Auth (src/auth):
+  - Load: authentication.md, security rules
+  - Skip: product analytics
 
-Layer 5/6 (Data):
-  - Load: schema docs, query patterns, caching strategy
-  - Skip: frontend, AI models
+API (src/api):
+  - Load: api-endpoint checklist, api-contracts.md
+  - Skip: raw TikTok client internals unless proxying
 
-Layer 7 (Infrastructure):
-  - Load: deployment configs, scaling patterns
-  - Skip: business logic, AI
+Intelligence (src/intelligence/scoring):
+  - Load: data-sources.md rows #7–#8, edge-cases for post-stream-only
+  - Skip: in-stream websocket designs (forbidden)
 
-Layer 8 (Monitoring):
-  - Load: observability standards, alert configs
-  - Skip: feature implementation details
+Interface (web/, ios/):
+  - Load: MODULE.md for target app, shadcn/SwiftUI patterns
+  - Skip: Kafka/Celery unless debugging a displayed lag issue
+
+AI features (post-MVP / OpenAI):
+  - Load: review ai-integration checklist, feature ai-eval-plan.md
+  - Skip: TikTok connector docs unrelated to the model call
 ```
 
-### Step 4: Load Standards (Selectively)
+### Step 5: Load Standards (Selectively)
 
 Do NOT load all standards. Load based on what's detected:
 
 ```python
 STANDARD_TRIGGERS = {
     "external_api_call": ["reliability", "observability"],
-    "ai_model_call": ["build-ai", "reliability", "observability"],
+    "ai_model_call": ["ai-integration-checklist", "reliability", "observability"],
     "user_input_handling": ["security", "reliability"],
     "database_query": ["performance", "reliability"],
     "new_endpoint": ["api-endpoint-checklist", "security", "observability"],
@@ -107,7 +125,7 @@ STANDARD_TRIGGERS = {
 }
 ```
 
-### Step 5: Exclude Irrelevant Context
+### Step 6: Exclude Irrelevant Context
 
 Explicitly DO NOT load:
 - Features/services not affected by this task
@@ -136,20 +154,21 @@ When invoked, produce a context loading plan:
 ## Context Plan: [Feature/Task Name]
 
 ### Load (Required)
-- `/context/features/ai-inventory-forecasting/architecture.md`
-- `/context/features/ai-inventory-forecasting/api-contracts.md`
-- `.cursor/skills_2/build-ai/SKILL.md` (sections: Prompt Standards, Cost Controls)
-- `src/services/inventory/` (affected module)
+- `docs/architecture/map.md`
+- `docs/architecture/data-sources.md`
+- `docs/features/tiktok-order-webhook-sync/architecture.md`
+- `docs/features/tiktok-order-webhook-sync/api-contracts.md`
+- `src/services/webhook/MODULE.md`
+- `src/data/MODULE.md`
 
 ### Load (If Needed)
-- `.cursor/skills_2/review/checklists/ai-integration.md`
-- `.cursor/skills_2/review/anti-patterns.md` (reliability section only)
+- `docs/tiktok_api/webhooks.md`
+- `.cursor/skills/standalone/review/checklists/api-endpoint.md`
 
 ### DO NOT Load
-- Payment service docs
-- Frontend components (not affected)
-- HR/admin module
-- Previous sprint's customer-segmentation specs
+- `web/`, `ios/` (not affected)
+- `src/intelligence/scoring/` (not affected)
+- Shopee/Lazada or multi-platform connector docs (out of scope per data-sources.md #13)
 
 ### Standards Applied
 - [x] AI Core (model integration detected)

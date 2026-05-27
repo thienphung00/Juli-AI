@@ -9,7 +9,7 @@ Detailed rules for deciding what context to load based on code patterns detected
 | Code Pattern | Detected Intent | Load |
 |-------------|-----------------|------|
 | `@app.post`, `@app.get` | New endpoint | api-endpoint checklist, security |
-| `await litellm.completion` | AI model call | build-ai, reliability |
+| `openai.`, `AsyncOpenAI`, rule-based forecast | AI / heuristic call | review (ai-integration), reliability |
 | `celery_app.task` | Background job | reliability (retry/idempotency) |
 | `httpx.get`, `requests.post` | External API | reliability (timeout/retry) |
 | `select(Model).where` | DB query | performance (N+1, indexes) |
@@ -61,9 +61,9 @@ When a task spans multiple features:
 3. Deduplicate overlapping standards
 4. Flag potential conflicts between feature specs
 
-Example: "Add AI forecasting to the GrabFood sync pipeline"
-- Load: ai-inventory-forecasting architecture
-- Load: grabfood-order-sync architecture
-- Load: build-ai (shared)
-- Load: connector patterns (shared)
-- Flag: data schema overlap between features
+Example: "Add demand forecasting on top of TikTok inventory sync"
+- Load: `docs/features/tiktok-inventory-sync/architecture.md`
+- Load: `docs/architecture/data-sources.md` (confirm #1 API only)
+- Load: `src/services/polling/MODULE.md`, `src/data/MODULE.md`
+- Load: review ai-integration checklist (shared, if model calls added)
+- Flag: shared `InventoryItem` schema between sync and forecast jobs

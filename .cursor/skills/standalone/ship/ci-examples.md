@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend/
+        working-directory: web/
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
