@@ -1,7 +1,9 @@
 import SwiftUI
+import JuliKit
 
 struct DailyLoopView: View {
     @Bindable var viewModel: HomeViewModel
+    @Bindable var liveAlertsStore: LiveAlertsStore
 
     var body: some View {
         TabView(selection: $viewModel.selectedTab) {
@@ -23,7 +25,7 @@ struct DailyLoopView: View {
         case .preStream:
             PreStreamView()
         case .live:
-            LiveAlertsView()
+            LiveAlertsView(store: liveAlertsStore)
         case .postStream:
             PostStreamView()
         case .evening:

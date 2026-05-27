@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var authViewModel: AuthViewModel
+    @State private var router = AppNotificationRouter.shared
 
     var body: some View {
         Group {
@@ -14,7 +15,7 @@ struct ContentView: View {
                 let cache = OfflineCacheService()
                 let homeVM = HomeViewModel(apiClient: apiClient, cache: cache)
 
-                HomeView(viewModel: homeVM, onLogout: {
+                HomeView(viewModel: homeVM, router: router, onLogout: {
                     Task { await authViewModel.logout() }
                 })
 

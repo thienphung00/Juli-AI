@@ -1,22 +1,51 @@
 import SwiftUI
+import JuliKit
 
 struct HomeView: View {
     @Bindable var viewModel: HomeViewModel
+    @Bindable var router: AppNotificationRouter
     var onLogout: () -> Void
 
     @State private var showShopPicker = false
+    @State private var path = NavigationPath()
+    @State private var liveAlertsStore = LiveAlertsStore()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 if viewModel.isUsingCachedData {
                     staleDataBanner
                 }
 
-                DailyLoopView(viewModel: viewModel)
+                DailyLoopView(viewModel: viewModel, liveAlertsStore: liveAlertsStore)
             }
             .navigationTitle(viewModel.selectedShop?.name ?? "Juli AI")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: AppRoute.self) { route in
+                switch route {
+                case .orderDetail(let orderId):
+                    PlaceholderTabView(
+                        icon: "cart",
+                        title: "Đơn hàng \(orderId)",
+                        subtitle: "Màn hình chi tiết đơn hàng sẽ được bổ sung ở phiên bản tiếp theo.",
+                        color: .blue
+                    )
+                case .livestream(let livestreamId):
+                    PlaceholderTabView(
+                        icon: "video",
+                        title: "Livestream \(livestreamId)",
+                        subtitle: "Màn hình chi tiết livestream sẽ được bổ sung ở phiên bản tiếp theo.",
+                        color: .red
+                    )
+                case .inventory(let shopId):
+                    PlaceholderTabView(
+                        icon: "shippingbox",
+                        title: "Tồn kho",
+                        subtitle: shopId.map { "Shop: \($0)" } ?? "Màn hình tồn kho sẽ được bổ sung ở phiên bản tiếp theo.",
+                        color: .purple
+                    )
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     shopPickerButton
@@ -38,6 +67,23 @@ struct HomeView: View {
             }
             .task {
                 await viewModel.loadShops()
+            }
+            .onOpenURL { url in
+                Task { @MainActor in
+                    router.handleDeepLink(url: url)
+                }
+            }
+            .onChange(of: router.pendingDeepLink) { _, _ in
+                Task { @MainActor in
+                    guard let link = router.consumePendingDeepLink() else { return }
+                    handle(link: link)
+                }
+            }
+            .onChange(of: router.lastAlertEvent) { _, _ in
+                Task { @MainActor in
+                    guard let event = router.consumeLastAlertEvent() else { return }
+                    liveAlertsStore.ingest(event)
+                }
             }
         }
     }
@@ -77,4 +123,23 @@ struct HomeView: View {
             Image(systemName: "rectangle.portrait.and.arrow.right")
         }
     }
+
+    @MainActor
+    private func handle(link: DeepLink) {
+        switch link {
+        case .orderDetail(let orderId):
+            path.append(AppRoute.orderDetail(orderId: orderId))
+        case .livestream(let livestreamId):
+            viewModel.selectTab(.live)
+            path.append(AppRoute.livestream(livestreamId: livestreamId))
+        case .inventory(let shopId):
+            path.append(AppRoute.inventory(shopId: shopId))
+        }
+    }
+}
+
+enum AppRoute: Hashable {
+    case orderDetail(orderId: String)
+    case livestream(livestreamId: String)
+    case inventory(shopId: String?)
 }
