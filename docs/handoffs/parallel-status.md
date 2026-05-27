@@ -16,7 +16,7 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 
 | Issue | Worktree | Branch | Writer of | Reader of | Phase | Owner | Last update |
 |-------|----------|--------|-----------|-----------|-------|-------|-------------|
-| _(none)_ | | | | | | | |
+| #43 | `../juli-ai-issue-43` | `feat/issue-43-api-alerts-recommendations` | `api` | `alerts`, `recommendations` | `pr-open` | agent-issue-43 | 2026-05-27T14:50:00Z |
 
 ## Recently released
 

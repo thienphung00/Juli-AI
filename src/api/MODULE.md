@@ -18,10 +18,17 @@ and shop-scoped request context for the Juli platform.
 - `GET /v1/creators` — paginated list of creators with GMV attribution and commission efficiency (#38)
 - `GET /v1/creators/{id}/content` — content-to-conversion funnel (views → clicks → orders) for a creator (#38)
 - `GET /v1/settlements` — paginated list of settlements with net revenue after deductions (#38)
+- `GET /v1/alerts/history` — paginated alert history for the active shop (#43)
+- `PUT /v1/alerts/config` — create/update per-shop alert rules and thresholds (#43)
+- `GET /v1/recommendations` — active recommendations with Vietnamese message + CTA (#43)
+- `GET /v1/analytics/daily` — yesterday's profit breakdown by SKU and prep checklist (#43)
 
 ## Dependencies
 - `auth` — `get_current_user` for JWT-based authentication
-- `data` — `ShopsRepo`, `OrdersRepo`, `ProductsRepo`, `InventoryRepo`, `Shop`, `User`, `Order`, `get_session` for persistence
+- `data` — repos and models for shop-scoped persistence
+- `alerts` — `configure_rules` for threshold CRUD (#43)
+- `recommendations` — engine functions for on-demand recommendation refresh (#43)
+- `intelligence/forecasting` — `get_low_stock_risks` for prep checklist (#43)
 
 ## Invariants
 - All /v1/* endpoints require a valid Supabase JWT (401 on failure)

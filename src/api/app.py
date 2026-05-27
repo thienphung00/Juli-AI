@@ -1,6 +1,8 @@
 from fastapi import APIRouter, FastAPI
 
+from src.api.routers.alerts import router as alerts_router
 from src.api.routers.analytics import router as analytics_router
+from src.api.routers.recommendations import router as recommendations_router
 from src.api.routers.creators import router as creators_router
 from src.api.routers.inventory import router as inventory_router
 from src.api.routers.livestreams import router as livestreams_router
@@ -25,6 +27,8 @@ def create_app() -> FastAPI:
     v1_router.include_router(products_router)
     v1_router.include_router(inventory_router)
     v1_router.include_router(analytics_router)
+    v1_router.include_router(alerts_router)
+    v1_router.include_router(recommendations_router)
     v1_router.include_router(livestreams_router)
     v1_router.include_router(creators_router)
     v1_router.include_router(settlements_router)

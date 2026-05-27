@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+from src.etl.topics import RAW_TOPICS
+
 TransformError = ValueError
 
 

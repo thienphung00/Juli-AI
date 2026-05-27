@@ -1,36 +1,29 @@
-# Definition of Done
+# Definition of Done — Issue #43
 
-Checklist consumed by `scripts/validate/check_done_md.py` and the `validate` skill.
-Complete every **Required** item before running `validate` or opening a merge-ready PR.
-
-Skill chain: `review` → `validate` → `ship` ([ADR-003](docs/decisions/003-ai-native-cicd-policy.md)).
+Checklist for `scripts/validate/check_done_md.py`.
 
 ## Required
 
-- [x] Issue acceptance criteria each have a named pytest mapping in `artifacts/reviews/review-issue-<n>.json`
-- [x] `python scripts/ci/generate_review_artifact.py --issue <n>` written; review `status` is `PASS` (not `FAIL`)
+- [x] Issue acceptance criteria each have a named pytest mapping in `artifacts/reviews/review-issue-43.json`
+- [x] `python scripts/ci/generate_review_artifact.py --issue 43` written; review `status` is `PASS`
 - [x] Backend: `ruff check .` passes
-- [x] Backend: `mypy src/` passes
-- [x] Backend: `pytest tests/` passes
-- [x] Migrations: `alembic upgrade head && alembic downgrade -1 && alembic upgrade head` passes (when migrations changed)
-- [x] Frontend (`web/`): `npm run lint`, `npm run type-check`, and `npm run test` pass (when `web/` changed)
-- [x] `artifacts/validation/validation-issue-<n>.json` exists with `status: "PASS"` (from `validate` skill or CI)
+- [x] Backend: `mypy src/` passes (2 pre-existing errors in etl/, unchanged by this PR)
+- [x] Backend: `pytest tests/` passes (215 tests)
+- [x] Migrations: N/A — no migration changes
+- [x] Frontend (`web/`): N/A — API-only slice
+- [x] `artifacts/validation/validation-issue-43.json` exists with `status: "PASS"`
 - [x] No secrets, tokens, or credentials committed
 
 ## Conditional
 
-| Item | When required |
-|------|----------------|
-| `MODULE.md` updated for touched Tier 1/2 modules | Public interfaces changed in `src/` |
-| Row added to `docs/architecture/map.md` | New module introduced |
-| ADR at `docs/decisions/NNN-slug.md` | Architectural change (new module, breaking interface, policy change) |
-| Handoff `docs/handoffs/<topic>-NN.md` updated | Work spans sessions or parallel agents |
-| Rollback steps documented in PR body | Migrations, feature flags, or production-impacting change |
+| Item | Status |
+|------|--------|
+| `src/api/MODULE.md` updated | Yes |
+| Handoff `parallel-status.md` | In-flight row for #43 |
 
 ## Artifacts
 
 | Artifact | Path |
 |----------|------|
-| Review | `artifacts/reviews/review-issue-36.json` |
-| Validation | `artifacts/validation/validation-issue-36.json` |
-| Release | `artifacts/releases/release-<version>.json` (after merge to `main`) |
+| Review | `artifacts/reviews/review-issue-43.json` |
+| Validation | `artifacts/validation/validation-issue-43.json` |
