@@ -27,6 +27,7 @@ skill verifies that any new module added in a PR is also listed here.
 | [`src/api`](../../src/api/MODULE.md) | 1 | FastAPI REST API with versioned routing, auth middleware, shop-scoped endpoints | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/shops/me` | domain: api |
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: Supabase phone-OTP auth, JWT Keychain storage, shop selection, daily value loop navigation shell | `AuthService`, `KeychainService`, `APIClient`, `OfflineCacheService`, `DailyLoopTab` | domain: ios |
 | [`src/intelligence/scoring`](../../src/intelligence/scoring/MODULE.md) | 2 | Post-stream livestream scoring, anomaly detection, retention curves, Vietnamese comment sentiment | `score_livestream`, `detect_anomalies`, `get_stream_retention`, `analyze_comments`, `LivestreamScore`, `Anomaly`, `RetentionPoint`, `SentimentResult` | domain: intelligence |
+| [`src/intelligence/forecasting`](../../src/intelligence/forecasting/MODULE.md) | 2 | SKU inventory depletion forecasting, low-stock risk ranking, velocity change detection | `get_forecast`, `get_low_stock_risks`, `get_velocity_changes`, `ForecastResult`, `LowStockRisk`, `VelocityChange` | domain: intelligence |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web dashboard: phone-OTP login, homepage, orders management | `/login`, `/`, `/orders` | domain: web |
 
 ## Dependency Graph
@@ -68,6 +69,7 @@ skill verifies that any new module added in a PR is also listed here.
                           │  src/data   │◄─── src/auth
                           │ (Supabase)  │◄─── src/api
                           └──────┬──────┘◄─── src/intelligence/scoring
+                                 │          ◄─── src/intelligence/forecasting
                                  │
                           ┌──────▼──────┐
                           │   src/api   │◄─── ios (HTTP)
@@ -81,7 +83,7 @@ skill verifies that any new module added in a PR is also listed here.
 |-------|---------|-----------------|-------|
 | Integrations | External API clients, OAuth, signing | `src/integrations/*` | Python / httpx |
 | Services | Long-running processes (receivers, workers, APIs) | `src/services/*` | Python / FastAPI / Celery |
-| Intelligence | Post-stream scoring, anomaly detection, sentiment analysis | `src/intelligence/scoring` | Python / SQLAlchemy (read-only) |
+| Intelligence | Post-stream scoring, forecasting, anomaly detection, sentiment analysis | `src/intelligence/scoring`, `src/intelligence/forecasting` | Python / SQLAlchemy (read-only) |
 | Data | Supabase Postgres, migrations, query layer | `src/data` | Supabase / SQLAlchemy / asyncpg / Alembic |
 | Interface | Web dashboard + iOS app | `web`, `ios` | Next.js (web) / SwiftUI (iOS) |
 | Alerts (planned) | Multi-channel alert delivery | _none yet_ | Zalo OA / Telegram Bot / FCM |
