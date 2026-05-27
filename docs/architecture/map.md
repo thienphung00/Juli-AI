@@ -28,6 +28,7 @@ skill verifies that any new module added in a PR is also listed here.
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: Supabase phone-OTP auth, JWT Keychain storage, shop selection, daily value loop navigation shell | `AuthService`, `KeychainService`, `APIClient`, `OfflineCacheService`, `DailyLoopTab` | domain: ios |
 | [`src/intelligence/scoring`](../../src/intelligence/scoring/MODULE.md) | 2 | Post-stream livestream scoring, anomaly detection, retention curves, Vietnamese comment sentiment | `score_livestream`, `detect_anomalies`, `get_stream_retention`, `analyze_comments`, `LivestreamScore`, `Anomaly`, `RetentionPoint`, `SentimentResult` | domain: intelligence |
 | [`src/intelligence/forecasting`](../../src/intelligence/forecasting/MODULE.md) | 2 | SKU inventory depletion forecasting, low-stock risk ranking, velocity change detection | `get_forecast`, `get_low_stock_risks`, `get_velocity_changes`, `ForecastResult`, `LowStockRisk`, `VelocityChange` | domain: intelligence |
+| [`src/recommendations`](../../src/recommendations/MODULE.md) | 2 | Rule-based product push suggestions (trend + stock + margin), plain Vietnamese CTAs | `get_product_push_suggestions`, `ProductPushSuggestion` | domain: recommendations |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web dashboard: phone-OTP login, homepage, orders management | `/login`, `/`, `/orders` | domain: web |
 
 ## Dependency Graph
@@ -70,6 +71,7 @@ skill verifies that any new module added in a PR is also listed here.
                           │ (Supabase)  │◄─── src/api
                           └──────┬──────┘◄─── src/intelligence/scoring
                                  │          ◄─── src/intelligence/forecasting
+                                 │          ◄─── src/recommendations
                                  │
                           ┌──────▼──────┐
                           │   src/api   │◄─── ios (HTTP)
