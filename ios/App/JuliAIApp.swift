@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct JuliAIApp: App {
+    @UIApplicationDelegateAdaptor(JuliAIAppDelegate.self) private var appDelegate
     @State private var authViewModel: AuthViewModel
     @State private var homeViewModel: HomeViewModel?
 
