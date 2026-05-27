@@ -1,0 +1,88 @@
+{
+  "id": "validation-issue-38",
+  "issue": 38,
+  "timestamp": "2026-05-27T05:58:54Z",
+  "validatedBy": "validate skill",
+  "status": "FAIL",
+  "passedChecks": 6,
+  "failedChecks": 1,
+  "checks": [
+    {
+      "name": "review_artifact_present",
+      "status": "PASS",
+      "description": "Review artifact present and structurally valid",
+      "details": {
+        "status": "PASS"
+      }
+    },
+    {
+      "name": "acceptance_criteria_mapped",
+      "status": "FAIL",
+      "description": "Acceptance criteria mapping invalid",
+      "details": {
+        "total": 4,
+        "mapped": 4,
+        "unmapped": [],
+        "problems": [
+          "criterion/test name mismatch: 'AC1 \u2014 GET /v1/livestreams returns per-session metrics' -> ",
+          "criterion/test name mismatch: 'AC2 \u2014 GET /v1/creators returns GMV attribution and commission efficiency' -> ",
+          "criterion/test name mismatch: 'AC3 \u2014 GET /v1/creators/{id}/content returns content-to-conversion funnel' -> ",
+          "criterion/test name mismatch: 'AC4 \u2014 GET /v1/settlements returns net revenue after deductions' -> "
+        ]
+      }
+    },
+    {
+      "name": "module_boundaries",
+      "status": "PASS",
+      "description": "Module boundaries respected",
+      "details": {
+        "violations": [],
+        "cycles": [],
+        "modulesTouched": 0,
+        "warning": null
+      }
+    },
+    {
+      "name": "module_md_sync",
+      "status": "PASS",
+      "description": "MODULE.md in sync for touched modules",
+      "details": {
+        "drift": [],
+        "missingInterfaces": []
+      }
+    },
+    {
+      "name": "handoff_structure",
+      "status": "PASS",
+      "description": "Handoff structure valid",
+      "details": {
+        "required": true,
+        "missingFields": {},
+        "files": [
+          "tiktok-mvp-issues-01.md"
+        ]
+      }
+    },
+    {
+      "name": "adr_requirement",
+      "status": "PASS",
+      "description": "No architectural change detected",
+      "details": {
+        "architecturalChange": false,
+        "adrPresent": false,
+        "adrs": [],
+        "adrProblems": {}
+      }
+    },
+    {
+      "name": "done_md_completion",
+      "status": "PASS",
+      "description": "done.md required checklist complete",
+      "details": {
+        "unchecked": []
+      }
+    }
+  ],
+  "overallSummary": "1 validation check(s) failed.",
+  "readyForMerge": false
+}

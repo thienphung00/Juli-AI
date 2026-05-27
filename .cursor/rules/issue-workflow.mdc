@@ -1,0 +1,17 @@
+---
+description: Isolate vs Parallel issue implementation (module overlap)
+alwaysApply: false
+---
+
+# Issue Workflow
+
+| Condition | Workflow |
+|-----------|----------|
+| `Modules` overlaps any other **ready** issue (`Unblocked` or `Isolate`) | **Isolate** — one issue at a time |
+| `Unblocked` and disjoint `Modules` from all other ready issues | **Parallel** — one worktree per issue |
+
+- Bootstrap prompts: `docs/handoffs/tiktok-mvp-issues-01.md` § Bootstrap prompts
+- Locks: `docs/handoffs/parallel-status.md`
+- Steps: `docs/handoffs/_bootstrap.md`
+
+After each merge, update Status (`Done` / `Blocked` / `Unblocked` / `Isolate`) in the handoff registry.
