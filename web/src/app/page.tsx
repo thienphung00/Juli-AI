@@ -1,18 +1,14 @@
 "use client";
 
-import { useAuthGuard } from "@/lib/use-auth-guard";
 import { HomePage } from "@/components/HomePage";
+import { AuthenticatedHomeRoute } from "@/components/AuthenticatedHomeRoute";
+
+const uiOnly = process.env.NEXT_PUBLIC_UI_ONLY === "1";
 
 export default function Home() {
-  const { loading } = useAuthGuard("require-auth");
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
-      </div>
-    );
+  if (uiOnly) {
+    return <HomePage uiOnly />;
   }
 
-  return <HomePage />;
+  return <AuthenticatedHomeRoute />;
 }
