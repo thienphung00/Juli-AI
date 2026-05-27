@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Radio, TrendingUp, BarChart2, Sparkles } from "lucide-react";
+import { Home, Radio, TrendingUp, BarChart2, Sparkles, Bell, Lightbulb } from "lucide-react";
 
 const navItems = [
   { href: "/",            label: "Trang chủ", Icon: Home,        color: "#FF1493" },
   { href: "/livestreams", label: "Trực tiếp", Icon: Radio,       color: "#E61282", live: true },
   { href: "/products",    label: "Xu hướng",  Icon: TrendingUp,  color: "#FF69B4" },
-  { href: "/orders",      label: "Vận hành",  Icon: BarChart2,   color: "#FF85C2" },
-  { href: "/creators",    label: "Creators",  Icon: Sparkles,    color: "#FF1493", ai: true },
+  { href: "/alerts",      label: "Cảnh báo",  Icon: Bell,        color: "#FF85C2" },
+  { href: "/orders",      label: "Vận hành",  Icon: BarChart2,   color: "#FF69B4" },
+  { href: "/recommendations", label: "Gợi ý", Icon: Lightbulb,   color: "#FF1493", ai: true },
 ];
 
 export function NavBar() {

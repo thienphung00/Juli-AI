@@ -149,6 +149,52 @@ export interface CreatorsResponse {
   total: number;
 }
 
+export interface AlertHistoryItem {
+  id: string;
+  alert_type: string;
+  channel: string;
+  triggered_at: string;
+  status: string;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface AlertsHistoryResponse {
+  items: AlertHistoryItem[];
+  next_cursor?: string | null;
+}
+
+export interface AlertRuleInput {
+  alert_type: string;
+  channel?: string;
+  is_active?: boolean;
+  threshold?: Record<string, unknown> | null;
+  cooldown_seconds?: number;
+}
+
+export interface AlertConfigRule {
+  id: string;
+  alert_type: string;
+  channel: string;
+  is_active: boolean;
+  threshold?: Record<string, unknown> | null;
+}
+
+export interface AlertsConfigResponse {
+  rules: AlertConfigRule[];
+}
+
+export interface RecommendationItem {
+  id: string;
+  recommendation_type: string;
+  message: string;
+  cta: string;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface RecommendationsResponse {
+  items: RecommendationItem[];
+}
+
 export const api = {
   auth: {
     sendOtp(phone: string): Promise<OtpResponse> {
@@ -218,6 +264,31 @@ export const api = {
   creators: {
     list(): Promise<CreatorsResponse> {
       return request("/v1/creators");
+    },
+  },
+
+  alerts: {
+    history(params?: {
+      limit?: number;
+      after?: string;
+    }): Promise<AlertsHistoryResponse> {
+      const searchParams = new URLSearchParams();
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      if (params?.after) searchParams.set("after", params.after);
+      const qs = searchParams.toString();
+      return request(`/v1/alerts/history${qs ? `?${qs}` : ""}`);
+    },
+    upsertConfig(rules: AlertRuleInput[]): Promise<AlertsConfigResponse> {
+      return request("/v1/alerts/config", {
+        method: "PUT",
+        body: JSON.stringify({ rules }),
+      });
+    },
+  },
+
+  recommendations: {
+    list(): Promise<RecommendationsResponse> {
+      return request("/v1/recommendations");
     },
   },
 };
