@@ -65,8 +65,11 @@ export function OrdersPage() {
   };
 
   return (
-    <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-10 border-b bg-white px-4 py-3">
+    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
+      <header
+        className="sticky top-0 z-10 px-4 py-3"
+        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
+      >
         <div className="mx-auto max-w-lg">
           <h1 className="text-lg font-bold">Đơn hàng</h1>
         </div>
@@ -79,10 +82,11 @@ export function OrdersPage() {
             aria-label="Lọc theo trạng thái"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+            style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
           >
             {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
+              <option key={opt.value} value={opt.value} style={{ background: "var(--card)" }}>
                 {opt.label}
               </option>
             ))}
@@ -94,38 +98,40 @@ export function OrdersPage() {
               aria-label="Từ ngày"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+              style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
             />
             <input
               type="date"
               aria-label="Đến ngày"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+              style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
             />
           </div>
         </div>
 
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 rounded-xl p-3 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
             {error}
           </p>
         )}
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+            <span className="spinner" />
           </div>
         ) : orders.length === 0 ? (
           <div className="py-12 text-center" data-testid="orders-empty">
-            <p className="text-lg text-gray-400">Chưa có đơn hàng nào</p>
-            <p className="mt-1 text-sm text-gray-300">
+            <p className="text-lg font-medium" style={{ color: "var(--muted-foreground)" }}>Chưa có đơn hàng nào</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)", opacity: 0.6 }}>
               Đơn hàng sẽ hiển thị khi có dữ liệu từ TikTok Shop
             </p>
           </div>
         ) : (
           <div className="space-y-3" data-testid="orders-list">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               {total} đơn hàng
             </p>
             {orders.map((order) => (
@@ -157,24 +163,24 @@ function OrderCard({
   const canConfirm = order.status === "AWAITING_SHIPMENT";
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" data-testid="order-card">
+    <div className="card p-4" data-testid="order-card">
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
             #{order.order_id}
           </p>
-          <p className="mt-0.5 text-xs text-gray-500">
+          <p className="mt-0.5 text-xs" style={{ color: "var(--muted-foreground)" }}>
             {formatDateTime(order.created_at)}
           </p>
         </div>
         <StatusBadge status={order.status} />
       </div>
 
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", paddingTop: "10px", marginTop: "10px" }}>
         <p className="text-sm font-semibold">
           {formatVND(order.total_amount)}
         </p>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
           {order.items_count} sản phẩm
         </p>
       </div>
@@ -183,7 +189,8 @@ function OrderCard({
         <button
           onClick={() => onConfirmShipment(order.id)}
           disabled={confirming}
-          className="mt-3 w-full rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl px-3 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
+          style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)" }}
           data-testid="confirm-shipment-btn"
         >
           {confirming ? "Đang xử lý..." : "Xác nhận giao hàng"}
@@ -194,12 +201,12 @@ function OrderCard({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    AWAITING_SHIPMENT: "bg-yellow-100 text-yellow-800",
-    AWAITING_COLLECTION: "bg-blue-100 text-blue-800",
-    IN_TRANSIT: "bg-indigo-100 text-indigo-800",
-    DELIVERED: "bg-green-100 text-green-800",
-    CANCELLED: "bg-red-100 text-red-800",
+  const styles: Record<string, { bg: string; color: string }> = {
+    AWAITING_SHIPMENT:   { bg: "#f59e0b20", color: "#f59e0b" },
+    AWAITING_COLLECTION: { bg: "#06b6d420", color: "#06b6d4" },
+    IN_TRANSIT:          { bg: "#8b5cf620", color: "#a78bfa" },
+    DELIVERED:           { bg: "#10b98120", color: "#10b981" },
+    CANCELLED:           { bg: "#ef444420", color: "#ef4444" },
   };
 
   const labels: Record<string, string> = {
@@ -210,11 +217,12 @@ function StatusBadge({ status }: { status: string }) {
     CANCELLED: "Đã huỷ",
   };
 
+  const style = styles[status] ?? { bg: "var(--muted)", color: "var(--muted-foreground)" };
+
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-        styles[status] || "bg-gray-100 text-gray-800"
-      }`}
+      className="badge"
+      style={{ background: style.bg, color: style.color }}
     >
       {labels[status] || status}
     </span>

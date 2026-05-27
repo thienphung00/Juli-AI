@@ -41,105 +41,132 @@ export function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div
+      className="flex min-h-screen items-center justify-center px-4"
+      style={{ background: "var(--background)" }}
+    >
       <div className="w-full max-w-sm space-y-6">
+        {/* Logo */}
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Juli</h1>
-          <p className="mt-2 text-sm text-gray-600">
+          <h1
+            className="text-3xl font-bold"
+            style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+          >
+            Juli
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
             Quản lý TikTok Shop thông minh
           </p>
         </div>
 
-        {step === "phone" ? (
-          <form onSubmit={handleSendOtp} className="space-y-4">
-            <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-gray-700"
+        {/* Card */}
+        <div className="card p-6">
+          {step === "phone" ? (
+            <form onSubmit={handleSendOtp} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="phone"
+                  className="block text-sm font-medium"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  Số điện thoại
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="+84 xxx xxx xxx"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="mt-2 block w-full rounded-xl px-4 py-3 text-lg focus:outline-none"
+                  style={{
+                    background: "var(--muted)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {error && (
+                <p role="alert" className="rounded-xl px-3 py-2 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !phone}
+                className="w-full rounded-xl px-4 py-3 text-base font-semibold text-white transition-opacity disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)" }}
               >
-                Số điện thoại
-              </label>
-              <input
-                id="phone"
-                type="tel"
-                inputMode="numeric"
-                placeholder="+84 xxx xxx xxx"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-lg focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                required
-                autoFocus
-              />
-            </div>
+                {loading ? "Đang gửi..." : "Nhận mã OTP"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="otp"
+                  className="block text-sm font-medium"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  Nhập mã OTP
+                </label>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  Đã gửi đến {phone}
+                </p>
+                <input
+                  id="otp"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="mt-2 block w-full rounded-xl px-4 py-3 text-center text-2xl tracking-widest focus:outline-none"
+                  style={{
+                    background: "var(--muted)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                  required
+                  autoFocus
+                />
+              </div>
 
-            {error && (
-              <p role="alert" className="text-sm text-red-600">
-                {error}
-              </p>
-            )}
+              {error && (
+                <p role="alert" className="rounded-xl px-3 py-2 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
+                  {error}
+                </p>
+              )}
 
-            <button
-              type="submit"
-              disabled={loading || !phone}
-              className="w-full rounded-lg bg-primary-600 px-4 py-3 text-base font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
-            >
-              {loading ? "Đang gửi..." : "Nhận mã OTP"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <div>
-              <label
-                htmlFor="otp"
-                className="block text-sm font-medium text-gray-700"
+              <button
+                type="submit"
+                disabled={loading || otp.length < 6}
+                className="w-full rounded-xl px-4 py-3 text-base font-semibold text-white transition-opacity disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)" }}
               >
-                Nhập mã OTP
-              </label>
-              <p className="text-xs text-gray-500">
-                Đã gửi đến {phone}
-              </p>
-              <input
-                id="otp"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                placeholder="000000"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                className="mt-2 block w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-2xl tracking-widest focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                required
-                autoFocus
-              />
-            </div>
+                {loading ? "Đang xác thực..." : "Xác nhận"}
+              </button>
 
-            {error && (
-              <p role="alert" className="text-sm text-red-600">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || otp.length < 6}
-              className="w-full rounded-lg bg-primary-600 px-4 py-3 text-base font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
-            >
-              {loading ? "Đang xác thực..." : "Xác nhận"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setStep("phone");
-                setOtp("");
-                setError(null);
-              }}
-              className="w-full text-sm text-gray-500 hover:text-gray-700"
-            >
-              ← Đổi số điện thoại
-            </button>
-          </form>
-        )}
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("phone");
+                  setOtp("");
+                  setError(null);
+                }}
+                className="w-full text-sm transition-opacity hover:opacity-70"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                ← Đổi số điện thoại
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

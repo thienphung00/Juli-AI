@@ -16,12 +16,14 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 
 | Issue | Worktree | Branch | Writer of | Reader of | Phase | Owner | Last update |
 |-------|----------|--------|-----------|-----------|-------|-------|-------------|
-| #43 | `../juli-ai-issue-43` | `feat/issue-43-api-alerts-recommendations` | `api` | `alerts`, `recommendations` | `pr-open` | agent-issue-43 | 2026-05-27T14:50:00Z |
+| _(none)_ | | | | | | | |
 
 ## Recently released
 
 | Issue | Modules released | Released at |
 |-------|------------------|-------------|
+| #40 | `alerts` | 2026-05-27 |
+| #43 | `api`, `alerts`, `recommendations` | 2026-05-27 |
 | #35 | `intelligence/forecasting` | 2026-05-27 |
 | #45 | `web` | 2026-05-26 |
 | #42 | `ios` | 2026-05-26 |
@@ -32,6 +34,8 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 
 | Issue | Worktree | Branch | Writer of | Phase | Owner | Last update |
 |-------|----------|--------|-----------|-------|-------|-------------|
+| #40 | `../juli-ai-issue-40` | `feat/issue-40-alerts-zalo` | `alerts` | merged | agent-issue-40 | 2026-05-27T08:17:00Z |
+| #43 | `../juli-ai-issue-43` | `feat/issue-43-api-alerts-recommendations` | `api`, `alerts`, `recommendations` | merged | agent-issue-43 | 2026-05-27T08:00:00Z |
 | #35 | `../juli-ai-issue-35` | `feat/issue-35-forecasting` | `intelligence/forecasting`, `data` | merged | agent-issue-35 | 2026-05-27T13:00:00Z |
 | #45 | `../juli-ai-issue-45` | `feat/issue-45-web-products-inventory-pages` | `web` | merged | agent-issue-45 | 2026-05-26T08:18:00Z |
 | #42 | `../juli-ai-issue-42` | `feat/issue-42-ios-auth-daily-loop` | `ios` | merged | agent-issue-42 | 2026-05-26T07:20:00Z |

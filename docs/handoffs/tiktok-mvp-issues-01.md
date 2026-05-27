@@ -37,24 +37,24 @@ Recompute after **each merge** (on `main`):
 | 29 | Auth: Phone-OTP login + JWT middleware | `auth`, `data` | ~~#24~~ | AFK | Done |
 | 30 | Auth: TikTok OAuth + shop provisioning | `auth`, `integrations/tiktok`, `data` | ~~#29~~ | AFK | Done |
 | 31 | Services/Polling: Extend sync | `services/polling`, `integrations/tiktok`, `data` | ~~#28~~, ~~#25~~, ~~#26~~ | AFK | Done |
-| 32 | ETL: Kafka consumer + dedup + DLQ | `etl`, `data` | ~~#28~~, ~~#27~~ | AFK | Isolate |
+| 32 | ETL: Kafka consumer + dedup + DLQ | `etl`, `data` | ~~#28~~, ~~#27~~ | AFK | Done |
 | 33 | API: Bootstrap + auth + shop endpoints | `api`, `auth`, `data` | ~~#29~~ | AFK | Done |
 | 34 | Intelligence/Scoring: Livestream grade + anomaly | `intelligence/scoring`, `data` | ~~#28~~ | AFK | Done |
 | 35 | Intelligence/Forecasting: Inventory depletion + velocity | `intelligence/forecasting`, `data` | ~~#28~~ | AFK | Done |
-| 36 | Alerts: Rule engine + FCM | `alerts`, `data` | ~~#28~~ | AFK | Isolate |
+| 36 | Alerts: Rule engine + FCM | `alerts`, `data` | ~~#28~~ | AFK | Done |
 | 37 | API: Orders + products + inventory | `api`, `data` | ~~#33~~, ~~#28~~ | AFK | Done |
-| 38 | API: Livestream + creator + settlement | `api`, `data` | ~~#33~~, ~~#28~~ | AFK | Isolate |
-| 39 | Recommendations: Rule-based push + restock | `recommendations`, `intelligence/forecasting`, `data` | ~~#35~~ | AFK | Isolate |
-| 40 | Alerts: Zalo OA adapter | `alerts` | #36 | AFK | Blocked |
+| 38 | API: Livestream + creator + settlement | `api`, `data` | ~~#33~~, ~~#28~~ | AFK | Done |
+| 39 | Recommendations: Rule-based push + restock | `recommendations`, `intelligence/forecasting`, `data` | ~~#35~~ | AFK | Done |
+| 40 | Alerts: Zalo OA adapter | `alerts` | ~~#36~~ | AFK | Done |
 | 41 | Web: Auth + homepage + orders | `web` | ~~#33~~ | HITL | Done |
 | 42 | iOS: Auth + daily value loop shell | `ios` | ~~#33~~ | HITL | Done |
-| 43 | API: Alerts + recommendations + analytics | `api`, `alerts`, `recommendations` | ~~#37~~, #39, #36 | AFK | Blocked |
-| 44 | Recommendations: LLM stream optimization | `recommendations`, `intelligence/scoring` | ~~#34~~, #39 | AFK | Blocked |
+| 43 | API: Alerts + recommendations + analytics | `api`, `alerts`, `recommendations` | ~~#37~~, ~~#39~~, ~~#36~~ | AFK | Done |
+| 44 | Recommendations: LLM stream optimization | `recommendations`, `intelligence/scoring` | ~~#34~~, ~~#39~~ | AFK | Done |
 | 45 | Web: Products, inventory, livestreams, creators | `web` | ~~#41~~ | AFK | Done |
-| 46 | iOS: Push notifications + live alerts | `ios` | ~~#42~~, #36 | AFK | Blocked |
-| 47 | Web: Alerts config + recommendations feed | `web` | #43, ~~#41~~ | AFK | Blocked |
+| 46 | iOS: Push notifications + live alerts | `ios` | ~~#42~~, ~~#36~~ | AFK | Unblocked |
+| 47 | Web: Alerts config + recommendations feed | `web` | ~~#43~~, ~~#41~~ | AFK | Unblocked |
 
-**Ready now (Isolate):** #32, #36, #38, #39 — run one at a time until merges shrink overlap.
+**Ready now (Unblocked):** #46, #47 — Parallel-safe (`ios` / `web` disjoint).
 
 # Dependency Order (critical path)
 
@@ -108,8 +108,8 @@ Implement GitHub issue #<N> (workflow: <Isolate|Parallel>).
 
 # Remaining Work
 
-- 9 issues open; 4 ready (`Isolate`): #32, #36, #38, #39
-- Suggested order: #39 → #36 → #38 → #32 (critical path first)
+- 2 issues open; 2 `Unblocked` (#46, #47)
+- Suggested order: #46 and #47 in parallel (Figma variables still recommended before UI polish)
 
 # Required Context
 

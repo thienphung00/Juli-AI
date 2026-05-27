@@ -1,7 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+/* ── Design Tokens ─────────────────────────────────────── */
+:root {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #141414;
+  --card-foreground: #fafafa;
+  --muted: #1a1a1a;
+  --muted-foreground: #a1a1aa;
+  --border: #2a2a2a;
+  --input: #1a1a1a;
+  --primary: #ff006e;
+  --primary-foreground: #ffffff;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #fafafa;
+  --accent: #ff006e;
+  --destructive: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --info: #06b6d4;
+  --radius: 16px;
+
+  --pink-primary: #FF1493;
+  --pink-light: #FF85C2;
+  --pink-dark: #E61282;
+  --glass-bg: rgba(20, 20, 20, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Base ──────────────────────────────────────────────── */
+@layer base {
+  html {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  h1, h2, h3, h4 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  /* Hide scrollbar for horizontal scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Components ────────────────────────────────────────── */
+@layer components {
+  /* Safe areas */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  /* Glass effect */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+  }
+
+  /* Pink gradient */
+  .gradient-primary {
+    background: linear-gradient(135deg, #ff006e 0%, #ff4d94 100%);
+  }
+  .gradient-primary-text {
+    background: linear-gradient(135deg, #ff006e 0%, #ff4d94 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Live pulse badge */
+  .badge-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #ef444420;
+    color: #ef4444;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 100px;
+  }
+  .badge-live::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 100px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-success { background: #10b98120; color: #10b981; }
+  .badge-warning { background: #f59e0b20; color: #f59e0b; }
+  .badge-danger  { background: #ef444420; color: #ef4444; }
+  .badge-info    { background: #06b6d420; color: #06b6d4; }
+  .badge-pink    { background: #ff006e20; color: #ff006e; }
+
+  /* Spin loader */
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    animation: spin 0.7s linear infinite;
+  }
+}
+
+/* ── Utilities ─────────────────────────────────────────── */
+@layer utilities {
+  .text-muted { color: var(--muted-foreground); }
+  .bg-card    { background-color: var(--card); }
+  .bg-muted   { background-color: var(--muted); }
+  .border-default { border-color: var(--border); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(1.3); }
 }

@@ -32,34 +32,38 @@ export function LivestreamsPage() {
   }, [loadSessions]);
 
   return (
-    <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-10 border-b bg-white px-4 py-3">
-        <div className="mx-auto max-w-lg">
-          <h1 className="text-lg font-bold">Livestream</h1>
+    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
+      <header
+        className="sticky top-0 z-10 px-4 py-3"
+        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
+      >
+        <div className="mx-auto flex max-w-lg items-center gap-2">
+          <h1 className="text-lg font-bold">Trực tiếp</h1>
+          <span className="badge-live">LIVE</span>
         </div>
       </header>
 
       <main className="mx-auto max-w-lg px-4 pt-4">
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="mb-4 rounded-xl p-3 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
             {error}
           </p>
         )}
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+            <span className="spinner" />
           </div>
         ) : sessions.length === 0 ? (
           <div className="py-12 text-center" data-testid="livestreams-empty">
-            <p className="text-lg text-gray-400">Chưa có phiên livestream nào</p>
-            <p className="mt-1 text-sm text-gray-300">
+            <p className="text-lg font-medium" style={{ color: "var(--muted-foreground)" }}>Chưa có phiên livestream nào</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)", opacity: 0.6 }}>
               Dữ liệu sẽ hiển thị khi có phiên từ TikTok Shop
             </p>
           </div>
         ) : (
           <div className="space-y-3" data-testid="livestreams-list">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               {formatNumber(sessions.length)} phiên
             </p>
             {sessions.map((session) => (
@@ -76,18 +80,18 @@ export function LivestreamsPage() {
 
 function LivestreamCard({ session }: { session: LivestreamSession }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" data-testid="livestream-card">
+    <div className="card p-4" data-testid="livestream-card">
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{session.title}</p>
-          <p className="mt-0.5 text-xs text-gray-500">
+          <p className="mt-0.5 text-xs" style={{ color: "var(--muted-foreground)" }}>
             {formatDateTime(session.started_at)} • {session.duration_minutes} phút
           </p>
         </div>
         <GradeBadge grade={session.performance_grade} />
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3">
+      <div className="mt-3 grid grid-cols-3 gap-2 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
         <MetricCell label="Người xem" value={formatNumber(session.viewers_peak)} />
         <MetricCell label="GMV" value={formatVND(session.gmv)} />
         <MetricCell label="Đơn hàng" value={String(session.orders_count)} />
@@ -97,18 +101,20 @@ function LivestreamCard({ session }: { session: LivestreamSession }) {
 }
 
 function GradeBadge({ grade }: { grade: number }) {
-  let colorClass: string;
-  if (grade >= 70) {
-    colorClass = "bg-green-50 text-green-700";
-  } else if (grade >= 40) {
-    colorClass = "bg-yellow-50 text-yellow-700";
-  } else {
-    colorClass = "bg-red-50 text-red-700";
-  }
+  // className colour words are matched by tests (toMatch(/green|yellow|red/))
+  const colorClass =
+    grade >= 70 ? "grade-green" : grade >= 40 ? "grade-yellow" : "grade-red";
+  const style =
+    grade >= 70
+      ? { background: "#10b98120", color: "#10b981" }
+      : grade >= 40
+      ? { background: "#f59e0b20", color: "#f59e0b" }
+      : { background: "#ef444420", color: "#ef4444" };
 
   return (
     <span
-      className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${colorClass}`}
+      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${colorClass}`}
+      style={style}
       data-testid="performance-grade"
     >
       {grade}
@@ -119,7 +125,7 @@ function GradeBadge({ grade }: { grade: number }) {
 function MetricCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="text-center">
-      <p className="text-xs text-gray-500">{label}</p>
+      <p className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>{label}</p>
       <p className="mt-0.5 text-xs font-semibold">{value}</p>
     </div>
   );
