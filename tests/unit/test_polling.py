@@ -10,14 +10,12 @@ Behaviors under test:
 """
 
 import json
-import time
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 from src.integrations.tiktok.exceptions import (
     PermissionDeniedError,
-    RateLimitError,
     TikTokSystemError,
 )
 from src.services.polling.sync import (

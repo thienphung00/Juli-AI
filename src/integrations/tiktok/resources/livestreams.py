@@ -6,7 +6,7 @@ Requires Affiliate scope approval.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from src.integrations.tiktok.client import TikTokClient
 from src.integrations.tiktok.resources import strip_nones
@@ -43,7 +43,7 @@ class LivestreamsResource:
         start_time: Optional[int] = None,
         end_time: Optional[int] = None,
         page_size: int = 50,
-    ) -> list[dict]:
+    ) -> List[Dict[str, Any]]:
         body = strip_nones({
             "creator_id": creator_id,
             "start_time": start_time,

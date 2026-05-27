@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.data.models import Creator, Livestream, Order, Shop, User
