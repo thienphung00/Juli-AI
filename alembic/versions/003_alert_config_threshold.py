@@ -7,8 +7,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "003_alert_config_threshold"
-down_revision: str | None = "002_add_commerce_analytics_tables"
+revision: str = "005_alert_config_threshold"
+down_revision: str | None = "004"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -9,7 +9,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 PublishDlqFn = Callable[[str, str, bytes], Awaitable[None]]
 
 LATENCY_BUDGET_SECONDS = 60.0
+
+
+class _UpsertRepo(Protocol):
+    async def upsert(self, *, shop_id: Any, **kwargs: Any) -> Any: ...
 
 
 class ProcessOutcome(str, Enum):
@@ -178,7 +182,7 @@ class EtlConsumer:
     async def _upsert(
         self, entity_kind: str, *, shop_id: Any, kwargs: dict[str, Any]
     ) -> None:
-        repos = {
+        repos: dict[str, _UpsertRepo] = {
             "order": self._orders,
             "product": self._products,
             "inventory": self._inventory,

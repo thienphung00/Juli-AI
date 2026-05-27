@@ -26,6 +26,12 @@ def _unix_to_datetime(value: Any) -> datetime:
     raise TransformError(f"unsupported update_time type: {type(value)}")
 
 
+def _coerce_int(value: Any, *, default: int = 0) -> int:
+    if value is None:
+        return default
+    return int(value)
+
+
 def _unwrap_webhook(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("type") and isinstance(payload.get("data"), dict):
         inner = dict(payload["data"])
@@ -77,10 +83,11 @@ def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[
             body.get("product_id") or body.get("tiktok_product_id") or sku_id
         ),
         "tiktok_sku_id": str(sku_id),
-        "quantity": int(
+        "quantity": _coerce_int(
             body.get("available_quantity")
             if body.get("available_quantity") is not None
-            else body.get("quantity", 0)
+            else body.get("quantity"),
+            default=0,
         ),
         "warehouse_id": body.get("warehouse_id"),
         "velocity": str(body.get("velocity") or "low"),

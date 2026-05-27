@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

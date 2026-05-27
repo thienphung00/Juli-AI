@@ -6,7 +6,6 @@ window expiry.  Uses atomic INCR to avoid TOCTOU races under concurrent access.
 
 from __future__ import annotations
 
-import redis
 from typing import Any
 
 
