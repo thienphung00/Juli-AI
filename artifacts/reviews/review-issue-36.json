@@ -1,0 +1,79 @@
+{
+  "id": "review-issue-36",
+  "issue": 36,
+  "timestamp": "2026-05-27T12:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Alerts rule engine with FCM adapter, cooldown dedup, and pluggable ChannelAdapter. All five acceptance criteria covered by unit tests.",
+  "criticalFindings": [],
+  "modulesTouched": ["src/alerts", "src/data"],
+  "interfaceChanges": [
+    {
+      "module": "src/alerts",
+      "interface": "evaluate_rules",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Evaluates shop rules against AlertEvent with per-type cooldown"
+    },
+    {
+      "module": "src/alerts",
+      "interface": "configure_rules",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Upserts per-shop alert thresholds in alert_configs"
+    },
+    {
+      "module": "src/alerts",
+      "interface": "ChannelAdapter",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Protocol for pluggable delivery channels"
+    },
+    {
+      "module": "src/data",
+      "interface": "AlertConfig.threshold_json",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Stores JSON thresholds; migration 003"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "AC1 — evaluate_rules produces Alert objects",
+          "test": "tests/unit/test_alerts.py::test_evaluate_rules_produces_alerts"
+        },
+        {
+          "criterion": "AC2 — FCM delivery within 30 seconds",
+          "test": "tests/unit/test_alerts.py::test_fcm_delivery_within_latency"
+        },
+        {
+          "criterion": "AC3 — No duplicate alerts within cooldown",
+          "test": "tests/unit/test_alerts.py::test_deduplication_within_cooldown"
+        },
+        {
+          "criterion": "AC4 — configure_rules per-shop thresholds",
+          "test": "tests/unit/test_alerts.py::test_per_shop_rule_configuration"
+        },
+        {
+          "criterion": "AC5 — ChannelAdapter protocol pluggable",
+          "test": "tests/unit/test_alerts.py::test_channel_adapter_protocol_pluggable"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 198,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Wire FCM HTTP v1 client with service account credentials before production push."
+  ],
+  "approvalReady": true
+}

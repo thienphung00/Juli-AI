@@ -31,6 +31,6 @@ Skill chain: `review` → `validate` → `ship` ([ADR-003](docs/decisions/003-ai
 
 | Artifact | Path |
 |----------|------|
-| Review | `artifacts/reviews/review-issue-32.json` |
-| Validation | `artifacts/validation/validation-issue-32.json` |
+| Review | `artifacts/reviews/review-issue-36.json` |
+| Validation | `artifacts/validation/validation-issue-36.json` |
 | Release | `artifacts/releases/release-<version>.json` (after merge to `main`) |
