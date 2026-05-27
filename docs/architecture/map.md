@@ -29,6 +29,7 @@ skill verifies that any new module added in a PR is also listed here.
 | [`src/intelligence/scoring`](../../src/intelligence/scoring/MODULE.md) | 2 | Post-stream livestream scoring, anomaly detection, retention curves, Vietnamese comment sentiment | `score_livestream`, `detect_anomalies`, `get_stream_retention`, `analyze_comments`, `LivestreamScore`, `Anomaly`, `RetentionPoint`, `SentimentResult` | domain: intelligence |
 | [`src/intelligence/forecasting`](../../src/intelligence/forecasting/MODULE.md) | 2 | SKU inventory depletion forecasting, low-stock risk ranking, velocity change detection | `get_forecast`, `get_low_stock_risks`, `get_velocity_changes`, `ForecastResult`, `LowStockRisk`, `VelocityChange` | domain: intelligence |
 | [`src/recommendations`](../../src/recommendations/MODULE.md) | 2 | Rule-based product push suggestions (trend + stock + margin), plain Vietnamese CTAs | `get_product_push_suggestions`, `ProductPushSuggestion` | domain: recommendations |
+| [`src/etl`](../../src/etl/MODULE.md) | 1 | Kafka consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `KafkaRecord`, `ProcessOutcome` | domain: data |
 | [`src/alerts`](../../src/alerts/MODULE.md) | 2 | Per-shop alert rules, cooldown dedup, pluggable channel delivery (FCM MVP) | `evaluate_rules`, `configure_rules`, `deliver_alert`, `FcmAdapter`, `ChannelAdapter`, `Alert`, `AlertEvent` | domain: alerts |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web dashboard: phone-OTP login, homepage, orders management | `/login`, `/`, `/orders` | domain: web |
 
@@ -65,6 +66,11 @@ skill verifies that any new module added in a PR is also listed here.
                           ┌──────▼──────┐
                           │    Kafka    │
                           │ (raw topics)│
+                          └──────┬──────┘
+                                 │
+                          ┌──────▼──────┐
+                          │  src/etl    │
+                          │ (consumer)  │
                           └──────┬──────┘
                                  │
                           ┌──────▼──────┐

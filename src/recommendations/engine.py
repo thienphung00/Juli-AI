@@ -1,14 +1,17 @@
-"""Rule-based product push and restock recommendations (no LLM)."""
+"""Recommendations engine for product push and stream optimization."""
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Awaitable, Callable, Literal
 
-from sqlalchemy import select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.data.models import InventoryItem, Product
+from src.data.models import Creator, InventoryItem, Livestream, Product, Recommendation
+from src.intelligence.scoring import score_livestream
 from src.intelligence.forecasting.forecaster import (
     get_low_stock_risks,
     get_velocity_changes,
@@ -18,6 +21,9 @@ _MAX_SUGGESTIONS = 10
 _WEIGHT_TREND = 0.35
 _WEIGHT_MARGIN = 0.35
 _WEIGHT_STOCK = 0.30
+_DEFAULT_MAX_LLM_CALLS_PER_DAY = 20
+
+LlmGenerator = Callable[[str], Awaitable[str]]
 
 
 @dataclass
@@ -28,6 +34,27 @@ class ProductPushSuggestion:
     composite_score: float
     message: str
     cta: str
+
+
+@dataclass
+class StreamOptimizationSuggestion:
+    session_id: str
+    score_grade: int
+    message: str
+    cta: str
+    source: Literal["llm", "rules"]
+
+
+@dataclass
+class HostProductMatch:
+    creator_id: str
+    creator_name: str
+    tiktok_product_id: str
+    product_name: str
+    match_score: float
+    message: str
+    cta: str
+    source: Literal["llm", "rules"]
 
 
 def _trend_score(
@@ -84,6 +111,233 @@ def _build_message(
 
 def _build_cta(name: str) -> str:
     return f"Đẩy sản phẩm {name} lên livestream tối nay"
+
+
+def _today_window_utc() -> tuple[datetime, datetime]:
+    now = datetime.now(UTC)
+    start = datetime(now.year, now.month, now.day, tzinfo=UTC)
+    end = start + timedelta(days=1)
+    return start, end
+
+
+async def _count_daily_llm_calls(session: AsyncSession, shop_id: uuid.UUID) -> int:
+    day_start, day_end = _today_window_utc()
+    stmt = (
+        select(func.count())
+        .select_from(Recommendation)
+        .where(
+            Recommendation.shop_id == shop_id,
+            Recommendation.recommendation_type.in_(
+                ["stream_optimization_llm", "host_product_matching_llm"]
+            ),
+            Recommendation.created_at >= day_start,
+            Recommendation.created_at < day_end,
+        )
+    )
+    result = await session.execute(stmt)
+    return int(result.scalar_one() or 0)
+
+
+async def _resolve_livestream(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    session_id: uuid.UUID | str,
+) -> Livestream | None:
+    if isinstance(session_id, uuid.UUID):
+        livestream = await session.get(Livestream, session_id)
+        if livestream and livestream.shop_id == shop_id:
+            return livestream
+        return None
+
+    stmt: Select[tuple[Livestream]] = select(Livestream).where(
+        Livestream.shop_id == shop_id,
+        Livestream.tiktok_livestream_id == str(session_id),
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+def _build_stream_fallback(
+    *,
+    session_id: str,
+    score_grade: int,
+    weakest_metric: str,
+) -> StreamOptimizationSuggestion:
+    metric_copy = {
+        "revenue_per_viewer": "giá trị mỗi lượt xem",
+        "conversion_rate": "tỷ lệ chốt đơn",
+        "revenue_vs_avg": "doanh thu so với trung bình",
+        "duration_efficiency": "hiệu suất theo thời lượng livestream",
+    }.get(weakest_metric, "khả năng chốt đơn")
+    message = (
+        f"Phiên {session_id} đang ở mức {score_grade}/100. "
+        f"Ưu tiên cải thiện {metric_copy} bằng ưu đãi chốt đơn sớm và ghim sản phẩm chủ lực."
+    )
+    return StreamOptimizationSuggestion(
+        session_id=session_id,
+        score_grade=score_grade,
+        message=message,
+        cta="Nhấn để áp dụng kịch bản tối ưu livestream",
+        source="rules",
+    )
+
+
+async def get_stream_optimization(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    session_id: uuid.UUID | str,
+    *,
+    max_calls_per_day: int = _DEFAULT_MAX_LLM_CALLS_PER_DAY,
+    llm_generator: LlmGenerator | None = None,
+) -> StreamOptimizationSuggestion:
+    livestream = await _resolve_livestream(session, shop_id, session_id)
+    if livestream is None:
+        return StreamOptimizationSuggestion(
+            session_id=str(session_id),
+            score_grade=0,
+            message=(
+                "Chưa tìm thấy dữ liệu phiên livestream. "
+                "Hãy đồng bộ dữ liệu rồi thử lại để nhận gợi ý tối ưu."
+            ),
+            cta="Nhấn để đồng bộ lại dữ liệu phiên",
+            source="rules",
+        )
+
+    score = await score_livestream(session, livestream.id)
+    if score.breakdown:
+        weakest_metric = min(score.breakdown, key=lambda k: score.breakdown[k])
+    else:
+        weakest_metric = "conversion_rate"
+
+    fallback = _build_stream_fallback(
+        session_id=livestream.tiktok_livestream_id,
+        score_grade=score.grade,
+        weakest_metric=weakest_metric,
+    )
+    used_calls = await _count_daily_llm_calls(session, shop_id)
+    if llm_generator is None or used_calls >= max_calls_per_day:
+        return fallback
+
+    prompt = (
+        "Bạn là trợ lý tối ưu livestream TikTok Shop.\n"
+        f"Điểm livestream hiện tại: {score.grade}/100.\n"
+        f"Điểm chi tiết: {score.breakdown}.\n"
+        "Viết đúng 1 gợi ý tối ưu bằng tiếng Việt, ngắn gọn, rõ hành động."
+    )
+    try:
+        generated = (await llm_generator(prompt)).strip()
+    except Exception:
+        return fallback
+    if not generated:
+        return fallback
+
+    return StreamOptimizationSuggestion(
+        session_id=livestream.tiktok_livestream_id,
+        score_grade=score.grade,
+        message=generated,
+        cta="Nhấn để áp dụng gợi ý cho phiên tiếp theo",
+        source="llm",
+    )
+
+
+def _host_performance_summary(streams: list[Livestream]) -> dict[uuid.UUID, Livestream]:
+    latest_by_creator: dict[uuid.UUID, Livestream] = {}
+    for stream in streams:
+        if stream.creator_id is None:
+            continue
+        existing = latest_by_creator.get(stream.creator_id)
+        if existing is None:
+            latest_by_creator[stream.creator_id] = stream
+            continue
+        if (stream.end_time or stream.created_at) > (existing.end_time or existing.created_at):
+            latest_by_creator[stream.creator_id] = stream
+    return latest_by_creator
+
+
+async def get_host_product_matching(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    limit: int = 3,
+    max_calls_per_day: int = _DEFAULT_MAX_LLM_CALLS_PER_DAY,
+    llm_generator: LlmGenerator | None = None,
+) -> list[HostProductMatch]:
+    creator_stmt = select(Creator).where(Creator.shop_id == shop_id)
+    creators_result = await session.execute(creator_stmt)
+    creators = list(creators_result.scalars().all())
+    if not creators:
+        return []
+
+    stream_stmt = select(Livestream).where(
+        Livestream.shop_id == shop_id,
+        Livestream.creator_id.isnot(None),
+    )
+    stream_result = await session.execute(stream_stmt)
+    streams = list(stream_result.scalars().all())
+    latest_by_creator = _host_performance_summary(streams)
+
+    suggestions = await get_product_push_suggestions(session, shop_id, limit=max(limit, 10))
+    if not suggestions:
+        return []
+
+    used_calls = await _count_daily_llm_calls(session, shop_id)
+    allow_llm = llm_generator is not None and used_calls < max_calls_per_day
+    matches: list[HostProductMatch] = []
+    products_ranked = suggestions[:limit]
+
+    for product in products_ranked:
+        best_creator: Creator | None = None
+        best_score = 0.0
+        for creator in creators:
+            candidate = latest_by_creator.get(creator.id)
+            if candidate is None:
+                continue
+            stream_score = await score_livestream(session, candidate.id)
+            total = product.composite_score * 100 * 0.5 + stream_score.grade * 0.5
+            if total > best_score:
+                best_score = total
+                best_creator = creator
+
+        if best_creator is None:
+            continue
+
+        default_message = (
+            f"Gợi ý để {best_creator.name} bán {product.product_name} vì "
+            "sản phẩm đang có tín hiệu chuyển đổi tốt và hợp với hiệu suất phiên gần nhất."
+        )
+        message = default_message
+        source: Literal["llm", "rules"] = "rules"
+        if allow_llm and llm_generator is not None:
+            prompt = (
+                f"Tạo 1 câu gợi ý tiếng Việt để ghép host '{best_creator.name}' "
+                f"với sản phẩm '{product.product_name}' cho phiên TikTok Shop."
+            )
+            try:
+                generated = (await llm_generator(prompt)).strip()
+            except Exception:
+                generated = ""
+            if generated:
+                message = generated
+                source = "llm"
+
+        matches.append(
+            HostProductMatch(
+                creator_id=str(best_creator.id),
+                creator_name=best_creator.name,
+                tiktok_product_id=product.tiktok_product_id,
+                product_name=product.product_name,
+                match_score=round(best_score / 100.0, 4),
+                message=message,
+                cta=(
+                    f"Nhấn để gán {best_creator.name} phụ trách "
+                    f"{product.product_name} ở phiên tới"
+                ),
+                source=source,
+            )
+        )
+
+    matches.sort(key=lambda item: item.match_score, reverse=True)
+    return matches[:limit]
 
 
 async def get_product_push_suggestions(

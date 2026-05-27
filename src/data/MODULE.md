@@ -17,6 +17,12 @@ database session management, and Alembic migrations for the Juli-AI platform.
 - `InventoryItem` — SKU-level inventory, indexed on `(shop_id, created_at)`
 - `Settlement` — settlements with `status` defaulting to `"pending"` (7-14 day confirmation window); `update_time` is the reconciliation key
 
+### Models — ETL (#32)
+- `ProcessedEvent` — Kafka idempotency ledger keyed by `event_id`
+
+### Repositories — ETL (#32)
+- `ProcessedEventsRepo(session).claim(event_id, shop_id) -> bool` — returns False if already seen
+
 ### Models — Analytics (#28)
 - `Creator` — affiliate creators per shop
 - `Livestream` — post-stream summaries, FK to `Creator`

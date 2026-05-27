@@ -15,7 +15,6 @@ from decimal import Decimal
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.data.models import InventoryItem, Order, Product, Shop, User
 

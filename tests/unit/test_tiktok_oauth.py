@@ -15,7 +15,7 @@ import pytest
 import pytest_asyncio
 
 from src.auth.exceptions import Unauthorized
-from src.auth.tiktok_oauth import REFRESH_BUFFER, TikTokOAuthService
+from src.auth.tiktok_oauth import TikTokOAuthService
 from src.data.models import User
 from src.data.repos import ShopsRepo, TikTokCredentialRepo
 from src.integrations.tiktok.auth import TikTokAuth
