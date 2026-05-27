@@ -8,11 +8,13 @@ modules, orders management with filtering and shipment confirmation.
 ## Public Interface
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/` — Homepage dashboard (GMV counter, livestream feed, AI recommendations, inventory risk)
+- `/alerts` — Alert threshold config + alert history feed
 - `/orders` — Orders list with status filtering, date range picker, one-tap shipment confirmation
 - `/products` — Product revenue ranking with velocity indicators (acceleration/deceleration)
 - `/inventory` — Inventory depletion forecasts, reorder recommendations per SKU
 - `/livestreams` — Livestream session list with metrics summary and 0–100 performance grade
 - `/creators` — Creator GMV attribution and commission efficiency scorecards
+- `/recommendations` — Recommendations feed with Vietnamese message + confidence + one-tap CTA
 
 ## Dependencies
 - `api` (read-only) — consumes `GET /v1/shops`, `GET /v1/shops/me`, orders endpoints
