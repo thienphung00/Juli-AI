@@ -5,31 +5,84 @@
 @tailwind utilities;
 
 /* ── Design Tokens ─────────────────────────────────────── */
-:root {
-  --background: #0a0a0a;
-  --foreground: #fafafa;
-  --card: #141414;
+/* Seller (dark): pink accents on black */
+html.dark {
+  --background: #050505;
+  --foreground: #f5f5f5;
+  --card: #111111;
   --card-foreground: #fafafa;
   --muted: #1a1a1a;
   --muted-foreground: #a1a1aa;
   --border: #2a2a2a;
+  --border-accent: rgba(255, 0, 110, 0.28);
   --input: #1a1a1a;
   --primary: #ff006e;
   --primary-foreground: #ffffff;
   --secondary: #1a1a1a;
   --secondary-foreground: #fafafa;
-  --accent: #ff006e;
+  --accent: #ff4d94;
+  --header-background: #0a0a0a;
+  --header-border: rgba(255, 0, 110, 0.22);
+  --brand-gradient: linear-gradient(135deg, #ff006e 0%, #ff85c2 45%, #ff4d94 100%);
+  --brand-glow: rgba(255, 0, 110, 0.35);
+  --glass-bg: rgba(10, 10, 10, 0.92);
+  --glass-border: rgba(255, 0, 110, 0.12);
+}
+
+/* Affiliate (light): pink accents on white */
+html:not(.dark) {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --muted: #fff0f6;
+  --muted-foreground: #71717a;
+  --border: #fce7f3;
+  --border-accent: rgba(255, 0, 110, 0.2);
+  --input: #fff5f9;
+  --primary: #ff006e;
+  --primary-foreground: #ffffff;
+  --secondary: #fff0f6;
+  --secondary-foreground: #171717;
+  --accent: #ff4d94;
+  --header-background: #ffffff;
+  --header-border: rgba(255, 0, 110, 0.18);
+  --brand-gradient: linear-gradient(135deg, #e6005f 0%, #ff006e 40%, #ff85c2 100%);
+  --brand-glow: rgba(255, 0, 110, 0.2);
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(255, 0, 110, 0.1);
+}
+
+/* Fallback before theme script runs (seller default) */
+:root {
+  --background: #050505;
+  --foreground: #f5f5f5;
+  --card: #111111;
+  --card-foreground: #fafafa;
+  --muted: #1a1a1a;
+  --muted-foreground: #a1a1aa;
+  --border: #2a2a2a;
+  --border-accent: rgba(255, 0, 110, 0.28);
+  --input: #1a1a1a;
+  --primary: #ff006e;
+  --primary-foreground: #ffffff;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #fafafa;
+  --accent: #ff4d94;
   --destructive: #ef4444;
   --success: #10b981;
   --warning: #f59e0b;
   --info: #06b6d4;
   --radius: 16px;
-
-  --pink-primary: #FF1493;
-  --pink-light: #FF85C2;
-  --pink-dark: #E61282;
-  --glass-bg: rgba(20, 20, 20, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --pink-primary: #ff1493;
+  --pink-light: #ff85c2;
+  --pink-dark: #e61282;
+  --header-background: #0a0a0a;
+  --header-border: rgba(255, 0, 110, 0.22);
+  --brand-gradient: linear-gradient(135deg, #ff006e 0%, #ff85c2 45%, #ff4d94 100%);
+  --brand-glow: rgba(255, 0, 110, 0.35);
+  --glass-bg: rgba(10, 10, 10, 0.92);
+  --glass-border: rgba(255, 0, 110, 0.12);
 }
 
 /* ── Base ──────────────────────────────────────────────── */
@@ -73,7 +126,7 @@
   /* Card */
   .card {
     background: var(--card);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-accent, var(--border));
     border-radius: var(--radius);
   }
 
@@ -85,15 +138,46 @@
     border: 1px solid var(--glass-border);
   }
 
-  /* Pink gradient */
+  /* Brand pink gradients */
   .gradient-primary {
-    background: linear-gradient(135deg, #ff006e 0%, #ff4d94 100%);
+    background: var(--brand-gradient);
   }
-  .gradient-primary-text {
-    background: linear-gradient(135deg, #ff006e 0%, #ff4d94 100%);
+
+  .brand-wordmark {
+    display: inline-block;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: var(--brand-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .brand-wordmark-lg {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+  }
+
+  .brand-wordmark-sm {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+
+  /* Alias for existing usage */
+  .gradient-primary-text {
+    display: inline-block;
+    font-weight: 800;
+    background: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .app-header {
+    background: var(--header-background);
+    border-bottom: 1px solid var(--header-border);
   }
 
   /* Live pulse badge */

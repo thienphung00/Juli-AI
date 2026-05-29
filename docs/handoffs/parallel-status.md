@@ -41,3 +41,4 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 | #42 | `../juli-ai-issue-42` | `feat/issue-42-ios-auth-daily-loop` | `ios` | merged | agent-issue-42 | 2026-05-26T07:20:00Z |
 | #37 | `../juli-ai-issue-37` | `feat/issue-37-api-orders-products-inventory` | `api` | merged | agent-issue-37 | 2026-05-26T08:15:00Z |
 | #34 | `../juli-ai-issue-34` | `feat/issue-34-livestream-scoring-anomaly` | `intelligence/scoring` | merged | agent-issue-34 | 2026-05-26T08:20:00Z |
+| #76 | `../juli-ai-issue-76` | `feat/issue-76-mode-selection-gate` | `web` | merged | agent-issue-76 | 2026-05-29T03:30:00Z |

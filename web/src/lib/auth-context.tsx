@@ -9,6 +9,12 @@ import {
   type ReactNode,
 } from "react";
 import { api, type SessionResponse } from "./api-client";
+import {
+  UI_ONLY_DEMO_SHOP,
+  UI_ONLY_DEMO_TOKEN,
+  UI_ONLY_DEMO_USER,
+  isUiOnly,
+} from "./ui-only";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -51,13 +57,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const sendOtp = useCallback(async (phone: string) => {
+    if (isUiOnly) {
+      if (!phone.trim()) {
+        throw new Error("Phone required");
+      }
+      return;
+    }
     await api.auth.sendOtp(phone);
   }, []);
 
   const verifyOtp = useCallback(async (phone: string, code: string) => {
-    const session: SessionResponse = await api.auth.verifyOtp(phone, code);
+    const session: SessionResponse = isUiOnly
+      ? {
+          access_token: UI_ONLY_DEMO_TOKEN,
+          user: {
+            ...UI_ONLY_DEMO_USER,
+            phone: phone.trim() || UI_ONLY_DEMO_USER.phone,
+          },
+        }
+      : await api.auth.verifyOtp(phone, code);
     localStorage.setItem("access_token", session.access_token);
     localStorage.setItem("user", JSON.stringify(session.user));
+    if (isUiOnly) {
+      localStorage.setItem("active_shop_id", UI_ONLY_DEMO_SHOP.id);
+    }
     setState({
       isAuthenticated: true,
       isLoading: false,

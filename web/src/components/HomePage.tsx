@@ -5,16 +5,19 @@ import { useAuth } from "@/lib/auth-context";
 import { api, type Shop } from "@/lib/api-client";
 import { formatVND } from "@/lib/format";
 import { NavBar } from "./NavBar";
+import { UI_ONLY_DEMO_SHOP, isUiOnly } from "@/lib/ui-only";
 
-const UI_ONLY_DEMO_SHOP: Shop = {
-  id: "demo-shop",
-  name: "Cửa hàng demo",
-  tiktok_shop_id: "demo",
-};
-
-export function HomePage({ uiOnly = false }: { uiOnly?: boolean }) {
+export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
   const { user } = useAuth();
-  const [shop, setShop] = useState<Shop | null>(uiOnly ? UI_ONLY_DEMO_SHOP : null);
+  const [shop, setShop] = useState<Shop | null>(
+    uiOnly
+      ? {
+          id: UI_ONLY_DEMO_SHOP.id,
+          name: UI_ONLY_DEMO_SHOP.name,
+          tiktok_shop_id: UI_ONLY_DEMO_SHOP.tiktok_shop_id,
+        }
+      : null
+  );
   const [loading, setLoading] = useState(!uiOnly);
 
   useEffect(() => {
@@ -43,17 +46,15 @@ export function HomePage({ uiOnly = false }: { uiOnly?: boolean }) {
 
   return (
     <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-10 border-b bg-white px-4 py-3">
+      <header className="app-header sticky top-0 z-10 px-4 py-3">
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold">Juli</h1>
+            <h1 className="brand-wordmark brand-wordmark-sm">Juli</h1>
             {shop && (
-              <p className="text-xs text-gray-500">{shop.name}</p>
+              <p className="text-muted mt-0.5 text-xs">{shop.name}</p>
             )}
           </div>
-          <div className="text-sm text-gray-600">
-            {user?.phone}
-          </div>
+          <div className="text-muted text-sm">{user?.phone}</div>
         </div>
       </header>
 
@@ -79,10 +80,12 @@ export function HomePage({ uiOnly = false }: { uiOnly?: boolean }) {
 
 function GmvCard() {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" data-testid="gmv-card">
-      <h2 className="text-sm font-medium text-gray-500">GMV hôm nay</h2>
-      <p className="mt-1 text-2xl font-bold">{formatVND(0)}</p>
-      <p className="mt-1 text-xs text-gray-400">
+    <div className="card p-4" data-testid="gmv-card">
+      <h2 className="text-muted text-sm font-medium">GMV hôm nay</h2>
+      <p className="mt-1 text-2xl font-bold" style={{ color: "var(--primary)" }}>
+        {formatVND(0)}
+      </p>
+      <p className="text-muted mt-1 text-xs">
         Chưa có dữ liệu đơn hàng
       </p>
     </div>
@@ -91,9 +94,9 @@ function GmvCard() {
 
 function LivestreamFeedCard() {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" data-testid="livestream-card">
-      <h2 className="text-sm font-medium text-gray-500">Livestream</h2>
-      <p className="mt-2 text-sm text-gray-400">
+    <div className="card p-4" data-testid="livestream-card">
+      <h2 className="text-muted text-sm font-medium">Livestream</h2>
+      <p className="text-muted mt-2 text-sm">
         Chưa có phiên livestream nào
       </p>
     </div>
@@ -102,9 +105,9 @@ function LivestreamFeedCard() {
 
 function AiRecommendationsCard() {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" data-testid="recommendations-card">
-      <h2 className="text-sm font-medium text-gray-500">Gợi ý AI</h2>
-      <p className="mt-2 text-sm text-gray-400">
+    <div className="card p-4" data-testid="recommendations-card">
+      <h2 className="text-muted text-sm font-medium">Gợi ý AI</h2>
+      <p className="text-muted mt-2 text-sm">
         Chưa có gợi ý — dữ liệu đang được thu thập
       </p>
     </div>
@@ -113,9 +116,9 @@ function AiRecommendationsCard() {
 
 function InventoryRiskCard() {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" data-testid="inventory-risk-card">
-      <h2 className="text-sm font-medium text-gray-500">Cảnh báo tồn kho</h2>
-      <p className="mt-2 text-sm text-gray-400">
+    <div className="card p-4" data-testid="inventory-risk-card">
+      <h2 className="text-muted text-sm font-medium">Cảnh báo tồn kho</h2>
+      <p className="text-muted mt-2 text-sm">
         Không có sản phẩm nào có nguy cơ hết hàng
       </p>
     </div>

@@ -2,11 +2,14 @@
 
 import { useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { usePostAuthRedirect } from "@/lib/use-mode-guard";
+import { isUiOnly } from "@/lib/ui-only";
 
 type Step = "phone" | "otp";
 
 export function LoginForm() {
-  const { sendOtp, verifyOtp } = useAuth();
+  const { sendOtp, verifyOtp, isAuthenticated, isLoading } = useAuth();
+  usePostAuthRedirect(isAuthenticated, isLoading);
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -48,15 +51,15 @@ export function LoginForm() {
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <h1
-            className="text-3xl font-bold"
-            style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
-          >
-            Juli
-          </h1>
+          <h1 className="brand-wordmark brand-wordmark-lg">Juli</h1>
           <p className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
             Quản lý TikTok Shop thông minh
           </p>
+          {isUiOnly && (
+            <p className="mt-2 text-xs" style={{ color: "var(--muted-foreground)" }}>
+              Chế độ UI-only: nhập số bất kỳ, mã OTP 6 chữ số bất kỳ (không cần API).
+            </p>
+          )}
         </div>
 
         {/* Card */}

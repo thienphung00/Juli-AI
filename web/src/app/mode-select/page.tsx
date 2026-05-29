@@ -1,9 +1,7 @@
 "use client";
 
-import { HomePage } from "@/components/HomePage";
+import { ModeSelectionPage } from "@/components/ModeSelectionPage";
 import { useAuthGuard } from "@/lib/use-auth-guard";
-import { useModeGuard } from "@/lib/use-mode-guard";
-import { isUiOnly } from "@/lib/ui-only";
 
 function PageSpinner() {
   return (
@@ -13,13 +11,12 @@ function PageSpinner() {
   );
 }
 
-export function AuthenticatedHomeRoute() {
+export default function ModeSelectRoute() {
   const { loading: authLoading } = useAuthGuard("require-auth");
-  const { loading: modeLoading } = useModeGuard("require-mode");
 
-  if (authLoading || modeLoading) {
+  if (authLoading) {
     return <PageSpinner />;
   }
 
-  return <HomePage uiOnly={isUiOnly} />;
+  return <ModeSelectionPage />;
 }

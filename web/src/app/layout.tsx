@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { AuthProvider } from "@/lib/auth-context";
+import { ModeProvider } from "@/lib/mode-context";
+import { WORKSPACE_THEME_INIT_SCRIPT } from "@/lib/theme-init";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +15,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: "#0a0a0a",
-  colorScheme: "dark",
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({
@@ -21,12 +24,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className="dark">
+    <html lang="vi" suppressHydrationWarning>
       <head>
-        {/* viewport + themeColor handled by `export const viewport` */}
+        <Script id="workspace-theme-init" strategy="beforeInteractive">
+          {WORKSPACE_THEME_INIT_SCRIPT}
+        </Script>
       </head>
-      <body className="min-h-screen antialiased" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <AuthProvider>{children}</AuthProvider>
+      <body
+        className="min-h-screen antialiased"
+        style={{ background: "var(--background)", color: "var(--foreground)" }}
+      >
+        <AuthProvider>
+          <ModeProvider>{children}</ModeProvider>
+        </AuthProvider>
       </body>
     </html>
   );
