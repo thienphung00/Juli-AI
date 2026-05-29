@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
 import { api, type Shop } from "@/lib/api-client";
 import { formatVND } from "@/lib/format";
-import { NavBar } from "./NavBar";
+import { AuthenticatedShell } from "./AuthenticatedShell";
 import { UI_ONLY_DEMO_SHOP, isUiOnly } from "@/lib/ui-only";
 
 export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
-  const { user } = useAuth();
   const [shop, setShop] = useState<Shop | null>(
     uiOnly
       ? {
@@ -45,20 +43,8 @@ export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
   }, [uiOnly]);
 
   return (
-    <div className="min-h-screen pb-20">
-      <header className="app-header sticky top-0 z-10 px-4 py-3">
-        <div className="mx-auto flex max-w-lg items-center justify-between">
-          <div>
-            <h1 className="brand-wordmark brand-wordmark-sm">Juli</h1>
-            {shop && (
-              <p className="text-muted mt-0.5 text-xs">{shop.name}</p>
-            )}
-          </div>
-          <div className="text-muted text-sm">{user?.phone}</div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg space-y-4 px-4 pt-4">
+    <AuthenticatedShell title="Juli" subtitle={shop?.name}>
+      <div className="space-y-4">
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
@@ -71,10 +57,8 @@ export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
             <InventoryRiskCard />
           </>
         )}
-      </main>
-
-      <NavBar />
-    </div>
+      </div>
+    </AuthenticatedShell>
   );
 }
 

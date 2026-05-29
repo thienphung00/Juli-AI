@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type RecommendationItem } from "@/lib/api-client";
-import { NavBar } from "./NavBar";
+import { AuthenticatedShell } from "./AuthenticatedShell";
 
 function getConfidence(item: RecommendationItem): number | null {
   const payload = item.payload ?? {};
@@ -62,20 +62,11 @@ export function RecommendationsPage() {
   );
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
-      <header
-        className="sticky top-0 z-10 px-4 py-3"
-        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
-      >
-        <div className="mx-auto max-w-lg">
-          <h1 className="text-lg font-bold">Gợi ý</h1>
-          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            Gợi ý hành động 1-chạm cho livestream hôm nay
-          </p>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg px-4 pt-4" data-testid="recommendations-feed">
+    <AuthenticatedShell
+      title="Gợi ý"
+      subtitle="Gợi ý hành động 1-chạm cho livestream hôm nay"
+    >
+      <div data-testid="recommendations-feed">
         {error && (
           <p role="alert" className="mb-4 rounded-xl p-3 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
             {error}
@@ -112,10 +103,8 @@ export function RecommendationsPage() {
             ))}
           </div>
         )}
-      </main>
-
-      <NavBar />
-    </div>
+      </div>
+    </AuthenticatedShell>
   );
 }
 

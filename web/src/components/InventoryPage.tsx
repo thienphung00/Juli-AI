@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type InventoryItem, type InventoryResponse, ApiError } from "@/lib/api-client";
 import { formatNumber } from "@/lib/format";
-import { NavBar } from "./NavBar";
+import { AuthenticatedShell } from "./AuthenticatedShell";
 
 const CRITICAL_DAYS_THRESHOLD = 7;
 
@@ -34,17 +34,7 @@ export function InventoryPage() {
   }, [loadInventory]);
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
-      <header
-        className="sticky top-0 z-10 px-4 py-3"
-        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
-      >
-        <div className="mx-auto max-w-lg">
-          <h1 className="text-lg font-bold">Tồn kho</h1>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg px-4 pt-4">
+    <AuthenticatedShell title="Tồn kho">
         {error && (
           <p role="alert" className="mb-4 rounded-xl p-3 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
             {error}
@@ -72,10 +62,7 @@ export function InventoryPage() {
             ))}
           </div>
         )}
-      </main>
-
-      <NavBar />
-    </div>
+    </AuthenticatedShell>
   );
 }
 

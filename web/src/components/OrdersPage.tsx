@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Order, type OrdersResponse, ApiError } from "@/lib/api-client";
 import { formatVND, formatDateTime } from "@/lib/format";
-import { NavBar } from "./NavBar";
+import { AuthenticatedShell } from "./AuthenticatedShell";
 
 const STATUS_OPTIONS = [
   { value: "", label: "Tất cả" },
@@ -65,17 +65,7 @@ export function OrdersPage() {
   };
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
-      <header
-        className="sticky top-0 z-10 px-4 py-3"
-        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
-      >
-        <div className="mx-auto max-w-lg">
-          <h1 className="text-lg font-bold">Đơn hàng</h1>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg px-4 pt-4">
+    <AuthenticatedShell title="Đơn hàng">
         {/* Filters */}
         <div className="space-y-3 pb-4" data-testid="order-filters">
           <select
@@ -144,10 +134,7 @@ export function OrdersPage() {
             ))}
           </div>
         )}
-      </main>
-
-      <NavBar />
-    </div>
+    </AuthenticatedShell>
   );
 }
 

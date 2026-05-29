@@ -9,9 +9,12 @@ modules, orders management with filtering and shipment confirmation.
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Homepage dashboard (GMV counter, livestream feed, AI recommendations, inventory risk)
-- `/alerts` — Alert threshold config + alert history feed
-- `/orders` — Orders list with status filtering, date range picker, one-tap shipment confirmation
-- `/products` — Product revenue ranking with velocity indicators (acceleration/deceleration)
+- `/trends` — Trends discovery hub (MVP placeholder; full UI in later issues)
+- `/operation` — Operations hub (MVP placeholder)
+- `/ai-chat` — Juli AI chat tab (MVP placeholder)
+- `/alerts` — Legacy; 301 → `/` (alerts in header drawer + Home cards)
+- `/orders` — Legacy; 301 → `/operation`
+- `/products` — Legacy; 301 → `/trends`
 - `/inventory` — Inventory depletion forecasts, reorder recommendations per SKU
 - `/livestreams` — Livestream session list with metrics summary and 0–100 performance grade
 - `/creators` — Creator GMV attribution and commission efficiency scorecards
