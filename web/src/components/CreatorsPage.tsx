@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Creator, type CreatorsResponse, ApiError } from "@/lib/api-client";
 import { formatVND, formatNumber } from "@/lib/format";
-import { NavBar } from "./NavBar";
+import { AuthenticatedShell } from "./AuthenticatedShell";
 
 export function CreatorsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -32,17 +32,7 @@ export function CreatorsPage() {
   }, [loadCreators]);
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
-      <header
-        className="sticky top-0 z-10 px-4 py-3"
-        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
-      >
-        <div className="mx-auto max-w-lg">
-          <h1 className="text-lg font-bold">Creators</h1>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg px-4 pt-4">
+    <AuthenticatedShell title="Creators">
         {error && (
           <p role="alert" className="mb-4 rounded-xl p-3 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
             {error}
@@ -70,10 +60,7 @@ export function CreatorsPage() {
             ))}
           </div>
         )}
-      </main>
-
-      <NavBar />
-    </div>
+    </AuthenticatedShell>
   );
 }
 

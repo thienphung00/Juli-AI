@@ -44,6 +44,11 @@ jest.mock("@/lib/api-client", () => ({
   },
 }));
 
+beforeEach(() => {
+  localStorage.clear();
+  document.documentElement.className = "";
+});
+
 describe("UI-only login", () => {
   it("accepts any phone and 6-digit OTP without API", async () => {
     const user = userEvent.setup();

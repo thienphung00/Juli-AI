@@ -65,3 +65,8 @@ export function useWorkspaceMode(): ModeContextValue {
   }
   return ctx;
 }
+
+/** For shared shell components that render in tests without ModeProvider. */
+export function useWorkspaceModeOptional(): ModeContextValue | null {
+  return useContext(ModeContext);
+}

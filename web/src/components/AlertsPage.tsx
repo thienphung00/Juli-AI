@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type AlertHistoryItem, type AlertRuleInput } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
-import { NavBar } from "./NavBar";
+import { AuthenticatedShell } from "./AuthenticatedShell";
 
 type Tab = "config" | "history";
 
@@ -139,25 +139,15 @@ export function AlertsPage() {
   };
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
-      <header
-        className="sticky top-0 z-10 px-4 py-3"
-        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
-      >
-        <div className="mx-auto flex max-w-lg items-center justify-between gap-2">
-          <h1 className="text-lg font-bold">Cảnh báo</h1>
-          <div className="flex items-center gap-2">
-            <TabButton active={tab === "config"} onClick={() => setTab("config")}>
-              Cấu hình
-            </TabButton>
-            <TabButton active={tab === "history"} onClick={() => setTab("history")}>
-              Lịch sử
-            </TabButton>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg px-4 pt-4">
+    <AuthenticatedShell title="Cảnh báo">
+      <div className="mb-4 flex items-center gap-2">
+        <TabButton active={tab === "config"} onClick={() => setTab("config")}>
+          Cấu hình
+        </TabButton>
+        <TabButton active={tab === "history"} onClick={() => setTab("history")}>
+          Lịch sử
+        </TabButton>
+      </div>
         {tab === "config" ? (
           <section data-testid="alerts-config">
             <p className="mb-3 text-sm" style={{ color: "var(--muted-foreground)" }}>
@@ -243,10 +233,7 @@ export function AlertsPage() {
             )}
           </section>
         )}
-      </main>
-
-      <NavBar />
-    </div>
+    </AuthenticatedShell>
   );
 }
 

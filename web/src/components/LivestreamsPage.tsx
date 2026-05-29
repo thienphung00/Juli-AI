@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type LivestreamSession, type LivestreamsResponse, ApiError } from "@/lib/api-client";
 import { formatVND, formatNumber, formatDateTime } from "@/lib/format";
-import { NavBar } from "./NavBar";
+import { AuthenticatedShell } from "./AuthenticatedShell";
 
 export function LivestreamsPage() {
   const [sessions, setSessions] = useState<LivestreamSession[]>([]);
@@ -32,18 +32,10 @@ export function LivestreamsPage() {
   }, [loadSessions]);
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
-      <header
-        className="sticky top-0 z-10 px-4 py-3"
-        style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}
-      >
-        <div className="mx-auto flex max-w-lg items-center gap-2">
-          <h1 className="text-lg font-bold">Trực tiếp</h1>
-          <span className="badge-live">LIVE</span>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-lg px-4 pt-4">
+    <AuthenticatedShell title="Trực tiếp">
+      <div className="mb-3">
+        <span className="badge-live">LIVE</span>
+      </div>
         {error && (
           <p role="alert" className="mb-4 rounded-xl p-3 text-sm" style={{ background: "#ef444420", color: "#ef4444" }}>
             {error}
@@ -71,10 +63,7 @@ export function LivestreamsPage() {
             ))}
           </div>
         )}
-      </main>
-
-      <NavBar />
-    </div>
+    </AuthenticatedShell>
   );
 }
 
