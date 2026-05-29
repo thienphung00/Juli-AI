@@ -28,24 +28,28 @@
   "driftDetails": [],
   "testCoverage": {
     "acceptance": {
-      "total": 4,
-      "mapped": 4,
+      "total": 5,
+      "mapped": 5,
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "/trends renders search input and 3 tabs within 1 interaction",
+          "criterion": "/trends renders with search input and 3 tabs within 1 interaction",
           "test": "web/src/__tests__/test_trends_discovery.test.tsx::renders search input and 3 tabs within one interaction"
         },
         {
-          "criterion": "Typing filters results after debounce within active tab",
+          "criterion": "Typing in the search bar filters results after debounce within the active tab",
           "test": "web/src/__tests__/test_trends_discovery.test.tsx::filters product results after debounced search within the active tab"
         },
         {
-          "criterion": "Seller vs affiliate Creator/Shop intent fields",
-          "test": "web/src/__tests__/test_trends_discovery.test.tsx::seller mode / affiliate mode describe blocks"
+          "criterion": "Seller-mode Creator and Shop tabs show seller-intent fields",
+          "test": "web/src/__tests__/test_trends_discovery.test.tsx::shows seller-intent fields on Creator and Shop tabs"
         },
         {
-          "criterion": "UI-only renders mock data with market intel label",
+          "criterion": "Affiliate-mode Creator and Shop tabs show affiliate-intent fields",
+          "test": "web/src/__tests__/test_trends_discovery.test.tsx::shows affiliate-intent fields on Creator and Shop tabs"
+        },
+        {
+          "criterion": "With NEXT_PUBLIC_UI_ONLY=1, renders with mock data",
           "test": "web/src/__tests__/test_trends_discovery.test.tsx::loads mock trends via service without API calls"
         }
       ]
