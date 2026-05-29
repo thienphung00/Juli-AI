@@ -11,7 +11,7 @@ modules, orders management with filtering and shipment confirmation.
 - `/` — Homepage control center (mode-aware KPIs, inline AI recommendations, alert cards)
 - `/trends` — Trends discovery hub (MVP placeholder; full UI in later issues)
 - `/operation` — Operations hub (role-based sub-tabs: Seller 4 tabs / Affiliate 3 tabs; mock data in UI-only mode)
-- `/ai-chat` — Juli AI chat tab (MVP placeholder)
+- `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)
 - `/alerts` — Legacy; 301 → `/` (alerts in header drawer + Home cards)
 - `/orders` — Legacy; 301 → `/operation`
 - `/products` — Legacy; 301 → `/trends`

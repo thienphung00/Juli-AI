@@ -1,0 +1,58 @@
+{
+  "id": "review-issue-82",
+  "issue": 82,
+  "timestamp": "2026-05-29T22:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Juli AI chat at /ai-chat with mode-aware suggested prompts, mock bootstrap/replies via ai-chat service, subcomponents for list/input/prompts; XSS-safe content display.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": ["web"],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "AiChatPage",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Full chat UI composed from ai-chat subcomponents and services"
+    },
+    {
+      "module": "web",
+      "interface": "getChatBootstrap",
+      "changeType": "added",
+      "breaking": false,
+      "description": "web/src/lib/services/ai-chat.ts — UI-only mock bootstrap and sendMockMessage"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Renders message list, input, and send button for Juli chat interface.",
+          "test": "web/src/__tests__/test_ai_chat_tab.test.tsx::renders message list, input, and send button"
+        },
+        {
+          "criterion": "Suggested prompts differ between Seller and Affiliate mode.",
+          "test": "web/src/__tests__/test_ai_chat_tab.test.tsx::shows seller suggested prompts in seller mode"
+        },
+        {
+          "criterion": "With NEXT_PUBLIC_UI_ONLY=1, chat renders and sends mock replies without API calls.",
+          "test": "web/src/__tests__/test_ai_chat_tab.test.tsx::uses mock service only in UI-only mode without calling API"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 5,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Verify /ai-chat from bottom nav with dev server NEXT_PUBLIC_UI_ONLY=1."
+  ],
+  "approvalReady": true
+}
