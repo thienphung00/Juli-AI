@@ -41,31 +41,31 @@
       "mappings": [
         {
           "criterion": "Header on authenticated screens with mode switcher + alert bell",
-          "test": "test_nav_header_redirects.test.tsx::renders shared header with title, mode switcher, and alert bell"
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::renders shared header with title, mode switcher, and alert bell"
         },
         {
           "criterion": "Mode switch flips theme instantly",
-          "test": "test_nav_header_redirects.test.tsx::flips mode and theme instantly from the header switcher"
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::flips mode and theme instantly from the header switcher"
         },
         {
           "criterion": "Alert bell drawer with badge count",
-          "test": "test_nav_header_redirects.test.tsx::opens alert drawer with badge count from mock alerts"
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::opens alert drawer with badge count from mock alerts"
         },
         {
           "criterion": "Exactly 5 bottom nav tabs, Vietnamese labels",
-          "test": "test_nav_header_redirects.test.tsx::defines exactly 5 bottom nav tabs with Vietnamese labels"
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::defines exactly 5 bottom nav tabs with Vietnamese labels"
         },
         {
           "criterion": "No mode label in bottom nav",
-          "test": "test_nav_header_redirects.test.tsx::does not show a mode label in bottom nav"
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::does not show a mode label in bottom nav"
         },
         {
           "criterion": "Authenticated shell includes header + nav",
-          "test": "test_nav_header_redirects.test.tsx::wraps authenticated content with header and bottom nav"
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::wraps authenticated content with header and bottom nav"
         },
         {
           "criterion": "Legacy route permanent redirects",
-          "test": "test_nav_header_redirects.test.tsx::maps legacy routes to permanent redirect destinations"
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::maps legacy routes to permanent redirect destinations"
         }
       ]
     },
