@@ -221,10 +221,28 @@ def parse_pytest_node(node_id: str) -> tuple[Path, str]:
     return REPO_ROOT / file_part, test_name
 
 
+JEST_TEST_CALL_RE = re.compile(
+    r'\b(?:it|test)\s*\(\s*(["\'])(.+?)\1',
+    re.DOTALL,
+)
+
+
+def jest_node_exists(node_id: str) -> bool:
+    path, test_name = parse_pytest_node(node_id)
+    if not path.exists() or path.suffix not in {".ts", ".tsx", ".js", ".jsx"}:
+        return False
+    if not test_name:
+        return True
+    source = path.read_text(encoding="utf-8")
+    return any(match.group(2) == test_name for match in JEST_TEST_CALL_RE.finditer(source))
+
+
 def pytest_node_exists(node_id: str) -> bool:
     path, test_name = parse_pytest_node(node_id)
     if not path.exists():
         return False
+    if path.suffix in {".ts", ".tsx", ".js", ".jsx"}:
+        return jest_node_exists(node_id)
     if not test_name:
         return True
     try:
