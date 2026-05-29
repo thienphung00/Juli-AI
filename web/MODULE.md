@@ -10,7 +10,7 @@ modules, orders management with filtering and shipment confirmation.
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Homepage control center (mode-aware KPIs, inline AI recommendations, alert cards)
 - `/trends` — Trends discovery hub (MVP placeholder; full UI in later issues)
-- `/operation` — Operations hub (MVP placeholder)
+- `/operation` — Operations hub (role-based sub-tabs: Seller 4 tabs / Affiliate 3 tabs; mock data in UI-only mode)
 - `/ai-chat` — Juli AI chat tab (MVP placeholder)
 - `/alerts` — Legacy; 301 → `/` (alerts in header drawer + Home cards)
 - `/orders` — Legacy; 301 → `/operation`
