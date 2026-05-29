@@ -31,7 +31,8 @@
 **Critical path (remaining):** `#35 → #39 → #43 → #47` and `#36 → #40/#46`.
 
 **Parallel work:** See [`docs/handoffs/parallel-status.md`](handoffs/parallel-status.md)
-and [`_bootstrap.md`](handoffs/_bootstrap.md) for worktree claiming protocol.
+(module locks + GitHub ops lock) and [`_bootstrap.md`](handoffs/_bootstrap.md)
+(worktree claiming, single ops owner, 30s stagger between remote `git`/`gh` calls).
 
 ---
 

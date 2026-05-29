@@ -1,3 +1,4 @@
+import { getMockWorkspaceAlerts, toHomeAlertCards } from "@/lib/mock-data/alerts";
 import type { WorkspaceMode } from "@/lib/workspace-mode";
 
 export interface HomeAlertCard {
@@ -65,6 +66,7 @@ export interface AffiliateHomeDashboard {
   mode: "affiliate";
   creator: { handle: string; follower_count: number };
   kpis: AffiliateHomeKpis;
+  alerts: HomeAlertCard[];
   ai_recommendation: HomeAiRecommendation;
   audience_fit_products: Array<{
     id: string;
@@ -89,17 +91,7 @@ export const MOCK_HOME_SELLER: SellerHomeDashboard = {
     active_livestreams: 2,
     active_livestream_viewers: 1240,
   },
-  alerts: [
-    {
-      id: "alert-001",
-      type: "inventory_risk",
-      severity: "high",
-      title: "Tồn kho sắp hết",
-      body: "Son dưỡng môi Laneige còn 12 units. Dự kiến hết hàng sau 3 ngày.",
-      action_label: "Xem",
-      action_href: "/operation?section=inventory",
-    },
-  ],
+  alerts: toHomeAlertCards(getMockWorkspaceAlerts("seller")),
   ai_recommendation: {
     id: "rec-001",
     type: "creator_push",
@@ -131,6 +123,7 @@ export const MOCK_HOME_SELLER: SellerHomeDashboard = {
 export const MOCK_HOME_AFFILIATE: AffiliateHomeDashboard = {
   mode: "affiliate",
   creator: { handle: "@linh.nhi.beauty", follower_count: 284_000 },
+  alerts: toHomeAlertCards(getMockWorkspaceAlerts("affiliate")),
   kpis: {
     commission_today_vnd: 12_800_000,
     commission_wow_pct: 31,

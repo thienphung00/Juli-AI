@@ -32,7 +32,7 @@ export function AlertBannerCard({ alert }: { alert: HomeAlertCard }) {
   return (
     <div
       className="card p-4"
-      data-testid="home-alert-card"
+      data-testid={`home-alert-card-${alert.id}`}
       style={{ borderLeft: `3px solid ${styles.border}` }}
     >
       <div className="flex items-start justify-between gap-2">

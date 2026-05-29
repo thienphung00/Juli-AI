@@ -77,7 +77,8 @@ Parallel coordinator — do not implement product code.
 1. docs/handoffs/tiktok-mvp-issues-01.md — pick issues with Status Unblocked only.
 2. Confirm pairwise disjoint Modules.
 3. On main: worktrees + rows in docs/handoffs/parallel-status.md per _bootstrap.md Parallel.
-4. Reply with one Issue prompt per issue (workflow: Parallel).
+4. Claim GitHub ops lock in parallel-status.md — coordinator owns all push/merge/gh.
+5. Reply with one Issue prompt per issue (workflow: Parallel); implementation agents edit locally only.
 ```
 
 ## Issue prompt (template)
@@ -92,9 +93,10 @@ Implement GitHub issue #<N> (workflow: <Isolate|Parallel>).
 3. docs/handoffs/parallel-status.md — claim row on main before first edit.
 4. git worktree add ../juli-ai-issue-<N> -b feat/issue-<N>-<slug> origin/main  (skip if exists)
 5. cd ../juli-ai-issue-<N>
-6. gh issue view <N>
-7. focus → tdd → review → PR (update parallel-status phase each step)
-8. After merge on main: mark #<N> Done; recompute Unblocked / Isolate for remaining issues.
+6. gh issue view <N>  (ops owner only; others read issue from handoff or local clone)
+7. focus → tdd → review locally (update parallel-status phase via ops owner)
+8. Parallel: do NOT push or gh pr — hand branch + PR draft to GitHub ops owner
+9. After merge on main: ops owner marks #<N> Done; recompute Unblocked / Isolate
 ```
 
 **Examples (current):**

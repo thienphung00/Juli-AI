@@ -151,7 +151,13 @@ For each AFK issue: run focus → tdd → review → ship.
 
 ## Phase 4: Implementation Loop (per issue)
 
-For each issue in the queue, run these four skills in sequence:
+For each issue in the queue, run these four skills in sequence.
+
+**Parallel runs:** When multiple issues are in-flight, follow
+`docs/handoffs/_bootstrap.md` § GitHub ops coordination — one agent holds the
+GitHub ops lock in `parallel-status.md` (push, `gh pr *`, merge, registry
+updates on `main`); other agents commit locally and hand off. Stagger remote
+GitHub commands by **≥ 30 seconds** between operations.
 
 ### 4a. Focus
 
@@ -255,7 +261,7 @@ For each issue in the queue, run these four skills in sequence:
 - Scans changes across all validation domains (reliability, maintainability, security, observability, performance)
 - Produces a findings report (critical / warning / info)
 - Fixes critical findings in-place
-- Opens a PR via `gh pr create` with the ship PR template (What / Why / How / Testing / Rollback)
+- Opens a PR via `gh pr create` with the ship PR template (What / Why / How / Testing / Rollback) — **GitHub ops owner only** when parallel agents are active; others prepare the PR body locally
 
 **Handoff → ship:**
 
@@ -296,7 +302,7 @@ For each issue in the queue, run these four skills in sequence:
 - Reads the review handoff
 - Validates the PR passes all pre-merge gate checks (lint, type-check, tests, security scan)
 - Evaluates deployment readiness (migration safety, rollback plan, feature flag)
-- Merges the PR if all gates pass
+- Merges the PR if all gates pass — **GitHub ops owner only** when parallel agents are active; wait **≥ 30s** after the last remote GitHub op (see `parallel-status.md`)
 - Closes the corresponding GitHub issue
 - Records what was shipped for the next issue in the queue
 

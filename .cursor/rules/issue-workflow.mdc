@@ -11,7 +11,20 @@ alwaysApply: false
 | `Unblocked` and disjoint `Modules` from all other ready issues | **Parallel** — one worktree per issue |
 
 - Bootstrap prompts: `docs/handoffs/tiktok-mvp-issues-01.md` § Bootstrap prompts
-- Locks: `docs/handoffs/parallel-status.md`
+- Locks: `docs/handoffs/parallel-status.md` (module rows + GitHub ops lock)
 - Steps: `docs/handoffs/_bootstrap.md`
+
+## GitHub ops (parallel runs)
+
+When multiple agents run in parallel:
+
+- **One agent** holds the GitHub ops lock in `parallel-status.md` — it alone runs
+  `git push`, `gh pr create`, `gh pr merge`, `gh pr checks`, and status-registry
+  updates on `main`.
+- **All other agents** commit locally only; hand off push/PR/merge to the ops owner.
+- **Stagger** remote GitHub commands by at least **30 seconds** between operations
+  (update `Last remote op` in the registry after each one).
+
+See `docs/handoffs/_bootstrap.md` § GitHub ops coordination.
 
 After each merge, update Status (`Done` / `Blocked` / `Unblocked` / `Isolate`) in the handoff registry.

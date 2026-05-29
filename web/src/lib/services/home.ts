@@ -6,8 +6,10 @@ import {
   type HomeAiRecommendation,
   type SellerHomeDashboard,
 } from "@/lib/mock-data/home";
+import { toHomeAlertCards } from "@/lib/mock-data/alerts";
 import { isUiOnly, UI_ONLY_DEMO_SHOP } from "@/lib/ui-only";
 import type { WorkspaceMode } from "@/lib/workspace-mode";
+import { getWorkspaceAlerts } from "@/lib/services/alerts";
 
 function mapRecommendation(item: RecommendationItem): HomeAiRecommendation {
   const payload = item.payload ?? {};
@@ -68,6 +70,7 @@ function emptyAffiliateDashboard(handle: string): AffiliateHomeDashboard {
   return {
     mode: "affiliate",
     creator: { handle, follower_count: 0 },
+    alerts: [],
     kpis: {
       commission_today_vnd: 0,
       commission_wow_pct: 0,
@@ -88,6 +91,11 @@ function emptyAffiliateDashboard(handle: string): AffiliateHomeDashboard {
       product_click_rate: 0,
     },
   };
+}
+
+async function loadHomeAlerts(mode: WorkspaceMode) {
+  const alerts = await getWorkspaceAlerts(mode);
+  return toHomeAlertCards(alerts);
 }
 
 export async function getHomeDashboard(mode: WorkspaceMode): Promise<HomeDashboardData> {
@@ -115,7 +123,7 @@ export async function getHomeDashboard(mode: WorkspaceMode): Promise<HomeDashboa
       base.ai_recommendation = mapRecommendation(topRec);
     }
 
-    base.alerts = (alerts.items ?? []).slice(0, 3).map((item) => ({
+    const apiAlerts = (alerts.items ?? []).slice(0, 3).map((item) => ({
       id: item.id,
       type: item.alert_type,
       severity: "info" as const,
@@ -126,10 +134,13 @@ export async function getHomeDashboard(mode: WorkspaceMode): Promise<HomeDashboa
           : item.alert_type,
     }));
 
+    base.alerts = apiAlerts.length > 0 ? apiAlerts : await loadHomeAlerts("seller");
+
     return base;
   }
 
   const base = emptyAffiliateDashboard(shopName);
+  base.alerts = await loadHomeAlerts("affiliate");
   const recs = await api.recommendations
     .list()
     .catch(() => ({ items: [] as RecommendationItem[] }));

@@ -4,6 +4,7 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 
 - Claim a row on `main` before the first edit.
 - One in-flight writer per module path (`Writer of`).
+- **One GitHub ops owner** for all remote `git`/`gh` commands (see below).
 - Update `Phase` and `Last update` at each step.
 
 | Field | Values |
@@ -12,16 +13,32 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 | `Writer of` | Modules from registry `Modules` column |
 | `Reader of` | Optional read-only modules |
 
+## GitHub ops lock
+
+Single writer for remote GitHub operations. Implementation agents commit locally only.
+
+| Owner | Last remote op (UTC) | Notes |
+|-------|----------------------|-------|
+| _(none)_ | | `push`, `gh pr create/merge/checks`, `parallel-status.md` updates on `main` |
+
+Rules:
+
+- Claim `Owner` before the first remote op; release when done or hand off explicitly.
+- Wait **≥ 30s** after `Last remote op` before the next remote command.
+- Non-ops agents: do not push or call `gh` — hand branch + PR draft to ops owner.
+
 ## In-flight
 
 | Issue | Worktree | Branch | Writer of | Reader of | Phase | Owner | Last update |
 |-------|----------|--------|-----------|-----------|-------|-------|-------------|
-| #80 | `../juli-ai-issue-80` | `feat/issue-80-trends-discovery` | `web` | | `pr-open` | agent-issue-80 | 2026-05-29 |
 
 ## Recently released
 
 | Issue | Modules released | Released at |
 |-------|------------------|-------------|
+| #82 | `web/ai-chat` | 2026-05-29 |
+| #81 | `web/operation` | 2026-05-29 |
+| #80 | `web` | 2026-05-29 |
 | #79 | `web` | 2026-05-29 |
 | #43 | `api`, `alerts`, `recommendations` | 2026-05-27 |
 | #35 | `intelligence/forecasting` | 2026-05-27 |
@@ -34,6 +51,7 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 
 | Issue | Worktree | Branch | Writer of | Phase | Owner | Last update |
 |-------|----------|--------|-----------|-------|-------|-------------|
+| #80 | `../juli-ai-issue-80` | `feat/issue-80-trends-discovery` | `web` | merged | agent-issue-80 | 2026-05-29T04:45:00Z |
 | #40 | `../juli-ai-issue-40` | `feat/issue-40-alerts-zalo` | `alerts` | merged | agent-issue-40 | 2026-05-27T08:17:00Z |
 | #43 | `../juli-ai-issue-43` | `feat/issue-43-api-alerts-recommendations` | `api`, `alerts`, `recommendations` | merged | agent-issue-43 | 2026-05-27T08:00:00Z |
 | #35 | `../juli-ai-issue-35` | `feat/issue-35-forecasting` | `intelligence/forecasting`, `data` | merged | agent-issue-35 | 2026-05-27T13:00:00Z |

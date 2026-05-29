@@ -2,7 +2,7 @@
  * Issue #77 — Header + 5-tab nav + route redirects
  */
 import type { ReactElement } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NavBar } from "@/components/NavBar";
 import { PageHeader } from "@/components/PageHeader";
@@ -13,7 +13,18 @@ import {
   BOTTOM_NAV_TABS,
   LEGACY_ROUTE_REDIRECTS,
 } from "@/lib/nav-config";
+import { getMockWorkspaceAlerts } from "@/lib/mock-data/alerts";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
+import * as alertsService from "@/lib/services/alerts";
+
+jest.mock("@/lib/services/alerts", () => ({
+  ...jest.requireActual("@/lib/services/alerts"),
+  getWorkspaceAlerts: jest.fn(),
+}));
+
+const mockGetWorkspaceAlerts = alertsService.getWorkspaceAlerts as jest.MockedFunction<
+  typeof alertsService.getWorkspaceAlerts
+>;
 
 const mockPathname = jest.fn(() => "/");
 
@@ -21,6 +32,10 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
   usePathname: () => mockPathname(),
 }));
+
+beforeEach(() => {
+  mockGetWorkspaceAlerts.mockImplementation(async (mode) => getMockWorkspaceAlerts(mode));
+});
 
 function renderWithProviders(ui: ReactElement) {
   return render(
@@ -87,17 +102,19 @@ describe("Nav redesign header + nav (#77)", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 
-  it("opens alert drawer with badge count from mock alerts", async () => {
+  it("opens alert drawer with seller inventory alert consistent with Home", async () => {
     localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
     const user = userEvent.setup();
     renderWithProviders(<PageHeader title="Vận hành" />);
 
-    const bell = screen.getByRole("button", { name: "Cảnh báo" });
-    expect(bell).toHaveTextContent("2");
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-bell-badge")).toHaveTextContent("2");
+    });
 
-    await user.click(bell);
+    await user.click(screen.getByTestId("alert-bell-button"));
     expect(screen.getByRole("dialog", { name: "Danh sách cảnh báo" })).toBeInTheDocument();
-    expect(screen.getByText("Tồn kho thấp")).toBeInTheDocument();
+    expect(screen.getByText("Tồn kho sắp hết")).toBeInTheDocument();
+    expect(screen.getByText(/Laneige #3 Berry còn 12 đơn vị/)).toBeInTheDocument();
   });
 
   it("wraps authenticated content with header and bottom nav", () => {

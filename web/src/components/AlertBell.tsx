@@ -2,13 +2,42 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Bell, X } from "lucide-react";
-import { MOCK_HEADER_ALERTS } from "@/lib/mock-data/header-alerts";
+import { useWorkspaceMode } from "@/lib/mode-context";
+import type { WorkspaceAlert } from "@/lib/services/alerts";
+import { getWorkspaceAlerts } from "@/lib/services/alerts";
 
 export function AlertBell() {
+  const { mode } = useWorkspaceMode();
   const [open, setOpen] = useState(false);
-  const count = MOCK_HEADER_ALERTS.length;
+  const [alerts, setAlerts] = useState<WorkspaceAlert[]>([]);
 
   const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!mode) {
+      setAlerts([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const next = await getWorkspaceAlerts(mode);
+        if (!cancelled) setAlerts(next);
+      } catch (error) {
+        console.error("alerts_load_failed", { error });
+        if (!cancelled) setAlerts([]);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode]);
+
+  const count = alerts.length;
 
   useEffect(() => {
     if (!open) return;
@@ -28,12 +57,14 @@ export function AlertBell() {
         onClick={() => setOpen((v) => !v)}
         className="relative flex h-9 w-9 items-center justify-center rounded-full transition-opacity hover:opacity-90"
         style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+        data-testid="alert-bell-button"
       >
         <Bell size={18} style={{ color: "var(--foreground)" }} />
         {count > 0 && (
           <span
             className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
             style={{ background: "var(--primary)" }}
+            data-testid="alert-bell-badge"
           >
             {count}
           </span>
@@ -54,6 +85,7 @@ export function AlertBell() {
             aria-label="Danh sách cảnh báo"
             className="fixed inset-x-0 bottom-0 z-[70] mx-auto max-h-[70vh] max-w-lg overflow-y-auto rounded-t-2xl p-4 shadow-xl safe-area-bottom"
             style={{ background: "var(--card)", borderTop: "1px solid var(--border)" }}
+            data-testid="alert-bell-drawer"
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
@@ -69,22 +101,31 @@ export function AlertBell() {
                 <X size={16} />
               </button>
             </div>
-            <ul className="space-y-3">
-              {MOCK_HEADER_ALERTS.map((alert) => (
-                <li
-                  key={alert.id}
-                  className="rounded-xl p-3"
-                  style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
-                >
-                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    {alert.title}
-                  </p>
-                  <p className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    {alert.message}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            {alerts.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted">Không có cảnh báo mới.</p>
+            ) : (
+              <ul className="space-y-3">
+                {alerts.map((alert) => (
+                  <li
+                    key={alert.id}
+                    className="rounded-xl p-3"
+                    style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+                    data-testid={`alert-bell-item-${alert.id}`}
+                  >
+                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      {alert.title}
+                    </p>
+                    <p
+                      className="mt-1 text-xs"
+                      style={{ color: "var(--muted-foreground)" }}
+                      data-testid={`alert-bell-message-${alert.id}`}
+                    >
+                      {alert.message}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </>
       )}

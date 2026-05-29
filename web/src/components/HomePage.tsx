@@ -134,6 +134,10 @@ function AffiliateHomeView({ dashboard }: { dashboard: AffiliateHomeDashboard })
   return (
     <div className="space-y-3" data-testid="home-affiliate">
       <div className="space-y-3" data-testid="home-above-fold">
+        {dashboard.alerts.map((alert) => (
+          <AlertBannerCard key={alert.id} alert={alert} />
+        ))}
+
         <HomeAiRecommendationCard
           recommendation={dashboard.ai_recommendation}
           title="Cơ hội hoa hồng hôm nay"
@@ -200,3 +204,4 @@ function AffiliateHomeView({ dashboard }: { dashboard: AffiliateHomeDashboard })
     </div>
   );
 }
+

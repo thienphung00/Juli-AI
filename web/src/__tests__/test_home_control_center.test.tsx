@@ -81,11 +81,14 @@ describe("Home control center (#79)", () => {
       renderHome("seller");
 
       await waitFor(() => {
-        expect(screen.getByTestId("home-alert-card")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("home-alert-card-alert-seller-inventory-laneige")
+        ).toBeInTheDocument();
       });
 
       expect(screen.getByText("Tồn kho sắp hết")).toBeInTheDocument();
-      expect(screen.getByText(/Laneige còn 12 units/)).toBeInTheDocument();
+      expect(screen.getByText(/Laneige #3 Berry còn 12 đơn vị/)).toBeInTheDocument();
+      expect(screen.getByText(/hết hàng sau 3 ngày/)).toBeInTheDocument();
     });
   });
 
