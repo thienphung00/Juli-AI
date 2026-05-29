@@ -1,0 +1,60 @@
+{
+  "id": "review-issue-80",
+  "issue": 80,
+  "timestamp": "2026-05-29T04:35:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Trends discovery page with debounced search, Product/Creator/Shop tabs, role-aware seller vs affiliate fields, mock data service layer, and market-intel placeholder banner on cross-shop tabs.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": ["web"],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "TrendsPage",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Full discovery UI replacing placeholder shell"
+    },
+    {
+      "module": "web",
+      "interface": "getTrends",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Service adapter with UI-only mock routing"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "/trends renders search input and 3 tabs within 1 interaction",
+          "test": "web/src/__tests__/test_trends_discovery.test.tsx::renders search input and 3 tabs within one interaction"
+        },
+        {
+          "criterion": "Typing filters results after debounce within active tab",
+          "test": "web/src/__tests__/test_trends_discovery.test.tsx::filters product results after debounced search within the active tab"
+        },
+        {
+          "criterion": "Seller vs affiliate Creator/Shop intent fields",
+          "test": "web/src/__tests__/test_trends_discovery.test.tsx::seller mode / affiliate mode describe blocks"
+        },
+        {
+          "criterion": "UI-only renders mock data with market intel label",
+          "test": "web/src/__tests__/test_trends_discovery.test.tsx::loads mock trends via service without API calls"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 79,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
