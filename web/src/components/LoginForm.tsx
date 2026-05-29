@@ -51,12 +51,7 @@ export function LoginForm() {
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <h1
-            className="text-3xl font-bold"
-            style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
-          >
-            Juli
-          </h1>
+          <h1 className="brand-wordmark brand-wordmark-lg">Juli</h1>
           <p className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
             Quản lý TikTok Shop thông minh
           </p>

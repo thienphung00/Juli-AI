@@ -34,7 +34,7 @@ export function ModeSelectionPage() {
     >
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="gradient-primary-text text-3xl font-bold">Juli</h1>
+          <h1 className="brand-wordmark brand-wordmark-lg">Juli</h1>
           <p className="mt-3 text-lg font-semibold" style={{ color: "var(--foreground)" }}>
             Bạn đang vận hành theo vai trò nào?
           </p>
