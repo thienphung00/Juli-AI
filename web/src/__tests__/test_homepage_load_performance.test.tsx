@@ -1,27 +1,16 @@
 /**
  * AC2 — Homepage loads showing GMV counter, livestream feed, AI recommendations,
- * inventory risk modules (PRD AC-12). Validates structure and empty-state rendering.
+ * and mode-aware highlights (PRD AC-12, #79).
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
-import { api } from "@/lib/api-client";
+import { ModeProvider } from "@/lib/mode-context";
+import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
+import * as homeService from "@/lib/services/home";
 
-jest.mock("@/lib/api-client", () => ({
-  api: {
-    auth: { sendOtp: jest.fn(), verifyOtp: jest.fn() },
-    shops: {
-      list: jest.fn(),
-      me: jest.fn(),
-    },
-    orders: { list: jest.fn(), confirmShipment: jest.fn() },
-  },
-  ApiError: class ApiError extends Error {
-    status: number;
-    constructor(status: number, msg: string) {
-      super(msg);
-      this.status = status;
-    }
-  },
+jest.mock("@/lib/services/home", () => ({
+  ...jest.requireActual("@/lib/services/home"),
+  getHomeDashboard: jest.fn(),
 }));
 
 jest.mock("@/lib/auth-context", () => ({
@@ -34,7 +23,23 @@ jest.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-const mockShopsList = api.shops.list as jest.MockedFunction<typeof api.shops.list>;
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  usePathname: () => "/",
+}));
+
+const mockGetHomeDashboard = homeService.getHomeDashboard as jest.MockedFunction<
+  typeof homeService.getHomeDashboard
+>;
+
+function renderSellerHome() {
+  localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
+  return render(
+    <ModeProvider>
+      <HomePage uiOnly={false} />
+    </ModeProvider>
+  );
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -42,71 +47,95 @@ beforeEach(() => {
 });
 
 describe("AC2: Homepage dashboard modules", () => {
-  it("renders all four dashboard cards", async () => {
-    mockShopsList.mockResolvedValue([
-      { id: "shop-1", name: "Shop Test", tiktok_shop_id: "ts-1" },
-    ]);
+  it("renders seller control-center cards", async () => {
+    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
+    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
 
-    render(<HomePage />);
+    renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
     });
 
     expect(screen.getByTestId("livestream-card")).toBeInTheDocument();
-    expect(screen.getByTestId("recommendations-card")).toBeInTheDocument();
-    expect(screen.getByTestId("inventory-risk-card")).toBeInTheDocument();
+    expect(screen.getByTestId("home-ai-recommendation")).toBeInTheDocument();
+    expect(screen.getByTestId("top-creator-card")).toBeInTheDocument();
+    expect(screen.getByTestId("top-product-card")).toBeInTheDocument();
   });
 
   it("displays GMV card with VND formatting", async () => {
-    mockShopsList.mockResolvedValue([
-      { id: "shop-1", name: "Shop Test", tiktok_shop_id: "ts-1" },
-    ]);
+    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
+    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
 
-    render(<HomePage />);
+    renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
     });
 
     expect(screen.getByText("GMV hôm nay")).toBeInTheDocument();
+    expect(screen.getByText(/84\.200\.000/)).toBeInTheDocument();
   });
 
-  it("shows empty states gracefully when no data", async () => {
-    mockShopsList.mockResolvedValue([
-      { id: "shop-1", name: "Shop Test", tiktok_shop_id: "ts-1" },
-    ]);
+  it("shows populated seller highlights from dashboard data", async () => {
+    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
+    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
 
-    render(<HomePage />);
+    renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByText("Chưa có phiên livestream nào")).toBeInTheDocument();
+      expect(screen.getByText(/@linh\.nhi\.beauty/)).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByText("Chưa có gợi ý — dữ liệu đang được thu thập")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Không có sản phẩm nào có nguy cơ hết hàng")
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Son dưỡng môi Laneige #3 Berry/)).toBeInTheDocument();
   });
 
   it("shows shop name in header after loading", async () => {
-    mockShopsList.mockResolvedValue([
-      { id: "shop-1", name: "Cửa hàng ABC", tiktok_shop_id: "ts-1" },
-    ]);
+    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
+    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
 
-    render(<HomePage />);
+    renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByText("Cửa hàng ABC")).toBeInTheDocument();
+      expect(screen.getByText("BeautyShop VN")).toBeInTheDocument();
     });
   });
 
-  it("handles graceful empty state when no shops exist", async () => {
-    mockShopsList.mockResolvedValue([]);
+  it("handles empty seller dashboard gracefully", async () => {
+    mockGetHomeDashboard.mockResolvedValue({
+      mode: "seller",
+      shop: { name: "Cửa hàng trống", tiktok_shop_id: "" },
+      kpis: {
+        gmv_today_vnd: 0,
+        gmv_wow_pct: 0,
+        active_livestreams: 0,
+        active_livestream_viewers: 0,
+      },
+      alerts: [],
+      ai_recommendation: {
+        id: "empty",
+        type: "none",
+        headline: "Chưa có gợi ý — dữ liệu đang được thu thập",
+        primary_action: { label: "Xem xu hướng", href: "/trends" },
+        confidence: 0,
+      },
+      top_creator: {
+        id: "empty",
+        handle: "—",
+        gmv_today_vnd: 0,
+        conversion_rate: 0,
+        conversion_delta: 0,
+      },
+      top_product: {
+        id: "empty",
+        name: "Chưa có dữ liệu",
+        orders_today: 0,
+        gmv_today_vnd: 0,
+        ctr: 0,
+      },
+    });
 
-    render(<HomePage />);
+    renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
