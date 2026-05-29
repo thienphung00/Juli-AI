@@ -8,7 +8,7 @@ modules, orders management with filtering and shipment confirmation.
 ## Public Interface
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
-- `/` — Homepage dashboard (GMV counter, livestream feed, AI recommendations, inventory risk)
+- `/` — Homepage control center (mode-aware KPIs, inline AI recommendations, alert cards)
 - `/trends` — Trends discovery hub (MVP placeholder; full UI in later issues)
 - `/operation` — Operations hub (MVP placeholder)
 - `/ai-chat` — Juli AI chat tab (MVP placeholder)

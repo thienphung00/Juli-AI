@@ -1,110 +1,202 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, type Shop } from "@/lib/api-client";
-import { formatVND } from "@/lib/format";
 import { AuthenticatedShell } from "./AuthenticatedShell";
-import { UI_ONLY_DEMO_SHOP, isUiOnly } from "@/lib/ui-only";
+import { AlertBannerCard } from "./home/AlertBannerCard";
+import { HomeAiRecommendationCard } from "./home/HomeAiRecommendationCard";
+import { formatNumber, formatVND } from "@/lib/format";
+import type {
+  AffiliateHomeDashboard,
+  HomeDashboardData,
+  SellerHomeDashboard,
+} from "@/lib/mock-data/home";
+import { useWorkspaceMode } from "@/lib/mode-context";
+import { getHomeDashboard, getHomeSubtitle } from "@/lib/services/home";
+import { isUiOnly } from "@/lib/ui-only";
+
+function formatPct(value: number, digits = 1): string {
+  return `${(value * 100).toFixed(digits).replace(".", ",")}%`;
+}
+
+function formatDeltaPct(value: number): string {
+  const pct = (value * 100).toFixed(1).replace(".", ",");
+  return `▲ +${pct}%`;
+}
 
 export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
-  const [shop, setShop] = useState<Shop | null>(
-    uiOnly
-      ? {
-          id: UI_ONLY_DEMO_SHOP.id,
-          name: UI_ONLY_DEMO_SHOP.name,
-          tiktok_shop_id: UI_ONLY_DEMO_SHOP.tiktok_shop_id,
-        }
-      : null
-  );
-  const [loading, setLoading] = useState(!uiOnly);
+  const { mode } = useWorkspaceMode();
+  const [dashboard, setDashboard] = useState<HomeDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (uiOnly) return;
+    if (!mode) return;
 
+    const workspaceMode = mode;
     let cancelled = false;
-    async function loadShop() {
+
+    async function load() {
+      setLoading(true);
       try {
-        const shops = await api.shops.list();
-        if (!cancelled && shops.length > 0) {
-          const firstShop = shops[0];
-          localStorage.setItem("active_shop_id", firstShop.id);
-          setShop(firstShop);
-        }
+        const data = await getHomeDashboard(workspaceMode);
+        if (!cancelled) setDashboard(data);
       } catch (error) {
-        console.error("Failed to load shop data", { error });
+        console.error("home_dashboard_load_failed", { error });
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-    loadShop();
+
+    load();
     return () => {
       cancelled = true;
     };
-  }, [uiOnly]);
+  }, [mode, uiOnly]);
+
+  const subtitle = dashboard ? getHomeSubtitle(dashboard) : undefined;
 
   return (
-    <AuthenticatedShell title="Juli" subtitle={shop?.name}>
-      <div className="space-y-4">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
-          </div>
-        ) : (
-          <>
-            <GmvCard />
-            <LivestreamFeedCard />
-            <AiRecommendationsCard />
-            <InventoryRiskCard />
-          </>
-        )}
-      </div>
+    <AuthenticatedShell title="Juli" subtitle={subtitle}>
+      {loading || !dashboard || !mode ? (
+        <div className="flex justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+        </div>
+      ) : dashboard.mode === "seller" ? (
+        <SellerHomeView dashboard={dashboard} />
+      ) : (
+        <AffiliateHomeView dashboard={dashboard} />
+      )}
     </AuthenticatedShell>
   );
 }
 
-function GmvCard() {
+function SellerHomeView({ dashboard }: { dashboard: SellerHomeDashboard }) {
   return (
-    <div className="card p-4" data-testid="gmv-card">
-      <h2 className="text-muted text-sm font-medium">GMV hôm nay</h2>
-      <p className="mt-1 text-2xl font-bold" style={{ color: "var(--primary)" }}>
-        {formatVND(0)}
-      </p>
-      <p className="text-muted mt-1 text-xs">
-        Chưa có dữ liệu đơn hàng
-      </p>
+    <div className="space-y-3" data-testid="home-seller">
+      <div className="space-y-3" data-testid="home-above-fold">
+        {dashboard.alerts.map((alert) => (
+          <AlertBannerCard key={alert.id} alert={alert} />
+        ))}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="card p-4" data-testid="gmv-card">
+            <h2 className="text-muted text-sm font-medium">GMV hôm nay</h2>
+            <p className="mt-1 text-xl font-bold" style={{ color: "var(--primary)" }}>
+              {formatVND(dashboard.kpis.gmv_today_vnd)}
+            </p>
+            <p className="mt-1 text-xs font-medium" style={{ color: "#10b981" }}>
+              ▲ +{dashboard.kpis.gmv_wow_pct}% WoW
+            </p>
+          </div>
+
+          <div className="card p-4" data-testid="livestream-card">
+            <h2 className="text-muted text-sm font-medium">Livestream đang chạy</h2>
+            <p className="mt-1 text-sm font-semibold">
+              {dashboard.kpis.active_livestreams} phiên ·{" "}
+              {formatNumber(dashboard.kpis.active_livestream_viewers)} xem
+            </p>
+            <a
+              href="/livestreams"
+              className="mt-2 inline-block text-xs font-semibold"
+              style={{ color: "var(--primary)" }}
+            >
+              Xem chi tiết →
+            </a>
+          </div>
+        </div>
+
+        <HomeAiRecommendationCard recommendation={dashboard.ai_recommendation} />
+      </div>
+
+      <div className="card p-4" data-testid="top-creator-card">
+        <h2 className="text-muted text-sm font-medium">Creator tốt nhất hôm nay</h2>
+        <p className="mt-1 text-sm font-semibold">{dashboard.top_creator.handle}</p>
+        <p className="text-muted mt-1 text-sm">
+          {formatVND(dashboard.top_creator.gmv_today_vnd)} GMV · Tỷ lệ chuyển đổi:{" "}
+          {formatPct(dashboard.top_creator.conversion_rate)}{" "}
+          {formatDeltaPct(dashboard.top_creator.conversion_delta)}
+        </p>
+      </div>
+
+      <div className="card p-4" data-testid="top-product-card">
+        <h2 className="text-muted text-sm font-medium">Sản phẩm bán chạy</h2>
+        <p className="mt-1 text-sm font-semibold">{dashboard.top_product.name}</p>
+        <p className="text-muted mt-1 text-sm">
+          {formatNumber(dashboard.top_product.orders_today)} đơn · GMV{" "}
+          {formatVND(dashboard.top_product.gmv_today_vnd)} · CTR{" "}
+          {formatPct(dashboard.top_product.ctr)}
+        </p>
+      </div>
     </div>
   );
 }
 
-function LivestreamFeedCard() {
+function AffiliateHomeView({ dashboard }: { dashboard: AffiliateHomeDashboard }) {
   return (
-    <div className="card p-4" data-testid="livestream-card">
-      <h2 className="text-muted text-sm font-medium">Livestream</h2>
-      <p className="text-muted mt-2 text-sm">
-        Chưa có phiên livestream nào
-      </p>
-    </div>
-  );
-}
+    <div className="space-y-3" data-testid="home-affiliate">
+      <div className="space-y-3" data-testid="home-above-fold">
+        <HomeAiRecommendationCard
+          recommendation={dashboard.ai_recommendation}
+          title="Cơ hội hoa hồng hôm nay"
+        />
 
-function AiRecommendationsCard() {
-  return (
-    <div className="card p-4" data-testid="recommendations-card">
-      <h2 className="text-muted text-sm font-medium">Gợi ý AI</h2>
-      <p className="text-muted mt-2 text-sm">
-        Chưa có gợi ý — dữ liệu đang được thu thập
-      </p>
-    </div>
-  );
-}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="card p-4" data-testid="commission-card">
+            <h2 className="text-muted text-sm font-medium">Hoa hồng hôm nay</h2>
+            <p className="mt-1 text-xl font-bold" style={{ color: "var(--primary)" }}>
+              {formatVND(dashboard.kpis.commission_today_vnd)}
+            </p>
+            <p className="mt-1 text-xs font-medium" style={{ color: "#10b981" }}>
+              ▲ +{dashboard.kpis.commission_wow_pct}% WoW
+            </p>
+          </div>
 
-function InventoryRiskCard() {
-  return (
-    <div className="card p-4" data-testid="inventory-risk-card">
-      <h2 className="text-muted text-sm font-medium">Cảnh báo tồn kho</h2>
-      <p className="text-muted mt-2 text-sm">
-        Không có sản phẩm nào có nguy cơ hết hàng
-      </p>
+          <div className="card p-4" data-testid="livestream-card">
+            <h2 className="text-muted text-sm font-medium">Livestream hôm nay</h2>
+            <p className="mt-1 text-sm font-semibold">
+              {dashboard.kpis.livestream_sessions_today} phiên ·{" "}
+              {formatVND(dashboard.kpis.livestream_gmv_vnd)}
+            </p>
+            <p className="text-muted mt-1 text-xs">
+              Tỷ lệ chuyển đổi {formatPct(dashboard.kpis.livestream_conversion_rate)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-4" data-testid="audience-fit-card">
+        <h2 className="text-muted text-sm font-medium">Sản phẩm phù hợp với audience</h2>
+        <ul className="mt-2 space-y-2">
+          {dashboard.audience_fit_products.map((product) => (
+            <li key={product.id} className="text-sm">
+              <span className="font-medium">{product.name}</span>
+              <span className="text-muted">
+                {" "}
+                · Phù hợp {Math.round(product.fit_score * 100)}% · Hoa hồng{" "}
+                {product.commission_pct}%
+              </span>
+            </li>
+          ))}
+        </ul>
+        <a
+          href="/trends"
+          className="mt-3 inline-block text-xs font-semibold"
+          style={{ color: "var(--primary)" }}
+        >
+          Xem thêm →
+        </a>
+      </div>
+
+      <div className="card p-4" data-testid="content-performance-card">
+        <h2 className="text-muted text-sm font-medium">Hiệu suất nội dung</h2>
+        <p className="text-muted mt-2 text-sm">
+          Video hôm qua: {formatNumber(dashboard.content_performance.video_yesterday_views)}{" "}
+          lượt xem
+        </p>
+        <p className="text-muted text-sm">
+          Tỷ lệ click sản phẩm:{" "}
+          {formatPct(dashboard.content_performance.product_click_rate)}
+        </p>
+      </div>
     </div>
   );
 }

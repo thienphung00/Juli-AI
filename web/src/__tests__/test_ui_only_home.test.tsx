@@ -1,26 +1,15 @@
 /**
  * Regression: #71 UI-only shows home UI; #70 skips API wait in UI-only mode.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
-import { api } from "@/lib/api-client";
+import { ModeProvider } from "@/lib/mode-context";
+import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
+import * as homeService from "@/lib/services/home";
 
-jest.mock("@/lib/api-client", () => ({
-  api: {
-    auth: { sendOtp: jest.fn(), verifyOtp: jest.fn() },
-    shops: {
-      list: jest.fn(),
-      me: jest.fn(),
-    },
-    orders: { list: jest.fn(), confirmShipment: jest.fn() },
-  },
-  ApiError: class ApiError extends Error {
-    status: number;
-    constructor(status: number, msg: string) {
-      super(msg);
-      this.status = status;
-    }
-  },
+jest.mock("@/lib/services/home", () => ({
+  ...jest.requireActual("@/lib/services/home"),
+  getHomeDashboard: jest.fn(),
 }));
 
 jest.mock("@/lib/auth-context", () => ({
@@ -33,27 +22,52 @@ jest.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-const mockShopsList = api.shops.list as jest.MockedFunction<typeof api.shops.list>;
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  usePathname: () => "/",
+}));
+
+const mockGetHomeDashboard = homeService.getHomeDashboard as jest.MockedFunction<
+  typeof homeService.getHomeDashboard
+>;
 
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
+  localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
+  document.documentElement.classList.add("dark");
+
+  const { getMockHomeDashboard } = jest.requireActual("@/lib/mock-data/home");
+  mockGetHomeDashboard.mockImplementation(async (mode) => getMockHomeDashboard(mode));
 });
 
 describe("UI-only home (#71, #70)", () => {
-  it("renders dashboard modules immediately without calling shops API", () => {
-    render(<HomePage uiOnly />);
+  it("renders dashboard modules immediately without calling shops API", async () => {
+    render(
+      <ModeProvider>
+        <HomePage uiOnly />
+      </ModeProvider>
+    );
 
-    expect(mockShopsList).not.toHaveBeenCalled();
-    expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
+    });
+
     expect(screen.getByTestId("livestream-card")).toBeInTheDocument();
-    expect(screen.getByTestId("recommendations-card")).toBeInTheDocument();
-    expect(screen.getByTestId("inventory-risk-card")).toBeInTheDocument();
+    expect(screen.getByTestId("home-ai-recommendation")).toBeInTheDocument();
+    expect(screen.getByTestId("top-creator-card")).toBeInTheDocument();
+    expect(screen.getByTestId("top-product-card")).toBeInTheDocument();
   });
 
-  it("shows demo shop name in header", () => {
-    render(<HomePage uiOnly />);
+  it("shows seller shop name in header", async () => {
+    render(
+      <ModeProvider>
+        <HomePage uiOnly />
+      </ModeProvider>
+    );
 
-    expect(screen.getByText("Cửa hàng demo")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("BeautyShop VN")).toBeInTheDocument();
+    });
   });
 });
