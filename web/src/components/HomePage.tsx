@@ -5,13 +5,24 @@ import { useAuth } from "@/lib/auth-context";
 import { api, type Shop } from "@/lib/api-client";
 import { formatVND } from "@/lib/format";
 import { NavBar } from "./NavBar";
+import { UI_ONLY_DEMO_SHOP, isUiOnly } from "@/lib/ui-only";
 
-export function HomePage() {
+export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
   const { user } = useAuth();
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [shop, setShop] = useState<Shop | null>(
+    uiOnly
+      ? {
+          id: UI_ONLY_DEMO_SHOP.id,
+          name: UI_ONLY_DEMO_SHOP.name,
+          tiktok_shop_id: UI_ONLY_DEMO_SHOP.tiktok_shop_id,
+        }
+      : null
+  );
+  const [loading, setLoading] = useState(!uiOnly);
 
   useEffect(() => {
+    if (uiOnly) return;
+
     let cancelled = false;
     async function loadShop() {
       try {
@@ -31,7 +42,7 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [uiOnly]);
 
   return (
     <div className="min-h-screen pb-20">

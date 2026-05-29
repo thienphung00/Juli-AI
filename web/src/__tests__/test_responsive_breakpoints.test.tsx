@@ -6,6 +6,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { LoginForm } from "@/components/LoginForm";
 import { AuthProvider } from "@/lib/auth-context";
+import { ModeProvider } from "@/lib/mode-context";
 
 jest.mock("@/lib/api-client", () => ({
   api: {
@@ -30,7 +31,9 @@ describe("AC5: Mobile-responsive layout", () => {
   it("login form renders within a max-w-sm container for mobile", () => {
     const { container } = render(
       <AuthProvider>
-        <LoginForm />
+        <ModeProvider>
+          <LoginForm />
+        </ModeProvider>
       </AuthProvider>
     );
 
@@ -41,7 +44,9 @@ describe("AC5: Mobile-responsive layout", () => {
   it("OTP button has adequate touch target (py-3 = 12px padding)", () => {
     render(
       <AuthProvider>
-        <LoginForm />
+        <ModeProvider>
+          <LoginForm />
+        </ModeProvider>
       </AuthProvider>
     );
 
@@ -53,7 +58,9 @@ describe("AC5: Mobile-responsive layout", () => {
   it("phone input has large text (text-lg) for easy reading", () => {
     render(
       <AuthProvider>
-        <LoginForm />
+        <ModeProvider>
+          <LoginForm />
+        </ModeProvider>
       </AuthProvider>
     );
 
@@ -64,7 +71,9 @@ describe("AC5: Mobile-responsive layout", () => {
   it("phone input uses numeric keyboard on mobile", () => {
     render(
       <AuthProvider>
-        <LoginForm />
+        <ModeProvider>
+          <LoginForm />
+        </ModeProvider>
       </AuthProvider>
     );
 

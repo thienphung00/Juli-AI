@@ -32,6 +32,22 @@
   --glass-border: rgba(255, 255, 255, 0.08);
 }
 
+/* Affiliate (light) workspace — html without .dark */
+html:not(.dark) {
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
+  --input: #f4f4f5;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #171717;
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.06);
+}
+
 /* ── Base ──────────────────────────────────────────────── */
 @layer base {
   html {

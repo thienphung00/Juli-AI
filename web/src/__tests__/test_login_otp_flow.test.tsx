@@ -6,7 +6,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginForm } from "@/components/LoginForm";
 import { AuthProvider } from "@/lib/auth-context";
+import { ModeProvider } from "@/lib/mode-context";
 import { api } from "@/lib/api-client";
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  usePathname: () => "/login",
+}));
 
 jest.mock("@/lib/api-client", () => ({
   api: {
@@ -32,7 +38,9 @@ const mockVerifyOtp = api.auth.verifyOtp as jest.MockedFunction<typeof api.auth.
 function renderLogin() {
   return render(
     <AuthProvider>
-      <LoginForm />
+      <ModeProvider>
+        <LoginForm />
+      </ModeProvider>
     </AuthProvider>
   );
 }

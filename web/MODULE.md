@@ -7,6 +7,7 @@ modules, orders management with filtering and shipment confirmation.
 
 ## Public Interface
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
+- `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Homepage dashboard (GMV counter, livestream feed, AI recommendations, inventory risk)
 - `/alerts` — Alert threshold config + alert history feed
 - `/orders` — Orders list with status filtering, date range picker, one-tap shipment confirmation
@@ -27,6 +28,7 @@ modules, orders management with filtering and shipment confirmation.
 - Vietnamese locale (VND ₫ formatting, diacritics, ICT timezone)
 
 ## Invariants
+- Workspace mode (`seller` | `affiliate`) is persisted in `localStorage` (`juli_workspace_mode`) and drives the `dark` class on `<html>` (Seller=dark, Affiliate=light)
 - Auth MUST go through the API layer — no direct Supabase client calls from the browser
 - All UI text in Vietnamese with proper diacritics
 - Currency formatted as VND (₫) with thousands separators

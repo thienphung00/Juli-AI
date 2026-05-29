@@ -3,13 +3,14 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { postAuthPath } from "@/lib/workspace-mode";
 
 type AuthGuardMode = "require-auth" | "require-guest";
 
 /**
  * Redirects based on auth state:
  *  - "require-auth": unauthenticated users → /login
- *  - "require-guest": authenticated users → /
+ *  - "require-guest": authenticated users → / or /mode-select (if mode not set)
  */
 export function useAuthGuard(mode: AuthGuardMode): { loading: boolean } {
   const { isAuthenticated, isLoading } = useAuth();
@@ -21,7 +22,7 @@ export function useAuthGuard(mode: AuthGuardMode): { loading: boolean } {
     if (mode === "require-auth" && !isAuthenticated) {
       router.replace("/login");
     } else if (mode === "require-guest" && isAuthenticated) {
-      router.replace("/");
+      router.replace(postAuthPath());
     }
   }, [isAuthenticated, isLoading, mode, router]);
 

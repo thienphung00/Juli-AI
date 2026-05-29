@@ -16,7 +16,7 @@ In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
 
 | Issue | Worktree | Branch | Writer of | Reader of | Phase | Owner | Last update |
 |-------|----------|--------|-----------|-----------|-------|-------|-------------|
-| _(none)_ | | | | | | | |
+| #76 | `../juli-ai-issue-76` | `feat/issue-76-mode-selection-gate` | `web` | | `pr-open` | agent-issue-76 | 2026-05-29 |
 
 ## Recently released
 
