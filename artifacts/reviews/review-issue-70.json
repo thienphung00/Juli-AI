@@ -1,0 +1,55 @@
+{
+  "id": "review-issue-70",
+  "issue": 70,
+  "timestamp": "2026-05-29T12:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "UI-only home renders the seller dashboard with demo shop data, skips shops API, and splits authenticated routing to reduce cold-compile graph; lucide import optimization in next.config.js.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "HomePage",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Optional uiOnly prop uses demo shop and skips api.shops.list"
+    },
+    {
+      "module": "web",
+      "interface": "AuthenticatedHomeRoute",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Auth-guarded home route extracted from page.tsx for code splitting"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 2,
+      "mapped": 2,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "UI-only renders dashboard immediately without shops API (#71, #70)",
+          "test": "web/src/__tests__/test_ui_only_home.test.tsx::renders dashboard modules immediately without calling shops API"
+        },
+        {
+          "criterion": "UI-only shows demo shop name in header (#71)",
+          "test": "web/src/__tests__/test_ui_only_home.test.tsx::shows demo shop name in header"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Manually verify cold first compile with rm -rf .next/cache && NEXT_PUBLIC_UI_ONLY=1 npm run dev."
+  ],
+  "approvalReady": true
+}
