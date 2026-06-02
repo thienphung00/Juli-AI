@@ -35,7 +35,7 @@ Reference documentation for integrating with the TikTok Shop Partner API (TTS AP
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │  TikTok Shop    │────▶│  Ingestion Layer │────▶│  Message Queue  │
-│  Partner API    │     │  (Webhooks +     │     │  (Kafka)        │
+│  Partner API    │     │  (Webhooks +     │     │  src/etl        │
 │                 │◀────│   Pollers)       │     │                 │
 └─────────────────┘     └──────────────────┘     └────────┬────────┘
                                                           │
@@ -59,7 +59,7 @@ Reference documentation for integrating with the TikTok Shop Partner API (TTS AP
 2. Create an App (custom or public) — obtain App Key + App Secret
 3. Configure redirect URI for OAuth flow
 4. Enable required API scopes (Shop Authorization, Product, Order, etc.)
-5. Register webhook URLs for real-time events
+5. Register webhook URLs for near-realtime events (v2.0) / low-latency push (v1.5 handoff)
 
 ## Related Resources
 

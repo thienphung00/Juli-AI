@@ -37,7 +37,7 @@ Recompute after **each merge** (on `main`):
 | 29 | Auth: Phone-OTP login + JWT middleware | `auth`, `data` | ~~#24~~ | AFK | Done |
 | 30 | Auth: TikTok OAuth + shop provisioning | `auth`, `integrations/tiktok`, `data` | ~~#29~~ | AFK | Done |
 | 31 | Services/Polling: Extend sync | `services/polling`, `integrations/tiktok`, `data` | ~~#28~~, ~~#25~~, ~~#26~~ | AFK | Done |
-| 32 | ETL: Kafka consumer + dedup + DLQ | `etl`, `data` | ~~#28~~, ~~#27~~ | AFK | Done |
+| 32 | ETL: ingest consumer + dedup + DLQ | `etl`, `data` | ~~#28~~, ~~#27~~ | AFK | Done |
 | 33 | API: Bootstrap + auth + shop endpoints | `api`, `auth`, `data` | ~~#29~~ | AFK | Done |
 | 34 | Intelligence/Scoring: Livestream grade + anomaly | `intelligence/scoring`, `data` | ~~#28~~ | AFK | Done |
 | 35 | Intelligence/Forecasting: Inventory depletion + velocity | `intelligence/forecasting`, `data` | ~~#28~~ | AFK | Done |
@@ -105,7 +105,7 @@ Implement GitHub issue #<N> (workflow: <Isolate|Parallel>).
 |-------|----------|------|
 | #39 | Isolate | `recommendations-rules` |
 | #36 | Isolate | `alerts-fcm` |
-| #32 | Isolate | `etl-kafka` |
+| #32 | Isolate | `etl-ingest` |
 | #38 | Isolate | `api-livestream` |
 
 # Remaining Work

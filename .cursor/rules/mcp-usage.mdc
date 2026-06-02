@@ -32,3 +32,4 @@ risks unintended side effects. Match the task to its server before making any ca
 4. **Prefer non-MCP alternatives when sufficient.** Use `Grep`, `Read`, `Shell` for tasks that don't require MCP capabilities — don't use `execute_sql` to inspect a local migration file, don't use `browser_navigate` when `curl` suffices.
 5. **Supabase caution.** `apply_migration` and `execute_sql` modify remote state. Always review generated SQL before executing. Prefer local CLI (`supabase`) for development when a shell is available.
 6. **Browser server selection.** Use `cursor-ide-browser` for quick visual checks within the IDE. Use `user-playwright` for automated test flows, form filling, and multi-step browser scenarios.
+

@@ -24,7 +24,7 @@ External data constraints live in
 ```
 TikTok API / webhooks
   → integrations/tiktok + services/webhook|polling
-  → Kafka (raw events)
+  → src/etl (validation → dedup → persist)
   → src/data (Supabase)
   → src/api ← web / ios
   → src/intelligence/scoring (read-only analytics)
@@ -36,8 +36,8 @@ TikTok API / webhooks
 |---------|--------|
 | Backend | Python 3, FastAPI, Celery, httpx |
 | Database | Supabase Postgres, SQLAlchemy async, Alembic |
-| Events | Kafka |
-| Cache / queue | Redis (Celery broker, rate limits) |
+| Ingest | In-process handoff → `EtlConsumer` (v1.5) |
+| Cache / queue | Redis + Celery (v2.0 only) |
 | Auth | Supabase phone OTP + TikTok OAuth |
 | Web | Next.js (`web/`) |
 | iOS | SwiftUI (`ios/`) |

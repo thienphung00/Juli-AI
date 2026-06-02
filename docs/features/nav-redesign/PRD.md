@@ -1464,7 +1464,7 @@ async redirects() {
 
 ### MVP (Phase 1 — this PRD)
 
-**No new API endpoints.** No TikTok sync, Kafka, or ML jobs in scope. Backend may remain idle while `NEXT_PUBLIC_UI_ONLY=1` is set.
+**No new API endpoints.** No TikTok sync, ETL ingest, or ML jobs in scope. Backend may remain idle while `NEXT_PUBLIC_UI_ONLY=1` is set.
 
 ### v1.5 (Phase 2 — wire real data)
 
@@ -1587,7 +1587,7 @@ This is a **UI navigation redesign + screen specification** that:
 
 ## What This Is Not
 
-- This is **not** a v1.5 backend/infrastructure rollout — TikTok sync, Scrapy, Kafka, and daily ML are separate work (`migration_path.md`)
+- This is **not** a v1.5 backend/infrastructure rollout — TikTok sync, Scrapy, ETL ingest, and daily ML are separate work (`migration_path.md`)
 - This is **not** a schema redesign for MVP — mock-first; real persistence follows v1.5
 - This is **not** multi-app — one codebase, role-based views via `ModeContext`
 

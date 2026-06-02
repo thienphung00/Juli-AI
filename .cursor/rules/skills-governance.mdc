@@ -19,3 +19,4 @@ alwaysApply: true
 | Repeatable prompts | `docs/handoffs/*.md` |
 | Always-on behavior | `.cursor/rules/*.mdc` |
 | One-off workflow | Reply in chat or update an existing skill |
+

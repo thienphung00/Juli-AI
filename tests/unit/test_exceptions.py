@@ -8,7 +8,7 @@ Behaviors under test:
 """
 import pytest
 
-from src.integrations.tiktok.exceptions import (
+from src.modules.catalog.domain.integrations.tiktok.exceptions import (
     TikTokAPIError,
     AuthenticationError,
     PermissionDeniedError,

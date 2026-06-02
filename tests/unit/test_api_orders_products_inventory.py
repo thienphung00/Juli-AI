@@ -16,7 +16,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from src.data.models import InventoryItem, Order, Product, Shop, User
+from src.shared.utils.data.models import InventoryItem, Order, Product, Shop, User
 
 pytestmark = pytest.mark.asyncio
 
@@ -28,8 +28,8 @@ pytestmark = pytest.mark.asyncio
 
 @pytest_asyncio.fixture
 async def app(engine, session):
-    from src.api.app import create_app
-    from src.data import get_session
+    from src.apps.api_gateway.api.app import create_app
+    from src.shared.utils.data import get_session
 
     application = create_app()
 
@@ -64,8 +64,8 @@ async def shop(session, authenticated_user):
 
 @pytest_asyncio.fixture
 async def auth_client(app, authenticated_user, shop):
-    from src.auth import get_current_user
-    from src.api.dependencies import get_active_shop
+    from src.modules.identity.infrastructure.auth import get_current_user
+    from src.apps.api_gateway.api.dependencies import get_active_shop
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop

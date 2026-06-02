@@ -28,3 +28,4 @@ When multiple agents run in parallel:
 See `docs/handoffs/_bootstrap.md` § GitHub ops coordination.
 
 After each merge, update Status (`Done` / `Blocked` / `Unblocked` / `Isolate`) in the handoff registry.
+

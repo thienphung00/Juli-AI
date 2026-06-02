@@ -26,3 +26,4 @@ logger.warning("login_failed", extra={"email": email, "reason": "invalid_credent
 - Use distributed tracing (trace IDs, span IDs) to follow requests across services.
 - Set up alerts on critical thresholds so issues surface before users report them.
 - Instrument new endpoints and background jobs from day one — don't retrofit.
+

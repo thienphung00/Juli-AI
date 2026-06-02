@@ -1,0 +1,28 @@
+---
+description: Agent workflow — delegate, parallelize, and cross-check risky changes
+alwaysApply: true
+---
+
+# Agent Workflow (Cursor)
+
+These are **project conventions** for using agents / sub-agents during development.
+
+## When to delegate
+
+- **Planning & decomposition**: when a task spans multiple modules or has unclear requirements.
+- **Review**: after non-trivial code changes, especially cross-cutting refactors.
+- **Security pass**: when touching auth, PII, billing, secrets, or external integrations.
+- **Test/CI triage**: when a build/test failure needs focused investigation.
+
+## Parallelism rule
+
+When tasks are independent, run them in parallel (e.g., one agent explores code paths while another focuses on tests). Avoid serial work unless there is a hard dependency.
+
+## Multi-perspective checks (for complex changes)
+
+For risky changes, run at least two distinct perspectives:
+
+- **Correctness/reliability**: edge cases, failure modes, determinism.
+- **Security/privacy**: secrets, authZ boundaries, data exposure, injection risks.
+- **Maintainability**: cohesion, naming, duplication, module boundaries.
+

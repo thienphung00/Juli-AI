@@ -46,6 +46,17 @@ async def list_all(requesting_user: User) -> list[User]:
 - Rotate secrets on a schedule and immediately on suspected compromise.
 - Use `.env.example` with placeholder values; add `.env` to `.gitignore`.
 
+## Pre-Commit Security Checklist
+
+Before merging work that touches user data, auth, billing, or infrastructure, ensure:
+
+- No hardcoded secrets (API keys, passwords, tokens).
+- User input is validated at boundaries (requests, events, webhooks).
+- Database access is parameterized / ORM-safe (no string interpolation in queries).
+- Error messages do not leak sensitive details (tokens, PII, internal IDs).
+- AuthZ checks exist at the service layer (not only at the router/controller).
+- Rate limiting is applied to authentication and other abuse-prone endpoints.
+
 ## OWASP Top 10 Alignment
 
 - **Injection**: Use parameterized queries and ORMs; never interpolate user input into SQL/commands.
@@ -83,3 +94,12 @@ app.add_middleware(
 - Classify data by sensitivity; apply stricter controls to PII and financial data.
 - Log only what's necessary — mask or redact PII in logs and error messages.
 - Honor data deletion requests; design schemas to support GDPR-style erasure.
+
+## Security Response Protocol
+
+If a security issue is discovered:
+
+- Stop and scope impact (what data, what exposure, what timeframe).
+- Fix the issue and remove/rotate any exposed secrets immediately.
+- Audit for similar patterns nearby (same module / same endpoints / same utilities).
+

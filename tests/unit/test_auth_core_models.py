@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.data import User, Shop, TikTokCredential
+from src.shared.utils.data import User, Shop, TikTokCredential
 
 
 class TestAuthCoreModelsDefined:

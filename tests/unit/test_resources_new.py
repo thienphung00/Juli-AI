@@ -10,9 +10,9 @@ AC3: SettlementsResource implements list with date-range filtering and returns n
 import pytest
 from unittest.mock import MagicMock
 
-from src.integrations.tiktok.resources.creators import CreatorsResource
-from src.integrations.tiktok.resources.livestreams import LivestreamsResource
-from src.integrations.tiktok.resources.settlements import SettlementsResource
+from src.modules.catalog.domain.integrations.tiktok.resources.creators import CreatorsResource
+from src.modules.catalog.domain.integrations.tiktok.resources.livestreams import LivestreamsResource
+from src.modules.catalog.domain.integrations.tiktok.resources.settlements import SettlementsResource
 
 
 @pytest.fixture

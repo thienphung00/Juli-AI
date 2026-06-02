@@ -20,12 +20,12 @@ alwaysApply: true
 ```
 # ❌ BAD — duplicated validation in two handlers
 def create_user(data):
-    if not data.get("email") or "@" not in data["email"]:
+    if not data.get("email") or "@" not in data.get("email", ""):
         raise ValueError("Invalid email")
     ...
 
 def update_user(data):
-    if not data.get("email") or "@" not in data["email"]:
+    if not data.get("email") or "@" not in data.get("email", ""):
         raise ValueError("Invalid email")
     ...
 
@@ -40,3 +40,4 @@ def validate_email(email: str) -> None:
 - Comment on *why*, not *what* — the code should explain the what.
 - Keep `README.md` current with setup instructions and architecture overview.
 - Record significant design decisions (ADRs or inline rationale).
+

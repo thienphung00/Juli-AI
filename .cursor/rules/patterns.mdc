@@ -1,0 +1,20 @@
+---
+description: Common patterns — repository interfaces and consistent API envelopes
+alwaysApply: true
+---
+
+# Common Patterns
+
+## Repository pattern
+
+Encapsulate data access behind a consistent interface so business logic doesn’t depend on storage details. This improves testability and enables swapping implementations (DB, API, file, cache).
+
+## API response envelope (when applicable)
+
+Use a consistent response shape across endpoints. Typical elements:
+
+- **status/success** indicator
+- **data** payload (nullable on error)
+- **error** message/code (nullable on success)
+- **metadata** for pagination (cursor/page/limit/total), when listing resources
+

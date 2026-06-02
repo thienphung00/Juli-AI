@@ -13,7 +13,7 @@ repository already shipped a working Python backend:
 | Module | Role |
 |--------|------|
 | `src/integrations/tiktok` | TikTok Partner API client — OAuth, HMAC signing, rate limiting, resources |
-| `src/services/webhook` | FastAPI webhook receiver → Kafka |
+| `src/services/webhook` | FastAPI webhook receiver → ETL handoff |
 | `src/services/polling` | Background sync (`sync_orders`, `sync_products`, `sync_inventory`) |
 | `src/data` | SQLAlchemy async models, shop-scoped repos, Alembic migrations |
 | `src/auth` | Supabase phone-OTP, JWT verification, TikTok OAuth lifecycle |

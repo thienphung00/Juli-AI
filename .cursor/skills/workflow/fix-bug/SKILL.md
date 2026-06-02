@@ -138,22 +138,27 @@ For each issue in the queue, run these four skills in sequence:
 - **GREEN**: Applies the smallest change that makes the failing test pass without breaking existing tests
   - Fix the bug, nothing else — no refactoring, no "while I'm here" improvements
   - One logical change — each file touch directly required by the fix
-- **REFACTOR**: Only after GREEN, minimal cleanup directly related to the fix:
+- **REFACTOR (implementation)**: Only after GREEN, minimal cleanup directly related to the fix:
   - Extract shared validation if same guard needed elsewhere
   - Add type annotations that would have caught the bug
   - Improve error messages that made diagnosis harder
+- **REFACTOR (tests & fixtures)**: Still only after GREEN, clean up the regression test and fixtures:
+  - Extract repeated setup into fixtures/factories
+  - Tighten assertions to the smallest stable contract
+  - Keep tests deterministic (no shared state, no ordering dependency)
 - Checks for siblings — same bug pattern elsewhere — files follow-up issues if found
 - Commits working code with passing tests on a fix branch
 
 **Test placement guidelines:**
 
+Prefer matching the existing `tests/unit/test_*.py` patterns in this repo:
+
 | Bug Type | Test Location | Pattern |
 |----------|--------------|---------|
-| API endpoint returns wrong status | `tests/api/` | `TestClient` request + assert status/body |
-| Service logic incorrect | `tests/services/` | Direct function call + assert output |
-| Data layer corruption | `tests/data/` | Repo operation + assert DB state |
-| Race condition | `tests/integration/` | Concurrent operations + assert consistency |
-| Frontend rendering | `tests/web/` or `__tests__/` | Render + user-event + assert DOM |
+| API endpoint returns wrong status/body | `tests/unit/test_api*.py` | `httpx.AsyncClient` + `ASGITransport` + assert status/shape |
+| Auth/authZ behavior | `tests/unit/test_get_current_user.py` (or similar) | dependency override `get_current_user` + assert 401/403/200 |
+| Service/domain logic incorrect | `tests/unit/test_*.py` | direct async call + assert outcome |
+| Data/repo behavior incorrect | `tests/unit/test_repos.py` (or similar) | use async `session` fixture + assert DB state |
 
 **Handoff → review:**
 

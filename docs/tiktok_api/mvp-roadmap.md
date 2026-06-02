@@ -41,7 +41,7 @@ Deliver a working platform that connects TikTok shops, syncs orders/products/inv
 
 | Task | Description | Priority |
 |------|-------------|----------|
-| Webhook receiver | HTTPS endpoint, signature verification, Kafka publish | P0 |
+| Webhook receiver | HTTPS endpoint, signature verification, ETL handoff | P0 |
 | Order sync | Webhook + polling for orders (initial + incremental) | P0 |
 | Product sync | Full catalog sync, incremental updates | P0 |
 | Inventory sync | Stock levels per SKU per warehouse | P0 |
@@ -62,7 +62,7 @@ Deliver a working platform that connects TikTok shops, syncs orders/products/inv
 | Schema design | Orders, products, inventory, sellers tables | P0 |
 | PostgreSQL setup | Primary DB with indexes and constraints | P0 |
 | Redis cache | Token storage, rate limit counters | P0 |
-| Kafka setup | Topics for each entity type | P0 |
+| ETL ingest channels | Channel constants per entity type (`src/etl/channels.py`) | P0 |
 | Migrations | Version-controlled schema migrations | P0 |
 
 #### 1.4 Core Dashboards (Weeks 5-10)

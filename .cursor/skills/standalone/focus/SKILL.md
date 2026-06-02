@@ -34,7 +34,10 @@ Detect what the implementation involves:
 | AI model integration | → `review` (ai-integration checklist), reliability, observability |
 | Financial/sensitive data | → `review` (security section) |
 | New API endpoint | → `review` (api-endpoint checklist) |
-| Database changes | → Schema docs, migration patterns |
+| Database changes / SQL | → `.cursor/skills/domain/postgres-patterns.md`, schema docs, migration patterns |
+| Python code / FastAPI | → `.cursor/skills/domain/python-patterns.md` |
+| Python tests / pytest | → `.cursor/skills/domain/python-testing.md` |
+| SwiftUI / iOS | → `.cursor/skills/domain/swift-patterns.md` |
 | Frontend component | → Component library docs, design system |
 | Background job | → Celery patterns, retry/idempotency standards |
 | TikTok integration / webhook | → `docs/tiktok_api/`, `data-sources.md`, affected MODULE.md files |
@@ -102,7 +105,7 @@ Intelligence (src/intelligence/scoring):
 
 Interface (web/, ios/):
   - Load: MODULE.md for target app, shadcn/SwiftUI patterns
-  - Skip: Kafka/Celery unless debugging a displayed lag issue
+  - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
 
 AI features (post-MVP / OpenAI):
   - Load: review ai-integration checklist, feature ai-eval-plan.md
@@ -122,6 +125,11 @@ STANDARD_TRIGGERS = {
     "new_endpoint": ["api-endpoint-checklist", "security", "observability"],
     "background_job": ["reliability", "observability"],
     "financial_data": ["security", "reliability", "observability"],
+    # Domain skills (prefer these over broader docs)
+    "python_impl": [".cursor/skills/domain/python-patterns.md"],
+    "python_tests": [".cursor/skills/domain/python-testing.md"],
+    "postgres_impl": [".cursor/skills/domain/postgres-patterns.md"],
+    "swiftui_impl": [".cursor/skills/domain/swift-patterns.md"],
 }
 ```
 

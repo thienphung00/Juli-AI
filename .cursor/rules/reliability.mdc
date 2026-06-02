@@ -11,6 +11,56 @@ alwaysApply: true
 - Aim for high coverage so refactoring doesn't silently break functionality.
 - Tests must be deterministic — no flaky tests in the suite.
 
+## Testing Requirements
+
+- Target **≥ 80% coverage** for new/changed code paths in critical modules.
+- Prefer AAA (Arrange / Act / Assert) structure and descriptive test names.
+- Fix implementations rather than weakening correct tests (unless the test is truly wrong).
+
+## TDD Loop (preferred for new behavior)
+
+1. Write a failing test (RED)
+2. Implement minimal change to pass (GREEN)
+3. Refactor safely (IMPROVE)
+4. Re-run tests and confirm coverage expectations
+
+## Defensive Programming & Error Handling
+
+- Anticipate edge cases: null/undefined inputs, empty collections, boundary values.
+- Use proper type safety (type hints, strict types, generics) to catch bugs at compile time.
+- Handle exceptions gracefully — never swallow errors silently.
+
+```
+# ❌ BAD — silent failure
+try:
+    result = process(data)
+except Exception:
+    pass
+
+# ✅ GOOD — log, wrap, re-raise
+try:
+    result = process(data)
+except ValidationError as e:
+    logger.warning("Validation failed", extra={"input": data, "error": str(e)})
+    raise
+except Exception as e:
+    logger.error("Unexpected failure in process()", exc_info=True)
+    raise ProcessingError("Failed to process data") from e
+```
+
+---
+description: Reliability standards — test, defend, and recover gracefully
+alwaysApply: true
+---
+
+# Reliability
+
+## Automated Testing
+
+- Write unit tests for business logic, integration tests for service boundaries, and E2E tests for critical user flows.
+- Aim for high coverage so refactoring doesn't silently break functionality.
+- Tests must be deterministic — no flaky tests in the suite.
+
 ## Defensive Programming & Error Handling
 
 - Anticipate edge cases: null/undefined inputs, empty collections, boundary values.

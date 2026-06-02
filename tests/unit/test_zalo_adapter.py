@@ -12,9 +12,9 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.alerts import ZaloOaAdapter, deliver_alert
-from src.alerts.types import Alert, ChannelAdapter
-from src.data.models import AlertConfig, Shop, User
+from src.modules.catalog.domain.alerts import ZaloOaAdapter, deliver_alert
+from src.modules.catalog.domain.alerts.types import Alert, ChannelAdapter
+from src.shared.utils.data.models import AlertConfig, Shop, User
 
 
 def _make_user(user_id: uuid.UUID) -> User:

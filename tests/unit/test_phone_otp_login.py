@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.auth import SupabaseAuth, Unauthorized
+from src.modules.identity.infrastructure.auth import SupabaseAuth, Unauthorized
 
 
 pytestmark = pytest.mark.asyncio

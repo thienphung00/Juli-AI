@@ -1,4 +1,4 @@
-"""Issue #32 — ETL Kafka consumer + dedup + DLQ.
+"""Issue #32 — ETL ingest consumer + dedup + DLQ.
 
 AC1 → test_etl_processes_event_within_latency_budget
 AC2 → test_etl_deduplicates_by_event_id
@@ -18,9 +18,10 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
-from src.data.models import ProcessedEvent, Shop, User
-from src.data.repos import OrdersRepo
-from src.etl.consumer import EtlConsumer, KafkaRecord, ProcessOutcome
+from src.shared.utils.data.models import ProcessedEvent, Shop, User
+from src.shared.utils.data.repos import OrdersRepo
+from src.modules.ordering.use_cases.etl.consumer import EtlConsumer, ProcessOutcome
+from src.modules.ordering.use_cases.etl.record import IngestRecord
 
 pytestmark = pytest.mark.asyncio
 
@@ -61,8 +62,8 @@ def _order_record(
     order_id: str = "o1",
     update_time: int = 1_700_000_100,
     event_id: str | None = None,
-    published_at: float | None = None,
-) -> KafkaRecord:
+    received_at: float | None = None,
+) -> IngestRecord:
     payload: dict = {
         "order_id": order_id,
         "status": "AWAITING_SHIPMENT",
@@ -72,12 +73,34 @@ def _order_record(
     }
     if event_id:
         payload["event_id"] = event_id
-    return KafkaRecord(
-        topic="tiktok.orders.raw",
-        partition_key=TIKTOK_SHOP_ID,
+    return IngestRecord(
+        channel="tiktok.orders.raw",
+        shop_key=TIKTOK_SHOP_ID,
         value=json.dumps(payload).encode(),
-        published_at=published_at,
+        received_at=received_at,
     )
+
+
+async def test_make_etl_handoff_wires_producer_to_consumer(session, shop, publish_dlq):
+    from src.modules.ordering.api.ingestion.handoff import make_etl_handoff
+
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    handoff = make_etl_handoff(consumer)
+    payload = {
+        "order_id": "handoff-o1",
+        "status": "AWAITING_SHIPMENT",
+        "total_amount": "99.00",
+        "currency": "VND",
+        "update_time": 1_700_000_300,
+        "event_id": "evt-handoff-1",
+    }
+    await handoff("tiktok.orders.raw", TIKTOK_SHOP_ID, json.dumps(payload).encode())
+    await session.commit()
+
+    repo = OrdersRepo(session)
+    orders = await repo.list(shop.id)
+    assert len(orders) == 1
+    assert orders[0].tiktok_order_id == "handoff-o1"
 
 
 async def test_etl_processes_event_within_latency_budget(
@@ -89,7 +112,7 @@ async def test_etl_processes_event_within_latency_budget(
         publish_dlq=publish_dlq,
         clock=lambda: now,
     )
-    record = _order_record(published_at=now - 30.0)
+    record = _order_record(received_at=now - 30.0)
 
     outcome = await consumer.ingest(record)
 
@@ -132,9 +155,9 @@ async def test_etl_deduplicates_by_event_id(session, shop, publish_dlq):
 
 async def test_etl_routes_malformed_to_dlq(session, shop, publish_dlq, dlq_messages):
     consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
-    record = KafkaRecord(
-        topic="tiktok.orders.raw",
-        partition_key=TIKTOK_SHOP_ID,
+    record = IngestRecord(
+        channel="tiktok.orders.raw",
+        shop_key=TIKTOK_SHOP_ID,
         value=b"not-json",
     )
 
@@ -144,7 +167,7 @@ async def test_etl_routes_malformed_to_dlq(session, shop, publish_dlq, dlq_messa
     assert len(dlq_messages) == 1
     assert dlq_messages[0]["topic"] == "tiktok.events.dlq"
     assert "error" in dlq_messages[0]["value"]
-    assert dlq_messages[0]["value"]["original_topic"] == "tiktok.orders.raw"
+    assert dlq_messages[0]["value"]["original_channel"] == "tiktok.orders.raw"
 
     repo = OrdersRepo(session)
     assert await repo.list(shop.id) == []
@@ -153,7 +176,7 @@ async def test_etl_routes_malformed_to_dlq(session, shop, publish_dlq, dlq_messa
 async def test_etl_maintains_shop_ordering_under_load(session, shop, publish_dlq):
     completion_order: list[str] = []
 
-    async def before_persist(record: KafkaRecord) -> None:
+    async def before_persist(record: IngestRecord) -> None:
         payload = json.loads(record.value)
         if payload.get("order_id") == "slow":
             await asyncio.sleep(0.05)

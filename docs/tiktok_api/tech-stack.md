@@ -1,5 +1,9 @@
 # Technology Recommendations & Database Schema
 
+> **Juli-AI canonical phases:** See [`migration_path.md`](../../migration_path.md).
+> **v1.5:** Webhook/polling → validation → `src/etl` → Supabase Postgres (no Redis/Celery).
+> **v2.0:** Adds Redis + Celery + near-realtime WebSocket (derived state only).
+
 ## Recommended Tech Stack
 
 ### Backend Services
@@ -19,7 +23,7 @@
 | UI Library | Tailwind CSS + shadcn/ui | Modern, customizable components |
 | Charts | Recharts or Apache ECharts | Rich analytics visualizations |
 | State | Zustand or TanStack Query | Server state caching + client state |
-| Real-time | WebSocket (Socket.io) | Live order feed, dashboard updates |
+| Near-realtime (v2.0) | WebSocket | Live dashboard updates via Redis pub/sub (derived state) |
 
 ### Data Layer
 
@@ -27,9 +31,9 @@
 |-----------|-----------|-----------|
 | Primary DB | PostgreSQL 16+ | ACID, JSONB, row-level security, mature |
 | Analytics DB | ClickHouse or BigQuery | Columnar, fast aggregations, time-series |
-| Cache | Redis 7+ | Tokens, rate limits, hot data |
-| Message Queue | Apache Kafka (or Redpanda) | Event streaming, durability, replay |
-| Object Storage | S3 / GCS | Raw event archive, ML artifacts |
+| Cache | Redis 7+ (v2.0) | Celery broker, pub/sub, rate limits — **not in v1.5** |
+| Ingest handoff | In-process `HandoffFn` → `EtlConsumer` (v1.5) | Validation → ETL → Postgres; optional Postgres queue if spikes justify |
+| Object Storage | Cloudflare R2 / S3 | Raw event archive, ML artifacts |
 
 ### AI/ML
 
@@ -47,13 +51,11 @@
 | Component | Technology | Rationale |
 |-----------|-----------|-----------|
 | Container Runtime | Docker | Standardized builds |
-| Orchestration | Kubernetes (EKS/GKE) | Auto-scaling, service mesh |
-| IaC | Terraform | Reproducible infrastructure |
+| Hosting (v1.5) | Railway / Fly.io + Vercel | API, workers, web — no Kubernetes required at current scale |
 | CI/CD | GitHub Actions | Automated testing and deployment |
-| Monitoring | Prometheus + Grafana | Metrics and alerting |
-| Logging | ELK Stack or CloudWatch | Centralized structured logs |
-| Tracing | OpenTelemetry + Jaeger | Distributed request tracing |
-| Secrets | AWS Secrets Manager / Vault | Encrypted credential storage |
+| Monitoring | Sentry (+ optional Prometheus in v2.0) | Errors; queue depth when Celery is enabled |
+| Logging | Structured JSON (platform logs) | Correlation across webhook → ETL → DB |
+| Secrets | Environment / platform secret stores | Never commit credentials |
 
 ---
 
@@ -392,33 +394,30 @@ TTL snapshot_date + INTERVAL 365 DAY;
     │  Auth Service │  │  API Service │  │  Webhook Svc  │
     │               │  │  (Dashboard) │  │  (Receiver)   │
     │  - OAuth flow │  │  - REST APIs │  │  - Validate   │
-    │  - Token mgmt │  │  - Analytics │  │  - Publish    │
+    │  - Token mgmt │  │  - Analytics │  │  - Handoff    │
     │  - Refresh    │  │  - CRUD      │  │  - ACK        │
     └───────────────┘  └──────────────┘  └───────────────┘
             │                  │                  │
             └──────────────────┼──────────────────┘
                                │
     ┌──────────────────────────┼──────────────────────────┐
-    │                    Kafka / Event Bus                  │
+    │         src/etl (validation → dedup → Postgres)       │
     └──────┬───────────────────┼──────────────────┬───────┘
            │                   │                  │
     ┌──────▼───────┐  ┌───────▼──────┐  ┌───────▼───────┐
-    │  Sync Worker │  │  ETL Worker  │  │  ML Service   │
-    │              │  │              │  │               │
-    │  - Polling   │  │  - Transform │  │  - Forecast   │
-    │  - Backfill  │  │  - Enrich    │  │  - Anomaly    │
-    │  - Reconcile │  │  - Load DWH  │  │  - Score      │
+    │  Polling     │  │  APScheduler │  │  ML (local/   │
+    │  workers     │  │  + jobs/*    │  │  batch)       │
     └──────────────┘  └──────────────┘  └───────────────┘
 ```
 
 ### Inter-Service Communication
 
-| Pattern | Use Case |
-|---------|----------|
-| Async (Kafka) | Data ingestion, ETL, non-urgent processing |
-| Sync (HTTP/gRPC) | Dashboard queries, user-facing actions |
-| Pub/Sub (Redis) | Real-time dashboard updates, cache invalidation |
-| Cron (Scheduler) | Token refresh, reconciliation, ML training |
+| Pattern | Phase | Use Case |
+|---------|-------|----------|
+| In-process handoff | v1.5 | Webhook/polling → `EtlConsumer.ingest` |
+| Sync (HTTP) | All | Dashboard queries, user-facing actions |
+| Pub/Sub (Redis) | v2.0 | Near-realtime dashboard updates (derived state) |
+| Cron (APScheduler → Celery Beat) | v1.5 → v2.0 | Polling, `daily_pipeline`, token refresh |
 
 ---
 
@@ -428,59 +427,46 @@ TTL snapshot_date + INTERVAL 365 DAY;
 
 | Environment | Purpose | Infrastructure |
 |-------------|---------|---------------|
-| Development | Local development | Docker Compose (all services) |
-| Staging | Integration testing | Kubernetes (reduced replicas) |
-| Production | Live service | Kubernetes (full HA) |
+| Development | Local development | Docker Compose (Postgres + API + optional Redis for v2.0 experiments) |
+| Staging | Integration testing | Railway/Fly preview + Supabase branch |
+| Production | Live service | Railway/Fly + Vercel + Supabase (see `migration_path.md`) |
 
-### Docker Compose (Development)
+### Docker Compose (Development — v1.5 baseline)
 
 ```yaml
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: tiktok_analytics
+      POSTGRES_DB: juli
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
 
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    ports: ["9092:9092"]
-    environment:
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-
   api:
-    build: ./services/api
-    ports: ["3000:3000"]
-    depends_on: [postgres, redis]
+    build: .
+    ports: ["8000:8000"]
+    depends_on: [postgres]
     environment:
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres:5432/tiktok_analytics
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres:5432/juli
 
-  webhook:
-    build: ./services/webhook
-    ports: ["8080:8080"]
-    depends_on: [kafka, redis]
-
-  worker:
-    build: ./services/worker
-    depends_on: [kafka, postgres, redis]
+  # v2.0 only — Celery broker + pub/sub
+  # redis:
+  #   image: redis:7-alpine
+  #   ports: ["6379:6379"]
 
 volumes:
   pgdata:
 ```
 
-### Production Kubernetes (Key Resources)
+Wire webhook handoff in-process: `make_etl_handoff(EtlConsumer(...))` — no broker
+container required for local ingest tests.
 
-| Resource | Replicas | CPU | Memory | Auto-scale |
-|----------|----------|-----|--------|------------|
-| API Service | 3 | 500m-2000m | 512Mi-2Gi | HPA (CPU 70%) |
-| Webhook Receiver | 3 | 250m-1000m | 256Mi-1Gi | HPA (CPU 60%) |
-| Sync Workers | 2-10 | 500m-2000m | 512Mi-2Gi | KEDA (queue depth) |
-| ETL Workers | 2-5 | 1000m-4000m | 1Gi-4Gi | KEDA (Kafka lag) |
-| ML Service | 1-2 | 2000m-8000m | 4Gi-16Gi | Manual |
+### Production sizing (simple — no Kubernetes in v1.5)
+
+| Component | v1.5 | v2.0 |
+|-----------|------|------|
+| API + webhook | 1–2 Railway/Fly services | Same + horizontal scale as needed |
+| ETL | In-process with API or dedicated worker process | Celery worker pool |
+| Scheduler | APScheduler in `src/orchestration/` | Celery Beat |
+| Redis | Not used | Broker + pub/sub |

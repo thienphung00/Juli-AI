@@ -28,7 +28,7 @@ Realtime, and Storage.
   protected FastAPI request (`verify_supabase_jwt`, `get_current_user`).
 - **TikTok OAuth:** Application-owned in `src/auth` (`TikTokOAuthService`) with
   tokens stored in `TikTokCredential` — not delegated to Supabase.
-- **Redis and Kafka are unchanged** — Supabase does not replace caching, rate
+- **Redis (v2.0) is unchanged** — Supabase does not replace caching, rate
   limits, Celery, or the event bus.
 
 ## Rationale
@@ -61,7 +61,7 @@ Realtime, and Storage.
               ┌──────────────┼──────────────┐
               │              │              │
      ┌────────▼──────┐ ┌────▼────┐ ┌───────▼───────┐
-     │   Supabase    │ │  Redis  │ │    Kafka      │
+     │   Supabase    │ │ Redis   │ │  (v2.0 only)  │
      │ ┌───────────┐ │ │ cache,  │ │ event bus     │
      │ │ Postgres  │ │ │ Celery, │ │ (webhooks)    │
      │ │ Auth      │ │ │ rate    │ └───────────────┘
@@ -89,7 +89,7 @@ go through FastAPI with the issued JWT.
 - FastAPI is the **authorization boundary** for shop-scoped commerce APIs.
 - Realtime dashboard features should prefer Supabase Realtime where possible.
 - Redis remains for TikTok rate limiting, Celery broker, and hot caches.
-- Kafka remains for webhook fan-out and async consumers (ETL path per execution plan).
+- Ingest uses in-process handoff to `src/etl` in v1.5 (see ADR-004 and `migration_path.md`).
 - [`docs/architecture/data-sources.md`](../architecture/data-sources.md) row #2
   marks Supabase Postgres as the sole MVP OLTP store.
 

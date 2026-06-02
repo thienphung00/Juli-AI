@@ -12,8 +12,8 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.data.exceptions import NotFound
-from src.data.models import (
+from src.shared.utils.data.exceptions import NotFound
+from src.shared.utils.data.models import (
     AlertConfig,
     AlertHistory,
     Creator,
@@ -26,7 +26,7 @@ from src.data.models import (
     Shop,
     User,
 )
-from src.data.repos import OrdersRepo
+from src.shared.utils.data.repos import OrdersRepo
 
 pytestmark = pytest.mark.asyncio
 

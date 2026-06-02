@@ -14,8 +14,8 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.data.models import InventoryItem, Order, Shop, User
-from src.intelligence.forecasting.forecaster import (
+from src.shared.utils.data.models import InventoryItem, Order, Shop, User
+from src.modules.catalog.domain.intelligence.forecasting.forecaster import (
     ForecastResult,
     LowStockRisk,
     VelocityChange,

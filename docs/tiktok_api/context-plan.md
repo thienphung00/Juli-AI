@@ -14,7 +14,7 @@
 | New API endpoints        | **Yes**  | Dashboard REST API (`/api/orders`, `/api/analytics/*`, `/api/sellers/*`, `/api/inventory/*`) |
 | Database changes         | **Yes**  | Full PostgreSQL OLTP schema (sellers, shops, orders, products, inventory, settlements, returns); ClickHouse OLAP tables (Phase 2) |
 | Frontend components      | **Yes**  | Next.js dashboard: revenue, orders, products, inventory, fulfillment views |
-| Background jobs          | **Yes**  | Celery polling (`src/services/polling`), token refresh, reconciliation, Kafka consumers |
+| Background jobs          | **Yes**  | Celery polling (`src/services/polling`), token refresh, reconciliation, ETL ingest consumers |
 | Integration connector    | **Yes**  | TikTok Shop connector (auth, API client, webhook receiver, HMAC signer) |
 
 ### Triggered Standards
@@ -23,7 +23,7 @@
 |------------------|----------------|
 | **Reliability**  | External API calls, background jobs, webhook idempotency |
 | **Security**     | Financial data, encrypted tokens, webhook signature verification, multi-tenant isolation |
-| **Observability**| New service endpoints, distributed pipeline (webhooks → Kafka → DB) |
+| **Observability**| New service endpoints, distributed pipeline (webhooks → ETL ingest → DB) |
 | **Performance**  | Redis caching, rate-limit counters, dashboard query optimization |
 
 ---
@@ -54,9 +54,9 @@ These are the modules to create or modify for the TikTok integration:
 | Auth Service | `src/integrations/tiktok/auth.py` | OAuth flow, token exchange, encrypted storage, daily refresh job |
 | API Client | `src/integrations/tiktok/client.py` | HMAC signing, request construction, rate-limit-aware HTTP, error handling |
 | Resources | `src/integrations/tiktok/resources/` | Orders, products, inventory, settlements, returns |
-| Webhook Receiver | `src/services/webhook/` | FastAPI endpoint, signature verification, Kafka publish, ACK |
+| Webhook Receiver | `src/services/webhook/` | FastAPI endpoint, signature verification, ETL ingest publish, ACK |
 | Polling Workers | `src/services/polling/` | `sync_orders`, `sync_products`, `sync_inventory` |
-| Kafka consumers | _(planned)_ | Transform, enrich, dedup, write via `src/data` repos |
+| ETL ingest consumers | _(planned)_ | Transform, enrich, dedup, write via `src/data` repos |
 | Rate Limiter | `src/integrations/tiktok/rate_limiter.py` | Redis token bucket per (app × shop × endpoint) |
 | Exceptions | `src/integrations/tiktok/exceptions.py` | TikTok-specific error hierarchy (auth, rate-limit, API errors) |
 | DB Migrations | `migrations/` | Alembic migrations for all OLTP tables |
@@ -112,7 +112,7 @@ These waste context budget and add noise. Explicitly exclude from all MVP sessio
 ### Reliability
 - [x] Token refresh resilience — daily refresh with 2-day buffer, handle `RefreshTokenExpired` gracefully
 - [x] Webhook idempotency — dedup key: `(event_type, shop_id, entity_id, timestamp)`
-- [x] Dead letter queue — Kafka DLQ topic (`tiktok.events.dlq`) for poison messages
+- [x] Dead letter queue — ETL ingest DLQ topic (`tiktok.events.dlq`) for poison messages
 - [x] Reconciliation jobs — hourly order count check, daily inventory full sync, weekly catalog sync
 - [x] Circuit breaker — for TikTok API outages (fail fast, queue accumulation, resume on recovery)
 - [x] Out-of-order resolution — only apply updates with newer `update_time`
@@ -127,14 +127,14 @@ These waste context budget and add noise. Explicitly exclude from all MVP sessio
 - [x] App Secret in environment variables / secrets manager only
 
 ### Observability
-- [x] Structured JSON logging with correlation IDs across webhook → Kafka → consumer → DB
+- [x] Structured JSON logging with correlation IDs across webhook → ETL ingest → consumer → DB
 - [x] Prometheus + Grafana metrics: API latency, queue depth, sync lag, 429 rate, token bucket utilization
 - [x] OpenTelemetry distributed tracing across all services
 - [x] Alerting: auth expiry, deauthorization webhooks, webhook volume drops, processing lag
 
 ### Performance
 - [x] Redis caching — tokens (7-day TTL), rate-limit counters, hot inventory data
-- [x] Per-shop Kafka partitioning — ordered processing within each seller
+- [x] Per-shop ETL ingest partitioning — ordered processing within each seller
 - [x] Staggered scheduling — don't sync all sellers simultaneously
 - [x] Incremental sync — `update_time_from` filters on all list endpoints
 - [x] Cursor-based pagination — follow TikTok's `page_token` pattern
@@ -163,15 +163,15 @@ These waste context budget and add noise. Explicitly exclude from all MVP sessio
 This ordering respects dependency chains from `mvp-roadmap.md`:
 
 ```
-Week 1-2:  Infrastructure (Docker Compose, Kafka, PostgreSQL, Redis)
+Week 1-2:  Infrastructure (Docker Compose, ETL ingest, PostgreSQL, Redis)
            └→ DB migrations (all OLTP tables)
            └→ Auth service (OAuth flow, token storage, HMAC signing)
 
 Week 2-3:  API client (rate-limited HTTP, error handling, request signing)
-           └→ Webhook receiver (signature verification, Kafka publish)
+           └→ Webhook receiver (signature verification, ETL ingest publish)
 
 Week 3-5:  Polling workers (orders, products, inventory sync)
-           └→ ETL consumers (Kafka → PostgreSQL transform/enrich/dedup)
+           └→ ETL consumers (ETL ingest → PostgreSQL transform/enrich/dedup)
            └→ Reconciliation jobs (gap detection, backfill)
 
 Week 5-8:  API layer (REST endpoints for dashboard)
@@ -211,10 +211,10 @@ Modules: src/services/polling/, src/integrations/tiktok/resources/
 Skills: none extra
 ```
 
-### Session: Kafka Consumers (Weeks 3-5)
+### Session: ETL ingest Consumers (Weeks 3-5)
 ```
 Load: architecture.md (§ event pipeline), tech-stack.md (§ schema)
-Modules: src/data/ (repos), Kafka consumer package when added
+Modules: src/data/ (repos), ETL ingest consumer package when added
 Skills: none extra
 ```
 

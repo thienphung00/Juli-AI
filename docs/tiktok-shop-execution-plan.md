@@ -16,7 +16,7 @@
 | Layer | Status | Shipped (issues) | Next unblocked |
 |-------|--------|------------------|----------------|
 | **L1** TikTok API client | Mostly done | #25 resources, #30 OAuth | Videos, Refunds |
-| **L2** Ingestion & persistence | Partial | #24, #26–28, #31, webhook #27 | #32 ETL/Kafka consumer |
+| **L2** Ingestion & persistence | Partial | #24, #26–28, #31, webhook #27 | #32 ETL ingest consumer |
 | **L3** Intelligence | Partial | #34 scoring/anomaly/retention/sentiment | #35 forecasting, #38 API |
 | **L4** Recommendations & alerts | Not started | — | #35 → #39 → #43 |
 | **Interface** (web + iOS) | Partial | #33, #37, #41, #42, #45 | #47 after #43 |
@@ -244,7 +244,7 @@ flowchart TD
     subgraph L2["Layer 2 — Data Ingestion & Sync 🟡"]
         POLL[Scheduled Polling ✅]
         WEBHOOK[Webhook Listeners ✅]
-        ETL[Kafka Consumer ⬜]
+        ETL[ETL Consumer ⬜]
         NORM[Schema Normalization ✅]
         PG[(PostgreSQL / Supabase ✅)]
 
@@ -309,7 +309,7 @@ Implementation: `src/integrations/tiktok/` — see
 | Webhook receiver + new event types | ✅ Done | #27 `src/services/webhook` |
 | Polling workers (rename + extend sync) | ✅ Done | #26, #31 `src/services/polling` |
 | API bootstrap + shop scoping | ✅ Done | #33 `src/api` |
-| Kafka consumer + dedup + DLQ | ⬜ Pending | #32 `src/etl` |
+| ETL consumer + dedup + DLQ | ✅ Done | #32 `src/etl` |
 
 - Realtime sync pipeline with normalized schemas — **partial** (polling + webhook publish; ETL consumer pending)
 - Data persistence to Supabase Postgres — **done**
@@ -349,7 +349,7 @@ Tracked in issues #39, #43, #44, #47.
 | Database & Auth | Supabase (managed Postgres + Auth + Realtime + Storage — see [ADR-002](decisions/002-supabase-backend-service.md)) |
 | Realtime | Supabase Realtime (Postgres Changes) + Redis (caching, rate limiting) |
 | Task Queue | Celery + Redis |
-| Event Bus | Kafka |
+| Ingest | Handoff → `src/etl` (v1.5) |
 | AI | OpenAI API + rule-based engine |
 | Infra | Vercel (frontend), Railway or Fly.io (backend) |
 

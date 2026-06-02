@@ -104,7 +104,7 @@
 
 **Mitigation:**
 - Horizontal scaling: Kubernetes HPA on all services
-- Kafka decouples ingestion from processing (absorbs spikes)
+- In-process ETL handoff with per-shop backpressure; optional Postgres queue if spikes justify
 - ClickHouse/BigQuery for heavy analytics (don't query OLTP for dashboards)
 - Connection pooling (PgBouncer) for PostgreSQL
 - CDN for frontend assets

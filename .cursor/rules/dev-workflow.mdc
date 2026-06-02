@@ -12,6 +12,12 @@ alwaysApply: true
 - Use feature branches; never push directly to `main`/`master`.
 - Tag releases and maintain a changelog.
 
+## Research & Reuse (before building)
+
+- Prefer reusing existing patterns in this repo before adding new ones.
+- Confirm library usage and version-specific behavior via primary docs (and Context7 when available).
+- Prefer battle-tested libraries over hand-rolled utilities when they meet the need.
+
 ## Code Reviews
 
 - All changes go through Pull Requests — no exceptions for production code.
@@ -19,9 +25,15 @@ alwaysApply: true
 - Reviewers check for correctness, readability, test coverage, and security.
 - Use pair programming for complex or high-risk changes.
 
+## Test-First (when practical)
+
+- For new behavior and bug fixes, prefer a tight red/green/refactor loop to avoid regressions.
+- Do not “fix” flaky tests by weakening assertions; make tests deterministic.
+
 ## CI/CD
 
 - Every PR must pass automated builds, linting, and tests before merge.
 - Deploy in small, safe batches — prefer frequent small releases over big-bang deploys.
 - Automate everything repeatable: builds, tests, deploys, database migrations.
 - Maintain rollback capability for every deployment.
+

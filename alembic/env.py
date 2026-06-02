@@ -5,8 +5,8 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
-from src.data.database import Base
-from src.data.models import User, Shop, TikTokCredential  # noqa: F401 — register models
+from src.shared.utils.data.database import Base
+from src.shared.utils.data.models import User, Shop, TikTokCredential  # noqa: F401 — register models
 
 config = context.config
 

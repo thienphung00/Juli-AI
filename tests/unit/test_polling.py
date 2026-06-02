@@ -1,9 +1,9 @@
 """TDD tests for polling sync workers.
 
 Behaviors under test:
-- sync_orders fetches orders since last sync, publishes each to Kafka
-- sync_products fetches products since last sync, publishes each to Kafka
-- sync_inventory fetches all inventory, publishes to Kafka
+- sync_orders fetches orders since last sync, hands each off to ETL
+- sync_products fetches products since last sync, hands each off to ETL
+- sync_inventory fetches all inventory, hands off to ETL
 - Workers skip API call when rate limiter denies
 - Workers update sync state after successful fetch
 - Workers handle API errors gracefully without crashing
@@ -14,11 +14,11 @@ import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.integrations.tiktok.exceptions import (
+from src.modules.catalog.domain.integrations.tiktok.exceptions import (
     PermissionDeniedError,
     TikTokSystemError,
 )
-from src.services.polling.sync import (
+from src.apps.cron_jobs.services.polling.sync import (
     BACKFILL_WINDOW_SECONDS,
     backfill_shop,
     sync_creators,
@@ -71,15 +71,22 @@ def mock_rate_limiter():
 
 
 @pytest.fixture
-def kafka_messages():
+def handoff_calls():
     return []
 
 
 @pytest.fixture
-def publish_fn(kafka_messages):
-    async def _publish(topic: str, key: str, value: bytes) -> None:
-        kafka_messages.append({"topic": topic, "key": key, "value": value})
-    return _publish
+def handoff_fn(handoff_calls):
+    async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
+        handoff_calls.append({"channel": channel, "shop_key": shop_key, "value": value})
+
+    return _handoff
+
+
+@pytest.fixture
+def publish_fn(handoff_fn):
+    """Deprecated alias for ``handoff_fn``."""
+    return handoff_fn
 
 
 @pytest.fixture
@@ -90,7 +97,7 @@ def sync_state():
 class TestSyncOrders:
     @pytest.mark.asyncio
     async def test_fetches_orders_and_publishes_to_kafka(
-        self, mock_orders_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_orders_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         await sync_orders(
             resource=mock_orders_resource,
@@ -101,10 +108,10 @@ class TestSyncOrders:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 2
-        assert kafka_messages[0]["topic"] == "tiktok.orders.raw"
-        assert kafka_messages[0]["key"] == "shop1"
-        payload = json.loads(kafka_messages[0]["value"])
+        assert len(handoff_calls) == 2
+        assert handoff_calls[0]["channel"] == "tiktok.orders.raw"
+        assert handoff_calls[0]["shop_key"] == "shop1"
+        payload = json.loads(handoff_calls[0]["value"])
         assert payload["order_id"] == "o1"
 
     @pytest.mark.asyncio
@@ -142,7 +149,7 @@ class TestSyncOrders:
 
     @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
-        self, mock_orders_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_orders_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_rate_limiter.acquire.return_value = False
 
@@ -156,11 +163,11 @@ class TestSyncOrders:
         )
 
         mock_orders_resource.search_all.assert_not_called()
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
     async def test_handles_api_error_gracefully(
-        self, mock_orders_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_orders_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_orders_resource.search_all.side_effect = TikTokSystemError(
             code=100006, message="System error"
@@ -175,14 +182,14 @@ class TestSyncOrders:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
         assert "orders_last_update_time" not in sync_state
 
 
 class TestSyncProducts:
     @pytest.mark.asyncio
     async def test_fetches_products_and_publishes_to_kafka(
-        self, mock_products_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_products_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         await sync_products(
             resource=mock_products_resource,
@@ -193,9 +200,9 @@ class TestSyncProducts:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 2
-        assert kafka_messages[0]["topic"] == "tiktok.products.raw"
-        payload = json.loads(kafka_messages[0]["value"])
+        assert len(handoff_calls) == 2
+        assert handoff_calls[0]["channel"] == "tiktok.products.raw"
+        payload = json.loads(handoff_calls[0]["value"])
         assert payload["product_id"] == "p1"
 
     @pytest.mark.asyncio
@@ -233,7 +240,7 @@ class TestSyncProducts:
 
     @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
-        self, mock_products_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_products_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_rate_limiter.acquire.return_value = False
 
@@ -247,13 +254,13 @@ class TestSyncProducts:
         )
 
         mock_products_resource.search_all.assert_not_called()
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
 
 class TestSyncInventory:
     @pytest.mark.asyncio
     async def test_fetches_inventory_and_publishes_to_kafka(
-        self, mock_inventory_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_inventory_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         await sync_inventory(
             resource=mock_inventory_resource,
@@ -264,14 +271,14 @@ class TestSyncInventory:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 2
-        assert kafka_messages[0]["topic"] == "tiktok.inventory.raw"
-        payload = json.loads(kafka_messages[0]["value"])
+        assert len(handoff_calls) == 2
+        assert handoff_calls[0]["channel"] == "tiktok.inventory.raw"
+        payload = json.loads(handoff_calls[0]["value"])
         assert payload["sku_id"] == "sku1"
 
     @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
-        self, mock_inventory_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_inventory_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_rate_limiter.acquire.return_value = False
 
@@ -285,11 +292,11 @@ class TestSyncInventory:
         )
 
         mock_inventory_resource.search.assert_not_called()
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
     async def test_handles_api_error_gracefully(
-        self, mock_inventory_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_inventory_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_inventory_resource.search.side_effect = TikTokSystemError(
             code=100006, message="System error"
@@ -304,7 +311,7 @@ class TestSyncInventory:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +357,7 @@ def mock_settlements_resource():
 class TestSyncCreators:
     @pytest.mark.asyncio
     async def test_fetches_creators_and_publishes_to_kafka(
-        self, mock_creators_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_creators_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         await sync_creators(
             resource=mock_creators_resource,
@@ -361,10 +368,10 @@ class TestSyncCreators:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 2
-        assert kafka_messages[0]["topic"] == "tiktok.creators.raw"
-        assert kafka_messages[0]["key"] == "shop1"
-        payload = json.loads(kafka_messages[0]["value"])
+        assert len(handoff_calls) == 2
+        assert handoff_calls[0]["channel"] == "tiktok.creators.raw"
+        assert handoff_calls[0]["shop_key"] == "shop1"
+        payload = json.loads(handoff_calls[0]["value"])
         assert payload["creator_id"] == "c1"
 
     @pytest.mark.asyncio
@@ -384,7 +391,7 @@ class TestSyncCreators:
 
     @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
-        self, mock_creators_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_creators_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_rate_limiter.acquire.return_value = False
 
@@ -398,11 +405,11 @@ class TestSyncCreators:
         )
 
         mock_creators_resource.list_all.assert_not_called()
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
     async def test_handles_api_error_gracefully(
-        self, mock_creators_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_creators_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_creators_resource.list_all.side_effect = TikTokSystemError(
             code=100006, message="System error"
@@ -417,7 +424,7 @@ class TestSyncCreators:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
         assert "creators_last_update_time" not in sync_state
 
     @pytest.mark.asyncio
@@ -447,7 +454,7 @@ class TestSyncCreators:
 class TestSyncLivestreams:
     @pytest.mark.asyncio
     async def test_fetches_livestreams_and_publishes_to_kafka(
-        self, mock_livestreams_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_livestreams_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         await sync_livestreams(
             resource=mock_livestreams_resource,
@@ -458,10 +465,10 @@ class TestSyncLivestreams:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 2
-        assert kafka_messages[0]["topic"] == "tiktok.livestreams.raw"
-        assert kafka_messages[0]["key"] == "shop1"
-        payload = json.loads(kafka_messages[0]["value"])
+        assert len(handoff_calls) == 2
+        assert handoff_calls[0]["channel"] == "tiktok.livestreams.raw"
+        assert handoff_calls[0]["shop_key"] == "shop1"
+        payload = json.loads(handoff_calls[0]["value"])
         assert payload["livestream_id"] == "ls1"
 
     @pytest.mark.asyncio
@@ -499,7 +506,7 @@ class TestSyncLivestreams:
 
     @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
-        self, mock_livestreams_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_livestreams_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_rate_limiter.acquire.return_value = False
 
@@ -513,11 +520,11 @@ class TestSyncLivestreams:
         )
 
         mock_livestreams_resource.list_all.assert_not_called()
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
     async def test_handles_api_error_gracefully(
-        self, mock_livestreams_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_livestreams_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_livestreams_resource.list_all.side_effect = TikTokSystemError(
             code=100006, message="System error"
@@ -532,7 +539,7 @@ class TestSyncLivestreams:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
         assert "livestreams_last_update_time" not in sync_state
 
     @pytest.mark.asyncio
@@ -562,7 +569,7 @@ class TestSyncLivestreams:
 class TestSyncSettlements:
     @pytest.mark.asyncio
     async def test_fetches_settlements_and_publishes_to_kafka(
-        self, mock_settlements_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_settlements_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         await sync_settlements(
             resource=mock_settlements_resource,
@@ -573,10 +580,10 @@ class TestSyncSettlements:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 2
-        assert kafka_messages[0]["topic"] == "tiktok.settlements.raw"
-        assert kafka_messages[0]["key"] == "shop1"
-        payload = json.loads(kafka_messages[0]["value"])
+        assert len(handoff_calls) == 2
+        assert handoff_calls[0]["channel"] == "tiktok.settlements.raw"
+        assert handoff_calls[0]["shop_key"] == "shop1"
+        payload = json.loads(handoff_calls[0]["value"])
         assert payload["settlement_id"] == "s1"
 
     @pytest.mark.asyncio
@@ -614,7 +621,7 @@ class TestSyncSettlements:
 
     @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
-        self, mock_settlements_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_settlements_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_rate_limiter.acquire.return_value = False
 
@@ -628,11 +635,11 @@ class TestSyncSettlements:
         )
 
         mock_settlements_resource.list_all.assert_not_called()
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
     async def test_handles_api_error_gracefully(
-        self, mock_settlements_resource, mock_rate_limiter, publish_fn, kafka_messages, sync_state
+        self, mock_settlements_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
     ):
         mock_settlements_resource.list_all.side_effect = TikTokSystemError(
             code=100006, message="System error"
@@ -647,7 +654,7 @@ class TestSyncSettlements:
             sync_state=sync_state,
         )
 
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
         assert "settlements_last_update_time" not in sync_state
 
 
@@ -664,7 +671,7 @@ class TestBackfillShop:
     ):
         fake_now = 1700000000
 
-        with patch("src.services.polling.sync.time") as mock_time:
+        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = fake_now
 
             await backfill_shop(
@@ -688,7 +695,7 @@ class TestBackfillShop:
     ):
         fake_now = 1700000000
 
-        with patch("src.services.polling.sync.time") as mock_time:
+        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = fake_now
 
             await backfill_shop(
@@ -708,9 +715,9 @@ class TestBackfillShop:
     @pytest.mark.asyncio
     async def test_backfill_calls_all_three_syncs(
         self, mock_creators_resource, mock_livestreams_resource,
-        mock_settlements_resource, mock_rate_limiter, publish_fn, kafka_messages,
+        mock_settlements_resource, mock_rate_limiter, publish_fn, handoff_calls,
     ):
-        with patch("src.services.polling.sync.time") as mock_time:
+        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = 1700000000
 
             await backfill_shop(
@@ -726,14 +733,14 @@ class TestBackfillShop:
         mock_creators_resource.list_all.assert_called_once()
         mock_livestreams_resource.list_all.assert_called_once()
         mock_settlements_resource.list_all.assert_called_once()
-        assert len(kafka_messages) == 6
+        assert len(handoff_calls) == 6
 
     @pytest.mark.asyncio
     async def test_backfill_returns_sync_state(
         self, mock_creators_resource, mock_livestreams_resource,
         mock_settlements_resource, mock_rate_limiter, publish_fn,
     ):
-        with patch("src.services.polling.sync.time") as mock_time:
+        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = 1700000000
 
             result = await backfill_shop(

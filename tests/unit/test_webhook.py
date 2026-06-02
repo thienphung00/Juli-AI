@@ -1,11 +1,11 @@
 """TDD tests for TikTok webhook receiver endpoint.
 
 Behaviors under test:
-- Valid signature → publishes event to Kafka → returns {"code": 0}
+- Valid signature → hands event to ingest pipeline → returns {"code": 0}
 - Missing Authorization header → returns 401
 - Invalid signature → returns 401
-- Kafka topic is derived from event type (lowercased)
-- shop_id is used as the Kafka message key
+- Ingest channel is derived from event type (lowercased)
+- shop_id is used as the handoff shop key
 - Malformed JSON body → returns 400
 """
 
@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from src.services.webhook.app import create_app
+from src.apps.api_gateway.services.webhook.app import create_app
 
 
 APP_KEY = "test_app_key"
@@ -35,20 +35,20 @@ def _sign(app_key: str, app_secret: str, path: str, body: bytes) -> str:
 
 
 @pytest.fixture
-def kafka_messages():
-    """Accumulator for published Kafka messages — replaces real producer."""
+def handoff_calls():
+    """Accumulator for ingest handoffs — replaces production ETL wiring in tests."""
     return []
 
 
 @pytest.fixture
-def app(kafka_messages):
-    async def fake_publish(topic: str, key: str, value: bytes) -> None:
-        kafka_messages.append({"topic": topic, "key": key, "value": value})
+def app(handoff_calls):
+    async def fake_handoff(channel: str, shop_key: str, value: bytes) -> None:
+        handoff_calls.append({"channel": channel, "shop_key": shop_key, "value": value})
 
     return create_app(
         app_key=APP_KEY,
         app_secret=APP_SECRET,
-        publish_fn=fake_publish,
+        handoff_fn=fake_handoff,
     )
 
 
@@ -88,7 +88,7 @@ class TestValidWebhook:
         assert resp.json() == {"code": 0}
 
     @pytest.mark.asyncio
-    async def test_publishes_to_kafka_with_correct_topic(self, client, kafka_messages):
+    async def test_publishes_to_kafka_with_correct_topic(self, client, handoff_calls):
         body = _order_event_body()
         sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
 
@@ -98,11 +98,11 @@ class TestValidWebhook:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert len(kafka_messages) == 1
-        assert kafka_messages[0]["topic"] == "tiktok.order_status_change"
+        assert len(handoff_calls) == 1
+        assert handoff_calls[0]["channel"] == "tiktok.order_status_change"
 
     @pytest.mark.asyncio
-    async def test_kafka_key_is_shop_id(self, client, kafka_messages):
+    async def test_kafka_key_is_shop_id(self, client, handoff_calls):
         body = _order_event_body()
         sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
 
@@ -112,10 +112,10 @@ class TestValidWebhook:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert kafka_messages[0]["key"] == "7000000000000001"
+        assert handoff_calls[0]["shop_key"] == "7000000000000001"
 
     @pytest.mark.asyncio
-    async def test_kafka_value_is_raw_body(self, client, kafka_messages):
+    async def test_kafka_value_is_raw_body(self, client, handoff_calls):
         body = _order_event_body()
         sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
 
@@ -125,10 +125,10 @@ class TestValidWebhook:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert kafka_messages[0]["value"] == body
+        assert handoff_calls[0]["value"] == body
 
     @pytest.mark.asyncio
-    async def test_product_event_routes_to_product_topic(self, client, kafka_messages):
+    async def test_product_event_routes_to_product_topic(self, client, handoff_calls):
         event = {
             "type": "PRODUCT_STATUS_CHANGE",
             "shop_id": "shop_42",
@@ -144,7 +144,7 @@ class TestValidWebhook:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert kafka_messages[0]["topic"] == "tiktok.product_status_change"
+        assert handoff_calls[0]["channel"] == "tiktok.product_status_change"
 
 
 class TestSignatureRejection:
@@ -173,7 +173,7 @@ class TestSignatureRejection:
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_invalid_signature_does_not_publish(self, client, kafka_messages):
+    async def test_invalid_signature_does_not_publish(self, client, handoff_calls):
         body = _order_event_body()
 
         await client.post(
@@ -182,7 +182,7 @@ class TestSignatureRejection:
             headers={"Authorization": "bad_sig", "Content-Type": "application/json"},
         )
 
-        assert len(kafka_messages) == 0
+        assert len(handoff_calls) == 0
 
 
 class TestMalformedRequest:
@@ -218,7 +218,7 @@ class TestNewEventTypeRouting:
     """Issue #27 — new event types routed to category topics."""
 
     @pytest.mark.asyncio
-    async def test_webhook_livestream_event_published(self, client, kafka_messages):
+    async def test_webhook_livestream_event_published(self, client, handoff_calls):
         """AC1: Livestream events published to 'livestream-events' topic."""
         event = {
             "type": "LIVESTREAM_SESSION_END",
@@ -236,14 +236,14 @@ class TestNewEventTypeRouting:
         )
 
         assert resp.status_code == 200
-        assert len(kafka_messages) == 1
-        assert kafka_messages[0]["topic"] == "livestream-events"
-        assert kafka_messages[0]["key"] == "shop_ls_1"
-        assert kafka_messages[0]["value"] == body
+        assert len(handoff_calls) == 1
+        assert handoff_calls[0]["channel"] == "livestream-events"
+        assert handoff_calls[0]["shop_key"] == "shop_ls_1"
+        assert handoff_calls[0]["value"] == body
 
     @pytest.mark.asyncio
     async def test_webhook_livestream_start_also_routes_correctly(
-        self, client, kafka_messages
+        self, client, handoff_calls
     ):
         """AC1: All livestream subtypes route to the same topic."""
         event = {
@@ -261,10 +261,10 @@ class TestNewEventTypeRouting:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert kafka_messages[0]["topic"] == "livestream-events"
+        assert handoff_calls[0]["channel"] == "livestream-events"
 
     @pytest.mark.asyncio
-    async def test_webhook_creator_event_published(self, client, kafka_messages):
+    async def test_webhook_creator_event_published(self, client, handoff_calls):
         """AC2: Creator/affiliate events published to 'creator-events' topic."""
         event = {
             "type": "CREATOR_AFFILIATE_LINK",
@@ -282,13 +282,13 @@ class TestNewEventTypeRouting:
         )
 
         assert resp.status_code == 200
-        assert len(kafka_messages) == 1
-        assert kafka_messages[0]["topic"] == "creator-events"
-        assert kafka_messages[0]["key"] == "shop_cr_1"
+        assert len(handoff_calls) == 1
+        assert handoff_calls[0]["channel"] == "creator-events"
+        assert handoff_calls[0]["shop_key"] == "shop_cr_1"
 
     @pytest.mark.asyncio
     async def test_webhook_affiliate_event_routes_to_creator_topic(
-        self, client, kafka_messages
+        self, client, handoff_calls
     ):
         """AC2: Affiliate-prefixed events also go to 'creator-events'."""
         event = {
@@ -306,10 +306,10 @@ class TestNewEventTypeRouting:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert kafka_messages[0]["topic"] == "creator-events"
+        assert handoff_calls[0]["channel"] == "creator-events"
 
     @pytest.mark.asyncio
-    async def test_webhook_settlement_event_published(self, client, kafka_messages):
+    async def test_webhook_settlement_event_published(self, client, handoff_calls):
         """AC3: Settlement events published to 'settlement-events' topic."""
         event = {
             "type": "SETTLEMENT_COMPLETED",
@@ -327,13 +327,13 @@ class TestNewEventTypeRouting:
         )
 
         assert resp.status_code == 200
-        assert len(kafka_messages) == 1
-        assert kafka_messages[0]["topic"] == "settlement-events"
-        assert kafka_messages[0]["key"] == "shop_st_1"
+        assert len(handoff_calls) == 1
+        assert handoff_calls[0]["channel"] == "settlement-events"
+        assert handoff_calls[0]["shop_key"] == "shop_st_1"
 
     @pytest.mark.asyncio
     async def test_existing_order_event_still_uses_generic_topic(
-        self, client, kafka_messages
+        self, client, handoff_calls
     ):
         """Backward compat: unrecognized types fallback to tiktok.{type}."""
         body = _order_event_body()
@@ -345,4 +345,4 @@ class TestNewEventTypeRouting:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert kafka_messages[0]["topic"] == "tiktok.order_status_change"
+        assert handoff_calls[0]["channel"] == "tiktok.order_status_change"

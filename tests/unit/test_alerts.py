@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.alerts import (
+from src.modules.catalog.domain.alerts import (
     AlertEvent,
     FcmAdapter,
     RuleConfigInput,
@@ -24,9 +24,9 @@ from src.alerts import (
     deliver_alert,
     evaluate_rules,
 )
-from src.alerts.types import Alert, ChannelAdapter, DeliveryResult
-from src.data.models import AlertConfig, Shop, User
-from src.data.repos import AlertHistoryRepo
+from src.modules.catalog.domain.alerts.types import Alert, ChannelAdapter, DeliveryResult
+from src.shared.utils.data.models import AlertConfig, Shop, User
+from src.shared.utils.data.repos import AlertHistoryRepo
 
 
 def _make_user(user_id: uuid.UUID) -> User:

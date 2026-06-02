@@ -1,0 +1,19 @@
+---
+description: Hooks & automation — keep automation safe and reviewable
+alwaysApply: true
+---
+
+# Hooks & Automation (Cursor)
+
+Use project automation sparingly and safely.
+
+## Principles
+
+- Prefer explicit, reviewable automation over “magic.”
+- Avoid automations that bypass safety checks or approvals.
+- Keep automations scoped to well-defined, repeatable workflows (formatting, validation, reminders).
+
+## Task tracking
+
+For multi-step work, keep a structured task list so progress and intent stay clear, and so review/verification is straightforward.
+

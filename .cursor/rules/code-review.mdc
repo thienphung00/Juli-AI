@@ -1,0 +1,35 @@
+---
+description: Code review standards — catch correctness, security, and maintainability issues
+alwaysApply: true
+---
+
+# Code Review Standards
+
+Code review is required for production-impacting changes. Review should catch correctness, security, performance, and maintainability issues **before merge**.
+
+## Mandatory review triggers
+
+- After writing or modifying non-trivial code.
+- Any auth/authZ, secrets, PII, billing, or externally-facing API changes.
+- Architectural changes (new modules, new patterns, major refactors).
+
+## Pre-review requirements
+
+- Automated checks are passing (tests, lint, type checks).
+- Conflicts are resolved and branch is up to date with the target branch.
+
+## Review checklist
+
+- **Readability**: clear naming, focused functions, minimal nesting.
+- **Errors**: explicit handling; no silent failures.
+- **Security**: no secrets; validate input; safe DB queries; safe logging.
+- **Performance**: bounded queries/results; no obvious N+1; avoid blocking I/O in async code.
+- **Tests**: new behaviors covered; tests deterministic.
+
+## Severity levels
+
+- **CRITICAL**: security vulnerability, data-loss risk → block merge until fixed.
+- **HIGH**: bug or major quality issue → fix before merge.
+- **MEDIUM**: maintainability concern → fix if reasonable.
+- **LOW**: stylistic/nice-to-have → optional.
+

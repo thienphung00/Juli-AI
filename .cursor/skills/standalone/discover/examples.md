@@ -10,7 +10,7 @@
 
 1. Webhook or polling only? → Webhook primary; 15-minute reconciliation poll as backup
 2. Idempotency key? → `(event_type, shop_id, entity_id, update_time)`
-3. Failure handling? → Kafka DLQ + structured logs; no silent drops
+3. Failure handling? → ETL DLQ handoff + structured logs; no silent drops
 4. Multi-tenant isolation? → All writes scoped by `shop_id` via repos
 5. Data source allowed? → TikTok Shop Official API + webhooks only (see `data-sources.md` #1, #4)
 
@@ -27,7 +27,7 @@ docs/features/tiktok-order-webhook-sync/
 
 ### Key Architecture Decision
 
-- `src/services/webhook` verifies HMAC and publishes to Kafka
+- `src/services/webhook` verifies HMAC and hands off to ETL
 - Consumers upsert via `src/data` repos
 - `src/api` exposes read models to `web/` and `ios/`
 

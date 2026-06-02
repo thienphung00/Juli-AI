@@ -115,7 +115,7 @@ Mode drives both **data perspective** (seller vs affiliate KPIs) and **theme** (
 - Keep tests focused on **public behavior** (rendered UI + navigation), not internal component structure.
 
 ## Out of Scope (MVP — Issues 1–8)
-- TikTok Shop Partner API wiring, Kafka/ETL, daily ML compute, Scrapy jobs (all **v1.5** per `migration_path.md`).
+- TikTok Shop Partner API wiring, ETL ingest, daily ML compute, Scrapy jobs (all **v1.5** per `migration_path.md`).
 - Redis, Celery, near-realtime dashboards (all **v2.0**).
 - Real market intel feeds for cross-shop creator/shop signals — mock + “Đang cập nhật dữ liệu thị trường” in MVP.
 - Backend schema changes or new frameworks.

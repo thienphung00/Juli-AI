@@ -14,11 +14,11 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 import pytest_asyncio
 
-from src.auth.exceptions import Unauthorized
-from src.auth.tiktok_oauth import TikTokOAuthService
-from src.data.models import User
-from src.data.repos import ShopsRepo, TikTokCredentialRepo
-from src.integrations.tiktok.auth import TikTokAuth
+from src.modules.identity.infrastructure.auth.exceptions import Unauthorized
+from src.modules.identity.infrastructure.auth.tiktok_oauth import TikTokOAuthService
+from src.shared.utils.data.models import User
+from src.shared.utils.data.repos import ShopsRepo, TikTokCredentialRepo
+from src.modules.catalog.domain.integrations.tiktok.auth import TikTokAuth
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"

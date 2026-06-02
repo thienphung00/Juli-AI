@@ -25,6 +25,27 @@ Do **not** write many tests first and then implement everything (“horizontal s
 - WRONG: RED = test1..testN, then GREEN = impl1..implN
 - RIGHT: RED→GREEN for **one** test/behavior at a time (“vertical slices” / tracer bullets)
 
+### Writing tests in this codebase (practical)
+
+Prefer the test surfaces already used in `tests/unit/`:
+
+- **Integration-style API tests (FastAPI)**: exercise `create_app()` via `httpx.AsyncClient` + `ASGITransport`, and override dependencies via `app.dependency_overrides` (e.g., overriding `get_session`, `get_current_user`).
+- **Repository / domain tests**: test async functions directly, using the in-memory SQLite async engine and `session` fixture patterns from `tests/unit/conftest.py`.
+
+When you add a behavior, pick the **lowest-cost public interface** that still proves it:
+
+- **Pure logic** → unit test the function/class directly.
+- **Service boundary** (DB/session, external client wrapper, auth boundary) → integration-style test using the boundary’s public entrypoint.
+- **API contract** → route-level test that asserts status code + response shape + key fields (avoid asserting full payloads unless stability matters).
+
+Test-writing rules:
+
+- **AAA structure**: Arrange (fixtures/data), Act (call boundary), Assert (observable outcome).
+- **Name tests as acceptance criteria** (AC1/AC2…) when helpful; keep assertions tied to behavior.
+- **Use dependency overrides** instead of patching internals when testing FastAPI routes.
+- **Mock at boundaries only**: prefer mocking external HTTP calls / third-party clients; avoid mocking your own domain code.
+- **Make RED meaningful**: the failing signal should correspond to the missing/buggy behavior, not broken setup.
+
 ### Workflow
 
 #### 1) Planning (before writing code)
@@ -56,7 +77,7 @@ Rules:
 - no speculative features “for the next tests”
 - keep tests focused on observable behavior through the public interface
 
-#### 4) Refactor (only when GREEN)
+#### 4) Refactor implementation (only when GREEN)
 
 After tests pass, refactor in small steps:
 
@@ -66,6 +87,18 @@ After tests pass, refactor in small steps:
 - run tests after each refactor step
 
 Never refactor while RED.
+
+#### 5) Refactor tests & fixtures (still GREEN)
+
+Once the implementation reads well, do a second refactor pass on the test suite:
+
+- remove duplicated setup by extracting fixtures/factories
+- rename tests to better reflect behavior/ACs
+- tighten assertions to the smallest stable contract
+- delete incidental assertions that couple to internals
+- keep tests deterministic (no shared state, no ordering dependency)
+
+This step is separate on purpose: it keeps the loop honest (tests first), while still leaving the suite cleaner than before.
 
 ### Checklist per cycle
 

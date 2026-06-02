@@ -209,10 +209,11 @@ GitHub commands by **≥ 30 seconds** between operations.
 **What it does:**
 - Uses the focus handoff to understand what to build and which tools to use
 - Plans behaviors to test (from acceptance criteria)
-- Implements via red-green-refactor, one behavior at a time:
+- Implements via red-green-refactor (with a two-phase refactor), one behavior at a time:
   - **RED**: write a failing integration test using public interfaces
   - **GREEN**: minimal production code to pass
-  - **REFACTOR**: clean up while green
+  - **REFACTOR (implementation)**: clean up production code while staying green
+  - **REFACTOR (tests & fixtures)**: clean up the test suite/fixtures while staying green
 - Uses MCP tools as needed (Supabase MCP for migrations, Context7 for API references, shadcn for component installation)
 - Creates new MODULE.md files when adding new modules (per `docs/architecture/map.md`)
 - Commits working code with passing tests on a feature branch

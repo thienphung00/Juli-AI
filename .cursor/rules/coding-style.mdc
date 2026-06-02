@@ -1,0 +1,40 @@
+---
+description: Coding style — consistency, clarity, and safe patterns
+alwaysApply: true
+---
+
+# Coding Style
+
+## Core principles
+
+- **KISS**: prefer the simplest solution that works.
+- **DRY**: extract repetition when it is real and stable.
+- **YAGNI**: avoid speculative generality; refactor when pressure is real.
+
+## Immutability (preferred)
+
+Prefer immutable updates over in-place mutation when it reduces side effects and improves testability.
+
+## File & function sizing
+
+- Prefer high cohesion, low coupling.
+- Split large modules; keep functions focused and readable.
+
+## Error handling
+
+- Handle errors explicitly at boundaries.
+- Never silently swallow exceptions.
+- In server-side code: log structured, non-sensitive context.
+
+## Input validation
+
+- Validate and sanitize at system boundaries (HTTP requests, webhooks, events, file inputs).
+- Fail fast with clear errors; never trust external data.
+
+## Naming conventions
+
+- Variables/functions: `camelCase` with descriptive names.
+- Booleans: `is*`, `has*`, `can*`, `should*`.
+- Types/classes/components: `PascalCase`.
+- Constants: `UPPER_SNAKE_CASE`.
+

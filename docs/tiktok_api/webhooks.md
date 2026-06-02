@@ -100,14 +100,14 @@ def verify_webhook(app_key: str, app_secret: str, path: str, body: bytes, receiv
 ### Architecture
 
 ```
-TikTok Webhook → HTTPS Endpoint → Validate Signature → Publish to Kafka → ACK (200)
+TikTok Webhook → HTTPS Endpoint → Validate Signature → ETL handoff → ACK (200)
                                                               │
                                                               ▼
-                                                     Kafka Consumer
+                                                     src/etl (dedup + transform)
                                                               │
                                          ┌────────────────────┼────────────────────┐
                                          ▼                    ▼                    ▼
-                                   Update DB           Update Cache          Trigger Alerts
+                                   Update DB           (v2.0 cache)         Trigger Alerts
 ```
 
 ### Best Practices
@@ -141,14 +141,17 @@ async def handle_webhook(request: Request):
     
     event = json.loads(body)
     
-    await kafka_producer.send(
-        topic=f"tiktok.{event['type'].lower()}",
-        key=event["shop_id"],
-        value=body
+    await handoff_fn(
+        f"tiktok.{event['type'].lower()}",
+        event["shop_id"],
+        body,
     )
-    
+
     return {"code": 0}
 ```
+
+Production wiring uses `create_app(..., handoff_fn=make_etl_handoff(etl_consumer))`.
+See `src/services/webhook/` and `src/ingestion/handoff.py`.
 
 ## Monitoring & Alerts
 

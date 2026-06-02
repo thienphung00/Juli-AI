@@ -2,247 +2,247 @@
 
 ## Overview
 
-A scalable, event-driven architecture for ingesting TikTok Shop data from multiple sellers, processing it through a unified pipeline, and serving analytics dashboards with real-time and historical insights.
+Juli-AI ingests TikTok Shop data from multiple sellers through a **scheduled monolith**
+(v1.5) that upgrades to **near-realtime async orchestration** (v2.0) without rewriting
+job logic. The platform serves operational dashboards with batch and, later,
+seconds-to-minutes freshness.
 
-## High-Level Architecture
+**Canonical evolution doc:** [`migration_path.md`](../../migration_path.md) (MVP → v1.5 → v2.0).
+
+## Phased Architecture (Summary)
+
+| Phase | Ingestion | Orchestration | Intelligence | Live UI |
+|-------|-----------|---------------|--------------|---------|
+| **MVP** | Mock / UI-only | — | — | Static fixtures |
+| **v1.5** | Webhook + polling → validation → ETL → Postgres | APScheduler triggers `daily_pipeline()` only | Daily batch (`src/jobs/*`, local Ollama optional) | REST + polling |
+| **v2.0** | Same paths, higher cadence | Celery Beat + Redis (runner upgrade) | Rolling / near-realtime jobs | Redis pub/sub → WebSocket (**derived** state) |
+
+Redis and Celery are **v2.0 only** — not introduced in v1.5.
+
+---
+
+## High-Level Architecture (v1.5 — Scheduled Monolith)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              INGESTION LAYER                                     │
+│                         CLOUD — INGESTION & API                                  │
 │                                                                                  │
 │  ┌──────────────────┐    ┌──────────────────┐    ┌───────────────────────┐      │
-│  │  Webhook Receiver │    │  Polling Workers │    │  OAuth/Auth Service   │      │
-│  │  (FastAPI)        │    │  (Celery/Workers)│    │  (Token Management)  │      │
+│  │  Webhook Receiver │    │  Polling Workers │    │  OAuth / Auth (Supabase)│      │
+│  │  (FastAPI)        │    │  (async tasks)   │    │  + TikTok tokens       │      │
 │  └────────┬─────────┘    └────────┬─────────┘    └───────────────────────┘      │
-│           │                        │                                             │
-└───────────┼────────────────────────┼─────────────────────────────────────────────┘
-            │                        │
-            ▼                        ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              MESSAGE BUS (Kafka)                                 │
-│                                                                                  │
-│  Topics: orders | products | inventory | returns | settlements | webhooks.raw    │
-│                                                                                  │
-└──────┬────────────────┬────────────────────┬────────────────┬───────────────────┘
-       │                │                    │                │
-       ▼                ▼                    ▼                ▼
-┌─────────────┐  ┌─────────────┐  ┌──────────────────┐  ┌──────────────┐
-│  OLTP Write │  │  Analytics  │  │  ML Pipeline     │  │  Alerting    │
-│  (Postgres) │  │  ETL → DWH  │  │  (Feature Store) │  │  Service     │
-└──────┬──────┘  └──────┬──────┘  └────────┬─────────┘  └──────┬───────┘
-       │                │                   │                    │
-       ▼                ▼                   ▼                    ▼
-┌─────────────┐  ┌─────────────┐  ┌──────────────────┐  ┌──────────────┐
-│  PostgreSQL │  │  ClickHouse │  │  ML Model Store  │  │  Notification│
-│             │  │  / BigQuery │  │  (Predictions)   │  │  (Email/SMS) │
-└──────┬──────┘  └──────┬──────┘  └────────┬─────────┘  └──────────────┘
-       │                │                   │
-       └────────────────┼───────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              API LAYER (Backend)                                  │
-│                                                                                  │
-│  ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────────┐       │
-│  │  REST API        │    │  GraphQL (opt.)  │    │  WebSocket (live)    │       │
-│  │  (Next.js API /  │    │                  │    │  (dashboard updates) │       │
-│  │   FastAPI)       │    │                  │    │                      │       │
-│  └──────────────────┘    └──────────────────┘    └──────────────────────┘       │
-│                                                                                  │
+│           │ validate HMAC          │ fetch + rate limit                          │
+│           └────────────┬───────────┘                                             │
+│                        ▼                                                         │
+│                 ┌─────────────┐                                                  │
+│                 │  src/etl    │  dedup · transform · load                         │
+│                 └──────┬──────┘                                                  │
+│                        ▼                                                         │
+│                 ┌─────────────┐     ┌──────────────────┐                         │
+│                 │  Postgres   │◄────│  FastAPI /v1/*   │                         │
+│                 │  (Supabase) │     │  (user-facing)   │                         │
+│                 └─────────────┘     └──────────────────┘                         │
 └─────────────────────────────────────────────────────────────────────────────────┘
-                        │
-                        ▼
+
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND (Next.js)                                   │
+│                    LOCAL NODE — OPTIONAL COST LAYER (v1.5+)                      │
 │                                                                                  │
-│  Dashboard | Analytics Charts | Inventory Alerts | Seller Management            │
-│                                                                                  │
+│  Ollama · Scrapy · batch ML jobs invoked from src/jobs/*                         │
+│  (cloud APIs remain up if local node is offline)                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
+
+        APScheduler (cloud) — triggers only, no business logic inside scheduler
+              │
+              ▼
+        daily_pipeline()  →  scrape · anomaly · forecast · recommend · sentiment
 ```
+
+---
+
+## High-Level Architecture (v2.0 — Near-Realtime)
+
+Adds **Redis + Celery** as execution upgrade; `src/jobs/*` logic unchanged.
+
+```
+Ingestion (same as v1.5)
+  Webhook / polling → validation → ETL → Postgres (source of truth)
+
+Celery workers (parallel)
+  ingestion · scrape · anomaly · forecast · recommend · notify
+
+Redis pub/sub  →  WebSocket clients  (derived dashboard updates — not event sourcing)
+```
+
+See **WebSocket Architecture** and **Why Near-Realtime** in [`migration_path.md`](../../migration_path.md).
+
+---
 
 ## Component Breakdown
 
-### 1. Ingestion Layer
+### 1. Ingestion Layer (cloud)
 
 #### Webhook Receiver
 
-- **Technology:** FastAPI (Python) or Express (Node.js)
-- **Responsibility:** Accept TikTok webhook events, validate signatures, publish to Kafka
-- **SLA:** Respond within 3 seconds, process async
-- **Scaling:** Horizontal auto-scale behind load balancer
+- **Technology:** FastAPI (`src/services/webhook`)
+- **Responsibility:** Accept TikTok webhook events, validate HMAC signatures, ACK quickly, pass validated payloads to ETL path
+- **SLA:** Respond within 3 seconds; persistence and enrichment async
+- **Scaling:** Horizontal scale behind load balancer (simple replicas — no Kubernetes required at current scale)
 
 #### Polling Workers
 
-- **Technology:** Celery (Python) or BullMQ (Node.js)
-- **Responsibility:** Scheduled data fetching for initial sync, backfill, and gap recovery
-- **Schedule:**
-  - Orders: Every 15 minutes (incremental by update_time)
+- **Technology:** Async Python (`src/services/polling`)
+- **Responsibility:** Scheduled data fetching for incremental sync, backfill, and gap recovery
+- **Schedule (typical):**
+  - Orders: Every 15 minutes (incremental by `update_time`)
   - Products: Every hour
   - Inventory: Every 30 minutes
   - Settlements: Daily
-- **Scaling:** Worker count scales with seller count
+- **Scaling:** Stagger per shop; respect per-(app × shop × endpoint) rate limits
 
-#### Auth Service
+#### Auth
 
-- **Responsibility:** Token storage, refresh scheduling, OAuth flow handling
-- **Dependencies:** PostgreSQL (encrypted token storage), Redis (token cache)
-- **Jobs:** Daily token refresh, deauthorization handling
+- **Responsibility:** Supabase phone-OTP, JWT validation, TikTok OAuth token lifecycle
+- **Storage:** Encrypted credentials in Postgres via `src/data`
 
-### 2. Message Bus (Kafka)
+### 2. ETL & Storage
 
-#### Topic Design
+#### ETL (`src/etl`)
 
-| Topic | Key | Partitions | Retention |
-|-------|-----|------------|-----------|
-| `tiktok.orders.raw` | shop_id | 12 | 7 days |
-| `tiktok.products.raw` | shop_id | 6 | 7 days |
-| `tiktok.inventory.raw` | shop_id | 6 | 3 days |
-| `tiktok.returns.raw` | shop_id | 6 | 7 days |
-| `tiktok.settlements.raw` | shop_id | 4 | 30 days |
-| `tiktok.webhooks.raw` | shop_id | 12 | 3 days |
-| `tiktok.events.dlq` | — | 2 | 30 days |
+```
+Validated payload → dedup (event_id) → transform → src/data repos → Postgres
+```
 
-#### Guarantees
+- **Deduplication:** Idempotent ledger / `(entity_id, update_time)` semantics
+- **Enrichment:** Resolve product metadata, currency, shop scope
+- **Failures:** DLQ or dead-letter table — poison messages must not block the API
 
-- At-least-once delivery (consumers handle idempotency)
-- Ordered within partition (partitioned by shop_id)
-- Dead letter queue for poison messages
-
-### 3. Storage Layer
-
-#### PostgreSQL (OLTP)
-
-Primary transactional database for current-state data:
+#### PostgreSQL (Supabase) — source of truth
 
 - Seller credentials and shop metadata
-- Current order state and line items
-- Product catalog (current version)
-- Inventory levels
-- Customer records (aggregated)
+- Orders, products, inventory, settlements, livestream summaries
+- Intelligence outputs, recommendations, alert history
 
-#### ClickHouse / BigQuery (OLAP)
+Optional v1.5 enhancement under load: **Postgres-backed queue** between validation and ETL (only if spike volume justifies it).
 
-Analytical warehouse for historical queries:
+#### Redis (v2.0 only)
 
-- All historical order events (append-only)
-- Time-series sales data (partitioned by day)
-- Product performance metrics
-- Settlement history
-- ML feature tables
+- Celery broker and result backend
+- Pub/sub for **derived** dashboard updates to WebSocket layer
+- Rate-limit counters and hot caches as needed
 
-#### Redis
+### 3. Jobs & Orchestration
 
-- OAuth token cache (7-day TTL)
-- Rate limit counters per (app × shop)
-- Real-time inventory cache (hot SKUs)
-- Session data for dashboard users
-- Pub/sub for live dashboard updates
+| Concern | v1.5 | v2.0 |
+|---------|------|------|
+| Job definitions | `src/jobs/*` | Same modules |
+| Composition | `src/pipelines/daily.py` | Same pipelines; more frequent triggers |
+| Runner | APScheduler in `src/orchestration/` | Celery Beat (upgrade, not rewrite) |
+| Rule | Scheduler **triggers only** — never embed ML or scraping logic in scheduler config |
 
-### 4. Processing Layer
-
-#### ETL Pipeline
-
-```
-Kafka Consumer → Transform/Enrich → Write to Postgres + ClickHouse
-```
-
-- **Deduplication:** Use (entity_id, update_time) composite key
-- **Enrichment:** Resolve product names, category paths, currency conversion
-- **Validation:** Schema validation before write, reject malformed to DLQ
-
-#### Reconciliation Jobs
-
-- **Daily:** Full order count check (API total vs DB total per shop)
-- **Hourly:** Inventory level verification for high-velocity SKUs
-- **Weekly:** Product catalog full sync to detect missed updates
-
-### 5. API Layer
-
-Backend APIs serving the dashboard frontend:
+### 4. API & Frontend Layer
 
 | Service | Endpoints | Data Source |
 |---------|-----------|-------------|
-| Orders API | `/api/orders`, `/api/orders/:id` | PostgreSQL |
-| Analytics API | `/api/analytics/revenue`, `/api/analytics/products` | ClickHouse |
-| Inventory API | `/api/inventory`, `/api/inventory/alerts` | Redis + PostgreSQL |
-| Sellers API | `/api/sellers`, `/api/sellers/:id/connect` | PostgreSQL |
-| ML API | `/api/predictions/demand`, `/api/predictions/anomalies` | ML Model Store |
+| Orders API | `/v1/orders`, detail routes | Postgres via `src/data` |
+| Analytics / intelligence | Scoring, forecasting, recommendations | Postgres + `src/intelligence/*` |
+| Inventory / alerts | Stock risk, alert config | Postgres + `src/alerts` |
+| Live updates (v2.0) | WebSocket | Derived snapshots from Redis pub/sub; refresh from REST on disconnect |
 
-### 6. Frontend Layer
+- **Web UI:** Next.js (`web/`)
+- **Mobile:** SwiftUI (`ios/`)
+- **Charts:** Recharts / ECharts
+- **Near-realtime UI (v2.0):** WebSocket for live refresh — not a replayable event log
 
-- **Framework:** Next.js with TypeScript
-- **Charts:** Recharts or Apache ECharts
-- **Real-time:** WebSocket for live order feed
-- **Multi-tenant:** Seller selector + scoped views
+### 5. Local Node (optional, v1.5+)
+
+- Ollama inference, Scrapy crawls, heavy batch ML
+- **Not** a hard dependency — see Local AI philosophy in `migration_path.md`
+
+---
 
 ## Data Flow Sequences
 
-### New Order Flow
+### New Order Flow (v1.5+)
 
 ```
 TikTok (ORDER_STATUS_CHANGE webhook)
-    → Webhook Receiver (validate, publish)
-    → Kafka topic: tiktok.orders.raw
-    → Consumer A: Write to PostgreSQL (orders table)
-    → Consumer B: Write to ClickHouse (order_events table)
-    → Consumer C: Update Redis cache (daily revenue counter)
-    → Consumer D: Check alert rules (large order notification)
-    → Dashboard auto-refreshes via WebSocket
+    → Webhook Receiver (validate HMAC)
+    → ETL consumer (dedup, transform)
+    → PostgreSQL (orders) — source of truth
+    → Alert rules (best-effort, non-blocking)
+    → Dashboard reads via REST (v2.0: optional WebSocket push of derived state)
 ```
 
 ### Initial Sync Flow (New Seller Onboarded)
 
 ```
 Seller authorizes app
-    → Auth Service stores tokens
-    → Trigger full sync job
-    → Polling Worker: GET /orders/search (last 90 days)
-    → Polling Worker: GET /products/search (all products)
-    → Polling Worker: GET /inventory/search (all SKUs)
-    → All data → Kafka → DB/Warehouse
+    → Auth stores tokens in Postgres
+    → Polling: orders (90d), products, inventory
+    → ETL → Postgres
     → Dashboard ready for seller
 ```
+
+### Daily Intelligence (v1.5)
+
+```
+APScheduler (1 AM) → daily_pipeline()
+    → scrape_job → vendor feeds
+    → anomaly_job · forecast_job · recommendation_job · sentiment_job
+    → Postgres intelligence tables
+```
+
+---
 
 ## Failure Modes & Mitigation
 
 | Failure | Impact | Mitigation |
 |---------|--------|------------|
-| Webhook endpoint down | Missed events (TikTok retries ~3x) | Reconciliation job detects gaps; redundant endpoints |
-| Kafka broker failure | Message loss or delay | Multi-broker cluster (3+), replication factor 3 |
-| PostgreSQL down | Dashboard reads fail | Read replicas, connection pooling, circuit breaker |
-| Token expired (missed refresh) | API calls fail for that seller | Aggressive refresh schedule (daily), alert on failures |
-| Rate limit exceeded | Delayed data sync | Queue-based throttling, exponential backoff |
-| TikTok API outage | All sync stops | Circuit breaker pattern, queue accumulation, resume on recovery |
+| Webhook endpoint down | Missed events (TikTok retries ~3×) | Reconciliation polling; gap detection |
+| ETL / DB write slow | Delayed freshness | Backpressure; idempotent retries; API still serves stale-but-consistent reads |
+| PostgreSQL down | Dashboard reads fail | Connection pooling; circuit breaker; status page |
+| Token expired | API calls fail for that shop | Proactive refresh; alert on auth errors |
+| Rate limit exceeded | Delayed sync | Per-shop throttling; exponential backoff |
+| Local Ollama offline | No new local ML outputs | Cloud API and ingestion continue; recommendations marked unavailable |
+| WebSocket down (v2.0) | No live push | Client polls REST; DB unchanged |
+| Notification channel down | Alert not delivered | Log + retry; pipeline continues |
 
-## Deployment Architecture
+Full isolation rules: **Failure Isolation Principles** in [`migration_path.md`](../../migration_path.md).
+
+---
+
+## Deployment Architecture (intentionally simple)
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                 Kubernetes Cluster                    │
-│                                                      │
-│  ┌─────────────┐  ┌────────────┐  ┌──────────────┐ │
-│  │ Webhook Svc │  │ Worker Svc │  │ API Svc      │ │
-│  │ (3 replicas)│  │ (auto-HPA) │  │ (3 replicas) │ │
-│  └─────────────┘  └────────────┘  └──────────────┘ │
-│                                                      │
-│  ┌─────────────┐  ┌────────────┐  ┌──────────────┐ │
-│  │ Auth Svc    │  │ ML Svc     │  │ Alert Svc    │ │
-│  │ (2 replicas)│  │ (GPU node) │  │ (2 replicas) │ │
-│  └─────────────┘  └────────────┘  └──────────────┘ │
-│                                                      │
-└─────────────────────────────────────────────────────┘
-
-External Services:
-  - AWS RDS (PostgreSQL)
-  - AWS MSK (Kafka)
-  - ClickHouse Cloud / BigQuery
-  - ElastiCache (Redis)
-  - S3 (raw event archive)
+┌─────────────────────────────────────────────┐
+│  Railway / Fly.io — API + workers           │
+│  Vercel — Next.js web                       │
+│  Supabase — Postgres + Auth                 │
+│  Cloudflare R2 — raw archive (optional)     │
+│  Local machine — Ollama + Scrapy (optional) │
+└─────────────────────────────────────────────┘
 ```
 
-## Observability
+Kubernetes, dedicated stream processors, and distributed tracing are **deferred**
+until triggers in `migration_path.md` (Deferred Infrastructure) are met.
 
-- **Logs:** Structured JSON → CloudWatch/ELK
-- **Metrics:** Prometheus + Grafana (API latency, queue depth, sync lag)
-- **Traces:** OpenTelemetry distributed tracing across services
-- **Alerts:** PagerDuty/OpsGenie for P0 failures
+---
+
+## Observability (current scope)
+
+- **Logs:** Structured JSON (Sentry + platform logs); correlation IDs on webhook → ETL → DB
+- **Metrics (optional v2.0):** Prometheus for Celery queue depth and worker health
+- **Alerts:** Sentry for errors; operational alerts for auth and ingestion stalls
+
+Distributed tracing and service mesh are explicitly out of scope until multi-service complexity warrants them.
+
+---
+
+## Related Documents
+
+| Document | Purpose |
+|----------|---------|
+| [`migration_path.md`](../../migration_path.md) | Phases, local/cloud split, deferred infra, failure isolation |
+| [`docs/architecture/map.md`](../architecture/map.md) | Module map and dependency graph |
+| [`docs/architecture/data-sources.md`](../architecture/data-sources.md) | Allowed data sources by phase |
+| [`tech-stack.md`](tech-stack.md) | Schema and technology notes (align with phased rollout when implementing) |
