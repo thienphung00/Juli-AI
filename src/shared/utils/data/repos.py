@@ -1,5 +1,7 @@
+import json
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import and_, or_, select
@@ -9,7 +11,9 @@ from src.shared.utils.data.exceptions import NotFound
 from src.shared.utils.data.models import (
     AlertConfig,
     AlertHistory,
+    Campaign,
     Creator,
+    GraphEdge,
     InventoryItem,
     Livestream,
     Order,
@@ -417,6 +421,120 @@ class RecommendationsRepo(ShopScopedRepo[Recommendation]):
         self._session.add(entity)
         await self._session.flush()
         return entity
+
+
+class GraphRepo:
+    """Shop-scoped commerce graph: Campaign nodes and relationship edges."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def upsert_edge(
+        self,
+        shop_id: uuid.UUID,
+        *,
+        edge_type: str,
+        source_node_type: str,
+        source_node_id: uuid.UUID,
+        target_node_type: str,
+        target_node_id: uuid.UUID,
+        weight: Decimal | None = None,
+        metadata_json: str | None = None,
+        computed_at: datetime | None = None,
+    ) -> GraphEdge:
+        stmt = select(GraphEdge).where(
+            GraphEdge.shop_id == shop_id,
+            GraphEdge.edge_type == edge_type,
+            GraphEdge.source_node_type == source_node_type,
+            GraphEdge.source_node_id == source_node_id,
+            GraphEdge.target_node_type == target_node_type,
+            GraphEdge.target_node_id == target_node_id,
+        )
+        result = await self._session.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if existing is not None:
+            if weight is not None:
+                existing.weight = weight
+            if metadata_json is not None:
+                existing.metadata_json = metadata_json
+            if computed_at is not None:
+                existing.computed_at = computed_at
+            await self._session.flush()
+            return existing
+
+        edge = GraphEdge(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            edge_type=edge_type,
+            source_node_type=source_node_type,
+            source_node_id=source_node_id,
+            target_node_type=target_node_type,
+            target_node_id=target_node_id,
+            weight=weight,
+            metadata_json=metadata_json,
+            computed_at=computed_at,
+        )
+        self._session.add(edge)
+        await self._session.flush()
+        return edge
+
+    async def list_edges(
+        self,
+        shop_id: uuid.UUID,
+        *,
+        edge_type: str | None = None,
+        node_type: str | None = None,
+        node_id: uuid.UUID | None = None,
+    ) -> list[GraphEdge]:
+        stmt = select(GraphEdge).where(GraphEdge.shop_id == shop_id)
+        if edge_type is not None:
+            stmt = stmt.where(GraphEdge.edge_type == edge_type)
+        if node_type is not None and node_id is not None:
+            stmt = stmt.where(
+                or_(
+                    and_(
+                        GraphEdge.source_node_type == node_type,
+                        GraphEdge.source_node_id == node_id,
+                    ),
+                    and_(
+                        GraphEdge.target_node_type == node_type,
+                        GraphEdge.target_node_id == node_id,
+                    ),
+                )
+            )
+        stmt = stmt.order_by(GraphEdge.created_at.desc())
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def create_campaign(
+        self,
+        shop_id: uuid.UUID,
+        *,
+        creator_id: uuid.UUID,
+        product_ids: list[str],
+        status: str = "draft",
+        predicted_gmv: Decimal | None = None,
+        realized_gmv: Decimal | None = None,
+        predicted_conversion: Decimal | None = None,
+        realized_conversion: Decimal | None = None,
+        idempotency_key: str | None = None,
+    ) -> Campaign:
+        campaign = Campaign(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            creator_id=creator_id,
+            status=status,
+            product_ids_json=json.dumps(product_ids),
+            predicted_gmv=predicted_gmv,
+            realized_gmv=realized_gmv,
+            predicted_conversion=predicted_conversion,
+            realized_conversion=realized_conversion,
+            idempotency_key=idempotency_key,
+        )
+        self._session.add(campaign)
+        await self._session.flush()
+        return campaign
 
 
 class ProcessedEventsRepo:
