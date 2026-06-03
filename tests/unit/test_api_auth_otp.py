@@ -1,7 +1,7 @@
 """OTP auth routes proxy Supabase and provision local users."""
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio

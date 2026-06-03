@@ -21,9 +21,11 @@ export function AlertBell() {
 
     let cancelled = false;
 
+    const activeMode = mode;
+
     async function load() {
       try {
-        const next = await getWorkspaceAlerts(mode);
+        const next = await getWorkspaceAlerts(activeMode);
         if (!cancelled) setAlerts(next);
       } catch (error) {
         console.error("alerts_load_failed", { error });

@@ -1,10 +1,10 @@
 """Commerce graph layer — Issue #92 (P1-1).
 
-AC1 → migration creates campaigns + graph_edges (verified via model metadata)
-AC2 → test_upsert_edge_is_idempotent
-AC3 → test_list_edges_scoped_by_shop
-AC4 → test_create_campaign_persists_node
-AC5 → test_shop_a_cannot_read_shop_b_edges
+AC1 → test_ac1_migration_tables_registered
+AC2 → test_ac2_upsert_edge_is_idempotent
+AC3 → test_ac3_list_edges_scoped_by_shop
+AC4 → test_ac4_create_campaign_persists_node
+AC5 → test_ac5_shop_a_cannot_read_shop_b_edges
 """
 
 import json
@@ -35,160 +35,146 @@ def _creator(cid: uuid.UUID, sid: uuid.UUID) -> Creator:
     )
 
 
-class TestGraphModelsExist:
-    """AC1: tables exist on Base metadata."""
-
-    def test_campaign_and_graph_edge_tables_registered(self):
-        table_names = {Campaign.__table__.name, GraphEdge.__table__.name}
-        assert table_names.issubset(set(Campaign.metadata.tables.keys()))
+def test_ac1_migration_tables_registered():
+    """AC1: campaigns and graph_edges tables exist on Base metadata."""
+    table_names = {Campaign.__table__.name, GraphEdge.__table__.name}
+    assert table_names.issubset(set(Campaign.metadata.tables.keys()))
 
 
-class TestGraphRepoUpsertEdge:
+@pytest.mark.asyncio
+async def test_ac2_upsert_edge_is_idempotent(session: AsyncSession, user_id: uuid.UUID):
     """AC2: upsert_edge is idempotent on natural key."""
+    shop_id = uuid.uuid4()
+    creator_id = uuid.uuid4()
+    product_id = uuid.uuid4()
+    session.add_all([_user(user_id), _shop(shop_id, user_id, "Graph Shop")])
+    await session.flush()
 
-    @pytest.mark.asyncio
-    async def test_upsert_edge_is_idempotent(
-        self, session: AsyncSession, user_id: uuid.UUID
-    ):
-        shop_id = uuid.uuid4()
-        creator_id = uuid.uuid4()
-        product_id = uuid.uuid4()
-        session.add_all([_user(user_id), _shop(shop_id, user_id, "Graph Shop")])
-        await session.flush()
+    repo = GraphRepo(session)
+    first = await repo.upsert_edge(
+        shop_id,
+        edge_type="potential_match",
+        source_node_type="creator",
+        source_node_id=creator_id,
+        target_node_type="product",
+        target_node_id=product_id,
+        weight=Decimal("0.75"),
+    )
+    second = await repo.upsert_edge(
+        shop_id,
+        edge_type="potential_match",
+        source_node_type="creator",
+        source_node_id=creator_id,
+        target_node_type="product",
+        target_node_id=product_id,
+        weight=Decimal("0.90"),
+    )
 
-        repo = GraphRepo(session)
-        first = await repo.upsert_edge(
-            shop_id,
-            edge_type="potential_match",
-            source_node_type="creator",
-            source_node_id=creator_id,
-            target_node_type="product",
-            target_node_id=product_id,
-            weight=Decimal("0.75"),
-        )
-        second = await repo.upsert_edge(
-            shop_id,
-            edge_type="potential_match",
-            source_node_type="creator",
-            source_node_id=creator_id,
-            target_node_type="product",
-            target_node_id=product_id,
-            weight=Decimal("0.90"),
-        )
-
-        assert first.id == second.id
-        assert second.weight == Decimal("0.90")
-        edges = await repo.list_edges(shop_id)
-        assert len(edges) == 1
+    assert first.id == second.id
+    assert second.weight == Decimal("0.90")
+    edges = await repo.list_edges(shop_id)
+    assert len(edges) == 1
 
 
-class TestGraphRepoListEdges:
-    """AC3: list_edges is shop-scoped and filterable."""
+@pytest.mark.asyncio
+async def test_ac3_list_edges_scoped_by_shop(
+    session: AsyncSession, user_id: uuid.UUID, other_user_id: uuid.UUID
+):
+    """AC3: list_edges returns only edges for the given shop."""
+    shop_a = uuid.uuid4()
+    shop_b = uuid.uuid4()
+    session.add_all(
+        [
+            _user(user_id),
+            _user(other_user_id),
+            _shop(shop_a, user_id, "Shop A"),
+            _shop(shop_b, other_user_id, "Shop B"),
+        ]
+    )
+    await session.flush()
 
-    @pytest.mark.asyncio
-    async def test_list_edges_scoped_by_shop(
-        self, session: AsyncSession, user_id: uuid.UUID, other_user_id: uuid.UUID
-    ):
-        shop_a = uuid.uuid4()
-        shop_b = uuid.uuid4()
-        session.add_all(
-            [
-                _user(user_id),
-                _user(other_user_id),
-                _shop(shop_a, user_id, "Shop A"),
-                _shop(shop_b, other_user_id, "Shop B"),
-            ]
-        )
-        await session.flush()
+    repo = GraphRepo(session)
+    await repo.upsert_edge(
+        shop_a,
+        edge_type="has_sold",
+        source_node_type="creator",
+        source_node_id=uuid.uuid4(),
+        target_node_type="product",
+        target_node_id=uuid.uuid4(),
+        weight=Decimal("1.0"),
+    )
+    await repo.upsert_edge(
+        shop_b,
+        edge_type="has_sold",
+        source_node_type="creator",
+        source_node_id=uuid.uuid4(),
+        target_node_type="product",
+        target_node_id=uuid.uuid4(),
+        weight=Decimal("0.5"),
+    )
 
-        repo = GraphRepo(session)
-        await repo.upsert_edge(
-            shop_a,
-            edge_type="has_sold",
-            source_node_type="creator",
-            source_node_id=uuid.uuid4(),
-            target_node_type="product",
-            target_node_id=uuid.uuid4(),
-            weight=Decimal("1.0"),
-        )
-        await repo.upsert_edge(
-            shop_b,
-            edge_type="has_sold",
-            source_node_type="creator",
-            source_node_id=uuid.uuid4(),
-            target_node_type="product",
-            target_node_id=uuid.uuid4(),
-            weight=Decimal("0.5"),
-        )
-
-        edges_a = await repo.list_edges(shop_a, edge_type="has_sold")
-        assert len(edges_a) == 1
-        assert edges_a[0].shop_id == shop_a
+    edges_a = await repo.list_edges(shop_a, edge_type="has_sold")
+    assert len(edges_a) == 1
+    assert edges_a[0].shop_id == shop_a
 
 
-class TestGraphRepoCampaign:
-    """AC4: create_campaign persists Campaign node."""
+@pytest.mark.asyncio
+async def test_ac4_create_campaign_persists_node(session: AsyncSession, user_id: uuid.UUID):
+    """AC4: create_campaign persists Campaign node with creator_id + shop_id."""
+    shop_id = uuid.uuid4()
+    creator_id = uuid.uuid4()
+    product_id = uuid.uuid4()
+    session.add_all(
+        [_user(user_id), _shop(shop_id, user_id, "Campaign Shop"), _creator(creator_id, shop_id)]
+    )
+    await session.flush()
 
-    @pytest.mark.asyncio
-    async def test_create_campaign_persists_node(
-        self, session: AsyncSession, user_id: uuid.UUID
-    ):
-        shop_id = uuid.uuid4()
-        creator_id = uuid.uuid4()
-        product_id = uuid.uuid4()
-        session.add_all(
-            [_user(user_id), _shop(shop_id, user_id, "Campaign Shop"), _creator(creator_id, shop_id)]
-        )
-        await session.flush()
+    repo = GraphRepo(session)
+    campaign = await repo.create_campaign(
+        shop_id,
+        creator_id=creator_id,
+        product_ids=[str(product_id)],
+        status="active",
+        predicted_gmv=Decimal("50000000"),
+    )
 
-        repo = GraphRepo(session)
-        campaign = await repo.create_campaign(
-            shop_id,
-            creator_id=creator_id,
-            product_ids=[str(product_id)],
-            status="active",
-            predicted_gmv=Decimal("50000000"),
-        )
-
-        assert campaign.shop_id == shop_id
-        assert campaign.creator_id == creator_id
-        assert json.loads(campaign.product_ids_json) == [str(product_id)]
-        assert campaign.predicted_gmv == Decimal("50000000")
+    assert campaign.shop_id == shop_id
+    assert campaign.creator_id == creator_id
+    assert json.loads(campaign.product_ids_json) == [str(product_id)]
+    assert campaign.predicted_gmv == Decimal("50000000")
 
 
-class TestGraphRepoTenantIsolation:
-    """AC5: shop A cannot read shop B edges via list_edges."""
+@pytest.mark.asyncio
+async def test_ac5_shop_a_cannot_read_shop_b_edges(
+    session: AsyncSession, user_id: uuid.UUID, other_user_id: uuid.UUID
+):
+    """AC5: shop A cannot read shop B graph edges."""
+    shop_a = uuid.uuid4()
+    shop_b = uuid.uuid4()
+    session.add_all(
+        [
+            _user(user_id),
+            _user(other_user_id),
+            _shop(shop_a, user_id, "Shop A"),
+            _shop(shop_b, other_user_id, "Shop B"),
+        ]
+    )
+    await session.flush()
 
-    @pytest.mark.asyncio
-    async def test_shop_a_cannot_read_shop_b_edges(
-        self, session: AsyncSession, user_id: uuid.UUID, other_user_id: uuid.UUID
-    ):
-        shop_a = uuid.uuid4()
-        shop_b = uuid.uuid4()
-        session.add_all(
-            [
-                _user(user_id),
-                _user(other_user_id),
-                _shop(shop_a, user_id, "Shop A"),
-                _shop(shop_b, other_user_id, "Shop B"),
-            ]
-        )
-        await session.flush()
+    repo = GraphRepo(session)
+    secret_edge = await repo.upsert_edge(
+        shop_b,
+        edge_type="trust_score",
+        source_node_type="creator",
+        source_node_id=uuid.uuid4(),
+        target_node_type="shop",
+        target_node_id=shop_b,
+        weight=Decimal("0.99"),
+    )
 
-        repo = GraphRepo(session)
-        secret_edge = await repo.upsert_edge(
-            shop_b,
-            edge_type="trust_score",
-            source_node_type="creator",
-            source_node_id=uuid.uuid4(),
-            target_node_type="shop",
-            target_node_id=shop_b,
-            weight=Decimal("0.99"),
-        )
+    edges_for_a = await repo.list_edges(shop_a)
+    assert edges_for_a == []
 
-        edges_for_a = await repo.list_edges(shop_a)
-        assert edges_for_a == []
-
-        edges_for_b = await repo.list_edges(shop_b)
-        assert len(edges_for_b) == 1
-        assert edges_for_b[0].id == secret_edge.id
+    edges_for_b = await repo.list_edges(shop_b)
+    assert len(edges_for_b) == 1
+    assert edges_for_b[0].id == secret_edge.id
