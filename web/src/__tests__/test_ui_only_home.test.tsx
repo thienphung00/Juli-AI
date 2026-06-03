@@ -54,7 +54,7 @@ describe("UI-only home (#71, #70)", () => {
     });
 
     expect(screen.getByTestId("livestream-card")).toBeInTheDocument();
-    expect(screen.getByTestId("home-ai-recommendation")).toBeInTheDocument();
+    expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
     expect(screen.getByTestId("top-creator-card")).toBeInTheDocument();
     expect(screen.getByTestId("top-product-card")).toBeInTheDocument();
   });

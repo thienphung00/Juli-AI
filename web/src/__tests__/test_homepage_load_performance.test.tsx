@@ -58,7 +58,7 @@ describe("AC2: Homepage dashboard modules", () => {
     });
 
     expect(screen.getByTestId("livestream-card")).toBeInTheDocument();
-    expect(screen.getByTestId("home-ai-recommendation")).toBeInTheDocument();
+    expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
     expect(screen.getByTestId("top-creator-card")).toBeInTheDocument();
     expect(screen.getByTestId("top-product-card")).toBeInTheDocument();
   });
@@ -116,9 +116,10 @@ describe("AC2: Homepage dashboard modules", () => {
         id: "empty",
         type: "none",
         headline: "Chưa có gợi ý — dữ liệu đang được thu thập",
-        primary_action: { label: "Xem xu hướng", href: "/trends" },
+        primary_action: { label: "Xem gợi ý", href: "/recommendations" },
         confidence: 0,
       },
+      hero_matches: [],
       top_creator: {
         id: "empty",
         handle: "—",

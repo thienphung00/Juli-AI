@@ -1,5 +1,5 @@
 /**
- * Alerts — mode-aware feed with consistent product/inventory fields (Home + bell)
+ * Alerts — mode-aware feed consistent in alert bell (issue #95: Home uses match hero, not banners)
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -66,7 +66,7 @@ describe("Alerts consistency", () => {
   const laneigeMessage = formatInventoryRiskMessage(SELLER_LOW_STOCK_LANEIGE);
 
   describe("seller mode", () => {
-    it("Home and alert bell show the same inventory alert for Laneige", async () => {
+    it("alert bell shows inventory alert; Home shows match hero instead of banners", async () => {
       const user = userEvent.setup();
       const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
       mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
@@ -80,13 +80,12 @@ describe("Alerts consistency", () => {
       );
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("home-alert-card-alert-seller-inventory-laneige")
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
       });
 
-      expect(screen.getByText(laneigeMessage)).toBeInTheDocument();
-      expect(screen.getByText("Tồn kho sắp hết")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("home-alert-card-alert-seller-inventory-laneige")
+      ).not.toBeInTheDocument();
 
       await user.click(screen.getByTestId("alert-bell-button"));
 
@@ -137,8 +136,8 @@ describe("Alerts consistency", () => {
         expect(screen.getByTestId("home-affiliate")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("Cơ hội hoa hồng")).toBeInTheDocument();
-      expect(screen.getByText(/Son Romand Juicy/)).toBeInTheDocument();
+      expect(screen.getByText(/Quyết định hôm nay/)).toBeInTheDocument();
+      expect(screen.getByText(/Son Romand Berry/)).toBeInTheDocument();
       expect(screen.queryByText(/Tồn kho sắp hết/)).not.toBeInTheDocument();
 
       await user.click(screen.getByTestId("alert-bell-button"));

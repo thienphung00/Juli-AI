@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, Radio, TrendingUp, BarChart2, Sparkles } from "lucide-react";
+import { Home, Users, Lightbulb, Sparkles } from "lucide-react";
 
 export interface NavTab {
   href: string;
@@ -9,12 +9,11 @@ export interface NavTab {
   live?: boolean;
 }
 
-/** Bottom navigation — exactly 5 tabs (issue #77). */
+/** Bottom navigation — recommendation-first (issue #95). */
 export const BOTTOM_NAV_TABS: NavTab[] = [
   { href: "/", label: "Trang chủ", Icon: Home, color: "#FF1493" },
-  { href: "/livestreams", label: "Trực tiếp", Icon: Radio, color: "#E61282", live: true },
-  { href: "/trends", label: "Xu hướng", Icon: TrendingUp, color: "#FF69B4" },
-  { href: "/operation", label: "Vận hành", Icon: BarChart2, color: "#FF69B4" },
+  { href: "/creators", label: "Creators", Icon: Users, color: "#FF69B4" },
+  { href: "/recommendations", label: "Gợi ý", Icon: Lightbulb, color: "#E61282" },
   { href: "/ai-chat", label: "Juli", Icon: Sparkles, color: "#FF1493" },
 ];
 

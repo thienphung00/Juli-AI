@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AuthenticatedShell } from "./AuthenticatedShell";
-import { AlertBannerCard } from "./home/AlertBannerCard";
-import { HomeAiRecommendationCard } from "./home/HomeAiRecommendationCard";
+import { HomeHeroMatches } from "./home/HomeHeroMatches";
 import { formatNumber, formatVND } from "@/lib/format";
 import type {
   AffiliateHomeDashboard,
@@ -73,9 +72,7 @@ function SellerHomeView({ dashboard }: { dashboard: SellerHomeDashboard }) {
   return (
     <div className="space-y-3" data-testid="home-seller">
       <div className="space-y-3" data-testid="home-above-fold">
-        {dashboard.alerts.map((alert) => (
-          <AlertBannerCard key={alert.id} alert={alert} />
-        ))}
+        <HomeHeroMatches matches={dashboard.hero_matches} />
 
         <div className="grid grid-cols-2 gap-3">
           <div className="card p-4" data-testid="gmv-card">
@@ -104,7 +101,6 @@ function SellerHomeView({ dashboard }: { dashboard: SellerHomeDashboard }) {
           </div>
         </div>
 
-        <HomeAiRecommendationCard recommendation={dashboard.ai_recommendation} />
       </div>
 
       <div className="card p-4" data-testid="top-creator-card">
@@ -134,14 +130,7 @@ function AffiliateHomeView({ dashboard }: { dashboard: AffiliateHomeDashboard })
   return (
     <div className="space-y-3" data-testid="home-affiliate">
       <div className="space-y-3" data-testid="home-above-fold">
-        {dashboard.alerts.map((alert) => (
-          <AlertBannerCard key={alert.id} alert={alert} />
-        ))}
-
-        <HomeAiRecommendationCard
-          recommendation={dashboard.ai_recommendation}
-          title="Cơ hội hoa hồng hôm nay"
-        />
+        <HomeHeroMatches matches={dashboard.hero_matches} />
 
         <div className="grid grid-cols-2 gap-3">
           <div className="card p-4" data-testid="commission-card">

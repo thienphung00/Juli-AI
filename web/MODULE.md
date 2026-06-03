@@ -8,17 +8,15 @@ modules, orders management with filtering and shipment confirmation.
 ## Public Interface
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
-- `/` — Homepage control center (mode-aware KPIs, inline AI recommendations, alert cards)
-- `/trends` — Trends discovery hub (search + Product/Creator/Shop tabs; role-aware mock data in UI-only mode)
-- `/operation` — Operations hub (role-based sub-tabs: Seller 4 tabs / Affiliate 3 tabs; mock data in UI-only mode)
+- `/` — Homepage decision hero (top 1–3 matches from `GET /v1/recommendations`; KPI cards retained)
+- `/creators` — Creator GMV attribution and commission efficiency scorecards (primary nav)
+- `/recommendations` — Decision feed: `MatchDecisionCard`, predicted outcomes, match score, CTA analytics
 - `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)
-- `/alerts` — Legacy; 301 → `/` (alerts in header drawer + Home cards)
-- `/orders` — Legacy; 301 → `/operation`
-- `/products` — Legacy; 301 → `/trends`
-- `/inventory` — Inventory depletion forecasts, reorder recommendations per SKU
-- `/livestreams` — Livestream session list with metrics summary and 0–100 performance grade
-- `/creators` — Creator GMV attribution and commission efficiency scorecards
-- `/recommendations` — Recommendations feed with Vietnamese message + confidence + one-tap CTA
+- `/alerts` — Legacy; 301 → `/` (alerts in header drawer only)
+- `/orders` — Legacy; 301 → `/operation` → `/`
+- `/products` — Legacy; 301 → `/trends` → `/`
+- `/inventory` — Legacy; 301 → `/operation` → `/`
+- `/livestreams`, `/trends`, `/operation` — Legacy seller-OS routes; 301 → `/` (retired from bottom nav, issue #95)
 
 ## Dependencies
 - `api` (read-only) — consumes `GET /v1/shops`, `GET /v1/shops/me`, orders endpoints

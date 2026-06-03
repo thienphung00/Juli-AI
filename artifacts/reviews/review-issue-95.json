@@ -1,0 +1,39 @@
+{
+  "issue": 95,
+  "title": "P1-4: Recommendation-first web UI (Creators + Gợi ý primary nav)",
+  "verdict": "PASS",
+  "summary": "Replaced seller-OS bottom nav with Home/Creators/Gợi ý/Juli; removed redirects on /creators and /recommendations; added MatchDecisionCard + PredictedOutcomePanel; rewired home.ts to recommendations API with hero matches; analytics on CTA tap.",
+  "critical": 0,
+  "warnings": 0,
+  "acceptanceCriteria": [
+    {
+      "criterion": "AC1: /creators and /recommendations reachable from nav without redirect",
+      "status": "pass",
+      "test": "web/src/__tests__/test_issue95_recommendation_nav.test.tsx"
+    },
+    {
+      "criterion": "AC2: Recommendations feed renders match score, predicted block, CTA for host_product_match",
+      "status": "pass",
+      "test": "web/src/__tests__/test_recommendation_cards_with_cta.test.tsx"
+    },
+    {
+      "criterion": "AC3: Empty state shows Đang thu thập dữ liệu",
+      "status": "pass",
+      "test": "web/src/__tests__/test_recommendation_cards_with_cta.test.tsx"
+    },
+    {
+      "criterion": "AC4: Home hero shows top 1–3 matches from recommendations API",
+      "status": "pass",
+      "test": "web/src/__tests__/test_home_control_center.test.tsx"
+    },
+    {
+      "criterion": "AC5: Nav + CTA tap fires analytics event",
+      "status": "pass",
+      "test": "web/src/__tests__/test_issue95_recommendation_nav.test.tsx"
+    }
+  ],
+  "testResults": {
+    "webJest": "81 passed",
+    "tsc": "clean"
+  }
+}

@@ -1,0 +1,146 @@
+/**
+ * Issue #95 — Recommendation-first nav (AC1, AC5)
+ */
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { NavBar } from "@/components/NavBar";
+import { AuthProvider } from "@/lib/auth-context";
+import { ModeProvider } from "@/lib/mode-context";
+import {
+  BOTTOM_NAV_TABS,
+  LEGACY_ROUTE_REDIRECTS,
+} from "@/lib/nav-config";
+import { RecommendationsPage } from "@/components/RecommendationsPage";
+import { api } from "@/lib/api-client";
+import * as analytics from "@/lib/analytics";
+
+jest.mock("@/lib/api-client", () => ({
+  api: {
+    auth: { sendOtp: jest.fn(), verifyOtp: jest.fn() },
+    shops: { list: jest.fn(), me: jest.fn() },
+    orders: { list: jest.fn(), confirmShipment: jest.fn() },
+    products: { list: jest.fn() },
+    inventory: { list: jest.fn() },
+    livestreams: { list: jest.fn() },
+    creators: { list: jest.fn() },
+    alerts: { history: jest.fn(), upsertConfig: jest.fn() },
+    recommendations: { list: jest.fn() },
+  },
+  ApiError: class ApiError extends Error {
+    status: number;
+    constructor(status: number, msg: string) {
+      super(msg);
+      this.status = status;
+      this.name = "ApiError";
+    }
+  },
+}));
+
+jest.mock("@/lib/analytics", () => ({
+  trackRecommendationAction: jest.fn(),
+}));
+
+const mockList = api.recommendations.list as jest.MockedFunction<
+  typeof api.recommendations.list
+>;
+const mockTrack = analytics.trackRecommendationAction as jest.MockedFunction<
+  typeof analytics.trackRecommendationAction
+>;
+
+const mockPathname = jest.fn(() => "/recommendations");
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  usePathname: () => mockPathname(),
+}));
+
+function renderNav() {
+  return render(
+    <AuthProvider>
+      <ModeProvider>
+        <NavBar />
+      </ModeProvider>
+    </AuthProvider>
+  );
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  localStorage.clear();
+  localStorage.setItem("access_token", "test-token");
+  localStorage.setItem("active_shop_id", "shop-1");
+  mockPathname.mockReturnValue("/recommendations");
+});
+
+describe("Issue #95: recommendation-first nav", () => {
+  it("AC1: bottom nav exposes Home, Creators, Gợi ý, Juli without legacy redirects", () => {
+    expect(BOTTOM_NAV_TABS).toHaveLength(4);
+    expect(BOTTOM_NAV_TABS.map((t) => t.label)).toEqual([
+      "Trang chủ",
+      "Creators",
+      "Gợi ý",
+      "Juli",
+    ]);
+    expect(BOTTOM_NAV_TABS.map((t) => t.href)).toEqual([
+      "/",
+      "/creators",
+      "/recommendations",
+      "/ai-chat",
+    ]);
+
+    const redirectedSources = LEGACY_ROUTE_REDIRECTS.map((r) => r.source);
+    expect(redirectedSources).not.toContain("/creators");
+    expect(redirectedSources).not.toContain("/recommendations");
+  });
+
+  it("AC1: nav links point to /creators and /recommendations", () => {
+    renderNav();
+    const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+    expect(nav.querySelector('a[href="/creators"]')).toBeInTheDocument();
+    expect(nav.querySelector('a[href="/recommendations"]')).toBeInTheDocument();
+  });
+
+  it("AC5: CTA tap fires recommendation_action_tapped analytics", async () => {
+    mockList.mockResolvedValue({
+      items: [
+        {
+          id: "rec-host-1",
+          recommendation_type: "host_product_match",
+          message: "Tăng hoa hồng 5% dự kiến +18% GMV/tuần với @linh.nhi",
+          cta: "Nhắn creator ngay",
+          match_score: 0.87,
+          action_type: "contact_creator",
+          confidence: "high",
+          payload: {
+            creator_id: "c-1",
+            creator_name: "@linh.nhi",
+            product_name: "Son Laneige Berry",
+            tiktok_product_id: "p-1",
+          },
+          predicted_outcome: {
+            gmv_vnd_week: { low: 12_000_000, high: 18_000_000 },
+            conversion_pct: 0.083,
+            engagement_index: 0.72,
+            risk_factors: ["Tồn kho thấp"],
+          },
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    render(<RecommendationsPage />);
+
+    await screen.findByTestId("match-decision-card");
+    await user.click(screen.getByTestId("recommendation-cta"));
+
+    expect(mockTrack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recommendationId: "rec-host-1",
+        actionType: "contact_creator",
+        creatorId: "c-1",
+        productId: "p-1",
+        matchScore: 0.87,
+      })
+    );
+  });
+});
