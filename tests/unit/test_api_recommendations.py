@@ -1,6 +1,5 @@
 """GET /v1/recommendations — Issue #93 AC5 (extended host_product_match schema)."""
 
-import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal

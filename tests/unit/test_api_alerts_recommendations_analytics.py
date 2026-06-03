@@ -262,9 +262,10 @@ async def test_recommendations_endpoint(
     resp = await auth_client.get("/v1/recommendations")
     assert resp.status_code == 200
     data = resp.json()
-    assert "items" in data
-    assert len(data["items"]) >= 1
-    item = data["items"][0]
+    assert data.get("success") is True
+    assert "data" in data
+    assert len(data["data"]) >= 1
+    item = data["data"][0]
     assert "recommendation_type" in item
     assert "message" in item
     assert "cta" in item

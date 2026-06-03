@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from typing import Awaitable, Callable, Literal
 
 from sqlalchemy import Select, func, select

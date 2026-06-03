@@ -51,19 +51,19 @@
       "mappings": [
         {
           "criterion": "AC1: Rankings use graph edge weights when present",
-          "test": "tests/unit/test_recommendations.py::TestIssue93OutcomeDrivenMatching::test_graph_edge_boosts_ranking"
+          "test": "tests/unit/test_recommendations.py::test_issue93_graph_edge_boosts_ranking"
         },
         {
           "criterion": "AC2: predicted_outcome on each host_product_match",
-          "test": "tests/unit/test_recommendations.py::TestIssue93OutcomeDrivenMatching::test_host_product_match_predicted_outcome_fields"
+          "test": "tests/unit/test_recommendations.py::test_issue93_host_product_match_predicted_outcome_fields"
         },
         {
           "criterion": "AC3: action_type + CTA",
-          "test": "tests/unit/test_recommendations.py::TestIssue93OutcomeDrivenMatching::test_host_product_match_action_type_and_cta"
+          "test": "tests/unit/test_recommendations.py::test_issue93_host_product_match_action_type_and_cta"
         },
         {
           "criterion": "AC4: LLM quota exceeded → source rules",
-          "test": "tests/unit/test_recommendations.py::TestIssue93OutcomeDrivenMatching::test_host_product_matching_llm_quota_uses_rules"
+          "test": "tests/unit/test_recommendations.py::test_issue93_host_product_matching_llm_quota_uses_rules"
         },
         {
           "criterion": "AC5: GET /v1/recommendations extended schema",
