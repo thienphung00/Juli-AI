@@ -54,7 +54,7 @@ beforeEach(() => {
 
 describe("Home control center (#79)", () => {
   describe("seller mode", () => {
-    it("AC4: renders top hero matches in above-the-fold section", async () => {
+    it("AC4: renders top hero matches in above-the-fold section (UI shell)", async () => {
       const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
       mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
 

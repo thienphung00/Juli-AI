@@ -12,8 +12,6 @@ import {
 } from "@/lib/nav-config";
 import { RecommendationsPage } from "@/components/RecommendationsPage";
 import { api } from "@/lib/api-client";
-import * as analytics from "@/lib/analytics";
-
 jest.mock("@/lib/api-client", () => ({
   api: {
     auth: { sendOtp: jest.fn(), verifyOtp: jest.fn() },
@@ -36,15 +34,8 @@ jest.mock("@/lib/api-client", () => ({
   },
 }));
 
-jest.mock("@/lib/analytics", () => ({
-  trackRecommendationAction: jest.fn(),
-}));
-
 const mockList = api.recommendations.list as jest.MockedFunction<
   typeof api.recommendations.list
->;
-const mockTrack = analytics.trackRecommendationAction as jest.MockedFunction<
-  typeof analytics.trackRecommendationAction
 >;
 
 const mockPathname = jest.fn(() => "/recommendations");
@@ -100,7 +91,13 @@ describe("Issue #95: recommendation-first nav", () => {
     expect(nav.querySelector('a[href="/recommendations"]')).toBeInTheDocument();
   });
 
-  it("AC5: CTA tap fires recommendation_action_tapped analytics", async () => {
+  it("AC5: CTA tap dispatches juli:analytics recommendation_action_tapped", async () => {
+    const analyticsEvents: CustomEvent[] = [];
+    const onAnalytics = (event: Event) => {
+      analyticsEvents.push(event as CustomEvent);
+    };
+    window.addEventListener("juli:analytics", onAnalytics);
+
     mockList.mockResolvedValue({
       items: [
         {
@@ -133,14 +130,22 @@ describe("Issue #95: recommendation-first nav", () => {
     await screen.findByTestId("match-decision-card");
     await user.click(screen.getByTestId("recommendation-cta"));
 
-    expect(mockTrack).toHaveBeenCalledWith(
+    const tapped = analyticsEvents.filter(
+      (e) => e.detail?.event === "recommendation_action_tapped"
+    );
+    expect(tapped).toHaveLength(1);
+    expect(tapped[0].detail).toEqual(
       expect.objectContaining({
+        event: "recommendation_action_tapped",
         recommendationId: "rec-host-1",
+        recommendationType: "host_product_match",
         actionType: "contact_creator",
         creatorId: "c-1",
         productId: "p-1",
         matchScore: 0.87,
       })
     );
+
+    window.removeEventListener("juli:analytics", onAnalytics);
   });
 });

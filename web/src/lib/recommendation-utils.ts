@@ -28,8 +28,22 @@ export function productNameFromItem(item: RecommendationItem): string {
   return "Sản phẩm";
 }
 
+const SPARSE_CONFIDENCE_THRESHOLD_PCT = 40;
+
+/** True when the commerce graph has no actionable host–product matches (PRD §4.2). */
+export function isActionableHostMatch(item: RecommendationItem): boolean {
+  if (item.recommendation_type !== "host_product_match") return false;
+  if (item.confidence === "low") return false;
+
+  const score = matchScorePercent(item);
+  if (score !== null && score < SPARSE_CONFIDENCE_THRESHOLD_PCT) return false;
+
+  return true;
+}
+
 export function isSparseRecommendations(items: RecommendationItem[]): boolean {
-  return items.length === 0;
+  if (items.length === 0) return true;
+  return !items.some(isActionableHostMatch);
 }
 
 export function toTypeLabel(type: string): string {

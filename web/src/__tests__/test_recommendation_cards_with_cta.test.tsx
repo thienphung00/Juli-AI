@@ -52,6 +52,27 @@ describe("Issue #95: Recommendation feed", () => {
     expect(screen.getByText("Đang thu thập dữ liệu")).toBeInTheDocument();
   });
 
+  it("AC3: sparse API (product_push only) shows collecting-data copy", async () => {
+    mockList.mockResolvedValue({
+      items: [
+        {
+          id: "rec-push",
+          recommendation_type: "product_push",
+          message: "Đẩy SKU trong livestream",
+          cta: "Ghim SKU",
+          payload: { composite_score: 0.75 },
+        },
+      ],
+    });
+    render(<RecommendationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("recommendations-empty")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Đang thu thập dữ liệu")).toBeInTheDocument();
+    expect(screen.queryByTestId("match-decision-card")).not.toBeInTheDocument();
+  });
+
   it("AC2: host_product_match renders match score, predicted block, and CTA", async () => {
     mockList.mockResolvedValue({
       items: [
@@ -92,9 +113,17 @@ describe("Issue #95: Recommendation feed", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Đã lưu CTA");
   });
 
-  it("renders legacy product_push cards with confidence", async () => {
+  it("renders legacy product_push alongside host_product_match when graph is not sparse", async () => {
     mockList.mockResolvedValue({
       items: [
+        {
+          id: "rec-host",
+          recommendation_type: "host_product_match",
+          message: "Ghép creator",
+          cta: "Nhắn creator",
+          match_score: 0.8,
+          payload: { creator_name: "@a", product_name: "SKU" },
+        },
         {
           id: "rec-push",
           recommendation_type: "product_push",
@@ -108,6 +137,7 @@ describe("Issue #95: Recommendation feed", () => {
     render(<RecommendationsPage />);
 
     await waitFor(() => {
+      expect(screen.getByTestId("match-decision-card")).toBeInTheDocument();
       expect(screen.getByTestId("recommendation-card")).toBeInTheDocument();
     });
     expect(screen.getByLabelText("Độ tin cậy")).toHaveTextContent("82%");

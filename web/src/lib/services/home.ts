@@ -114,7 +114,7 @@ function applyRecommendationsToDashboard(
   const hostMatches = items.filter(
     (item) => item.recommendation_type === "host_product_match"
   );
-  const ranked = (hostMatches.length > 0 ? hostMatches : items).slice(0, 3);
+  const ranked = hostMatches.slice(0, 3);
 
   base.hero_matches = ranked.map(mapHeroMatch);
 
