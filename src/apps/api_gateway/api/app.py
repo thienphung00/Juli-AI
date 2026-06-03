@@ -1,20 +1,22 @@
 from fastapi import APIRouter, FastAPI
 
-from src.apps.api_gateway.api.routers.alerts import router as alerts_router
-from src.apps.api_gateway.api.routers.analytics import router as analytics_router
 from src.apps.api_gateway.api.routers.auth import router as auth_router
-from src.apps.api_gateway.api.routers.recommendations import router as recommendations_router
 from src.apps.api_gateway.api.routers.creators import router as creators_router
-from src.apps.api_gateway.api.routers.inventory import router as inventory_router
-from src.apps.api_gateway.api.routers.livestreams import router as livestreams_router
-from src.apps.api_gateway.api.routers.orders import router as orders_router
 from src.apps.api_gateway.api.routers.products import router as products_router
-from src.apps.api_gateway.api.routers.settlements import router as settlements_router
+from src.apps.api_gateway.api.routers.outcomes import router as outcomes_router
+from src.apps.api_gateway.api.routers.recommendations import router as recommendations_router
 from src.apps.api_gateway.api.routers.shops import router as shops_router
 
 
 def create_app() -> FastAPI:
-    """Build and return the Juli API application."""
+    """Build and return the Juli API application.
+
+    Phase 1 (Creator <-> Shop Matching) surface only: authentication, shops,
+    creators, products, and decision-focused recommendations. Seller-OS
+    surfaces (orders, inventory, settlements, livestream ops, analytics,
+    alerts) were removed during the matching pivot — see
+    docs/decisions/006-matching-pivot.md.
+    """
     app = FastAPI(
         title="Juli API",
         version="0.1.0",
@@ -25,15 +27,10 @@ def create_app() -> FastAPI:
     v1_router = APIRouter(prefix="/v1")
     v1_router.include_router(auth_router)
     v1_router.include_router(shops_router)
-    v1_router.include_router(orders_router)
-    v1_router.include_router(products_router)
-    v1_router.include_router(inventory_router)
-    v1_router.include_router(analytics_router)
-    v1_router.include_router(alerts_router)
-    v1_router.include_router(recommendations_router)
-    v1_router.include_router(livestreams_router)
     v1_router.include_router(creators_router)
-    v1_router.include_router(settlements_router)
+    v1_router.include_router(products_router)
+    v1_router.include_router(recommendations_router)
+    v1_router.include_router(outcomes_router)
     app.include_router(v1_router)
 
     return app
