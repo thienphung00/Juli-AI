@@ -284,11 +284,14 @@ def _graph_match_boost(
     creator_id: uuid.UUID,
     product_id: uuid.UUID,
 ) -> float | None:
-    for edge_type in ("potential_match", "has_sold"):
+    best: float | None = None
+    for edge_type in ("predicted_vs_actual", "potential_match", "has_sold"):
         weight = lookup.get((creator_id, product_id, edge_type))
-        if weight is not None:
-            return weight
-    return None
+        if weight is None:
+            continue
+        if best is None or weight > best:
+            best = weight
+    return best
 
 
 async def get_host_product_matching(
