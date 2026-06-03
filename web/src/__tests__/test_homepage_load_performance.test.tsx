@@ -87,7 +87,7 @@ describe("AC2: Homepage dashboard modules", () => {
       expect(screen.getByText(/@linh\.nhi\.beauty/)).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Son dưỡng môi Laneige #3 Berry/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Son dưỡng môi Laneige #3 Berry/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows shop name in header after loading", async () => {

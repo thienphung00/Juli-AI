@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Bell, X } from "lucide-react";
-import { useWorkspaceMode } from "@/lib/mode-context";
+import { useWorkspaceModeOptional } from "@/lib/mode-context";
 import type { WorkspaceAlert } from "@/lib/services/alerts";
 import { getWorkspaceAlerts } from "@/lib/services/alerts";
 
 export function AlertBell() {
-  const { mode } = useWorkspaceMode();
+  const ctx = useWorkspaceModeOptional();
+  const mode = ctx?.mode ?? null;
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<WorkspaceAlert[]>([]);
 
@@ -19,13 +20,12 @@ export function AlertBell() {
       return;
     }
 
+    const workspaceMode = mode;
     let cancelled = false;
-
-    const activeMode = mode;
 
     async function load() {
       try {
-        const next = await getWorkspaceAlerts(activeMode);
+        const next = await getWorkspaceAlerts(workspaceMode);
         if (!cancelled) setAlerts(next);
       } catch (error) {
         console.error("alerts_load_failed", { error });
