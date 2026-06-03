@@ -347,3 +347,83 @@ class Recommendation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
     )
+
+
+# ---------------------------------------------------------------------------
+# Commerce graph (P1-1 — Issue #92)
+# ---------------------------------------------------------------------------
+
+
+class Campaign(Base):
+    """Campaign node: creator + shop collaboration with predicted/realized outcomes."""
+
+    __tablename__ = "campaigns"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    creator_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("creators.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    product_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    predicted_gmv: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    realized_gmv: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    predicted_conversion: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    realized_conversion: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    started_at: Mapped[datetime | None] = mapped_column()
+    completed_at: Mapped[datetime | None] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_campaigns_shop_created", "shop_id", "created_at"),
+        Index("ix_campaigns_shop_creator", "shop_id", "creator_id"),
+        Index(
+            "ix_campaigns_shop_idempotency",
+            "shop_id",
+            "idempotency_key",
+            unique=True,
+        ),
+    )
+
+
+class GraphEdge(Base):
+    """Relationship edge between commerce graph nodes (creator, shop, product, campaign)."""
+
+    __tablename__ = "graph_edges"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    edge_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_node_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_node_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    target_node_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_node_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    weight: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    metadata_json: Mapped[str | None] = mapped_column(Text)
+    computed_at: Mapped[datetime | None] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_graph_edges_shop_type", "shop_id", "edge_type"),
+        Index(
+            "ix_graph_edges_natural_key",
+            "shop_id",
+            "edge_type",
+            "source_node_type",
+            "source_node_id",
+            "target_node_type",
+            "target_node_id",
+            unique=True,
+        ),
+    )

@@ -30,6 +30,15 @@ database session management, and Alembic migrations for the Juli-AI platform.
 - `AlertHistory` — fired alert log, FK to `AlertConfig`
 - `Recommendation` — system-generated recommendations
 
+### Models — Commerce graph (P1-1 / Issue #92)
+- `Campaign` — collaboration node linking creator + shop with predicted/realized metrics
+- `GraphEdge` — relationship edges (`has_sold`, `potential_match`, `trust_score`, `predicted_vs_actual`, …)
+
+### Repositories — Commerce graph (P1-1)
+- `GraphRepo(session).upsert_edge(shop_id, …) -> GraphEdge` — idempotent on natural key
+- `GraphRepo(session).list_edges(shop_id, edge_type?, node_type?, node_id?) -> list[GraphEdge]`
+- `GraphRepo(session).create_campaign(shop_id, creator_id, product_ids, …) -> Campaign`
+
 ### Repositories — Auth / Core
 - `UsersRepo(session).get(user_id) -> User` — returns user or raises `NotFound`
 - `ShopsRepo(session).list(user_id) -> list[Shop]` — returns shops belonging to user
