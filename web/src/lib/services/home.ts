@@ -4,30 +4,42 @@ import {
   type AffiliateHomeDashboard,
   type HomeDashboardData,
   type HomeAiRecommendation,
+  type HomeHeroMatch,
   type SellerHomeDashboard,
 } from "@/lib/mock-data/home";
-import { toHomeAlertCards } from "@/lib/mock-data/alerts";
+import {
+  creatorNameFromItem,
+  matchScorePercent,
+  productNameFromItem,
+} from "@/lib/recommendation-utils";
 import { isUiOnly, UI_ONLY_DEMO_SHOP } from "@/lib/ui-only";
 import type { WorkspaceMode } from "@/lib/workspace-mode";
-import { getWorkspaceAlerts } from "@/lib/services/alerts";
 
 function mapRecommendation(item: RecommendationItem): HomeAiRecommendation {
-  const payload = item.payload ?? {};
-  const rawConfidence =
-    typeof payload["composite_score"] === "number"
-      ? payload["composite_score"]
-      : typeof payload["match_score"] === "number"
-        ? payload["match_score"]
-        : 0.5;
-
-  const confidence = rawConfidence > 1 ? rawConfidence / 100 : rawConfidence;
+  const score = matchScorePercent(item);
+  const confidence = score !== null ? score / 100 : 0.5;
 
   return {
     id: item.id,
     type: item.recommendation_type,
     headline: item.message,
-    primary_action: { label: item.cta, href: "/operation" },
+    primary_action: { label: item.cta, href: "/recommendations" },
     confidence,
+  };
+}
+
+function mapHeroMatch(item: RecommendationItem): HomeHeroMatch {
+  const score = matchScorePercent(item);
+  return {
+    id: item.id,
+    type: item.recommendation_type,
+    headline: item.message,
+    cta: item.cta,
+    match_score: score !== null ? score / 100 : 0.5,
+    creator_name: creatorNameFromItem(item),
+    product_name: productNameFromItem(item),
+    action_type: item.action_type ?? "contact_creator",
+    primary_action_href: "/recommendations",
   };
 }
 
@@ -45,10 +57,11 @@ function emptySellerDashboard(shopName: string): SellerHomeDashboard {
     ai_recommendation: {
       id: "empty",
       type: "none",
-      headline: "Chưa có gợi ý — dữ liệu đang được thu thập",
-      primary_action: { label: "Xem xu hướng", href: "/trends" },
+      headline: "Đang thu thập dữ liệu — chưa có ghép creator",
+      primary_action: { label: "Xem gợi ý", href: "/recommendations" },
       confidence: 0,
     },
+    hero_matches: [],
     top_creator: {
       id: "empty",
       handle: "—",
@@ -81,10 +94,11 @@ function emptyAffiliateDashboard(handle: string): AffiliateHomeDashboard {
     ai_recommendation: {
       id: "empty",
       type: "none",
-      headline: "Chưa có cơ hội hoa hồng — dữ liệu đang được thu thập",
-      primary_action: { label: "Khám phá xu hướng", href: "/trends" },
+      headline: "Đang thu thập dữ liệu — chưa có cơ hội ghép",
+      primary_action: { label: "Xem gợi ý", href: "/recommendations" },
       confidence: 0,
     },
+    hero_matches: [],
     audience_fit_products: [],
     content_performance: {
       video_yesterday_views: 0,
@@ -93,9 +107,21 @@ function emptyAffiliateDashboard(handle: string): AffiliateHomeDashboard {
   };
 }
 
-async function loadHomeAlerts(mode: WorkspaceMode) {
-  const alerts = await getWorkspaceAlerts(mode);
-  return toHomeAlertCards(alerts);
+function applyRecommendationsToDashboard(
+  base: SellerHomeDashboard | AffiliateHomeDashboard,
+  items: RecommendationItem[]
+): void {
+  const hostMatches = items.filter(
+    (item) => item.recommendation_type === "host_product_match"
+  );
+  const ranked = hostMatches.slice(0, 3);
+
+  base.hero_matches = ranked.map(mapHeroMatch);
+
+  const topRec = ranked[0];
+  if (topRec) {
+    base.ai_recommendation = mapRecommendation(topRec);
+  }
 }
 
 export async function getHomeDashboard(mode: WorkspaceMode): Promise<HomeDashboardData> {
@@ -107,48 +133,21 @@ export async function getHomeDashboard(mode: WorkspaceMode): Promise<HomeDashboa
   const shop = shops[0];
   const shopName = shop?.name ?? "Cửa hàng";
 
-  if (mode === "seller") {
-    const [recs, alerts] = await Promise.all([
-      api.recommendations.list().catch(() => ({ items: [] as RecommendationItem[] })),
-      api.alerts.history({ limit: 5 }).catch(() => ({ items: [] })),
-    ]);
+  const recs = await api.recommendations
+    .list()
+    .catch(() => ({ items: [] as RecommendationItem[] }));
 
+  if (mode === "seller") {
     const base = emptySellerDashboard(shopName);
     if (shop) {
       base.shop.tiktok_shop_id = shop.tiktok_shop_id;
     }
-
-    const topRec = recs.items?.[0];
-    if (topRec) {
-      base.ai_recommendation = mapRecommendation(topRec);
-    }
-
-    const apiAlerts = (alerts.items ?? []).slice(0, 3).map((item) => ({
-      id: item.id,
-      type: item.alert_type,
-      severity: "info" as const,
-      title: item.alert_type,
-      body:
-        typeof item.payload?.message === "string"
-          ? item.payload.message
-          : item.alert_type,
-    }));
-
-    base.alerts = apiAlerts.length > 0 ? apiAlerts : await loadHomeAlerts("seller");
-
+    applyRecommendationsToDashboard(base, recs.items ?? []);
     return base;
   }
 
   const base = emptyAffiliateDashboard(shopName);
-  base.alerts = await loadHomeAlerts("affiliate");
-  const recs = await api.recommendations
-    .list()
-    .catch(() => ({ items: [] as RecommendationItem[] }));
-  const topRec = recs.items?.[0];
-  if (topRec) {
-    base.ai_recommendation = mapRecommendation(topRec);
-  }
-
+  applyRecommendationsToDashboard(base, recs.items ?? []);
   return base;
 }
 

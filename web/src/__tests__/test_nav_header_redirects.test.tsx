@@ -1,5 +1,5 @@
 /**
- * Issue #77 — Header + 5-tab nav + route redirects
+ * Issue #77 / #95 — Header + recommendation-first nav + route redirects
  */
 import type { ReactElement } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -52,21 +52,19 @@ beforeEach(() => {
   mockPathname.mockReturnValue("/");
 });
 
-describe("Nav redesign header + nav (#77)", () => {
-  it("defines exactly 5 bottom nav tabs with Vietnamese labels", () => {
-    expect(BOTTOM_NAV_TABS).toHaveLength(5);
+describe("Nav redesign header + nav (#77, #95)", () => {
+  it("defines recommendation-first bottom nav tabs", () => {
+    expect(BOTTOM_NAV_TABS).toHaveLength(4);
     expect(BOTTOM_NAV_TABS.map((t) => t.label)).toEqual([
       "Trang chủ",
-      "Trực tiếp",
-      "Xu hướng",
-      "Vận hành",
+      "Creators",
+      "Gợi ý",
       "Juli",
     ]);
     expect(BOTTOM_NAV_TABS.map((t) => t.href)).toEqual([
       "/",
-      "/livestreams",
-      "/trends",
-      "/operation",
+      "/creators",
+      "/recommendations",
       "/ai-chat",
     ]);
   });
@@ -94,7 +92,7 @@ describe("Nav redesign header + nav (#77)", () => {
     document.documentElement.classList.add("dark");
 
     const user = userEvent.setup();
-    renderWithProviders(<PageHeader title="Xu hướng" />);
+    renderWithProviders(<PageHeader title="Gợi ý" />);
 
     await user.click(screen.getByRole("button", { name: "Chuyển chế độ workspace" }));
 
@@ -105,7 +103,7 @@ describe("Nav redesign header + nav (#77)", () => {
   it("opens alert drawer with seller inventory alert consistent with Home", async () => {
     localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
     const user = userEvent.setup();
-    renderWithProviders(<PageHeader title="Vận hành" />);
+    renderWithProviders(<PageHeader title="Creators" />);
 
     await waitFor(() => {
       expect(screen.getByTestId("alert-bell-badge")).toHaveTextContent("2");
@@ -129,37 +127,29 @@ describe("Nav redesign header + nav (#77)", () => {
     expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
   });
 
-  it("maps legacy routes to permanent redirect destinations", () => {
+  it("keeps legacy redirects for retired seller-OS routes but not creators/recommendations", () => {
     expect(LEGACY_ROUTE_REDIRECTS).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ source: "/alerts", destination: "/", permanent: true }),
         expect.objectContaining({
-          source: "/recommendations",
+          source: "/livestreams",
           destination: "/",
           permanent: true,
         }),
         expect.objectContaining({
-          source: "/products",
-          destination: "/trends",
+          source: "/trends",
+          destination: "/",
           permanent: true,
         }),
         expect.objectContaining({
-          source: "/orders",
-          destination: "/operation",
-          permanent: true,
-        }),
-        expect.objectContaining({
-          source: "/inventory",
-          destination: "/operation",
-          permanent: true,
-        }),
-        expect.objectContaining({
-          source: "/creators",
-          destination: "/operation",
+          source: "/operation",
+          destination: "/",
           permanent: true,
         }),
       ])
     );
-    expect(LEGACY_ROUTE_REDIRECTS).toHaveLength(6);
+    const sources = LEGACY_ROUTE_REDIRECTS.map((r) => r.source);
+    expect(sources).not.toContain("/creators");
+    expect(sources).not.toContain("/recommendations");
   });
 });

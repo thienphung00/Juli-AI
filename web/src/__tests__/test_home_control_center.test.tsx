@@ -54,7 +54,7 @@ beforeEach(() => {
 
 describe("Home control center (#79)", () => {
   describe("seller mode", () => {
-    it("renders dark theme with AI recommendation in above-the-fold section", async () => {
+    it("AC4: renders top hero matches in above-the-fold section (UI shell)", async () => {
       const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
       mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
 
@@ -67,33 +67,17 @@ describe("Home control center (#79)", () => {
       expect(document.documentElement.classList.contains("dark")).toBe(true);
 
       const aboveFold = screen.getByTestId("home-above-fold");
-      const aiCard = within(aboveFold).getByTestId("home-ai-recommendation");
-      expect(aiCard).toBeInTheDocument();
-      expect(
-        screen.getByTestId("home-ai-recommendation-headline")
-      ).toHaveTextContent(/Creator Linh Nhi/);
-    });
-
-    it("shows alert banner cards on Home", async () => {
-      const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-      mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
-
-      renderHome("seller");
-
-      await waitFor(() => {
-        expect(
-          screen.getByTestId("home-alert-card-alert-seller-inventory-laneige")
-        ).toBeInTheDocument();
-      });
-
-      expect(screen.getByText("Tồn kho sắp hết")).toBeInTheDocument();
-      expect(screen.getByText(/Laneige #3 Berry còn 12 đơn vị/)).toBeInTheDocument();
-      expect(screen.getByText(/hết hàng sau 3 ngày/)).toBeInTheDocument();
+      expect(within(aboveFold).getByTestId("home-hero-matches")).toBeInTheDocument();
+      const matchCards = screen.getAllByTestId("home-hero-match-card");
+      expect(matchCards.length).toBeGreaterThanOrEqual(1);
+      expect(within(matchCards[0]).getByTestId("home-hero-match-headline")).toHaveTextContent(
+        /@linh\.nhi/
+      );
     });
   });
 
   describe("affiliate mode", () => {
-    it("renders light theme with commission opportunity recommendation card", async () => {
+    it("renders light theme with hero matches and commission KPIs", async () => {
       const { MOCK_HOME_AFFILIATE } = jest.requireActual("@/lib/mock-data/home");
       mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_AFFILIATE);
 
@@ -104,10 +88,8 @@ describe("Home control center (#79)", () => {
       });
 
       expect(document.documentElement.classList.contains("dark")).toBe(false);
-      expect(screen.getByRole("heading", { name: /Cơ hội hoa hồng hôm nay/ })).toBeInTheDocument();
-      expect(
-        screen.getByTestId("home-ai-recommendation-headline")
-      ).toHaveTextContent(/Son Romand #Berry/);
+      expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
+      expect(screen.getByTestId("home-hero-match-headline")).toHaveTextContent(/Romand/);
       expect(screen.getByTestId("commission-card")).toBeInTheDocument();
     });
   });

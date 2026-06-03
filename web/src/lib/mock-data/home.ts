@@ -25,6 +25,19 @@ export interface HomeAiRecommendation {
   confidence: number;
 }
 
+/** Top match summaries for home hero (issue #95). */
+export interface HomeHeroMatch {
+  id: string;
+  type: string;
+  headline: string;
+  cta: string;
+  match_score: number;
+  creator_name: string;
+  product_name: string;
+  action_type: string;
+  primary_action_href: string;
+}
+
 export interface SellerHomeKpis {
   gmv_today_vnd: number;
   gmv_wow_pct: number;
@@ -46,6 +59,7 @@ export interface SellerHomeDashboard {
   kpis: SellerHomeKpis;
   alerts: HomeAlertCard[];
   ai_recommendation: HomeAiRecommendation;
+  hero_matches: HomeHeroMatch[];
   top_creator: {
     id: string;
     handle: string;
@@ -68,6 +82,7 @@ export interface AffiliateHomeDashboard {
   kpis: AffiliateHomeKpis;
   alerts: HomeAlertCard[];
   ai_recommendation: HomeAiRecommendation;
+  hero_matches: HomeHeroMatch[];
   audience_fit_products: Array<{
     id: string;
     name: string;
@@ -94,16 +109,40 @@ export const MOCK_HOME_SELLER: SellerHomeDashboard = {
   alerts: toHomeAlertCards(getMockWorkspaceAlerts("seller")),
   ai_recommendation: {
     id: "rec-001",
-    type: "creator_push",
+    type: "host_product_match",
     headline:
-      "Creator Linh Nhi (+42% chuyển đổi với đồ dưỡng da) sẵn sàng tối nay",
+      "Tăng hoa hồng 5% dự kiến +18% GMV/tuần với @linh.nhi × Son Laneige Berry",
     primary_action: {
-      label: "Nhắn tin ngay",
-      href: "/operation?section=creators&id=creator-linh-nhi",
+      label: "Nhắn creator ngay",
+      href: "/recommendations",
     },
-    secondary_action: { label: "Bỏ qua" },
     confidence: 0.87,
   },
+  hero_matches: [
+    {
+      id: "rec-001",
+      type: "host_product_match",
+      headline:
+        "Tăng hoa hồng 5% dự kiến +18% GMV/tuần với @linh.nhi × Son Laneige Berry",
+      cta: "Nhắn creator ngay",
+      match_score: 0.87,
+      creator_name: "@linh.nhi",
+      product_name: "Son Laneige Berry",
+      action_type: "contact_creator",
+      primary_action_href: "/recommendations",
+    },
+    {
+      id: "rec-002",
+      type: "host_product_match",
+      headline: "Ghép @beauty.min với serum Vitamin C — chuyển đổi +12%",
+      cta: "Điều chỉnh hoa hồng",
+      match_score: 0.79,
+      creator_name: "@beauty.min",
+      product_name: "Serum Vitamin C",
+      action_type: "adjust_commission",
+      primary_action_href: "/recommendations",
+    },
+  ],
   top_creator: {
     id: "creator-linh-nhi",
     handle: "@linh.nhi.beauty",
@@ -133,15 +172,27 @@ export const MOCK_HOME_AFFILIATE: AffiliateHomeDashboard = {
   },
   ai_recommendation: {
     id: "rec-aff-001",
-    type: "product_opportunity",
-    headline: "Son Romand #Berry đang bùng nổ — Hoa hồng 12% · Chuyển đổi 9.1%",
+    type: "host_product_match",
+    headline: "Son Romand #Berry — Hoa hồng 12% · Chuyển đổi 9.1%",
     primary_action: {
-      label: "Đăng ký ngay",
-      href: "/trends?tab=product&q=romand+berry",
+      label: "Xem gợi ý",
+      href: "/recommendations",
     },
-    secondary_action: { label: "Xem chi tiết" },
     confidence: 0.91,
   },
+  hero_matches: [
+    {
+      id: "rec-aff-001",
+      type: "host_product_match",
+      headline: "Son Romand #Berry — Hoa hồng 12% · Chuyển đổi 9.1%",
+      cta: "Xem gợi ý",
+      match_score: 0.91,
+      creator_name: "@linh.nhi.beauty",
+      product_name: "Son Romand Berry",
+      action_type: "schedule_live",
+      primary_action_href: "/recommendations",
+    },
+  ],
   audience_fit_products: [
     {
       id: "prod-laneige-berry",

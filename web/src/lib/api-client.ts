@@ -183,17 +183,36 @@ export interface AlertsConfigResponse {
   rules: AlertConfigRule[];
 }
 
+export interface PredictedOutcome {
+  gmv_vnd_week: { low: number; high: number };
+  conversion_pct: number;
+  engagement_index: number;
+  risk_factors: string[];
+}
+
 export interface RecommendationItem {
   id: string;
   recommendation_type: string;
   message: string;
   cta: string;
+  match_score?: number | null;
+  confidence?: string | null;
+  action_type?: string | null;
+  predicted_outcome?: PredictedOutcome | null;
+  source?: string | null;
+  computed_at?: string | null;
   payload?: Record<string, unknown> | null;
 }
 
 export interface RecommendationsResponse {
   items: RecommendationItem[];
 }
+
+type RecommendationsApiPayload = {
+  success?: boolean;
+  data?: RecommendationItem[];
+  items?: RecommendationItem[];
+};
 
 export const api = {
   auth: {
@@ -287,8 +306,10 @@ export const api = {
   },
 
   recommendations: {
-    list(): Promise<RecommendationsResponse> {
-      return request("/v1/recommendations");
+    async list(): Promise<RecommendationsResponse> {
+      const raw = await request<RecommendationsApiPayload>("/v1/recommendations");
+      const items = raw.items ?? raw.data ?? [];
+      return { items };
     },
   },
 };
