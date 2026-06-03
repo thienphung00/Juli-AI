@@ -3,18 +3,28 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Awaitable, Callable, Literal
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.utils.data.models import Creator, InventoryItem, Livestream, Product, Recommendation
+from src.shared.utils.data.repos import GraphRepo
 from src.modules.catalog.domain.intelligence.scoring import score_livestream
 from src.modules.catalog.domain.intelligence.forecasting.forecaster import (
     get_low_stock_risks,
     get_velocity_changes,
+)
+from src.modules.catalog.domain.recommendations.prediction import (
+    PredictedOutcome,
+    build_action_cta,
+    build_decision_message,
+    confidence_from_score,
+    estimate_predicted_outcome,
+    select_action_type,
 )
 
 _MAX_SUGGESTIONS = 10
@@ -55,6 +65,10 @@ class HostProductMatch:
     message: str
     cta: str
     source: Literal["llm", "rules"]
+    predicted_outcome: PredictedOutcome
+    action_type: str
+    confidence: Literal["high", "medium", "low"]
+    computed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 def _trend_score(
@@ -254,6 +268,30 @@ def _host_performance_summary(streams: list[Livestream]) -> dict[uuid.UUID, Live
     return latest_by_creator
 
 
+def _edge_lookup(
+    edges: list,
+) -> dict[tuple[uuid.UUID, uuid.UUID, str], float]:
+    lookup: dict[tuple[uuid.UUID, uuid.UUID, str], float] = {}
+    for edge in edges:
+        if edge.weight is None:
+            continue
+        key = (edge.source_node_id, edge.target_node_id, edge.edge_type)
+        lookup[key] = float(edge.weight)
+    return lookup
+
+
+def _graph_match_boost(
+    lookup: dict[tuple[uuid.UUID, uuid.UUID, str], float],
+    creator_id: uuid.UUID,
+    product_id: uuid.UUID,
+) -> float | None:
+    for edge_type in ("potential_match", "has_sold"):
+        weight = lookup.get((creator_id, product_id, edge_type))
+        if weight is not None:
+            return weight
+    return None
+
+
 async def get_host_product_matching(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -268,6 +306,15 @@ async def get_host_product_matching(
     if not creators:
         return []
 
+    product_stmt = select(Product).where(
+        Product.shop_id == shop_id,
+        Product.status == "ACTIVE",
+    )
+    product_result = await session.execute(product_stmt)
+    products = list(product_result.scalars().all())
+    if not products:
+        return []
+
     stream_stmt = select(Livestream).where(
         Livestream.shop_id == shop_id,
         Livestream.creator_id.isnot(None),
@@ -276,68 +323,103 @@ async def get_host_product_matching(
     streams = list(stream_result.scalars().all())
     latest_by_creator = _host_performance_summary(streams)
 
-    suggestions = await get_product_push_suggestions(session, shop_id, limit=max(limit, 10))
-    if not suggestions:
-        return []
+    graph_repo = GraphRepo(session)
+    graph_edges = await graph_repo.list_edges(shop_id)
+    edge_lookup = _edge_lookup(graph_edges)
+
+    push_scores = await get_product_push_suggestions(session, shop_id, limit=max(limit, 10))
+    push_by_tiktok = {p.tiktok_product_id: p for p in push_scores}
 
     used_calls = await _count_daily_llm_calls(session, shop_id)
     allow_llm = llm_generator is not None and used_calls < max_calls_per_day
-    matches: list[HostProductMatch] = []
-    products_ranked = suggestions[:limit]
+    candidates: list[HostProductMatch] = []
 
-    for product in products_ranked:
-        best_creator: Creator | None = None
-        best_score = 0.0
+    for product in products[: max(limit * 3, 10)]:
+        push = push_by_tiktok.get(product.tiktok_product_id)
+        product_push_score = push.composite_score if push else 0.35
+
         for creator in creators:
-            candidate = latest_by_creator.get(creator.id)
-            if candidate is None:
+            stream = latest_by_creator.get(creator.id)
+            stream_grade = 50.0
+            viewer_count: int | None = None
+            order_count: int | None = None
+            if stream is not None:
+                stream_score = await score_livestream(session, stream.id)
+                stream_grade = float(stream_score.grade)
+                viewer_count = stream.viewer_count
+                order_count = stream.order_count
+
+            graph_boost = _graph_match_boost(edge_lookup, creator.id, product.id)
+            has_graph_signal = graph_boost is not None
+
+            if graph_boost is not None:
+                match_score = round(
+                    min(graph_boost * 0.6 + product_push_score * 0.25 + stream_grade / 100 * 0.15, 1.0),
+                    4,
+                )
+            else:
+                match_score = round(
+                    min(product_push_score * 0.5 + stream_grade / 100 * 0.5, 1.0),
+                    4,
+                )
+
+            if match_score <= 0:
                 continue
-            stream_score = await score_livestream(session, candidate.id)
-            total = product.composite_score * 100 * 0.5 + stream_score.grade * 0.5
-            if total > best_score:
-                best_score = total
-                best_creator = creator
 
-        if best_creator is None:
-            continue
-
-        default_message = (
-            f"Gợi ý để {best_creator.name} bán {product.product_name} vì "
-            "sản phẩm đang có tín hiệu chuyển đổi tốt và hợp với hiệu suất phiên gần nhất."
-        )
-        message = default_message
-        source: Literal["llm", "rules"] = "rules"
-        if allow_llm and llm_generator is not None:
-            prompt = (
-                f"Tạo 1 câu gợi ý tiếng Việt để ghép host '{best_creator.name}' "
-                f"với sản phẩm '{product.product_name}' cho phiên TikTok Shop."
+            predicted = estimate_predicted_outcome(
+                match_score=match_score,
+                product_revenue=float(product.revenue or 0),
+                product_units=product.units_sold or 0,
+                stream_grade=stream_grade,
+                viewer_count=viewer_count,
+                order_count=order_count,
+                has_graph_signal=has_graph_signal,
             )
-            try:
-                generated = (await llm_generator(prompt)).strip()
-            except Exception:
-                generated = ""
-            if generated:
-                message = generated
-                source = "llm"
-
-        matches.append(
-            HostProductMatch(
-                creator_id=str(best_creator.id),
-                creator_name=best_creator.name,
-                tiktok_product_id=product.tiktok_product_id,
-                product_name=product.product_name,
-                match_score=round(best_score / 100.0, 4),
-                message=message,
-                cta=(
-                    f"Nhấn để gán {best_creator.name} phụ trách "
-                    f"{product.product_name} ở phiên tới"
-                ),
-                source=source,
+            confidence = confidence_from_score(match_score, has_graph_signal)
+            action_type = select_action_type(match_score, creator.commission_rate)
+            cta = build_action_cta(action_type, creator.name, product.name)
+            message = build_decision_message(
+                creator.name,
+                product.name,
+                match_score,
+                predicted.gmv_vnd_week["high"],
             )
-        )
+            source: Literal["llm", "rules"] = "rules"
 
-    matches.sort(key=lambda item: item.match_score, reverse=True)
-    return matches[:limit]
+            if allow_llm and llm_generator is not None:
+                prompt = (
+                    "Bạn là trợ lý quyết định TikTok Shop. Viết đúng 1 câu tiếng Việt "
+                    "theo phong cách QUYẾT ĐỊNH (dự kiến tác động GMV/hoa hồng), "
+                    "không phải báo cáo số liệu thuần.\n"
+                    f"Creator: {creator.name}, Sản phẩm: {product.name}, "
+                    f"Điểm phù hợp: {match_score:.0%}."
+                )
+                try:
+                    generated = (await llm_generator(prompt)).strip()
+                except Exception:
+                    generated = ""
+                if generated:
+                    message = generated
+                    source = "llm"
+
+            candidates.append(
+                HostProductMatch(
+                    creator_id=str(creator.id),
+                    creator_name=creator.name,
+                    tiktok_product_id=product.tiktok_product_id,
+                    product_name=product.name,
+                    match_score=match_score,
+                    message=message,
+                    cta=cta,
+                    source=source,
+                    predicted_outcome=predicted,
+                    action_type=action_type,
+                    confidence=confidence,
+                )
+            )
+
+    candidates.sort(key=lambda item: item.match_score, reverse=True)
+    return candidates[:limit]
 
 
 async def get_product_push_suggestions(

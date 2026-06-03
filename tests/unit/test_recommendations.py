@@ -14,15 +14,21 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.utils.data.models import Creator, InventoryItem, Livestream, Order, Product, Shop, User
+from src.shared.utils.data.repos import GraphRepo
 from src.modules.catalog.domain.recommendations import (
     get_host_product_matching,
     get_product_push_suggestions,
     get_stream_optimization,
 )
 from src.modules.catalog.domain.recommendations.engine import HostProductMatch, ProductPushSuggestion
+from src.modules.catalog.domain.recommendations.prediction import (
+    ACTION_CONTACT_CREATOR,
+    PredictedOutcome,
+)
 
 _ANALYTICS_JARGON = (
     "velocity",
@@ -481,3 +487,239 @@ async def test_cta_in_vietnamese(session: AsyncSession):
     assert "Nhấn để" in stream_suggestion.cta
     assert host_matches
     assert "Nhấn để" in host_matches[0].cta
+
+
+class TestIssue93OutcomeDrivenMatching:
+    """Issue #93 — graph-driven ranking + predicted outcomes."""
+
+    @pytest.mark.asyncio
+    async def test_graph_edge_boosts_ranking(self, session: AsyncSession):
+        """AC1: potential_match / has_sold edge weights lift match rank."""
+        shop_id = await _seed_shop(session)
+        weak_creator = _make_creator(
+            shop_id, tiktok_creator_id="c_weak", name="Creator Yếu"
+        )
+        strong_creator = _make_creator(
+            shop_id, tiktok_creator_id="c_strong", name="Creator Mạnh"
+        )
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_rank",
+            name="Toner",
+            revenue=Decimal("1000000"),
+            units_sold=50,
+        )
+        session.add_all([weak_creator, strong_creator, product])
+        session.add_all(
+            [
+                _make_livestream(
+                    shop_id,
+                    weak_creator.id,
+                    tiktok_livestream_id="live_weak",
+                    viewers=200,
+                    orders=5,
+                    revenue=Decimal("500000"),
+                ),
+                _make_livestream(
+                    shop_id,
+                    strong_creator.id,
+                    tiktok_livestream_id="live_strong",
+                    viewers=250,
+                    orders=6,
+                    revenue=Decimal("600000"),
+                ),
+            ]
+        )
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_rank",
+                sku_id="sku_rank",
+                quantity=40,
+            )
+        )
+        await _seed_accelerating_orders(session, shop_id, days=12)
+        await session.flush()
+
+        repo = GraphRepo(session)
+        await repo.upsert_edge(
+            shop_id,
+            edge_type="potential_match",
+            source_node_type="creator",
+            source_node_id=strong_creator.id,
+            target_node_type="product",
+            target_node_id=product.id,
+            weight=Decimal("0.95"),
+        )
+
+        matches = await get_host_product_matching(session, shop_id, limit=2)
+        assert len(matches) >= 1
+        assert matches[0].creator_name == "Creator Mạnh"
+        assert matches[0].match_score >= matches[-1].match_score
+
+    @pytest.mark.asyncio
+    async def test_host_product_match_predicted_outcome_fields(self, session: AsyncSession):
+        """AC2: each match exposes GMV band, conversion, engagement, risk_factors."""
+        shop_id = await _seed_shop(session)
+        creator = _make_creator(shop_id, tiktok_creator_id="c_pred", name="Hà")
+        session.add(creator)
+        session.add(
+            _make_livestream(
+                shop_id,
+                creator.id,
+                tiktok_livestream_id="live_pred",
+                viewers=500,
+                orders=25,
+                revenue=Decimal("4000000"),
+            )
+        )
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_pred",
+            name="Kem dưỡng",
+            revenue=Decimal("1500000"),
+            units_sold=60,
+        )
+        session.add(product)
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_pred",
+                sku_id="sku_pred",
+                quantity=35,
+            )
+        )
+        await _seed_accelerating_orders(session, shop_id, days=10)
+        await session.flush()
+
+        repo = GraphRepo(session)
+        await repo.upsert_edge(
+            shop_id,
+            edge_type="has_sold",
+            source_node_type="creator",
+            source_node_id=creator.id,
+            target_node_type="product",
+            target_node_id=product.id,
+            weight=Decimal("0.88"),
+        )
+
+        matches = await get_host_product_matching(session, shop_id, limit=1)
+        assert matches
+        outcome = matches[0].predicted_outcome
+        assert isinstance(outcome, PredictedOutcome)
+        assert outcome.gmv_vnd_week["high"] >= outcome.gmv_vnd_week["low"] > 0
+        assert outcome.conversion_pct >= 0
+        assert 0 <= outcome.engagement_index <= 1
+        assert isinstance(outcome.risk_factors, list)
+
+    @pytest.mark.asyncio
+    async def test_host_product_match_action_type_and_cta(self, session: AsyncSession):
+        """AC3: action_type and Vietnamese CTA are present."""
+        shop_id = await _seed_shop(session)
+        creator = _make_creator(shop_id, tiktok_creator_id="c_act", name="Minh")
+        session.add(creator)
+        session.add(
+            _make_livestream(
+                shop_id,
+                creator.id,
+                tiktok_livestream_id="live_act",
+                viewers=1200,
+                orders=55,
+                revenue=Decimal("10000000"),
+            )
+        )
+        session.add(
+            _make_product(
+                shop_id,
+                tiktok_product_id="prod_act",
+                name="Son",
+                revenue=Decimal("2500000"),
+                units_sold=100,
+            )
+        )
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_act",
+                sku_id="sku_act",
+                quantity=60,
+            )
+        )
+        await _seed_accelerating_orders(session, shop_id, days=14)
+        await session.flush()
+
+        repo = GraphRepo(session)
+        product_row = (
+            await session.execute(
+                select(Product).where(
+                    Product.shop_id == shop_id,
+                    Product.tiktok_product_id == "prod_act",
+                )
+            )
+        ).scalar_one()
+        await repo.upsert_edge(
+            shop_id,
+            edge_type="potential_match",
+            source_node_type="creator",
+            source_node_id=creator.id,
+            target_node_type="product",
+            target_node_id=product_row.id,
+            weight=Decimal("0.91"),
+        )
+
+        matches = await get_host_product_matching(session, shop_id, limit=1)
+        assert matches
+        match = matches[0]
+        assert match.action_type == ACTION_CONTACT_CREATOR
+        assert match.cta.strip()
+        assert "Nhấn để" in match.cta
+        assert match.confidence in ("high", "medium", "low")
+
+    @pytest.mark.asyncio
+    async def test_host_product_matching_llm_quota_uses_rules(self, session: AsyncSession):
+        """AC4: LLM budget exhausted → source remains rules."""
+        shop_id = await _seed_shop(session)
+        creator = _make_creator(shop_id, tiktok_creator_id="c_llm", name="Vy")
+        session.add(creator)
+        session.add(
+            _make_livestream(
+                shop_id,
+                creator.id,
+                tiktok_livestream_id="live_llm",
+                viewers=900,
+                orders=40,
+                revenue=Decimal("7000000"),
+            )
+        )
+        session.add(
+            _make_product(
+                shop_id,
+                tiktok_product_id="prod_llm",
+                name="Mặt nạ",
+                revenue=Decimal("900000"),
+                units_sold=70,
+            )
+        )
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_llm",
+                sku_id="sku_llm",
+                quantity=50,
+            )
+        )
+        await _seed_accelerating_orders(session, shop_id, days=12)
+        await session.flush()
+
+        async def fake_llm(_: str) -> str:
+            return "LLM copy should not be used when quota is zero."
+
+        matches = await get_host_product_matching(
+            session,
+            shop_id,
+            limit=1,
+            max_calls_per_day=0,
+            llm_generator=fake_llm,
+        )
+        assert matches
+        assert matches[0].source == "rules"
