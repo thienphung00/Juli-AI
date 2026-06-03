@@ -507,6 +507,30 @@ class GraphRepo:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def find_campaign_by_idempotency(
+        self,
+        shop_id: uuid.UUID,
+        idempotency_key: str,
+    ) -> Campaign | None:
+        stmt = select(Campaign).where(
+            Campaign.shop_id == shop_id,
+            Campaign.idempotency_key == idempotency_key,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_campaign(
+        self,
+        shop_id: uuid.UUID,
+        campaign_id: uuid.UUID,
+    ) -> Campaign | None:
+        stmt = select(Campaign).where(
+            Campaign.shop_id == shop_id,
+            Campaign.id == campaign_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def create_campaign(
         self,
         shop_id: uuid.UUID,

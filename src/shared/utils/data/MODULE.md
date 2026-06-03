@@ -38,6 +38,8 @@ database session management, and Alembic migrations for the Juli-AI platform.
 - `GraphRepo(session).upsert_edge(shop_id, …) -> GraphEdge` — idempotent on natural key
 - `GraphRepo(session).list_edges(shop_id, edge_type?, node_type?, node_id?) -> list[GraphEdge]`
 - `GraphRepo(session).create_campaign(shop_id, creator_id, product_ids, …) -> Campaign`
+- `GraphRepo(session).find_campaign_by_idempotency(shop_id, idempotency_key) -> Campaign | None`
+- `GraphRepo(session).get_campaign(shop_id, campaign_id) -> Campaign | None`
 
 ### Repositories — Auth / Core
 - `UsersRepo(session).get(user_id) -> User` — returns user or raises `NotFound`
