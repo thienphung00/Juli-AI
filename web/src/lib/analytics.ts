@@ -48,6 +48,31 @@ export function trackRecommendationViewed(
   );
 }
 
+export interface TaskExecutorActionEvent {
+  taskId: string;
+  action: "approve" | "dismiss";
+}
+
+/** Client-side analytics for Phase 1 no-op task executor (issue #117). */
+export function trackTaskExecutorAction(event: TaskExecutorActionEvent): void {
+  if (typeof window === "undefined") return;
+
+  const detail = {
+    event: "task_executor_action",
+    ...event,
+  };
+
+  window.dispatchEvent(
+    new CustomEvent("juli:analytics", {
+      detail,
+    }),
+  );
+
+  if (process.env.NODE_ENV === "development") {
+    console.info("task_executor_action", detail);
+  }
+}
+
 export function trackMatchEmptyState(shopId: string | null, reason: string): void {
   if (typeof window === "undefined") return;
 
