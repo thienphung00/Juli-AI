@@ -1,6 +1,8 @@
 /**
  * Issue #122 — UX instrumentation (P1-7)
  */
+import { readFileSync } from "fs";
+import path from "path";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TaskCard } from "@/components/tasks/TaskCard";
@@ -190,5 +192,23 @@ describe("Issue #122: task UX analytics", () => {
     expect(events.some((e) => e.event === "task_dismissed")).toBe(true);
 
     window.removeEventListener("juli:analytics", handler);
+  });
+});
+
+describe("Issue #122: engagement threshold", () => {
+  it("documents engagement threshold for Phase 1 exit gate", () => {
+    const prdPath = path.join(
+      process.cwd(),
+      "..",
+      "docs",
+      "features",
+      "mvp_1.0",
+      "PRD.md",
+    );
+    const prd = readFileSync(prdPath, "utf-8");
+
+    expect(prd).toContain("Phase 1 engagement threshold");
+    expect(prd).toContain("task_approved");
+    expect(prd).toMatch(/60%/);
   });
 });

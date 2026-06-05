@@ -48,7 +48,7 @@
       "mappings": [
         {
           "criterion": "Events emitted: task_clicked, task_approved, task_dismissed",
-          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx"
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::emits task_approved and task_dismissed from TaskQueue"
         },
         {
           "criterion": "Payload includes workflow, task_type, persona_id, session_id; no PII",
@@ -64,11 +64,11 @@
         },
         {
           "criterion": "Unit tests assert events fire on click, approve, dismiss",
-          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx"
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::emits task_clicked with workflow, task_type, persona_id, session_id"
         },
         {
           "criterion": "Engagement threshold definition documented",
-          "test": "docs/features/mvp_1.0/PRD.md::Phase 1 engagement threshold (exit gate)"
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::documents engagement threshold for Phase 1 exit gate"
         }
       ]
     },
