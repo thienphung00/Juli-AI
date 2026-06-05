@@ -63,32 +63,21 @@ beforeEach(() => {
   mockPathname.mockReturnValue("/recommendations");
 });
 
-describe("Issue #95: recommendation-first nav", () => {
-  it("AC1: bottom nav exposes Home, Creators, Gợi ý, Juli without legacy redirects", () => {
-    expect(BOTTOM_NAV_TABS).toHaveLength(4);
-    expect(BOTTOM_NAV_TABS.map((t) => t.label)).toEqual([
-      "Trang chủ",
-      "Creators",
-      "Gợi ý",
-      "Juli",
-    ]);
-    expect(BOTTOM_NAV_TABS.map((t) => t.href)).toEqual([
-      "/",
-      "/creators",
-      "/recommendations",
-      "/ai-chat",
-    ]);
-
+describe("Issue #95: recommendation-first nav (component tests retained)", () => {
+  it("legacy creator-matching routes are registered for 301 redirect to seller home (#123)", () => {
     const redirectedSources = LEGACY_ROUTE_REDIRECTS.map((r) => r.source);
-    expect(redirectedSources).not.toContain("/creators");
-    expect(redirectedSources).not.toContain("/recommendations");
+    expect(redirectedSources).toContain("/creators");
+    expect(redirectedSources).toContain("/recommendations");
   });
 
-  it("AC1: nav links point to /creators and /recommendations", () => {
+  it("primary nav no longer links to /creators or /recommendations (#123)", () => {
+    expect(BOTTOM_NAV_TABS.map((t) => t.href)).not.toContain("/creators");
+    expect(BOTTOM_NAV_TABS.map((t) => t.href)).not.toContain("/recommendations");
+
     renderNav();
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
-    expect(nav.querySelector('a[href="/creators"]')).toBeInTheDocument();
-    expect(nav.querySelector('a[href="/recommendations"]')).toBeInTheDocument();
+    expect(nav.querySelector('a[href="/creators"]')).not.toBeInTheDocument();
+    expect(nav.querySelector('a[href="/recommendations"]')).not.toBeInTheDocument();
   });
 
   it("AC5: CTA tap dispatches juli:analytics recommendation_action_tapped", async () => {

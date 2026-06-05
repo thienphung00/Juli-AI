@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, Users, Lightbulb, Sparkles } from "lucide-react";
+import { Home, Sparkles } from "lucide-react";
 
 export interface NavTab {
   href: string;
@@ -9,11 +9,9 @@ export interface NavTab {
   live?: boolean;
 }
 
-/** Bottom navigation — recommendation-first (issue #95). */
+/** Bottom navigation — seller home + Juli AI (issue #123 retires creator-matching tabs). */
 export const BOTTOM_NAV_TABS: NavTab[] = [
   { href: "/", label: "Trang chủ", Icon: Home, color: "#FF1493" },
-  { href: "/creators", label: "Creators", Icon: Users, color: "#FF69B4" },
-  { href: "/recommendations", label: "Gợi ý", Icon: Lightbulb, color: "#E61282" },
   { href: "/ai-chat", label: "Juli", Icon: Sparkles, color: "#FF1493" },
 ];
 
