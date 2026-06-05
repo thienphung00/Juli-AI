@@ -1,0 +1,57 @@
+{
+  "id": "review-issue-116",
+  "issue": 116,
+  "timestamp": "2026-06-05T14:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Deterministic rules-based seller-stage router with documented thresholds and golden boundary fixtures. Pure function classifySellerStage(profile) maps mock metrics to new | leakage | growth.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": ["web"],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "classifySellerStage",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Rules-based seller lifecycle classifier consuming shop_age_days, order_count_30d, return_rate_30d, ad_spend_30d_vnd."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "classifies new persona as new — one of three stages",
+          "test": "web/src/__tests__/test_seller_stage_router.test.ts::classifies new persona as new"
+        },
+        {
+          "criterion": "exports documented threshold constants",
+          "test": "web/src/__tests__/test_seller_stage_router.test.ts::exports documented threshold constants"
+        },
+        {
+          "criterion": "routes low-volume sellers at threshold boundary",
+          "test": "web/src/__tests__/test_seller_stage_router.test.ts::routes low-volume sellers as new even when return rate is elevated"
+        },
+        {
+          "criterion": "returns the same stage for repeated calls with identical input",
+          "test": "web/src/__tests__/test_seller_stage_router.test.ts::returns the same stage for repeated calls with identical input"
+        },
+        {
+          "criterion": "runs without network or database dependencies",
+          "test": "web/src/__tests__/test_seller_stage_router.test.ts::runs without network or database dependencies"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 142,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}

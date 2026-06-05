@@ -49,6 +49,10 @@ describe("Issue #116: classifySellerStage", () => {
   });
 
   describe("determinism", () => {
+    it("runs without network or database dependencies", () => {
+      expect(classifySellerStage(loadPersona("new").profile)).toBe("new");
+    });
+
     it("returns the same stage for repeated calls with identical input", () => {
       const input = loadPersona("growth").profile;
       const first = classifySellerStage(input);
