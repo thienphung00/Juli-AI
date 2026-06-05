@@ -1,21 +1,38 @@
 "use client";
 
-import type { MockTask } from "@/lib/mock-data/seller-personas/schemas";
+import type { MockTask, PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import { formatVND } from "@/lib/format";
 import { taskSeverityLabel, taskSeverityStyle } from "@/lib/task-executor";
+import { trackTaskClicked } from "@/lib/ux-analytics";
 
 export function TaskCard({
   task,
+  personaId,
   onApprove,
   onDismiss,
   disabled = false,
 }: {
   task: MockTask;
+  personaId: PersonaId;
   onApprove: (taskId: string) => void;
   onDismiss: (taskId: string) => void;
   disabled?: boolean;
 }) {
   const severityStyle = taskSeverityStyle(task.severity);
+
+  const handleCardEngagement = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return;
+    if (
+      target.closest('[data-testid="task-approve"], [data-testid="task-dismiss"]')
+    ) {
+      return;
+    }
+    trackTaskClicked({
+      workflow: task.workflow,
+      task_type: task.type,
+      persona_id: personaId,
+    });
+  };
 
   return (
     <article
@@ -23,6 +40,7 @@ export function TaskCard({
       data-testid="task-card"
       data-task-id={task.id}
       aria-labelledby={`task-title-${task.id}`}
+      onClick={(event) => handleCardEngagement(event.target)}
     >
       <div className="flex items-start justify-between gap-2">
         <span

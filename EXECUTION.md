@@ -62,7 +62,7 @@ data. Validate UX with 100 test sellers. No real API calls. No ML.
 - [x] **P1-4** Growth Copilot UI (mocked) — ad performance read + scale/cut suggestions. _(issue: #121)_
 - [ ] **P1-5** Executor approval flow (no-op) — task approve/dismiss UX with no backend action. _(issue: #106)_
 - [ ] **P1-6** Rules-based seller-stage detection (agent decision tree, mocked input). _(issue: #105)_
-- [ ] **P1-7** UX instrumentation — task-click + approval analytics for the 100-seller test. _(issue: #111)_
+- [x] **P1-7** UX instrumentation — task-click + approval analytics for the 100-seller test. _(issue: #122)_
 
 ### Exit gate → Phase 1.5
 

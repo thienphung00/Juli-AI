@@ -61,7 +61,7 @@ export function SellerHomeShell() {
       ) : workflow.workflowId === "growth" ? (
         <GrowthCopilotPanel persona={persona} tasks={tasks} />
       ) : (
-        <TaskQueue tasks={tasks} />
+        <TaskQueue tasks={tasks} personaId={persona.profile.id} />
       )}
     </div>
   );

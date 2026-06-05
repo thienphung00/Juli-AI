@@ -51,6 +51,7 @@ describe("Issue #117: TaskCard", () => {
     render(
       <TaskCard
         task={task}
+        personaId="new"
         onApprove={jest.fn()}
         onDismiss={jest.fn()}
       />,
@@ -66,7 +67,12 @@ describe("Issue #117: TaskCard", () => {
   it("omits GMV impact when estimated_impact_vnd is null", () => {
     const task = { ...sampleTasks[0], estimated_impact_vnd: null };
     render(
-      <TaskCard task={task} onApprove={jest.fn()} onDismiss={jest.fn()} />,
+      <TaskCard
+        task={task}
+        personaId="new"
+        onApprove={jest.fn()}
+        onDismiss={jest.fn()}
+      />,
     );
     expect(screen.queryByTestId("task-gmv-impact")).not.toBeInTheDocument();
   });
@@ -74,7 +80,7 @@ describe("Issue #117: TaskCard", () => {
 
 describe("Issue #117: TaskQueue no-op executor", () => {
   it("shows demo-mode copy that Phase 1 does not execute on TikTok", () => {
-    render(<TaskQueue tasks={sampleTasks} />);
+    render(<TaskQueue tasks={sampleTasks} personaId="new" />);
     expect(screen.getByTestId("task-demo-notice")).toHaveTextContent("Chế độ demo");
     expect(screen.getByTestId("task-demo-notice")).toHaveTextContent(
       "chưa thực thi",
@@ -83,7 +89,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
 
   it("visual confirmation on approve", async () => {
     const user = userEvent.setup();
-    render(<TaskQueue tasks={sampleTasks} />);
+    render(<TaskQueue tasks={sampleTasks} personaId="new" />);
 
     await user.click(screen.getAllByTestId("task-approve")[0]);
 
@@ -97,7 +103,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
 
   it("visual confirmation on dismiss", async () => {
     const user = userEvent.setup();
-    render(<TaskQueue tasks={sampleTasks} />);
+    render(<TaskQueue tasks={sampleTasks} personaId="new" />);
 
     await user.click(screen.getAllByTestId("task-dismiss")[0]);
 
@@ -109,7 +115,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
   it("approve then dismiss on separate tasks updates queue correctly", async () => {
     const user = userEvent.setup();
     const tasks = sampleTasks;
-    render(<TaskQueue tasks={tasks} />);
+    render(<TaskQueue tasks={tasks} personaId="new" />);
 
     const list = screen.getByTestId("task-queue-list");
     expect(within(list).getAllByTestId("task-card")).toHaveLength(2);
@@ -131,7 +137,9 @@ describe("Issue #117: TaskQueue no-op executor", () => {
 
   it("session persistence: dismissals survive remount within session", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(<TaskQueue tasks={sampleTasks} />);
+    const { unmount } = render(
+      <TaskQueue tasks={sampleTasks} personaId="new" />,
+    );
 
     await user.click(screen.getAllByTestId("task-dismiss")[0]);
 
@@ -140,7 +148,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
     });
 
     unmount();
-    render(<TaskQueue tasks={sampleTasks} />);
+    render(<TaskQueue tasks={sampleTasks} personaId="new" />);
 
     expect(screen.getAllByTestId("task-card")).toHaveLength(1);
     const stored = sessionStorage.getItem(TASK_EXECUTOR_SESSION_KEY);
@@ -149,7 +157,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
 
   it("no API calls on approve or dismiss", async () => {
     const user = userEvent.setup();
-    render(<TaskQueue tasks={sampleTasks} />);
+    render(<TaskQueue tasks={sampleTasks} personaId="new" />);
 
     await user.click(screen.getAllByTestId("task-approve")[0]);
     await user.click(screen.getAllByTestId("task-dismiss")[0]);

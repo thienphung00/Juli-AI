@@ -16,7 +16,7 @@ export function LeakageCopilotPanel({
   tasks: MockTask[];
 }) {
   const { activeTasks, feedback, clearFeedback, approveTask, dismissTask } =
-    useTaskExecutor(tasks);
+    useTaskExecutor(tasks, { personaId: persona.profile.id });
   const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
 
   const evidenceTask =
@@ -65,6 +65,7 @@ export function LeakageCopilotPanel({
             <li key={task.id} className="space-y-2">
               <TaskCard
                 task={task}
+                personaId={persona.profile.id}
                 onApprove={approveTask}
                 onDismiss={dismissTask}
               />

@@ -24,7 +24,7 @@ export function NewSellerCopilotPanel({
 
       <MilestoneProgress profile={persona.profile} />
 
-      <TaskQueue tasks={tasks} />
+      <TaskQueue tasks={tasks} personaId={persona.profile.id} />
     </section>
   );
 }

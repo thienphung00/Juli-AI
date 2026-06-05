@@ -17,7 +17,7 @@ export function GrowthCopilotPanel({
 }) {
   const rankedTasks = rankGrowthTasks(tasks);
   const { activeTasks, feedback, clearFeedback, approveTask, dismissTask } =
-    useTaskExecutor(rankedTasks);
+    useTaskExecutor(rankedTasks, { personaId: persona.profile.id });
 
   const activeRanked = rankGrowthTasks(activeTasks);
 
@@ -52,6 +52,7 @@ export function GrowthCopilotPanel({
             <li key={task.id}>
               <TaskCard
                 task={task}
+                personaId={persona.profile.id}
                 onApprove={approveTask}
                 onDismiss={dismissTask}
               />
