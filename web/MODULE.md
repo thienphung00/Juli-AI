@@ -18,9 +18,9 @@ modules, orders management with filtering and shipment confirmation.
 - `trackTaskClicked`, `trackTaskApproved`, `trackTaskDismissed`, `getUxSessionId` — Phase 1 UX instrumentation sink (`lib/ux-analytics/`)
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
-- `/` — Seller home shell (workflow breadcrumb + persona tasks); legacy creator-matching KPIs retired from seller entry (#118)
-- `/creators` — Creator GMV attribution and commission efficiency scorecards (primary nav)
-- `/recommendations` — Decision feed: `MatchDecisionCard`, predicted outcomes, match score, CTA analytics
+- `/` — Seller home shell (workflow breadcrumb + persona tasks); canonical seller entry (#118, #123)
+- `/creators` — Legacy creator-matching; 301 → `/` (#123)
+- `/recommendations` — Legacy decision feed; 301 → `/` (#123)
 - `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)
 - `/alerts` — Legacy; 301 → `/` (alerts in header drawer only)
 - `/orders` — Legacy; 301 → `/operation` → `/`

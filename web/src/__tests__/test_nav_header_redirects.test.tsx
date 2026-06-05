@@ -53,18 +53,14 @@ beforeEach(() => {
 });
 
 describe("Nav redesign header + nav (#77, #95)", () => {
-  it("defines recommendation-first bottom nav tabs", () => {
-    expect(BOTTOM_NAV_TABS).toHaveLength(4);
+  it("defines seller-first bottom nav tabs without creator-matching links", () => {
+    expect(BOTTOM_NAV_TABS).toHaveLength(2);
     expect(BOTTOM_NAV_TABS.map((t) => t.label)).toEqual([
       "Trang chủ",
-      "Creators",
-      "Gợi ý",
       "Juli",
     ]);
     expect(BOTTOM_NAV_TABS.map((t) => t.href)).toEqual([
       "/",
-      "/creators",
-      "/recommendations",
       "/ai-chat",
     ]);
   });
@@ -127,9 +123,15 @@ describe("Nav redesign header + nav (#77, #95)", () => {
     expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
   });
 
-  it("keeps legacy redirects for retired seller-OS routes but not creators/recommendations", () => {
+  it("includes legacy redirects for retired creator-matching and seller-OS routes", () => {
     expect(LEGACY_ROUTE_REDIRECTS).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ source: "/creators", destination: "/", permanent: true }),
+        expect.objectContaining({
+          source: "/recommendations",
+          destination: "/",
+          permanent: true,
+        }),
         expect.objectContaining({ source: "/alerts", destination: "/", permanent: true }),
         expect.objectContaining({
           source: "/livestreams",
@@ -148,8 +150,5 @@ describe("Nav redesign header + nav (#77, #95)", () => {
         }),
       ])
     );
-    const sources = LEGACY_ROUTE_REDIRECTS.map((r) => r.source);
-    expect(sources).not.toContain("/creators");
-    expect(sources).not.toContain("/recommendations");
   });
 });
