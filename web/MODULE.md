@@ -15,6 +15,7 @@ modules, orders management with filtering and shipment confirmation.
 - `LeakageCopilotPanel`, `EvidenceDrawer`, `resolveEvidence` — Phase 1 revenue leakage workflow: ranked anomalies, masked evidence drill-down (`components/workflows/leakage/`, `lib/workflows/leakage/`)
 - `GrowthCopilotPanel`, `AdPerformanceSummary`, `computeAdSummary`, `rankGrowthTasks` — Phase 1 growth workflow: ad performance summary + ranked scale/cut recommendations (`components/workflows/growth/`, `lib/workflows/growth/`)
 - `useTaskExecutor`, `filterActiveTasks`, session helpers — client-only task queue state (`lib/task-executor/`)
+- `trackTaskClicked`, `trackTaskApproved`, `trackTaskDismissed`, `getUxSessionId` — Phase 1 UX instrumentation sink (`lib/ux-analytics/`)
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Seller home shell (workflow breadcrumb + persona tasks); legacy creator-matching KPIs retired from seller entry (#118)

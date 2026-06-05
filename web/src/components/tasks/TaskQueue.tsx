@@ -1,14 +1,20 @@
 "use client";
 
-import type { MockTask } from "@/lib/mock-data/seller-personas/schemas";
+import type { MockTask, PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import { useTaskExecutor } from "@/lib/task-executor/use-task-executor";
 import { DemoModeNotice } from "./DemoModeNotice";
 import { TaskCard } from "./TaskCard";
 import { TaskFeedbackBanner } from "./TaskFeedbackBanner";
 
-export function TaskQueue({ tasks }: { tasks: MockTask[] }) {
+export function TaskQueue({
+  tasks,
+  personaId,
+}: {
+  tasks: MockTask[];
+  personaId: PersonaId;
+}) {
   const { activeTasks, feedback, clearFeedback, approveTask, dismissTask } =
-    useTaskExecutor(tasks);
+    useTaskExecutor(tasks, { personaId });
 
   return (
     <section className="space-y-4" data-testid="task-queue">
@@ -32,6 +38,7 @@ export function TaskQueue({ tasks }: { tasks: MockTask[] }) {
             <li key={task.id}>
               <TaskCard
                 task={task}
+                personaId={personaId}
                 onApprove={approveTask}
                 onDismiss={dismissTask}
               />
