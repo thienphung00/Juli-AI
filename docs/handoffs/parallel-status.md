@@ -1,63 +1,33 @@
-# Implementation Status
+# Parallel status — MVP Phase 1 (#118–#120)
 
-In-flight worktrees. Protocol: [`_bootstrap.md`](./_bootstrap.md).
+**Started:** 2026-06-05 · **Parent PRD:** [#113](https://github.com/thienphung00/Juli-AI/issues/113)
 
-- Claim a row on `main` before the first edit.
-- One in-flight writer per module path (`Writer of`).
-- **One GitHub ops owner** for all remote `git`/`gh` commands (see below).
-- Update `Phase` and `Last update` at each step.
+| Issue | Title | Modules | Status | Branch | Worktree | GitHub ops |
+|-------|-------|---------|--------|--------|----------|------------|
+| #118 | Seller home shell — routing + persona switcher | `web/seller-home` | **Done** (merged #129) | `feature/issue-118-ship-verify` | `.worktrees/issue-118` | **Owner** — verify + close issue |
+| #119 | New Seller Copilot UI (mocked) | `web/workflows/new-seller` | Unblocked | `feature/issue-119-new-seller-copilot` | `.worktrees/issue-119` | Local commits; hand off push/PR to #118 window |
+| #120 | Revenue Leakage Detection UI (mocked) | `web/workflows/leakage` | **Ready for PR** | `feature/issue-120-revenue-leakage-ui` | `.worktrees/issue-120` | Local commits; hand off push/PR to #118 window |
 
-| Field | Values |
-|-------|--------|
-| `Phase` | `focus` / `tdd-red` / `tdd-green` / `review` / `pr-open` / `merged` / `blocked` |
-| `Writer of` | Modules from registry `Modules` column |
-| `Reader of` | Optional read-only modules |
+## Module disjointness
+
+#119 and #120 touch **disjoint** workflow UI directories. They may run in parallel per `issue-workflow.mdc`. #118 is already on `main`; its window runs ship verification only.
 
 ## GitHub ops lock
 
-Single writer for remote GitHub operations. Implementation agents commit locally only.
+| Field | Value |
+|-------|-------|
+| **Owner** | Window #118 (ship-verify) |
+| **Last remote op** | — |
+| **Stagger rule** | ≥ 30s between `git push`, `gh pr create`, `gh pr merge`, `gh issue close` |
 
-| Owner | Last remote op (UTC) | Notes |
-|-------|----------------------|-------|
-| _(none)_ | | `push`, `gh pr create/merge/checks`, `parallel-status.md` updates on `main` |
+### Remote op log
 
-Rules:
+| Time (UTC) | Agent | Command | Issue |
+|------------|-------|---------|-------|
+| — | — | — | — |
 
-- Claim `Owner` before the first remote op; release when done or hand off explicitly.
-- Wait **≥ 30s** after `Last remote op` before the next remote command.
-- Non-ops agents: do not push or call `gh` — hand branch + PR draft to ops owner.
+## After each merge
 
-## In-flight
-
-| Issue | Worktree | Branch | Writer of | Reader of | Phase | Owner | Last update |
-|-------|----------|--------|-----------|-----------|-------|-------|-------------|
-
-## Recently released
-
-| Issue | Modules released | Released at |
-|-------|------------------|-------------|
-| #82 | `web/ai-chat` | 2026-05-29 |
-| #81 | `web/operation` | 2026-05-29 |
-| #80 | `web` | 2026-05-29 |
-| #79 | `web` | 2026-05-29 |
-| #43 | `api`, `alerts`, `recommendations` | 2026-05-27 |
-| #35 | `intelligence/forecasting` | 2026-05-27 |
-| #45 | `web` | 2026-05-26 |
-| #42 | `ios` | 2026-05-26 |
-| #37 | `api` | 2026-05-26 |
-| #34 | `intelligence/scoring` | 2026-05-26 |
-
-## Archive
-
-| Issue | Worktree | Branch | Writer of | Phase | Owner | Last update |
-|-------|----------|--------|-----------|-------|-------|-------------|
-| #80 | `../juli-ai-issue-80` | `feat/issue-80-trends-discovery` | `web` | merged | agent-issue-80 | 2026-05-29T04:45:00Z |
-| #40 | `../juli-ai-issue-40` | `feat/issue-40-alerts-zalo` | `alerts` | merged | agent-issue-40 | 2026-05-27T08:17:00Z |
-| #43 | `../juli-ai-issue-43` | `feat/issue-43-api-alerts-recommendations` | `api`, `alerts`, `recommendations` | merged | agent-issue-43 | 2026-05-27T08:00:00Z |
-| #35 | `../juli-ai-issue-35` | `feat/issue-35-forecasting` | `intelligence/forecasting`, `data` | merged | agent-issue-35 | 2026-05-27T13:00:00Z |
-| #45 | `../juli-ai-issue-45` | `feat/issue-45-web-products-inventory-pages` | `web` | merged | agent-issue-45 | 2026-05-26T08:18:00Z |
-| #42 | `../juli-ai-issue-42` | `feat/issue-42-ios-auth-daily-loop` | `ios` | merged | agent-issue-42 | 2026-05-26T07:20:00Z |
-| #37 | `../juli-ai-issue-37` | `feat/issue-37-api-orders-products-inventory` | `api` | merged | agent-issue-37 | 2026-05-26T08:15:00Z |
-| #34 | `../juli-ai-issue-34` | `feat/issue-34-livestream-scoring-anomaly` | `intelligence/scoring` | merged | agent-issue-34 | 2026-05-26T08:20:00Z |
-| #76 | `../juli-ai-issue-76` | `feat/issue-76-mode-selection-gate` | `web` | merged | agent-issue-76 | 2026-05-29T03:30:00Z |
-| #79 | `../juli-ai-issue-79` | `feat/issue-79-home-control-center-v2` | `web` | merged | agent-issue-79 | 2026-05-29T04:25:00Z |
+1. Update Status column above (`Done` / `Blocked` / `Unblocked`).
+2. Update `EXECUTION.md` slice checkbox (P1-2 for #119, P1-3 for #120).
+3. Wait ≥ 30s before next remote GitHub op.

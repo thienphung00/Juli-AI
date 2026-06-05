@@ -12,6 +12,7 @@ modules, orders management with filtering and shipment confirmation.
 - `TaskCard`, `TaskQueue`, `DemoModeNotice` — Phase 1 shared task UI + no-op approve/dismiss (`components/tasks/`)
 - `NewSellerCopilotPanel`, `MilestoneProgress` — New-seller workflow checklist + first-sale milestone bar (`components/workflows/new-seller/`)
 - `computeFirstSaleMilestone` — Pure milestone % from mock profile orders/GMV (`lib/workflows/new-seller/milestone.ts`)
+- `LeakageCopilotPanel`, `EvidenceDrawer`, `resolveEvidence` — Phase 1 revenue leakage workflow: ranked anomalies, masked evidence drill-down (`components/workflows/leakage/`, `lib/workflows/leakage/`)
 - `useTaskExecutor`, `filterActiveTasks`, session helpers — client-only task queue state (`lib/task-executor/`)
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted

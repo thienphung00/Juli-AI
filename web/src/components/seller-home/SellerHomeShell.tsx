@@ -1,5 +1,6 @@
 "use client";
 
+import { LeakageCopilotPanel } from "@/components/workflows/leakage";
 import { NewSellerCopilotPanel } from "@/components/workflows/new-seller";
 import { TaskQueue } from "@/components/tasks";
 import { useDemoPersona } from "@/lib/demo-persona-context";
@@ -54,6 +55,8 @@ export function SellerHomeShell() {
 
       {workflow.workflowId === "new_seller" ? (
         <NewSellerCopilotPanel persona={persona} tasks={tasks} />
+      ) : workflow.workflowId === "leakage" ? (
+        <LeakageCopilotPanel persona={persona} tasks={tasks} />
       ) : (
         <TaskQueue tasks={tasks} />
       )}
