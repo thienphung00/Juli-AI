@@ -6,11 +6,14 @@ for TikTok Shop sellers: phone-OTP login, homepage with GMV/livestream/AI
 modules, orders management with filtering and shipment confirmation.
 
 ## Public Interface
+- `SellerHomeShell`, `PersonaSwitcher` — Phase 1 seller entry: stage-routed workflow shell + demo persona switcher (`components/seller-home/`)
+- `resolveSellerWorkflow`, `getWorkflowTasks`, `WORKFLOW_ENTRIES` — rules-based workflow routing from mock personas (`lib/seller-workflows.ts`)
+- `DemoPersonaProvider`, `useDemoPersona` — persisted demo persona selection (`lib/demo-persona-context.tsx`)
 - `TaskCard`, `TaskQueue`, `DemoModeNotice` — Phase 1 shared task UI + no-op approve/dismiss (`components/tasks/`)
 - `useTaskExecutor`, `filterActiveTasks`, session helpers — client-only task queue state (`lib/task-executor/`)
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
-- `/` — Homepage decision hero (top 1–3 matches from `GET /v1/recommendations`; KPI cards retained)
+- `/` — Seller home shell (workflow breadcrumb + persona tasks); legacy creator-matching KPIs retired from seller entry (#118)
 - `/creators` — Creator GMV attribution and commission efficiency scorecards (primary nav)
 - `/recommendations` — Decision feed: `MatchDecisionCard`, predicted outcomes, match score, CTA analytics
 - `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)

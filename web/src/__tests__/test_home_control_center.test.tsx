@@ -1,8 +1,10 @@
 /**
  * Issue #79 — Home control center (mode-aware KPIs + inline AI + alerts)
+ * Issue #118 — Seller home shell replaces legacy seller control center
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { ModeProvider } from "@/lib/mode-context";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
 import * as homeService from "@/lib/services/home";
@@ -41,8 +43,10 @@ function renderHome(mode: "seller" | "affiliate", uiOnly = true) {
 
   return render(
     <ModeProvider>
-      <HomePage uiOnly={uiOnly} />
-    </ModeProvider>
+      <DemoPersonaProvider>
+        <HomePage uiOnly={uiOnly} />
+      </DemoPersonaProvider>
+    </ModeProvider>,
   );
 }
 
@@ -52,27 +56,19 @@ beforeEach(() => {
   document.documentElement.className = "";
 });
 
-describe("Home control center (#79)", () => {
+describe("Home control center (#79, #118)", () => {
   describe("seller mode", () => {
-    it("AC4: renders top hero matches in above-the-fold section (UI shell)", async () => {
-      const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-      mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
-
+    it("renders seller workflow shell as primary entry", async () => {
       renderHome("seller");
 
       await waitFor(() => {
-        expect(screen.getByTestId("home-seller")).toBeInTheDocument();
+        expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
       });
 
       expect(document.documentElement.classList.contains("dark")).toBe(true);
-
-      const aboveFold = screen.getByTestId("home-above-fold");
-      expect(within(aboveFold).getByTestId("home-hero-matches")).toBeInTheDocument();
-      const matchCards = screen.getAllByTestId("home-hero-match-card");
-      expect(matchCards.length).toBeGreaterThanOrEqual(1);
-      expect(within(matchCards[0]).getByTestId("home-hero-match-headline")).toHaveTextContent(
-        /@linh\.nhi/
-      );
+      expect(screen.getByTestId("workflow-breadcrumb")).toBeInTheDocument();
+      expect(screen.getByTestId("task-queue")).toBeInTheDocument();
+      expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
     });
   });
 
@@ -91,25 +87,6 @@ describe("Home control center (#79)", () => {
       expect(screen.queryByTestId("home-affiliate")).not.toBeInTheDocument();
       expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
       expect(screen.queryByTestId("commission-card")).not.toBeInTheDocument();
-    });
-  });
-
-  describe("UI-only mode", () => {
-    it("loads dashboard via service without calling shops API", async () => {
-      const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-      mockGetHomeDashboard.mockImplementation(async (mode) => {
-        const { getMockHomeDashboard } = jest.requireActual("@/lib/mock-data/home");
-        return getMockHomeDashboard(mode);
-      });
-
-      renderHome("seller", true);
-
-      await waitFor(() => {
-        expect(mockGetHomeDashboard).toHaveBeenCalledWith("seller");
-      });
-
-      expect(screen.getByText("BeautyShop VN")).toBeInTheDocument();
-      expect(MOCK_HOME_SELLER.kpis.gmv_today_vnd).toBeGreaterThan(0);
     });
   });
 });

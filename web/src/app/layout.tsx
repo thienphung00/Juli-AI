@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { AuthProvider } from "@/lib/auth-context";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { ModeProvider } from "@/lib/mode-context";
 import { WORKSPACE_THEME_INIT_SCRIPT } from "@/lib/theme-init";
 import "./globals.css";
@@ -35,7 +36,9 @@ export default function RootLayout({
         style={{ background: "var(--background)", color: "var(--foreground)" }}
       >
         <AuthProvider>
-          <ModeProvider>{children}</ModeProvider>
+          <ModeProvider>
+            <DemoPersonaProvider>{children}</DemoPersonaProvider>
+          </ModeProvider>
         </AuthProvider>
       </body>
     </html>

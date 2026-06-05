@@ -4,6 +4,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HomePage } from "@/components/HomePage";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { ModeProvider } from "@/lib/mode-context";
 import {
   SELLER_LOW_STOCK_LANEIGE,
@@ -66,21 +67,21 @@ describe("Alerts consistency", () => {
   const laneigeMessage = formatInventoryRiskMessage(SELLER_LOW_STOCK_LANEIGE);
 
   describe("seller mode", () => {
-    it("alert bell shows inventory alert; Home shows match hero instead of banners", async () => {
+    it("alert bell shows inventory alert; Home shows seller workflow shell instead of banners", async () => {
       const user = userEvent.setup();
-      const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-      mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
 
       setupMode("seller");
 
       render(
         <ModeProvider>
-          <HomePage uiOnly />
+          <DemoPersonaProvider>
+            <HomePage uiOnly />
+          </DemoPersonaProvider>
         </ModeProvider>
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
+        expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
       });
 
       expect(

@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { HomePage } from "@/components/HomePage";
 import { RecommendationsPage } from "@/components/RecommendationsPage";
 import { AuthProvider } from "@/lib/auth-context";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { ModeProvider } from "@/lib/mode-context";
 import {
   AFFILIATE_OUT_OF_SCOPE_HEADING,
@@ -53,7 +54,9 @@ const mockListRecommendations = api.recommendations.list as jest.MockedFunction<
 function renderWithProviders(ui: ReactElement) {
   return render(
     <AuthProvider>
-      <ModeProvider>{ui}</ModeProvider>
+      <ModeProvider>
+        <DemoPersonaProvider>{ui}</DemoPersonaProvider>
+      </ModeProvider>
     </AuthProvider>
   );
 }
@@ -92,7 +95,7 @@ describe("Workspace mode out-of-scope (#115)", () => {
 
       expect(screen.getByRole("heading", { name: AFFILIATE_OUT_OF_SCOPE_HEADING })).toBeInTheDocument();
       expect(screen.queryByTestId("home-affiliate")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("home-seller")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("seller-home-shell")).not.toBeInTheDocument();
       expect(document.documentElement.classList.contains("dark")).toBe(false);
     });
 
@@ -125,7 +128,7 @@ describe("Workspace mode out-of-scope (#115)", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId("home-seller")).toBeInTheDocument();
+        expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
       });
     });
   });
@@ -136,7 +139,7 @@ describe("Workspace mode out-of-scope (#115)", () => {
       renderWithProviders(<HomePage uiOnly />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("home-seller")).toBeInTheDocument();
+        expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
       });
 
       expect(screen.queryByTestId(AFFILIATE_OUT_OF_SCOPE_TEST_ID)).not.toBeInTheDocument();

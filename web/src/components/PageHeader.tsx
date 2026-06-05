@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonaSwitcher } from "./seller-home";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { AlertBell } from "./AlertBell";
 
@@ -30,6 +31,7 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <PersonaSwitcher />
           <ModeSwitcher />
           <AlertBell />
         </div>
