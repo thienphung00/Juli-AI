@@ -15,7 +15,7 @@ from src.modules.ml.features.loader import (
     resolve_dataset_dir,
 )
 from src.modules.ml.features.schema import ANOMALY_FEATURE_COLUMNS
-from src.modules.ml.features.time_windows import in_last_n_days, parse_timestamp, resolve_reference_date
+from src.modules.ml.features.time_windows import in_last_n_days, resolve_reference_date
 from src.modules.ml.features.types import FeatureMatrix
 
 
