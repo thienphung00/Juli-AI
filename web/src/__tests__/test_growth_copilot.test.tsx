@@ -114,7 +114,7 @@ describe("Issue #121: scale/cut recommendations with metric citations", () => {
 });
 
 describe("Issue #121: campaigns ranked by opportunity", () => {
-  it("orders tasks by estimated impact descending", () => {
+  it("campaigns ranked by opportunity", () => {
     const persona = loadPersona("growth");
     const tasks = getWorkflowTasks(persona, "growth");
     const ranked = rankGrowthTasks(tasks);

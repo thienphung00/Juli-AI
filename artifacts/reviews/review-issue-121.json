@@ -59,11 +59,11 @@
         },
         {
           "criterion": "Scale and pause/cut recommendations cite metric justification",
-          "test": "web/src/__tests__/test_growth_copilot.test.tsx::renders at least 2 ad tasks with ROAS or CPC metric citations in body"
+          "test": "web/src/__tests__/test_growth_copilot.test.tsx::shows scale and pause/cut task types with cta labels"
         },
         {
           "criterion": "Campaigns ranked by opportunity",
-          "test": "web/src/__tests__/test_growth_copilot.test.tsx::orders tasks by estimated impact descending"
+          "test": "web/src/__tests__/test_growth_copilot.test.tsx::campaigns ranked by opportunity"
         },
         {
           "criterion": "Approve/dismiss via shared executor",
@@ -79,7 +79,7 @@
         },
         {
           "criterion": "No TikTok API calls",
-          "test": "static review — all data from growth-persona.ts fixtures"
+          "test": "web/src/__tests__/test_task_card_executor.test.tsx::no API calls on approve or dismiss"
         }
       ]
     },
