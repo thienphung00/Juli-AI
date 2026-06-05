@@ -1,181 +1,92 @@
-# Rate Limits & Throttling Strategy
+# Rate Limits & Throttling
 
-## TikTok's Rate Limit Model
+TikTok enforces request quotas per **(app_key × shop)** pair. Exact numeric limits
+are **not publicly documented** — calibrate from `100005` responses and Partner
+Center guidance.
 
-Rate limits are enforced **per (app_id × shop_id) pair**. This means each seller's shop has its own quota bucket when accessed through your app.
+**Source:** Developer guide (rate limit concepts); implementation:
+`src/modules/catalog/domain/integrations/tiktok/rate_limiter.py`
 
-### Limit Tiers
+---
 
-| Endpoint Category | Frequency Tier | Typical Limit |
-|-------------------|---------------|---------------|
-| Orders list/search | High frequency | Stricter (lower quota) |
-| Order detail | Medium frequency | Moderate |
-| Product CRUD | Medium frequency | Moderate |
-| Inventory update | Medium frequency | Moderate |
-| Finance/Settlement | Low frequency | More lenient |
-| Shop info | Low frequency | More lenient |
+## Model
 
-> **Note:** TikTok does not publicly document exact numeric limits. Monitor 429 responses to calibrate.
+| Dimension | Behavior |
+|-----------|----------|
+| Bucket key | `(app_id, shop_id, endpoint)` |
+| Storage | Redis token bucket (`RateLimiter`) |
+| Exhaustion | `RateLimiter.acquire()` → `False`; polling worker logs and skips |
+| API signal | Response code `100005` → `RateLimitError` |
 
-### Rate Limit Response
+> **UNKNOWN — not in official docs:** Per-endpoint tier quotas (orders vs products vs affiliate).
+> Monitor production 429/`100005` rates and adjust bucket sizes.
 
-When limits are exceeded, the API returns:
+---
 
-```json
-{
-  "code": 100005,
-  "message": "Request rate limit exceeded",
-  "request_id": "..."
-}
-```
+## Response when throttled
 
-HTTP status: `429 Too Many Requests`
+| Field | Value |
+|-------|-------|
+| `code` | `100005` |
+| Exception | `RateLimitError` |
+| Retry | Exponential backoff + jitter |
 
-Headers may include:
-- `X-RateLimit-Limit` — Max requests in window
-- `X-RateLimit-Remaining` — Remaining requests
-- `X-RateLimit-Reset` — Unix timestamp when window resets
+Optional response headers (when present — **UNVERIFIED** for all endpoints):
 
-## Throttling Architecture
+| Header | Meaning |
+|--------|---------|
+| `X-RateLimit-Limit` | Max requests in window |
+| `X-RateLimit-Remaining` | Remaining requests |
+| `X-RateLimit-Reset` | Unix timestamp when window resets |
 
-### Token Bucket per Shop
+---
 
-Maintain a token bucket (or leaky bucket) for each `(app_id, shop_id)` pair:
-
-```
-┌─────────────────────────────────────────────────┐
-│                  Rate Limiter                     │
-│                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
-│  │ Shop A   │  │ Shop B   │  │ Shop C   │ ...  │
-│  │ Bucket   │  │ Bucket   │  │ Bucket   │      │
-│  │ 10/min   │  │ 10/min   │  │ 10/min   │      │
-│  └──────────┘  └──────────┘  └──────────┘      │
-│                                                  │
-└─────────────────────────────────────────────────┘
-```
-
-### Implementation with Redis
-
-```python
-import time
-import redis
-
-class RateLimiter:
-    def __init__(self, redis_client: redis.Redis):
-        self.redis = redis_client
-    
-    async def acquire(self, app_id: str, shop_id: str, endpoint: str, max_requests: int, window_seconds: int) -> bool:
-        key = f"ratelimit:{app_id}:{shop_id}:{endpoint}"
-        current = self.redis.get(key)
-        
-        if current and int(current) >= max_requests:
-            return False
-        
-        pipe = self.redis.pipeline()
-        pipe.incr(key)
-        pipe.expire(key, window_seconds)
-        pipe.execute()
-        return True
-    
-    def time_until_reset(self, app_id: str, shop_id: str, endpoint: str) -> int:
-        key = f"ratelimit:{app_id}:{shop_id}:{endpoint}"
-        return self.redis.ttl(key)
-```
-
-## Retry & Backoff Strategy
-
-### Exponential Backoff with Jitter
-
-```python
-import random
-import asyncio
-
-async def call_with_retry(func, max_retries: int = 5):
-    for attempt in range(max_retries):
-        response = await func()
-        
-        if response.status_code == 429:
-            base_delay = min(2 ** attempt, 60)
-            jitter = random.uniform(0, base_delay * 0.5)
-            delay = base_delay + jitter
-            await asyncio.sleep(delay)
-            continue
-        
-        if response.status_code >= 500:
-            await asyncio.sleep(2 ** attempt)
-            continue
-        
-        return response
-    
-    raise MaxRetriesExceeded(f"Failed after {max_retries} attempts")
-```
-
-### Retry Decision Matrix
-
-| Error Code | Action | Retry? |
-|------------|--------|--------|
-| 429 | Backoff and retry | Yes (with exponential delay) |
-| 500/502/503 | Transient server error | Yes (up to 3 times) |
-| 401 | Token expired | Refresh token, then retry once |
-| 403 | Scope missing | Do not retry, alert |
-| 400 | Bad request | Do not retry, fix request |
-
-## Job Queue Design
-
-### Priority Queues
-
-Use a priority-based job queue for API calls:
-
-| Priority | Use Case | Example |
-|----------|----------|---------|
-| P0 (Immediate) | Webhook-triggered updates | Order detail fetch after ORDER_STATUS_CHANGE |
-| P1 (High) | User-initiated actions | Manual inventory sync, ship order |
-| P2 (Normal) | Scheduled sync | Hourly product catalog sync |
-| P3 (Low) | Backfill/reconciliation | Full inventory audit, historical data |
-
-### Queue Architecture
+## Juli throttling strategy
 
 ```
-┌─────────────┐     ┌────────────────┐     ┌──────────────────┐
-│  Scheduler  │────▶│  Priority Queue│────▶│  Worker Pool     │
-│  (Cron)     │     │  (handoff/ETL) │     │  (Rate-Limited)  │
-└─────────────┘     └────────────────┘     └──────────────────┘
-                           ▲                        │
-                           │                        │
-                    ┌──────┴──────┐          ┌──────▼──────┐
-                    │  Webhook    │          │  TikTok API │
-                    │  Handler    │          │             │
-                    └─────────────┘          └─────────────┘
+┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│ Cron worker │────▶│ RateLimiter  │────▶│ TikTokClient    │
+│ per shop    │     │ (Redis)      │     │ (signed HTTP)   │
+└─────────────┘     └──────────────┘     └─────────────────┘
 ```
 
-## Optimization Strategies
+### Rules (P2)
 
-### Minimize API Calls
+1. **Stagger shops** — never sync all shops in the same second (`data-sources.md`).
+2. **Webhooks-first** when registered — reduces poll frequency for hot paths.
+3. **Priority** (recommended): orders (leakage) > products > affiliate > ads.
+4. **Adaptive polling** — reduce frequency for low-activity shops after baseline sync.
+5. **Alert** if `100005` rate exceeds 1% of requests per shop per day.
 
-1. **Prefer webhooks** — Use real-time push over polling wherever possible
-2. **Batch requests** — Where API supports batch IDs (e.g., order detail accepts multiple IDs)
-3. **Cache aggressively** — Product details change rarely; cache with 1-hour TTL
-4. **Incremental sync** — Use `update_time_from` filters to fetch only changed records
-5. **Conditional requests** — Skip fetch if webhook already provided full data
+### Default bucket (implementation starting point)
 
-### Scaling for Many Sellers
+Tune per endpoint after P2 burn-in:
 
-With 1000+ sellers, total API calls = sellers × endpoints × frequency:
+| Endpoint category | Suggested starting window | Notes |
+|-------------------|---------------------------|-------|
+| Orders search | Conservative | High-frequency tier per TikTok |
+| Products search | Moderate | Daily catalog sync |
+| Affiliate creators | Moderate | Scope-gated |
+| Token refresh | Low volume | Not per-endpoint limited |
 
-| Strategy | Description |
-|----------|-------------|
-| Staggered scheduling | Don't sync all sellers at the same second |
-| Adaptive frequency | Sync active sellers more often, dormant ones less |
-| Webhook-first | Only poll for initial sync or gap recovery |
-| Request coalescing | Group read requests where possible |
+Exact `max_requests` / `window_seconds` — set in polling worker wiring; document
+chosen values in `MODULE.md` when P2-1 ships.
 
-### Monitoring
+---
 
-Track these metrics:
+## Signing timestamp constraint
 
-- API call volume per shop per hour
-- 429 response rate (target: <1%)
-- Average retry count per request
-- Queue depth and processing latency
-- Token bucket utilization per shop
+Separate from rate limits: `timestamp` query param must be within **5 minutes** of
+sign generation or requests fail auth.
+
+**Source:** [call-get-authorized-shops](https://partner.tiktokshop.com/docv2/page/call-get-authorized-shops)
+
+---
+
+## Multi-tenant fairness
+
+With N shops under one `app_key`, aggregate traffic shares TikTok's per-app limits.
+`RateLimiter` isolates per-shop buckets so one noisy shop does not exhaust others'
+local tokens — but TikTok-side app caps may still apply (**UNKNOWN** magnitude).
+
+See [multi-tenant.md](multi-tenant.md).

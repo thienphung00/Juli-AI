@@ -210,7 +210,7 @@ Detect (Sentry/Grafana alert)
 
 | Skill | Relationship |
 |-------|-------------|
-| `discover` | Architecture docs inform deployment topology and rollback plans |
+| `discover` | `EXECUTION.md`, `system-design.md`, and ADRs inform deployment topology and rollback plans |
 | `review` | Pre-merge checklist is the gate before ship takes over |
 | `focus` | Focus loads ship when deployment/CI work is detected |
 

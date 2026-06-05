@@ -1,8 +1,13 @@
-# ADR-004: Alerts module with pluggable channel adapters
+# ADR-005: Alerts module with pluggable channel adapters
 
-**Status:** Accepted  
-**Date:** 2026-05-27  
+**Status:** Superseded by [ADR-006](006-matching-pivot.md) (2026-06-03)
+**Date:** 2026-05-27
 **Deciders:** Engineering
+
+> **Superseded.** The alerts module (`src/modules/catalog/domain/alerts/**`) and
+> the `/v1/alerts/*` routes were removed in the Creator ↔ Shop matching pivot.
+> Threshold alerting is a seller-OS / reporting concern outside Phase-1 scope.
+> Retained for historical context only.
 
 ## Context
 

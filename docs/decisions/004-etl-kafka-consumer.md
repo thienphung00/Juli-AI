@@ -2,6 +2,11 @@
 
 **Status:** Accepted (updated — ingest handoff replaces broker fan-out)
 
+> **Naming note:** the filename retains the historical `kafka` slug, but no message
+> broker was adopted. Ingestion flows in-process (webhook/polling → ETL → Postgres);
+> all Kafka/broker references were removed. Kafka/streams are Phase 3+ (see
+> [`EXECUTION.md`](../../EXECUTION.md) → Explicitly out).
+
 ## Context
 
 Webhook and polling services must persist TikTok payloads with idempotency
@@ -10,25 +15,25 @@ and preserve per-shop ordering — without introducing a message bus in v1.5.
 
 ## Decision
 
-Introduce `src/etl` with an injectable `EtlConsumer` that:
+Introduce `src/modules/ordering/use_cases/etl` with an injectable `EtlConsumer` that:
 
 - Resolves `shops.tiktok_shop_id` from the ingest `shop_key`
 - Claims `event_id` in a `processed_events` table before writing
-- Transforms payloads and upserts through existing `src/data` repos
+- Transforms payloads and upserts through existing `src/shared/utils/data` repos
 - Sends failures to the DLQ channel via an injected `dlq_handoff` function
 
-Producers use `src/ingestion/handoff.make_etl_handoff(consumer)` so validated
-payloads flow **webhook/polling → ETL → Postgres** in-process.
+Producers use `src/modules/ordering/api/ingestion.make_etl_handoff(consumer)` so
+validated payloads flow **webhook/polling → ETL → Postgres** in-process.
 
 ## Rationale
 
-Keeping broker clients out of `etl`, `webhook`, and `polling` preserves testability
+Keeping broker clients out of ETL, webhook, and polling preserves testability
 (in-memory handoff stubs in unit tests). Dedup state lives in Postgres alongside
 commerce data so restarts do not replay events.
 
 ## Consequences
 
 - Alembic revision `003` for `processed_events`
-- `docs/architecture/map.md` lists `src/etl` and `src/ingestion`
+- `docs/architecture/map.md` lists `src/modules/ordering/use_cases/etl` and `src/modules/ordering/api/ingestion`
 - v2.0 may add Redis/Celery for async orchestration without changing `src/jobs/*` logic
-- Deferred: dedicated stream processing until scale triggers in `migration_path.md`
+- Deferred: dedicated stream processing until Phase 3+ (see [`EXECUTION.md`](../../EXECUTION.md))

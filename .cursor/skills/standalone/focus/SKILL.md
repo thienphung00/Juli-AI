@@ -5,6 +5,12 @@ description: >-
   and dependencies to load based on the task. Use when scoping context before
   implementation, switching features mid-session, or when the agent seems confused
   from context overload or wrong context.
+catalog:
+  pluginIndex: skill-catalog
+  loadWhen:
+    - external mcp or marketplace plugin
+    - supabase sentry figma vercel shadcn context7
+    - browser playwright celery upstash integration
 ---
 
 # Navigator
@@ -13,16 +19,24 @@ The most important skill. LLMs fail because of too much context, wrong context, 
 
 ## Purpose
 
-Decide what gets loaded into the implementation agent's context window. Acts as an intelligent router between discover outputs and implementation work.
+Decide what gets loaded into the implementation agent's context window. Acts as an intelligent router between discover handoffs, canonical docs, and implementation work.
 
 ## When to Invoke
 
-Call this skill AFTER `discover` has produced specs and BEFORE the implementation agent starts coding. Also invoke when:
+Call this skill AFTER `discover` has updated canonical docs and handed off to `to-prd`/`to-issues`, and BEFORE the implementation agent starts coding. Also invoke when:
 - Switching between features mid-session
 - Context window is getting large
 - Agent seems confused or hallucinating (likely wrong context loaded)
 
 ## Context Decision Algorithm
+
+### Step 0: Plugin and MCP routing
+
+When the task touches an external product or MCP integration:
+
+1. Read [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) — use the `catalog` frontmatter for MCP `serverName` values and plugin skill names.
+2. Load only the plugin skills that match the task (e.g. `supabase` for migrations, `nextjs` for `web/` routing).
+3. Follow [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc) before calling MCP tools (read tool schema first).
 
 ### Step 1: Classify the Task
 
@@ -41,37 +55,44 @@ Detect what the implementation involves:
 | Frontend component | → Component library docs, design system |
 | Background job | → Celery patterns, retry/idempotency standards |
 | TikTok integration / webhook | → `docs/tiktok_api/`, `data-sources.md`, affected MODULE.md files |
+| Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first; then `docs/<vendor>_api/`, `data-sources.md` |
+| Marketplace policy / feature guide / account health / seller or creator | → `platform-docs`; then `docs/<vendor>_platform/`, `implementation-hooks.md` |
+| Existing vendor API implementation | → `docs/<vendor>_api/`, `docs/<vendor>_platform/` (if exists), `data-sources.md`, affected MODULE.md files |
 
 ### Step 2: Load Architecture Baseline
 
-Always consult before loading feature docs:
+Always consult before loading task-specific context:
 
 ```
 ALWAYS load:
+  - EXECUTION.md (phase, slice, in/out scope for the current issue)
+  - docs/system-design.md (subsystem behavior for the active phase)
   - docs/architecture/map.md (module list, tiers, dependency graph)
   - docs/architecture/data-sources.md (allowed/forbidden external data)
   - MODULE.md for each affected module under src/, web/, or ios/
 ```
 
-### Step 3: Load Feature Context
+### Step 3: Load Task Context
 
-From `docs/features/<feature-name>/` (output of `discover`):
+From the GitHub issue (PRD from `to-prd`), discover handoff, and vendor docs:
 
 ```
 ALWAYS load:
-  - architecture.md (system design for this feature)
-  - api-contracts.md (interface definitions)
+  - Relevant EXECUTION.md slice(s) driving the issue
+  - docs/system-design.md sections for affected subsystems
+  - GitHub issue body (acceptance criteria, user stories)
+  - discover → to-prd handoff (scope, edge cases, implementation decisions)
 
-LOAD IF EXISTS:
-  - edge-cases.md (known gotchas)
-  - db-changes.md (if touching persistence)
-  - ai-eval-plan.md (if AI feature)
+LOAD WHEN VENDOR/PLATFORM WORK:
+  - docs/<vendor>_api/*.md as needed (auth, webhooks, endpoints, rate-limits)
+  - docs/<vendor>_platform/*/implementation-hooks.md (guardrails, alerts, gates)
 
-DOMAIN DOCS (TikTok integration work):
-  - docs/tiktok_api/*.md as needed (auth, webhooks, endpoints, rate-limits)
+LOAD IF EXISTS (legacy only):
+  - docs/features/<feature-name>/*.md — historical attachments; prefer canonical docs
 
-DO NOT load:
-  - PRD.md (business context, not needed for implementation)
+DO NOT load by default:
+  - Full EXECUTION.md when a single slice is sufficient
+  - Superseded ADRs unless the issue explicitly references them
 ```
 
 ### Step 4: Load Layer Context
@@ -88,7 +109,7 @@ Services (src/services/webhook, src/services/polling):
   - Skip: dashboard components
 
 Data (src/data):
-  - Load: db-changes.md, Supabase/RLS patterns, performance rules
+  - Load: system-design.md data-pipeline section, issue schema notes, Supabase/RLS patterns, performance rules
   - Skip: TikTok signing details unless migration touches credentials
 
 Auth (src/auth):
@@ -96,7 +117,7 @@ Auth (src/auth):
   - Skip: product analytics
 
 API (src/api):
-  - Load: api-endpoint checklist, api-contracts.md
+  - Load: api-endpoint checklist, issue API contracts / system-design.md interface notes
   - Skip: raw TikTok client internals unless proxying
 
 Intelligence (src/intelligence/scoring):
@@ -108,7 +129,7 @@ Interface (web/, ios/):
   - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
 
 AI features (post-MVP / OpenAI):
-  - Load: review ai-integration checklist, feature ai-eval-plan.md
+  - Load: review ai-integration checklist, system-design.md ML model sections, issue eval notes
   - Skip: TikTok connector docs unrelated to the model call
 ```
 
@@ -148,7 +169,7 @@ Target: **60-70% of context window for actual code and task**. Context docs shou
 | Priority | Content | Budget |
 |----------|---------|--------|
 | 1 (Critical) | Current file + immediate dependencies | 30% |
-| 2 (High) | Feature architecture + API contracts | 15% |
+| 2 (High) | system-design.md + issue acceptance criteria | 15% |
 | 3 (Medium) | Applicable standards + patterns | 10% |
 | 4 (Low) | Examples + anti-patterns (load on demand) | 5% |
 
@@ -162,11 +183,13 @@ When invoked, produce a context loading plan:
 ## Context Plan: [Feature/Task Name]
 
 ### Load (Required)
+- `EXECUTION.md` (slice P2-1)
+- `docs/system-design.md` (Data pipeline → Phase 2)
 - `docs/architecture/map.md`
 - `docs/architecture/data-sources.md`
-- `docs/features/tiktok-order-webhook-sync/architecture.md`
-- `docs/features/tiktok-order-webhook-sync/api-contracts.md`
-- `src/services/webhook/MODULE.md`
+- GitHub issue #N — acceptance criteria
+- `docs/tiktok_api/endpoints.md`, `authentication.md`
+- `src/services/polling/MODULE.md`
 - `src/data/MODULE.md`
 
 ### Load (If Needed)
@@ -190,9 +213,9 @@ When invoked, produce a context loading plan:
 
 | Agent | Uses Navigator For |
 |-------|-------------------|
-| Discovery Agent | N/A (produces context, doesn't consume) |
+| Discovery Agent | Updates canonical docs; handoff consumed by to-prd |
 | Implementation Agent | Gets precisely scoped context for coding |
-| Validation Agent | Gets standards + feature specs for review |
+| Validation Agent | Gets standards + canonical docs + issue for review |
 | Context Manager | IS the focus skill |
 
 ## Anti-Patterns
@@ -207,7 +230,7 @@ Loading specs from features that have since changed — causes hallucinated patt
 Loading the same information from multiple sources — wastes budget, risks conflicts.
 
 ### Missing Context
-Not loading edge-cases.md — agent produces happy-path-only code.
+Not loading discover handoff edge cases or system-design failure modes — agent produces happy-path-only code.
 
 ## Additional Resources
 

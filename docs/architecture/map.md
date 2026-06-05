@@ -1,16 +1,54 @@
 # Architecture Map
 
-Single source of truth for all modules in the Juli-AI codebase. `focus` consults
-this first to compute a minimum context-loading set for any task. The `review`
-skill verifies that any new module added in a PR is also listed here.
+**As-built source of truth for what is deployed** in the Juli-AI codebase —
+modules, polling jobs, API schemas, endpoints. `focus` consults this first to
+compute a minimum context-loading set for any task. The `review` skill verifies
+that any new module added in a PR is also listed here.
 
-> Update this file whenever you add, rename, remove, or significantly
-> restructure a module.
+> Update this file whenever you add, rename, remove, or significantly restructure
+> a module. For the plan that drives changes see [`../../EXECUTION.md`](../../EXECUTION.md);
+> for technical design see [`../system-design.md`](../system-design.md).
+>
+> **Authority:** `EXECUTION.md` > `system-design.md` > this file. This file describes
+> **reality as deployed**, not the target.
 
-**Phased evolution:** MVP (UI-only) → v1.5 (scheduled monolith + daily batch) →
-v2.0 (near-realtime: Redis + Celery). See [`migration_path.md`](../../migration_path.md).
+## North star
 
-## Module Tier Policy
+Juli-AI helps TikTok Shop sellers **make and keep more money** through three
+agentic workflows — **New Seller Copilot**, **Revenue Leakage Detection**, and
+**Growth Copilot**. Built UI-first (Phase 1), then ML (Phase 1.5), then live data
+(Phase 2). See [`../../EXECUTION.md`](../../EXECUTION.md).
+
+**What we build:** seller-money workflows — get to first profitable sales, stop
+revenue leakage (returns/refunds/affiliate fraud), grow ad ROAS.
+
+**What we do _not_ build:** generic analytics dashboards, CRM, inventory/finance/
+settlement software, or creator↔shop matching (Phase 3+, see ADR history).
+
+## Code layout (actual)
+
+The backend is a modular monolith under `src/`. **No folder reshaping until Phase
+2.5** — `src/apps` + `src/modules` stays as-is.
+
+```
+src/
+├── apps/                         # Deployable entrypoints (composition only)
+│   ├── api_gateway/
+│   │   ├── api/                  # FastAPI /v1 routers + app factory
+│   │   └── services/webhook/     # TikTok webhook receiver (HMAC → ETL)
+│   └── cron_jobs/services/polling/   # Scheduled sync workers
+├── modules/                      # Domain modules (business logic)
+│   ├── identity/                 # Auth: Supabase phone-OTP, JWT, TikTok OAuth
+│   ├── catalog/domain/
+│   │   ├── integrations/tiktok/  # TikTok Shop Partner API client
+│   │   └── recommendations/      # Decision/recommendation generation
+│   └── ordering/                 # Ingestion handoff + ETL (data accumulation)
+└── shared/utils/data/            # SQLAlchemy models, repos, DB session
+```
+
+Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
+
+## Module tier policy
 
 | Tier | Definition | MODULE.md required? |
 |------|-----------|---------------------|
@@ -18,119 +56,65 @@ v2.0 (near-realtime: Redis + Celery). See [`migration_path.md`](../../migration_
 | **2: Feature** | Domain modules touched by current/upcoming features | **Yes** (lazy — created on first touch) |
 | **3: Utility** | Stable, single-purpose, rarely changed | Optional |
 
-## Current Modules
+## Current modules
 
 | Module | Tier | Responsibility | Public Surface | Owners |
 |--------|------|----------------|----------------|--------|
-| [`src/integrations/tiktok`](../../src/integrations/tiktok/MODULE.md) | 1 | TikTok Shop Partner API client (auth, signing, rate limiting, resources) | `TikTokClient`, `TikTokAuth`, `RateLimiter`, `OrdersResource`, `ProductsResource`, `InventoryResource`, `CreatorsResource`, `LivestreamsResource`, `SettlementsResource`, `TikTokAPIError` hierarchy | domain: integrations |
-| [`src/ingestion`](../../src/ingestion/MODULE.md) | 1 | Ingest handoff contracts and `make_etl_handoff` wiring | `HandoffFn`, `make_etl_handoff` | domain: integrations |
-| [`src/services/webhook`](../../src/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
-| [`src/services/polling`](../../src/services/polling/MODULE.md) | 2 | Background polling sync workers (orders, products, inventory) | `sync_orders`, `sync_products`, `sync_inventory` | domain: integrations |
-| [`src/data`](../../src/data/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `TikTokCredential`, `Order`, `Product`, `InventoryItem`, `Settlement`, `Creator`, `Livestream`, `AlertConfig`, `AlertHistory`, `Recommendation`, `UsersRepo`, `ShopsRepo`, `TikTokCredentialRepo`, `ShopScopedRepo[T]`, `OrdersRepo`, `ProductsRepo`, `InventoryRepo`, `SettlementsRepo`, `CreatorsRepo`, `LivestreamsRepo`, `AlertConfigsRepo`, `AlertHistoryRepo`, `RecommendationsRepo`, `Base`, `NotFound`, `get_session`, `init_session_factory` | domain: data |
-| [`src/auth`](../../src/auth/MODULE.md) | 1 | Supabase phone-OTP login, JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `SupabaseAuth`, `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
-| [`src/api`](../../src/api/MODULE.md) | 1 | FastAPI REST API with versioned routing, auth middleware, shop-scoped endpoints | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/shops/me` | domain: api |
-| [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: Supabase phone-OTP auth, JWT Keychain storage, shop selection, daily value loop navigation shell | `AuthService`, `KeychainService`, `APIClient`, `OfflineCacheService`, `DailyLoopTab` | domain: ios |
-| [`src/intelligence/scoring`](../../src/intelligence/scoring/MODULE.md) | 2 | Post-stream livestream scoring, anomaly detection, retention curves, Vietnamese comment sentiment | `score_livestream`, `detect_anomalies`, `get_stream_retention`, `analyze_comments`, `LivestreamScore`, `Anomaly`, `RetentionPoint`, `SentimentResult` | domain: intelligence |
-| [`src/intelligence/forecasting`](../../src/intelligence/forecasting/MODULE.md) | 2 | SKU inventory depletion forecasting, low-stock risk ranking, velocity change detection | `get_forecast`, `get_low_stock_risks`, `get_velocity_changes`, `ForecastResult`, `LowStockRisk`, `VelocityChange` | domain: intelligence |
-| [`src/recommendations`](../../src/recommendations/MODULE.md) | 2 | Rule-based product push suggestions (trend + stock + margin), plain Vietnamese CTAs | `get_product_push_suggestions`, `ProductPushSuggestion` | domain: recommendations |
-| [`src/etl`](../../src/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
-| [`src/alerts`](../../src/alerts/MODULE.md) | 2 | Per-shop alert rules, cooldown dedup, pluggable channel delivery (FCM MVP) | `evaluate_rules`, `configure_rules`, `deliver_alert`, `FcmAdapter`, `ChannelAdapter`, `Alert`, `AlertEvent` | domain: alerts |
-| [`web`](../../web/MODULE.md) | 2 | Next.js web dashboard: phone-OTP login, homepage, orders management | `/login`, `/`, `/orders` | domain: web |
-| `src/jobs/*` | 2 (v1.5+) | Isolated batch tasks: scraping, forecasting, anomaly, recommendation, sentiment | Per-job modules under `src/jobs/` | domain: intelligence |
-| `src/pipelines/` | 2 (v1.5+) | Composes jobs (e.g. `daily_pipeline()` in `daily.py`) | `daily_pipeline` | domain: orchestration |
-| `src/orchestration/` | 2 (v1.5+) | APScheduler triggers only (v2.0: Celery Beat upgrade) | `scheduler.py` | domain: orchestration |
+| [`src/modules/catalog/domain/integrations/tiktok`](../../src/modules/catalog/domain/integrations/tiktok/MODULE.md) | 1 | TikTok Shop Partner API client (auth, signing, rate limiting, resources) | `TikTokClient`, `TikTokAuth`, `RateLimiter`, `CreatorsResource`, `ProductsResource`, `OrdersResource`, `InventoryResource`, `LivestreamsResource`, `SettlementsResource`, `TikTokAPIError` hierarchy | domain: integrations |
+| [`src/modules/ordering/api/ingestion`](../../src/modules/ordering/api/ingestion/MODULE.md) | 1 | Ingest handoff contracts and `make_etl_handoff` wiring | `HandoffFn`, `make_etl_handoff` | domain: data |
+| [`src/apps/api_gateway/services/webhook`](../../src/apps/api_gateway/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
+| [`src/apps/cron_jobs/services/polling`](../../src/apps/cron_jobs/services/polling/MODULE.md) | 2 | Background polling sync workers (seller signal collection) | `sync_creators`, `sync_products`, `sync_orders`, `backfill_shop` | domain: integrations |
+| [`src/shared/utils/data`](../../src/shared/utils/data/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `Creator`, `Product`, `Recommendation`, … repos, `Base`, `NotFound`, `get_session` | domain: data |
+| [`src/modules/identity/infrastructure/auth`](../../src/modules/identity/infrastructure/auth/MODULE.md) | 1 | Supabase phone-OTP login, JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `SupabaseAuth`, `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
+| [`src/apps/api_gateway/api`](../../src/apps/api_gateway/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, creators, products, recommendations | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/creators`, `GET /v1/products`, `GET /v1/recommendations` | domain: api |
+| [`src/modules/catalog/domain/recommendations`](../../src/modules/catalog/domain/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
+| [`src/modules/ordering/use_cases/etl`](../../src/modules/ordering/use_cases/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
+| [`web`](../../web/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
+| [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: Supabase phone-OTP auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
 
-## Dependency Graph
+## Pending cleanup (tracked in EXECUTION.md)
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                 src/integrations/tiktok                       │
-│  ┌─────────┐  ┌────────┐  ┌──────────┐  ┌──────────────┐    │
-│  │ signing │  │  auth  │  │  client  │  │ rate_limiter │    │
-│  └─────────┘  └────────┘  └────┬─────┘  └──────────────┘    │
-│                       ┌────────┴────────┐                      │
-│                       │   resources/    │                      │
-│                       └─────────────────┘                      │
-└──────────────────────────────────────────────────┼───────────┘
-                                                   │
-                  ┌────────────────────────────────┴────────┐
-                  │                                          │
-        ┌─────────▼──────────┐              ┌───────────────▼──────────┐
-        │ src/services/      │              │  src/services/polling    │
-        │     webhook        │              │  (sync_orders,           │
-        │  (HMAC validate)   │              │   sync_products,         │
-        └─────────┬──────────┘              │   sync_inventory)        │
-                  │                         └───────────────┬──────────┘
-                  └──────────────┬──────────────────────────┘
-                                 │ validated payloads
-                          ┌──────▼──────┐
-                          │  src/etl    │
-                          │ dedup/load  │
-                          └──────┬──────┘
-                                 │
-                          ┌──────▼──────┐     ┌─────────────────────────┐
-                          │  src/data   │◄────│ src/jobs/* (v1.5+)      │
-                          │ (Supabase)  │     │ src/pipelines/daily.py  │
-                          └──────┬──────┘     │ src/orchestration/      │
-                                 │            │   APScheduler (v1.5)    │
-                                 │            │   Celery Beat (v2.0)    │
-                                 │            └─────────────────────────┘
-                                 │
-                          ┌──────▼──────┐
-                          │   src/api   │◄─── ios (HTTP)
-                          │  (FastAPI)  │◄─── web (HTTP)
-                          └──────┬──────┘
-                                 │
-                    v2.0: Redis pub/sub → WebSocket (derived UI state)
-```
+These remain in the tree but are **out of scope** for Phase 1–2 and slated for
+removal. Deleting code is sequenced after the docs rescope (not part of the first
+PR) to avoid breaking imports/tests:
 
-## Layer Reference
+| Target | Why | Status |
+|--------|-----|--------|
+| `src/modules/catalog/domain/intelligence/**` | Legacy creator-matching/livestream scoring — not a seller-money workflow | Remove (verify no live callers first) |
+| Polling: `sync_inventory`, `sync_settlements`, `sync_livestreams` | Inventory/finance/livestream-ops not in Phase 1–2 scope | Remove from polling workers |
 
-| Layer | Purpose | Current Modules | Stack |
-|-------|---------|-----------------|-------|
-| Integrations | External API clients, OAuth, signing | `src/integrations/*` | Python / httpx |
-| Services | Long-running processes (receivers, workers, APIs) | `src/services/*` | Python / FastAPI |
-| ETL | Validation path → transform → `src/data` | `src/etl` | Python |
-| Intelligence | Post-stream scoring, forecasting, anomaly detection, sentiment analysis | `src/intelligence/scoring`, `src/intelligence/forecasting` | Python / SQLAlchemy (read-only) |
-| Jobs & pipelines (v1.5+) | Isolated tasks + `daily_pipeline()` composition | `src/jobs/*`, `src/pipelines/*` | Python / Scrapy (scraping) |
-| Orchestration (v1.5+) | Timing only — APScheduler; Celery Beat in v2.0 | `src/orchestration/` | APScheduler → Celery |
-| Data | Supabase Postgres, migrations, query layer | `src/data` | Supabase / SQLAlchemy / asyncpg / Alembic |
-| Interface | Web dashboard + iOS app | `web`, `ios` | Next.js (web) / SwiftUI (iOS) |
-| Alerts | Multi-channel alert delivery | `src/alerts` | FCM (MVP); Zalo OA (#40) |
-| Infrastructure (planned) | Deployment configs, CI/CD | _none yet_ | Railway / Vercel / GitHub Actions |
+> Already removed in an earlier pass: API routers `analytics`, `settlements`,
+> `inventory`, `orders`, `livestreams`, `alerts`; the `catalog/domain/alerts`
+> module; matching-specific web pages.
 
-### Key Architectural Decisions
+## Key architectural decisions
 
-- **Backend:** Python / FastAPI only — no Node.js/NestJS (see [ADR-001](../decisions/001-keep-python-fastapi.md))
-- **Database:** Supabase (managed Postgres + Auth + Storage) — source of truth for operational state (see [ADR-002](../decisions/002-supabase-backend-service.md))
-- **Auth:** Supabase Auth (phone-OTP, JWT) — FastAPI validates tokens via middleware
-- **iOS:** Native Swift / SwiftUI alongside web dashboard
-- **Ingestion (v1.5):** Webhook/polling → validation → ETL → `src/data` — no separate event bus in v1.5
-- **Near-realtime (v2.0):** Redis + Celery workers; WebSocket carries **derived** updates only (see `migration_path.md`)
-- **Local AI:** Optional cost layer on local node; cloud APIs must run if local inference is down
-- **Data Sources:** TikTok Shop Official API is the only authoritative
-  source in MVP. Unofficial livestream websockets and Seller Center
-  scraping are explicitly forbidden. The full source-by-source matrix
-  with MVP / v1.5 / v2.0 / out-of-scope status lives in
-  [`data-sources.md`](data-sources.md) — `discover`, `focus`, and
-  `review` must consult it before proposing work that depends on any
-  external data.
+- **Backend:** Python / FastAPI only ([ADR-001](../decisions/001-keep-python-fastapi.md))
+- **Database:** Supabase (managed Postgres + Auth) — source of truth ([ADR-002](../decisions/002-supabase-backend-service.md))
+- **Auth:** Supabase Auth (phone-OTP, JWT) — FastAPI validates tokens
+- **Data sources:** TikTok Shop Official API only. Unofficial livestream websockets,
+  Seller Center scraping, and buyer PII storage are **permanently forbidden**. See
+  [`data-sources.md`](data-sources.md).
+- **Platform policy:** Seller/creator feature guides and policy center rules live in
+  [`docs/tiktok_platform/`](../tiktok_platform/README.md). Implementation hooks
+  (`seller/implementation-hooks.md`, `creator/implementation-hooks.md`) define alerts,
+  gates, and ETL behavior for Phase 2 workflows.
+- **Runtime evolution:** simple daily scheduler in Phase 2; **no** Celery/Kafka
+  (Phase 3+, see [`../../EXECUTION.md`](../../EXECUTION.md) → Explicitly out).
 
-## Adding a New Module
+> **Platform policy (Phase 2):** [ADR-008](../decisions/008-alert-vp-ahr-milestones.md)
+> (milestone alerts), [ADR-009](../decisions/009-dual-read-vp-ahr-transition.md)
+> (VP→AHR dual-read), [ADR-010](../decisions/010-vn-regional-platform-config.md)
+> (VN regional thresholds).
+>
+> **Historical decisions:** [ADR-006](../decisions/006-matching-pivot.md) (creator↔shop
+> matching pivot) and [ADR-007](../decisions/007-ml-north-star-models.md) (north-star
+> ML models) are **superseded** by the seller-money rescope in `EXECUTION.md`. Kept
+> as ADR history only.
 
-When `build-feature` introduces a new module:
+## Adding / removing a module
 
-1. Create `<module-path>/MODULE.md` following the template in
-   [focus/SKILL.md](../../.cursor/skills/standalone/focus/SKILL.md)
-2. Add a row to the "Current Modules" table above
-3. Update the dependency graph if it changes
-4. Commit all three changes together with the feature
-
-## Removing a Module
-
-When deleting a module:
-
-1. Remove the row from "Current Modules"
-2. Update the dependency graph
-3. Search for and remove `MODULE.md` references in dependent modules
-4. Run `review` to surface any callers that still depend on it
+When adding: create `<module>/MODULE.md`, add a row above, update any diagrams,
+commit together, and link the PR to the driving EXECUTION.md slice. When removing:
+delete the row, search for and remove `MODULE.md` references in dependents, and run
+`review` to surface stale callers.

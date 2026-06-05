@@ -9,6 +9,7 @@ description: Creates new agent skills with a consistent folder structure, progre
 
 - Create a new folder at `skills/<skill-name>/`
 - Add `SKILL.md` with the required frontmatter (`name`, `description`)
+- If the skill routes to marketplace plugins or MCP, add a `catalog:` block (see `skill-catalog/SKILL.md`) or reference `catalog.pluginIndex: skill-catalog` from `focus`
 - Keep `SKILL.md` short; move long content to `REFERENCE.md` / `EXAMPLES.md`
 
 ### Workflow

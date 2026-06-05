@@ -23,11 +23,11 @@ roughly 6–10 weeks of infrastructure work before TikTok integration could ship
 Realtime, and Storage.
 
 - **Database:** Supabase-hosted Postgres; application access via SQLAlchemy async
-  + asyncpg in `src/data` (Alembic migrations).
-- **Auth:** Supabase Auth for phone-OTP; `src/auth` verifies JWTs on every
-  protected FastAPI request (`verify_supabase_jwt`, `get_current_user`).
-- **TikTok OAuth:** Application-owned in `src/auth` (`TikTokOAuthService`) with
-  tokens stored in `TikTokCredential` — not delegated to Supabase.
+  + asyncpg in `src/shared/utils/data` (Alembic migrations).
+- **Auth:** Supabase Auth for phone-OTP; `src/modules/identity/infrastructure/auth`
+  verifies JWTs on every protected FastAPI request (`verify_supabase_jwt`, `get_current_user`).
+- **TikTok OAuth:** Application-owned in `src/modules/identity/infrastructure/auth`
+  (`TikTokOAuthService`) with tokens stored in `TikTokCredential` — not delegated to Supabase.
 - **Redis (v2.0) is unchanged** — Supabase does not replace caching, rate
   limits, Celery, or the event bus.
 
@@ -45,18 +45,18 @@ Realtime, and Storage.
 ## Architecture Integration
 
 ```
-┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
-│  iOS App    │     │  Next.js (web/)  │     │  Alerts      │
-│  (SwiftUI)  │     │  Dashboard       │     │  (Zalo/FCM)   │
-└──────┬──────┘     └────────┬─────────┘     └──────┬───────┘
+┌─────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  iOS App    │     │  Next.js (web/)  │     │  Actions (v1.5)  │
+│  (SwiftUI)  │     │  Matching UI     │     │  (Zalo/FCM)      │
+└──────┬──────┘     └────────┬─────────┘     └──────┬───────────┘
        │    Supabase OTP      │    Supabase OTP       │
        │    + FastAPI JWT     │    + FastAPI JWT      │
        └─────────────────────┼───────────────────────┘
                              │
-                    ┌────────▼────────┐
-                    │  src/api        │
-                    │  (FastAPI REST) │
-                    └────────┬────────┘
+                    ┌────────▼─────────────┐
+                    │  api_gateway/api     │
+                    │  (FastAPI REST /v1)  │
+                    └────────┬─────────────┘
                              │
               ┌──────────────┼──────────────┐
               │              │              │
@@ -75,11 +75,11 @@ Realtime, and Storage.
 
 | Concern | Location | Notes |
 |---------|----------|-------|
-| Phone OTP | `src/auth/supabase.py` (`SupabaseAuth`) | Direct Supabase Auth REST via httpx |
-| JWT validation | `src/auth/jwt.py`, `dependencies.py` | `pyjwt`; FastAPI `get_current_user` |
-| TikTok tokens | `src/data` (`TikTokCredential`) | Encrypted per shop; refresh in `TikTokOAuthService` |
-| Persistence | `src/data` | Models + `ShopScopedRepo`; see MODULE.md |
-| Migrations | Alembic under `src/data` | App-owned schema evolution |
+| Phone OTP | `src/modules/identity/infrastructure/auth` (`SupabaseAuth`) | Direct Supabase Auth REST via httpx |
+| JWT validation | `src/modules/identity/infrastructure/auth` (`verify_supabase_jwt`, dependencies) | `pyjwt`; FastAPI `get_current_user` |
+| TikTok tokens | `src/shared/utils/data` (`TikTokCredential`) | Encrypted per shop; refresh in `TikTokOAuthService` |
+| Persistence | `src/shared/utils/data` | Models + `ShopScopedRepo`; see MODULE.md |
+| Migrations | Alembic under `src/shared/utils/data` | App-owned schema evolution |
 
 Clients (`web/`, `ios/`) may call Supabase Auth directly for OTP; business APIs
 go through FastAPI with the issued JWT.
@@ -89,7 +89,7 @@ go through FastAPI with the issued JWT.
 - FastAPI is the **authorization boundary** for shop-scoped commerce APIs.
 - Realtime dashboard features should prefer Supabase Realtime where possible.
 - Redis remains for TikTok rate limiting, Celery broker, and hot caches.
-- Ingest uses in-process handoff to `src/etl` in v1.5 (see ADR-004 and `migration_path.md`).
+- Ingest uses in-process handoff to `src/modules/ordering/use_cases/etl` (see ADR-004 and [`EXECUTION.md`](../../EXECUTION.md)).
 - [`docs/architecture/data-sources.md`](../architecture/data-sources.md) row #2
   marks Supabase Postgres as the sole MVP OLTP store.
 
@@ -103,7 +103,7 @@ go through FastAPI with the issued JWT.
 
 ## References
 
-- [`src/auth/MODULE.md`](../../src/auth/MODULE.md)
-- [`src/data/MODULE.md`](../../src/data/MODULE.md)
+- [`src/modules/identity/infrastructure/auth/MODULE.md`](../../src/modules/identity/infrastructure/auth/MODULE.md)
+- [`src/shared/utils/data/MODULE.md`](../../src/shared/utils/data/MODULE.md)
 - [`docs/architecture/map.md`](../architecture/map.md)
-- [`docs/tiktok-shop-execution-plan.md`](../tiktok-shop-execution-plan.md) — stack table
+- [`EXECUTION.md`](../../EXECUTION.md) — phased execution plan (single source of truth)

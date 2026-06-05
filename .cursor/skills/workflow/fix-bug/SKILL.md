@@ -72,7 +72,7 @@ Orchestrates the full bug-fix lifecycle by invoking skills in a fixed sequence. 
 
 ### Implementation Order
 Process issues top-to-bottom. For each issue: run focus → tdd → review → ship.
-If a report required architectural change to fix, note it — may need `discover` first.
+If a report required architectural change to fix, note it — may need `discover` first to update canonical docs (`EXECUTION.md`, `system-design.md`, architecture, ADRs).
 ```
 
 ---
@@ -92,7 +92,7 @@ For each issue in the queue, run these four skills in sequence:
   - The module's `MODULE.md` (from `docs/architecture/map.md`)
   - Immediate dependencies (upstream callers, downstream services)
   - Applicable standards (reliability if error-handling bug, security if vulnerability, etc.)
-- Identifies relevant MCP tools and plugins needed
+- Identifies relevant MCP tools and plugin skills from [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) (`catalog` frontmatter)
 - Keeps context narrow — only what's needed to understand the affected code path
 
 **Handoff → tdd:**
@@ -112,10 +112,10 @@ For each issue in the queue, run these four skills in sequence:
 - Standards applied: [reliability, security, observability — which ones]
 - Rules active: [which .cursor/rules/*.mdc apply]
 
-### MCP Tools Available
-- [supabase]: for DB inspection, migrations (if data bug)
-- [context7]: for library/framework API docs
-- [shadcn]: for UI components (if frontend bug)
+### Plugin skills & MCP (from skill-catalog)
+- Plugin skills to load: [/skill-name, …]
+- MCP servers: [serverName from catalog, …]
+- Catalog: `.cursor/skills/skill-catalog/SKILL.md`
 
 ### Affected Code Path
 - Entry point: [API endpoint, handler, or function]
@@ -343,5 +343,5 @@ When all issues in the queue are shipped:
 | Performance degradation (no functional bug) | `review` + profiling |
 | Flaky test (not a production bug) | `tdd` to stabilize the test |
 | Security vulnerability (needs immediate action) | Hotfix process in `ship` (SEV1) |
-| Bug requires architectural change to fix properly | `discover` first to design the fix, then come back here |
+| Bug requires architectural change to fix properly | `discover` first to update canonical docs, then come back here |
 | Single skill in isolation (just need to file issues) | Invoke `qa` directly |

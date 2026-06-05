@@ -71,17 +71,19 @@ listed below, in this order.
 
 **Script:** [`scripts/validate/check_handoff.py`](../../../scripts/validate/check_handoff.py)
 
-**Reads:** Any `docs/handoffs/<topic>-NN.md` referenced by the PR or branch.
+**Reads:** Any legacy `docs/handoffs/<topic>-NN.md` referenced by the PR or branch.
+
+> The `docs/handoffs/` registry was removed in the seller-money rescope;
+> cross-session continuity now lives in the driving slice in
+> [`EXECUTION.md`](../../../EXECUTION.md). This is now a **dormant** gate.
 
 **Passes if (when a handoff exists):**
 - Filename matches `<topic>-NN.md`.
-- Required sections present per
-  [`docs/handoffs/_bootstrap.md`](../../../docs/handoffs/_bootstrap.md): `Status`,
-  `Modules`, `Bootstrap prompts`.
+- Required sections present: `Status`, `Modules`, `Bootstrap prompts`.
 - Module references exist in [`docs/architecture/map.md`](../../../docs/architecture/map.md).
 
 **Skipped if:**
-- No handoff is present and the PR fits in a single session.
+- No handoff is present (the normal case) — track continuity in `EXECUTION.md` instead.
 
 ## 6. `adr_requirement`
 

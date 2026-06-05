@@ -2,6 +2,27 @@
 
 Detailed rules for deciding what context to load based on code patterns detected.
 
+## Plugin skills and MCP
+
+Before loading feature docs for integration work, consult the project plugin index:
+
+- **Catalog:** [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) (`catalog` frontmatter lists MCP servers + `/skill-name` invocations)
+- **MCP routing rule:** [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc)
+
+| Task signal | Plugin skill(s) to load | MCP `serverName` |
+|-------------|-------------------------|------------------|
+| Supabase schema, RLS, auth | `supabase`, `supabase-postgres-best-practices` | `supabase` |
+| Framework/library docs | `context7-mcp` | `context7` |
+| New/stale vendor API reference | `api-docs`, `context7-mcp` | `context7` |
+| Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch TikTok Shop University + official policy pages) |
+| Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
+| `web/` Next.js, deploy | `nextjs`, `react-best-practices` | `plugin-vercel-vercel` (deploy only) |
+| shadcn component | `shadcn` | `shadcn` (prefer `user-shadcn`) |
+| Sentry / prod errors | `sentry-workflow` → `sentry-python-sdk` or `sentry-nextjs-sdk` | `plugin-sentry-sentry` |
+| Figma | `figma-use` (required before `use_figma`) | `figma` |
+| E2E browser | — | `playwright` or `cursor-ide-browser` |
+| Celery / Redis | — | `celery`, `upstash` |
+
 ## Detection Patterns → Context Mapping
 
 ### Python/FastAPI Patterns
@@ -47,22 +68,24 @@ Some detections override others:
 
 | Context Type | Staleness Threshold | Action |
 |-------------|--------------------:|--------|
-| Feature specs | If PR merged > 7 days ago | Verify still current |
-| API contracts | If endpoint modified since spec | Reload from source |
+| EXECUTION.md / system-design.md | If rescope PR merged | Reload affected slices/sections |
+| GitHub issue / PRD | If discover handoff updated since issue filed | Reload issue + handoff |
 | Standards | Never stale | Always use latest |
 | Architecture | If new services added | Regenerate affected sections |
 
 ## Multi-Feature Context
 
-When a task spans multiple features:
+When a task spans multiple EXECUTION.md slices or subsystems:
 
-1. Load shared architectural context ONCE
-2. Load feature-specific context for EACH affected feature
-3. Deduplicate overlapping standards
-4. Flag potential conflicts between feature specs
+1. Load shared architectural context ONCE (`EXECUTION.md`, `map.md`, `data-sources.md`)
+2. Load each affected `system-design.md` subsystem section
+3. Load GitHub issues / discover handoffs for each slice
+4. Deduplicate overlapping standards
+5. Flag potential conflicts between slice scopes
 
-Example: "Add demand forecasting on top of TikTok inventory sync"
-- Load: `docs/features/tiktok-inventory-sync/architecture.md`
+Example: "Add demand forecasting on top of TikTok inventory polling (P2-1 + P1.5-4)"
+- Load: `EXECUTION.md` slices P2-1, P1.5-4
+- Load: `docs/system-design.md` → Data pipeline + ML models sections
 - Load: `docs/architecture/data-sources.md` (confirm #1 API only)
 - Load: `src/services/polling/MODULE.md`, `src/data/MODULE.md`
 - Load: review ai-integration checklist (shared, if model calls added)

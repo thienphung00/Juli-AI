@@ -4,7 +4,7 @@
 
 Ingestion consumer: deduplicates by `event_id`, transforms payloads, persists via
 `src/data` repositories. Webhook and polling services hand off validated payloads
-directly (no message bus in v1.5). See [`migration_path.md`](../../migration_path.md).
+directly (no message bus). See [`EXECUTION.md`](../../../../../EXECUTION.md).
 
 ## Public API
 

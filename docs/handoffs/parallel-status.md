@@ -5,8 +5,8 @@
 | Issue | Title | Modules | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------|--------|--------|----------|------------|
 | #118 | Seller home shell — routing + persona switcher | `web/seller-home` | **Done** (merged #129) | `feature/issue-118-ship-verify` | `.worktrees/issue-118` | **Owner** — verify + close issue |
-| #119 | New Seller Copilot UI (mocked) | `web/workflows/new-seller` | Unblocked | `feature/issue-119-new-seller-copilot` | `.worktrees/issue-119` | Local commits; hand off push/PR to #118 window |
-| #120 | Revenue Leakage Detection UI (mocked) | `web/workflows/leakage` | **Ready for PR** | `feature/issue-120-revenue-leakage-ui` | `.worktrees/issue-120` | Local commits; hand off push/PR to #118 window |
+| #119 | New Seller Copilot UI (mocked) | `web/workflows/new-seller` | **Done** (merged #130) | `feature/issue-119-new-seller-copilot` | `.worktrees/issue-119` | Merged |
+| #120 | Revenue Leakage Detection UI (mocked) | `web/workflows/leakage` | **Done** (merged #131) | `feature/issue-120-revenue-leakage-ui` | `.worktrees/issue-120` | Merged |
 
 ## Module disjointness
 
@@ -17,14 +17,19 @@
 | Field | Value |
 |-------|-------|
 | **Owner** | Window #118 (ship-verify) |
-| **Last remote op** | — |
+| **Last remote op** | 2026-06-05T09:01Z — `gh pr merge 131` (squash) |
 | **Stagger rule** | ≥ 30s between `git push`, `gh pr create`, `gh pr merge`, `gh issue close` |
 
 ### Remote op log
 
 | Time (UTC) | Agent | Command | Issue |
 |------------|-------|---------|-------|
-| — | — | — | — |
+| 2026-06-05T20:15:00Z | #118 window | `gh issue view 118` | #118 — already CLOSED (PR #129) |
+| 2026-06-05T21:35Z | #119 | `git push -u origin feature/issue-119-new-seller-copilot` | #119 |
+| 2026-06-05T21:36Z | #119 | `gh pr create` → #130 | #119 |
+| 2026-06-05T21:38Z | #119 | `gh pr merge 130` (squash) | #119 |
+| 2026-06-05T08:59Z | #120 | `git push --force-with-lease` (rebase onto #119) | #120 |
+| 2026-06-05T09:01Z | #120 | `gh pr merge 131` (squash) | #120 |
 
 ## After each merge
 

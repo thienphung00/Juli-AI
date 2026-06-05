@@ -31,8 +31,8 @@ git commit -m "chore: add review artifact for issue #123"
 git push
 ```
 
-If context was lost, hand off to a fresh session via
-[`docs/handoffs/_bootstrap.md`](../handoffs/_bootstrap.md) before regenerating.
+If context was lost, resume from the driving slice in
+[`EXECUTION.md`](../../EXECUTION.md) before regenerating.
 
 ---
 
@@ -119,7 +119,7 @@ Cycle: src/auth -> src/api -> src/data -> src/auth
 
 ---
 
-## Context overflow: need a handoff
+## Context overflow: resuming an unfinished issue
 
 ### When
 
@@ -127,23 +127,16 @@ The session is approaching its token limit and the issue is not finished.
 
 ### Fix
 
-1. Pick a topic-NN slug consistent with [`docs/handoffs/`](../handoffs/) (e.g.
-   `tiktok-mvp-issues-02.md`).
-2. Use the bootstrap protocol from
-   [`docs/handoffs/_bootstrap.md`](../handoffs/_bootstrap.md):
-   ```markdown
-   # <Topic> NN
+1. Update the driving slice status in [`EXECUTION.md`](../../EXECUTION.md) (keep the
+   checkbox unchecked, note what remains and any blockers).
+2. Commit, push, open a draft PR linked to that slice.
+3. Resume in a fresh session from the same slice — `EXECUTION.md` is the
+   cross-session source of truth (the `docs/handoffs/` registry was removed in the
+   seller-money rescope).
 
-   ## Status
-   | Issue | Modules | Status |
-   |-------|---------|--------|
-   | #456 | src/auth | Unblocked |
-
-   ## Bootstrap prompts
-   <copy the per-issue bootstrap block>
-   ```
-3. Commit, push, open a draft PR.
-4. `check_handoff.py` validates the *shape* of the file in CI.
+> The `check_handoff.py` gate still validates the *shape* of any
+> `docs/handoffs/*.md` file if one is present, but handoffs are no longer the
+> required continuity mechanism.
 
 ---
 

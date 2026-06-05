@@ -1,186 +1,181 @@
-# Authentication & Authorization
+# Authentication
 
-## Overview
+OAuth 2.0 authorization-code flow for seller consent, plus HMAC-SHA256 signing on
+every Open API call.
 
-TikTok Shop Partner API uses a dual-layer security model:
-1. **OAuth 2.0** — Seller authorization and token-based access
-2. **HMAC-SHA256 Signing** — Request integrity verification on every API call
+**Sources:**
+- [TikTok Shop Developer Guide](https://partner.tiktokshop.com/docv2/page/tts-developer-guide)
+- [Call Get Authorized Shops](https://partner.tiktokshop.com/docv2/page/call-get-authorized-shops)
+- [Sign your API request](https://partner.tiktokshop.com/docv2/page/sign-your-api-request)
+- Implementation: `src/modules/catalog/domain/integrations/tiktok/auth.py`, `signing.py`
 
-Both layers are mandatory. OAuth provides user-level authorization; HMAC proves the request originated from your registered app.
+---
 
-## OAuth 2.0 Flow
+## OAuth 2.0 flow
 
-### App Registration
+```
+Seller → Partner Center consent URL → redirect with auth_code
+      → POST /api/v2/token/get → access_token + refresh_token
+      → GET /authorization/202309/shops → shop list + shop_cipher
+      → Signed API calls with access_token + shop_cipher
+```
 
-| Field | Description |
+### Step 1 — Authorization URL
+
+| Field | Value |
+|-------|-------|
+| URL | `https://services.tiktokshop.com/open/authorize` |
+| Query params | `app_key`, `redirect_uri`, `state` |
+
+Implemented in `TikTokAuth.generate_auth_url()`.
+
+**Source:** `auth.py` + Partner Center OAuth docs (developer guide).
+
+### Step 2 — Exchange auth code
+
+| Field | Value |
+|-------|-------|
+| Method | `POST` |
+| Path | `/api/v2/token/get` |
+| Base URL | `https://open-api.tiktokglobalshop.com` |
+
+**Request body:**
+
+| Field | Type | Required |
+|-------|------|----------|
+| `app_key` | string | Yes |
+| `app_secret` | string | Yes |
+| `auth_code` | string | Yes |
+| `grant_type` | string | Yes — `"authorized_code"` |
+
+**Response `data` (observed in tests):**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `access_token` | string | Shop-scoped API token |
+| `refresh_token` | string | Rotate before access expiry |
+| `access_token_expire_in` | integer | Seconds until expiry (604800 = 7d in test fixtures) |
+| `open_id` | string | Seller identifier |
+| `seller_name` | string | Display name |
+
+**Source:** `tests/unit/test_tiktok_oauth.py`, `TikTokAuth.exchange_code()`.
+
+### Step 3 — Refresh token
+
+| Field | Value |
+|-------|-------|
+| Method | `POST` |
+| Path | `/api/v2/token/refresh` |
+
+**Request body:**
+
+| Field | Type | Required |
+|-------|------|----------|
+| `app_key` | string | Yes |
+| `app_secret` | string | Yes |
+| `refresh_token` | string | Yes |
+| `grant_type` | string | Yes — `"refresh_token"` |
+
+Refresh returns a new access + refresh pair. `TikTokOAuthService.refresh_tokens()`
+in `src/modules/identity/infrastructure/auth/tiktok_oauth.py` persists encrypted
+credentials via `TikTokCredentialRepo`.
+
+**Operational rule:** refresh proactively before expiry (tests refresh when within
+24h of expiration).
+
+---
+
+## Authorized shops
+
+After OAuth, resolve which shops the token can access.
+
+| Field | Value |
+|-------|-------|
+| Method | `GET` |
+| Path | `/authorization/202309/shops` |
+| Header | `x-tts-access-token: <access_token>` |
+| Header | `Content-Type: application/json` |
+| Query | `app_key`, `sign`, `timestamp` |
+
+**Response `data.shops[]`:**
+
+| Field | Juli mapping | Notes |
+|-------|--------------|-------|
+| `id` | `Shop.tiktok_shop_id` | Primary shop key for webhooks + ETL |
+| `cipher` | `Shop.shop_cipher` | Required on most shop-scoped API calls |
+| `name` | `Shop.name` | |
+| `region` | `Shop.region` | Market-specific behavior |
+| `code` | — | Shop code |
+| `seller_type` | — | Seller classification |
+
+**Source:** [call-get-authorized-shops](https://partner.tiktokshop.com/docv2/page/call-get-authorized-shops)
+
+---
+
+## Request signing (HMAC-SHA256)
+
+Every Open API call includes signed query parameters.
+
+### Required query parameters
+
+| Param | Description |
 |-------|-------------|
-| App Key | Public identifier for your app |
-| App Secret | Private key for signing and token exchange |
-| Redirect URI | Where TikTok sends the auth code after consent |
-| App Type | `custom` (single seller) or `public` (multi-seller ISV) |
+| `app_key` | App Key from Partner Center |
+| `timestamp` | Unix epoch seconds — must be within **5 minutes** of sign creation |
+| `access_token` | Current OAuth access token |
+| `shop_cipher` | Shop cipher (when endpoint is shop-scoped) |
+| `sign` | HMAC-SHA256 signature (computed last) |
 
-### Authorization Sequence
+### Signature algorithm
 
-```
-┌──────────┐     ┌─────────────┐     ┌──────────────┐
-│  Seller  │     │  Your App   │     │  TikTok API  │
-└────┬─────┘     └──────┬──────┘     └──────┬───────┘
-     │  1. Click "Connect"│                   │
-     │──────────────────▶│                    │
-     │                    │ 2. Redirect to     │
-     │◀───────────────────│    TikTok OAuth    │
-     │                    │                    │
-     │  3. Login + Grant  │                    │
-     │────────────────────────────────────────▶│
-     │                    │                    │
-     │                    │ 4. Redirect with   │
-     │                    │◀───────────────────│
-     │                    │    auth_code       │
-     │                    │                    │
-     │                    │ 5. Exchange code   │
-     │                    │───────────────────▶│
-     │                    │                    │
-     │                    │ 6. Return tokens   │
-     │                    │◀───────────────────│
-     │                    │   (access+refresh) │
-```
+Implemented in `sign_request()` (`signing.py`):
 
-### Token Exchange Request
+1. Exclude `sign` and `access_token` from the canonical param string.
+2. Sort remaining params alphabetically by key.
+3. Concatenate as `key1value1key2value2...` (no separator).
+4. Build sign string: `{app_secret}{path}{canonical}{body}{app_secret}`.
+5. HMAC-SHA256 with `app_secret` as key → lowercase hex digest.
 
-```
-POST /api/v2/token/get
-Content-Type: application/json
+POST bodies are JSON with sorted keys, no spaces: `json.dumps(body, separators=(",", ":"), sort_keys=True)`.
 
-{
-  "app_key": "<APP_KEY>",
-  "app_secret": "<APP_SECRET>",
-  "auth_code": "<AUTH_CODE>",
-  "grant_type": "authorized_code"
-}
-```
+**Source:** [sign-your-api-request](https://partner.tiktokshop.com/docv2/page/sign-your-api-request), `signing.py`.
 
-### Token Exchange Response
+### Common auth failures
 
-```json
-{
-  "data": {
-    "access_token": "ROW_xxx...",
-    "access_token_expire_in": 604800,
-    "refresh_token": "ROW_yyy...",
-    "refresh_token_expire_in": 5184000,
-    "open_id": "seller_open_id",
-    "seller_name": "Shop Name"
-  }
-}
-```
+| Symptom | Likely cause |
+|---------|--------------|
+| Auth error (code 100002) | Expired token, bad signature, stale timestamp (>5 min) |
+| Permission denied (100003) | Missing scope (common for Affiliate endpoints) |
+| Invalid `x-tts-access-token` | Token/header mismatch on versioned GET routes |
 
-## Token Lifecycle
+---
 
-| Token | TTL | Renewal Strategy |
-|-------|-----|-----------------|
-| Access Token | 7 days (604,800s) | Refresh before expiry via refresh endpoint |
-| Refresh Token | ~60 days (5,184,000s) | If expired, seller must re-authorize |
+## Scopes and entity tags
 
-### Refresh Strategy
+Partner Center groups endpoints by **entity tag** (seller, shop, partner, creator,
+asset) indicating authorization boundaries.
 
-Schedule daily token refreshes to maintain a healthy buffer. Never wait until expiration.
+**Source:** [api-entity-tags](https://partner.tiktokshop.com/docv2/page/api-entity-tags)
 
-```
-POST /api/v2/token/refresh
-Content-Type: application/json
+| Juli resource | Scope notes |
+|---------------|-------------|
+| Orders, Products | Standard shop token — P2 core |
+| Affiliate (creators, livestreams) | Per-seller scope approval required |
+| Finance / settlements | Shop token; values pending 7–14d |
+| Ads | **P2 scope** per `EXECUTION.md` — endpoint paths **UNKNOWN** in current client |
 
-{
-  "app_key": "<APP_KEY>",
-  "app_secret": "<APP_SECRET>",
-  "refresh_token": "<REFRESH_TOKEN>",
-  "grant_type": "refresh_token"
-}
-```
+Affiliate `PermissionDeniedError` (100003) should surface re-consent UX, not silent failure.
 
-### Token Storage Requirements
+---
 
-- Encrypt tokens at rest (AES-256 or cloud KMS)
-- Store per seller: `shop_id`, `access_token`, `refresh_token`, `expires_at`, `refresh_expires_at`
-- Set up automated refresh jobs (cron/scheduler) running daily
-- Monitor for `UPCOMING_AUTHORIZATION_EXPIRATION` webhook (fires 30 days before refresh token expiry)
-- Handle `SELLER_DEAUTHORIZATION` webhook to invalidate stored tokens immediately
+## Credential storage
 
-## HMAC-SHA256 Request Signing
+| Concern | Owner module |
+|---------|--------------|
+| OAuth URL + code exchange | `TikTokAuth` |
+| Encrypted token persistence | `TikTokOAuthService` + `TikTokCredentialRepo` |
+| Per-request signing | `TikTokClient` + `sign_request` |
 
-Every API call must include a signature computed from request parameters.
+`TikTokAuth` does **not** persist tokens — storage is the identity/persistence layer.
 
-### Signing Algorithm
-
-1. Collect all query parameters (excluding `sign` and `access_token`)
-2. Sort parameters alphabetically by key
-3. Concatenate as `key=value` pairs (no separator between pairs)
-4. Prepend the API path (e.g., `/api/orders/search`)
-5. Append the request body (if POST with JSON body)
-6. Wrap with App Secret: `{app_secret}{canonical_string}{app_secret}`
-7. Compute HMAC-SHA256 of the wrapped string using App Secret as key
-8. Convert to lowercase hex string
-
-### Pseudocode
-
-```python
-import hmac
-import hashlib
-
-def sign_request(app_secret: str, path: str, params: dict, body: str = "") -> str:
-    sorted_params = sorted(params.items())
-    canonical = "".join(f"{k}{v}" for k, v in sorted_params)
-    
-    sign_string = f"{app_secret}{path}{canonical}{body}{app_secret}"
-    
-    signature = hmac.new(
-        app_secret.encode(),
-        sign_string.encode(),
-        hashlib.sha256
-    ).hexdigest()
-    
-    return signature
-```
-
-### Required Request Headers/Params
-
-| Parameter | Location | Description |
-|-----------|----------|-------------|
-| `app_key` | Query | Your App Key |
-| `timestamp` | Query | Unix timestamp (seconds) |
-| `sign` | Query | HMAC-SHA256 signature |
-| `access_token` | Query | OAuth access token |
-| `shop_cipher` | Query | Encrypted shop ID (cross-border only) |
-
-## API Scopes
-
-Scopes control which endpoints your app can access. Configure in Partner Center → App Settings.
-
-### Common Scopes
-
-| Scope | Access Granted |
-|-------|---------------|
-| `shop.authorization` | View authorized shop info |
-| `product.basic` | Read/write product listings |
-| `order.basic` | Read order information |
-| `order.fulfillment` | Manage shipping/tracking |
-| `inventory.basic` | Read/write inventory levels |
-| `finance.basic` | Read settlement/payment data |
-| `affiliate.basic` | Manage affiliate campaigns |
-| `message.basic` | Read/send buyer messages |
-
-### Scope Categories
-
-- **Seller scopes** — Access seller-specific shop data
-- **Partner scopes** — Partner-level management capabilities
-- **Creator scopes** — Creator marketplace interactions
-
-## Implementation Checklist
-
-- [ ] Register app in Partner Center, obtain App Key + Secret
-- [ ] Implement OAuth redirect flow with state parameter (CSRF protection)
-- [ ] Build token exchange and storage (encrypted DB)
-- [ ] Implement automatic daily token refresh job
-- [ ] Build HMAC signing utility with canonical string construction
-- [ ] Handle auth errors: 401 (bad sign), 403 (expired token), re-auth flows
-- [ ] Monitor `SELLER_DEAUTHORIZATION` and `UPCOMING_AUTHORIZATION_EXPIRATION` webhooks
-- [ ] Test with sandbox/test shops before production
+**Env vars:** `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET`, `TIKTOK_REDIRECT_URI`, `TIKTOK_BASE_URL` (optional override).

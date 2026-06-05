@@ -20,8 +20,9 @@ agents lose context across sessions. We have already accepted that:
   to-issues -> focus -> tdd -> review -> validate -> ship` and `qa -> focus -> tdd
   -> review -> validate -> ship` respectively.
 - Issue concurrency is governed by [`.cursor/rules/issue-workflow.mdc`](../../.cursor/rules/issue-workflow.mdc)
-  using the disjoint-modules rule, with handoffs registered in
-  [`docs/handoffs/_bootstrap.md`](../handoffs/_bootstrap.md).
+  using the disjoint-modules rule, with cross-session ownership tracked per slice
+  in [`EXECUTION.md`](../../EXECUTION.md). _(Historical: a `docs/handoffs/` registry
+  previously held this; removed in the seller-money rescope.)_
 
 What is missing is a deterministic CI/CD enforcement layer. Today there are no
 GitHub Actions workflows, no validation scripts, and no machine-verifiable
@@ -89,8 +90,8 @@ CI **must fail** on any of:
   (per `check_module_drift.py`) for any Tier 1/2 module touched by the PR.
 - Cyclic dependency among modules listed in [`docs/architecture/map.md`](../architecture/map.md).
 - ADR required (architectural change) but no new file in `docs/decisions/`.
-- Handoff document present but missing required sections from
-  [`docs/handoffs/_bootstrap.md`](../handoffs/_bootstrap.md).
+- Handoff document present (legacy `docs/handoffs/*.md`) but missing required
+  sections per `check_handoff.py` (dormant gate; handoffs no longer required).
 - Lint, type-check, unit test, integration test, or migration up/down/up failure.
 
 CI **must warn (not fail)** on:
@@ -148,4 +149,4 @@ fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
 - [`.cursor/rules/dev-workflow.mdc`](../../.cursor/rules/dev-workflow.mdc) — version control + CI/CD rule
 - [`.cursor/rules/issue-workflow.mdc`](../../.cursor/rules/issue-workflow.mdc) — disjoint-modules concurrency rule
 - [`docs/architecture/map.md`](../architecture/map.md) — authoritative module list
-- [`docs/handoffs/_bootstrap.md`](../handoffs/_bootstrap.md) — handoff schema
+- [`EXECUTION.md`](../../EXECUTION.md) — single source of truth (plan + cross-session ownership)

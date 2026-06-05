@@ -5,6 +5,8 @@ alwaysApply: true
 
 # MCP Tool Usage
 
+For plugin skill names and per-server routing, see [`.cursor/skills/skill-catalog/SKILL.md`](../skills/skill-catalog/SKILL.md) (`catalog` frontmatter).
+
 ## Principle: Minimal Tool Surface
 
 Only invoke MCP tools from servers that are directly relevant to the task at hand.

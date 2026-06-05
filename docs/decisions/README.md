@@ -6,7 +6,16 @@
 | [002](002-supabase-backend-service.md) | Use Supabase as backend-as-a-service | Accepted |
 | [003](003-ai-native-cicd-policy.md) | AI-native CI/CD policy (artifact-driven gates) | Accepted |
 | [004](004-etl-kafka-consumer.md) | ETL ingest consumer module (handoff → Postgres) | Accepted |
-| [005](005-alerts-module.md) | Alerts module with pluggable channel adapters | Accepted |
+| [005](005-alerts-module.md) | Alerts module with pluggable channel adapters | Superseded by 006 |
+| [006](006-matching-pivot.md) | Pivot to Creator ↔ Shop Matching + commerce graph | Superseded by rescope |
+| [007](007-ml-north-star-models.md) | North-star ML models + vendor feature ingestion | Superseded by rescope |
+| [008](008-alert-vp-ahr-milestones.md) | Alert on VP/AHR milestones — not silent degradation | Accepted |
+| [009](009-dual-read-vp-ahr-transition.md) | Dual-read VP + AHR during platform transition (May–July 2026) | Accepted |
+| [010](010-vn-regional-platform-config.md) | VN-specific regional platform configuration | Accepted |
 
-Referenced from [`docs/architecture/map.md`](../architecture/map.md) and
-[`docs/tiktok-shop-execution-plan.md`](../tiktok-shop-execution-plan.md).
+ADRs 006–007 are **historical**: the product was rescoped from creator↔shop
+matching to **seller-money** workflows (New Seller Copilot, Revenue Leakage
+Detection, Growth Copilot). The current plan and design live in
+[`EXECUTION.md`](../../EXECUTION.md) and [`docs/system-design.md`](../system-design.md).
+
+Referenced from [`docs/architecture/map.md`](../architecture/map.md).

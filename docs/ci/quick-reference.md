@@ -23,8 +23,9 @@ Cheat sheet for [ADR-003](../decisions/003-ai-native-cicd-policy.md). Pair with
 - `MODULE.md` updated for every Tier 1/2 module whose interfaces changed
   (per [`docs/architecture/map.md`](../architecture/map.md))
 - ADR added at `docs/decisions/NNN-slug.md` if the change is architectural
-- Handoff at `docs/handoffs/<topic>-NN.md` if work spans sessions
-  (governed by [`docs/handoffs/_bootstrap.md`](../handoffs/_bootstrap.md))
+- Cross-session work tracked against the driving slice in
+  [`EXECUTION.md`](../../EXECUTION.md) (the `docs/handoffs/` registry was removed
+  in the seller-money rescope)
 - Root `done.md` checklist all checked off
 
 ## CI Failure Map

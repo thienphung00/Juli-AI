@@ -13,6 +13,8 @@ Orchestrates the full feature lifecycle by invoking skills in a fixed sequence. 
 
 ## Pipeline
 
+For a **net-new external vendor**, run **`api-docs`** (`docs/<vendor>_api/`) and **`platform-docs`** (`docs/<vendor>_platform/`) before discover.
+
 ```
 ┌───────────┐    ┌──────────┐    ┌───────────┐
 │  discover │───▶│  to-prd  │───▶│ to-issues │
@@ -48,35 +50,50 @@ Orchestrates the full feature lifecycle by invoking skills in a fixed sequence. 
 **Skill:** `discover`
 
 **What it does:**
-- Explores the codebase and relevant docs (`docs/architecture/map.md`, `docs/architecture/data-sources.md`, MODULE.md files, `docs/tiktok_api/` when integrating TikTok)
-- Asks the user clarifying questions (business goals, constraints, dependencies, failure modes)
-- Identifies affected architectural layers and cross-cutting concerns
-- Produces understanding of scope, dependencies, and edge cases
+- Loads canonical docs (`EXECUTION.md`, `docs/system-design.md`, `docs/architecture/`, `docs/decisions/`)
+- Consumes `api-docs` and `platform-docs` handoffs when vendor/platform context applies
+- Explores the codebase and MODULE.md files for prior art
+- Asks clarifying questions (business goals, constraints, dependencies, failure modes, phase fit)
+- **Updates** canonical docs — does not generate `docs/features/<feature>/`
+- Hands off scope summary to `to-prd`
 
 **Handoff → to-prd:**
 
 ```markdown
 ## Handoff: discover → to-prd
 
-### Feature Summary
-[One paragraph: what this feature does and why]
+### Feature summary
+[One paragraph: what, why, for whom]
+
+### Canonical doc updates (this session)
+- EXECUTION.md: <slices/phases changed>
+- docs/system-design.md: <sections changed>
+- docs/architecture/map.md: <modules/edges changed | none>
+- docs/architecture/data-sources.md: <rows changed | none>
+- docs/decisions/: <ADR-NNN added/updated | none>
 
 ### Scope
-- Affected layers: [list from docs/architecture/map.md / architecture-context.md]
-- Data sources: [rows from docs/architecture/data-sources.md]
-- Services to modify: [existing modules]
-- New services needed: [if any]
-- Database changes: [yes/no + brief]
-- API surface changes: [breaking/additive/none]
+- EXECUTION.md phase/slices: [e.g. P1-3, P2-1]
+- Affected layers: [from map.md]
+- Data sources: [rows from data-sources.md]
+- Services to modify / add: [modules]
+- DB changes: [yes/no + brief]
+- API surface: [breaking/additive/none]
 
 ### Constraints
-- [Budget, timeline, compliance, model tier — anything gathered]
+- [Budget, timeline, compliance, platform limits]
 
-### Edge Cases & Failure Modes
-- [Enumerated list from discovery questions]
+### Edge cases & failure modes
+- [From discovery + risks.md + platform policy]
 
-### Open Questions
-- [Anything still unresolved — to-prd will note these as assumptions]
+### Implementation decisions
+- [Key architectural choices from Research & Reuse]
+
+### Assumptions for to-prd
+- [Anything still soft]
+
+### Open questions
+- [Unresolved items]
 ```
 
 ---
@@ -153,11 +170,12 @@ For each AFK issue: run focus → tdd → review → ship.
 
 For each issue in the queue, run these four skills in sequence.
 
-**Parallel runs:** When multiple issues are in-flight, follow
-`docs/handoffs/_bootstrap.md` § GitHub ops coordination — one agent holds the
-GitHub ops lock in `parallel-status.md` (push, `gh pr *`, merge, registry
-updates on `main`); other agents commit locally and hand off. Stagger remote
-GitHub commands by **≥ 30 seconds** between operations.
+**Parallel runs:** When multiple issues are in-flight, coordinate via the driving
+slices in [`EXECUTION.md`](../../../../EXECUTION.md) and the disjoint-modules rule in
+[`.cursor/rules/issue-workflow.mdc`](../../../rules/issue-workflow.mdc) — one agent
+holds the GitHub ops lock (push, `gh pr *`, merge, status updates on `main`); other
+agents commit locally and update their slice. Stagger remote GitHub commands by
+**≥ 30 seconds** between operations.
 
 ### 4a. Focus
 
@@ -168,7 +186,7 @@ GitHub commands by **≥ 30 seconds** between operations.
 - Classifies what the implementation involves (API, data, AI, frontend, infra)
 - Loads the right context: MODULE.md files, architecture docs, API contracts
 - Loads applicable rules (`.cursor/rules/`) and standards based on detection
-- Identifies relevant MCP tools and plugins needed (Supabase MCP for DB work, Context7 for library docs, shadcn for UI components, etc.)
+- Identifies relevant MCP tools and plugin skills from [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) (`catalog` frontmatter)
 - Produces a context loading plan with explicit include/exclude
 
 **Handoff → tdd:**
@@ -186,11 +204,10 @@ GitHub commands by **≥ 30 seconds** between operations.
 - Standards applied: [reliability, security, observability, performance — which ones]
 - Rules active: [which .cursor/rules/*.mdc apply]
 
-### MCP Tools Available
-- [supabase]: for DB migrations, RLS policies, schema inspection
-- [context7]: for library/framework API docs
-- [shadcn]: for UI components (if frontend work)
-- [figma]: for design reference (if UI work)
+### Plugin skills & MCP (from skill-catalog)
+- Plugin skills to load: [/skill-name, …]
+- MCP servers: [serverName from catalog, …]
+- Catalog: `.cursor/skills/skill-catalog/SKILL.md`
 
 ### Implementation Approach
 - New files: [list with purpose]
@@ -303,7 +320,7 @@ GitHub commands by **≥ 30 seconds** between operations.
 - Reads the review handoff
 - Validates the PR passes all pre-merge gate checks (lint, type-check, tests, security scan)
 - Evaluates deployment readiness (migration safety, rollback plan, feature flag)
-- Merges the PR if all gates pass — **GitHub ops owner only** when parallel agents are active; wait **≥ 30s** after the last remote GitHub op (see `parallel-status.md`)
+- Merges the PR if all gates pass — **GitHub ops owner only** when parallel agents are active; wait **≥ 30s** after the last remote GitHub op (coordinate via the driving slice in `EXECUTION.md`)
 - Closes the corresponding GitHub issue
 - Records what was shipped for the next issue in the queue
 

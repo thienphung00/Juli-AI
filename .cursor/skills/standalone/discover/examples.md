@@ -1,91 +1,88 @@
 # Blueprint Examples
 
-## Example 1: TikTok Order Webhook Sync
+## Example 1: Phase 2 TikTok Order Polling Slice
 
 ### User Request
 
-> "Process TikTok order webhooks and keep the dashboard in sync."
+> "Wire TikTok order polling for Revenue Leakage Detection in Phase 2."
+
+### Upstream inputs
+
+- `api-docs` handoff: `docs/tiktok_api/` — Orders API, rate limits, auth
+- `platform-docs` handoff: seller operational limits, ISV data obligations
 
 ### Clarifying Questions Asked
 
-1. Webhook or polling only? → Webhook primary; 15-minute reconciliation poll as backup
-2. Idempotency key? → `(event_type, shop_id, entity_id, update_time)`
-3. Failure handling? → ETL DLQ handoff + structured logs; no silent drops
-4. Multi-tenant isolation? → All writes scoped by `shop_id` via repos
-5. Data source allowed? → TikTok Shop Official API + webhooks only (see `data-sources.md` #1, #4)
+1. Phase fit? → Phase 2 slice **P2-1** (polling live)
+2. Webhook or polling? → Polling for MVP; webhooks deferred to v1.5
+3. Idempotency key? → `(shop_id, order_id, update_time)`
+4. Failure handling? → ETL DLQ handoff + structured logs; no silent drops
+5. Data source allowed? → TikTok Shop Official API only (`data-sources.md` #1)
 
-### Generated Docs
+### Canonical doc updates
 
-```
-docs/features/tiktok-order-webhook-sync/
-  PRD.md
-  architecture.md
-  api-contracts.md
-  db-changes.md
-  edge-cases.md
-```
+| File | Change |
+|------|--------|
+| `EXECUTION.md` | Confirmed **P2-1** slice; linked issue ref |
+| `docs/system-design.md` | Data pipeline Phase 2 row — Orders polling mechanism |
+| `docs/architecture/map.md` | `src/services/polling/` + `src/integrations/tiktok/` edges |
+| `docs/architecture/data-sources.md` | Row #1 status confirmed MVP |
+| `docs/decisions/` | None (reused existing ADR-002 Supabase boundary) |
 
-### Key Architecture Decision
+### Handoff highlight
 
-- `src/services/webhook` verifies HMAC and hands off to ETL
-- Consumers upsert via `src/data` repos
-- `src/api` exposes read models to `web/` and `ios/`
+- Modules: `src/integrations/tiktok`, `src/services/polling`, `src/data`
+- API surface: additive internal jobs; no new public HTTP in P2-1 alone
 
 ---
 
-## Example 2: Post-Stream Livestream Scoring
+## Example 2: Rescope — Creator Matching Deferred
 
 ### User Request
 
-> "Score livestreams after they end and flag revenue anomalies."
+> "Should we build creator ↔ shop matching in the next quarter?"
 
 ### Clarifying Questions Asked
 
-1. Realtime stream telemetry? → **No** — post-stream API summaries only (`data-sources.md` #7, #8)
-2. Minimum history for anomalies? → 30 sessions; moving-average fallback below
-3. Writes to DB? → Scoring module is read-only; persistence stays in `src/data` callers
-4. Sentiment? → Lexicon-based Vietnamese comments; no external NLP in MVP
+1. North star alignment? → **No** — seller-money workflows take priority
+2. UX validation done? → Not yet for matching; seller copilots validated first
+3. Data sources? → Matching would need creator APIs + policy gates (Phase 3+)
 
-### Generated Docs
+### Canonical doc updates
 
-```
-docs/features/livestream-post-stream-scoring/
-  PRD.md
-  architecture.md
-  edge-cases.md
-```
+| File | Change |
+|------|--------|
+| `EXECUTION.md` | Creator matching in **Explicitly out**; ADR-006/007 referenced as superseded |
+| `docs/system-design.md` | No matching subsystem rows added |
+| `docs/decisions/006-matching-pivot.md` | Status → Superseded (if not already) |
 
-### Key Architecture Decision
+### Handoff highlight
 
-- Implement in `src/intelligence/scoring/`
-- Document retention curves as **estimates**, not measured minute-by-minute viewers
+- Feature deferred; `to-prd` not invoked unless user requests a Phase 3+ spike PRD
 
 ---
 
-## Example 3: Seller Alert on Low Inventory
+## Example 3: New Seller Copilot — Phase 1 UI Slice
 
 ### User Request
 
-> "Notify the seller when SKU stock drops below threshold."
+> "Add mocked onboarding flow for new sellers."
 
 ### Clarifying Questions Asked
 
-1. Channels? → FCM always-on; Zalo OA when template approved
-2. Trigger source? → Inventory sync from TikTok API (#1) + webhook updates (#4)
-3. Rate limits? → Debounce per SKU per shop; no alert storms
-4. PII in alert body? → Product name + SKU only; no buyer data
+1. Phase fit? → Phase 1 slice **P1-2**
+2. Real API? → **No** — mock JSON only per Phase 1 exit gate
+3. Seller-stage routing? → Rules-based tree (**P1-6** dependency)
+4. Executor? → Approval flow no-op (**P1-5**)
 
-### Generated Docs
+### Canonical doc updates
 
-```
-docs/features/low-inventory-alerts/
-  PRD.md
-  architecture.md
-  api-contracts.md
-  edge-cases.md
-```
+| File | Change |
+|------|--------|
+| `EXECUTION.md` | **P1-2** slice description refined; dependency on P1-5, P1-6 noted |
+| `docs/system-design.md` | Agent decision tree Phase 1 column — onboarding task sequence |
+| `docs/architecture/map.md` | `web/` workflow routes (no new backend modules) |
 
-### Key Architecture Decision
+### Handoff highlight
 
-- Alert dispatcher as channel-pluggable service (planned layer in `map.md`)
-- Threshold config stored in `src/data` (`AlertConfig`)
+- UI-only; `to-prd` receives scope for GitHub issue #108 alignment

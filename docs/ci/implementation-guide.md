@@ -40,9 +40,10 @@ artifacts/
 
 docs/
   decisions/                     # NNN-slug.md ADRs
-  handoffs/                      # _bootstrap.md + <topic>-NN.md registries
+  system-design.md               # technical design (phase-mapped)
   architecture/map.md            # authoritative module list
 
+EXECUTION.md                     # root single source of truth (plan + ownership)
 done.md                          # root definition-of-done checklist
 ```
 
@@ -268,16 +269,15 @@ Example mapping:
 
 ## Handoff Validation
 
-Handoffs live in [`docs/handoffs/`](../handoffs/). Naming convention is
-`<topic>-NN.md` (e.g. `tiktok-mvp-issues-01.md`), governed by
-[`docs/handoffs/_bootstrap.md`](../handoffs/_bootstrap.md). When present, a
-handoff must include:
+The `docs/handoffs/` registry was removed in the seller-money rescope;
+cross-session ownership and continuity now live in
+[`EXECUTION.md`](../../EXECUTION.md) (per-slice status). See
+[ADR-003](../decisions/003-ai-native-cicd-policy.md) for the policy.
 
-- `Status` per issue (`Done` / `Blocked` / `Unblocked` / `Isolate`)
-- `Modules` (rows from [`docs/architecture/map.md`](../architecture/map.md))
-- Bootstrap prompt block
-
-`check_handoff.py` validates *shape only*; it never auto-generates a handoff.
+`check_handoff.py` remains as a dormant gate: if any `docs/handoffs/*.md` file is
+present it validates *shape only* (a `Status` per issue, `Modules` rows from
+[`docs/architecture/map.md`](../architecture/map.md), and a bootstrap prompt
+block); it never auto-generates a handoff and passes when no handoff exists.
 
 ## Module Boundary Rules
 

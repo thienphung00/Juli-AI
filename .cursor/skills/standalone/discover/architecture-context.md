@@ -45,6 +45,18 @@ TikTok API / webhooks
 
 ## Discovery Outputs
 
-Feature specs produced by `discover` live under `docs/features/<feature-name>/`
-(see `discover/SKILL.md`). Domain-wide TikTok integration docs remain under
-`docs/tiktok_api/`.
+`discover` updates **canonical repo docs** — not per-feature folders. See
+[`EXECUTION.md`](../../../../EXECUTION.md) → Canonical doc map:
+
+| File | Role |
+|------|------|
+| `EXECUTION.md` | Phases, slices, gates, in/out scope |
+| `docs/system-design.md` | Agent tree, pipeline, ML, executor — mapped to phases |
+| `docs/architecture/map.md` | As-built module graph |
+| `docs/architecture/data-sources.md` | Data-status matrix |
+| `docs/decisions/` | Architecture decision records |
+
+Vendor integration reference material lives under `docs/<vendor>_api/` (`api-docs`)
+and `docs/<vendor>_platform/` (`platform-docs`). Feature PRDs are produced by
+`to-prd` (GitHub issue body); optional copies under `docs/features/` are historical
+attachments only.

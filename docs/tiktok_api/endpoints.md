@@ -1,252 +1,274 @@
-# API Endpoints & Data Models
+# Endpoints
 
-## Overview
+Categorized inventory of TikTok Shop Open API endpoints relevant to Juli-AI.
+Versioned paths are from official Partner Center docs; **Implemented path** reflects
+the current Python client — reconcile during P2-1 if paths diverge.
 
-The TikTok Shop Partner API is organized into domain-specific endpoint groups. All endpoints follow the pattern:
-
-```
-https://open-api.tiktokglobalshop.com/{path}
-```
-
-Base URLs vary by region (US, UK, SEA) — use the seller's region endpoint.
-
-## Endpoint Categories
-
-### Shop & Authorization
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v2/authorized_shop/list` | GET | List all shops authorized to your app |
-| `/api/v2/shop/get_authorized_shop` | GET | Get shop details (name, region, status) |
-
-**Key Fields Returned:**
-- `shop_id` — Unique shop identifier
-- `shop_cipher` — Encrypted ID for cross-border API calls
-- `shop_name` — Display name
-- `region` — Market code (US, GB, TH, VN, etc.)
-- `seller_type` — `local` or `cross_border`
+**Source:** [Developer Guide](https://partner.tiktokshop.com/docv2/page/tts-developer-guide),
+[Java SDK example](https://partner.tiktokshop.com/docv2/page/integrate-java-sdk),
+`src/modules/catalog/domain/integrations/tiktok/resources/`.
 
 ---
 
-### Products & Catalog
+## Vendor → Juli entity mapping
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/products/search` | POST | Search/list products with filters |
-| `/api/products/details` | GET | Get full product detail by ID |
-| `/api/products` | POST | Create a new product listing |
-| `/api/products/{id}` | PUT | Update product attributes |
-| `/api/products/{id}/inventory` | PUT | Update stock for a product |
-| `/api/products/categories` | GET | Get category tree |
-| `/api/products/attributes` | GET | Get required attributes for a category |
-| `/api/products/brands` | GET | Search/list brands |
-
-**Product Data Model:**
-
-```json
-{
-  "product_id": "string",
-  "title": "string",
-  "description": "string (HTML)",
-  "category_id": "string",
-  "brand_id": "string",
-  "status": "ACTIVE | INACTIVE | DRAFT | SUSPENDED",
-  "images": [{"url": "string", "width": 0, "height": 0}],
-  "skus": [
-    {
-      "sku_id": "string",
-      "seller_sku": "string",
-      "price": {"amount": "string", "currency": "string"},
-      "stock": {"quantity": 0, "warehouse_id": "string"},
-      "sales_attributes": [{"name": "Color", "value": "Red"}]
-    }
-  ],
-  "package_weight": {"value": "string", "unit": "KILOGRAM"},
-  "package_dimensions": {"length": "string", "width": "string", "height": "string", "unit": "CENTIMETER"},
-  "created_at": 1234567890,
-  "updated_at": 1234567890
-}
-```
+| TikTok entity | Juli model / edge | Notes |
+|---------------|-------------------|-------|
+| Shop (`id`, `cipher`) | `Shop` | Shop-scoped access everywhere |
+| Product / SKU | `Product` | Catalog + Growth Copilot inputs |
+| Order / line items | `Order` | Revenue Leakage Detection |
+| Return / refund | `Order` status edges | Anomaly detector features |
+| Affiliate Creator | `Creator` | Scope-gated; P2 affiliate polling |
+| Livestream session | Post-stream summary | **Not** realtime telemetry (forbidden #8) |
+| Settlement | Finance signal | `pending` 7–14d; out of P2 core UI |
+| Ad performance | Ads signal | P2 Growth Copilot — client **not yet implemented** |
+| Buyer | Masked `buyer_id` only | No PII (#17) |
 
 ---
 
-### Orders & Fulfillment
+## Authorization
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/orders/search` | POST | List orders with filters (status, date range) |
-| `/api/orders/detail/query` | POST | Get full order details by IDs |
-| `/api/orders/{id}/shipping_info` | GET | Get shipping/tracking info |
-| `/api/orders/shipment` | POST | Confirm shipment (upload tracking) |
-| `/api/orders/{id}/cancel` | POST | Cancel an order |
+### GET `/authorization/202309/shops`
 
-**Order Data Model:**
+| | |
+|---|---|
+| **Permissions** | Valid shop access token |
+| **Pagination** | N/A — returns all authorized shops |
+| **Juli use** | OAuth callback provisioning, multi-shop picker |
 
-```json
-{
-  "order_id": "string",
-  "shop_id": "string",
-  "status": "UNPAID | ON_HOLD | AWAITING_SHIPMENT | AWAITING_COLLECTION | IN_TRANSIT | DELIVERED | COMPLETED | CANCELLED",
-  "payment_status": "PENDING | PAID",
-  "buyer": {
-    "buyer_id": "string",
-    "username": "string",
-    "email": "string (masked)"
-  },
-  "shipping_address": {
-    "name": "string",
-    "phone": "string (masked)",
-    "address_line": "string",
-    "city": "string",
-    "state": "string",
-    "postal_code": "string",
-    "country_code": "string"
-  },
-  "line_items": [
-    {
-      "item_id": "string",
-      "product_id": "string",
-      "sku_id": "string",
-      "product_name": "string",
-      "quantity": 1,
-      "sale_price": "string",
-      "platform_discount": "string",
-      "seller_discount": "string"
-    }
-  ],
-  "payment": {
-    "total_amount": "string",
-    "shipping_fee": "string",
-    "platform_discount": "string",
-    "seller_discount": "string",
-    "currency": "string"
-  },
-  "create_time": 1234567890,
-  "update_time": 1234567890,
-  "shipping_provider": "string",
-  "tracking_number": "string"
-}
-```
+**Response:** `shops[]` with `id`, `cipher`, `name`, `region`, `seller_type`.
+
+**Source:** [call-get-authorized-shops](https://partner.tiktokshop.com/docv2/page/call-get-authorized-shops)
 
 ---
 
-### Inventory
+## Account Health / Performance (Seller)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/inventory/search` | POST | Query stock levels by SKU/warehouse |
-| `/api/inventory/update` | POST | Update stock quantities |
+**Status:** **UNKNOWN** — not confirmed in extracted Partner Center docs.  
+**P2-1 gate:** Verify via Partner Center **API Reference** + **API Testing Tool** (login required).  
+**Forbidden:** No Seller Center scraping ([Forbidden #9](../architecture/data-sources.md#forbidden--always-non-negotiable)).
 
-**Inventory Data Model:**
+### What we want (platform signals)
 
-```json
-{
-  "sku_id": "string",
-  "warehouse_id": "string",
-  "available_quantity": 0,
-  "committed_quantity": 0,
-  "warehouse_name": "string"
-}
-```
+| Platform signal | Used for | Known to exist in policy docs | Partner API exposure (current) |
+|----------------|----------|-------------------------------|--------------------------------|
+| Seller VP score | Affiliate enrollment suppression; risk banding | Yes | **UNKNOWN** |
+| Seller AHR score | Post-July 2026 health gating | Yes | **UNKNOWN** |
+| Seller SFCR / LDR | Proxy operational health | Yes | **UNKNOWN** |
+| Balance withholding status | Treat balance as `frozen` | Yes | **UNKNOWN** |
+| Violation record events | Alerting + appeal-window tracking | Yes | **UNKNOWN** (webhook catalog not extracted) |
 
----
+### Degraded-mode contract (until verified)
 
-### Finance & Settlement
+Juli must **not** assume numeric VP/AHR/CHR scores are exposed. Phase 2 should follow a
+three-tier read strategy:
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/finance/settlements/search` | POST | List settlement records |
-| `/api/finance/transactions/search` | POST | List transaction details |
-| `/api/finance/order/settlement` | GET | Get settlement for specific order |
+| Tier | `health_data_source` | Inputs | Behavior |
+|------|-----------------------|--------|----------|
+| 1 (preferred) | `api` | Official account-health fields (VP/AHR/withholding/violations) | Use exact platform thresholds. |
+| 2 (degraded) | `proxy` | Computed proxies from Orders / Products / Affiliate polling | Approximate risk bands; never fabricate VP/AHR numbers. |
+| 3 (explicit gap) | `unavailable` | No trustworthy fields available | UI shows “health score unavailable”; alerts limited to what can be proven (e.g. product audit status). |
 
-**Settlement Data Model:**
+### Proxy signals we can compute if raw fields exist (UNVERIFIED schemas)
 
-```json
-{
-  "order_id": "string",
-  "settlement_time": 1234567890,
-  "currency": "string",
-  "revenue": "string",
-  "platform_commission": "string",
-  "affiliate_commission": "string",
-  "shipping_fee": "string",
-  "tax": "string",
-  "adjustment": "string",
-  "net_amount": "string"
-}
-```
+| Proxy | Candidate source endpoint | Notes |
+|-------|---------------------------|-------|
+| Seller-fault cancellation rate (SFCR proxy) | Orders search/detail | Requires cancel reason / seller-fault markers (schema not extracted). |
+| Late dispatch rate (LDR proxy) | Orders search/detail | Requires dispatch timestamps + SLA (schema not extracted). |
+| Return/refund rate | Orders + return/refund edges | Partial mapping exists; confirm fields in API Reference. |
+| Listing suspension / audit status | Products search/details | `products[].audit.status` already mapped. |
+| Affiliate enrollment blocked | Affiliate endpoints errors | Behavioral signal: `PermissionDeniedError (100003)`; not a VP/AHR numeric measure. |
 
-> **Note:** Some financial fields (like `revenue`) apply to all regions except UK/US where calculation differs.
+> **Action (P2-1):** Add account-health endpoints + schemas here once verified; update
+> `docs/architecture/data-sources.md` + `docs/system-design.md` to reflect confirmed fields.
 
 ---
 
-### Affiliate & Creator Marketplace
+## Token (no request signing)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/affiliate/campaigns/search` | POST | List affiliate campaigns |
-| `/api/affiliate/creators/search` | POST | Search creators for collaboration |
-| `/api/affiliate/open_collaboration` | POST | Create open collaboration |
+### POST `/api/v2/token/get`
 
----
+Exchange OAuth `auth_code` for tokens. See [authentication.md](authentication.md).
 
-### Messaging
+### POST `/api/v2/token/refresh`
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/customer_service/conversations` | GET | List buyer conversations |
-| `/api/customer_service/messages` | GET | Get messages in a conversation |
-| `/api/customer_service/messages/send` | POST | Send reply to buyer |
+Rotate refresh token. See [authentication.md](authentication.md).
 
 ---
 
-### Returns & Refunds
+## Products
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/return_refund/list` | POST | List return/refund requests |
-| `/api/return_refund/{id}` | GET | Get return details |
-| `/api/return_refund/{id}/approve` | POST | Approve a return |
-| `/api/return_refund/{id}/reject` | POST | Reject a return |
+### Official (versioned)
 
-## Common Query Parameters
+| | |
+|---|---|
+| **Method** | `POST` |
+| **Official path** | `/product/202502/products/search` (SDK: `ProductV202502Api`) |
+| **Permissions** | Shop token + `shop_cipher` |
+| **Pagination** | `page_token` / `next_page_token` cursor |
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `page_size` | int | Results per page (max varies, typically 50-100) |
-| `page_token` | string | Cursor for pagination (next page) |
-| `create_time_from` | int | Unix timestamp filter (inclusive) |
-| `create_time_to` | int | Unix timestamp filter (inclusive) |
-| `update_time_from` | int | Unix timestamp filter |
-| `update_time_to` | int | Unix timestamp filter |
-| `sort_by` | string | Sort field |
-| `sort_order` | string | `ASC` or `DESC` |
+**Request body (documented):**
 
-## Error Response Format
+| Field | Type | Required |
+|-------|------|----------|
+| `status` | string | Optional — `ALL`, `ON_SALE`, `OFF_SALE`, `UNDER_AUDIT` |
+
+**Response `data`:**
+
+| Field | Type |
+|-------|------|
+| `products[]` | array |
+| `products[].id` | string → `Product.external_id` |
+| `products[].create_time` | integer |
+| `products[].audit.status` | string |
+| `next_page_token` | string |
+
+**Source:** [integrate-java-sdk](https://partner.tiktokshop.com/docv2/page/integrate-java-sdk)
+
+### Implemented (`ProductsResource`)
+
+| Method | Path | Methods |
+|--------|------|---------|
+| POST | `/api/products/search` | `search`, `search_all` |
+| GET | `/api/products/details` | `get_details(product_id)` |
+
+**Body filters:** `status`, `update_time_from`, `update_time_to`, `page_size`.
+
+> **DISCREPANCY:** Client uses unversioned `/api/products/*` paths. Verify against
+> Partner Center API Reference during P2-1; upgrade to `202502` paths if required.
+
+**Phase:** P2 (`data-sources.md` — TikTok Products row).
+
+---
+
+## Orders
+
+### Implemented (`OrdersResource`)
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| POST | `/api/orders/search` | `search`, `search_all` |
+| POST | `/api/orders/detail/query` | `get_details(order_ids)` |
+
+**Search body:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | string | Filter by order status |
+| `update_time_from` | integer | Unix — incremental sync key |
+| `update_time_to` | integer | Window end |
+| `page_size` | integer | Default 50 in `search_all` |
+
+**Pagination:** `page_token` cursor via `TikTokClient.get_all_pages`, items key `orders`.
+
+**Juli use:** Revenue Leakage Detection — returns, refunds, cancellation patterns.
+
+**Constraints:** Bounded history ~90d (operational assumption per `data-sources.md`).
+
+**Phase:** P2.
+
+> **UNKNOWN — not in extracted official pages:** Full request/response schema for
+> `/api/orders/search`. Confirm in Partner Center API Reference before P2-1.
+
+---
+
+## Affiliate — Creators
+
+### Implemented (`CreatorsResource`)
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| POST | `/api/affiliate/creators/search` | `list`, `list_all` |
+| GET | `/api/affiliate/creators/details` | `get(creator_id)` |
+
+**Permissions:** Affiliate scope — `PermissionDeniedError` if seller has not approved.
+
+**Juli mapping:** `Creator` — affiliate cancellation rates for fraud detection.
+
+**Phase:** P2.
+
+---
+
+## Affiliate — Livestreams (post-stream only)
+
+### Implemented (`LivestreamsResource`)
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| POST | `/api/affiliate/livestreams/search` | `list`, `list_all` |
+| GET | `/api/affiliate/livestreams/details` | `get(livestream_id)` |
+
+**Search body:** `creator_id`, `start_time`, `end_time`, `page_size`, `page_token`.
+
+**Constraint:** Post-stream summaries only. Realtime in-stream data is **Forbidden** (#8).
+
+**Phase:** Later / out of P2 core per `map.md` pending cleanup (polling worker removal).
+
+---
+
+## Inventory
+
+### Implemented (`InventoryResource`)
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| POST | `/api/inventory/search` | `search` |
+| POST | `/api/inventory/update` | `update` |
+
+**Phase:** Out of P2 scope — `sync_inventory` slated for removal per `map.md`.
+
+---
+
+## Finance — Settlements
+
+### Implemented (`SettlementsResource`)
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| POST | `/api/finance/settlements/search` | `list`, `list_all` |
+
+**Search body:** `settle_time_from`, `settle_time_to`, `page_size`, `page_token`.
+
+**Operational rule:** Treat amounts as `pending` for 7–14 days.
+
+**Phase:** Out of P2 core — `sync_settlements` slated for removal per `map.md`.
+
+---
+
+## Ads
+
+**P2 requirement** per [`EXECUTION.md`](../../EXECUTION.md) (Growth Copilot).
+
+| Status | Notes |
+|--------|-------|
+| **UNKNOWN** | No `AdsResource` in `src/modules/catalog/domain/integrations/tiktok/` |
+
+Confirm official Ads API paths and scopes in Partner Center before implementing P2-1.
+Do not use TikTok for Business API (`business-api.tiktok.com`) unless Partner Center
+documents it as the Shop Ads surface — **UNVERIFIED** until cited.
+
+---
+
+## Error codes (response envelope)
+
+All endpoints return:
 
 ```json
 {
   "code": 0,
   "message": "Success",
-  "request_id": "unique-request-id",
-  "data": {}
+  "data": { },
+  "request_id": "..."
 }
 ```
 
-Common error codes:
-- `0` — Success
-- `100001` — Invalid parameter
-- `100002` — Unauthorized (token expired or invalid)
-- `100003` — Permission denied (missing scope)
-- `100004` — Resource not found
-- `100005` — Rate limit exceeded
-- `100006` — System error (retry)
+| Code | Exception | Retry? |
+|------|-----------|--------|
+| 0 | Success | — |
+| 100002 | `AuthenticationError` | Refresh token / re-auth |
+| 100003 | `PermissionDeniedError` | Re-consent / scope request |
+| 100004 | `ResourceNotFoundError` | No |
+| 100005 | `RateLimitError` | Yes — backoff |
+| 100006 | `TikTokSystemError` | Yes — transient |
 
-## Implementation Notes
-
-- All timestamps are Unix epoch (seconds)
-- Currency amounts are strings to preserve precision (convert to decimal in your code)
-- Masked PII (emails, phones) — you may not get full buyer contact info
-- Pagination is cursor-based for most list endpoints (not offset-based)
-- Cross-border requests require `shop_cipher` parameter
-- Product images use TikTok CDN URLs (may have expiry)
+**Source:** `src/modules/catalog/domain/integrations/tiktok/exceptions.py`
