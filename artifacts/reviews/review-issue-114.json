@@ -34,27 +34,27 @@
       "mappings": [
         {
           "criterion": "AC1: JSON schemas exist for seller profile, task, order, return, affiliate event, and ad campaign",
-          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::validates %s persona against schemas"
+          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::validates new persona against schemas"
         },
         {
           "criterion": "AC2: Three persona fixtures (new, leakage, growth) are loadable",
-          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::returns typed persona for %s"
+          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::returns typed persona for new"
         },
         {
           "criterion": "AC3: Task copy is colocated with fixtures and copy_source is mock",
-          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::ships task title, body, and CTA with persona %s"
+          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::ships task title, body, and CTA with persona new"
         },
         {
           "criterion": "AC4: Schemas forbid buyer PII; only masked buyer identifiers are used",
-          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::contains no forbidden buyer PII fields in %s"
+          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::contains no forbidden buyer PII fields in new"
         },
         {
           "criterion": "AC5: Unit tests validate each persona fixture against its schema",
-          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::validates %s persona against schemas"
+          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::validates leakage persona against schemas"
         },
         {
           "criterion": "AC6: Public loader can load a persona by id with no network calls",
-          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::returns typed persona for %s"
+          "test": "web/src/__tests__/test_seller_persona_fixtures.test.ts::returns typed persona for growth"
         }
       ]
     },
