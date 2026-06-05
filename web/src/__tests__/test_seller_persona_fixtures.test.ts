@@ -1,5 +1,5 @@
 /**
- * Issue #103 — Mock data schemas and seller personas (P1-1)
+ * Issue #114 — Mock data schemas and seller personas (P1-1)
  */
 import {
   loadPersona,
@@ -11,7 +11,7 @@ import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 
 const PERSONA_IDS: PersonaId[] = ["new", "leakage", "growth"];
 
-describe("Issue #103: seller persona mock data", () => {
+describe("Issue #114: seller persona mock data", () => {
   describe("loadPersona", () => {
     it.each(PERSONA_IDS)("returns typed persona for %s", (id) => {
       const persona = loadPersona(id);
