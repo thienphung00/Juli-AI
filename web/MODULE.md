@@ -6,6 +6,8 @@ for TikTok Shop sellers: phone-OTP login, homepage with GMV/livestream/AI
 modules, orders management with filtering and shipment confirmation.
 
 ## Public Interface
+- `TaskCard`, `TaskQueue`, `DemoModeNotice` — Phase 1 shared task UI + no-op approve/dismiss (`components/tasks/`)
+- `useTaskExecutor`, `filterActiveTasks`, session helpers — client-only task queue state (`lib/task-executor/`)
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Homepage decision hero (top 1–3 matches from `GET /v1/recommendations`; KPI cards retained)
