@@ -10,6 +10,8 @@ modules, orders management with filtering and shipment confirmation.
 - `resolveSellerWorkflow`, `getWorkflowTasks`, `WORKFLOW_ENTRIES` — rules-based workflow routing from mock personas (`lib/seller-workflows.ts`)
 - `DemoPersonaProvider`, `useDemoPersona` — persisted demo persona selection (`lib/demo-persona-context.tsx`)
 - `TaskCard`, `TaskQueue`, `DemoModeNotice` — Phase 1 shared task UI + no-op approve/dismiss (`components/tasks/`)
+- `NewSellerCopilotPanel`, `MilestoneProgress` — New-seller workflow checklist + first-sale milestone bar (`components/workflows/new-seller/`)
+- `computeFirstSaleMilestone` — Pure milestone % from mock profile orders/GMV (`lib/workflows/new-seller/milestone.ts`)
 - `useTaskExecutor`, `filterActiveTasks`, session helpers — client-only task queue state (`lib/task-executor/`)
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
