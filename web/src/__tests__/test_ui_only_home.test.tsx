@@ -3,14 +3,10 @@
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
+import { loadPersona } from "@/lib/mock-data/seller-personas";
 import { ModeProvider } from "@/lib/mode-context";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
-import * as homeService from "@/lib/services/home";
-
-jest.mock("@/lib/services/home", () => ({
-  ...jest.requireActual("@/lib/services/home"),
-  getHomeDashboard: jest.fn(),
-}));
 
 jest.mock("@/lib/auth-context", () => ({
   useAuth: () => ({
@@ -27,47 +23,42 @@ jest.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-const mockGetHomeDashboard = homeService.getHomeDashboard as jest.MockedFunction<
-  typeof homeService.getHomeDashboard
->;
-
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   document.documentElement.classList.add("dark");
-
-  const { getMockHomeDashboard } = jest.requireActual("@/lib/mock-data/home");
-  mockGetHomeDashboard.mockImplementation(async (mode) => getMockHomeDashboard(mode));
 });
 
-describe("UI-only home (#71, #70)", () => {
-  it("renders dashboard modules immediately without calling shops API", async () => {
-    render(
-      <ModeProvider>
+function renderSellerHome() {
+  return render(
+    <ModeProvider>
+      <DemoPersonaProvider>
         <HomePage uiOnly />
-      </ModeProvider>
-    );
+      </DemoPersonaProvider>
+    </ModeProvider>,
+  );
+}
+
+describe("UI-only home (#71, #70)", () => {
+  it("renders seller workflow shell immediately without calling shops API", async () => {
+    renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
+      expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("livestream-card")).toBeInTheDocument();
-    expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
-    expect(screen.getByTestId("top-creator-card")).toBeInTheDocument();
-    expect(screen.getByTestId("top-product-card")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-breadcrumb")).toBeInTheDocument();
+    expect(screen.getByTestId("task-queue")).toBeInTheDocument();
+    expect(screen.getByTestId("persona-switcher")).toBeInTheDocument();
   });
 
-  it("shows seller shop name in header", async () => {
-    render(
-      <ModeProvider>
-        <HomePage uiOnly />
-      </ModeProvider>
-    );
+  it("shows default persona shop name in seller summary", async () => {
+    const persona = loadPersona("new");
+    renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByText("BeautyShop VN")).toBeInTheDocument();
+      expect(screen.getByText(persona.profile.shop_name)).toBeInTheDocument();
     });
   });
 });

@@ -1,17 +1,12 @@
 /**
- * AC2 — Homepage loads showing GMV counter, livestream feed, AI recommendations,
- * and mode-aware highlights (PRD AC-12, #79).
+ * AC2 — Seller home shell loads workflow UI with mock persona data (#118).
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
+import { loadPersona } from "@/lib/mock-data/seller-personas";
 import { ModeProvider } from "@/lib/mode-context";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
-import * as homeService from "@/lib/services/home";
-
-jest.mock("@/lib/services/home", () => ({
-  ...jest.requireActual("@/lib/services/home"),
-  getHomeDashboard: jest.fn(),
-}));
 
 jest.mock("@/lib/auth-context", () => ({
   useAuth: () => ({
@@ -28,16 +23,14 @@ jest.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-const mockGetHomeDashboard = homeService.getHomeDashboard as jest.MockedFunction<
-  typeof homeService.getHomeDashboard
->;
-
 function renderSellerHome() {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   return render(
     <ModeProvider>
-      <HomePage uiOnly={false} />
-    </ModeProvider>
+      <DemoPersonaProvider>
+        <HomePage uiOnly={false} />
+      </DemoPersonaProvider>
+    </ModeProvider>,
   );
 }
 
@@ -46,100 +39,46 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe("AC2: Homepage dashboard modules", () => {
-  it("renders seller control-center cards", async () => {
-    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
-
+describe("AC2: Seller home shell modules", () => {
+  it("renders workflow breadcrumb and task queue", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
+      expect(screen.getByTestId("workflow-breadcrumb")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("livestream-card")).toBeInTheDocument();
-    expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
-    expect(screen.getByTestId("top-creator-card")).toBeInTheDocument();
-    expect(screen.getByTestId("top-product-card")).toBeInTheDocument();
+    expect(screen.getByTestId("task-queue")).toBeInTheDocument();
+    expect(screen.getByTestId("seller-shop-summary")).toBeInTheDocument();
   });
 
-  it("displays GMV card with VND formatting", async () => {
-    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
-
+  it("displays shop GMV with VND formatting", async () => {
+    const persona = loadPersona("new");
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
+      expect(screen.getByTestId("seller-gmv-30d")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("GMV hôm nay")).toBeInTheDocument();
-    expect(screen.getByText(/84\.200\.000/)).toBeInTheDocument();
+    expect(screen.getByTestId("seller-gmv-30d")).toHaveTextContent(/₫/);
+    expect(screen.getByText(persona.profile.shop_name)).toBeInTheDocument();
   });
 
-  it("shows populated seller highlights from dashboard data", async () => {
-    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
-
+  it("shows workflow tasks for default persona", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByText(/@linh\.nhi\.beauty/)).toBeInTheDocument();
+      expect(screen.getByTestId("task-queue-list")).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText(/Son dưỡng môi Laneige #3 Berry/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId("task-card").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("shows shop name in header after loading", async () => {
-    const { MOCK_HOME_SELLER } = jest.requireActual("@/lib/mock-data/home");
-    mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_SELLER);
-
+  it("shows active workflow label in header subtitle", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByText("BeautyShop VN")).toBeInTheDocument();
-    });
-  });
-
-  it("handles empty seller dashboard gracefully", async () => {
-    mockGetHomeDashboard.mockResolvedValue({
-      mode: "seller",
-      shop: { name: "Cửa hàng trống", tiktok_shop_id: "" },
-      kpis: {
-        gmv_today_vnd: 0,
-        gmv_wow_pct: 0,
-        active_livestreams: 0,
-        active_livestream_viewers: 0,
-      },
-      alerts: [],
-      ai_recommendation: {
-        id: "empty",
-        type: "none",
-        headline: "Chưa có gợi ý — dữ liệu đang được thu thập",
-        primary_action: { label: "Xem gợi ý", href: "/recommendations" },
-        confidence: 0,
-      },
-      hero_matches: [],
-      top_creator: {
-        id: "empty",
-        handle: "—",
-        gmv_today_vnd: 0,
-        conversion_rate: 0,
-        conversion_delta: 0,
-      },
-      top_product: {
-        id: "empty",
-        name: "Chưa có dữ liệu",
-        orders_today: 0,
-        gmv_today_vnd: 0,
-        ctr: 0,
-      },
-    });
-
-    renderSellerHome();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("gmv-card")).toBeInTheDocument();
+      const header = screen.getByRole("banner");
+      expect(within(header).getByText("Copilot Người Bán Mới")).toBeInTheDocument();
     });
   });
 });

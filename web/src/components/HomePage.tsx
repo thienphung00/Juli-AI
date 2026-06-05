@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { AuthenticatedShell } from "./AuthenticatedShell";
-import { HomeHeroMatches } from "./home/HomeHeroMatches";
+import { SellerHomeShell } from "./seller-home";
 import { formatNumber, formatVND } from "@/lib/format";
 import type {
   AffiliateHomeDashboard,
   HomeDashboardData,
-  SellerHomeDashboard,
 } from "@/lib/mock-data/home";
+import { useDemoPersonaOptional } from "@/lib/demo-persona-context";
 import { useWorkspaceMode } from "@/lib/mode-context";
 import { getHomeDashboard, getHomeSubtitle } from "@/lib/services/home";
+import { resolveSellerWorkflow } from "@/lib/seller-workflows";
 import { isUiOnly } from "@/lib/ui-only";
 
 function formatPct(value: number, digits = 1): string {
@@ -24,19 +25,23 @@ function formatDeltaPct(value: number): string {
 
 export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
   const { mode } = useWorkspaceMode();
+  const personaContext = useDemoPersonaOptional();
   const [dashboard, setDashboard] = useState<HomeDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(mode === "affiliate");
 
   useEffect(() => {
-    if (!mode) return;
+    if (mode !== "affiliate") {
+      setDashboard(null);
+      setLoading(false);
+      return;
+    }
 
-    const workspaceMode = mode;
     let cancelled = false;
 
     async function load() {
       setLoading(true);
       try {
-        const data = await getHomeDashboard(workspaceMode);
+        const data = await getHomeDashboard("affiliate");
         if (!cancelled) setDashboard(data);
       } catch (error) {
         console.error("home_dashboard_load_failed", { error });
@@ -51,16 +56,22 @@ export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
     };
   }, [mode, uiOnly]);
 
-  const subtitle = dashboard ? getHomeSubtitle(dashboard) : undefined;
+  const sellerSubtitle =
+    mode === "seller" && personaContext?.persona
+      ? resolveSellerWorkflow(personaContext.persona).label
+      : undefined;
+
+  const affiliateSubtitle = dashboard ? getHomeSubtitle(dashboard) : undefined;
+  const subtitle = mode === "seller" ? sellerSubtitle : affiliateSubtitle;
 
   return (
     <AuthenticatedShell title="Juli" subtitle={subtitle}>
-      {loading || !dashboard || !mode ? (
+      {mode === "seller" ? (
+        <SellerHomeShell />
+      ) : loading || !dashboard || dashboard.mode !== "affiliate" ? (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
         </div>
-      ) : dashboard.mode === "seller" ? (
-        <SellerHomeView dashboard={dashboard} />
       ) : (
         <AffiliateHomeView dashboard={dashboard} />
       )}
@@ -68,70 +79,10 @@ export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
   );
 }
 
-function SellerHomeView({ dashboard }: { dashboard: SellerHomeDashboard }) {
-  return (
-    <div className="space-y-3" data-testid="home-seller">
-      <div className="space-y-3" data-testid="home-above-fold">
-        <HomeHeroMatches matches={dashboard.hero_matches} />
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="card p-4" data-testid="gmv-card">
-            <h2 className="text-muted text-sm font-medium">GMV hôm nay</h2>
-            <p className="mt-1 text-xl font-bold" style={{ color: "var(--primary)" }}>
-              {formatVND(dashboard.kpis.gmv_today_vnd)}
-            </p>
-            <p className="mt-1 text-xs font-medium" style={{ color: "#10b981" }}>
-              ▲ +{dashboard.kpis.gmv_wow_pct}% WoW
-            </p>
-          </div>
-
-          <div className="card p-4" data-testid="livestream-card">
-            <h2 className="text-muted text-sm font-medium">Livestream đang chạy</h2>
-            <p className="mt-1 text-sm font-semibold">
-              {dashboard.kpis.active_livestreams} phiên ·{" "}
-              {formatNumber(dashboard.kpis.active_livestream_viewers)} xem
-            </p>
-            <a
-              href="/livestreams"
-              className="mt-2 inline-block text-xs font-semibold"
-              style={{ color: "var(--primary)" }}
-            >
-              Xem chi tiết →
-            </a>
-          </div>
-        </div>
-
-      </div>
-
-      <div className="card p-4" data-testid="top-creator-card">
-        <h2 className="text-muted text-sm font-medium">Creator tốt nhất hôm nay</h2>
-        <p className="mt-1 text-sm font-semibold">{dashboard.top_creator.handle}</p>
-        <p className="text-muted mt-1 text-sm">
-          {formatVND(dashboard.top_creator.gmv_today_vnd)} GMV · Tỷ lệ chuyển đổi:{" "}
-          {formatPct(dashboard.top_creator.conversion_rate)}{" "}
-          {formatDeltaPct(dashboard.top_creator.conversion_delta)}
-        </p>
-      </div>
-
-      <div className="card p-4" data-testid="top-product-card">
-        <h2 className="text-muted text-sm font-medium">Sản phẩm bán chạy</h2>
-        <p className="mt-1 text-sm font-semibold">{dashboard.top_product.name}</p>
-        <p className="text-muted mt-1 text-sm">
-          {formatNumber(dashboard.top_product.orders_today)} đơn · GMV{" "}
-          {formatVND(dashboard.top_product.gmv_today_vnd)} · CTR{" "}
-          {formatPct(dashboard.top_product.ctr)}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function AffiliateHomeView({ dashboard }: { dashboard: AffiliateHomeDashboard }) {
   return (
     <div className="space-y-3" data-testid="home-affiliate">
       <div className="space-y-3" data-testid="home-above-fold">
-        <HomeHeroMatches matches={dashboard.hero_matches} />
-
         <div className="grid grid-cols-2 gap-3">
           <div className="card p-4" data-testid="commission-card">
             <h2 className="text-muted text-sm font-medium">Hoa hồng hôm nay</h2>
@@ -193,4 +144,3 @@ function AffiliateHomeView({ dashboard }: { dashboard: AffiliateHomeDashboard })
     </div>
   );
 }
-
