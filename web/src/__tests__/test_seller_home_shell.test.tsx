@@ -44,6 +44,23 @@ beforeEach(() => {
   document.documentElement.className = "";
 });
 
+async function assertPersonaRoutesToWorkflow(
+  personaId: "new" | "leakage" | "growth",
+  expectedLabel: string,
+) {
+  if (localStorage.getItem(DEMO_PERSONA_STORAGE_KEY) !== personaId) {
+    localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
+    renderSellerHome();
+  }
+
+  await waitFor(() => {
+    expect(screen.getByTestId("workflow-breadcrumb")).toHaveTextContent(expectedLabel);
+  });
+
+  expect(screen.getByTestId("workflow-stage")).toHaveAttribute("data-stage", personaId);
+  expect(screen.getByText(loadPersona(personaId).profile.shop_name)).toBeInTheDocument();
+}
+
 describe("Issue #118: seller home shell", () => {
   it("lands seller in home shell instead of legacy recommendation feed", async () => {
     renderSellerHome();
@@ -105,35 +122,23 @@ describe("Issue #118: seller home shell", () => {
     expect(localStorage.getItem(DEMO_PERSONA_STORAGE_KEY)).toBe("leakage");
   });
 
-  it.each([
-    ["new", "new", WORKFLOW_ENTRIES.new.label],
-    ["leakage", "leakage", WORKFLOW_ENTRIES.leakage.label],
-    ["growth", "growth", WORKFLOW_ENTRIES.growth.label],
-  ] as const)(
-    "integration: %s persona routes to expected workflow entry",
-    async (personaId, expectedStage, expectedLabel) => {
-      const user = userEvent.setup();
-      localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
-      renderSellerHome();
+  it("integration: new persona routes to expected workflow entry", async () => {
+    await assertPersonaRoutesToWorkflow("new", WORKFLOW_ENTRIES.new.label);
+  });
 
-      const personaLabels = {
-        new: /Người bán mới/i,
-        leakage: /Rò rỉ doanh thu/i,
-        growth: /Tăng trưởng/i,
-      } as const;
+  it("integration: leakage persona routes to expected workflow entry", async () => {
+    const user = userEvent.setup();
+    renderSellerHome();
+    await user.click(screen.getByRole("button", { name: /Rò rỉ doanh thu/i }));
+    await assertPersonaRoutesToWorkflow("leakage", WORKFLOW_ENTRIES.leakage.label);
+  });
 
-      if (personaId !== "new") {
-        await user.click(screen.getByRole("button", { name: personaLabels[personaId] }));
-      }
-
-      await waitFor(() => {
-        expect(screen.getByTestId("workflow-breadcrumb")).toHaveTextContent(expectedLabel);
-      });
-
-      expect(screen.getByTestId("workflow-stage")).toHaveAttribute("data-stage", expectedStage);
-      expect(screen.getByText(loadPersona(personaId).profile.shop_name)).toBeInTheDocument();
-    },
-  );
+  it("integration: growth persona routes to expected workflow entry", async () => {
+    const user = userEvent.setup();
+    renderSellerHome();
+    await user.click(screen.getByRole("button", { name: /Tăng trưởng/i }));
+    await assertPersonaRoutesToWorkflow("growth", WORKFLOW_ENTRIES.growth.label);
+  });
 
   it("shows shop GMV with VND formatting", async () => {
     renderSellerHome();
