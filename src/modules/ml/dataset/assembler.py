@@ -138,6 +138,7 @@ def assemble_backtest_dataset(
 
     manifest = {
         "dataset_version": DATASET_VERSION,
+        "dataset_dir": str(root.resolve()),
         "source": source,
         "seed": seed,
         "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
