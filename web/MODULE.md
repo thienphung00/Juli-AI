@@ -13,6 +13,7 @@ modules, orders management with filtering and shipment confirmation.
 - `NewSellerCopilotPanel`, `MilestoneProgress` — New-seller workflow checklist + first-sale milestone bar (`components/workflows/new-seller/`)
 - `computeFirstSaleMilestone` — Pure milestone % from mock profile orders/GMV (`lib/workflows/new-seller/milestone.ts`)
 - `LeakageCopilotPanel`, `EvidenceDrawer`, `resolveEvidence` — Phase 1 revenue leakage workflow: ranked anomalies, masked evidence drill-down (`components/workflows/leakage/`, `lib/workflows/leakage/`)
+- `GrowthCopilotPanel`, `AdPerformanceSummary`, `computeAdSummary`, `rankGrowthTasks` — Phase 1 growth workflow: ad performance summary + ranked scale/cut recommendations (`components/workflows/growth/`, `lib/workflows/growth/`)
 - `useTaskExecutor`, `filterActiveTasks`, session helpers — client-only task queue state (`lib/task-executor/`)
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted

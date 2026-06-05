@@ -1,5 +1,6 @@
 "use client";
 
+import { GrowthCopilotPanel } from "@/components/workflows/growth";
 import { LeakageCopilotPanel } from "@/components/workflows/leakage";
 import { NewSellerCopilotPanel } from "@/components/workflows/new-seller";
 import { TaskQueue } from "@/components/tasks";
@@ -57,6 +58,8 @@ export function SellerHomeShell() {
         <NewSellerCopilotPanel persona={persona} tasks={tasks} />
       ) : workflow.workflowId === "leakage" ? (
         <LeakageCopilotPanel persona={persona} tasks={tasks} />
+      ) : workflow.workflowId === "growth" ? (
+        <GrowthCopilotPanel persona={persona} tasks={tasks} />
       ) : (
         <TaskQueue tasks={tasks} />
       )}
