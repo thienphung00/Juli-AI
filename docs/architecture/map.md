@@ -20,7 +20,7 @@ agentic workflows — **New Seller Copilot**, **Revenue Leakage Detection**, and
 (Phase 2). See [`../../EXECUTION.md`](../../EXECUTION.md).
 
 **What we build:** seller-money workflows — get to first profitable sales, stop
-revenue leakage (returns/refunds/affiliate fraud), grow ad ROAS.
+revenue leakage (buyer return anomalies: item swap, empty return; plus policy-driven refunds/disputes), grow ad ROAS.
 
 **What we do _not_ build:** generic analytics dashboards, CRM, inventory/finance/
 settlement software, or creator↔shop matching (Phase 3+, see ADR history).
@@ -71,6 +71,7 @@ Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
 | [`src/modules/ordering/use_cases/etl`](../../src/modules/ordering/use_cases/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: Supabase phone-OTP auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
+| [`src/modules/ml/dataset`](../../src/modules/ml/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
 
 ## Pending cleanup (tracked in EXECUTION.md)
 
@@ -95,6 +96,9 @@ PR) to avoid breaking imports/tests:
 - **Data sources:** TikTok Shop Official API only. Unofficial livestream websockets,
   Seller Center scraping, and buyer PII storage are **permanently forbidden**. See
   [`data-sources.md`](data-sources.md).
+- **Data model:** Canonical entity schemas and ML features live in
+  [`docs/data-models/`](../data-models/README.md). TikTok API docs (`tiktok_api/endpoints.md`)
+  are the ingestion layer only ([ADR-012](../decisions/012-entity-centric-data-model.md)).
 - **Platform policy:** Seller/creator feature guides and policy center rules live in
   [`docs/tiktok_platform/`](../tiktok_platform/README.md). Implementation hooks
   (`seller/implementation-hooks.md`, `creator/implementation-hooks.md`) define alerts,
@@ -106,6 +110,13 @@ PR) to avoid breaking imports/tests:
 > (milestone alerts), [ADR-009](../decisions/009-dual-read-vp-ahr-transition.md)
 > (VP→AHR dual-read), [ADR-010](../decisions/010-vn-regional-platform-config.md)
 > (VN regional thresholds).
+>
+> **Anomaly ML scope (Phase 1.5):** [ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md)
+> — buyer return anomalies (`item_swap`, `empty_return`) only; schema in
+> [`data-models/canonical-entities.md`](../data-models/canonical-entities.md) § Return, § OrderItem.
+>
+> **Entity-centric data model:** [ADR-012](../decisions/012-entity-centric-data-model.md)
+> — `docs/data-models/` is ML schema authority; `tiktok_api/endpoints.md` is ingestion only.
 >
 > **Historical decisions:** [ADR-006](../decisions/006-matching-pivot.md) (creator↔shop
 > matching pivot) and [ADR-007](../decisions/007-ml-north-star-models.md) (north-star
