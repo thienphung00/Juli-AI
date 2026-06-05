@@ -119,7 +119,7 @@ describe("Alerts consistency", () => {
   });
 
   describe("affiliate mode", () => {
-    it("shows commission and return alerts, not seller inventory", async () => {
+    it("shows out-of-scope on home while header alerts remain available", async () => {
       const user = userEvent.setup();
       const { MOCK_HOME_AFFILIATE } = jest.requireActual("@/lib/mock-data/home");
       mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_AFFILIATE);
@@ -133,11 +133,10 @@ describe("Alerts consistency", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId("home-affiliate")).toBeInTheDocument();
+        expect(screen.getByTestId("affiliate-out-of-scope")).toBeInTheDocument();
       });
 
-      expect(screen.getByText(/Quyết định hôm nay/)).toBeInTheDocument();
-      expect(screen.getByText(/Son Romand Berry/)).toBeInTheDocument();
+      expect(screen.queryByTestId("home-affiliate")).not.toBeInTheDocument();
       expect(screen.queryByText(/Tồn kho sắp hết/)).not.toBeInTheDocument();
 
       await user.click(screen.getByTestId("alert-bell-button"));

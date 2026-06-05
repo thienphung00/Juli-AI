@@ -117,17 +117,15 @@ describe("Juli AI chat tab (#82)", () => {
     expect(screen.queryByText("Sản phẩm nào đang xu hướng trước khi bão hòa?")).not.toBeInTheDocument();
   });
 
-  it("shows affiliate suggested prompts in affiliate mode", async () => {
+  it("shows out-of-scope in affiliate mode instead of chat UI", async () => {
     renderChat("affiliate");
 
     await waitFor(() => {
-      expect(screen.getByTestId("suggested-prompts")).toBeInTheDocument();
+      expect(screen.getByTestId("affiliate-out-of-scope")).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByText("Sản phẩm nào đang xu hướng trước khi bão hòa?")
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Creator nào nên đẩy tối nay?")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("suggested-prompts")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chat-input")).not.toBeInTheDocument();
   });
 
   it("appends user message and mock assistant reply when sending", async () => {
