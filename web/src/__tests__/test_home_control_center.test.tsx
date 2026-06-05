@@ -77,20 +77,20 @@ describe("Home control center (#79)", () => {
   });
 
   describe("affiliate mode", () => {
-    it("renders light theme with hero matches and commission KPIs", async () => {
+    it("renders light theme with out-of-scope instead of seller workflows", async () => {
       const { MOCK_HOME_AFFILIATE } = jest.requireActual("@/lib/mock-data/home");
       mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_AFFILIATE);
 
       renderHome("affiliate");
 
       await waitFor(() => {
-        expect(screen.getByTestId("home-affiliate")).toBeInTheDocument();
+        expect(screen.getByTestId("affiliate-out-of-scope")).toBeInTheDocument();
       });
 
       expect(document.documentElement.classList.contains("dark")).toBe(false);
-      expect(screen.getByTestId("home-hero-matches")).toBeInTheDocument();
-      expect(screen.getByTestId("home-hero-match-headline")).toHaveTextContent(/Romand/);
-      expect(screen.getByTestId("commission-card")).toBeInTheDocument();
+      expect(screen.queryByTestId("home-affiliate")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("commission-card")).not.toBeInTheDocument();
     });
   });
 

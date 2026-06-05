@@ -145,8 +145,7 @@ describe("Trends discovery (#80)", () => {
   });
 
   describe("affiliate mode", () => {
-    it("shows affiliate-intent fields on Creator and Shop tabs", async () => {
-      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    it("shows out-of-scope instead of trends discovery UI", async () => {
       const { filterTrendsMock } = jest.requireActual("@/lib/mock-data/trends");
       mockGetTrends.mockImplementation(async ({ mode, tab, query }) =>
         filterTrendsMock(mode, tab, query ?? "")
@@ -155,29 +154,12 @@ describe("Trends discovery (#80)", () => {
       renderTrends("affiliate");
 
       await waitFor(() => {
-        expect(screen.getByTestId("trends-product-tab")).toBeInTheDocument();
+        expect(screen.getByTestId("affiliate-out-of-scope")).toBeInTheDocument();
       });
 
-      await user.click(screen.getByTestId("trends-tab-creator"));
-      await waitFor(() => {
-        expect(screen.getByTestId("trends-creator-affiliate")).toBeInTheDocument();
-      });
-      const creatorPanel = screen.getByTestId("trends-creator-affiliate");
-      expect(
-        within(creatorPanel).getAllByTestId("trends-creator-gmv-growth")[0]
-      ).toHaveTextContent(/Tăng trưởng GMV/);
-      expect(
-        within(creatorPanel).getAllByTestId("trends-creator-audience-overlap")[0]
-      ).toHaveTextContent(/Trùng audience/);
-
-      await user.click(screen.getByTestId("trends-tab-shop"));
-      await waitFor(() => {
-        expect(screen.getByTestId("trends-shop-affiliate")).toBeInTheDocument();
-      });
-      const shopPanel = screen.getByTestId("trends-shop-affiliate");
-      expect(
-        within(shopPanel).getAllByTestId("trends-shop-audience-fit")[0]
-      ).toHaveTextContent(/Độ phù hợp với audience/);
+      expect(screen.queryByTestId("trends-product-tab")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("trends-creator-affiliate")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("trends-shop-affiliate")).not.toBeInTheDocument();
     });
   });
 

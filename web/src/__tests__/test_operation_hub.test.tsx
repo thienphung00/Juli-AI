@@ -95,7 +95,7 @@ describe("Operations hub (#81)", () => {
   });
 
   describe("affiliate mode", () => {
-    it("shows 3 sub-tabs without Creator", async () => {
+    it("shows out-of-scope instead of operation hub", async () => {
       const { MOCK_OPERATION_AFFILIATE } = jest.requireActual(
         "@/lib/mock-data/operation-affiliate"
       );
@@ -104,18 +104,14 @@ describe("Operations hub (#81)", () => {
       renderOperation("affiliate");
 
       await waitFor(() => {
-        expect(screen.getByTestId("operation-hub-affiliate")).toBeInTheDocument();
+        expect(screen.getByTestId("affiliate-out-of-scope")).toBeInTheDocument();
       });
 
-      const tabBar = screen.getByTestId("operation-sub-tabs");
-      expect(within(tabBar).getByRole("tab", { name: "Sản phẩm" })).toBeInTheDocument();
-      expect(within(tabBar).getByRole("tab", { name: "Đơn hàng" })).toBeInTheDocument();
-      expect(within(tabBar).getByRole("tab", { name: "Hoàn trả" })).toBeInTheDocument();
-      expect(within(tabBar).queryByRole("tab", { name: "Creator" })).not.toBeInTheDocument();
-      expect(within(tabBar).getAllByRole("tab")).toHaveLength(3);
+      expect(screen.queryByTestId("operation-hub-affiliate")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("operation-sub-tabs")).not.toBeInTheDocument();
     });
 
-    it("shows commission fields on products tab", async () => {
+    it("does not render operation panels in affiliate mode", async () => {
       const { MOCK_OPERATION_AFFILIATE } = jest.requireActual(
         "@/lib/mock-data/operation-affiliate"
       );
@@ -124,13 +120,10 @@ describe("Operations hub (#81)", () => {
       renderOperation("affiliate");
 
       await waitFor(() => {
-        expect(screen.getByTestId("operation-panel-products")).toBeInTheDocument();
+        expect(screen.getByTestId("affiliate-out-of-scope")).toBeInTheDocument();
       });
 
-      const panel = screen.getByTestId("operation-panel-products");
-      expect(within(panel).getByText(/Hoa hồng tháng này/)).toBeInTheDocument();
-      expect(within(panel).getByText(/Son Laneige #3 Berry/)).toBeInTheDocument();
-      expect(within(panel).getByText(/142 đơn · Hoa hồng 10%/)).toBeInTheDocument();
+      expect(screen.queryByTestId("operation-panel-products")).not.toBeInTheDocument();
     });
   });
 
