@@ -12,6 +12,9 @@
 | [008](008-alert-vp-ahr-milestones.md) | Alert on VP/AHR milestones — not silent degradation | Accepted |
 | [009](009-dual-read-vp-ahr-transition.md) | Dual-read VP + AHR during platform transition (May–July 2026) | Accepted |
 | [010](010-vn-regional-platform-config.md) | VN-specific regional platform configuration | Accepted |
+| [011](011-buyer-behavior-anomaly-scope.md) | Buyer-behavior anomaly scope — item swap + empty return only; no affiliate fraud ML | Accepted |
+| [012](012-entity-centric-data-model.md) | Entity-centric canonical data model — `docs/data-models/` as ML schema authority | Accepted |
+| [013](013-phase-15-ml-module-tree.md) | Phase 1.5 ML module tree under `src/modules/ml/` | Accepted |
 
 ADRs 006–007 are **historical**: the product was rescoped from creator↔shop
 matching to **seller-money** workflows (New Seller Copilot, Revenue Leakage
