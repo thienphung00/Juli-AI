@@ -75,21 +75,19 @@ describe("Issue #123: retire legacy creator-matching routes", () => {
     expect(nav.querySelector('a[href="/recommendations"]')).not.toBeInTheDocument();
   });
 
-  it.each(["/creators", "/recommendations"] as const)(
-    "redirects %s to seller home without clearing session",
-    async (route) => {
-      const Page = route === "/creators" ? CreatorsPage : RecommendationsPage;
-
+  it("redirects legacy creator routes to seller home without clearing session", async () => {
+    for (const Page of [CreatorsPage, RecommendationsPage]) {
+      mockReplace.mockClear();
       render(<Page />);
 
       await waitFor(() => {
         expect(mockReplace).toHaveBeenCalledWith("/");
       });
+    }
 
-      expect(localStorage.getItem("access_token")).toBe("test-token");
-      expect(localStorage.getItem("active_shop_id")).toBe("shop-1");
-    },
-  );
+    expect(localStorage.getItem("access_token")).toBe("test-token");
+    expect(localStorage.getItem("active_shop_id")).toBe("shop-1");
+  });
 
   it("loads seller home shell after redirect target", async () => {
     render(

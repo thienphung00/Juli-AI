@@ -49,11 +49,11 @@
         },
         {
           "criterion": "Existing auth and mode-select flows still work",
-          "test": "web/src/__tests__/test_login_otp_flow.test.tsx + test_mode_selection_gate.test.tsx (full suite green)"
+          "test": "web/src/__tests__/test_mode_selection_gate.test.tsx::redirects to /mode-select after OTP when no workspace mode is saved"
         },
         {
           "criterion": "Integration test: /recommendations and /creators redirect without breaking session",
-          "test": "web/src/__tests__/test_legacy_creator_routes_retired.test.tsx::redirects /creators and /recommendations to seller home without clearing session"
+          "test": "web/src/__tests__/test_legacy_creator_routes_retired.test.tsx::redirects legacy creator routes to seller home without clearing session"
         },
         {
           "criterion": "Integration test: seller home loads after redirect",
@@ -61,7 +61,7 @@
         },
         {
           "criterion": "No removal of phone-OTP login",
-          "test": "web/src/__tests__/test_login_otp_flow.test.tsx (unchanged, full suite green)"
+          "test": "web/src/__tests__/test_login_otp_flow.test.tsx::renders phone input with Vietnamese label"
         }
       ]
     },
