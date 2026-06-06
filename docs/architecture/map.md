@@ -128,6 +128,14 @@ PR) to avoid breaking imports/tests:
 > ML models) are **superseded** by the seller-money rescope in `EXECUTION.md`. Kept
 > as ADR history only.
 
+## Target architecture (Phase 2)
+
+The **planned** Phase 2 inference pipeline (poll → ETL → feature build → batch
+inference → Ollama copy → UI → executor) is documented in
+[`target-v2.md`](target-v2.md). This file (`map.md`) remains the **as-built**
+registry; `target-v2.md` is the forward-looking design reference for P2-1 … P2-6
+implementation slices in [`EXECUTION.md`](../../EXECUTION.md).
+
 ## Adding / removing a module
 
 When adding: create `<module>/MODULE.md`, add a row above, update any diagrams,

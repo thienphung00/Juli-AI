@@ -96,13 +96,13 @@ against ground truth (labeled item_swap / empty_return cases, documented return 
 - [x] **P1.5-4** Ad performance analyzer — train + backtest. _(issue: #140)_
 - [ ] **P1.5-5** Feature specs + inference signatures in [`docs/data-models/feature-store-schema.md`](docs/data-models/feature-store-schema.md); cross-linked from `system-design.md`. _(issue: #142)_
 - [x] **P1.5-6** Serialize models + metadata (train date, row count, feature schema hash, metrics). _(issue: #141)_
-- [ ] **P1.5-7** Publish [`docs/architecture/target-v2.md`](docs/architecture/target-v2.md) — Phase 2 target design (real APIs + inference pipeline). _(issue: #143)_
+- [x] **P1.5-7** Publish [`docs/architecture/target-v2.md`](docs/architecture/target-v2.md) — Phase 2 target design (real APIs + inference pipeline). _(issue: #143)_
 
 ### Exit gate → Phase 2
 
 - [ ] All three model suites trained and serialized
 - [ ] Precision/recall meets targets on backtest (thresholds recorded in system-design.md)
-- [ ] `target-v2.md` published
+- [x] `target-v2.md` published
 
 ---
 
