@@ -35,9 +35,21 @@ def map_text() -> str:
 
 def test_target_v2_exists_with_phase2_flow(target_v2_text: str):
     """End-to-end Phase 2 pipeline documented with flow diagram or equivalent."""
-    assert "## Phase 2 pipeline" in target_v2_text or "## End-to-end flow" in target_v2_text
-    for stage in ("poll", "ETL", "feature build", "inference", "copy layer", "executor"):
-        assert stage.lower() in target_v2_text.lower(), f"missing pipeline stage: {stage}"
+    assert (
+        "## Phase 2 pipeline" in target_v2_text
+        or "## End-to-end flow" in target_v2_text
+    )
+    for stage in (
+        "poll",
+        "ETL",
+        "feature build",
+        "inference",
+        "copy layer",
+        "executor",
+    ):
+        assert stage.lower() in target_v2_text.lower(), (
+            f"missing pipeline stage: {stage}"
+        )
 
 
 def test_target_v2_phase1_mock_vs_phase2_live(target_v2_text: str):
@@ -65,14 +77,20 @@ def test_target_v2_documents_health_data_source_contract(target_v2_text: str):
     assert "proxy" in target_v2_text
     assert "unavailable" in target_v2_text
     assert "VP" in target_v2_text or "AHR" in target_v2_text
-    assert "not assume" in target_v2_text.lower() or "not exposed" in target_v2_text.lower()
+    assert (
+        "not assume" in target_v2_text.lower()
+        or "not exposed" in target_v2_text.lower()
+    )
 
 
 def test_target_v2_anomaly_buyer_behavior_scope(target_v2_text: str):
     """Anomaly ML is buyer-behavior only; policy signals are separate."""
     assert "item_swap" in target_v2_text
     assert "empty_return" in target_v2_text
-    assert "ADR-011" in target_v2_text or "011-buyer-behavior-anomaly-scope" in target_v2_text
+    assert (
+        "ADR-011" in target_v2_text
+        or "011-buyer-behavior-anomaly-scope" in target_v2_text
+    )
     assert "policy" in target_v2_text.lower()
     assert "affiliate" in target_v2_text.lower() or "Affiliate" in target_v2_text
 
@@ -100,5 +118,4 @@ def test_target_v2_excludes_forbidden_scope(target_v2_text: str):
     assert "buyer pii" in lower or "no buyer pii" in lower
     assert "celery" in lower
     assert "kafka" in lower
-    forbidden_section = lower.split("out of scope", 1)[-1] if "out of scope" in lower else lower
     assert "forbidden" in lower or "out of scope" in lower
