@@ -1,0 +1,93 @@
+{
+  "id": "review-issue-141",
+  "issue": 141,
+  "timestamp": "2026-06-06T15:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 1.5 model artifact publisher: serializes all three trainers to joblib with metadata.json, promotion gate, metrics copy, and golden-fixture smoke tests.",
+  "criticalFindings": [],
+  "warnings": [
+    {
+      "domain": "maintainability",
+      "description": "Promotion thresholds in thresholds.py are provisional until #142 Product sign-off.",
+      "status": "accepted",
+      "rationale": "Gate logic is in place; numeric targets will be finalized in system-design.md via #142."
+    }
+  ],
+  "modulesTouched": ["src/modules/ml/artifacts"],
+  "interfaceChanges": [
+    {
+      "module": "src/modules/ml/artifacts",
+      "interface": "publish_model",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Serialize model.joblib, metadata.json, and copy metrics.json under models/{suite}/{version}/."
+    },
+    {
+      "module": "src/modules/ml/artifacts",
+      "interface": "load_model",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Load joblib model and metadata for a suite/version."
+    },
+    {
+      "module": "src/modules/ml/artifacts",
+      "interface": "run_smoke_test",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Load artifact and run golden fixture inference; raises ArtifactLoadError on failure."
+    },
+    {
+      "module": "src/modules/ml/artifacts",
+      "interface": "evaluate_promotion_status",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Return promoted or experimental based on provisional backtest thresholds."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Directory layout matches system-design.md model.joblib and metadata.json",
+          "test": "tests/unit/test_model_artifacts.py::test_publish_creates_expected_directory_layout"
+        },
+        {
+          "criterion": "metadata.json includes train_date row_count feature_schema_hash metrics promotion_status",
+          "test": "tests/unit/test_model_artifacts.py::test_metadata_includes_required_fields"
+        },
+        {
+          "criterion": "publish_model load_model load and infer on golden fixture in smoke test",
+          "test": "tests/unit/test_model_artifacts.py::test_load_model_roundtrip_and_smoke_inference"
+        },
+        {
+          "criterion": "Corrupt model file fails smoke test with clear error",
+          "test": "tests/unit/test_model_artifacts.py::test_corrupt_model_file_raises_clear_error"
+        },
+        {
+          "criterion": "Sub-threshold run serializes as experimental only not promoted",
+          "test": "tests/unit/test_model_artifacts.py::test_sub_threshold_publish_writes_experimental_status"
+        },
+        {
+          "criterion": "Metrics JSON written alongside model file during publish",
+          "test": "tests/unit/test_model_artifacts.py::test_metrics_json_copied_to_artifact_directory"
+        },
+        {
+          "criterion": "No Postgres persistence",
+          "test": "tests/unit/test_model_artifacts.py::test_publish_model_has_no_postgres_persistence"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 10,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}

@@ -6,3 +6,13 @@ dist/
 build/
 .env
 .DS_Store
+
+# Agent runtime state (local resumption only — not source control)
+.agent-state/
+
+# CI/review artifacts (generated per run — not source control)
+artifacts/reviews/
+artifacts/validation/
+
+# Serialized ML model artifacts (runtime output — not source control)
+models/
