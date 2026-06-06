@@ -46,9 +46,30 @@ Routes a seller to the right workflow and the right next action.
 
 | Phase | Source | Mechanism |
 |-------|--------|-----------|
-| **Phase 1** | Mock JSON | Hardcoded seller profiles, sample orders / returns / ads loaded from fixtures. No network. |
-| **Phase 1.5** | Backtest data (parquet) | Q4 / Q1 historical TikTok Shop orders (or synthetic). Batch-loaded for offline training and validation only. |
-| **Phase 2** | TikTok API polling | Orders, Products, Affiliate, Ads polled into Postgres; **seller account health** polled **if exposed** (VP/AHR/withholding/violations), otherwise computed via proxies or marked unavailable (see `data-sources.md`). Daily batch feeds inference. Platform policy signals from [`tiktok_platform/`](tiktok_platform/README.md) implementation hooks. |
+| **Phase 1** | Mock JSON | Fixtures generated from [`data-models/canonical-entities.md`](data-models/canonical-entities.md) via [`mock-data-generator.md`](data-models/mock-data-generator.md). No network. |
+| **Phase 1.5** | Backtest data (parquet) | Canonical entity parquet + labeled returns; synthetic when historical data unavailable. Feature build uses [`feature-store-schema.md`](data-models/feature-store-schema.md). |
+| **Phase 2** | TikTok API polling | Raw responses ingested per [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md); ETL normalizes to canonical entities → Postgres; daily feature build → inference. |
+
+**Schema authority:** [`docs/data-models/`](data-models/README.md) defines platform-agnostic
+entities and ML features. [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md) is the
+**ingestion layer** only — vendor field maps, not ML schema source of truth
+([ADR-012](decisions/012-entity-centric-data-model.md)).
+
+```
+TikTok API (endpoints.md)
+        │  poll / webhook
+        ▼
+Raw responses
+        │  ETL: vendor map, enum derivation, buyer_id masking
+        ▼
+Canonical entities (data-models/canonical-entities.md)
+        │  06:00–07:00 UTC feature build
+        ▼
+Feature store (data-models/feature-store-schema.md)
+        │  08:00 UTC batch inference
+        ▼
+Model outputs → agent decision tree → copy layer → UI / executor
+```
 
 Pipeline jobs (feature build → train → inference) are kept as **separate,
 runner-agnostic jobs** so the Phase 2 scheduler is a runner swap, not a rewrite.
@@ -63,21 +84,39 @@ served in Phase 2.
 | Suite | Purpose | Powers workflow | Validation (Phase 1.5) |
 |-------|---------|-----------------|------------------------|
 | **Seller stage classifier** | Classify seller lifecycle stage | New Seller Copilot, decision tree routing | Precision/recall vs labeled historical stages |
-| **Anomaly detector** | Detect returns / affiliate fraud / commission disputes / balance withholding | Revenue Leakage Detection | Precision/recall vs **known fraud cases** + documented return patterns; platform-policy signals (VP milestones, SFCR/LDR/SNAD, commission dispute holds) as deterministic rule inputs |
+| **Anomaly detector** | Detect buyer-behavior return anomalies: **item swap**, **empty return** | Revenue Leakage Detection | Precision/recall vs labeled `item_swap` / `empty_return` ground truth on backtest returns data ([ADR-011](decisions/011-buyer-behavior-anomaly-scope.md)) |
 | **Ad performance analyzer** | Diagnose spend efficiency, flag scale/cut | Growth Copilot | Backtest ROAS predictions vs realized |
 
 **Backtest protocol (Phase 1.5):** train on a historical window, evaluate on a
 held-out Q4 / Q1 window; report precision/recall (and ROAS error for the ad model)
 against ground truth. Record target thresholds **here** before promoting to Phase 2.
 
-> Targets (fill in during Phase 1.5):
-> - Seller stage classifier: precision ≥ _TBD_, recall ≥ _TBD_
-> - Anomaly detector: precision ≥ _TBD_, recall ≥ _TBD_ on known fraud set
-> - Ad performance analyzer: MAPE ≤ _TBD_ on backtest ROAS
+> **Promotion targets (Phase 2 gate — Product sign-off #142):**
+> - Seller stage classifier: precision ≥ **0.50**, macro recall ≥ **0.50**
+> - Anomaly detector: per-class precision ≥ **0.50** and recall ≥ **0.50** on labeled `item_swap` + `empty_return` set ([ADR-011](decisions/011-buyer-behavior-anomaly-scope.md))
+> - Ad performance analyzer: ROAS MAPE ≤ **50.0%** on held-out backtest window
+>
+> Thresholds are encoded in `src/modules/ml/artifacts/thresholds.py` and evaluated by
+> `evaluate_promotion_status`. Sub-threshold runs serialize as `experimental` only.
+
+**Phase 1.5 backtest reference run** (synthetic dataset, seed 142 — trainers #138–#140):
+
+| Suite | Metric | Reference value | Meets gate |
+|-------|--------|-----------------|------------|
+| Seller stage | precision / recall_macro | 1.00 / 1.00 | ✓ |
+| Anomaly | item_swap precision / recall | 1.00 / 1.00 | ✓ |
+| Anomaly | empty_return precision / recall | 0.00 / 0.00 | ✗ (sparse labels) |
+| Ad performance | ROAS MAPE | 0.54% | ✓ |
 
 **Outputs:** serialized models (pickle / joblib), feature specs, inference
 signatures. Each artifact carries metadata: train date, row count, feature schema
 hash, metrics snapshot.
+
+**Inference signatures:** input schema, output schema, and model version pointer
+for each suite are documented in
+[`data-models/feature-store-schema.md`](data-models/feature-store-schema.md)
+§ Inference signatures. Phase 2 batch inference (08:00 UTC) loads artifacts from
+`models/{suite}/{version}/` and validates `feature_schema_hash` at load time.
 
 ```
 models/
@@ -85,6 +124,69 @@ models/
   anomaly/{version}/model.joblib + metadata.json
   ad_performance/{version}/model.joblib + metadata.json
 ```
+
+#### Return schema contract (P1 → P1.5 → P2)
+
+Cross-phase field alignment index for **Return**, **Order**, and **OrderItem**.
+Full entity JSON schemas, lineage, and refresh rules live in
+[`data-models/canonical-entities.md`](data-models/canonical-entities.md).
+Ingestion field maps remain in [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md)
+§ Orders. Affiliate data is **out of scope** for the anomaly model
+([ADR-011](decisions/011-buyer-behavior-anomaly-scope.md)).
+
+**Anomaly classes (ML labels):**
+
+| `return_type` | Definition | Example signals |
+|---------------|------------|-----------------|
+| `item_swap` | Returned SKU/item does not match shipped line item | Wrong product in parcel; size/color mismatch vs order line |
+| `empty_return` | Parcel received with no product or filler only | Empty box; packaging-only return |
+| `other` | Legitimate returns (size, SNAD, change-of-mind) | Not scored as anomaly; used as negative class |
+
+**Core entities:**
+
+| Field | P1 mock (`schemas.ts`) | P1.5 parquet | P2 Postgres | TikTok API (target) | Notes |
+|-------|------------------------|--------------|-------------|---------------------|-------|
+| `order_id` | `MockOrder.id` | `order_id` | `Order.tiktok_order_id` | `order_id` | Shop-scoped unique |
+| `return_id` | `MockReturn.id` | `return_id` | `Return.tiktok_return_id` *(P2 table TBD)* | return/refund id | Confirm path in API Reference |
+| `shop_id` | `SellerProfile.shop_id` | `shop_id` | `Order.shop_id` | via `shop_cipher` | FK to `Shop` |
+| `buyer_id` | masked `buyer_***` | `buyer_id` | `Order.buyer_id` | `buyer_id` | Masked only — no PII (#17) |
+| `product_id` | — *(add in P1.5)* | `product_id` | line-item FK | `line_items[].product_id` | Required for swap detection |
+| `sku_id` | — *(add in P1.5)* | `sku_id` | line-item FK | `line_items[].sku_id` | Ordered vs returned SKU compare |
+| `return_reason` | `MockReturn.reason` | `return_reason` | `Return.reason` | `return_reason` / reason code | Free text or enum — confirm in P2-1 |
+| `return_type` | — *(add in P1.5)* | `return_type` | `Return.return_type` | derived from reason + inspection | Enum: `item_swap` \| `empty_return` \| `other` |
+| `return_condition` | — *(add in P1.5)* | `return_condition` | `Return.return_condition` | inspection outcome if exposed | `empty_parcel` \| `wrong_item` \| `correct_item` \| `unknown` |
+| `refund_amount` | `MockReturn.refund_vnd` | `refund_amount` | `Return.refund_amount` | refund amount field | VND; `Numeric(18,2)` |
+| `status` | `MockReturn.status` | `status` | `Return.status` | return status | `pending_review` \| `approved` \| `rejected` |
+| `created_at` | ISO string | `created_at` | `created_at` | `create_time` | Unix → datetime in ETL |
+
+**Buyer aggregate features (anomaly model inputs):**
+
+Defined in [`data-models/feature-store-schema.md`](data-models/feature-store-schema.md)
+§ Group A — `buyer_return_count_30d`, `buyer_item_swap_count_30d`,
+`buyer_empty_return_count_30d`, `buyer_repeat_anomaly_flag`, `return_rate_30d`,
+`seller_fault_cancel_rate_30d`.
+
+**P1.5 parquet layout (minimum):**
+
+See [`data-models/mock-data-generator.md`](data-models/mock-data-generator.md) § Dataset 2
+(Revenue Leakage Detection) and § Saving to parquet. Minimum files:
+
+```
+backtest/revenue_leakage/
+  orders.parquet
+  order_items.parquet   # required for item_swap sku_id comparison
+  returns.parquet
+  labels.parquet        # return_id, ground_truth_anomaly, return_type
+```
+
+Synthetic generator must produce labeled `item_swap` and `empty_return` rows when
+historical TikTok data is unavailable. P1.5-5 documents feature specs in
+[`feature-store-schema.md`](data-models/feature-store-schema.md) (no drift at P2).
+
+**Platform-policy signals (not ML):** VP/AHR milestones, balance withholding,
+commission dispute holds, and SNAD enforcement remain deterministic rules in
+§ Platform policy signals — fed separately into Revenue Leakage tasks, not the
+anomaly model.
 
 ### 4. Copy layer
 
@@ -113,7 +215,8 @@ ML / rules → structured signals
 - The model **never** decides recommendations — only rewrites deterministic signals.
 - Enforce a per-shop (or global) daily token budget; log `copy_source: ollama | rules_fallback`.
 
-**Rules fallback:** Pre-authored templates keyed by signal type (e.g. `anomaly:return_spike`,
+**Rules fallback:** Pre-authored templates keyed by signal type (e.g. `anomaly:item_swap`,
+`anomaly:empty_return`,
 `ad:scale_candidate`). Same structured input Ollama receives; no silent degradation to
 generic text. Missing Ollama must not block API writes or task execution.
 
@@ -136,7 +239,7 @@ and degrade explicitly — no Seller Center scraping.
 | Seller AHR Orange | AHR ≤ 199 | Revenue Leakage / Alerts | Post-July 2026; dual-read with VP during transition |
 | Seller AHR Red | AHR ≤ 150 | Revenue Leakage | Escalate to critical-risk band |
 | Balance withholding | Enforcement active | Revenue Leakage | Treat balance as `frozen` (not `pending`); alert seller |
-| Commission dispute hold | Order in dispute | Revenue Leakage | Flag affiliate commission as leakage signal |
+| Commission dispute hold | Order in dispute | Revenue Leakage | Policy alert — not anomaly ML input |
 | Appeal window | ≤ 7 days to deadline | Alerts | Surface appeal urgency in UI |
 | Creator KYC incomplete (VN) | No CCCD + tax code | Revenue Leakage (affiliate context) | Flag linked creators blocking commission payout |
 
@@ -171,10 +274,13 @@ Turns an approved recommendation into action.
 
 ```
 [TikTok API: Orders · Products · Affiliate · Ads · (optional) Shop Account health]
-        │  daily poll (health if exposed; else proxy/unavailable)
+        │  daily poll (ingestion: tiktok_api/endpoints.md)
         ▼
-   Postgres (seller signals + policy state)
-        │  06:00–07:00 UTC feature build
+   Raw API responses
+        │  ETL → canonical entities (data-models/canonical-entities.md)
+        ▼
+   Postgres (canonical entity tables + policy state)
+        │  06:00–07:00 UTC feature build (data-models/feature-store-schema.md)
         ▼
    feature tables (+ platform policy rule inputs)
         │  08:00 UTC daily batch inference

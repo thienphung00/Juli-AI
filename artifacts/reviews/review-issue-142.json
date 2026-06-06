@@ -1,0 +1,70 @@
+{
+  "id": "review-issue-142",
+  "issue": 142,
+  "timestamp": "2026-06-06T12:30:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.5-5 canonical docs: feature-store-schema.md updated with Group D/E seller-stage and ad features, three inference signatures, schema hash table; system-design.md ML promotion targets filled with Product sign-off reference; doc contract tests lock schema.py alignment.",
+  "criticalFindings": [],
+  "warnings": [
+    {
+      "domain": "process",
+      "description": "HITL: Product lead must confirm threshold numbers (0.50 precision/recall, 50% MAPE) in PR before issue close.",
+      "status": "accepted",
+      "rationale": "Issue #142 explicitly requires Product sign-off; thresholds match thresholds.py from #141."
+    },
+    {
+      "domain": "reliability",
+      "description": "empty_return class shows 0.0 precision/recall on synthetic backtest reference run.",
+      "status": "accepted",
+      "rationale": "Documented in system-design.md reference table; sparse labels on synthetic data; not a doc defect."
+    }
+  ],
+  "modulesTouched": ["docs/data-models", "docs/system-design.md", "tests/unit/test_feature_store_docs.py"],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Seller-stage, anomaly, ad feature groups documented",
+          "test": "tests/unit/test_feature_store_docs.py::test_feature_store_documents_all_three_feature_groups"
+        },
+        {
+          "criterion": "Inference signature per suite cross-linked",
+          "test": "tests/unit/test_feature_store_docs.py::test_inference_signatures_document_input_and_output_fields"
+        },
+        {
+          "criterion": "system-design.md targets filled",
+          "test": "tests/unit/test_feature_store_docs.py::test_system_design_ml_targets_have_no_tbd_placeholders"
+        },
+        {
+          "criterion": "Feature schema hashes match metadata contract",
+          "test": "tests/unit/test_feature_store_docs.py::test_feature_schema_hashes_match_artifact_metadata_contract"
+        },
+        {
+          "criterion": "Field names align with ads parquet",
+          "test": "tests/unit/test_feature_store_docs.py::test_ad_features_align_with_ads_parquet_layout"
+        },
+        {
+          "criterion": "Return schema fields referenced",
+          "test": "tests/unit/test_feature_store_docs.py::test_return_schema_fields_referenced_in_anomaly_features"
+        },
+        {
+          "criterion": "ADR-011 anomaly scope reflected",
+          "test": "tests/unit/test_feature_store_docs.py::test_anomaly_group_references_adr_011_scope"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 269,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
