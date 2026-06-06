@@ -51,7 +51,7 @@
           "test": "tests/unit/test_ad_performance_trainer.py::test_train_writes_roas_mape_metrics_json"
         },
         {
-          "criterion": "Model outputs discrete action scale cut hold plus confidence",
+          "criterion": "Inference output schema action confidence predicted_roas",
           "test": "tests/unit/test_ad_performance_trainer.py::test_inference_output_schema_documented"
         },
         {
