@@ -338,4 +338,4 @@ alongside the app stack on the local inference node (`OLLAMA_HOST`, model tag in
 Celery / multi-node workers, Kafka streams, creator↔shop matching, vendor scrapers,
 Seller Center scraping, buyer PII, realtime unofficial streams, `src/` folder
 reshaping. The Phase 2 target architecture (real APIs + inference pipeline) is
-detailed in `architecture/target-v2.md`, **published at the end of Phase 1.5**.
+detailed in [`architecture/target-v2.md`](architecture/target-v2.md), **published at the end of Phase 1.5**.
