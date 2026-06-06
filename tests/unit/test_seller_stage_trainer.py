@@ -84,6 +84,17 @@ def test_compare_to_rules_baseline_includes_agreement_rate(trained_model):
     assert payload["agreements"] + len(payload["disagreements"]) == len(profiles)
 
 
+def test_class_imbalance_strategy_documented(tmp_path: Path):
+    """Class imbalance strategy documented in metrics and training log JSON."""
+    dataset_dir = tmp_path / "backtest"
+    assemble_backtest_dataset(dataset_dir, seed=138, n_shops=4, orders_per_shop=25)
+    manifest = json.loads((dataset_dir / "manifest.json").read_text(encoding="utf-8"))
+    result = train_seller_stage(manifest, tmp_path / "out", seed=138)
+
+    assert "balanced" in result.class_imbalance_strategy.lower()
+    assert result.metrics["class_imbalance_strategy"] == CLASS_IMBALANCE_STRATEGY
+
+
 def test_train_writes_metrics_json(tmp_path: Path):
     """CLI train path writes metrics JSON with precision, recall macro, confusion matrix."""
     dataset_dir = tmp_path / "backtest"
@@ -101,3 +112,27 @@ def test_train_writes_metrics_json(tmp_path: Path):
     assert metrics["class_imbalance_strategy"] == CLASS_IMBALANCE_STRATEGY
     assert training_log["class_imbalance_strategy"] == CLASS_IMBALANCE_STRATEGY
     assert "sample_predictions" in training_log
+
+
+def test_seller_stage_has_no_tiktok_api_calls():
+    """No TikTok API calls in seller stage trainer module."""
+    import src.modules.ml.seller_stage.train as train_module
+
+    source = Path(train_module.__file__).read_text(encoding="utf-8")
+    forbidden = ("TikTokClient", "tiktokglobalshop", "open-api.tiktok")
+    for token in forbidden:
+        assert token not in source
+
+
+def test_seller_stage_has_no_ui_changes():
+    """Seller stage trainer does not import web UI modules."""
+    import ast
+
+    import src.modules.ml.seller_stage as seller_stage_pkg
+
+    package_dir = Path(seller_stage_pkg.__file__).parent
+    for path in package_dir.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("web"):
+                raise AssertionError(f"unexpected web import in {path.name}: {node.module}")
