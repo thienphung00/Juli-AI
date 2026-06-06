@@ -73,6 +73,7 @@ Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: Supabase phone-OTP auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
 | [`src/modules/ml/dataset`](../../src/modules/ml/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
 | [`src/modules/ml/features`](../../src/modules/ml/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | domain: ml |
+| [`src/modules/ml/seller_stage`](../../src/modules/ml/seller_stage/MODULE.md) | 2 | Phase 1.5 seller lifecycle classifier: rules baseline, train, rules-vs-ML compare | `classify_seller_stage`, `train_seller_stage`, `predict_seller_stage`, `compare_to_rules_baseline` | domain: ml |
 
 ## Pending cleanup (tracked in EXECUTION.md)
 
