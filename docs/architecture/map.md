@@ -76,6 +76,7 @@ Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
 | [`src/modules/ml/seller_stage`](../../src/modules/ml/seller_stage/MODULE.md) | 2 | Phase 1.5 seller lifecycle classifier: rules baseline, train, rules-vs-ML compare | `classify_seller_stage`, `train_seller_stage`, `predict_seller_stage`, `compare_to_rules_baseline` | domain: ml |
 | [`src/modules/ml/anomaly`](../../src/modules/ml/anomaly/MODULE.md) | 2 | Phase 1.5 buyer-behavior anomaly detector: item_swap / empty_return training + inference | `train_anomaly`, `predict_anomaly`, `build_anomaly_training_frame` | domain: ml |
 | [`src/modules/ml/ad_performance`](../../src/modules/ml/ad_performance/MODULE.md) | 2 | Phase 1.5 ad performance analyzer: ROAS prediction + scale/cut/hold ranking | `train_ad_performance`, `predict_ad_action`, `build_ad_training_frame` | domain: ml |
+| [`src/modules/ml/artifacts`](../../src/modules/ml/artifacts/MODULE.md) | 2 | Phase 1.5 model artifact publisher: joblib serialization, metadata, promotion gate, smoke tests | `publish_model`, `load_model`, `run_smoke_test`, `evaluate_promotion_status` | domain: ml |
 
 ## Pending cleanup (tracked in EXECUTION.md)
 
