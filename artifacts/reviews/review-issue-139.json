@@ -1,0 +1,94 @@
+{
+  "id": "review-issue-139",
+  "issue": 139,
+  "timestamp": "2026-06-06T12:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 1.5 buyer-behavior anomaly detector: trains on labels.parquet joined to Group A features, reports per-class precision/recall for item_swap and empty_return, exposes inference schema with feature_summary for Phase 2 UI evidence. ADR-011 scope enforced.",
+  "criticalFindings": [],
+  "warnings": [
+    {
+      "domain": "reliability",
+      "description": "Sparse empty_return labels in small synthetic datasets require golden profile augmentation for stable 3-class training.",
+      "status": "accepted",
+      "rationale": "Documented in ADR-016 and train.py; production backtest runs use larger datasets."
+    }
+  ],
+  "modulesTouched": ["src/modules/ml/anomaly"],
+  "interfaceChanges": [
+    {
+      "module": "src/modules/ml/anomaly",
+      "interface": "train_anomaly",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Train RandomForest on labeled returns; writes per-class metrics.json and training_log.json."
+    },
+    {
+      "module": "src/modules/ml/anomaly",
+      "interface": "predict_anomaly",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Inference: anomaly_class, confidence, feature_summary, is_anomaly."
+    },
+    {
+      "module": "src/modules/ml/anomaly",
+      "interface": "build_anomaly_training_frame",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Return-level join of labels.parquet and buyer×shop feature matrix."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "train writes per class metrics json for item_swap and empty_return",
+          "test": "tests/unit/test_anomaly_trainer.py::test_train_writes_per_class_metrics_json"
+        },
+        {
+          "criterion": "per class metrics reported separately on held out split",
+          "test": "tests/unit/test_anomaly_trainer.py::test_train_writes_per_class_metrics_json"
+        },
+        {
+          "criterion": "Golden item_swap row scores as anomaly with class item_swap",
+          "test": "tests/unit/test_anomaly_trainer.py::test_golden_item_swap_scores_as_anomaly"
+        },
+        {
+          "criterion": "Golden empty_return row scores as anomaly with class empty_return",
+          "test": "tests/unit/test_anomaly_trainer.py::test_golden_empty_return_scores_as_anomaly"
+        },
+        {
+          "criterion": "Golden other legitimate return scores non-anomaly",
+          "test": "tests/unit/test_anomaly_trainer.py::test_golden_other_scores_non_anomaly"
+        },
+        {
+          "criterion": "Feature matrix for anomaly training contains no affiliate creator column names",
+          "test": "tests/unit/test_anomaly_trainer.py::test_training_frame_has_no_affiliate_creator_columns"
+        },
+        {
+          "criterion": "Inference output schema anomaly_class confidence feature_summary",
+          "test": "tests/unit/test_anomaly_trainer.py::test_inference_output_schema_documented"
+        },
+        {
+          "criterion": "No affiliate fraud commission dispute creator signals ADR-011",
+          "test": "tests/unit/test_anomaly_trainer.py::test_training_frame_has_no_affiliate_creator_columns"
+        },
+        {
+          "criterion": "No TikTok API calls",
+          "test": "tests/unit/test_anomaly_trainer.py::test_anomaly_trainer_has_no_tiktok_api_calls"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
