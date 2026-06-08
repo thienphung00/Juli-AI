@@ -48,10 +48,65 @@ const EXPECTED_PATH_B_OPPORTUNITY_IDS = [
   "b2000001-0001-4000-8000-000000000001",
 ];
 
+async function completePathAToDraftReview(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByTestId("listing-path-a"));
+  await waitFor(() => {
+    expect(screen.getByTestId("listing-step-product_form")).toBeInTheDocument();
+  });
+
+  await user.click(screen.getByTestId("listing-next"));
+
+  await waitFor(() => {
+    expect(screen.getByTestId("listing-step-distributor_pick")).toBeInTheDocument();
+  });
+
+  await user.click(
+    screen.getByTestId("listing-distributor-a1000001-0001-4000-8000-000000000001"),
+  );
+  await user.click(screen.getByTestId("listing-next"));
+
+  await waitFor(() => {
+    expect(screen.getByTestId("listing-draft-review")).toBeInTheDocument();
+  });
+}
+
+async function completePathBToDraftReview(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByTestId("listing-path-b"));
+  await waitFor(() => {
+    expect(screen.getByTestId("listing-step-constraints")).toBeInTheDocument();
+  });
+
+  await user.click(screen.getByTestId("listing-next"));
+  await waitFor(() => {
+    expect(screen.getByTestId("listing-step-opportunity_browse")).toBeInTheDocument();
+  });
+
+  await user.click(
+    screen.getByTestId(`listing-opportunity-card-${EXPECTED_PATH_B_OPPORTUNITY_IDS[0]}`),
+  );
+  await user.click(screen.getByTestId("listing-next"));
+
+  await waitFor(() => {
+    expect(screen.getByTestId("listing-step-distributor_pick")).toBeInTheDocument();
+  });
+
+  await user.click(
+    screen.getByTestId("listing-distributor-a1000001-0001-4000-8000-000000000001"),
+  );
+  await user.click(screen.getByTestId("listing-next"));
+  await waitFor(() => {
+    expect(screen.getByTestId("listing-draft-review")).toBeInTheDocument();
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   clearTaskExecutorSession();
   sessionStorage.clear();
+
+  global.URL.createObjectURL = jest.fn(() => "blob:mock-url");
+  global.URL.revokeObjectURL = jest.fn();
+  HTMLAnchorElement.prototype.click = jest.fn();
 });
 
 async function approveListProducts(user: ReturnType<typeof userEvent.setup>) {
@@ -91,27 +146,7 @@ describe("Issue #155: Path A listing workflow", () => {
   it("reaches draft review with generated draft from rules engine", async () => {
     const user = userEvent.setup();
     await approveListProducts(user);
-
-    await user.click(screen.getByTestId("listing-path-a"));
-    await waitFor(() => {
-      expect(screen.getByTestId("listing-step-product_form")).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByTestId("listing-next"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("listing-step-distributor_pick")).toBeInTheDocument();
-    });
-
-    const distributorButton = screen.getByTestId(
-      "listing-distributor-a1000001-0001-4000-8000-000000000001",
-    );
-    await user.click(distributorButton);
-    await user.click(screen.getByTestId("listing-next"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("listing-draft-review")).toBeInTheDocument();
-    });
+    await completePathAToDraftReview(user);
 
     const review = screen.getByTestId("listing-draft-review");
     expect(within(review).getByText("Serum Vitamin C 20ml")).toBeInTheDocument();
@@ -182,6 +217,65 @@ describe("Issue #155: Path B opportunity filter", () => {
     }
 
     expect(screen.queryByTestId("listing-opportunity-card-b2000002-0002-4000-8000-000000000002")).not.toBeInTheDocument();
+  });
+});
+
+describe("Issue #156: listing export execute step", () => {
+  it("Path A E2E — approve list_products through export succeeds", async () => {
+    const user = userEvent.setup();
+    const analyticsEvents: CustomEvent[] = [];
+    const onAnalytics = (event: Event) => {
+      analyticsEvents.push(event as CustomEvent);
+    };
+    window.addEventListener("juli:analytics", onAnalytics);
+
+    await approveListProducts(user);
+    await completePathAToDraftReview(user);
+
+    await user.click(screen.getByTestId("listing-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-execute")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("listing-export-download"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-success")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("listing-export-success")).toHaveTextContent(
+      "Seller Center",
+    );
+    expect(global.URL.createObjectURL).toHaveBeenCalled();
+
+    const exportEvent = analyticsEvents.find(
+      (event) => event.detail?.event === "export_completed",
+    );
+    expect(exportEvent?.detail).toMatchObject({
+      event: "export_completed",
+      task_type: "list_products",
+      format: "json",
+    });
+
+    window.removeEventListener("juli:analytics", onAnalytics);
+  });
+
+  it("Path B E2E — complete Path B and export succeeds", async () => {
+    const user = userEvent.setup();
+    await approveListProducts(user);
+    await completePathBToDraftReview(user);
+
+    await user.click(screen.getByTestId("listing-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-execute")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("listing-export-format-csv"));
+    await user.click(screen.getByTestId("listing-export-download"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-success")).toBeInTheDocument();
+    });
   });
 });
 

@@ -1,5 +1,12 @@
 export { generateProductDraft } from "./generate";
 export { canExportProductDraft } from "./export-guard";
+export {
+  exportProductDraft,
+  downloadExportResult,
+  ExportBlockedError,
+} from "./export";
+export type { ExportFormat, ExportResult } from "./export";
+export { trackExportCompleted } from "./export-analytics";
 export { filterOpportunities } from "./filter-opportunities";
 export {
   advanceStep,
