@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MockTask, PersonaId } from "@/lib/mock-data/seller-personas/schemas";
+import { trackTaskDismissedWithReason } from "@/lib/workflows/leakage/leakage-analytics";
 import { trackTaskApproved, trackTaskDismissed } from "@/lib/ux-analytics";
 import type { TaskDismissReason } from "./dismiss-reasons";
 import { isLeakageWorkflowTaskType } from "./leakage-workflow-task";
@@ -146,6 +147,14 @@ export function useTaskExecutor(
           dismiss_reason: reason,
           ...(note ? { dismiss_note: note } : {}),
         });
+        if (task.workflow === "leakage" && isLeakageWorkflowTaskType(task.type)) {
+          trackTaskDismissedWithReason({
+            personaId,
+            taskType: task.type,
+            dismissReason: reason,
+            ...(note ? { dismissNote: note } : {}),
+          });
+        }
       }
     },
     [dismissModalTaskId, tasks, personaId],

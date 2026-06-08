@@ -12,6 +12,8 @@ workflow. Deterministic — no TikTok API, no Postgres, no ML inference.
 | `canAdvanceLeakage` / `canGoBackLeakage` | Navigation guards |
 | `markEvidenceReviewed` | Acknowledge evidence step |
 | `checkLeakageEvidencePii` | PII guard for evidence bundles |
+| `trackLeakageWorkflowStarted` / `trackLeakageStepCompleted` / `trackLeakageWorkflowCompleted` | Fail-silent UX events (#168) |
+| `trackTaskDismissedWithReason` | Leakage dismiss instrumentation (#168) |
 | `loadLeakageWorkflowSession` / `saveLeakageWorkflowSession` | `sessionStorage` resume |
 
 ## Step graph
@@ -34,4 +36,4 @@ workflow. Deterministic — no TikTok API, no Postgres, no ML inference.
 ## Out of scope (P1.7-2)
 
 - `useTaskExecutor` opens `LeakageWorkflowPanel` on approve for four leakage types; global `TaskDismissModal` on dismiss (#167)
-- UX instrumentation events (#168)
+- ~~UX instrumentation events (#168)~~ — shipped in `leakage-analytics.ts`

@@ -156,7 +156,7 @@ dismiss reasons (global executor).
 - [x] **P1.7-2** Leakage state machine + `useLeakageWorkflow` hook — step graph, session resume, `canAdvance`. _(issue: #165)_
 - [x] **P1.7-3** `LeakageWorkflowPanel` modal UI — four task-type step renderers (mirror `ListingWorkflowPanel`). _(issue: #166)_
 - [ ] **P1.7-4** Executor integration — approve opens workflow; **global** skip-with-reason; complete → session disposition. _(issue: #167)_
-- [ ] **P1.7-5** Integration tests + UX instrumentation — happy path per type, PII guard, step events. _(issue: #168)_
+- [x] **P1.7-5** Integration tests + UX instrumentation — happy path per type, PII guard, step events. _(issue: #168)_
 
 ### Exit gate → Phase 2
 
