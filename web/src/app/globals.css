@@ -226,6 +226,36 @@ html:not(.dark) {
     border-top-color: var(--primary);
     animation: spin 0.7s linear infinite;
   }
+
+  .field-input {
+    background: var(--muted);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+  }
+
+  .btn-primary {
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: linear-gradient(135deg, #ff006e 0%, #ff4d94 100%);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--foreground);
+    background: transparent;
+  }
 }
 
 /* ── Utilities ─────────────────────────────────────────── */

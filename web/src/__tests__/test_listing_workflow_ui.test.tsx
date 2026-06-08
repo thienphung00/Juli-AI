@@ -129,6 +129,7 @@ describe("Issue #155: listing workflow entry", () => {
     const user = userEvent.setup();
     await approveListProducts(user);
     expect(screen.getByTestId("listing-step-path_selection")).toBeInTheDocument();
+    expect(screen.getByTestId("listing-workflow")).toHaveClass("z-[100]");
     expect(screen.getByTestId("task-feedback-approved")).toHaveTextContent(
       "quy trình đăng sản phẩm",
     );
@@ -150,6 +151,19 @@ describe("Issue #155: listing workflow entry", () => {
 });
 
 describe("Issue #155: Path A listing workflow", () => {
+  it("enables Tiếp theo immediately after Path A selection with visible inputs", async () => {
+    const user = userEvent.setup();
+    await approveListProducts(user);
+
+    await user.click(screen.getByTestId("listing-path-a"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-step-product_form")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("listing-product-name")).toBeVisible();
+    expect(screen.getByTestId("listing-next")).toBeEnabled();
+  });
+
   it("reaches draft review with generated draft from rules engine", async () => {
     const user = userEvent.setup();
     await approveListProducts(user);

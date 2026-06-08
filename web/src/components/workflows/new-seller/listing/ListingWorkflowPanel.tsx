@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { formatVND } from "@/lib/format";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
 import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
@@ -25,6 +26,15 @@ const DEFAULT_CONSTRAINTS = {
   dropshipOnly: true,
 };
 
+const FIELD_INPUT_CLASS =
+  "field-input mt-1 w-full rounded-lg px-3 py-2 text-sm focus:outline-none";
+
+const FIELD_INPUT_STYLE: CSSProperties = {
+  background: "var(--muted)",
+  border: "1px solid var(--border)",
+  color: "var(--foreground)",
+};
+
 export function ListingWorkflowPanel({
   personaId,
   onClose,
@@ -39,14 +49,15 @@ export function ListingWorkflowPanel({
   });
 
   const { state } = workflow;
+  const canAdvance = workflow.canAdvanceFromStep();
 
   useEffect(() => {
     syncShopProgressFromWorkflow(personaId, state);
   }, [personaId, state]);
 
-  return (
+  const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-center"
       data-testid="listing-workflow"
       role="dialog"
       aria-modal="true"
@@ -127,7 +138,7 @@ export function ListingWorkflowPanel({
         </div>
 
         <footer
-          className="flex gap-2 border-t px-4 py-3"
+          className="flex gap-2 border-t px-4 py-3 safe-area-bottom"
           style={{ borderColor: "var(--border)" }}
         >
           {workflow.canGoBack && (
@@ -145,7 +156,7 @@ export function ListingWorkflowPanel({
               type="button"
               className="btn-primary flex-1"
               data-testid="listing-next"
-              disabled={!workflow.canAdvanceFromStep()}
+              disabled={!canAdvance}
               onClick={workflow.goNext}
             >
               Tiếp theo
@@ -155,6 +166,12 @@ export function ListingWorkflowPanel({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return modal;
+  }
+
+  return createPortal(modal, document.body);
 }
 
 function stepLabel(step: string): string {
@@ -250,8 +267,12 @@ function ProductFormStep({
       <label className="block text-sm">
         Tên sản phẩm
         <input
-          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
+          autoFocus
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          className={FIELD_INPUT_CLASS}
+          style={FIELD_INPUT_STYLE}
           data-testid="listing-product-name"
           value={productName}
           onChange={(e) => setProductName(e.target.value)}
@@ -260,8 +281,10 @@ function ProductFormStep({
       <label className="block text-sm">
         Danh mục
         <input
-          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
+          type="text"
+          inputMode="text"
+          className={FIELD_INPUT_CLASS}
+          style={FIELD_INPUT_STYLE}
           data-testid="listing-product-category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -271,8 +294,9 @@ function ProductFormStep({
         Giá bán (VND)
         <input
           type="number"
-          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
+          inputMode="numeric"
+          className={FIELD_INPUT_CLASS}
+          style={FIELD_INPUT_STYLE}
           data-testid="listing-product-price"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
@@ -281,8 +305,10 @@ function ProductFormStep({
       <label className="block text-sm">
         Thương hiệu
         <input
-          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
+          type="text"
+          inputMode="text"
+          className={FIELD_INPUT_CLASS}
+          style={FIELD_INPUT_STYLE}
           value={brand}
           onChange={(e) => setBrand(e.target.value)}
         />
@@ -290,8 +316,8 @@ function ProductFormStep({
       <label className="block text-sm">
         Mô tả
         <textarea
-          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
+          className={FIELD_INPUT_CLASS}
+          style={FIELD_INPUT_STYLE}
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -335,8 +361,11 @@ function ConstraintsStep({
       <label className="block text-sm">
         Danh mục quan tâm
         <input
-          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
+          autoFocus
+          type="text"
+          inputMode="text"
+          className={FIELD_INPUT_CLASS}
+          style={FIELD_INPUT_STYLE}
           data-testid="listing-constraints-category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -346,8 +375,9 @@ function ConstraintsStep({
         Vốn tối đa (VND)
         <input
           type="number"
-          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--border)" }}
+          inputMode="numeric"
+          className={FIELD_INPUT_CLASS}
+          style={FIELD_INPUT_STYLE}
           data-testid="listing-constraints-capital"
           value={maxCapital}
           onChange={(e) => setMaxCapital(e.target.value)}

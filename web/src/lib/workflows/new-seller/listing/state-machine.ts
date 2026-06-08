@@ -35,6 +35,20 @@ export interface ListingWorkflowState {
   draft: ProductDraft | null;
 }
 
+const DEFAULT_PRODUCT_FORM: ProductFormData = {
+  product_name: "Serum Vitamin C 20ml",
+  category: "Mỹ phẩm",
+  price: 189_000,
+  brand: "Mai Linh Beauty",
+  description: "Serum vitamin C giúp làm sáng da và giảm thâm nám.",
+};
+
+const DEFAULT_CONSTRAINTS: OpportunityConstraints = {
+  category: "Mỹ phẩm",
+  maxCapitalVnd: 20_000_000,
+  dropshipOnly: true,
+};
+
 export const INITIAL_LISTING_WORKFLOW_STATE: ListingWorkflowState = {
   step: "path_selection",
   path: null,
@@ -72,8 +86,23 @@ export function selectPath(
   state: ListingWorkflowState,
   path: ListingPath,
 ): ListingWorkflowState {
-  const nextStep = path === "path_a" ? "product_form" : "constraints";
-  return { ...state, path, step: nextStep };
+  // Selecting a path should immediately make the step actionable so
+  // "Tiếp theo" isn't disabled until the user edits a field.
+  if (path === "path_a") {
+    return {
+      ...INITIAL_LISTING_WORKFLOW_STATE,
+      path,
+      step: "product_form",
+      productForm: DEFAULT_PRODUCT_FORM,
+    };
+  }
+
+  return {
+    ...INITIAL_LISTING_WORKFLOW_STATE,
+    path,
+    step: "constraints",
+    constraints: DEFAULT_CONSTRAINTS,
+  };
 }
 
 export function advanceStep(state: ListingWorkflowState): ListingWorkflowState {
