@@ -153,7 +153,7 @@ dismiss reasons (global executor).
 ### Slices
 
 - [x] **P1.7-1** Leakage workflow fixtures + schemas — `LeakageWorkflowTask`, evidence bundles, root cause, execution plan; align `leakage-persona.ts` task types (`buyer_cancellation_cluster`, `return_window_policy`). _(issue: #164)_
-- [ ] **P1.7-2** Leakage state machine + `useLeakageWorkflow` hook — step graph, session resume, `canAdvance`. _(issue: #165)_
+- [x] **P1.7-2** Leakage state machine + `useLeakageWorkflow` hook — step graph, session resume, `canAdvance`. _(issue: #165)_
 - [ ] **P1.7-3** `LeakageWorkflowPanel` modal UI — four task-type step renderers (mirror `ListingWorkflowPanel`). _(issue: #166)_
 - [ ] **P1.7-4** Executor integration — approve opens workflow; **global** skip-with-reason; complete → session disposition. _(issue: #167)_
 - [ ] **P1.7-5** Integration tests + UX instrumentation — happy path per type, PII guard, step events. _(issue: #168)_

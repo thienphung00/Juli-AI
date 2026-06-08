@@ -1,0 +1,82 @@
+{
+  "id": "review-issue-165",
+  "issue": 165,
+  "timestamp": "2026-06-08T09:50:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Leakage workflow state machine and useLeakageWorkflow hook: six-step graph with workflow_status transitions, canAdvance guards (evidence reviewed + PII guard), sessionStorage resume. Pure state-machine unit tests; no UI, API, or DB.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/lib/workflows/leakage"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/workflows/leakage",
+      "interface": "useLeakageWorkflow",
+      "changeType": "added",
+      "breaking": false,
+      "description": "React hook loading fixture by task ID with step navigation and session persistence."
+    },
+    {
+      "module": "web/src/lib/workflows/leakage",
+      "interface": "advanceLeakageStep",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Pure forward step transition with workflow_status mapping."
+    },
+    {
+      "module": "web/src/lib/workflows/leakage",
+      "interface": "canAdvanceLeakage",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Blocks evidence step until reviewed and PII guard passes."
+    },
+    {
+      "module": "web/src/lib/workflows/leakage",
+      "interface": "loadLeakageWorkflowSession",
+      "changeType": "added",
+      "breaking": false,
+      "description": "sessionStorage resume keyed by task ID."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "state-machine.ts defines step types, initial state, and transition helpers",
+          "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::defines the full forward step order"
+        },
+        {
+          "criterion": "useLeakageWorkflow hook loads fixture by task ID, persists state across refresh",
+          "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::loads leakage workflow task fixture by task ID"
+        },
+        {
+          "criterion": "Unit test: session resume restores step and payload after simulated reload",
+          "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::persists state across refresh and restores step and payload after reload"
+        },
+        {
+          "criterion": "canAdvance blocks progression until evidence is marked reviewed (and PII guard passes)",
+          "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::returns false on evidence step when PII guard fails"
+        },
+        {
+          "criterion": "Unit test: forward transitions through full step graph succeed with valid state",
+          "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::advances through the full step graph with valid state"
+        },
+        {
+          "criterion": "Unit test: canAdvance returns false when evidence not reviewed",
+          "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::returns false on evidence step until evidence is reviewed"
+        },
+        {
+          "criterion": "No TikTok API; no Postgres",
+          "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::has no TikTok API or Postgres imports in leakage workflow module"
+        }
+      ]
+    }
+  }
+}
