@@ -3,6 +3,8 @@
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import fs from "fs";
+import path from "path";
 import { TaskQueue } from "@/components/tasks/TaskQueue";
 import { api } from "@/lib/api-client";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
@@ -180,6 +182,15 @@ describe("Issue #155: Path B opportunity filter", () => {
     }
 
     expect(screen.queryByTestId("listing-opportunity-card-b2000002-0002-4000-8000-000000000002")).not.toBeInTheDocument();
+  });
+});
+
+describe("Issue #155: architecture docs", () => {
+  it("map.md documents deployed listing workflow UI module row", () => {
+    const mapPath = path.join(process.cwd(), "..", "docs/architecture/map.md");
+    const content = fs.readFileSync(mapPath, "utf-8");
+    expect(content).toContain("workflows/new-seller/listing");
+    expect(content).toContain("ListingWorkflowPanel");
   });
 });
 

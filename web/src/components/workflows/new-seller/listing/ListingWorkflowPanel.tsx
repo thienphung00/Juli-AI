@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatVND } from "@/lib/format";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
+import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import { useListingWorkflow } from "@/lib/workflows/new-seller/listing/use-listing-workflow";
 import type { ListingPath } from "@/lib/workflows/new-seller/listing/state-machine";
 
@@ -16,7 +17,7 @@ export function ListingWorkflowPanel({
   personaId,
   onClose,
 }: {
-  personaId: string;
+  personaId: PersonaId;
   onClose: () => void;
 }) {
   const persona = loadPersona(personaId);
