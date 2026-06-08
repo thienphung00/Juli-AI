@@ -17,6 +17,7 @@
 | [013](013-phase-15-ml-module-tree.md) | Phase 1.5 ML module tree under `src/modules/ml/` | Accepted |
 | [020](020-new-seller-listing-workflow-scope.md) | New Seller listing workflow — P1.6 mock/rules, P2 publish slices | Accepted |
 | [021](021-listing-rules-engine.md) | Listing rules engine — deterministic `generateProductDraft` (P1.6-3) | Accepted |
+| [022](022-listing-workflow-ui.md) | Listing workflow UI — dual-path state machine from approved `list_products` (P1.6-2) | Accepted |
 
 ADRs 006–007 are **historical**: the product was rescoped from creator↔shop
 matching to **seller-money** workflows (New Seller Copilot, Revenue Leakage

@@ -1,5 +1,21 @@
 export { generateProductDraft } from "./generate";
 export { canExportProductDraft } from "./export-guard";
+export { filterOpportunities } from "./filter-opportunities";
+export {
+  advanceStep,
+  goBackStep,
+  canGoBack,
+  selectPath,
+  INITIAL_LISTING_WORKFLOW_STATE,
+} from "./state-machine";
+export type {
+  ListingWorkflowStep,
+  ListingPath,
+  ListingWorkflowState,
+  ProductFormData,
+  OpportunityConstraints,
+} from "./state-machine";
+export { useListingWorkflow } from "./use-listing-workflow";
 export {
   BLOCKED_CATEGORIES,
   READINESS_EXPORT_THRESHOLD,
