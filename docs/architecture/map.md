@@ -84,11 +84,11 @@ Tracked by [ADR-020](../decisions/020-new-seller-listing-workflow-scope.md) and
 `EXECUTION.md` slices P1.6-1…P1.6-5, P2-7, P2-8. Add rows here when code lands.
 
 | [`web/src/lib/mock-data/listing-workflow`](../../web/src/lib/mock-data/listing-workflow/MODULE.md) | 2 | Phase 1.6 listing workflow mock fixtures: ProductDraft, Distributor, Opportunity loaders | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | domain: web |
-| [`web/src/lib/workflows/new-seller/listing`](../../web/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Phase 1.6 rules-based listing generation: extraction, compliance, readiness score | `generateProductDraft`, `canExportProductDraft` | domain: web |
+| [`web/src/lib/workflows/new-seller/listing`](../../web/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Phase 1.6 listing generation + export: rules engine, CSV/JSON serialize | `generateProductDraft`, `canExportProductDraft`, `exportProductDraft` | domain: web |
 
 | Module (planned) | Target phase | Responsibility |
 |------------------|--------------|----------------|
-| [`web/src/components/workflows/new-seller/listing`](../../web/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | P1.6 | E2E listing workflow launched from approved `list_products` task; path A/B state machine, draft review, export placeholder |
+| [`web/src/components/workflows/new-seller/listing`](../../web/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | P1.6 | E2E listing workflow from approved `list_products`; path A/B state machine, draft review, CSV/JSON export execute step |
 | `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue, Products API publish executor |
 
 ## Pending cleanup (tracked in EXECUTION.md)

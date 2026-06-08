@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import { formatVND } from "@/lib/format";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
 import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
+import type { ProductDraft } from "@/lib/mock-data/listing-workflow/schemas";
+import {
+  canExportProductDraft,
+  downloadExportResult,
+  exportProductDraft,
+  trackExportCompleted,
+  type ExportFormat,
+} from "@/lib/workflows/new-seller/listing";
 import { useListingWorkflow } from "@/lib/workflows/new-seller/listing/use-listing-workflow";
 import type { ListingPath } from "@/lib/workflows/new-seller/listing/state-machine";
 
@@ -105,8 +113,8 @@ export function ListingWorkflowPanel({
           {state.step === "draft_review" && state.draft && (
             <DraftReviewStep draft={state.draft} />
           )}
-          {state.step === "export_placeholder" && (
-            <ExportPlaceholderStep productName={state.draft?.product_info.product_name} />
+          {state.step === "export_placeholder" && state.draft && (
+            <ExportExecuteStep draft={state.draft} personaId={personaId} />
           )}
         </div>
 
@@ -149,7 +157,7 @@ function stepLabel(step: string): string {
     opportunity_browse: "Duyệt cơ hội",
     distributor_pick: "Chọn nhà phân phối",
     draft_review: "Xem bản nháp",
-    export_placeholder: "Xuất bản",
+    export_placeholder: "Xuất bản nháp",
   };
   return labels[step] ?? step;
 }
@@ -480,15 +488,105 @@ function DraftReviewStep({
   );
 }
 
-function ExportPlaceholderStep({ productName }: { productName?: string }) {
+function ExportExecuteStep({
+  draft,
+  personaId,
+}: {
+  draft: ProductDraft;
+  personaId: PersonaId;
+}) {
+  const [format, setFormat] = useState<ExportFormat>("json");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportSuccess, setExportSuccess] = useState(false);
+  const exportAllowed = canExportProductDraft(draft);
+
+  const handleExport = () => {
+    setExportError(null);
+    try {
+      const result = exportProductDraft(draft, format);
+      downloadExportResult(result);
+      trackExportCompleted({
+        personaId,
+        draftId: draft.draft_id,
+        format,
+      });
+      setExportSuccess(true);
+    } catch {
+      setExportError(
+        "Không thể xuất bản nháp. Vui lòng sửa các vấn đề tuân thủ trước khi thử lại.",
+      );
+    }
+  };
+
+  if (exportSuccess) {
+    return (
+      <div className="space-y-3" data-testid="listing-export-success">
+        <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+          Xuất bản nháp thành công!
+        </p>
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          Tệp {format.toUpperCase()} đã được tải xuống. Tiếp theo, hãy đăng nhập TikTok
+          Seller Center, vào mục Sản phẩm → Thêm sản phẩm, rồi nhập thông tin từ
+          tệp vừa tải để đăng sản phẩm thủ công.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-2" data-testid="listing-export-placeholder">
-      <p className="text-sm font-medium">Bước xuất bản (sắp ra mắt)</p>
+    <div className="space-y-3" data-testid="listing-export-execute">
+      <p className="text-sm font-medium">{draft.product_info.product_name}</p>
       <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-        {productName
-          ? `Bản nháp "${productName}" sẽ được xuất CSV/JSON trong phiên bản tiếp theo.`
-          : "Xuất CSV/JSON sẽ có trong issue #156."}
+        Tải xuống bản nháp dưới dạng CSV hoặc JSON để đăng sản phẩm thủ công trên
+        TikTok Seller Center.
       </p>
+
+      <fieldset className="space-y-2" disabled={!exportAllowed}>
+        <legend className="text-sm">Định dạng xuất</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            name="export-format"
+            data-testid="listing-export-format-json"
+            checked={format === "json"}
+            onChange={() => setFormat("json")}
+          />
+          JSON
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            name="export-format"
+            data-testid="listing-export-format-csv"
+            checked={format === "csv"}
+            onChange={() => setFormat("csv")}
+          />
+          CSV
+        </label>
+      </fieldset>
+
+      {exportError && (
+        <p className="text-sm" data-testid="listing-export-error" role="alert">
+          {exportError}
+        </p>
+      )}
+
+      {!exportAllowed && (
+        <p className="text-sm" data-testid="listing-export-blocked" role="alert">
+          Không thể xuất: bản nháp bị chặn do vấn đề tuân thủ (
+          {draft.compliance.status}).
+        </p>
+      )}
+
+      <button
+        type="button"
+        className="btn-primary w-full"
+        data-testid="listing-export-download"
+        disabled={!exportAllowed}
+        onClick={handleExport}
+      >
+        Tải xuống bản nháp
+      </button>
     </div>
   );
 }

@@ -1,0 +1,90 @@
+{
+  "id": "review-issue-156",
+  "issue": 156,
+  "timestamp": "2026-06-08T22:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 1.6 listing export execute step: client-side CSV/JSON serialization from ProductDraft, blocked-draft guard via canExportProductDraft, Vietnamese manual Seller Center upload success copy, export_completed analytics. No TikTok API or Postgres writes.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/lib/workflows/new-seller/listing",
+    "web/src/components/workflows/new-seller/listing"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/workflows/new-seller/listing",
+      "interface": "exportProductDraft",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Serialize approved ProductDraft to CSV or JSON; throws ExportBlockedError when blocked."
+    },
+    {
+      "module": "web/src/lib/workflows/new-seller/listing",
+      "interface": "trackExportCompleted",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Fail-silent export_completed juli:analytics event."
+    },
+    {
+      "module": "web/src/components/workflows/new-seller/listing",
+      "interface": "ListingWorkflowPanel",
+      "changeType": "extended",
+      "breaking": false,
+      "description": "Export execute step replaces placeholder with format picker, download, and success copy."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "exportProductDraft returns valid JSON matching ProductDraft schema fields",
+          "test": "web/src/__tests__/test_listing_export.test.ts::returns parseable JSON with required ProductDraft fields"
+        },
+        {
+          "criterion": "exportProductDraft returns valid CSV matching ProductDraft schema fields",
+          "test": "web/src/__tests__/test_listing_export.test.ts::returns valid CSV with schema field headers"
+        },
+        {
+          "criterion": "blocked draft export throws error when compliance status is blocked",
+          "test": "web/src/__tests__/test_listing_export.test.ts::throws ExportBlockedError when compliance.status is blocked"
+        },
+        {
+          "criterion": "Export button disabled when compliance status blocked",
+          "test": "web/src/__tests__/test_listing_export.test.ts::throws ExportBlockedError when compliance.status is blocked"
+        },
+        {
+          "criterion": "Execute step export succeeds with Seller Center upload success message",
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::Path A E2E export succeeds with Seller Center upload success message"
+        },
+        {
+          "criterion": "Integration test Path A E2E approve list_products complete Path A export succeeds",
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::Path A E2E export succeeds with Seller Center upload success message"
+        },
+        {
+          "criterion": "Integration test Path B E2E complete Path B export succeeds",
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::Path B E2E — complete Path B and export succeeds"
+        },
+        {
+          "criterion": "UX instrumentation hook export_completed analytics event",
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::Path A E2E export succeeds with Seller Center upload success message"
+        },
+        {
+          "criterion": "No TikTok API calls no Postgres writes during workflow",
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::does not call backend APIs during workflow"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
