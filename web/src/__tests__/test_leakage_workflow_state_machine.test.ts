@@ -1,6 +1,8 @@
 /**
  * Issue #165 — Leakage workflow state machine + session persistence (P1.7-2)
  */
+import fs from "fs";
+import path from "path";
 import { loadLeakageWorkflowTask } from "@/lib/mock-data/leakage-workflow";
 import {
   advanceLeakageStep,
@@ -20,6 +22,10 @@ import {
 import { checkLeakageEvidencePii } from "@/lib/workflows/leakage/pii-guard";
 
 const TASK_ID = "task_leak_001";
+const LEAKAGE_WORKFLOW_DIR = path.join(
+  process.cwd(),
+  "src/lib/workflows/leakage",
+);
 
 function validStateForFullTraversal(): LeakageWorkflowSessionState {
   const task = loadLeakageWorkflowTask(TASK_ID);
@@ -36,6 +42,15 @@ function validStateForFullTraversal(): LeakageWorkflowSessionState {
 beforeEach(() => {
   sessionStorage.clear();
   clearLeakageWorkflowSession(TASK_ID);
+});
+
+describe("Issue #165: useLeakageWorkflow fixture loading", () => {
+  it("loads leakage workflow task fixture by task ID", () => {
+    const task = loadLeakageWorkflowTask(TASK_ID);
+    expect(task).toBeDefined();
+    expect(task!.id).toBe(TASK_ID);
+    expect(task!.type).toBe("return_spike");
+  });
 });
 
 describe("Issue #165: leakage workflow step graph", () => {
@@ -120,7 +135,7 @@ describe("Issue #165: canAdvance guards", () => {
 });
 
 describe("Issue #165: session resume", () => {
-  it("restores step and payload after simulated reload", () => {
+  it("persists state across refresh and restores step and payload after reload", () => {
     const task = loadLeakageWorkflowTask(TASK_ID)!;
     const piiPassed = checkLeakageEvidencePii(task.evidence_bundle);
 
@@ -137,6 +152,17 @@ describe("Issue #165: session resume", () => {
     expect(reloaded!.state.evidenceReviewed).toBe(true);
     expect(reloaded!.state.piiGuardPassed).toBe(true);
     expect(reloaded!.state.workflowStatus).toBe("evidence_reviewed");
+  });
+});
+
+describe("Issue #165: scope boundaries", () => {
+  it("has no TikTok API or Postgres imports in leakage workflow module", () => {
+    const entryPath = path.join(LEAKAGE_WORKFLOW_DIR, "index.ts");
+    const source = fs.readFileSync(entryPath, "utf8");
+
+    expect(source).not.toMatch(/tiktok/i);
+    expect(source).not.toMatch(/postgres|supabase/i);
+    expect(source).not.toMatch(/fetch\s*\(/);
   });
 });
 
