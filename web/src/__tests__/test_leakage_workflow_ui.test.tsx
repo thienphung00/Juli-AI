@@ -90,32 +90,43 @@ describe("Issue #166: evidence step PII guard", () => {
 });
 
 describe("Issue #166: all four task types render fixture-driven steps", () => {
-  const taskIds = [
-    "task_leak_001",
-    "task_leak_002",
-    "task_leak_003",
-    "task_leak_004",
-  ] as const;
-
-  it.each(taskIds)("renders detail content for %s", (taskId) => {
-    const task = loadLeakageWorkflowTask(taskId)!;
-    const { unmount } = render(
-      <LeakageWorkflowPanel taskId={taskId} onClose={jest.fn()} />,
-    );
-
+  it("renders detail content for task_leak_001", () => {
+    const task = loadLeakageWorkflowTask("task_leak_001")!;
+    render(<LeakageWorkflowPanel taskId="task_leak_001" onClose={jest.fn()} />);
     expect(screen.getByTestId("leakage-detail-summary")).toHaveTextContent(
       task.detail.summary_vi,
     );
-    unmount();
-    clearLeakageWorkflowSession(taskId);
+    clearLeakageWorkflowSession("task_leak_001");
   });
 
-  it.each([
-    ["task_leak_001", "listing_update"],
-    ["task_leak_002", "investigation_package"],
-    ["task_leak_003", "monitoring"],
-    ["task_leak_004", "shop_settings"],
-  ] as const)("shows action-type execution mock for %s", async (taskId, actionType) => {
+  it("renders detail content for task_leak_002", () => {
+    const task = loadLeakageWorkflowTask("task_leak_002")!;
+    render(<LeakageWorkflowPanel taskId="task_leak_002" onClose={jest.fn()} />);
+    expect(screen.getByTestId("leakage-detail-summary")).toHaveTextContent(
+      task.detail.summary_vi,
+    );
+    clearLeakageWorkflowSession("task_leak_002");
+  });
+
+  it("renders detail content for task_leak_003", () => {
+    const task = loadLeakageWorkflowTask("task_leak_003")!;
+    render(<LeakageWorkflowPanel taskId="task_leak_003" onClose={jest.fn()} />);
+    expect(screen.getByTestId("leakage-detail-summary")).toHaveTextContent(
+      task.detail.summary_vi,
+    );
+    clearLeakageWorkflowSession("task_leak_003");
+  });
+
+  it("renders detail content for task_leak_004", () => {
+    const task = loadLeakageWorkflowTask("task_leak_004")!;
+    render(<LeakageWorkflowPanel taskId="task_leak_004" onClose={jest.fn()} />);
+    expect(screen.getByTestId("leakage-detail-summary")).toHaveTextContent(
+      task.detail.summary_vi,
+    );
+    clearLeakageWorkflowSession("task_leak_004");
+  });
+
+  async function traverseToSuccess(taskId: string, actionType: string) {
     const user = userEvent.setup();
     const task = loadLeakageWorkflowTask(taskId)!;
     const totalDurationMs = task.execution_plan.steps.reduce(
@@ -124,11 +135,7 @@ describe("Issue #166: all four task types render fixture-driven steps", () => {
     );
 
     render(
-      <LeakageWorkflowPanel
-        taskId={taskId}
-        persona={persona}
-        onClose={jest.fn()}
-      />,
+      <LeakageWorkflowPanel taskId={taskId} persona={persona} onClose={jest.fn()} />,
     );
 
     await user.click(screen.getByTestId("leakage-next"));
@@ -158,8 +165,27 @@ describe("Issue #166: all four task types render fixture-driven steps", () => {
       task.success.headline_vi,
     );
     expect(screen.getByTestId("leakage-success-metrics")).toBeInTheDocument();
-
     clearLeakageWorkflowSession(taskId);
+  }
+
+  it("displays success headline and metrics from fixture payload", async () => {
+    await traverseToSuccess("task_leak_004", "shop_settings");
+  });
+
+  it("shows action-type execution mock for task_leak_001", async () => {
+    await traverseToSuccess("task_leak_001", "listing_update");
+  });
+
+  it("shows action-type execution mock for task_leak_002", async () => {
+    await traverseToSuccess("task_leak_002", "investigation_package");
+  });
+
+  it("shows action-type execution mock for task_leak_003", async () => {
+    await traverseToSuccess("task_leak_003", "monitoring");
+  });
+
+  it("shows action-type execution mock for task_leak_004", async () => {
+    await traverseToSuccess("task_leak_004", "shop_settings");
   });
 });
 

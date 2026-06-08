@@ -47,7 +47,7 @@
         },
         {
           "criterion": "Success step displays headline and metrics from fixture success payload",
-          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::shows action-type execution mock for task_leak_004"
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::displays success headline and metrics from fixture payload"
         },
         {
           "criterion": "Integration test: panel renders detail step for return_spike fixture",
