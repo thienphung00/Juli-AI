@@ -15,6 +15,8 @@ import type { TaskExecutorSession, TaskFeedback } from "./types";
 
 const FEEDBACK_MESSAGES = {
   approved: "Đã ghi nhận — chưa thực thi trên TikTok (Phase 1).",
+  listProductsApproved:
+    "Đã mở quy trình đăng sản phẩm — hoàn thành các bước trong phiên này.",
   dismissed: "Đã bỏ qua nhiệm vụ trong phiên này.",
 } as const;
 
@@ -27,6 +29,7 @@ export function useTaskExecutor(
     loadTaskExecutorSession(),
   );
   const [feedback, setFeedback] = useState<TaskFeedback | null>(null);
+  const [listingWorkflowOpen, setListingWorkflowOpen] = useState(false);
 
   useEffect(() => {
     saveTaskExecutorSession(session);
@@ -39,15 +42,27 @@ export function useTaskExecutor(
 
   const clearFeedback = useCallback(() => setFeedback(null), []);
 
+  const closeListingWorkflow = useCallback(() => {
+    setListingWorkflowOpen(false);
+  }, []);
+
   const approveTask = useCallback(
     (taskId: string) => {
       const task = tasks.find((item) => item.id === taskId);
       const updatedAt = new Date().toISOString();
       setSession((prev) => setTaskDisposition(prev, taskId, "approved", updatedAt));
+
+      const isListProducts = task?.type === "list_products";
+      if (isListProducts) {
+        setListingWorkflowOpen(true);
+      }
+
       setFeedback({
         kind: "approved",
         taskId,
-        message: FEEDBACK_MESSAGES.approved,
+        message: isListProducts
+          ? FEEDBACK_MESSAGES.listProductsApproved
+          : FEEDBACK_MESSAGES.approved,
       });
       if (task) {
         trackTaskApproved({
@@ -88,5 +103,7 @@ export function useTaskExecutor(
     clearFeedback,
     approveTask,
     dismissTask,
+    listingWorkflowOpen,
+    closeListingWorkflow,
   };
 }
