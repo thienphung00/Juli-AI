@@ -28,3 +28,11 @@ export {
   useLeakageWorkflow,
   type LeakageWorkflowController,
 } from "./use-leakage-workflow";
+export {
+  trackLeakageStepCompleted,
+  trackLeakageWorkflowCompleted,
+  trackLeakageWorkflowStarted,
+  trackTaskDismissedWithReason,
+  type LeakageUxEventName,
+  type LeakageUxEventPayload,
+} from "./leakage-analytics";

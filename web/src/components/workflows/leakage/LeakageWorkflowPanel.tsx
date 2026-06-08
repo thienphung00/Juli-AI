@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatVND } from "@/lib/format";
 import type { SellerPersona } from "@/lib/mock-data/seller-personas/schemas";
@@ -18,8 +18,12 @@ import {
   resolveEvidence,
   type ResolvedEvidence,
 } from "@/lib/workflows/leakage/resolve-evidence";
+import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import {
   LEAKAGE_WORKFLOW_STEPS,
+  trackLeakageStepCompleted,
+  trackLeakageWorkflowCompleted,
+  trackLeakageWorkflowStarted,
   useLeakageWorkflow,
   type LeakageWorkflowStep,
 } from "@/lib/workflows/leakage";
@@ -72,17 +76,53 @@ function resolveWorkflowEvidence(
 export function LeakageWorkflowPanel({
   taskId,
   persona,
+  personaId = persona?.profile.id ?? "leakage",
   onClose,
   onComplete,
 }: {
   taskId: string;
   persona?: SellerPersona;
+  personaId?: PersonaId;
   onClose: () => void;
   onComplete?: () => void;
 }) {
   const workflow = useLeakageWorkflow({ taskId });
   const { task, state } = workflow;
   const canAdvance = workflow.canAdvance;
+  const previousStepRef = useRef<LeakageWorkflowStep | null>(null);
+  const workflowStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (!task || workflowStartedRef.current) return;
+    workflowStartedRef.current = true;
+    trackLeakageWorkflowStarted({
+      personaId,
+      taskType: task.type,
+    });
+    previousStepRef.current = state.step;
+  }, [task, personaId, state.step]);
+
+  useEffect(() => {
+    if (!task || previousStepRef.current === null) return;
+    if (previousStepRef.current === state.step) return;
+
+    trackLeakageStepCompleted({
+      personaId,
+      taskType: task.type,
+      step: previousStepRef.current,
+    });
+    previousStepRef.current = state.step;
+  }, [state.step, task, personaId]);
+
+  const handleWorkflowComplete = useCallback(() => {
+    if (task) {
+      trackLeakageWorkflowCompleted({
+        personaId,
+        taskType: task.type,
+      });
+    }
+    onComplete?.();
+  }, [task, personaId, onComplete]);
 
   const modal = (
     <div
@@ -139,6 +179,7 @@ export function LeakageWorkflowPanel({
                 <EvidenceStep
                   task={task}
                   persona={persona}
+                  piiGuardPassed={workflow.piiGuardPassed}
                   onConfirm={workflow.reviewEvidence}
                 />
               )}
@@ -156,7 +197,7 @@ export function LeakageWorkflowPanel({
                 />
               )}
               {state.step === "success" && (
-                <SuccessStep success={task.success} onComplete={onComplete} />
+                <SuccessStep success={task.success} onComplete={handleWorkflowComplete} />
               )}
             </>
           )}
@@ -292,16 +333,31 @@ function DetailStep({ detail }: { detail: LeakageTaskDetail }) {
 function EvidenceStep({
   task,
   persona,
+  piiGuardPassed,
   onConfirm,
 }: {
   task: LeakageWorkflowTask;
   persona?: SellerPersona;
+  piiGuardPassed: boolean;
   onConfirm: () => void;
 }) {
   const evidence = useMemo(
     () => resolveWorkflowEvidence(task, persona),
     [task, persona],
   );
+
+  if (!piiGuardPassed) {
+    return (
+      <div className="space-y-4" data-testid="leakage-pii-guard-blocked">
+        <p className="text-sm font-medium" style={{ color: "var(--destructive, #ef4444)" }}>
+          Không thể tiếp tục — bằng chứng chứa dữ liệu nhạy cảm chưa được ẩn danh hóa.
+        </p>
+        <p className="text-muted text-xs">
+          Liên hệ hỗ trợ nếu bạn thấy thông tin buyer hoặc PII chưa được che.
+        </p>
+      </div>
+    );
+  }
 
   assertEvidenceHasNoRawPii(evidence);
 

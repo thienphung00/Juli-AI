@@ -46,6 +46,7 @@ export function TaskExecutorModals({
         <LeakageWorkflowPanel
           taskId={leakageWorkflowTaskId}
           persona={leakagePersona}
+          personaId={personaId}
           onClose={closeLeakageWorkflow}
           onComplete={completeLeakageWorkflow}
         />
