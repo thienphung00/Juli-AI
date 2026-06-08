@@ -1,0 +1,80 @@
+{
+  "id": "review-issue-164",
+  "issue": 164,
+  "timestamp": "2026-06-08T09:15:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 1.7 leakage workflow mock fixtures: typed LeakageWorkflowTask loaders for all four task types with evidence bundles, root cause, execution plans, and PII-safe validation. Persona aligned (buyer_cancellation_cluster, return_window_policy). No API or DB calls.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/lib/mock-data/leakage-workflow",
+    "web/src/lib/mock-data/seller-personas/fixtures/leakage-persona"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/mock-data/leakage-workflow",
+      "interface": "loadLeakageFixtures",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Returns all four LeakageWorkflowTask fixtures with stable IDs."
+    },
+    {
+      "module": "web/src/lib/mock-data/leakage-workflow",
+      "interface": "loadLeakageWorkflowTask",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Returns a single leakage workflow task by task ID."
+    },
+    {
+      "module": "web/src/lib/mock-data/leakage-workflow",
+      "interface": "validateLeakageFixtures",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Fail-fast schema and PII validation for all fixture sets."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 8,
+      "mapped": 8,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Fixture module under leakage-workflow with typed schemas matching canonical entities",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::includes required schema fields on every fixture"
+        },
+        {
+          "criterion": "loadLeakageFixtures returns complete records for all four leakage task types",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::returns exactly four tasks covering all leakage task types"
+        },
+        {
+          "criterion": "loadLeakageWorkflowTask returns a single task by stable ID",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::returns a single task by stable ID"
+        },
+        {
+          "criterion": "leakage-persona task cards aligned with fixture task IDs and renamed types",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::leakage-persona task IDs and types match workflow fixtures"
+        },
+        {
+          "criterion": "Cancelled-order rows present for buyer_cancellation_cluster evidence",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::includes cancelled-order rows for buyer-cancellation task"
+        },
+        {
+          "criterion": "Unit test fixture loaders return required schema fields per task type",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::includes required schema fields on every fixture"
+        },
+        {
+          "criterion": "Unit test all evidence bundles use masked buyer IDs only",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::masks buyer IDs in all evidence bundles and forbids raw PII keys"
+        },
+        {
+          "criterion": "No TikTok API calls and no Postgres writes",
+          "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::has no TikTok API or Postgres imports in fixture module entrypoint"
+        }
+      ]
+    }
+  }
+}

@@ -113,13 +113,15 @@ describe("Issue #120: evidence drill-down", () => {
 
   it("resolveEvidence maps evidence_refs to masked entity slices", () => {
     const persona = loadPersona("leakage");
-    const task = getWorkflowTasks(persona, "leakage").find((t) => t.type === "affiliate_fraud");
+    const task = getWorkflowTasks(persona, "leakage").find(
+      (t) => t.type === "buyer_cancellation_cluster",
+    );
     expect(task).toBeDefined();
 
     const evidence = resolveEvidence(persona, task!.evidence_refs);
 
-    expect(evidence.affiliate_events.length).toBeGreaterThan(0);
-    expect(evidence.affiliate_events[0].affiliate_id).toMatch(/^aff_\*\*\*/);
+    expect(evidence.orders.length).toBeGreaterThan(0);
+    expect(evidence.orders.every((order) => order.status === "cancelled")).toBe(true);
 
     for (const ret of evidence.returns) {
       expect(ret.buyer_id).toMatch(/^buyer_\*\*\*/);
