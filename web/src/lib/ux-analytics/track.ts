@@ -6,6 +6,8 @@ export interface TrackTaskUxInput {
   workflow: WorkflowId;
   task_type: string;
   persona_id: PersonaId;
+  dismiss_reason?: string;
+  dismiss_note?: string;
 }
 
 function buildPayload(
@@ -19,6 +21,8 @@ function buildPayload(
     persona_id: input.persona_id,
     session_id: getUxSessionId(),
     timestamp: new Date().toISOString(),
+    ...(input.dismiss_reason ? { dismiss_reason: input.dismiss_reason } : {}),
+    ...(input.dismiss_note ? { dismiss_note: input.dismiss_note } : {}),
   };
 }
 

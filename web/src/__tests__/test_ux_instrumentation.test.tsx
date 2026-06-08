@@ -14,6 +14,7 @@ import { loadPersona } from "@/lib/mock-data/seller-personas";
 import type { TaskUxEventPayload } from "@/lib/ux-analytics";
 import { UX_SESSION_STORAGE_KEY, clearUxSessionId } from "@/lib/ux-analytics";
 import { clearTaskExecutorSession } from "@/lib/task-executor";
+import { dismissTaskWithReason } from "./helpers/dismiss-task";
 
 function collectAnalyticsEvents(): TaskUxEventPayload[] {
   const events: TaskUxEventPayload[] = [];
@@ -97,7 +98,9 @@ describe("Issue #122: task UX analytics", () => {
     render(<TaskQueue tasks={tasks} personaId={persona.profile.id} />);
 
     await user.click(screen.getAllByTestId("task-approve")[0]);
-    await user.click(screen.getAllByTestId("task-dismiss")[0]);
+    await dismissTaskWithReason(user, "false_positive", {
+      dismissButton: screen.getAllByTestId("task-dismiss")[0],
+    });
 
     await waitFor(() => {
       expect(events.filter((e) => e.event === "task_approved")).toHaveLength(1);
@@ -116,6 +119,7 @@ describe("Issue #122: task UX analytics", () => {
       workflow: tasks[1].workflow,
       task_type: tasks[1].type,
       persona_id: "new",
+      dismiss_reason: "false_positive",
     });
     expect(approved.session_id).toBe(dismissed.session_id);
     expect(sessionStorage.getItem(UX_SESSION_STORAGE_KEY)).toBe(approved.session_id);
@@ -172,7 +176,7 @@ describe("Issue #122: task UX analytics", () => {
         tasks={leakagePersona.tasks.filter((t) => t.workflow === "leakage")}
       />,
     );
-    await user.click(screen.getAllByTestId("task-dismiss")[0]);
+    await dismissTaskWithReason(user, "not_relevant");
     unmountLeakage();
 
     const { unmount: unmountGrowth } = render(

@@ -15,6 +15,7 @@ import { ModeProvider } from "@/lib/mode-context";
 import { DEMO_PERSONA_STORAGE_KEY } from "@/lib/demo-persona";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
 import { clearTaskExecutorSession } from "@/lib/task-executor";
+import { dismissTaskWithReason } from "./helpers/dismiss-task";
 
 jest.mock("@/lib/auth-context", () => ({
   useAuth: () => ({
@@ -162,7 +163,7 @@ describe("Issue #120: shell integration", () => {
       expect(screen.getAllByTestId("task-card").length).toBeGreaterThan(0);
     });
 
-    await user.click(screen.getAllByTestId("task-dismiss")[0]);
+    await dismissTaskWithReason(user, "false_positive");
 
     await waitFor(() => {
       expect(screen.getByTestId("task-feedback-dismissed")).toBeInTheDocument();

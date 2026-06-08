@@ -33,5 +33,5 @@ workflow. Deterministic — no TikTok API, no Postgres, no ML inference.
 
 ## Out of scope (P1.7-2)
 
-- `useTaskExecutor` integration (#167)
+- `useTaskExecutor` opens `LeakageWorkflowPanel` on approve for four leakage types; global `TaskDismissModal` on dismiss (#167)
 - UX instrumentation events (#168)
