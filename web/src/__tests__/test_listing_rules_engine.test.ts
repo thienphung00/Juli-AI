@@ -58,7 +58,7 @@ describe("Issue #154: listing rules engine", () => {
   });
 
   describe("readiness — complete valid input", () => {
-    it("returns ready_for_export with score at or above the documented threshold", () => {
+    it("manual form input produces complete product_info and listing_content with ready_for_export status", () => {
       const draft = generateProductDraft({
         source_type: "manual_form",
         seller_id: SELLER_ID,
@@ -145,7 +145,7 @@ describe("Issue #154: listing rules engine", () => {
   });
 
   describe("module contract", () => {
-    it("has no fetch or LLM imports in the public entrypoint", () => {
+    it("generateProductDraft module has no cloud LLM and no API calls in the public entrypoint", () => {
       const fs = require("fs");
       const path = require("path");
       const indexSource = fs.readFileSync(

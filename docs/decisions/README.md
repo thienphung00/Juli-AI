@@ -15,6 +15,8 @@
 | [011](011-buyer-behavior-anomaly-scope.md) | Buyer-behavior anomaly scope — item swap + empty return only; no affiliate fraud ML | Accepted |
 | [012](012-entity-centric-data-model.md) | Entity-centric canonical data model — `docs/data-models/` as ML schema authority | Accepted |
 | [013](013-phase-15-ml-module-tree.md) | Phase 1.5 ML module tree under `src/modules/ml/` | Accepted |
+| [020](020-new-seller-listing-workflow-scope.md) | New Seller listing workflow — P1.6 mock/rules, P2 publish slices | Accepted |
+| [021](021-listing-rules-engine.md) | Listing rules engine — deterministic `generateProductDraft` (P1.6-3) | Accepted |
 
 ADRs 006–007 are **historical**: the product was rescoped from creator↔shop
 matching to **seller-money** workflows (New Seller Copilot, Revenue Leakage
