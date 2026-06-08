@@ -221,7 +221,7 @@ describe("Issue #155: Path B opportunity filter", () => {
 });
 
 describe("Issue #156: listing export execute step", () => {
-  it("Path A E2E — approve list_products through export succeeds", async () => {
+  it("Path A E2E export succeeds with Seller Center upload success message", async () => {
     const user = userEvent.setup();
     const analyticsEvents: CustomEvent[] = [];
     const onAnalytics = (event: Event) => {
