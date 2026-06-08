@@ -2,9 +2,9 @@
 
 import type { MockTask, PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import { useTaskExecutor } from "@/lib/task-executor/use-task-executor";
-import { ListingWorkflowPanel } from "@/components/workflows/new-seller/listing";
 import { DemoModeNotice } from "./DemoModeNotice";
 import { TaskCard } from "./TaskCard";
+import { TaskExecutorModals } from "./TaskExecutorModals";
 import { TaskFeedbackBanner } from "./TaskFeedbackBanner";
 
 export function TaskQueue({
@@ -14,24 +14,18 @@ export function TaskQueue({
   tasks: MockTask[];
   personaId: PersonaId;
 }) {
+  const executor = useTaskExecutor(tasks, { personaId });
   const {
     activeTasks,
     feedback,
     clearFeedback,
     approveTask,
-    dismissTask,
-    listingWorkflowOpen,
-    closeListingWorkflow,
-  } = useTaskExecutor(tasks, { personaId });
+    requestDismissTask,
+  } = executor;
 
   return (
     <section className="space-y-4" data-testid="task-queue">
-      {listingWorkflowOpen && (
-        <ListingWorkflowPanel
-          personaId={personaId}
-          onClose={closeListingWorkflow}
-        />
-      )}
+      <TaskExecutorModals personaId={personaId} executor={executor} />
       <DemoModeNotice />
 
       {feedback && (
@@ -54,7 +48,7 @@ export function TaskQueue({
                 task={task}
                 personaId={personaId}
                 onApprove={approveTask}
-                onDismiss={dismissTask}
+                onDismiss={requestDismissTask}
               />
             </li>
           ))}

@@ -14,6 +14,7 @@ import {
   filterActiveTasks,
   setTaskDisposition,
 } from "@/lib/task-executor";
+import { dismissTaskWithReason } from "./helpers/dismiss-task";
 
 jest.mock("@/lib/api-client", () => ({
   api: {
@@ -105,7 +106,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
     const user = userEvent.setup();
     render(<TaskQueue tasks={sampleTasks} personaId="new" />);
 
-    await user.click(screen.getAllByTestId("task-dismiss")[0]);
+    await dismissTaskWithReason(user, "not_relevant");
 
     await waitFor(() => {
       expect(screen.getByTestId("task-feedback-dismissed")).toBeInTheDocument();
@@ -128,7 +129,9 @@ describe("Issue #117: TaskQueue no-op executor", () => {
     });
 
     const remainingDismiss = within(list).getByTestId("task-dismiss");
-    await user.click(remainingDismiss);
+    await dismissTaskWithReason(user, "false_positive", {
+      dismissButton: remainingDismiss,
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId("task-queue-empty")).toBeInTheDocument();
@@ -141,7 +144,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
       <TaskQueue tasks={sampleTasks} personaId="new" />,
     );
 
-    await user.click(screen.getAllByTestId("task-dismiss")[0]);
+    await dismissTaskWithReason(user, "already_handled");
 
     await waitFor(() => {
       expect(screen.getAllByTestId("task-card")).toHaveLength(1);
@@ -160,7 +163,9 @@ describe("Issue #117: TaskQueue no-op executor", () => {
     render(<TaskQueue tasks={sampleTasks} personaId="new" />);
 
     await user.click(screen.getAllByTestId("task-approve")[0]);
-    await user.click(screen.getAllByTestId("task-dismiss")[0]);
+    await dismissTaskWithReason(user, "not_relevant", {
+      dismissButton: screen.getAllByTestId("task-dismiss")[0],
+    });
 
     expect(api.shops.list).not.toHaveBeenCalled();
     expect(api.shops.me).not.toHaveBeenCalled();

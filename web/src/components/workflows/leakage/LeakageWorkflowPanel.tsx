@@ -73,10 +73,12 @@ export function LeakageWorkflowPanel({
   taskId,
   persona,
   onClose,
+  onComplete,
 }: {
   taskId: string;
   persona?: SellerPersona;
   onClose: () => void;
+  onComplete?: () => void;
 }) {
   const workflow = useLeakageWorkflow({ taskId });
   const { task, state } = workflow;
@@ -153,7 +155,9 @@ export function LeakageWorkflowPanel({
                   onComplete={workflow.goNext}
                 />
               )}
-              {state.step === "success" && <SuccessStep success={task.success} />}
+              {state.step === "success" && (
+                <SuccessStep success={task.success} onComplete={onComplete} />
+              )}
             </>
           )}
         </div>
@@ -542,8 +546,10 @@ function ExecutionStep({
 
 function SuccessStep({
   success,
+  onComplete,
 }: {
   success: LeakageWorkflowTask["success"];
+  onComplete?: () => void;
 }) {
   return (
     <div className="space-y-4" data-testid="leakage-success-step">
@@ -561,6 +567,16 @@ function SuccessStep({
           </li>
         ))}
       </ul>
+      {onComplete && (
+        <button
+          type="button"
+          className="btn-primary w-full"
+          data-testid="leakage-workflow-complete"
+          onClick={onComplete}
+        >
+          Hoàn tất
+        </button>
+      )}
     </div>
   );
 }

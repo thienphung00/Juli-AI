@@ -15,6 +15,7 @@ import { ModeProvider } from "@/lib/mode-context";
 import { DEMO_PERSONA_STORAGE_KEY } from "@/lib/demo-persona";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
 import { clearTaskExecutorSession } from "@/lib/task-executor";
+import { dismissTaskWithReason } from "./helpers/dismiss-task";
 
 jest.mock("@/lib/auth-context", () => ({
   useAuth: () => ({
@@ -153,7 +154,9 @@ describe("Issue #121: shared executor", () => {
     const initialCount = within(list).getAllByTestId("task-card").length;
     expect(initialCount).toBeGreaterThanOrEqual(2);
 
-    await user.click(within(list).getAllByTestId("task-dismiss")[0]);
+    await dismissTaskWithReason(user, "not_relevant", {
+      dismissButton: within(list).getAllByTestId("task-dismiss")[0],
+    });
 
     await waitFor(() => {
       expect(within(list).getAllByTestId("task-card")).toHaveLength(initialCount - 1);

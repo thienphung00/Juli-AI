@@ -12,4 +12,6 @@ export interface TaskUxEventPayload {
   persona_id: PersonaId;
   session_id: string;
   timestamp: string;
+  dismiss_reason?: string;
+  dismiss_note?: string;
 }

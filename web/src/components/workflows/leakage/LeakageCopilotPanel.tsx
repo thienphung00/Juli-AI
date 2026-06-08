@@ -5,6 +5,7 @@ import type { MockTask, SellerPersona } from "@/lib/mock-data/seller-personas/sc
 import { useTaskExecutor } from "@/lib/task-executor/use-task-executor";
 import { DemoModeNotice } from "@/components/tasks/DemoModeNotice";
 import { TaskCard } from "@/components/tasks/TaskCard";
+import { TaskExecutorModals } from "@/components/tasks/TaskExecutorModals";
 import { TaskFeedbackBanner } from "@/components/tasks/TaskFeedbackBanner";
 import { EvidenceDrawer } from "./EvidenceDrawer";
 
@@ -15,8 +16,14 @@ export function LeakageCopilotPanel({
   persona: SellerPersona;
   tasks: MockTask[];
 }) {
-  const { activeTasks, feedback, clearFeedback, approveTask, dismissTask } =
-    useTaskExecutor(tasks, { personaId: persona.profile.id });
+  const executor = useTaskExecutor(tasks, { personaId: persona.profile.id });
+  const {
+    activeTasks,
+    feedback,
+    clearFeedback,
+    approveTask,
+    requestDismissTask,
+  } = executor;
   const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
 
   const evidenceTask =
@@ -30,6 +37,11 @@ export function LeakageCopilotPanel({
 
   return (
     <section className="space-y-4" data-testid="leakage-copilot-panel">
+      <TaskExecutorModals
+        personaId={persona.profile.id}
+        leakagePersona={persona}
+        executor={executor}
+      />
       <header>
         <h2 className="text-sm font-semibold">Phát hiện rò rỉ doanh thu</h2>
         <p className="text-muted mt-1 text-xs">
@@ -67,7 +79,7 @@ export function LeakageCopilotPanel({
                 task={task}
                 personaId={persona.profile.id}
                 onApprove={approveTask}
-                onDismiss={dismissTask}
+                onDismiss={requestDismissTask}
               />
               <button
                 type="button"
