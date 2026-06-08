@@ -1,0 +1,71 @@
+{
+  "id": "review-issue-166",
+  "issue": 166,
+  "timestamp": "2026-06-08T12:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "LeakageWorkflowPanel portal modal with six step renderers for all four leakage task types. Fixture-driven detail, evidence (PII guard), root cause, recommended action, mock execution stepper, and success screens. UI-only; no new routes or backend calls.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx",
+    "web/src/components/workflows/leakage/index.ts",
+    "web/MODULE.md"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/components/workflows/leakage",
+      "interface": "LeakageWorkflowPanel",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Portal modal workflow panel consuming useLeakageWorkflow with six step renderers."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "LeakageWorkflowPanel mounts in a portal modal with step navigation controls",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::mounts in a portal modal with step navigation controls"
+        },
+        {
+          "criterion": "All six steps render with fixture-driven content for each of the four task types",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::shows action-type execution mock for task_leak_001"
+        },
+        {
+          "criterion": "Evidence step invokes assertEvidenceHasNoRawPii on render",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::renders masked buyer IDs on evidence step"
+        },
+        {
+          "criterion": "Mock execution stepper shows sub-steps from fixture execution_plan with deterministic progress",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::shows action-type execution mock for task_leak_003"
+        },
+        {
+          "criterion": "Success step displays headline and metrics from fixture success payload",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::shows action-type execution mock for task_leak_004"
+        },
+        {
+          "criterion": "Integration test: panel renders detail step for return_spike fixture",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::renders detail step for return_spike fixture"
+        },
+        {
+          "criterion": "Integration test: evidence step renders masked buyer IDs for at least one task type",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::renders masked buyer IDs on evidence step"
+        },
+        {
+          "criterion": "Works with NEXT_PUBLIC_UI_ONLY=1 (no backend calls)",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::mounts in a portal modal with step navigation controls"
+        },
+        {
+          "criterion": "No new App Router routes (/leakage/*)",
+          "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::exports LeakageWorkflowPanel from leakage workflow index"
+        }
+      ]
+    }
+  }
+}
