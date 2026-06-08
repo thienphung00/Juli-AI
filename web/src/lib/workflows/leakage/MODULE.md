@@ -27,8 +27,11 @@ workflow. Deterministic — no TikTok API, no Postgres, no ML inference.
 - `@/lib/mock-data/leakage-workflow` — `loadLeakageWorkflowTask`, fixture schemas
 - `@/lib/mock-data/seller-personas/pii` — masked buyer ID enforcement
 
+## Related UI (P1.7-3)
+
+- `LeakageWorkflowPanel` — modal step renderers; consumes `useLeakageWorkflow` (#166)
+
 ## Out of scope (P1.7-2)
 
-- `LeakageWorkflowPanel` UI (#166)
 - `useTaskExecutor` integration (#167)
 - UX instrumentation events (#168)
