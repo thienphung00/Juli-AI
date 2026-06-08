@@ -11,7 +11,7 @@ Deterministic — no LLM, no API calls, no Postgres writes.
 | `canExportProductDraft(draft)` | Returns `false` when `compliance.status === "blocked"` or draft not `ready_for_export` |
 | `exportProductDraft(draft, format)` | Serialize approved draft to CSV or JSON; throws `ExportBlockedError` when blocked |
 | `downloadExportResult(result)` | Trigger browser download from export result (client-only) |
-| `trackExportCompleted(...)` | Fail-silent `export_completed` analytics event |
+| `trackExportCompleted(...)` | Fail-silent `export_completed` analytics event (+ readiness bucket, #157) |
 | `READINESS_EXPORT_THRESHOLD` | Minimum readiness score (70) for export-ready status |
 
 ## Input context
@@ -30,4 +30,4 @@ Deterministic — no LLM, no API calls, no Postgres writes.
 
 - Cloud LLM / Ollama copy rewrite (P2)
 - TikTok Products API publish (P2-8)
-- Shop progress widget (#157)
+- Shop progress: `@/lib/workflows/new-seller/shop-progress` (#157)
