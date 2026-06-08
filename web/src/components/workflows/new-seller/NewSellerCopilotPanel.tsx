@@ -2,6 +2,11 @@
 
 import { TaskQueue } from "@/components/tasks";
 import type { MockTask, SellerPersona } from "@/lib/mock-data/seller-personas/schemas";
+import {
+  STANDARD_STATUS_LISTING_TARGET,
+  useShopProgress,
+} from "@/lib/workflows/new-seller/shop-progress";
+import { ListingProgressWidget } from "./ListingProgressWidget";
 import { MilestoneProgress } from "./MilestoneProgress";
 
 export function NewSellerCopilotPanel({
@@ -11,6 +16,8 @@ export function NewSellerCopilotPanel({
   persona: SellerPersona;
   tasks: MockTask[];
 }) {
+  const shopProgress = useShopProgress(persona.profile.id);
+
   return (
     <section className="space-y-4" data-testid="new-seller-copilot-panel">
       <div className="card p-4" data-testid="new-seller-checklist-header">
@@ -22,7 +29,16 @@ export function NewSellerCopilotPanel({
         </p>
       </div>
 
-      <MilestoneProgress profile={persona.profile} />
+      <MilestoneProgress
+        profile={persona.profile}
+        activeListingCount={shopProgress.activeListingCount}
+      />
+
+      <ListingProgressWidget
+        widgetState={shopProgress.widgetState}
+        activeListingCount={shopProgress.activeListingCount}
+        listingTarget={STANDARD_STATUS_LISTING_TARGET}
+      />
 
       <TaskQueue tasks={tasks} personaId={persona.profile.id} />
     </section>

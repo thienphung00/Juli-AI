@@ -1,5 +1,9 @@
 import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import { getUxSessionId } from "@/lib/ux-analytics/session";
+import {
+  getReadinessScoreBucket,
+  type ReadinessScoreBucket,
+} from "@/lib/workflows/new-seller/shop-progress";
 import type { ExportFormat } from "./export";
 
 export interface ExportCompletedPayload {
@@ -10,14 +14,17 @@ export interface ExportCompletedPayload {
   session_id: string;
   draft_id: string;
   format: ExportFormat;
+  readiness_score: number;
+  readiness_score_bucket: ReadinessScoreBucket;
   timestamp: string;
 }
 
-/** Fail-silent analytics for listing export completion (issue #156). */
+/** Fail-silent analytics for listing export completion (issue #156, #157). */
 export function trackExportCompleted(input: {
   personaId: PersonaId;
   draftId: string;
   format: ExportFormat;
+  readinessScore: number;
 }): void {
   if (typeof window === "undefined") return;
 
@@ -30,6 +37,8 @@ export function trackExportCompleted(input: {
       session_id: getUxSessionId(),
       draft_id: input.draftId,
       format: input.format,
+      readiness_score: input.readinessScore,
+      readiness_score_bucket: getReadinessScoreBucket(input.readinessScore),
       timestamp: new Date().toISOString(),
     };
 

@@ -11,6 +11,12 @@ import { loadPersona } from "@/lib/mock-data/seller-personas";
 import { filterOpportunities } from "@/lib/workflows/new-seller/listing";
 import { loadOpportunities } from "@/lib/mock-data/listing-workflow";
 import { clearTaskExecutorSession } from "@/lib/task-executor";
+import {
+  BASELINE_ACTIVE_LISTING_COUNT,
+  clearShopProgress,
+  loadShopProgress,
+} from "@/lib/workflows/new-seller/shop-progress";
+import { NewSellerCopilotPanel } from "@/components/workflows/new-seller/NewSellerCopilotPanel";
 
 jest.mock("@/lib/api-client", () => ({
   api: {
@@ -102,6 +108,7 @@ async function completePathBToDraftReview(user: ReturnType<typeof userEvent.setu
 beforeEach(() => {
   jest.clearAllMocks();
   clearTaskExecutorSession();
+  clearShopProgress("new");
   sessionStorage.clear();
 
   global.URL.createObjectURL = jest.fn(() => "blob:mock-url");
@@ -285,6 +292,157 @@ describe("Issue #155: architecture docs", () => {
     const content = fs.readFileSync(mapPath, "utf-8");
     expect(content).toContain("workflows/new-seller/listing");
     expect(content).toContain("ListingWorkflowPanel");
+  });
+});
+
+describe("Issue #157: shop progress tracking", () => {
+  it("increments mock active listing count after successful export", async () => {
+    const user = userEvent.setup();
+    expect(loadShopProgress("new").activeListingCount).toBe(
+      BASELINE_ACTIVE_LISTING_COUNT,
+    );
+
+    await approveListProducts(user);
+    await completePathAToDraftReview(user);
+
+    await user.click(screen.getByTestId("listing-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-execute")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("listing-export-download"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-success")).toBeInTheDocument();
+    });
+
+    expect(loadShopProgress("new").activeListingCount).toBe(
+      BASELINE_ACTIVE_LISTING_COUNT + 1,
+    );
+  });
+
+  it("widget state transitions NoDistributor → DistributorKnown → DraftGenerated → Published-stub", async () => {
+    const user = userEvent.setup();
+
+    render(<NewSellerCopilotPanel persona={persona} tasks={[listProductsTask]} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-progress-widget")).toHaveAttribute(
+        "data-widget-state",
+        "no_distributor",
+      );
+    });
+
+    await user.click(screen.getByTestId("task-approve"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-workflow")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("listing-path-a"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-step-product_form")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("listing-progress-widget")).toHaveAttribute(
+      "data-widget-state",
+      "no_distributor",
+    );
+
+    await user.click(screen.getByTestId("listing-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-step-distributor_pick")).toBeInTheDocument();
+    });
+
+    await user.click(
+      screen.getByTestId("listing-distributor-a1000001-0001-4000-8000-000000000001"),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-progress-widget")).toHaveAttribute(
+        "data-widget-state",
+        "distributor_known",
+      );
+    });
+
+    await user.click(screen.getByTestId("listing-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-draft-review")).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-progress-widget")).toHaveAttribute(
+        "data-widget-state",
+        "draft_generated",
+      );
+    });
+
+    await user.click(screen.getByTestId("listing-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-execute")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("listing-export-download"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-progress-widget")).toHaveAttribute(
+        "data-widget-state",
+        "published_stub",
+      );
+    });
+  });
+
+  it("updates listing milestone progress bar after export", async () => {
+    const user = userEvent.setup();
+
+    render(<NewSellerCopilotPanel persona={persona} tasks={[listProductsTask]} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-milestone-percent")).toHaveTextContent("30%");
+    });
+
+    await user.click(screen.getByTestId("task-approve"));
+    await completePathAToDraftReview(user);
+
+    await user.click(screen.getByTestId("listing-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-execute")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("listing-export-download"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-milestone-percent")).toHaveTextContent("40%");
+    });
+  });
+
+  it("emits readiness_score_bucket on export_completed analytics", async () => {
+    const user = userEvent.setup();
+    const analyticsEvents: CustomEvent[] = [];
+    const onAnalytics = (event: Event) => {
+      analyticsEvents.push(event as CustomEvent);
+    };
+    window.addEventListener("juli:analytics", onAnalytics);
+
+    await approveListProducts(user);
+    await completePathAToDraftReview(user);
+
+    await user.click(screen.getByTestId("listing-next"));
+    await user.click(screen.getByTestId("listing-export-download"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("listing-export-success")).toBeInTheDocument();
+    });
+
+    const exportEvent = analyticsEvents.find(
+      (event) => event.detail?.event === "export_completed",
+    );
+    expect(exportEvent?.detail).toMatchObject({
+      event: "export_completed",
+      readiness_score_bucket: expect.stringMatching(/^(low|medium|high)$/),
+    });
+    expect(typeof exportEvent?.detail.readiness_score).toBe("number");
+
+    window.removeEventListener("juli:analytics", onAnalytics);
   });
 });
 

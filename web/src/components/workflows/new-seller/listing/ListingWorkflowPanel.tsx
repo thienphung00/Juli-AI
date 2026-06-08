@@ -14,6 +14,10 @@ import {
 } from "@/lib/workflows/new-seller/listing";
 import { useListingWorkflow } from "@/lib/workflows/new-seller/listing/use-listing-workflow";
 import type { ListingPath } from "@/lib/workflows/new-seller/listing/state-machine";
+import {
+  recordExportCompleted,
+  syncShopProgressFromWorkflow,
+} from "@/lib/workflows/new-seller/shop-progress";
 
 const DEFAULT_CONSTRAINTS = {
   category: "Mỹ phẩm",
@@ -35,6 +39,10 @@ export function ListingWorkflowPanel({
   });
 
   const { state } = workflow;
+
+  useEffect(() => {
+    syncShopProgressFromWorkflow(personaId, state);
+  }, [personaId, state]);
 
   return (
     <div
@@ -505,10 +513,12 @@ function ExportExecuteStep({
     try {
       const result = exportProductDraft(draft, format);
       downloadExportResult(result);
+      recordExportCompleted(personaId);
       trackExportCompleted({
         personaId,
         draftId: draft.draft_id,
         format,
+        readinessScore: draft.readiness.overall_score,
       });
       setExportSuccess(true);
     } catch {
