@@ -116,13 +116,20 @@ async function completeLeakageHappyPath(taskType: string) {
 }
 
 describe("Issue #168: happy-path integration per leakage task type", () => {
-  it.each([
-    "return_spike",
-    "buyer_cancellation_cluster",
-    "refund_cluster",
-    "return_window_policy",
-  ] as const)("approve → all steps → success → queue empty for %s", async (taskType) => {
-    await completeLeakageHappyPath(taskType);
+  it("return_spike happy path approve through success removes task from queue", async () => {
+    await completeLeakageHappyPath("return_spike");
+  });
+
+  it("buyer_cancellation_cluster happy path approve through success removes task from queue", async () => {
+    await completeLeakageHappyPath("buyer_cancellation_cluster");
+  });
+
+  it("refund_cluster happy path approve through success removes task from queue", async () => {
+    await completeLeakageHappyPath("refund_cluster");
+  });
+
+  it("return_window_policy happy path approve through success removes task from queue", async () => {
+    await completeLeakageHappyPath("return_window_policy");
   });
 });
 
@@ -189,27 +196,40 @@ describe("Issue #168: dismiss-with-reason", () => {
     await expectDismissBlockedWithoutReason(user);
   });
 
-  it.each(TASK_DISMISS_REASONS)(
-    "dismiss with reason %s removes task from queue",
-    async (reason) => {
-      const user = userEvent.setup();
-      const task = leakageTasks.find((item) => item.type === "refund_cluster")!;
+  async function dismissLeakageTaskWithReason(reason: (typeof TASK_DISMISS_REASONS)[number]) {
+    const user = userEvent.setup();
+    const task = leakageTasks.find((item) => item.type === "refund_cluster")!;
 
-      render(<LeakageCopilotPanel persona={leakagePersona} tasks={[task]} />);
+    render(<LeakageCopilotPanel persona={leakagePersona} tasks={[task]} />);
 
-      await dismissTaskWithReason(user, reason, {
-        note: reason === "other" ? "Không áp dụng" : undefined,
-      });
+    await dismissTaskWithReason(user, reason, {
+      note: reason === "other" ? "Không áp dụng" : undefined,
+    });
 
-      await waitFor(() => {
-        expect(screen.getByTestId("task-queue-empty")).toBeInTheDocument();
-      });
+    await waitFor(() => {
+      expect(screen.getByTestId("task-queue-empty")).toBeInTheDocument();
+    });
 
-      const record = loadTaskExecutorSession().records[task.id];
-      expect(record?.disposition).toBe("dismissed");
-      expect(record?.dismissReason).toBe(reason);
-    },
-  );
+    const record = loadTaskExecutorSession().records[task.id];
+    expect(record?.disposition).toBe("dismissed");
+    expect(record?.dismissReason).toBe(reason);
+  }
+
+  it("dismiss with reason false_positive removes task from queue", async () => {
+    await dismissLeakageTaskWithReason("false_positive");
+  });
+
+  it("dismiss with reason already_handled removes task from queue", async () => {
+    await dismissLeakageTaskWithReason("already_handled");
+  });
+
+  it("dismiss with reason not_relevant removes task from queue", async () => {
+    await dismissLeakageTaskWithReason("not_relevant");
+  });
+
+  it("dismiss with reason other removes task from queue", async () => {
+    await dismissLeakageTaskWithReason("other");
+  });
 });
 
 describe("Issue #168: leakage UX instrumentation", () => {
