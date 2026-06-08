@@ -90,6 +90,8 @@ Tracked by [ADR-020](../decisions/020-new-seller-listing-workflow-scope.md) and
 | [`web/src/lib/workflows/new-seller/shop-progress`](../../web/src/lib/workflows/new-seller/shop-progress/MODULE.md) | 2 | Session-scoped listing milestone + widget states | `loadShopProgress`, `recordExportCompleted`, `useShopProgress` | domain: web |
 | [`web/src/components/workflows/new-seller/listing`](../../web/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | 2 | Modal listing workflow from approved `list_products` | `ListingWorkflowPanel` | domain: web |
 | [`web/src/components/workflows/new-seller/ListingProgressWidget`](../../web/src/components/workflows/new-seller/ListingProgressWidget.tsx) | 2 | Copilot home listing progress widget | `ListingProgressWidget` | domain: web |
+| [`web/src/lib/mock-data/leakage-workflow`](../../web/src/lib/mock-data/leakage-workflow/MODULE.md) | 2 | Leakage workflow fixtures: `LeakageWorkflowTask`, evidence bundles, execution plans | `loadLeakageWorkflowTask`, `loadLeakageFixtures` | domain: web |
+| [`web/src/lib/workflows/leakage`](../../web/src/lib/workflows/leakage/MODULE.md) | 2 | Leakage step graph, session resume, `canAdvance` | `useLeakageWorkflow`, `advanceLeakageStep` | domain: web |
 
 ## Planned modules (Phase 1.7 / Phase 2 — not yet deployed)
 
@@ -98,8 +100,6 @@ Tracked by [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md) and
 
 | Module (planned) | Target phase | Responsibility |
 |------------------|--------------|----------------|
-| `web/src/lib/mock-data/leakage-workflow/` | P1.7 | Leakage workflow fixtures: `LeakageWorkflowTask`, evidence bundles, execution plans |
-| `web/src/lib/workflows/leakage/state-machine.ts` + `use-leakage-workflow.ts` | P1.7 | Leakage step graph, session resume, `canAdvance` |
 | `web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` | P1.7 | Modal leakage workflow from approved leakage tasks; four task-type step renderers |
 | `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
 | `src/modules/catalog/domain/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
