@@ -1,0 +1,92 @@
+{
+  "id": "review-issue-167",
+  "issue": 167,
+  "timestamp": "2026-06-08T10:55:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Executor integration for P1.7-4: approve on four leakage task types opens LeakageWorkflowPanel; global TaskDismissModal enforces skip-with-reason across New Seller, Leakage, and Growth; dismiss reason persisted on session and UX events; workflow completion closes modal.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/lib/task-executor/use-task-executor.ts",
+    "web/src/lib/task-executor/dismiss-reasons.ts",
+    "web/src/lib/task-executor/leakage-workflow-task.ts",
+    "web/src/components/tasks/TaskDismissModal.tsx",
+    "web/src/components/tasks/TaskExecutorModals.tsx",
+    "web/src/components/workflows/leakage/LeakageCopilotPanel.tsx",
+    "web/src/components/workflows/growth/GrowthCopilotPanel.tsx",
+    "web/src/components/tasks/TaskQueue.tsx",
+    "web/src/lib/ux-analytics/track.ts"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/task-executor",
+      "interface": "useTaskExecutor",
+      "changeType": "extended",
+      "breaking": false,
+      "description": "Opens LeakageWorkflowPanel on approve for four leakage types; requestDismissTask/confirmDismissTask with reason; completeLeakageWorkflow on success."
+    },
+    {
+      "module": "web/src/components/tasks",
+      "interface": "TaskDismissModal",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Global skip-with-reason modal shared across copilot workflows."
+    },
+    {
+      "module": "web/src/lib/ux-analytics",
+      "interface": "trackTaskDismissed",
+      "changeType": "extended",
+      "breaking": false,
+      "description": "Optional dismiss_reason and dismiss_note on task_dismissed events."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Approve on return_spike buyer_cancellation_cluster refund_cluster return_window_policy opens LeakageWorkflowPanel",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::opens leakage workflow when return_spike is approved"
+        },
+        {
+          "criterion": "Other leakage types and non-leakage types keep existing behavior list_products listing workflow others feedback only",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::keeps no-op feedback for non-leakage executable task types"
+        },
+        {
+          "criterion": "Dismiss without a selected reason is blocked UI prevents submit",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::blocks dismiss submit until a reason is selected"
+        },
+        {
+          "criterion": "Dismiss with each of the four reason enums succeeds and records reason on session",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::accepts dismiss reason false_positive"
+        },
+        {
+          "criterion": "Global dismiss modal component used by New Seller Leakage and Growth task cards",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::uses global dismiss modal from New Seller TaskQueue"
+        },
+        {
+          "criterion": "Workflow completion sets task disposition and closes modal task no longer in active queue",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::workflow completion closes modal and keeps task out of active queue"
+        },
+        {
+          "criterion": "Integration test approve leakage task opens workflow panel",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::opens leakage workflow when return_spike is approved"
+        },
+        {
+          "criterion": "Integration test dismiss requires reason dismiss with false_positive removes task from active list",
+          "test": "web/src/__tests__/test_task_executor_issue_167.test.tsx::dismiss with false_positive removes task from active list and records reason"
+        },
+        {
+          "criterion": "no API calls on approve or dismiss",
+          "test": "web/src/__tests__/test_task_card_executor.test.tsx::no API calls on approve or dismiss"
+        }
+      ]
+    }
+  },
+  "approvalReady": true
+}

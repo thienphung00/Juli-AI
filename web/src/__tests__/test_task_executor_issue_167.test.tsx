@@ -26,19 +26,30 @@ beforeEach(() => {
   clearTaskExecutorSession();
 });
 
+async function approveLeakageTaskAndExpectWorkflow(taskType: string) {
+  const user = userEvent.setup();
+  const task = leakageTasks.find((item) => item.type === taskType)!;
+  render(<LeakageCopilotPanel persona={leakagePersona} tasks={[task]} />);
+
+  await user.click(screen.getByTestId("task-approve"));
+
+  await waitFor(() => {
+    expect(screen.getByTestId("leakage-workflow")).toBeInTheDocument();
+  });
+  expect(screen.getByTestId("leakage-step-detail")).toBeInTheDocument();
+}
+
 describe("Issue #167: approve opens LeakageWorkflowPanel", () => {
   it("opens leakage workflow when return_spike is approved", async () => {
-    const user = userEvent.setup();
-    render(
-      <LeakageCopilotPanel persona={leakagePersona} tasks={[returnSpikeTask]} />,
-    );
+    await approveLeakageTaskAndExpectWorkflow("return_spike");
+  });
 
-    await user.click(screen.getByTestId("task-approve"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("leakage-workflow")).toBeInTheDocument();
-    });
-    expect(screen.getByTestId("leakage-step-detail")).toBeInTheDocument();
+  it.each([
+    "buyer_cancellation_cluster",
+    "refund_cluster",
+    "return_window_policy",
+  ] as const)("opens leakage workflow when %s is approved", async (taskType) => {
+    await approveLeakageTaskAndExpectWorkflow(taskType);
   });
 
   it("keeps no-op feedback for non-leakage executable task types", async () => {
@@ -84,21 +95,93 @@ describe("Issue #167: global skip-with-reason", () => {
     expect(record?.dismissReason).toBe("false_positive");
   });
 
-  it.each(TASK_DISMISS_REASONS)("accepts dismiss reason %s", async (reason) => {
+  it("uses global dismiss modal from New Seller TaskQueue", async () => {
+    const user = userEvent.setup();
+    render(<TaskQueue tasks={newPersona.tasks.slice(0, 1)} personaId="new" />);
+
+    await user.click(screen.getByTestId("task-dismiss"));
+    await waitFor(() => {
+      expect(screen.getByTestId("task-dismiss-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("accepts dismiss reason false_positive", async () => {
     const user = userEvent.setup();
     const tasks = leakageTasks.slice(0, 1);
     render(<LeakageCopilotPanel persona={leakagePersona} tasks={tasks} />);
 
-    await dismissTaskWithReason(user, reason, {
-      note: reason === "other" ? "Không áp dụng cho shop nhỏ" : undefined,
+    await dismissTaskWithReason(user, "false_positive");
+
+    expect(loadTaskExecutorSession().records[tasks[0]!.id]?.dismissReason).toBe(
+      "false_positive",
+    );
+  });
+
+  it.each(["already_handled", "not_relevant", "other"] as const)(
+    "accepts dismiss reason %s",
+    async (reason) => {
+      const user = userEvent.setup();
+      const tasks = leakageTasks.slice(0, 1);
+      render(<LeakageCopilotPanel persona={leakagePersona} tasks={tasks} />);
+
+      await dismissTaskWithReason(user, reason, {
+        note: reason === "other" ? "Không áp dụng cho shop nhỏ" : undefined,
+      });
+
+      const session = loadTaskExecutorSession();
+      expect(session.records[tasks[0]!.id]?.dismissReason).toBe(reason);
+      if (reason === "other") {
+        expect(session.records[tasks[0]!.id]?.dismissNote).toBe(
+          "Không áp dụng cho shop nhỏ",
+        );
+      }
+    },
+  );
+});
+
+describe("Issue #167: workflow completion", () => {
+  it("workflow completion closes modal and keeps task out of active queue", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <LeakageCopilotPanel persona={leakagePersona} tasks={[returnSpikeTask]} />,
+    );
+
+    await user.click(screen.getByTestId("task-approve"));
+    await waitFor(() => {
+      expect(screen.getByTestId("leakage-workflow")).toBeInTheDocument();
     });
 
+    await user.click(screen.getByTestId("leakage-next"));
+    await waitFor(() => {
+      expect(screen.getByTestId("leakage-step-evidence")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("leakage-evidence-confirm"));
+    await user.click(screen.getByTestId("leakage-next"));
+    await user.click(screen.getByTestId("leakage-next"));
+    await user.click(screen.getByTestId("leakage-next"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("leakage-step-execution")).toBeInTheDocument();
+    });
+
+    await jest.advanceTimersByTimeAsync(5_000);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("leakage-step-success")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("leakage-workflow-complete"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("leakage-workflow")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("task-queue-empty")).toBeInTheDocument();
+
     const session = loadTaskExecutorSession();
-    expect(session.records[tasks[0]!.id]?.dismissReason).toBe(reason);
-    if (reason === "other") {
-      expect(session.records[tasks[0]!.id]?.dismissNote).toBe(
-        "Không áp dụng cho shop nhỏ",
-      );
-    }
+    expect(session.records[returnSpikeTask.id]?.disposition).toBe("approved");
+
+    jest.useRealTimers();
   });
 });
