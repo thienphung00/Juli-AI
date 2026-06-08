@@ -78,6 +78,19 @@ Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
 | [`src/modules/ml/ad_performance`](../../src/modules/ml/ad_performance/MODULE.md) | 2 | Phase 1.5 ad performance analyzer: ROAS prediction + scale/cut/hold ranking | `train_ad_performance`, `predict_ad_action`, `build_ad_training_frame` | domain: ml |
 | [`src/modules/ml/artifacts`](../../src/modules/ml/artifacts/MODULE.md) | 2 | Phase 1.5 model artifact publisher: joblib serialization, metadata, promotion gate, smoke tests | `publish_model`, `load_model`, `run_smoke_test`, `evaluate_promotion_status` | domain: ml |
 
+## Planned modules (Phase 1.6 / Phase 2 — not yet deployed)
+
+Tracked by [ADR-020](../decisions/020-new-seller-listing-workflow-scope.md) and
+`EXECUTION.md` slices P1.6-1…P1.6-5, P2-7, P2-8. Add rows here when code lands.
+
+| [`web/src/lib/mock-data/listing-workflow`](../../web/src/lib/mock-data/listing-workflow/MODULE.md) | 2 | Phase 1.6 listing workflow mock fixtures: ProductDraft, Distributor, Opportunity loaders | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | domain: web |
+| [`web/src/lib/workflows/new-seller/listing`](../../web/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Phase 1.6 rules-based listing generation: extraction, compliance, readiness score | `generateProductDraft`, `canExportProductDraft` | domain: web |
+
+| Module (planned) | Target phase | Responsibility |
+|------------------|--------------|----------------|
+| `web/…/workflows/new-seller/listing/` *(UI)* | P1.6 | E2E listing workflow launched from approved `list_products` task; path A/B state machine, draft review, export |
+| `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue, Products API publish executor |
+
 ## Pending cleanup (tracked in EXECUTION.md)
 
 These remain in the tree but are **out of scope** for Phase 1–2 and slated for
