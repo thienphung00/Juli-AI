@@ -33,7 +33,9 @@ Rescope rationale: validate that these workflows resonate with real sellers
 |-------|-------|-------|------|----|-----------|
 | **Phase 1** | 1–6 | UI for all three workflows | Mock JSON | none | UX validated with 100 test sellers |
 | **Phase 1.5** | 6–9 | Train + validate 3 model suites | Backtest (parquet) / synthetic | trained, serialized | precision/recall on backtest meets targets |
-| **Phase 2** | 9–13 | Real APIs + daily inference + Ollama copy + live execution | TikTok API polling | production inference + Ollama (copy layer) | 50 live sellers, zero critical bugs, 2 weeks stable |
+| **Phase 1.6** | 9–10 | New Seller listing workflow (executable) | Mock fixtures | none | E2E `list_products` → export |
+| **Phase 1.7** | 10–11 | Revenue Leakage workflow (executable) | Mock fixtures | none | E2E leakage task → mock execute |
+| **Phase 2** | 11–15 | Real APIs + daily inference + Ollama copy + live execution | TikTok API polling | production inference + Ollama (copy layer) | 50 live sellers, zero critical bugs, 2 weeks stable |
 
 **Parallel track:** TikTok API polling setup proceeds alongside Phase 1 (mock feed
 in P1, real data wired in P2).
@@ -98,15 +100,74 @@ against ground truth (labeled item_swap / empty_return cases, documented return 
 - [x] **P1.5-6** Serialize models + metadata (train date, row count, feature schema hash, metrics). _(issue: #141)_
 - [x] **P1.5-7** Publish [`docs/architecture/target-v2.md`](docs/architecture/target-v2.md) — Phase 2 target design (real APIs + inference pipeline). _(issue: #143)_
 
-### Exit gate → Phase 2
+### Exit gate → Phase 1.6
 
 - [ ] All three model suites trained and serialized
 - [ ] Precision/recall meets targets on backtest (thresholds recorded in system-design.md)
 - [x] `target-v2.md` published
 
+> **Note:** P1.6 shipped on mock fixtures while P1.5-2/3/5 remain open — ML gate does
+> not block executable UX phases (P1.6, P1.7). Phase 2 still requires full P1.5 gate.
+
 ---
 
-## Phase 2 — Real APIs + Daily Inference (Weeks 9–13)
+## Phase 1.6 — New Seller Listing Workflow (Weeks 9–10)
+
+**Goal:** First **executable** New Seller Copilot task — approve `list_products` → dual-path
+listing workflow → draft review → CSV/JSON export. Mock fixtures + rules-only generation.
+No cloud LLM, no Postgres, no TikTok API.
+
+**Design reference:** [`docs/system-design.md`](docs/system-design.md) → Phase 1.6 columns.
+**ADR:** [ADR-020](docs/decisions/020-new-seller-listing-workflow-scope.md).
+
+**Metrics:** E2E listing completion rate; Path A vs Path B selection.
+
+### Slices
+
+- [x] **P1.6-1** Mock workflow fixtures — `ProductDraft`, `Distributor`, `Opportunity` catalogs. _(issue: #153, PR #158)_
+- [x] **P1.6-2** E2E listing workflow UI — dual-path state machine from approved `list_products`. _(issue: #155, PR #160)_
+- [x] **P1.6-3** Rules-based listing generation — extraction, compliance, readiness score. _(issue: #154, PR #159)_
+- [x] **P1.6-4** CSV/JSON export — execute step from `ProductDraft`. _(issue: #156, PR #161)_
+- [x] **P1.6-5** Mock shop-progress tracking — listing milestone + task card widget. _(issue: #157, PR #162)_
+
+### Exit gate → Phase 1.7
+
+- [x] E2E listing flow: recommend → approve → Path A **or** Path B → forms → execute (export)
+- [x] Both paths exercised with deterministic fixtures
+- [x] Shop-progress widget updates after export
+
+---
+
+## Phase 1.7 — Revenue Leakage Executable Workflow (Weeks 10–11)
+
+**Goal:** First **executable** Revenue Leakage workflow — approve leakage task → modal
+stepper (detail → evidence → root cause → action → mock execute → success). Mock
+fixtures only; simulate Phase 2 operational UX. No TikTok API, no ML inference, no Postgres.
+
+**Design reference:** [`docs/system-design.md`](docs/system-design.md) → Phase 1.7 columns.
+**ADR:** [ADR-025](docs/decisions/025-revenue-leakage-workflow-scope.md).
+
+**Metrics:** E2E leakage workflow completion per task type; step-transition analytics;
+dismiss reasons (global executor).
+
+### Slices
+
+- [ ] **P1.7-1** Leakage workflow fixtures + schemas — `LeakageWorkflowTask`, evidence bundles, root cause, execution plan; align `leakage-persona.ts` task types (`buyer_cancellation_cluster`, `return_window_policy`). _(issue: TBD)_
+- [ ] **P1.7-2** Leakage state machine + `useLeakageWorkflow` hook — step graph, session resume, `canAdvance`. _(issue: TBD)_
+- [ ] **P1.7-3** `LeakageWorkflowPanel` modal UI — four task-type step renderers (mirror `ListingWorkflowPanel`). _(issue: TBD)_
+- [ ] **P1.7-4** Executor integration — approve opens workflow; **global** skip-with-reason; complete → session disposition. _(issue: TBD)_
+- [ ] **P1.7-5** Integration tests + UX instrumentation — happy path per type, PII guard, step events. _(issue: TBD)_
+
+### Exit gate → Phase 2
+
+- [ ] All four leakage task types completable E2E through success screen
+- [ ] Evidence step enforces masked IDs (no PII)
+- [ ] Skip-with-reason works on all three workflows
+- [ ] Product lead confirms operational UX resonates (same engagement bar as P1)
+
+---
+
+## Phase 2 — Real APIs + Daily Inference (Weeks 11–15)
 
 **Goal:** Wire TikTok API, run daily batch inference, deploy **Ollama** for the
 copy layer, swap mock data → real inferences in the UI, enable live task execution.
@@ -141,8 +202,12 @@ task delivery must not block on Ollama availability.
 - [ ] **P2-4** Swap mock → real inferences + Ollama copy in all three workflow UIs;
   surface platform-policy alerts (VP/AHR milestones, balance withholding, commission
   dispute holds, appeal-window expiry). _(issue: TBD)_
-- [ ] **P2-5** Live task execution — real triggers behind the approval flow. _(issue: TBD)_
+- [ ] **P2-5** Live task execution — real triggers behind the approval flow (generic executor). _(issue: TBD)_
 - [ ] **P2-6** Revenue-impact instrumentation (recovered refunds, avoided cancellations, ROAS lift). _(issue: TBD)_
+- [ ] **P2-7** Listing approval queue — gate `ProductDraft` publish blast radius. _(issue: TBD)_
+- [ ] **P2-8** Products API publish executor — live listing from approved drafts. _(issue: TBD)_
+- [ ] **P2-9** Leakage approval queue — gate listing-update / settings / support-case executors. _(issue: TBD)_
+- [ ] **P2-10** Leakage live executors — Products API listing update, support case draft submit, shop settings. _(issue: TBD)_
 
 ### Exit gate → done / next phase
 
@@ -153,11 +218,13 @@ task delivery must not block on Ollama availability.
 
 ---
 
-## In scope (next 13 weeks)
+## In scope (next 15 weeks)
 
 - ✅ Phase 1 (Weeks 1–6): UI for three workflows + mock data
 - ✅ Phase 1.5 (Weeks 6–9): Train and validate three ML model suites
-- ✅ Phase 2 (Weeks 9–13): Real API polling + daily inference + Ollama copy layer + live task execution
+- ✅ Phase 1.6 (Weeks 9–10): New Seller listing executable workflow (mock)
+- ✅ Phase 1.7 (Weeks 10–11): Revenue Leakage executable workflow (mock)
+- ✅ Phase 2 (Weeks 11–15): Real API polling + daily inference + Ollama copy layer + live task execution
 - ✅ Parallel: TikTok API polling setup (mock feed in P1, real data in P2)
 
 ## Explicitly out

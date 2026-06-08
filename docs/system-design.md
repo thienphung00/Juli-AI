@@ -12,7 +12,8 @@
 
 Juli-AI helps TikTok Shop sellers **make and keep more money** via three agentic
 workflows: **New Seller Copilot**, **Revenue Leakage Detection**, **Growth Copilot**.
-The product is built UI-first (Phase 1), then ML (Phase 1.5), then live data (Phase 2).
+The product is built UI-first (Phase 1), then ML (Phase 1.5), then executable mock
+workflows (Phase 1.6–1.7), then live data (Phase 2).
 
 ---
 
@@ -20,13 +21,14 @@ The product is built UI-first (Phase 1), then ML (Phase 1.5), then live data (Ph
 
 Each subsystem evolves across phases. This table is the index; details follow below.
 
-| Subsystem | Phase 1 (UI) | Phase 1.5 (ML) | Phase 2 (APIs) |
-|-----------|--------------|----------------|----------------|
-| **Agent decision tree** | Rules-based seller-stage detection | ML classifier | Live daily scoring |
-| **Data pipeline** | Mock JSON | Backtest data (parquet) | TikTok API polling |
-| **ML models** | none | Trained, serialized | Production inference |
-| **Copy layer** | Hardcoded mock copy | Rules-only templates from signals | Ollama (local) + rules fallback |
-| **Executor** | UI approval flow (no-op) | (no changes) | Real task triggers |
+| Subsystem | Phase 1 (UI) | Phase 1.5 (ML) | Phase 1.6 (listing) | Phase 1.7 (leakage) | Phase 2 (APIs) |
+|-----------|--------------|----------------|---------------------|---------------------|----------------|
+| **Agent decision tree** | Rules-based seller-stage detection | ML classifier | (unchanged) | (unchanged) | Live daily scoring |
+| **Data pipeline** | Mock JSON | Backtest (parquet) | Listing workflow fixtures | Leakage workflow fixtures | TikTok API polling |
+| **ML models** | none | Trained, serialized | none | none (optional `return_type` preview on mocks) | Production inference |
+| **Copy layer** | Hardcoded mock copy | Rules-only templates | Rules-only draft copy | Rules-only root-cause / action copy | Ollama + rules fallback |
+| **Executor** | Approve/dismiss (no-op) | (no changes) | Mock export (`list_products`) | Mock execute (4 leakage types) | Real task triggers |
+| **Workflow UI** | Task cards only | (no changes) | `ListingWorkflowPanel` modal | `LeakageWorkflowPanel` modal | Live inference + same modals |
 
 ---
 
@@ -266,7 +268,43 @@ Turns an approved recommendation into action.
 |-------|----------|
 | **Phase 1** | UI approval flow is a **no-op** — seller approves/dismisses a task; nothing executes. Captures intent + engagement only. |
 | **Phase 1.5** | No changes — UX still mocked. |
-| **Phase 2** | **Real task triggers** — an approved task fires the corresponding action against TikTok APIs / seller tooling. |
+| **Phase 1.6** | **`list_products` only** — approve opens `ListingWorkflowPanel`; execute exports CSV/JSON (client-side). Other task types remain no-op. |
+| **Phase 1.7** | **All four leakage task types** — approve opens `LeakageWorkflowPanel`; mock execute per `MockTask.type`. **Global skip-with-reason** on dismiss (all workflows). Session state in `task-executor/session-store`. |
+| **Phase 2** | **Real task triggers** — P2-5 generic executor; P2-7/P2-8 listing publish queue; P2-9/P2-10 leakage executors (listing update, support case, shop settings). |
+
+### 7. Executable workflow UIs (Phase 1.6 / 1.7)
+
+Client-side modal workflows launched from `useTaskExecutor` after task approve.
+No new App Router routes. State machines persist step + payload in `sessionStorage`.
+
+| Workflow | Entry task | Panel | Steps (summary) | P2 executor |
+|----------|------------|-------|-----------------|-------------|
+| New Seller listing | `list_products` | `ListingWorkflowPanel` | path → form/discovery → draft → export | P2-7 queue → P2-8 Products API |
+| Revenue Leakage | `return_spike`, `buyer_cancellation_cluster`, `refund_cluster`, `return_window_policy` | `LeakageWorkflowPanel` | detail → evidence → root cause → action → execute → success | P2-9 queue → P2-10 APIs |
+
+**Leakage step graph** ([ADR-025](decisions/025-revenue-leakage-workflow-scope.md)):
+
+```
+TaskCard (alert)
+  → approve → detail ↔ evidence ↔ root_cause ↔ recommended_action
+  → execution (stepper) → success → completed (removed from active queue)
+```
+
+**Leakage task status** (per task, session-persisted): `new` → `in_review` →
+`evidence_reviewed` → `ready_to_execute` → `executing` → `completed` | `skipped`.
+
+**Signal classes in P1.7** (mock rules aggregates — not ML inference):
+
+| `MockTask.type` | Signal class | Mock execution |
+|-----------------|--------------|----------------|
+| `return_spike` | Return-rate aggregate | Listing update draft → apply |
+| `buyer_cancellation_cluster` | Buyer cancellation aggregate | Investigation report → support case draft |
+| `refund_cluster` | Refund concentration aggregate | Refund report → watchlist |
+| `return_window_policy` | Shop policy / config | Settings review → apply config |
+
+Affiliate cancellation and commission-dispute patterns are **policy-rule alerts** in
+Phase 2 ([ADR-011](decisions/011-buyer-behavior-anomaly-scope.md)) — not P1.7 workflow
+types. `affiliate_fraud` is removed from the leakage persona in P1.7-1.
 
 ---
 

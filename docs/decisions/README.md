@@ -20,6 +20,7 @@
 | [022](022-listing-workflow-ui.md) | Listing workflow UI — dual-path state machine from approved `list_products` (P1.6-2) | Accepted |
 | [023](023-listing-export-service.md) | Listing export service — client-side CSV/JSON from ProductDraft (P1.6-4) | Accepted |
 | [024](024-shop-progress-tracker.md) | Shop progress tracker — session-scoped listing milestone + widget states (P1.6-5) | Accepted |
+| [025](025-revenue-leakage-workflow-scope.md) | Revenue Leakage executable workflow — P1.7 mock modal journeys, P2-9/P2-10 executors | Accepted |
 
 ADRs 006–007 are **historical**: the product was rescoped from creator↔shop
 matching to **seller-money** workflows (New Seller Copilot, Revenue Leakage

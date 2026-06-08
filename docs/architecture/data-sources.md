@@ -16,8 +16,10 @@ data. For module layout see [`map.md`](map.md); for phases and gates see
 |-------|---------|
 | **P1** | Phase 1 (Weeks 1–6) — UI + **mock** data |
 | **P1.5** | Phase 1.5 (Weeks 6–9) — **backtest** (parquet) / synthetic for ML training |
-| **P2** | Phase 2 (Weeks 9–13) — **live** TikTok API polling + daily inference |
-| **Later** | Phase 2.5+ / Phase 3+ — out of the next 13 weeks |
+| **P1.6** | Phase 1.6 (Weeks 9–10) — listing workflow **mock fixtures** + client export |
+| **P1.7** | Phase 1.7 (Weeks 10–11) — leakage workflow **mock fixtures** + client mock execute |
+| **P2** | Phase 2 (Weeks 11–15) — **live** TikTok API polling + daily inference |
+| **Later** | Phase 2.5+ / Phase 3+ — out of the next 15 weeks |
 | **Forbidden** | Must never appear in any PR (ToS, privacy, or stability risk) |
 
 ## Source matrix (phase-aligned)
@@ -31,6 +33,8 @@ data. For module layout see [`map.md`](map.md); for phases and gates see
 | **Supabase Postgres** (`src/shared/utils/data`) | — | — | Live | OLTP persistence, Alembic migrations, shop-scoped repos | Single backend DB; source of truth for persisted state ([ADR-002](../decisions/002-supabase-backend-service.md)) |
 | **Ollama** (local inference node) | — | — | Live | Copy layer — summarize + localize structured signals for UI / alerts | Optional optimization path; **rules fallback** if offline or budget exceeded; never blocks ingestion or task execution |
 | **Kalodata / Shoplus** | N/A | Optional backtest | — | Return-pattern validation only | **Phase 2.5+**; never user-facing analytics |
+| **Leakage workflow fixtures** (`web/src/lib/mock-data/leakage-workflow/`) | Mock | — | — | Revenue Leakage executable workflow (P1.7) | Juli-internal schemas per `canonical-entities.md` § Leakage workflow; no network; masked IDs only |
+| **Listing workflow fixtures** (`web/src/lib/mock-data/listing-workflow/`) | Mock | — | — | New Seller listing workflow (P1.6) | Juli-internal; see ADR-020 |
 
 ## Operational rules
 
@@ -109,7 +113,14 @@ data. For module layout see [`map.md`](map.md); for phases and gates see
 | 9 | Seller Center browser scraping | Account suspension risk — official API only |
 | 17 | Buyer PII / DM / private chat storage | Privacy — use masked `buyer_id` only |
 
-## Out of the next 13 weeks (Later)
+- **Leakage workflow (P1.7):** Mock execute only — no Products API writes, no support-case
+  submission, no shop-settings API. Placeholder screenshots only; no buyer content.
+  `affiliate_fraud` task type removed from leakage persona — affiliate signals are P2
+  policy alerts ([ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md)).
+- **Skip-with-reason (P1.7):** Dismiss on **all workflows** requires reason enum +
+  optional note; stored in session + UX analytics (no PII).
+
+## Out of the next 15 weeks (Later)
 
 - Vendor scraper **training** (Kalodata / Shoplus / FastMoss) — Phase 2.5+
 - Creator ↔ Shop matching data graph — Phase 3+

@@ -78,20 +78,31 @@ Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
 | [`src/modules/ml/ad_performance`](../../src/modules/ml/ad_performance/MODULE.md) | 2 | Phase 1.5 ad performance analyzer: ROAS prediction + scale/cut/hold ranking | `train_ad_performance`, `predict_ad_action`, `build_ad_training_frame` | domain: ml |
 | [`src/modules/ml/artifacts`](../../src/modules/ml/artifacts/MODULE.md) | 2 | Phase 1.5 model artifact publisher: joblib serialization, metadata, promotion gate, smoke tests | `publish_model`, `load_model`, `run_smoke_test`, `evaluate_promotion_status` | domain: ml |
 
-## Planned modules (Phase 1.6 / Phase 2 — not yet deployed)
+## Phase 1.6 modules (deployed — listing workflow)
 
 Tracked by [ADR-020](../decisions/020-new-seller-listing-workflow-scope.md) and
-`EXECUTION.md` slices P1.6-1…P1.6-5, P2-7, P2-8. Add rows here when code lands.
+`EXECUTION.md` slices P1.6-1…P1.6-5.
 
-| [`web/src/lib/mock-data/listing-workflow`](../../web/src/lib/mock-data/listing-workflow/MODULE.md) | 2 | Phase 1.6 listing workflow mock fixtures: ProductDraft, Distributor, Opportunity loaders | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | domain: web |
-| [`web/src/lib/workflows/new-seller/listing`](../../web/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Phase 1.6 listing generation + export: rules engine, CSV/JSON serialize | `generateProductDraft`, `canExportProductDraft`, `exportProductDraft` | domain: web |
-| [`web/src/lib/workflows/new-seller/shop-progress`](../../web/src/lib/workflows/new-seller/shop-progress/MODULE.md) | 2 | Phase 1.6 mock shop progress: listing count + widget states toward Standard status | `loadShopProgress`, `recordExportCompleted`, `useShopProgress` | domain: web |
+| Module | Tier | Responsibility | Public Surface | Owners |
+|--------|------|----------------|----------------|--------|
+| [`web/src/lib/mock-data/listing-workflow`](../../web/src/lib/mock-data/listing-workflow/MODULE.md) | 2 | Listing workflow mock fixtures: ProductDraft, Distributor, Opportunity | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | domain: web |
+| [`web/src/lib/workflows/new-seller/listing`](../../web/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Listing generation + export: rules engine, CSV/JSON serialize, state machine | `generateProductDraft`, `exportProductDraft`, `useListingWorkflow` | domain: web |
+| [`web/src/lib/workflows/new-seller/shop-progress`](../../web/src/lib/workflows/new-seller/shop-progress/MODULE.md) | 2 | Session-scoped listing milestone + widget states | `loadShopProgress`, `recordExportCompleted`, `useShopProgress` | domain: web |
+| [`web/src/components/workflows/new-seller/listing`](../../web/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | 2 | Modal listing workflow from approved `list_products` | `ListingWorkflowPanel` | domain: web |
+| [`web/src/components/workflows/new-seller/ListingProgressWidget`](../../web/src/components/workflows/new-seller/ListingProgressWidget.tsx) | 2 | Copilot home listing progress widget | `ListingProgressWidget` | domain: web |
+
+## Planned modules (Phase 1.7 / Phase 2 — not yet deployed)
+
+Tracked by [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md) and
+`EXECUTION.md` slices P1.7-1…P1.7-5, P2-7…P2-10. Add rows here when code lands.
 
 | Module (planned) | Target phase | Responsibility |
 |------------------|--------------|----------------|
-| [`web/src/components/workflows/new-seller/listing`](../../web/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | P1.6 | E2E listing workflow from approved `list_products`; path A/B state machine, draft review, CSV/JSON export execute step |
-| [`web/src/components/workflows/new-seller/ListingProgressWidget`](../../web/src/components/workflows/new-seller/ListingProgressWidget.tsx) | P1.6 | Copilot home task-card widget: NoDistributor → Published-stub states + SKU count |
-| `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue, Products API publish executor |
+| `web/src/lib/mock-data/leakage-workflow/` | P1.7 | Leakage workflow fixtures: `LeakageWorkflowTask`, evidence bundles, execution plans |
+| `web/src/lib/workflows/leakage/state-machine.ts` + `use-leakage-workflow.ts` | P1.7 | Leakage step graph, session resume, `canAdvance` |
+| `web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` | P1.7 | Modal leakage workflow from approved leakage tasks; four task-type step renderers |
+| `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
+| `src/modules/catalog/domain/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
 
 ## Pending cleanup (tracked in EXECUTION.md)
 
@@ -135,6 +146,9 @@ PR) to avoid breaking imports/tests:
 > — buyer return anomalies (`item_swap`, `empty_return`) only; schema in
 > [`data-models/canonical-entities.md`](../data-models/canonical-entities.md) § Return, § OrderItem.
 >
+> **Executable leakage workflow (Phase 1.7):** [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md)
+> — modal workflow from approved leakage tasks; mock execute only until P2-9/P2-10.
+>
 > **Entity-centric data model:** [ADR-012](../decisions/012-entity-centric-data-model.md)
 > — `docs/data-models/` is ML schema authority; `tiktok_api/endpoints.md` is ingestion only.
 >
@@ -148,7 +162,7 @@ PR) to avoid breaking imports/tests:
 The **planned** Phase 2 inference pipeline (poll → ETL → feature build → batch
 inference → Ollama copy → UI → executor) is documented in
 [`target-v2.md`](target-v2.md). This file (`map.md`) remains the **as-built**
-registry; `target-v2.md` is the forward-looking design reference for P2-1 … P2-6
+registry; `target-v2.md` is the forward-looking design reference for P2-1 … P2-10
 implementation slices in [`EXECUTION.md`](../../EXECUTION.md).
 
 ## Adding / removing a module
