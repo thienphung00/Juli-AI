@@ -12,7 +12,7 @@ modules, orders management with filtering and shipment confirmation.
 - `TaskCard`, `TaskQueue`, `DemoModeNotice` — Phase 1 shared task UI + no-op approve/dismiss (`components/tasks/`)
 - `NewSellerCopilotPanel`, `MilestoneProgress` — New-seller workflow checklist + first-sale milestone bar (`components/workflows/new-seller/`)
 - `computeFirstSaleMilestone` — Pure milestone % from mock profile orders/GMV (`lib/workflows/new-seller/milestone.ts`)
-- `LeakageCopilotPanel`, `EvidenceDrawer`, `resolveEvidence` — Phase 1 revenue leakage workflow: ranked anomalies, masked evidence drill-down (`components/workflows/leakage/`, `lib/workflows/leakage/`)
+- `LeakageCopilotPanel`, `LeakageWorkflowPanel`, `EvidenceDrawer`, `resolveEvidence` — Phase 1 revenue leakage workflow: ranked anomalies, modal executable workflow, masked evidence drill-down (`components/workflows/leakage/`, `lib/workflows/leakage/`)
 - `GrowthCopilotPanel`, `AdPerformanceSummary`, `computeAdSummary`, `rankGrowthTasks` — Phase 1 growth workflow: ad performance summary + ranked scale/cut recommendations (`components/workflows/growth/`, `lib/workflows/growth/`)
 - `useTaskExecutor`, `filterActiveTasks`, session helpers — client-only task queue state (`lib/task-executor/`)
 - `trackTaskClicked`, `trackTaskApproved`, `trackTaskDismissed`, `getUxSessionId` — Phase 1 UX instrumentation sink (`lib/ux-analytics/`)
