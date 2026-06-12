@@ -39,7 +39,7 @@ modules, orders management with filtering and shipment confirmation.
 - Vietnamese locale (VND ₫ formatting, diacritics, ICT timezone)
 
 ## Invariants
-- Workspace mode (`seller` | `affiliate`) is persisted in `localStorage` (`juli_workspace_mode`) and drives the `dark` class on `<html>` (Seller=dark, Affiliate=light)
+- Workspace mode (`seller` | `affiliate`) is persisted in `localStorage` (`juli_workspace_mode`) and drives the `dark` class on `<html>` (Seller=light, Affiliate=dark; ADR-027)
 - Phase 1: Affiliate mode shows a Vietnamese out-of-scope state on every authenticated route via `AuthenticatedShell`; Seller mode renders workflow UI
 - Auth MUST go through the API layer — no direct Supabase client calls from the browser
 - All UI text in Vietnamese with proper diacritics

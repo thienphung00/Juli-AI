@@ -27,7 +27,7 @@ jest.mock("next/navigation", () => ({
 
 function renderNewSellerHome() {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
-  document.documentElement.classList.add("dark");
+  document.documentElement.classList.remove("dark");
 
   return render(
     <ModeProvider>

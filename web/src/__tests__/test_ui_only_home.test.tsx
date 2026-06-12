@@ -27,7 +27,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
-  document.documentElement.classList.add("dark");
+  document.documentElement.classList.remove("dark");
 });
 
 function renderSellerHome() {

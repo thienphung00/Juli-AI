@@ -14,7 +14,7 @@ import {
   LEGACY_ROUTE_REDIRECTS,
 } from "@/lib/nav-config";
 import { getMockWorkspaceAlerts } from "@/lib/mock-data/alerts";
-import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
+import { WORKSPACE_MODE_STORAGE_KEY, applyWorkspaceTheme } from "@/lib/workspace-mode";
 import * as alertsService from "@/lib/services/alerts";
 
 jest.mock("@/lib/services/alerts", () => ({
@@ -73,7 +73,7 @@ describe("Nav redesign header + nav (#77, #95)", () => {
 
   it("renders shared header with title, mode switcher, and alert bell", () => {
     localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
-    document.documentElement.classList.add("dark");
+    applyWorkspaceTheme("seller");
 
     renderWithProviders(<PageHeader title="Trang chủ" />);
 
@@ -85,7 +85,7 @@ describe("Nav redesign header + nav (#77, #95)", () => {
 
   it("flips mode and theme instantly from the header switcher", async () => {
     localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
-    document.documentElement.classList.add("dark");
+    applyWorkspaceTheme("seller");
 
     const user = userEvent.setup();
     renderWithProviders(<PageHeader title="Gợi ý" />);
@@ -93,7 +93,7 @@ describe("Nav redesign header + nav (#77, #95)", () => {
     await user.click(screen.getByRole("button", { name: "Chuyển chế độ workspace" }));
 
     expect(localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY)).toBe("affiliate");
-    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
 
   it("opens alert drawer with seller inventory alert consistent with Home", async () => {

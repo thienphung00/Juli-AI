@@ -50,9 +50,9 @@ const mockGetHomeDashboard = homeService.getHomeDashboard as jest.MockedFunction
 function setupMode(mode: "seller" | "affiliate") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, mode);
   if (mode === "seller") {
-    document.documentElement.classList.add("dark");
-  } else {
     document.documentElement.classList.remove("dark");
+  } else {
+    document.documentElement.classList.add("dark");
   }
 }
 

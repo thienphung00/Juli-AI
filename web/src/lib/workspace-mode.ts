@@ -25,10 +25,11 @@ export function postAuthPath(): string {
   return readStoredWorkspaceMode() ? "/" : "/mode-select";
 }
 
+/** ADR-027: Seller = light canvas; Affiliate = dark. `dark` class marks affiliate mode. */
 export function applyWorkspaceTheme(mode: WorkspaceMode): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  if (mode === "seller") {
+  if (mode === "affiliate") {
     root.classList.add("dark");
   } else {
     root.classList.remove("dark");

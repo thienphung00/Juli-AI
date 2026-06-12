@@ -1,5 +1,5 @@
 /**
- * Issue #115 — Workspace mode: Seller dark / Affiliate out-of-scope
+ * Issue #115 — Workspace mode: Seller light / Affiliate dark out-of-scope
  */
 import type { ReactElement } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -14,7 +14,7 @@ import {
   AFFILIATE_OUT_OF_SCOPE_TEST_ID,
 } from "@/lib/affiliate-out-of-scope";
 import { api } from "@/lib/api-client";
-import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
+import { WORKSPACE_MODE_STORAGE_KEY, applyWorkspaceTheme } from "@/lib/workspace-mode";
 import * as homeService from "@/lib/services/home";
 
 jest.mock("@/lib/services/home", () => ({
@@ -63,11 +63,7 @@ function renderWithProviders(ui: ReactElement) {
 
 function setupMode(mode: "seller" | "affiliate") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, mode);
-  if (mode === "seller") {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
+  applyWorkspaceTheme(mode);
 }
 
 beforeEach(() => {
@@ -96,7 +92,7 @@ describe("Workspace mode out-of-scope (#115)", () => {
       expect(screen.getByRole("heading", { name: AFFILIATE_OUT_OF_SCOPE_HEADING })).toBeInTheDocument();
       expect(screen.queryByTestId("home-affiliate")).not.toBeInTheDocument();
       expect(screen.queryByTestId("seller-home-shell")).not.toBeInTheDocument();
-      expect(document.documentElement.classList.contains("dark")).toBe(false);
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
     });
 
     it("shows out-of-scope on a secondary route (recommendations)", async () => {
@@ -123,7 +119,7 @@ describe("Workspace mode out-of-scope (#115)", () => {
 
       await waitFor(() => {
         expect(localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY)).toBe("seller");
-        expect(document.documentElement.classList.contains("dark")).toBe(true);
+        expect(document.documentElement.classList.contains("dark")).toBe(false);
         expect(screen.queryByTestId(AFFILIATE_OUT_OF_SCOPE_TEST_ID)).not.toBeInTheDocument();
       });
 
@@ -143,7 +139,7 @@ describe("Workspace mode out-of-scope (#115)", () => {
       });
 
       expect(screen.queryByTestId(AFFILIATE_OUT_OF_SCOPE_TEST_ID)).not.toBeInTheDocument();
-      expect(document.documentElement.classList.contains("dark")).toBe(true);
+      expect(document.documentElement.classList.contains("dark")).toBe(false);
     });
 
     it("does not show out-of-scope on recommendations workflow route", async () => {

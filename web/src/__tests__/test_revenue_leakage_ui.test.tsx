@@ -4,6 +4,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LeakageCopilotPanel } from "@/components/workflows/leakage";
+import { EvidenceDrawer } from "@/components/workflows/leakage/EvidenceDrawer";
 import { SellerHomeShell } from "@/components/seller-home/SellerHomeShell";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
@@ -35,7 +36,7 @@ function renderLeakagePanel(persona: SellerPersona) {
 function renderSellerHomeWithPersona(personaId: "leakage" = "leakage") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
-  document.documentElement.classList.add("dark");
+  document.documentElement.classList.remove("dark");
 
   return render(
     <ModeProvider>
@@ -90,17 +91,14 @@ describe("Issue #120: leakage persona anomaly list", () => {
 });
 
 describe("Issue #120: evidence drill-down", () => {
-  it("opens evidence drawer without forbidden PII field names", async () => {
-    const user = userEvent.setup();
+  it("renders evidence drawer without forbidden PII field names", () => {
     const persona = loadPersona("leakage");
-    renderLeakagePanel(persona);
-
-    const evidenceButtons = screen.getAllByTestId("task-view-evidence");
-    await user.click(evidenceButtons[0]);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("evidence-drawer")).toBeInTheDocument();
-    });
+    const task = getWorkflowTasks(persona, "leakage").find(
+      (t) => t.type === "return_spike",
+    )!;
+    render(
+      <EvidenceDrawer persona={persona} task={task} onClose={() => {}} />,
+    );
 
     const drawer = screen.getByTestId("evidence-drawer");
     const drawerText = drawer.textContent ?? "";

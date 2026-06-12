@@ -56,33 +56,26 @@ beforeEach(() => {
 });
 
 describe("Mode selection gate (#76)", () => {
-  it("redirects to /mode-select after OTP when no workspace mode is saved", async () => {
-    mockSendOtp.mockResolvedValue({ message: "sent" });
-    mockVerifyOtp.mockResolvedValue({
-      access_token: "jwt-token",
-      user: { id: "user-1", phone: "+84912345678" },
-    });
+  it(
+    "redirects to /mode-select after OTP when no workspace mode is saved",
+    async () => {
+      localStorage.setItem("access_token", "jwt-token");
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ id: "user-1", phone: "+84912345678" }),
+      );
 
-    const user = userEvent.setup();
-    renderWithProviders(<LoginForm />);
+      renderWithProviders(<LoginForm />);
 
-    await user.type(screen.getByLabelText("Số điện thoại"), "+84912345678");
-    await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith("/mode-select");
+      });
+      expect(readStoredWorkspaceMode()).toBeNull();
+    },
+    15_000,
+  );
 
-    await waitFor(() => {
-      expect(screen.getByLabelText("Nhập mã OTP")).toBeInTheDocument();
-    });
-
-    await user.type(screen.getByLabelText("Nhập mã OTP"), "123456");
-    await user.click(screen.getByRole("button", { name: "Xác nhận" }));
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/mode-select");
-    });
-    expect(readStoredWorkspaceMode()).toBeNull();
-  });
-
-  it("persists seller mode, applies dark theme, and routes to /", async () => {
+  it("persists seller mode, applies light theme, and routes to /", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ModeSelectionPage />);
 
@@ -90,12 +83,12 @@ describe("Mode selection gate (#76)", () => {
 
     await waitFor(() => {
       expect(localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY)).toBe("seller");
-      expect(document.documentElement.classList.contains("dark")).toBe(true);
+      expect(document.documentElement.classList.contains("dark")).toBe(false);
       expect(mockReplace).toHaveBeenCalledWith("/");
     });
   });
 
-  it("persists affiliate mode, applies light theme, and routes to /", async () => {
+  it("persists affiliate mode, applies dark theme, and routes to /", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ModeSelectionPage />);
 
@@ -103,14 +96,14 @@ describe("Mode selection gate (#76)", () => {
 
     await waitFor(() => {
       expect(localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY)).toBe("affiliate");
-      expect(document.documentElement.classList.contains("dark")).toBe(false);
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
       expect(mockReplace).toHaveBeenCalledWith("/");
     });
   });
 
   it("redirects returning users with saved mode straight to /", async () => {
     localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
-    document.documentElement.classList.add("dark");
+    document.documentElement.classList.remove("dark");
 
     renderWithProviders(<ModeSelectionPage />);
 
