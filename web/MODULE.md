@@ -19,8 +19,9 @@ modules, orders management with filtering and shipment confirmation.
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Seller home shell (workflow breadcrumb + persona tasks); canonical seller entry (#118, #123)
+- `/decisions` — Decisions tab shell (placeholder; sub-tabs in #192+); ADR-028 3-tab IA (#191)
 - `/creators` — Legacy creator-matching; 301 → `/` (#123)
-- `/recommendations` — Legacy decision feed; 301 → `/` (#123)
+- `/recommendations` — Legacy decision feed; 301 → `/decisions` (#191)
 - `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)
 - `/alerts` — Legacy; 301 → `/` (alerts in header drawer only)
 - `/orders` — Legacy; 301 → `/operation` → `/`
@@ -38,8 +39,19 @@ modules, orders management with filtering and shipment confirmation.
 - Tailwind CSS
 - Vietnamese locale (VND ₫ formatting, diacritics, ICT timezone)
 
+## Bottom navigation (ADR-028, #191)
+Seller workspace exposes exactly **3** fixed tabs via `BOTTOM_NAV_TABS` in `lib/nav-config.ts`:
+
+| Tab | Route | Label |
+|-----|-------|-------|
+| Home | `/` | Trang chủ |
+| Decisions | `/decisions` | Quyết định |
+| Juli AI | `/ai-chat` | Juli |
+
+Touch targets: minimum 44×44px per `NavBar`. Active state via `isNavTabActive(pathname, href)`.
+
 ## Invariants
-- Workspace mode (`seller` | `affiliate`) is persisted in `localStorage` (`juli_workspace_mode`) and drives the `dark` class on `<html>` (Seller=light, Affiliate=dark; ADR-027)
+- Workspace mode (`seller` | `affiliate`) is persisted in `localStorage` (`juli_workspace_mode`) and drives the `dark` class on `<html>` (Seller=light white canvas, Affiliate=dark; ADR-027/#191)
 - Phase 1: Affiliate mode shows a Vietnamese out-of-scope state on every authenticated route via `AuthenticatedShell`; Seller mode renders workflow UI
 - Auth MUST go through the API layer — no direct Supabase client calls from the browser
 - All UI text in Vietnamese with proper diacritics

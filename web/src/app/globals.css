@@ -26,13 +26,13 @@
   --focus-ring-color: color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
-/* Seller (light): calm canvas with charcoal text */
+/* Seller (light): white canvas with charcoal text (ADR-028 #191) */
 html:not(.dark) {
-  --background: var(--pink-background);
+  --background: #ffffff;
   --foreground: #0a0a0a;
   --card: #ffffff;
   --card-foreground: #171717;
-  --muted: var(--pink-background);
+  --muted: #ffffff;
   --muted-foreground: #71717a;
   --border: #f8d4dc;
   --border-accent: rgba(248, 107, 165, 0.2);
@@ -42,11 +42,11 @@ html:not(.dark) {
   --secondary: var(--pink-background);
   --secondary-foreground: #171717;
   --accent: var(--pink-light);
-  --header-background: var(--pink-background);
+  --header-background: #ffffff;
   --header-border: rgba(248, 107, 165, 0.18);
   --brand-gradient: linear-gradient(135deg, #f86ba5 0%, #faa5c4 100%);
   --brand-glow: rgba(248, 107, 165, 0.2);
-  --glass-bg: rgba(254, 245, 246, 0.92);
+  --glass-bg: rgba(255, 255, 255, 0.92);
   --glass-border: rgba(248, 107, 165, 0.1);
 }
 
@@ -79,11 +79,11 @@ html.dark {
 
 /* Fallback before theme script runs (seller default = light) */
 :root {
-  --background: var(--pink-background);
+  --background: #ffffff;
   --foreground: #0a0a0a;
   --card: #ffffff;
   --card-foreground: #171717;
-  --muted: var(--pink-background);
+  --muted: #ffffff;
   --muted-foreground: #71717a;
   --border: #f8d4dc;
   --border-accent: rgba(248, 107, 165, 0.2);
@@ -93,11 +93,11 @@ html.dark {
   --secondary: var(--pink-background);
   --secondary-foreground: #171717;
   --accent: var(--pink-light);
-  --header-background: var(--pink-background);
+  --header-background: #ffffff;
   --header-border: rgba(248, 107, 165, 0.18);
   --brand-gradient: linear-gradient(135deg, #f86ba5 0%, #faa5c4 100%);
   --brand-glow: rgba(248, 107, 165, 0.2);
-  --glass-bg: rgba(254, 245, 246, 0.92);
+  --glass-bg: rgba(255, 255, 255, 0.92);
   --glass-border: rgba(248, 107, 165, 0.1);
 }
 

@@ -53,14 +53,16 @@ beforeEach(() => {
 });
 
 describe("Nav redesign header + nav (#77, #95)", () => {
-  it("defines seller-first bottom nav tabs without creator-matching links", () => {
-    expect(BOTTOM_NAV_TABS).toHaveLength(2);
+  it("defines 3-tab seller bottom nav without creator-matching links (#191)", () => {
+    expect(BOTTOM_NAV_TABS).toHaveLength(3);
     expect(BOTTOM_NAV_TABS.map((t) => t.label)).toEqual([
       "Trang chủ",
+      "Quyết định",
       "Juli",
     ]);
     expect(BOTTOM_NAV_TABS.map((t) => t.href)).toEqual([
       "/",
+      "/decisions",
       "/ai-chat",
     ]);
   });
@@ -129,7 +131,7 @@ describe("Nav redesign header + nav (#77, #95)", () => {
         expect.objectContaining({ source: "/creators", destination: "/", permanent: true }),
         expect.objectContaining({
           source: "/recommendations",
-          destination: "/",
+          destination: "/decisions",
           permanent: true,
         }),
         expect.objectContaining({ source: "/alerts", destination: "/", permanent: true }),

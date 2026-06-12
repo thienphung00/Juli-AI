@@ -55,11 +55,11 @@ describe("Design token foundation (#174)", () => {
       expect(globalsCss).toMatch(/--info-tint:/);
     });
 
-    it("maps seller to light canvas and affiliate to dark canvas", () => {
+    it("maps seller to white canvas and affiliate to dark canvas (#191)", () => {
       expect(globalsCss).toMatch(/Seller \(light\)/);
       expect(globalsCss).toMatch(/Affiliate \(dark\)/);
       expect(globalsCss).toMatch(
-        /html:not\(\.dark\)[\s\S]*--background:\s*var\(--pink-background\)/,
+        /html:not\(\.dark\)[\s\S]*--background:\s*#ffffff/,
       );
       expect(globalsCss).toMatch(
         /html\.dark[\s\S]*--background:\s*#050505/,

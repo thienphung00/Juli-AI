@@ -51,7 +51,7 @@ describe("Issue #123: retire legacy creator-matching routes", () => {
         }),
         expect.objectContaining({
           source: "/recommendations",
-          destination: "/",
+          destination: "/decisions",
           permanent: true,
         }),
       ]),
@@ -59,8 +59,12 @@ describe("Issue #123: retire legacy creator-matching routes", () => {
   });
 
   it("does not promote creator-matching pages in primary navigation", () => {
-    expect(BOTTOM_NAV_TABS.map((t) => t.href)).toEqual(["/", "/ai-chat"]);
-    expect(BOTTOM_NAV_TABS.map((t) => t.label)).toEqual(["Trang chủ", "Juli"]);
+    expect(BOTTOM_NAV_TABS.map((t) => t.href)).toEqual(["/", "/decisions", "/ai-chat"]);
+    expect(BOTTOM_NAV_TABS.map((t) => t.label)).toEqual([
+      "Trang chủ",
+      "Quyết định",
+      "Juli",
+    ]);
 
     render(
       <AuthProvider>
@@ -80,8 +84,10 @@ describe("Issue #123: retire legacy creator-matching routes", () => {
       mockReplace.mockClear();
       render(<Page />);
 
+      const expected =
+        Page === RecommendationsPage ? "/decisions" : "/";
       await waitFor(() => {
-        expect(mockReplace).toHaveBeenCalledWith("/");
+        expect(mockReplace).toHaveBeenCalledWith(expected);
       });
     }
 

@@ -1,0 +1,76 @@
+{
+  "id": "review-issue-191",
+  "issue": 191,
+  "timestamp": "2026-06-12T04:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "ADR-028 P1.8-9 seller shell foundation: white canvas tokens, 3-tab bottom nav (Home / Decisions / Juli), /decisions placeholder route, and /recommendations → /decisions legacy redirect.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/app/globals.css",
+    "web/src/lib/nav-config.ts",
+    "web/src/app/decisions/page.tsx",
+    "web/src/components/DecisionsPage.tsx",
+    "web/legacy-redirects.js",
+    "web/MODULE.md",
+    "web/src/__tests__/test_issue191_decisions_shell.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "BOTTOM_NAV_TABS",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Adds Quyết định tab at /decisions between Home and Juli."
+    },
+    {
+      "module": "web",
+      "interface": "/decisions route",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Authenticated seller shell placeholder for Decisions sub-tabs (#192+)."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Seller workspace renders white background on Home and Decisions",
+          "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::defines seller --background as white in globals.css (#FFFFFF)"
+        },
+        {
+          "criterion": "Bottom nav shows exactly 3 tabs Trang chủ Quyết định Juli",
+          "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::renders exactly 3 bottom nav tabs: Trang chủ, Quyết định, Juli"
+        },
+        {
+          "criterion": "/decisions loads authenticated seller shell without error",
+          "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::loads authenticated seller decisions shell with placeholder content"
+        },
+        {
+          "criterion": "/recommendations redirects to /decisions",
+          "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::redirects /recommendations to /decisions via legacy redirect config"
+        },
+        {
+          "criterion": "seller --background resolves to white and nav renders 3 links",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::defines 3-tab seller bottom nav without creator-matching links (#191)"
+        },
+        {
+          "criterion": "web/MODULE.md documents new route and nav contract",
+          "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::documents /decisions route and 3-tab nav contract in web/MODULE.md"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 408,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
