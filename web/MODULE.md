@@ -19,7 +19,8 @@ modules, orders management with filtering and shipment confirmation.
 - `/login` — Phone-OTP login screen (Vietnamese phone format)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Seller home shell (workflow breadcrumb + persona tasks); canonical seller entry (#118, #123)
-- `/decisions` — Decisions tab shell (placeholder; sub-tabs in #192+); ADR-028 3-tab IA (#191)
+- `toDecision`, `takeTopDecisions`, `applyDecisionLifecycle` — Decision view-model mapping `workflow_recommendations` → seller-facing Decision envelopes (`lib/decisions/`, #192)
+- `/decisions` — Decisions tab shell (placeholder; sub-tabs in #195+); ADR-028 3-tab IA (#191)
 - `/creators` — Legacy creator-matching; 301 → `/` (#123)
 - `/recommendations` — Legacy decision feed; 301 → `/decisions` (#191)
 - `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)
