@@ -145,26 +145,12 @@ function LegacyRecommendationCard({
   item: RecommendationItem;
   onAction: () => void;
 }) {
-  const confidence = matchScorePercent(item);
-
   return (
     <div className="card p-4" data-testid="recommendation-card">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
           {toTypeLabel(item.recommendation_type)}
         </p>
-        {confidence !== null && (
-          <span
-            className="badge"
-            style={{
-              background: confidence >= 70 ? "#10b98120" : "#f59e0b20",
-              color: confidence >= 70 ? "#10b981" : "#f59e0b",
-            }}
-            aria-label="Độ tin cậy"
-          >
-            {Math.round(confidence)}%
-          </span>
-        )}
       </div>
 
       <p className="mt-2 text-sm font-medium" data-testid="recommendation-message">
