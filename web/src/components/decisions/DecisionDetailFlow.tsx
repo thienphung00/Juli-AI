@@ -190,15 +190,17 @@ export function DecisionDetailFlow({
   persona,
   personaId,
   requiredInputs,
+  initialStep = "why",
 }: {
   recommendation: WorkflowRecommendation;
   health: HealthCheckResults;
   persona: SellerPersona;
   personaId: PersonaId;
   requiredInputs: RequiredInput[];
+  initialStep?: DecisionDetailStep;
 }) {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<DecisionDetailStep>("why");
+  const [currentStep, setCurrentStep] = useState<DecisionDetailStep>(initialStep);
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
 
   const approval = useOperationsApproval({
@@ -218,6 +220,7 @@ export function DecisionDetailFlow({
     clearFeedback,
     executor,
     getDisposition,
+    recordInputsCollected,
   } = approval;
 
   const disposition = getDisposition(recommendation.workflow_id);
@@ -227,12 +230,29 @@ export function DecisionDetailFlow({
     setInputValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const canProceedFromInputs = useMemo(() => {
+    return requiredInputs
+      .filter((input) => input.required)
+      .every((input) => (inputValues[input.key] ?? "").trim().length > 0);
+  }, [inputValues, requiredInputs]);
+
   const handleNext = useCallback(() => {
     const next = getNextStep(currentStep);
-    if (next) {
-      setCurrentStep(next);
+    if (!next) {
+      return;
     }
-  }, [currentStep]);
+
+    if (currentStep === "inputs" && canProceedFromInputs) {
+      recordInputsCollected(recommendation.workflow_id);
+    }
+
+    setCurrentStep(next);
+  }, [
+    canProceedFromInputs,
+    currentStep,
+    recommendation.workflow_id,
+    recordInputsCollected,
+  ]);
 
   const handleBack = useCallback(() => {
     const previous = getPreviousStep(currentStep);
@@ -248,12 +268,6 @@ export function DecisionDetailFlow({
   const handleBackToList = useCallback(() => {
     router.push("/decisions");
   }, [router]);
-
-  const canProceedFromInputs = useMemo(() => {
-    return requiredInputs
-      .filter((input) => input.required)
-      .every((input) => (inputValues[input.key] ?? "").trim().length > 0);
-  }, [inputValues, requiredInputs]);
 
   const nextDisabled =
     currentStep === "inputs" && !canProceedFromInputs

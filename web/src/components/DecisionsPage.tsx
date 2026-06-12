@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { AuthenticatedShell } from "./AuthenticatedShell";
 import { DecisionsSubTabs, type DecisionsSubTab } from "./decisions/DecisionsSubTabs";
+import { DecisionsInProgressShell } from "./decisions/DecisionsInProgressShell";
 import { OperationsApprovalShell } from "./workflows/operations/OperationsApprovalShell";
 import { restoreDecisionsRecommendedScroll } from "@/lib/decisions/detail-content";
 import { useDemoPersona } from "@/lib/demo-persona-context";
@@ -59,10 +60,7 @@ export function DecisionsPage() {
           shellTestId="decisions-recommended-shell"
         />
       ) : activeTab === "in_progress" ? (
-        <DecisionsTabPlaceholder
-          testId="decisions-in-progress-placeholder"
-          message="Quyết định đang thực hiện sẽ có trong bản cập nhật tiếp theo."
-        />
+        <DecisionsInProgressShell persona={persona} personaId={personaId} />
       ) : (
         <DecisionsTabPlaceholder
           testId="decisions-templates-placeholder"
