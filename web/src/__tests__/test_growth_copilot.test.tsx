@@ -168,7 +168,7 @@ describe("Issue #121: shell integration", () => {
     renderSellerHomeWithPersona("growth");
 
     await waitFor(() => {
-      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+      expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
     expect(screen.queryByTestId("growth-copilot-panel")).not.toBeInTheDocument();

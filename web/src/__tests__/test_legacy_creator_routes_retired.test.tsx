@@ -108,7 +108,7 @@ describe("Issue #123: retire legacy creator-matching routes", () => {
       expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
   });
 });

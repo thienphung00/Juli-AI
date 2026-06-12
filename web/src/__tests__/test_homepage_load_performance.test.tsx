@@ -40,15 +40,16 @@ beforeEach(() => {
 });
 
 describe("AC2: Seller home shell modules", () => {
-  it("renders operations pipeline shell with health hero and approval gate", async () => {
+  it("renders read-only home summary shell with health hero and decision preview", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+      expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
     expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
-    expect(screen.getByTestId("approval-gate-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("recommended-decisions-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
   });
 
   it("displays shop name in health hero", async () => {
@@ -62,11 +63,11 @@ describe("AC2: Seller home shell modules", () => {
     });
   });
 
-  it("shows ranked clarity cards for default persona", async () => {
+  it("shows ranked decision preview cards for default persona", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getAllByTestId("clarity-card").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByTestId("decision-preview-card").length).toBeGreaterThanOrEqual(1);
     });
   });
 

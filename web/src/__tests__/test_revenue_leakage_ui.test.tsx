@@ -146,7 +146,7 @@ describe("Issue #120: shell integration", () => {
     renderSellerHomeWithPersona("leakage");
 
     await waitFor(() => {
-      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+      expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
     expect(screen.queryByTestId("leakage-copilot-panel")).not.toBeInTheDocument();

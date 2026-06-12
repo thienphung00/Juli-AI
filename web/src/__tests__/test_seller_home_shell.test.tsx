@@ -50,31 +50,33 @@ beforeEach(() => {
   document.documentElement.className = "";
 });
 
-async function assertPersonaUpdatesOperationsShell(personaId: "new" | "leakage" | "growth") {
+async function assertPersonaUpdatesHomeSummaryShell(personaId: "new" | "leakage" | "growth") {
   const persona = loadPersona(personaId);
 
   await waitFor(() => {
-    expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
   });
 
   expect(screen.getByTestId("shop-health-hero")).toHaveTextContent(persona.profile.shop_name);
-  expect(screen.getByTestId("approval-gate-toolbar")).toBeInTheDocument();
-  expect(screen.getAllByTestId("clarity-card").length).toBeGreaterThan(0);
+  expect(screen.getByTestId("recommended-decisions-preview")).toBeInTheDocument();
+  expect(screen.getAllByTestId("decision-preview-card").length).toBeGreaterThan(0);
+  expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
 
   const header = screen.getByRole("banner");
   expect(within(header).getByText(WORKFLOW_ENTRIES[personaId].label)).toBeInTheDocument();
 }
 
-describe("Issue #118 / #181: seller home shell", () => {
-  it("lands seller in operations pipeline shell instead of legacy recommendation feed", async () => {
+describe("Issue #118 / #181 / #193: seller home shell", () => {
+  it("lands seller in read-only home summary shell instead of legacy recommendation feed", async () => {
     renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("operations-pipeline-shell")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
     expect(screen.queryByTestId("gmv-card")).not.toBeInTheDocument();
   });
@@ -101,11 +103,11 @@ describe("Issue #118 / #181: seller home shell", () => {
     });
   });
 
-  it("integration: switching persona changes shop health hero and clarity cards", async () => {
+  it("integration: switching persona changes shop health hero and decision preview cards", async () => {
     const user = userEvent.setup();
     renderSellerHome();
 
-    await assertPersonaUpdatesOperationsShell("new");
+    await assertPersonaUpdatesHomeSummaryShell("new");
 
     const leakagePersona = loadPersona("leakage");
     await user.click(screen.getByRole("button", { name: /Rò rỉ doanh thu/i }));
@@ -117,30 +119,28 @@ describe("Issue #118 / #181: seller home shell", () => {
     });
 
     expect(localStorage.getItem(DEMO_PERSONA_STORAGE_KEY)).toBe("leakage");
-    expect(
-      screen.getByTestId("approval-approve-refund_spike_detection"),
-    ).toBeInTheDocument();
+    expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
   });
 
-  it("integration: new persona loads NEW_SHOP operations recommendations", async () => {
+  it("integration: new persona loads NEW_SHOP decision preview", async () => {
     renderSellerHome();
-    await assertPersonaUpdatesOperationsShell("new");
+    await assertPersonaUpdatesHomeSummaryShell("new");
     expect(screen.getByTestId("shop-health-profile")).toHaveTextContent("Shop mới");
   });
 
-  it("integration: leakage persona loads MID_LARGE operations recommendations", async () => {
+  it("integration: leakage persona loads MID_LARGE decision preview", async () => {
     const user = userEvent.setup();
     renderSellerHome();
     await user.click(screen.getByRole("button", { name: /Rò rỉ doanh thu/i }));
-    await assertPersonaUpdatesOperationsShell("leakage");
+    await assertPersonaUpdatesHomeSummaryShell("leakage");
     expect(screen.getByTestId("shop-health-profile")).toHaveTextContent("Shop trung/lớn");
   });
 
-  it("integration: growth persona loads operations shell with clarity cards", async () => {
+  it("integration: growth persona loads home summary with decision preview cards", async () => {
     const user = userEvent.setup();
     renderSellerHome();
     await user.click(screen.getByRole("button", { name: /Tăng trưởng/i }));
-    await assertPersonaUpdatesOperationsShell("growth");
+    await assertPersonaUpdatesHomeSummaryShell("growth");
   });
 
   it("shows shop name in health hero", async () => {
