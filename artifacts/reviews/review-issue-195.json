@@ -1,0 +1,81 @@
+{
+  "id": "review-issue-195",
+  "issue": 195,
+  "timestamp": "2026-06-12T18:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-9 Decisions Recommended tab: sub-tab chrome with full ranked clarity cards, required inputs, review links, and relocated approval gate via OperationsApprovalShell; Home remains read-only.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/components/DecisionsPage.tsx",
+    "web/src/components/decisions/DecisionsSubTabs.tsx",
+    "web/src/components/workflows/operations/OperationsApprovalShell.tsx",
+    "web/src/components/workflows/operations/ApprovalGate.tsx",
+    "web/src/components/workflows/operations/OperationsPipelineShell.tsx",
+    "web/src/lib/decisions/MODULE.md",
+    "web/src/lib/operations/MODULE.md",
+    "web/MODULE.md",
+    "web/src/__tests__/test_issue195_decisions_recommended.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/components/decisions",
+      "interface": "DecisionsSubTabs",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Recommended / In Progress / Workflow Templates sub-tab chrome."
+    },
+    {
+      "module": "web/src/components/workflows/operations",
+      "interface": "OperationsApprovalShell",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Approval gate + full ranked recommendations host for /decisions."
+    },
+    {
+      "module": "web/src/components/DecisionsPage",
+      "interface": "DecisionsPage",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Replaces placeholder with Recommended approval shell and sub-tabs."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "/decisions opens on Recommended sub-tab with full ranked list for demo personas",
+          "test": "web/src/__tests__/test_issue195_decisions_recommended.test.tsx::shows the full ranked clarity card list (not Home top-3 cap)"
+        },
+        {
+          "criterion": "renders approval toolbar and bulk actions on Decisions Recommended tab",
+          "test": "web/src/__tests__/test_issue195_decisions_recommended.test.tsx::renders approval toolbar and bulk actions on Decisions Recommended tab"
+        },
+        {
+          "criterion": "Home has no approval controls (regression with #193)",
+          "test": "web/src/__tests__/test_issue195_decisions_recommended.test.tsx::regression: Home has no approval controls (#193)"
+        },
+        {
+          "criterion": "NPL approve opens listing modal; deferred workflows show no-op toast",
+          "test": "web/src/__tests__/test_issue195_decisions_recommended.test.tsx::approve minimize_violations shows no-op toast without modal"
+        },
+        {
+          "criterion": "Integration test: Decisions tab approve path for at least one executable workflow",
+          "test": "web/src/__tests__/test_issue195_decisions_recommended.test.tsx::approve npl on Decisions opens listing modal"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 439,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}

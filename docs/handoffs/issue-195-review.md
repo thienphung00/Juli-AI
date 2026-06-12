@@ -1,41 +1,43 @@
-## Handoff: tdd → review
+# Handoff: review → ship — Issue #195
 
-### Issue
-- #195 — Decisions Recommended tab — full ranked cards + approval gate relocation
+## Issue
 
-### Branch
-- `feature/issue-195-decisions-recommended-tab`
+- **#195** — Decisions Recommended tab — full ranked cards + approval gate relocation
 
-### Changes Summary
-- New: `DecisionsSubTabs`, `OperationsApprovalShell`, `test_issue195_decisions_recommended.test.tsx`
-- Modified: `DecisionsPage`, `ApprovalGate` (required inputs + review link), `OperationsPipelineShell` (delegates to approval shell), MODULE docs, `#191` test
+## PR
 
-### Tests Written
-- `test_issue195_decisions_recommended.test.tsx` — sub-tabs, full list, approval toolbar on Decisions, Home regression, NPL approve + noop paths
+- #205 — `feature/issue-195-decisions-recommended-tab` → `main`
 
-### Test Results
-- All 439 tests passing
-- Lint: clean (pre-existing CreatorsPage img warning only)
-- Type-check: clean
+## Status
 
-### Acceptance Criteria Status
-- [x] `/decisions` opens on Recommended sub-tab with full ranked list
-- [x] Approve-all, selective approve, reject-with-reason (via shared `OperationsApprovalShell` / `#181` tests)
-- [x] Home has no approval controls (`#193` + `#195` regression tests)
-- [x] NPL → listing modal; deferred → no-op toast
-- [x] Integration test: Decisions tab approve path for NPL
+- Critical findings: 0
+- Warnings: 0
+- Info: In Progress / Workflow Templates sub-tabs are placeholders (#197, #198)
 
-### Notes for Reviewer
-- In Progress / Workflow Templates sub-tabs are placeholders (#197, #198)
-- Review links target `/decisions/[workflow_id]` ahead of detail flow (#196)
+## Modules
 
-## Guardrails Review
+| Module | Change |
+|--------|--------|
+| `DecisionsSubTabs` | Sub-tab chrome: Đề xuất / Đang thực hiện / Mẫu quy trình |
+| `OperationsApprovalShell` | Extracted approval host (toolbar, clarity cards, routing) |
+| `DecisionsPage` | Wires persona + Recommended shell; placeholders for other tabs |
+| `ApprovalGate` | Required inputs + Review link on each card |
+| `OperationsPipelineShell` | Delegates to approval shell (legacy test composite) |
 
-### Critical
-- None
+## Bootstrap
 
-### Warning
-- None
+No parallel agents; single-issue branch.
 
-### Info
-- `OperationsPipelineShell` retained for existing `#181`/`#182` tests; production approval path is `DecisionsPage` → `OperationsApprovalShell`
+## Review artifact
+
+- `artifacts/reviews/review-issue-195.json` — PASS, 5/5 AC mapped
+
+## Test Results
+
+- Issue tests: `test_issue195_decisions_recommended.test.tsx` (7)
+- Regression: `test_issue193_home_read_only.test.tsx`, `test_operations_approval_gate.test.tsx`
+- Full suite: 439 tests passing; type-check + lint clean
+
+## Ready for ship
+
+All acceptance criteria mapped. No migrations. Rollback = revert PR.
