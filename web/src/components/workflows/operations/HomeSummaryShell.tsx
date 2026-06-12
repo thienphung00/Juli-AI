@@ -8,6 +8,8 @@ import {
 import { computeShopHealthSummary } from "@/lib/operations/health-summary";
 import { useOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 
+import { TodaysReportPanel } from "@/components/home/todays-report";
+
 import { RecommendedDecisionsPreview } from "./RecommendedDecisionsPreview";
 import { ShopHealthHero } from "./ShopHealthHero";
 
@@ -19,7 +21,7 @@ export function HomeSummaryShell({
   personaId: PersonaId;
 }) {
   const pipeline = useOperationsPipeline({ personaId });
-  const { healthResults, workflowRecommendations, shopProfile } = pipeline;
+  const { healthResults, unifiedModel, workflowRecommendations, shopProfile } = pipeline;
   const healthSummary = computeShopHealthSummary(shopProfile, healthResults);
 
   const topDecisions = takeTopDecisions(
@@ -35,6 +37,8 @@ export function HomeSummaryShell({
         health={healthResults}
         summary={healthSummary}
       />
+
+      <TodaysReportPanel model={unifiedModel} profile={shopProfile} />
 
       <RecommendedDecisionsPreview decisions={topDecisions} />
     </section>

@@ -421,8 +421,10 @@ html.dark {
 
   .btn-primary,
   .btn-secondary,
-  .card-interactive {
+  .card-interactive,
+  .todays-report-card-animate {
     transition: none;
+    animation: none;
   }
 }
 
@@ -436,4 +438,19 @@ html.dark {
 @keyframes skeleton-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+.todays-report-card-animate {
+  animation: todays-report-fade-in 300ms ease-out;
+}
+
+@keyframes todays-report-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
