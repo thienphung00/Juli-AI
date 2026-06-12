@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { saveDecisionsRecommendedScroll } from "@/lib/decisions/detail-content";
 import { getRequiredInputsForWorkflow, type RequiredInput } from "@/lib/decisions";
 import type { ValidatedWorkflowId } from "@/lib/mock-data/operations/schemas";
 import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
@@ -137,8 +138,10 @@ export function ApprovalClarityCard({
 
       <Link
         href={`/decisions/${workflowId}`}
-        className="btn-secondary inline-flex w-full items-center justify-center"
+        className="btn-secondary inline-flex w-full items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        style={{ outlineColor: "var(--primary)" }}
         data-testid={`decision-review-${workflowId}`}
+        onClick={saveDecisionsRecommendedScroll}
       >
         Xem chi tiết
       </Link>

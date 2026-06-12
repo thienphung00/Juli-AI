@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AuthenticatedShell } from "./AuthenticatedShell";
 import { DecisionsSubTabs, type DecisionsSubTab } from "./decisions/DecisionsSubTabs";
 import { OperationsApprovalShell } from "./workflows/operations/OperationsApprovalShell";
+import { restoreDecisionsRecommendedScroll } from "@/lib/decisions/detail-content";
 import { useDemoPersona } from "@/lib/demo-persona-context";
 
 function DecisionsTabPlaceholder({
@@ -40,6 +41,10 @@ function DecisionsSkeleton() {
 export function DecisionsPage() {
   const { persona, personaId, isReady } = useDemoPersona();
   const [activeTab, setActiveTab] = useState<DecisionsSubTab>("recommended");
+
+  useEffect(() => {
+    restoreDecisionsRecommendedScroll();
+  }, []);
 
   return (
     <AuthenticatedShell title="Quyết định">
