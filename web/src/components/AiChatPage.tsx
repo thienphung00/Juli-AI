@@ -177,32 +177,25 @@ export function AiChatPage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
     );
   }
 
-  const chatFooter = !loading ? (
-    <>
-      <SuggestedPrompts
-        prompts={suggestedPrompts}
-        onSelect={handleSend}
-        disabled={sending}
-      />
-      <ChatInput onSend={handleSend} disabled={sending} borderless />
-    </>
-  ) : null;
-
   return (
-    <AuthenticatedShell
-      title="Juli"
-      subtitle={uiOnly ? "Demo UI" : undefined}
-      stickyFooter={chatFooter}
-    >
+    <AuthenticatedShell title="Juli" subtitle={uiOnly ? "Demo UI" : undefined}>
       <div
-        className="flex min-h-[calc(100vh-14rem)] flex-col gap-4 pb-36"
+        className="flex min-h-[calc(100vh-12rem)] flex-col gap-4"
         data-testid="ai-chat-page"
         data-decision-context={chatOptions?.decisionContext?.workflow_id ?? ""}
       >
         {loading ? (
           <ChatLoadingSkeleton />
         ) : (
-          <ChatMessageList messages={messages} />
+          <>
+            <ChatMessageList messages={messages} />
+            <SuggestedPrompts
+              prompts={suggestedPrompts}
+              onSelect={handleSend}
+              disabled={sending}
+            />
+            <ChatInput onSend={handleSend} disabled={sending} />
+          </>
         )}
       </div>
     </AuthenticatedShell>
