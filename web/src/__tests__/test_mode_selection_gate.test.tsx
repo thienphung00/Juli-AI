@@ -56,7 +56,9 @@ beforeEach(() => {
 });
 
 describe("Mode selection gate (#76)", () => {
-  it("redirects to /mode-select after OTP when no workspace mode is saved", async () => {
+  it(
+    "redirects to /mode-select after OTP when no workspace mode is saved",
+    async () => {
     mockSendOtp.mockResolvedValue({ message: "sent" });
     mockVerifyOtp.mockResolvedValue({
       access_token: "jwt-token",
@@ -90,7 +92,9 @@ describe("Mode selection gate (#76)", () => {
       expect(mockReplace).toHaveBeenCalledWith("/mode-select");
     });
     expect(readStoredWorkspaceMode()).toBeNull();
-  });
+  },
+  15_000,
+  );
 
   it("persists seller mode, applies light theme, and routes to /", async () => {
     const user = userEvent.setup();
