@@ -101,6 +101,7 @@ export function OperationsPipelineShell({
         <OperationsRecommendationsList
           recommendations={workflowRecommendations.recommended_workflows}
           health={healthResults}
+          personaId={personaId}
           getDisposition={getDisposition}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelection}

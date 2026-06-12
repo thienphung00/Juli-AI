@@ -1,6 +1,7 @@
 "use client";
 
 import type { ValidatedWorkflowId } from "@/lib/mock-data/operations/schemas";
+import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import type { WorkflowApprovalDisposition } from "@/lib/operations/approval-session";
 import type { HealthCheckResults } from "@/lib/operations/health-check";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
@@ -72,6 +73,7 @@ export function ApprovalGateToolbar({
 export function ApprovalClarityCard({
   recommendation,
   health,
+  personaId,
   disposition,
   selected,
   onToggleSelect,
@@ -81,6 +83,7 @@ export function ApprovalClarityCard({
 }: {
   recommendation: WorkflowRecommendation;
   health: HealthCheckResults;
+  personaId?: PersonaId;
   disposition: WorkflowApprovalDisposition;
   selected: boolean;
   onToggleSelect: () => void;
@@ -105,7 +108,7 @@ export function ApprovalClarityCard({
         </label>
       )}
 
-      <ClarityCard recommendation={recommendation} health={health} />
+      <ClarityCard recommendation={recommendation} health={health} personaId={personaId} />
 
       {disposition === "approved" && (
         <div className="space-y-2">
@@ -166,6 +169,7 @@ export function ApprovalClarityCard({
 export function OperationsRecommendationsList({
   recommendations,
   health,
+  personaId,
   getDisposition,
   selectedIds,
   onToggleSelect,
@@ -175,6 +179,7 @@ export function OperationsRecommendationsList({
 }: {
   recommendations: WorkflowRecommendation[];
   health: HealthCheckResults;
+  personaId?: PersonaId;
   getDisposition: (workflowId: ValidatedWorkflowId) => WorkflowApprovalDisposition;
   selectedIds: Set<ValidatedWorkflowId>;
   onToggleSelect: (workflowId: ValidatedWorkflowId) => void;
@@ -201,6 +206,7 @@ export function OperationsRecommendationsList({
           key={recommendation.workflow_id}
           recommendation={recommendation}
           health={health}
+          personaId={personaId}
           disposition={getDisposition(recommendation.workflow_id)}
           selected={selectedIds.has(recommendation.workflow_id)}
           onToggleSelect={() => onToggleSelect(recommendation.workflow_id)}

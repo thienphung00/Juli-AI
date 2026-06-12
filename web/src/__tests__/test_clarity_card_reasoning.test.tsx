@@ -44,4 +44,27 @@ describe("Issue #180: ClarityCard reasoning expansion", () => {
     expect(within(panel).getByText("Tác động dự kiến")).toBeInTheDocument();
     expect(within(panel).getByText("Bước tiếp theo")).toBeInTheDocument();
   });
+
+  it("emits reasoning_expanded analytics when personaId provided on expand", async () => {
+    const user = userEvent.setup();
+    const handler = jest.fn();
+    window.addEventListener("juli:analytics", handler);
+
+    const health = computeHealthCheckResults(loadOperationalModel("NEW_SHOP"));
+    const recommendation = rankWorkflowRecommendations("NEW_SHOP", health).recommended_workflows[0]!;
+
+    render(
+      <ClarityCard recommendation={recommendation} health={health} personaId="new" />,
+    );
+
+    await user.click(screen.getByTestId("reasoning-expand-toggle"));
+
+    expect(handler).toHaveBeenCalled();
+    const detail = (handler.mock.calls[0]?.[0] as CustomEvent).detail;
+    expect(detail.event).toBe("reasoning_expanded");
+    expect(detail.workflow_id).toBe(recommendation.workflow_id);
+    expect(detail.persona_id).toBe("new");
+
+    window.removeEventListener("juli:analytics", handler);
+  });
 });

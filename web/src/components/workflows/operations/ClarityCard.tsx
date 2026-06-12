@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
+import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import type { HealthCheckResults } from "@/lib/operations/health-check";
+import { trackReasoningExpansion } from "@/lib/operations/operations-analytics";
 import { buildWorkflowReasoning } from "@/lib/operations/reasoning";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 import { formatNumber } from "@/lib/format";
@@ -34,11 +36,26 @@ function confidenceBadgeStyle(
 export function ClarityCard({
   recommendation,
   health,
+  personaId,
 }: {
   recommendation: WorkflowRecommendation;
   health: HealthCheckResults;
+  personaId?: PersonaId;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  function handleToggleExpansion() {
+    setExpanded((value) => {
+      const next = !value;
+      if (next && personaId) {
+        trackReasoningExpansion({
+          workflow_id: recommendation.workflow_id,
+          persona_id: personaId,
+        });
+      }
+      return next;
+    });
+  }
   const reasoning = buildWorkflowReasoning(recommendation, health);
   const { expected_impact: impact } = recommendation;
 
@@ -82,7 +99,7 @@ export function ClarityCard({
         data-testid="reasoning-expand-toggle"
         aria-expanded={expanded}
         aria-controls={`reasoning-panel-${recommendation.workflow_id}`}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={handleToggleExpansion}
       >
         {expanded ? "Thu gọn lý do" : "Xem lý do chi tiết"}
         <ChevronDown
