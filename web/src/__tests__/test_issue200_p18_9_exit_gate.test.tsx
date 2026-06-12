@@ -29,6 +29,14 @@ const globalsCss = fs.readFileSync(
   "utf8",
 );
 const moduleDoc = fs.readFileSync(path.join(__dirname, "../../MODULE.md"), "utf8");
+const executionDoc = fs.readFileSync(
+  path.join(__dirname, "../../../EXECUTION.md"),
+  "utf8",
+);
+const shipHandoff = fs.readFileSync(
+  path.join(__dirname, "../../../docs/handoffs/issue-200-review.md"),
+  "utf8",
+);
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
@@ -263,5 +271,19 @@ describe("Issue #200: Legacy redirects and docs contract", () => {
     expect(moduleDoc).toMatch(/Decision/);
     expect(moduleDoc).toMatch(/white/i);
     expect(moduleDoc).toMatch(/#FFFFFF|#ffffff/);
+  });
+
+  it("EXECUTION.md P1.8-9 slice references child issue set", () => {
+    expect(executionDoc).toMatch(/P1\.8-9/);
+    expect(executionDoc).toMatch(/#191/);
+    expect(executionDoc).toMatch(/#200/);
+    expect(executionDoc).toMatch(/ADR-028/);
+  });
+
+  it("manual test plan documents Product lead UX review checklist", () => {
+    expect(shipHandoff).toMatch(/Product lead/i);
+    expect(shipHandoff).toMatch(/Home.*read-only|read-only.*Home/i);
+    expect(shipHandoff).toMatch(/Decisions/i);
+    expect(shipHandoff).toMatch(/white/i);
   });
 });
