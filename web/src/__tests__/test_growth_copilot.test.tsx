@@ -172,6 +172,6 @@ describe("Issue #121: shell integration", () => {
     });
 
     expect(screen.queryByTestId("growth-copilot-panel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
   });
 });

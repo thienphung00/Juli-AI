@@ -74,33 +74,33 @@ export function OperationsApprovalShell({
         <TaskFeedbackBanner feedback={feedback} onDismiss={clearFeedback} />
       )}
 
-      {!viewingOutcomeWorkflowId && (
-        <ApprovalGateToolbar
-          pendingCount={pendingRecommendations.length}
-          selectedCount={selectedIds.size}
-          onApproveAll={approveAllPending}
-          onApproveSelected={approveSelected}
-          onSelectAll={selectAllPending}
-        />
-      )}
-
       {viewingOutcomeWorkflowId ? (
         <OutcomeTrackingView
           workflowId={viewingOutcomeWorkflowId}
           onBack={() => setViewingOutcomeWorkflowId(null)}
         />
       ) : (
-        <OperationsRecommendationsList
-          recommendations={workflowRecommendations.recommended_workflows}
-          health={healthResults}
-          personaId={personaId}
-          getDisposition={getDisposition}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelection}
-          onApprove={approveWorkflow}
-          onReject={requestRejectWorkflow}
-          onViewOutcome={setViewingOutcomeWorkflowId}
-        />
+        <>
+          <OperationsRecommendationsList
+            recommendations={workflowRecommendations.recommended_workflows}
+            health={healthResults}
+            personaId={personaId}
+            getDisposition={getDisposition}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelection}
+            onApprove={approveWorkflow}
+            onReject={requestRejectWorkflow}
+            onViewOutcome={setViewingOutcomeWorkflowId}
+          />
+
+          <ApprovalGateToolbar
+            pendingCount={pendingRecommendations.length}
+            selectedCount={selectedIds.size}
+            onApproveAll={approveAllPending}
+            onApproveSelected={approveSelected}
+            onSelectAll={selectAllPending}
+          />
+        </>
       )}
     </section>
   );

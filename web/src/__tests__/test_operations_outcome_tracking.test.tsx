@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("Issue #182: outcome view after mock execution", () => {
-  it("renders success criteria for approved workflow with cadence tabs", async () => {
+  it("renders success criteria for approved workflow with weekly report", async () => {
     const user = userEvent.setup();
     renderPipelineShell("new");
 
@@ -78,12 +78,7 @@ describe("Issue #182: outcome view after mock execution", () => {
       criteria.threshold,
     );
 
-    expect(screen.getByTestId("outcome-cadence-tab-realtime")).toBeInTheDocument();
-    expect(screen.getByTestId("outcome-cadence-panel-realtime")).toBeInTheDocument();
-    expect(screen.getByTestId("outcome-execution-status")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("outcome-cadence-tab-weekly"));
-    expect(screen.getByTestId("outcome-cadence-panel-weekly")).toBeInTheDocument();
+    expect(screen.getByTestId("outcome-weekly-report")).toBeInTheDocument();
     expect(screen.getByTestId("outcome-metric-readings").children.length).toBeGreaterThan(0);
   });
 
