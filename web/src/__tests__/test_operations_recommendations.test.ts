@@ -116,6 +116,24 @@ describe("Issue #179: MID_LARGE_SHOP ranking", () => {
   });
 });
 
+describe("Issue #179: profile gating ordering and precondition flags", () => {
+  it("profile gating ordering and precondition flags per shop profile", () => {
+    const newHealth = computeHealthCheckResults(loadOperationalModel("NEW_SHOP"));
+    const newResult = rankWorkflowRecommendations("NEW_SHOP", newHealth);
+    expect(newResult.recommended_workflows.map((item) => item.workflow_id)).toEqual(
+      expect.arrayContaining(PROBATION_WORKFLOWS),
+    );
+
+    const midHealth = computeHealthCheckResults(loadOperationalModel("MID_LARGE_SHOP"));
+    const midResult = rankWorkflowRecommendations("MID_LARGE_SHOP", midHealth);
+    expect(midResult.recommended_workflows[0]?.workflow_id).toBe("refund_spike_detection");
+    expect(
+      midResult.recommended_workflows.find((item) => item.workflow_id === "refund_spike_detection")
+        ?.preconditions_met,
+    ).toBe(true);
+  });
+});
+
 describe("Issue #179: precondition flags", () => {
   it("marks refund spike preconditions met when spike_detected is true", () => {
     const health = computeHealthCheckResults(loadOperationalModel("MID_LARGE_SHOP"));

@@ -18,6 +18,29 @@ const PERSONA_PROFILE: Record<PersonaId, "NEW_SHOP" | "MID_LARGE_SHOP"> = {
 };
 
 describe("Issue #179: useOperationsPipeline", () => {
+  it("integration mock persona classify health rank envelope chain via hook", async () => {
+    const personaId = "new" as const;
+    const { result } = renderHook(() => useOperationsPipeline({ personaId }));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("ready");
+    });
+
+    const model = loadOperationalModelForPersona(personaId);
+    const expectedProfile = classifyShopProfile(model);
+    const expectedHealth = computeHealthCheckResults(model);
+    const expectedRecommendations = rankWorkflowRecommendations(expectedProfile, expectedHealth);
+
+    expect(result.current.personaId).toBe(personaId);
+    expect(result.current.unifiedModel.shop_metadata.shop_id).toBe(
+      model.shop_metadata.shop_id,
+    );
+    expect(result.current.shopProfile).toBe(expectedProfile);
+    expect(result.current.shopProfile).toBe(PERSONA_PROFILE[personaId]);
+    expect(result.current.healthResults).toEqual(expectedHealth);
+    expect(result.current.workflowRecommendations).toEqual(expectedRecommendations);
+  });
+
   it.each(["new", "leakage", "growth"] as const)(
     "loads persona %s → classify → health → rank envelope chain",
     async (personaId) => {
