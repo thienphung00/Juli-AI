@@ -1,21 +1,10 @@
 "use client";
 
-import { useState } from "react";
-
 import type { ValidatedWorkflowId } from "@/lib/mock-data/operations/schemas";
 import {
   loadWorkflowOutcomeMetrics,
-  OUTCOME_CADENCE_IDS,
-  type OutcomeCadenceId,
   type OutcomeReadingStatus,
 } from "@/lib/operations/outcome-metrics";
-
-const CADENCE_TAB_LABELS: Record<OutcomeCadenceId, string> = {
-  realtime: "Thời gian thực",
-  daily: "Hàng ngày",
-  weekly: "Hàng tuần",
-  monthly: "Hàng tháng",
-};
 
 function statusLabel(status: OutcomeReadingStatus): string {
   switch (status) {
@@ -63,16 +52,13 @@ export function OutcomeTrackingView({
   onBack: () => void;
 }) {
   const metrics = loadWorkflowOutcomeMetrics(workflowId);
-  const [activeCadence, setActiveCadence] = useState<OutcomeCadenceId>("realtime");
-  const activeSlice = metrics.cadences.find((slice) => slice.cadence === activeCadence);
+  const weeklySlice = metrics.cadences.find((slice) => slice.cadence === "weekly");
 
   return (
     <section className="space-y-4" data-testid="outcome-tracking-view" data-workflow-id={workflowId}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-muted text-xs font-medium uppercase tracking-wide">
-            Theo dõi kết quả
-          </p>
+          <p className="text-muted text-xs font-medium uppercase tracking-wide">Báo cáo tuần</p>
           <h2 className="mt-1 text-lg font-bold" style={{ color: "var(--foreground)" }}>
             {metrics.workflow_name}
           </h2>
@@ -83,14 +69,11 @@ export function OutcomeTrackingView({
           data-testid="outcome-tracking-back"
           onClick={onBack}
         >
-          Quay lại gợi ý
+          Quay lại đề xuất
         </button>
       </div>
 
-      <div
-        className="card p-4"
-        data-testid="outcome-success-criteria"
-      >
+      <div className="card p-4" data-testid="outcome-success-criteria">
         <h3 className="text-sm font-semibold">Tiêu chí thành công</h3>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
           <div>
@@ -108,50 +91,15 @@ export function OutcomeTrackingView({
         </dl>
       </div>
 
-      <div
-        className="flex flex-wrap gap-2"
-        role="tablist"
-        aria-label="Chu kỳ theo dõi kết quả"
-        data-testid="outcome-cadence-tabs"
-      >
-        {OUTCOME_CADENCE_IDS.map((cadence) => (
-          <button
-            key={cadence}
-            type="button"
-            role="tab"
-            aria-selected={activeCadence === cadence}
-            className={activeCadence === cadence ? "btn-primary" : "btn-secondary"}
-            data-testid={`outcome-cadence-tab-${cadence}`}
-            onClick={() => setActiveCadence(cadence)}
-          >
-            {CADENCE_TAB_LABELS[cadence]}
-          </button>
-        ))}
-      </div>
-
-      {activeSlice && (
-        <div
-          className="card space-y-3 p-4"
-          role="tabpanel"
-          data-testid={`outcome-cadence-panel-${activeCadence}`}
-        >
+      {weeklySlice && (
+        <div className="card space-y-3 p-4" data-testid="outcome-weekly-report">
           <div>
-            <h3 className="text-base font-semibold">{activeSlice.title}</h3>
-            <p className="text-muted mt-1 text-sm">{activeSlice.description}</p>
+            <h3 className="text-base font-semibold">Báo cáo tuần</h3>
+            <p className="text-muted mt-1 text-sm">{weeklySlice.description}</p>
           </div>
 
-          {activeSlice.execution_status && (
-            <p
-              className="rounded-lg border px-3 py-2 text-sm"
-              style={{ borderColor: "var(--border)" }}
-              data-testid="outcome-execution-status"
-            >
-              {activeSlice.execution_status}
-            </p>
-          )}
-
           <ul className="space-y-2" data-testid="outcome-metric-readings">
-            {activeSlice.readings.map((reading) => (
+            {weeklySlice.readings.map((reading) => (
               <li
                 key={`${reading.label}-${reading.value}`}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2"

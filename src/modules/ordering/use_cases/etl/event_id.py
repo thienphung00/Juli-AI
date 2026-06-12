@@ -28,8 +28,14 @@ def extract_event_id(*, channel: str, shop_key: str, payload: dict[str, Any]) ->
         return f"wh:{shop_key}:{event_type}:{timestamp}:{entity}"
 
     entity_id = (
-        payload.get("order_id")
+        payload.get("return_id")
+        or payload.get("order_id")
         or payload.get("product_id")
+        or (
+            f"{payload.get('tiktok_order_id')}:{payload.get('sku_id')}"
+            if payload.get("tiktok_order_id") and payload.get("sku_id")
+            else None
+        )
         or payload.get("sku_id")
         or payload.get("creator_id")
         or payload.get("livestream_id")

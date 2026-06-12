@@ -1,34 +1,28 @@
 "use client";
 
 import type { PersonaId, SellerPersona } from "@/lib/mock-data/seller-personas/schemas";
-import { computeShopHealthSummary } from "@/lib/operations/health-summary";
 import { useOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 
 import { OperationsApprovalShell } from "./OperationsApprovalShell";
-import { ShopHealthHero } from "./ShopHealthHero";
+import { ShopHealthCard } from "./ShopHealthCard";
+import { ShopInfoCard } from "./ShopInfoCard";
 
 /** Legacy composite shell — shop health + approval. Production approval lives on `/decisions`. */
 export function OperationsPipelineShell({
-  persona,
+  persona: _persona,
   personaId,
 }: {
   persona: SellerPersona;
   personaId: PersonaId;
 }) {
   const pipeline = useOperationsPipeline({ personaId });
-  const { healthResults, shopProfile } = pipeline;
-  const healthSummary = computeShopHealthSummary(shopProfile, healthResults);
+  const { unifiedModel } = pipeline;
 
   return (
     <section className="space-y-4" data-testid="operations-pipeline-shell">
-      <ShopHealthHero
-        shopName={persona.profile.shop_name}
-        profile={shopProfile}
-        health={healthResults}
-        summary={healthSummary}
-      />
-
-      <OperationsApprovalShell persona={persona} personaId={personaId} />
+      <ShopInfoCard metadata={unifiedModel.shop_metadata} />
+      <ShopHealthCard model={unifiedModel} />
+      <OperationsApprovalShell persona={_persona} personaId={personaId} />
     </section>
   );
 }

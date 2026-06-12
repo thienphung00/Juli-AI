@@ -47,6 +47,8 @@ buyer PII (#17). See [`data-sources.md`](../architecture/data-sources.md).
 | [tech-stack.md](tech-stack.md) | Client boundaries, env vars, persistence touchpoints |
 | [phase-roadmap.md](phase-roadmap.md) | P2 rollout aligned with `EXECUTION.md` |
 | [context-plan.md](context-plan.md) | `focus` skill load list per task type |
+| [integration-audit-2026-06.md](integration-audit-2026-06.md) | Full Partner API integration audit + remediation status |
+| [samples/README.md](samples/README.md) | Live API response capture workflow |
 
 ## Official links
 

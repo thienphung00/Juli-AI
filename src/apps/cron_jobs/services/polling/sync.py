@@ -18,7 +18,24 @@ import time
 from typing import Any
 
 from src.modules.ordering.api.ingestion.handoff import HandoffFn, PublishFn
+from src.modules.catalog.domain.integrations.tiktok.constants import (
+    CREATOR_CONTENT_DETAILS_PATH,
+    FINANCE_STATEMENTS_PATH,
+    MARKETPLACE_CREATORS_SEARCH_PATH,
+    ORDER_SEARCH_PATH,
+    PRODUCT_SEARCH_PATH,
+    RETURN_SEARCH_PATH,
+)
 from src.modules.catalog.domain.integrations.tiktok.exceptions import PermissionDeniedError, TikTokAPIError
+from src.modules.catalog.domain.integrations.tiktok.mapping import (
+    expand_order_line_items,
+    normalize_creator,
+    normalize_livestream,
+    normalize_order,
+    normalize_product,
+    normalize_return,
+    normalize_statement,
+)
 from src.modules.catalog.domain.integrations.tiktok.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -48,7 +65,7 @@ async def sync_orders(
 ) -> None:
     """Fetch orders since last sync and hand off to ETL."""
     handoff = _resolve_handoff(handoff_fn, publish_fn)
-    if not rate_limiter.acquire(app_id, shop_id, "/api/orders/search", max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(app_id, shop_id, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "orders"})
         return
 
@@ -62,11 +79,18 @@ async def sync_orders(
 
     max_update_time = update_from or 0
     for order in orders:
+        normalized = normalize_order(order)
         await handoff(
             "tiktok.orders.raw",
             shop_id,
-            json.dumps(order).encode(),
+            json.dumps(normalized).encode(),
         )
+        for line_item in expand_order_line_items(normalized):
+            await handoff(
+                "tiktok.order_items.raw",
+                shop_id,
+                json.dumps(line_item).encode(),
+            )
         max_update_time = max(max_update_time, order.get("update_time", 0))
 
     if orders:
@@ -85,7 +109,7 @@ async def sync_products(
 ) -> None:
     """Fetch products since last sync and hand off to ETL."""
     handoff = _resolve_handoff(handoff_fn, publish_fn)
-    if not rate_limiter.acquire(app_id, shop_id, "/api/products/search", max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(app_id, shop_id, PRODUCT_SEARCH_PATH, max_requests=10, window_seconds=60):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "products"})
         return
 
@@ -102,12 +126,52 @@ async def sync_products(
         await handoff(
             "tiktok.products.raw",
             shop_id,
-            json.dumps(product).encode(),
+            json.dumps(normalize_product(product)).encode(),
         )
         max_update_time = max(max_update_time, product.get("updated_at", 0))
 
     if products:
         sync_state["products_last_update_time"] = max_update_time
+
+
+async def sync_returns(
+    *,
+    resource: Any,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn | None = None,
+    publish_fn: PublishFn | None = None,
+    app_id: str,
+    shop_id: str,
+    sync_state: dict[str, Any],
+) -> None:
+    """Fetch returns since last sync and hand off to ETL."""
+    handoff = _resolve_handoff(handoff_fn, publish_fn)
+    if not rate_limiter.acquire(app_id, shop_id, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60):
+        logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "returns"})
+        return
+
+    update_from = sync_state.get("returns_last_update_time")
+
+    try:
+        returns = resource.search_returns_all(update_time_from=update_from)
+    except TikTokAPIError:
+        logger.warning("sync_returns_failed", extra={"shop_id": shop_id}, exc_info=True)
+        return
+
+    max_update_time = update_from or 0
+    for ret in returns:
+        await handoff(
+            "tiktok.returns.raw",
+            shop_id,
+            json.dumps(normalize_return(ret)).encode(),
+        )
+        max_update_time = max(
+            max_update_time,
+            ret.get("update_time") or ret.get("create_time") or 0,
+        )
+
+    if returns:
+        sync_state["returns_last_update_time"] = max_update_time
 
 
 async def sync_inventory(
@@ -157,7 +221,7 @@ async def sync_creators(
     the Affiliate API requires separate per-seller scope approval.
     """
     handoff = _resolve_handoff(handoff_fn, publish_fn)
-    if not rate_limiter.acquire(app_id, shop_id, "/api/affiliate/creators/search", max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(app_id, shop_id, MARKETPLACE_CREATORS_SEARCH_PATH, max_requests=10, window_seconds=60):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "creators"})
         return
 
@@ -174,7 +238,7 @@ async def sync_creators(
         await handoff(
             "tiktok.creators.raw",
             shop_id,
-            json.dumps(creator).encode(),
+            json.dumps(normalize_creator(creator)).encode(),
         )
         max_update_time = max(max_update_time, creator.get("update_time", 0))
 
@@ -198,7 +262,7 @@ async def sync_livestreams(
     the Affiliate API requires separate per-seller scope approval.
     """
     handoff = _resolve_handoff(handoff_fn, publish_fn)
-    if not rate_limiter.acquire(app_id, shop_id, "/api/affiliate/livestreams/search", max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(app_id, shop_id, CREATOR_CONTENT_DETAILS_PATH, max_requests=10, window_seconds=60):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "livestreams"})
         return
 
@@ -217,7 +281,7 @@ async def sync_livestreams(
         await handoff(
             "tiktok.livestreams.raw",
             shop_id,
-            json.dumps(ls).encode(),
+            json.dumps(normalize_livestream(ls)).encode(),
         )
         max_update_time = max(max_update_time, ls.get("update_time", 0))
 
@@ -241,7 +305,7 @@ async def sync_settlements(
     update_time is the reconciliation key.
     """
     handoff = _resolve_handoff(handoff_fn, publish_fn)
-    if not rate_limiter.acquire(app_id, shop_id, "/api/finance/settlements/search", max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(app_id, shop_id, FINANCE_STATEMENTS_PATH, max_requests=10, window_seconds=60):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "settlements"})
         return
 
@@ -258,7 +322,7 @@ async def sync_settlements(
         await handoff(
             "tiktok.settlements.raw",
             shop_id,
-            json.dumps(settlement).encode(),
+            json.dumps(normalize_statement(settlement)).encode(),
         )
         max_update_time = max(max_update_time, settlement.get("update_time", 0))
 

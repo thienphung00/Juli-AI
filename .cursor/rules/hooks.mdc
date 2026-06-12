@@ -1,6 +1,6 @@
 ---
 description: Hooks & automation — keep automation safe and reviewable
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Hooks & Automation (Cursor)

@@ -66,7 +66,7 @@ beforeEach(() => {
 });
 
 describe("Issue #194: Today's Report domain cards", () => {
-  it("renders all five domain tabs on Home between hero and decision preview", async () => {
+  it("renders all five domain tabs on Home between shop health and recent progress", async () => {
     renderSellerHome();
 
     await waitFor(() => {
@@ -74,15 +74,15 @@ describe("Issue #194: Today's Report domain cards", () => {
     });
 
     const shell = screen.getByTestId("home-summary-shell");
-    const hero = screen.getByTestId("shop-health-hero");
+    const shopHealth = screen.getByTestId("shop-health-card");
     const report = screen.getByTestId("todays-report-panel");
-    const preview = screen.getByTestId("recommended-decisions-preview");
+    const progress = screen.getByTestId("recent-progress-card");
 
-    expect(shell.contains(hero)).toBe(true);
+    expect(shell.contains(shopHealth)).toBe(true);
     expect(shell.contains(report)).toBe(true);
-    expect(shell.contains(preview)).toBe(true);
-    expect(hero.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(report.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(shell.contains(progress)).toBe(true);
+    expect(shopHealth.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(report.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     for (const domainId of REPORT_DOMAIN_IDS) {
       expect(screen.getByTestId(`todays-report-tab-${domainId}`)).toBeInTheDocument();

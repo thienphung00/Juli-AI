@@ -150,7 +150,7 @@ describe("Issue #120: shell integration", () => {
     });
 
     expect(screen.queryByTestId("leakage-copilot-panel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
   });
 
   it("approve/dismiss uses shared executor on leakage copilot panel tasks", async () => {

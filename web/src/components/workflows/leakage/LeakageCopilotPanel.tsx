@@ -74,26 +74,14 @@ export function LeakageCopilotPanel({
       ) : (
         <ul className="space-y-3" data-testid="leakage-task-list">
           {activeTasks.map((task) => (
-            <li key={task.id} className="space-y-2">
+            <li key={task.id}>
               <TaskCard
                 task={task}
                 personaId={persona.profile.id}
                 onApprove={approveTask}
                 onDismiss={requestDismissTask}
+                onViewEvidence={setEvidenceTaskId}
               />
-              <button
-                type="button"
-                className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
-                style={{
-                  borderColor: "var(--border)",
-                  color: "var(--foreground)",
-                  background: "transparent",
-                }}
-                onClick={() => setEvidenceTaskId(task.id)}
-                data-testid="task-view-evidence"
-              >
-                Xem bằng chứng
-              </button>
               {evidenceTask?.id === task.id && (
                 <EvidenceDrawer
                   task={task}

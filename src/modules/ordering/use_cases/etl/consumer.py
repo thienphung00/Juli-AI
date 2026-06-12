@@ -11,15 +11,19 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Protocol
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.shared.utils.data.models import Order
 from src.shared.utils.data.repos import (
     CreatorsRepo,
     InventoryRepo,
     LivestreamsRepo,
+    OrderItemsRepo,
     OrdersRepo,
     ProcessedEventsRepo,
     ProductsRepo,
+    ReturnsRepo,
     SettlementsRepo,
     ShopsRepo,
 )
@@ -77,6 +81,8 @@ class EtlConsumer:
         self._shops = ShopsRepo(session)
         self._processed = ProcessedEventsRepo(session)
         self._orders = OrdersRepo(session)
+        self._order_items = OrderItemsRepo(session)
+        self._returns = ReturnsRepo(session)
         self._products = ProductsRepo(session)
         self._inventory = InventoryRepo(session)
         self._creators = CreatorsRepo(session)
@@ -179,8 +185,18 @@ class EtlConsumer:
     async def _upsert(
         self, entity_kind: str, *, shop_id: Any, kwargs: dict[str, Any]
     ) -> None:
+        if entity_kind == "order_item":
+            kwargs["order_id"] = await self._resolve_order_id(
+                shop_id, kwargs["tiktok_order_id"]
+            )
+        elif entity_kind == "return" and kwargs.get("tiktok_order_id"):
+            order_pk = await self._lookup_order_id(shop_id, kwargs["tiktok_order_id"])
+            kwargs["order_id"] = order_pk
+
         repos: dict[str, _UpsertRepo] = {
             "order": self._orders,
+            "order_item": self._order_items,
+            "return": self._returns,
             "product": self._products,
             "inventory": self._inventory,
             "creator": self._creators,
@@ -191,6 +207,22 @@ class EtlConsumer:
         if repo is None:
             raise TransformError(f"unknown entity kind {entity_kind}")
         await repo.upsert(shop_id=shop_id, **kwargs)
+
+    async def _lookup_order_id(
+        self, shop_id: Any, tiktok_order_id: str
+    ) -> Any | None:
+        stmt = select(Order.id).where(
+            Order.shop_id == shop_id,
+            Order.tiktok_order_id == tiktok_order_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def _resolve_order_id(self, shop_id: Any, tiktok_order_id: str) -> Any:
+        order_pk = await self._lookup_order_id(shop_id, tiktok_order_id)
+        if order_pk is None:
+            raise TransformError(f"parent order not found: {tiktok_order_id}")
+        return order_pk
 
     async def _send_dlq(
         self,

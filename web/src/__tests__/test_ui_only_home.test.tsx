@@ -49,7 +49,7 @@ describe("UI-only home (#71, #70)", () => {
     });
 
     expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
-    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
     expect(screen.getByTestId("persona-switcher")).toBeInTheDocument();
   });
 
@@ -58,7 +58,7 @@ describe("UI-only home (#71, #70)", () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("shop-health-hero")).toHaveTextContent(
+      expect(screen.getByTestId("shop-info-card")).toHaveTextContent(
         persona.profile.shop_name,
       );
     });

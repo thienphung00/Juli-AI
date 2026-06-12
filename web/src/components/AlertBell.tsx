@@ -57,7 +57,7 @@ export function AlertBell() {
         aria-label="Cảnh báo"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-full transition-opacity hover:opacity-90"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
         style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
         data-testid="alert-bell-button"
       >
@@ -85,10 +85,15 @@ export function AlertBell() {
             role="dialog"
             aria-modal="true"
             aria-label="Danh sách cảnh báo"
-            className="fixed inset-x-0 bottom-0 z-[70] mx-auto max-h-[70vh] max-w-lg overflow-y-auto rounded-t-2xl p-4 shadow-xl safe-area-bottom"
+            className="fixed inset-x-0 bottom-0 z-[70] mx-auto max-h-[70vh] max-w-lg overflow-y-auto rounded-t-2xl p-4 shadow-xl safe-area-bottom md:inset-x-auto md:bottom-4 md:right-4 md:top-20 md:max-h-[calc(100vh-6rem)] md:w-96 md:rounded-2xl"
             style={{ background: "var(--card)", borderTop: "1px solid var(--border)" }}
             data-testid="alert-bell-drawer"
           >
+            <div
+              className="mx-auto mb-3 h-1 w-10 rounded-full md:hidden"
+              style={{ background: "var(--border)" }}
+              aria-hidden
+            />
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
                 Cảnh báo
@@ -97,7 +102,7 @@ export function AlertBell() {
                 type="button"
                 aria-label="Đóng"
                 onClick={close}
-                className="flex h-8 w-8 items-center justify-center rounded-full"
+                className="flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 style={{ background: "var(--muted)" }}
               >
                 <X size={16} />
@@ -110,8 +115,15 @@ export function AlertBell() {
                 {alerts.map((alert) => (
                   <li
                     key={alert.id}
-                    className="rounded-xl p-3"
-                    style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+                    className="rounded-xl border-l-4 p-3"
+                    style={{
+                      background: "var(--muted)",
+                      borderColor: "var(--primary)",
+                      borderLeftWidth: "4px",
+                      borderTop: "1px solid var(--border)",
+                      borderRight: "1px solid var(--border)",
+                      borderBottom: "1px solid var(--border)",
+                    }}
                     data-testid={`alert-bell-item-${alert.id}`}
                   >
                     <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>

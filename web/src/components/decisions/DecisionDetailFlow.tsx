@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -7,6 +8,7 @@ import { TaskDismissModal } from "@/components/tasks/TaskDismissModal";
 import { TaskExecutorModals } from "@/components/tasks/TaskExecutorModals";
 import { TaskFeedbackBanner } from "@/components/tasks/TaskFeedbackBanner";
 import { ReasoningPanel } from "@/components/workflows/operations/ReasoningPanel";
+import { saveActiveDecisionForChat } from "@/lib/decisions/chat-session";
 import {
   buildDecisionAnalytics,
   getDecisionPreviewRisks,
@@ -27,18 +29,6 @@ import type { HealthCheckResults } from "@/lib/operations/health-check";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 import { DecisionDetailStepIndicator } from "./DecisionDetailStepIndicator";
-
-function confidenceLabel(
-  confidence: WorkflowRecommendation["expected_impact"]["confidence"],
-): string {
-  if (confidence === "high") {
-    return "Cao";
-  }
-  if (confidence === "medium") {
-    return "Trung bình";
-  }
-  return "Thấp";
-}
 
 function DecisionDetailStepContent({
   step,
@@ -140,14 +130,6 @@ function DecisionDetailStepContent({
             <div
               className="rounded-xl border p-3"
               style={{ borderColor: "var(--border)" }}
-              data-testid="decision-preview-confidence"
-            >
-              <p className="text-muted text-xs font-medium uppercase">Độ tin cậy</p>
-              <p className="mt-1 text-sm">{confidenceLabel(impact.confidence)}</p>
-            </div>
-            <div
-              className="rounded-xl border p-3"
-              style={{ borderColor: "var(--border)" }}
               data-testid="decision-preview-risks"
             >
               <p className="text-muted text-xs font-medium uppercase">Rủi ro tiềm ẩn</p>
@@ -173,8 +155,7 @@ function DecisionDetailStepContent({
           >
             <p className="font-medium">{recommendation.workflow_name}</p>
             <p className="text-muted mt-1 text-sm">
-              {impact.metric}: {formatNumber(impact.value)} · Độ tin cậy{" "}
-              {confidenceLabel(impact.confidence).toLowerCase()}
+              {impact.metric}: {formatNumber(impact.value)} điểm
             </p>
           </div>
         </div>
@@ -299,6 +280,16 @@ export function DecisionDetailFlow({
       </button>
 
       <DecisionDetailStepIndicator currentStep={currentStep} />
+
+      <Link
+        href={`/ai-chat?decision=${recommendation.workflow_id}`}
+        className="btn-secondary inline-flex w-full items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        style={{ outlineColor: "var(--primary)" }}
+        data-testid="decision-ask-juli"
+        onClick={() => saveActiveDecisionForChat(recommendation.workflow_id)}
+      >
+        Hỏi Juli về quyết định này
+      </Link>
 
       <div
         className="card p-4"

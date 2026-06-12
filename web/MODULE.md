@@ -20,7 +20,7 @@ modules, orders management with filtering and shipment confirmation.
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Seller home shell (workflow breadcrumb + persona tasks); canonical seller entry (#118, #123)
 - `toDecision`, `takeTopDecisions`, `applyDecisionLifecycle` — Decision view-model mapping `workflow_recommendations` → seller-facing Decision envelopes (`lib/decisions/`, #192)
-- `/decisions` — Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; approval gate + full ranked list on Recommended (#195); ADR-028 3-tab IA (#191)
+- `/decisions` — Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; approval gate + full ranked list on Recommended (#195); mock per-workflow template settings (#198); ADR-028 3-tab IA (#191)
 - `/decisions/[decisionId]` — Guided 5-step decision detail flow (why → analytics → inputs → preview → approve) (#196)
 - `/creators` — Legacy creator-matching; 301 → `/` (#123)
 - `/recommendations` — Legacy decision feed; 301 → `/decisions` (#191)
@@ -40,6 +40,30 @@ modules, orders management with filtering and shipment confirmation.
 - TypeScript
 - Tailwind CSS
 - Vietnamese locale (VND ₫ formatting, diacritics, ICT timezone)
+
+## Decision object (ADR-028, #192)
+
+Primary seller-facing UI object — one envelope per validated `workflow_id` (ADR-026 six-workflow catalog).
+
+| Field | Source |
+|-------|--------|
+| `id` | `workflow_id` |
+| `title` | `workflow_name` |
+| `estimated_impact` | `expected_impact.metric` + `value` |
+| `confidence` | `expected_impact.confidence` |
+| `reasoning_summary` | `rationale` |
+| `required_inputs` | Per-workflow mock catalog |
+| `status` | `recommended` \| `needs_input` \| `executing` \| `completed` |
+
+Mapping lives in `lib/decisions/` (`toDecision`, `takeTopDecisions`, `applyDecisionLifecycle`). Home preview caps at **3**; Decisions Recommended shows the full ranked list.
+
+## White canvas invariant (ADR-028, #191)
+
+Seller workspace (`html` without `.dark`):
+
+- `--background`, `--header-background`, `--muted` → `#FFFFFF` (not pink tint `#FEF5F6`)
+- Brand pink `#F86BA5` is accent-only (health bars, primary CTAs, Juli tab highlight)
+- Affiliate workspace keeps dark canvas per ADR-027
 
 ## Bottom navigation (ADR-028, #191)
 Seller workspace exposes exactly **3** fixed tabs via `BOTTOM_NAV_TABS` in `lib/nav-config.ts`:

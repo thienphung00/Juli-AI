@@ -1,11 +1,13 @@
 ---
 description: Code review standards — catch correctness, security, and maintainability issues
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Code Review Standards
 
-Code review is required for production-impacting changes. Review should catch correctness, security, performance, and maintainability issues **before merge**.
+Load via Focus during `review` phase or explicit review requests. Detailed checks: `.cursor/skills/standalone/review/SKILL.md`.
+
+Code review is required for production-impacting changes.
 
 ## Mandatory review triggers
 

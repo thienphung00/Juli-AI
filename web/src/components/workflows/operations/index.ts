@@ -1,10 +1,13 @@
-export { ApprovalClarityCard, ApprovalGateToolbar, OperationsRecommendationsList } from "./ApprovalGate";
+export { ApprovalGateToolbar, OperationsRecommendationsList } from "./ApprovalGate";
 export { ClarityCard } from "./ClarityCard";
 export { DecisionPreviewCard } from "./DecisionPreviewCard";
+export { HealthMetricBar } from "./HealthMetricBar";
 export { HomeSummaryShell } from "./HomeSummaryShell";
 export { OperationsApprovalShell } from "./OperationsApprovalShell";
 export { OperationsPipelineShell } from "./OperationsPipelineShell";
-export { RecommendedDecisionsPreview } from "./RecommendedDecisionsPreview";
 export { OutcomeTrackingView } from "./OutcomeTrackingView";
 export { ReasoningPanel } from "./ReasoningPanel";
+export { ShopHealthCard } from "./ShopHealthCard";
 export { ShopHealthHero } from "./ShopHealthHero";
+export { ShopInfoCard } from "./ShopInfoCard";
+export { RecommendedDecisionsPreview } from "./RecommendedDecisionsPreview";

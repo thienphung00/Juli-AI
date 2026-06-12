@@ -3,31 +3,12 @@
 import { useEffect, useState } from "react";
 
 import { AuthenticatedShell } from "./AuthenticatedShell";
-import { DecisionsSubTabs, type DecisionsSubTab } from "./decisions/DecisionsSubTabs";
 import { DecisionsInProgressShell } from "./decisions/DecisionsInProgressShell";
+import { DecisionsSubTabs, type DecisionsSubTab } from "./decisions/DecisionsSubTabs";
+import { DecisionsWorkflowTemplatesShell } from "./decisions/DecisionsWorkflowTemplatesShell";
 import { OperationsApprovalShell } from "./workflows/operations/OperationsApprovalShell";
 import { restoreDecisionsRecommendedScroll } from "@/lib/decisions/detail-content";
 import { useDemoPersona } from "@/lib/demo-persona-context";
-
-function DecisionsTabPlaceholder({
-  testId,
-  message,
-}: {
-  testId: string;
-  message: string;
-}) {
-  return (
-    <div
-      className="rounded-2xl border p-6 text-center"
-      style={{ borderColor: "var(--border)", background: "var(--card)" }}
-      data-testid={testId}
-    >
-      <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-        {message}
-      </p>
-    </div>
-  );
-}
 
 function DecisionsSkeleton() {
   return (
@@ -62,10 +43,7 @@ export function DecisionsPage() {
       ) : activeTab === "in_progress" ? (
         <DecisionsInProgressShell persona={persona} personaId={personaId} />
       ) : (
-        <DecisionsTabPlaceholder
-          testId="decisions-templates-placeholder"
-          message="Mẫu quy trình sẽ có trong bản cập nhật tiếp theo."
-        />
+        <DecisionsWorkflowTemplatesShell />
       )}
     </AuthenticatedShell>
   );

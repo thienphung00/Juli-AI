@@ -11,10 +11,14 @@
 
 ## North star
 
-**Seller money, not creator matching.** Juli AI is an **AI Operations System**
-for TikTok Shop sellers that helps them **make and keep more money** by executing
-only validated, high-impact workflows — classified by shop profile, ranked by
-health signals, explained, approved, and tracked.
+**Seller money, not creator matching.** Juli AI is a **Decision Copilot** (AI
+Operations System) for TikTok Shop sellers — it analyzes shop data, identifies
+opportunities and risks, generates recommendations with impact estimates and
+reasoning, collects user decisions and inputs, and executes workflows **only
+after explicit approval**. Users own product selection, strategic priorities,
+budget allocation, brand alignment, and business goals; Juli owns analysis,
+recommendations, impact estimation, reasoning, and guided execution
+([ADR-028](docs/decisions/028-decision-copilot-app-structure.md)).
 
 **Copilot surfaces (execution UI pillars):**
 
@@ -218,14 +222,14 @@ approve/reject/selective rates + reject reasons; reasoning-expansion clicks.
 - [ ] **P1.8-4** Workflow Recommendation & Ranking (mock) — profile + health →
   ranked `workflow_recommendations` (priority/impact/confidence, preconditions,
   rationale); impact-threshold filter for MID_LARGE_SHOP. _(issue: #179)_
-- [ ] **P1.8-5** LLM Reasoning panel (rules-only copy) — per-recommendation Why /
+- [x] **P1.8-5** LLM Reasoning panel (rules-only copy) — per-recommendation Why /
   Expected Impact / Next Steps from deterministic signals; copy-layer templates
-  (Ollama deferred to P2). _(issue: #180)_
-- [ ] **P1.8-6** Unified Approval Gate + execution routing (mock) — approve all /
+  (Ollama deferred to P2). _(issue: #180, PR #188)_
+- [x] **P1.8-6** Unified Approval Gate + execution routing (mock) — approve all /
   selective / reject-with-reason; route approved workflow to **executable** panels
   (NPL → listing P1.6; Refund Spike → leakage P1.7 by task type) or **no-op** for
   deferred workflows (Violations, Stockout, Budget Optimization, Product Scaling).
-  _(issue: #181)_
+  _(issue: #181, PR #188)_
 - [ ] **P1.8-7** Outcome Tracking (mock) — per-workflow `workflow_outcome_metrics`
   with success criteria + tracking cadence views (real-time / daily / weekly /
   monthly). _(issue: #182)_
@@ -237,6 +241,16 @@ approve/reject/selective rates + reject reasons; reasoning-expansion clicks.
   3-step elevation scale, and motion (card entry, metric counter, approval→toast, loading
   shimmer, tab fade) honoring `prefers-reduced-motion`. Update `web/MODULE.md` invariant +
   re-baseline screenshots. _(issue: #174)_
+- [ ] **P1.8-9** App structure — 3-tab Decision Copilot IA
+  ([ADR-028](docs/decisions/028-decision-copilot-app-structure.md); product label
+  *Phase 1.8.5*): exactly **Home** (`/` — Shop Status hero, Today's Report domain
+  cards, top-3 decision preview; **no approvals**), **Decisions** (`/decisions` —
+  Recommended / In Progress / Workflow Templates sub-tabs; full approval gate +
+  5-step decision detail flow), **Juli AI Chat** (`/ai-chat` — contextual to active
+  decisions). Refactor `OperationsPipelineShell` placement; Decision as primary UI
+  object mapping to validated `workflow_id`. Depends on P1.8-3, P1.8-4; relocates
+  P1.8-5…7 surfaces into Decisions. Seller canvas **white** (`#FFFFFF`), not pink
+  tint `#FEF5F6` — pink accent only. _(parent PRD: #190; issues: #191–#199 implementation, #200 exit-gate tests + docs)_
 
 ### Exit gate → Phase 2
 
@@ -247,6 +261,8 @@ approve/reject/selective rates + reject reasons; reasoning-expansion clicks.
 - [ ] Approval gate supports approve-all / selective / reject-with-reason on all workflows
 - [ ] Design-system tokens applied (theme swap + states + elevation + motion); both
   Seller (light) and Affiliate (dark) modes verified; no stray theme hex ([ADR-027](docs/decisions/027-design-system-token-foundation.md))
+- [ ] 3-tab seller IA verified: Home read-only (no approve/execute); Decisions hosts
+  approval + in-progress + templates; Juli Chat contextual to decisions ([ADR-028](docs/decisions/028-decision-copilot-app-structure.md))
 - [ ] Product lead confirms the operations-system UX resonates (same engagement bar as P1)
 
 > **Deferred (not built in P1.8):** standalone executors for Minimize Violations,

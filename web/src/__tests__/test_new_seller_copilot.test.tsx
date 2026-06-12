@@ -158,7 +158,7 @@ describe("Issue #181 / #193: seller home read-only summary for new persona", () 
     expect(screen.queryByTestId("new-seller-copilot-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-npl")).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("decision-preview-list").querySelector('[data-workflow-id="npl"]'),
+      screen.getByTestId("recent-progress-card").querySelector('[data-workflow-id="npl"]'),
     ).toBeInTheDocument();
   });
 });

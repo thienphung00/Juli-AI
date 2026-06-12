@@ -1,9 +1,11 @@
 ---
 description: Observability standards — structured logging, metrics, and tracing
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Observability
+
+Load via Focus when adding endpoints, services, or background jobs.
 
 ## Structured Logging
 

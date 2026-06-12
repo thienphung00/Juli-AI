@@ -1,46 +1,41 @@
 "use client";
 
+import { takeTopDecisions, toDecisionsFromRecommendations } from "@/lib/decisions";
 import type { PersonaId, SellerPersona } from "@/lib/mock-data/seller-personas/schemas";
-import {
-  takeTopDecisions,
-  toDecisionsFromRecommendations,
-} from "@/lib/decisions";
-import { computeShopHealthSummary } from "@/lib/operations/health-summary";
+import { buildRecentProgressItems } from "@/lib/operations/recent-progress";
 import { useOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 
+import { RecentProgressCard } from "@/components/home/RecentProgressCard";
 import { TodaysReportPanel } from "@/components/home/todays-report";
 
 import { RecommendedDecisionsPreview } from "./RecommendedDecisionsPreview";
-import { ShopHealthHero } from "./ShopHealthHero";
+import { ShopHealthCard } from "./ShopHealthCard";
+import { ShopInfoCard } from "./ShopInfoCard";
 
 export function HomeSummaryShell({
-  persona,
   personaId,
 }: {
   persona: SellerPersona;
   personaId: PersonaId;
 }) {
   const pipeline = useOperationsPipeline({ personaId });
-  const { healthResults, unifiedModel, workflowRecommendations, shopProfile } = pipeline;
-  const healthSummary = computeShopHealthSummary(shopProfile, healthResults);
+  const { unifiedModel, workflowRecommendations } = pipeline;
 
-  const topDecisions = takeTopDecisions(
+  const recentProgress = buildRecentProgressItems(
+    workflowRecommendations.recommended_workflows,
+  );
+  const previewDecisions = takeTopDecisions(
     toDecisionsFromRecommendations(workflowRecommendations.recommended_workflows),
     3,
   );
 
   return (
     <section className="space-y-4" data-testid="home-summary-shell">
-      <ShopHealthHero
-        shopName={persona.profile.shop_name}
-        profile={shopProfile}
-        health={healthResults}
-        summary={healthSummary}
-      />
-
-      <TodaysReportPanel model={unifiedModel} profile={shopProfile} />
-
-      <RecommendedDecisionsPreview decisions={topDecisions} />
+      <ShopInfoCard metadata={unifiedModel.shop_metadata} />
+      <ShopHealthCard model={unifiedModel} />
+      <TodaysReportPanel model={unifiedModel} profile={pipeline.shopProfile} />
+      <RecommendedDecisionsPreview decisions={previewDecisions} />
+      <RecentProgressCard items={recentProgress} />
     </section>
   );
 }

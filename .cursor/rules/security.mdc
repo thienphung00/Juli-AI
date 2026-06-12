@@ -1,9 +1,11 @@
 ---
 description: Security standards — protect data, users, and infrastructure
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Security
+
+Load via Focus when auth, PII, financial data, user input, or CORS is involved. Core essentials are always on in `.cursor/rules/core-safety.mdc`.
 
 ## Input Sanitization & Validation
 

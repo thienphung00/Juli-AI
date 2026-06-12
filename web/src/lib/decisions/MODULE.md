@@ -20,6 +20,8 @@ this module; execution remains keyed by `workflow_id`.
 | `buildDecisionAnalytics`, `getDecisionPreviewRisks` | Mock analytics + risks for detail steps 2 & 4 |
 | `buildInProgressDecisions`, `IN_PROGRESS_STATUS_LABELS` | Approved decisions with lifecycle status (#197) |
 | `loadDecisionLifecycleSession`, `markDecisionExecutor*` | Session persistence for inputs + executor phase |
+| `buildDecisionChatContext`, `buildContextualSuggestedPrompts`, `buildDecisionAwareMockReply` | Juli Chat decision context (#199) |
+| `saveActiveDecisionForChat`, `readActiveDecisionForChat` | Session + URL `?decision=` handoff to `/ai-chat` |
 
 ## Decision envelope
 
@@ -60,4 +62,5 @@ P2 swaps session/executor sources; status enum and mapping stay stable.
 - `DecisionsPage` Recommended sub-tab — full ranked list + approval gate (#195) ✅
 - `DecisionDetailFlow` on `/decisions/[decisionId]` — 5-step guided approve (#196) ✅
 - `DecisionsPage` In Progress — `DecisionsInProgressShell` (#197) ✅
-- Juli Chat decision context (#199)
+- `DecisionsPage` Workflow Templates — `DecisionsWorkflowTemplatesShell` (#198) ✅
+- Juli Chat decision context (#199) ✅

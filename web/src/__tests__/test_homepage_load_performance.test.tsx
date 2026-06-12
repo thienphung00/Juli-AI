@@ -47,8 +47,8 @@ describe("AC2: Seller home shell modules", () => {
       expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
-    expect(screen.getByTestId("recommended-decisions-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
+    expect(screen.getByTestId("recent-progress-card")).toBeInTheDocument();
     expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
   });
 
@@ -57,17 +57,17 @@ describe("AC2: Seller home shell modules", () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("shop-health-hero")).toHaveTextContent(
+      expect(screen.getByTestId("shop-info-card")).toHaveTextContent(
         persona.profile.shop_name,
       );
     });
   });
 
-  it("shows ranked decision preview cards for default persona", async () => {
+  it("shows recent progress items for default persona", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getAllByTestId("decision-preview-card").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByTestId("recent-progress-item").length).toBeGreaterThanOrEqual(1);
     });
   });
 

@@ -102,13 +102,16 @@ beforeEach(() => {
 });
 
 describe("Issue #196: open detail from Recommended Review", () => {
-  it("Review on Recommended card links to the decision detail route", async () => {
+  it("expanded Recommended card links to the decision detail route", async () => {
+    const user = userEvent.setup();
     renderDecisionsPage();
 
     await waitFor(() => {
-      expect(screen.getByTestId("decision-review-npl")).toBeInTheDocument();
+      expect(document.querySelector('[data-workflow-id="npl"]')).toBeInTheDocument();
     });
 
+    const nplCard = document.querySelector('[data-workflow-id="npl"]') as HTMLElement;
+    await user.click(within(nplCard).getByTestId("reasoning-expand-toggle"));
     expect(screen.getByTestId("decision-review-npl")).toHaveAttribute("href", "/decisions/npl");
   });
 });

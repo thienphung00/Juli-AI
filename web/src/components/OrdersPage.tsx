@@ -177,7 +177,7 @@ function OrderCard({
           onClick={() => onConfirmShipment(order.id)}
           disabled={confirming}
           className="mt-3 w-full rounded-xl px-3 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
-          style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)" }}
+          style={{ background: "var(--brand-gradient)" }}
           data-testid="confirm-shipment-btn"
         >
           {confirming ? "Đang xử lý..." : "Xác nhận giao hàng"}

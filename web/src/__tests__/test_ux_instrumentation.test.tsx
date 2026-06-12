@@ -98,9 +98,7 @@ describe("Issue #122: task UX analytics", () => {
     render(<TaskQueue tasks={tasks} personaId={persona.profile.id} />);
 
     await user.click(screen.getAllByTestId("task-approve")[0]);
-    await dismissTaskWithReason(user, "false_positive", {
-      dismissButton: screen.getAllByTestId("task-dismiss")[0],
-    });
+    await dismissTaskWithReason(user, "false_positive");
 
     await waitFor(() => {
       expect(events.filter((e) => e.event === "task_approved")).toHaveLength(1);
