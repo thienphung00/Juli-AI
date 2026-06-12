@@ -70,10 +70,13 @@ describe("Mode selection gate (#76)", () => {
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Nhập mã OTP")).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText("Nhập mã OTP"), "123456");
+    const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
+    for (let i = 0; i < 6; i++) {
+      await user.type(otpInputs[i]!, String(i + 1));
+    }
     await user.click(screen.getByRole("button", { name: "Xác nhận" }));
 
     await waitFor(() => {
@@ -82,7 +85,7 @@ describe("Mode selection gate (#76)", () => {
     expect(readStoredWorkspaceMode()).toBeNull();
   });
 
-  it("persists seller mode, applies dark theme, and routes to /", async () => {
+  it("persists seller mode, applies light theme, and routes to /", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ModeSelectionPage />);
 
@@ -90,12 +93,12 @@ describe("Mode selection gate (#76)", () => {
 
     await waitFor(() => {
       expect(localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY)).toBe("seller");
-      expect(document.documentElement.classList.contains("dark")).toBe(true);
+      expect(document.documentElement.classList.contains("dark")).toBe(false);
       expect(mockReplace).toHaveBeenCalledWith("/");
     });
   });
 
-  it("persists affiliate mode, applies light theme, and routes to /", async () => {
+  it("persists affiliate mode, applies dark theme, and routes to /", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ModeSelectionPage />);
 
@@ -103,14 +106,14 @@ describe("Mode selection gate (#76)", () => {
 
     await waitFor(() => {
       expect(localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY)).toBe("affiliate");
-      expect(document.documentElement.classList.contains("dark")).toBe(false);
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
       expect(mockReplace).toHaveBeenCalledWith("/");
     });
   });
 
   it("redirects returning users with saved mode straight to /", async () => {
     localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
-    document.documentElement.classList.add("dark");
+    document.documentElement.classList.remove("dark");
 
     renderWithProviders(<ModeSelectionPage />);
 

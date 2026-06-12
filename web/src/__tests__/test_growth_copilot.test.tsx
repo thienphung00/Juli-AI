@@ -35,7 +35,7 @@ function renderGrowthPanel(persona: SellerPersona) {
 function renderSellerHomeWithPersona(personaId: "growth" = "growth") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
-  document.documentElement.classList.add("dark");
+  document.documentElement.classList.remove("dark");
 
   return render(
     <ModeProvider>
@@ -154,9 +154,7 @@ describe("Issue #121: shared executor", () => {
     const initialCount = within(list).getAllByTestId("task-card").length;
     expect(initialCount).toBeGreaterThanOrEqual(2);
 
-    await dismissTaskWithReason(user, "not_relevant", {
-      dismissButton: within(list).getAllByTestId("task-dismiss")[0],
-    });
+    await dismissTaskWithReason(user, "not_relevant");
 
     await waitFor(() => {
       expect(within(list).getAllByTestId("task-card")).toHaveLength(initialCount - 1);

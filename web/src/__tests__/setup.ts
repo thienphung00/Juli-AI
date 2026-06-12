@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
+import { WORKSPACE_MODE_STORAGE_KEY, applyWorkspaceTheme } from "@/lib/workspace-mode";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn(), back: jest.fn() }),
@@ -8,5 +8,5 @@ jest.mock("next/navigation", () => ({
 
 beforeEach(() => {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
-  document.documentElement.classList.add("dark");
+  applyWorkspaceTheme("seller");
 });

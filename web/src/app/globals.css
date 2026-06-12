@@ -4,8 +4,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design Tokens ─────────────────────────────────────── */
-/* Seller (dark): pink accents on black */
+/* ── Design Tokens (ADR-027, issue #174) ─────────────────── */
+:root {
+  --pink-main: #f86ba5;
+  --pink-background: #fef5f6;
+  --pink-light: #faa5c4;
+  --pink-dark: #e85a94;
+  --destructive: #e5484d;
+  --destructive-tint: #e5484d20;
+  --success: #16a34a;
+  --success-tint: #16a34a20;
+  --warning: #f59e0b;
+  --warning-tint: #f59e0b20;
+  --info: #2563eb;
+  --info-tint: #2563eb20;
+  --radius: 16px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  --focus-ring-width: 3px;
+  --focus-ring-color: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+/* Seller (light): calm canvas with charcoal text */
+html:not(.dark) {
+  --background: var(--pink-background);
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --muted: var(--pink-background);
+  --muted-foreground: #71717a;
+  --border: #f8d4dc;
+  --border-accent: rgba(248, 107, 165, 0.2);
+  --input: #ffffff;
+  --primary: var(--pink-main);
+  --primary-foreground: #ffffff;
+  --secondary: var(--pink-background);
+  --secondary-foreground: #171717;
+  --accent: var(--pink-light);
+  --header-background: var(--pink-background);
+  --header-border: rgba(248, 107, 165, 0.18);
+  --brand-gradient: linear-gradient(135deg, #f86ba5 0%, #faa5c4 100%);
+  --brand-glow: rgba(248, 107, 165, 0.2);
+  --glass-bg: rgba(254, 245, 246, 0.92);
+  --glass-border: rgba(248, 107, 165, 0.1);
+}
+
+/* Affiliate (dark): dark canvas for out-of-scope affiliate shell */
 html.dark {
   --background: #050505;
   --foreground: #f5f5f5;
@@ -14,75 +59,46 @@ html.dark {
   --muted: #1a1a1a;
   --muted-foreground: #a1a1aa;
   --border: #2a2a2a;
-  --border-accent: rgba(255, 0, 110, 0.28);
+  --border-accent: rgba(248, 107, 165, 0.28);
   --input: #1a1a1a;
-  --primary: #ff006e;
+  --primary: var(--pink-main);
   --primary-foreground: #ffffff;
   --secondary: #1a1a1a;
   --secondary-foreground: #fafafa;
-  --accent: #ff4d94;
+  --accent: var(--pink-light);
   --header-background: #0a0a0a;
-  --header-border: rgba(255, 0, 110, 0.22);
-  --brand-gradient: linear-gradient(135deg, #ff006e 0%, #ff85c2 45%, #ff4d94 100%);
-  --brand-glow: rgba(255, 0, 110, 0.35);
+  --header-border: rgba(248, 107, 165, 0.22);
+  --brand-gradient: linear-gradient(135deg, #f86ba5 0%, #faa5c4 45%, #f86ba5 100%);
+  --brand-glow: rgba(248, 107, 165, 0.35);
   --glass-bg: rgba(10, 10, 10, 0.92);
-  --glass-border: rgba(255, 0, 110, 0.12);
+  --glass-border: rgba(248, 107, 165, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.45), 0 2px 4px -2px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.55), 0 4px 6px -4px rgba(0, 0, 0, 0.45);
 }
 
-/* Affiliate (light): pink accents on white */
-html:not(.dark) {
-  --background: #ffffff;
+/* Fallback before theme script runs (seller default = light) */
+:root {
+  --background: var(--pink-background);
   --foreground: #0a0a0a;
   --card: #ffffff;
   --card-foreground: #171717;
-  --muted: #fff0f6;
+  --muted: var(--pink-background);
   --muted-foreground: #71717a;
-  --border: #fce7f3;
-  --border-accent: rgba(255, 0, 110, 0.2);
-  --input: #fff5f9;
-  --primary: #ff006e;
+  --border: #f8d4dc;
+  --border-accent: rgba(248, 107, 165, 0.2);
+  --input: #ffffff;
+  --primary: var(--pink-main);
   --primary-foreground: #ffffff;
-  --secondary: #fff0f6;
+  --secondary: var(--pink-background);
   --secondary-foreground: #171717;
-  --accent: #ff4d94;
-  --header-background: #ffffff;
-  --header-border: rgba(255, 0, 110, 0.18);
-  --brand-gradient: linear-gradient(135deg, #e6005f 0%, #ff006e 40%, #ff85c2 100%);
-  --brand-glow: rgba(255, 0, 110, 0.2);
-  --glass-bg: rgba(255, 255, 255, 0.92);
-  --glass-border: rgba(255, 0, 110, 0.1);
-}
-
-/* Fallback before theme script runs (seller default) */
-:root {
-  --background: #050505;
-  --foreground: #f5f5f5;
-  --card: #111111;
-  --card-foreground: #fafafa;
-  --muted: #1a1a1a;
-  --muted-foreground: #a1a1aa;
-  --border: #2a2a2a;
-  --border-accent: rgba(255, 0, 110, 0.28);
-  --input: #1a1a1a;
-  --primary: #ff006e;
-  --primary-foreground: #ffffff;
-  --secondary: #1a1a1a;
-  --secondary-foreground: #fafafa;
-  --accent: #ff4d94;
-  --destructive: #ef4444;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --info: #06b6d4;
-  --radius: 16px;
-  --pink-primary: #ff1493;
-  --pink-light: #ff85c2;
-  --pink-dark: #e61282;
-  --header-background: #0a0a0a;
-  --header-border: rgba(255, 0, 110, 0.22);
-  --brand-gradient: linear-gradient(135deg, #ff006e 0%, #ff85c2 45%, #ff4d94 100%);
-  --brand-glow: rgba(255, 0, 110, 0.35);
-  --glass-bg: rgba(10, 10, 10, 0.92);
-  --glass-border: rgba(255, 0, 110, 0.12);
+  --accent: var(--pink-light);
+  --header-background: var(--pink-background);
+  --header-border: rgba(248, 107, 165, 0.18);
+  --brand-gradient: linear-gradient(135deg, #f86ba5 0%, #faa5c4 100%);
+  --brand-glow: rgba(248, 107, 165, 0.2);
+  --glass-bg: rgba(254, 245, 246, 0.92);
+  --glass-border: rgba(248, 107, 165, 0.1);
 }
 
 /* ── Base ──────────────────────────────────────────────── */
@@ -103,7 +119,6 @@ html:not(.dark) {
     letter-spacing: -0.02em;
   }
 
-  /* Hide scrollbar for horizontal scrolling */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -115,7 +130,6 @@ html:not(.dark) {
 
 /* ── Components ────────────────────────────────────────── */
 @layer components {
-  /* Safe areas */
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -123,14 +137,27 @@ html:not(.dark) {
     padding-top: env(safe-area-inset-top);
   }
 
-  /* Card */
   .card {
     background: var(--card);
     border: 1px solid var(--border-accent, var(--border));
     border-radius: var(--radius);
   }
 
-  /* Glass effect */
+  .card-interactive {
+    transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  }
+  .card-interactive:hover {
+    border-color: var(--border-accent, var(--border));
+    box-shadow: var(--shadow-sm);
+  }
+  .card-interactive:active {
+    transform: scale(0.98);
+  }
+  .card-interactive:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  }
+
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
@@ -138,7 +165,6 @@ html:not(.dark) {
     border: 1px solid var(--glass-border);
   }
 
-  /* Brand pink gradients */
   .gradient-primary {
     background: var(--brand-gradient);
   }
@@ -164,7 +190,6 @@ html:not(.dark) {
     line-height: 1.75rem;
   }
 
-  /* Alias for existing usage */
   .gradient-primary-text {
     display: inline-block;
     font-weight: 800;
@@ -180,13 +205,12 @@ html:not(.dark) {
     border-bottom: 1px solid var(--header-border);
   }
 
-  /* Live pulse badge */
   .badge-live {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    background: #ef444420;
-    color: #ef4444;
+    background: var(--destructive-tint);
+    color: var(--destructive);
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.05em;
@@ -198,11 +222,10 @@ html:not(.dark) {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #ef4444;
+    background: var(--destructive);
     animation: pulse 1.2s ease-in-out infinite;
   }
 
-  /* Status badges */
   .badge {
     display: inline-flex;
     align-items: center;
@@ -211,13 +234,12 @@ html:not(.dark) {
     font-size: 11px;
     font-weight: 600;
   }
-  .badge-success { background: #10b98120; color: #10b981; }
-  .badge-warning { background: #f59e0b20; color: #f59e0b; }
-  .badge-danger  { background: #ef444420; color: #ef4444; }
-  .badge-info    { background: #06b6d420; color: #06b6d4; }
-  .badge-pink    { background: #ff006e20; color: #ff006e; }
+  .badge-success { background: var(--success-tint); color: var(--success); }
+  .badge-warning { background: var(--warning-tint); color: var(--warning); }
+  .badge-danger  { background: var(--destructive-tint); color: var(--destructive); }
+  .badge-info    { background: var(--info-tint); color: var(--info); }
+  .badge-pink    { background: #f86ba520; color: var(--primary); }
 
-  /* Spin loader */
   .spinner {
     width: 32px;
     height: 32px;
@@ -231,6 +253,16 @@ html:not(.dark) {
     background: var(--muted);
     border: 1px solid var(--border);
     color: var(--foreground);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .field-input:focus-visible {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  }
+  .field-input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .btn-primary {
@@ -239,12 +271,41 @@ html:not(.dark) {
     font-size: 0.875rem;
     font-weight: 600;
     color: #ffffff;
-    background: linear-gradient(135deg, #ff006e 0%, #ff4d94 100%);
+    background: var(--brand-gradient);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
   }
-
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.05);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.98);
+    filter: brightness(0.95);
+  }
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  }
   .btn-primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  .btn-primary.btn-loading {
+    position: relative;
+    color: transparent;
+    pointer-events: none;
+  }
+  .btn-primary.btn-loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #ffffff;
+    animation: spin 0.7s linear infinite;
   }
 
   .btn-secondary {
@@ -255,6 +316,87 @@ html:not(.dark) {
     font-weight: 600;
     color: var(--foreground);
     background: transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--muted);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-secondary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .btn-secondary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  }
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .app-container {
+    width: 100%;
+    max-width: 32rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .app-container {
+      max-width: 48rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .app-container {
+      max-width: 72rem;
+    }
+  }
+
+  .seller-home-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .seller-home-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+      gap: 1.25rem;
+      align-items: start;
+    }
+  }
+
+  .skeleton {
+    border-radius: var(--radius);
+    background: linear-gradient(
+      90deg,
+      var(--muted) 0%,
+      var(--border) 50%,
+      var(--muted) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  }
+
+  .link-secondary {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color 0.15s ease;
+  }
+  .link-secondary:hover {
+    color: var(--foreground);
+  }
+  .link-secondary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+    border-radius: 4px;
   }
 }
 
@@ -264,6 +406,24 @@ html:not(.dark) {
   .bg-card    { background-color: var(--card); }
   .bg-muted   { background-color: var(--muted); }
   .border-default { border-color: var(--border); }
+  .elevation-sm { box-shadow: var(--shadow-sm); }
+  .elevation-md { box-shadow: var(--shadow-md); }
+  .elevation-lg { box-shadow: var(--shadow-lg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-live::before,
+  .spinner,
+  .skeleton,
+  .btn-primary.btn-loading::after {
+    animation: none;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .card-interactive {
+    transition: none;
+  }
 }
 
 @keyframes spin {
@@ -272,4 +432,8 @@ html:not(.dark) {
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.6; transform: scale(1.3); }
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }

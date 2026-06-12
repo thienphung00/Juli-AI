@@ -35,7 +35,7 @@ function renderLeakagePanel(persona: SellerPersona) {
 function renderSellerHomeWithPersona(personaId: "leakage" = "leakage") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
-  document.documentElement.classList.add("dark");
+  document.documentElement.classList.remove("dark");
 
   return render(
     <ModeProvider>
@@ -95,8 +95,10 @@ describe("Issue #120: evidence drill-down", () => {
     const persona = loadPersona("leakage");
     renderLeakagePanel(persona);
 
+    const moreMenus = screen.getAllByTestId("task-more-menu");
+    await user.click(moreMenus[0]!);
     const evidenceButtons = screen.getAllByTestId("task-view-evidence");
-    await user.click(evidenceButtons[0]);
+    await user.click(evidenceButtons[0]!);
 
     await waitFor(() => {
       expect(screen.getByTestId("evidence-drawer")).toBeInTheDocument();

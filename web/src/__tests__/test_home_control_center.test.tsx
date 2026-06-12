@@ -6,7 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { ModeProvider } from "@/lib/mode-context";
-import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
+import { WORKSPACE_MODE_STORAGE_KEY, applyWorkspaceTheme } from "@/lib/workspace-mode";
 import * as homeService from "@/lib/services/home";
 
 jest.mock("@/lib/services/home", () => ({
@@ -35,11 +35,7 @@ const mockGetHomeDashboard = homeService.getHomeDashboard as jest.MockedFunction
 
 function renderHome(mode: "seller" | "affiliate", uiOnly = true) {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, mode);
-  if (mode === "seller") {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
+  applyWorkspaceTheme(mode);
 
   return render(
     <ModeProvider>
@@ -65,7 +61,7 @@ describe("Home control center (#79, #118)", () => {
         expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
       });
 
-      expect(document.documentElement.classList.contains("dark")).toBe(true);
+      expect(document.documentElement.classList.contains("dark")).toBe(false);
       expect(screen.getByTestId("workflow-breadcrumb")).toBeInTheDocument();
       expect(screen.getByTestId("task-queue")).toBeInTheDocument();
       expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
@@ -73,7 +69,7 @@ describe("Home control center (#79, #118)", () => {
   });
 
   describe("affiliate mode", () => {
-    it("renders light theme with out-of-scope instead of seller workflows", async () => {
+    it("renders dark theme with out-of-scope instead of seller workflows", async () => {
       const { MOCK_HOME_AFFILIATE } = jest.requireActual("@/lib/mock-data/home");
       mockGetHomeDashboard.mockResolvedValue(MOCK_HOME_AFFILIATE);
 
@@ -83,7 +79,7 @@ describe("Home control center (#79, #118)", () => {
         expect(screen.getByTestId("affiliate-out-of-scope")).toBeInTheDocument();
       });
 
-      expect(document.documentElement.classList.contains("dark")).toBe(false);
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
       expect(screen.queryByTestId("home-affiliate")).not.toBeInTheDocument();
       expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
       expect(screen.queryByTestId("commission-card")).not.toBeInTheDocument();
