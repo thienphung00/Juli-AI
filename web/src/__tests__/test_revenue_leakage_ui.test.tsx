@@ -4,6 +4,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LeakageCopilotPanel } from "@/components/workflows/leakage";
+import { EvidenceDrawer } from "@/components/workflows/leakage/EvidenceDrawer";
 import { SellerHomeShell } from "@/components/seller-home/SellerHomeShell";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
@@ -91,6 +92,7 @@ describe("Issue #120: leakage persona anomaly list", () => {
 
 describe("Issue #120: evidence drill-down", () => {
   it("opens evidence drawer without forbidden PII field names", async () => {
+    clearTaskExecutorSession();
     const user = userEvent.setup();
     const persona = loadPersona("leakage");
     clearTaskExecutorSession();
