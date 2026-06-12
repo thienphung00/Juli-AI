@@ -22,6 +22,12 @@ export {
   MID_LARGE_IMPACT_THRESHOLD_VND,
   rankWorkflowRecommendations,
 } from "./recommendations";
+export {
+  buildWorkflowReasoning,
+  REASONING_COPY_SOURCE,
+  WORKFLOW_REASONING_TEMPLATES,
+} from "./reasoning";
+export type { ReasoningCopySource, WorkflowReasoning } from "./reasoning";
 export type {
   ImpactConfidence,
   WorkflowExpectedImpact,

@@ -7,6 +7,7 @@ Rules-based shop profile classification, health check indicators, and validated 
 - `classifyShopProfile(unifiedModel) → NEW_SHOP | MID_LARGE_SHOP` — pure classifier from `unified_operational_data_model`
 - `computeHealthCheckResults(unifiedModel) → health_check_results` — pure health indicators keyed by indicator ID (P1.8-3)
 - `rankWorkflowRecommendations(profile, health) → workflow_recommendations` — pure ranking by profile + health signals (P1.8-4)
+- `buildWorkflowReasoning(recommendation, health) → WorkflowReasoning` — rules-only Why / Impact / Next Steps copy (P1.8-5)
 - `useOperationsPipeline({ personaId })` / `runOperationsPipeline(personaId)` — load → classify → health → rank (P1.8-4)
 - `HEALTH_INDICATOR_TRACEABILITY_MAP` / `getWorkflowsForHealthIndicator(id)` — indicator→workflow traceability (ADR-026 constraint #5)
 - `WORKFLOW_CATALOG` / `getWorkflowsForProfile(profile)` — ADR-026 Appendix A profile→workflow map (six workflows only)
@@ -44,7 +45,19 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | NEW_SHOP | NPL, Minimize Violations | Probation timeline urgency + SPS/AHR gaps; never growth/loss workflows |
 | MID_LARGE_SHOP | Budget, Scaling, Refund Spike, Stockout | Impact/urgency from health indicators; impact-threshold filter skipped until Product sets `MID_LARGE_IMPACT_THRESHOLD_VND` in EXECUTION.md |
 
+## Reasoning copy layer (P1.8-5)
+
+| Workflow | Why signals | Next steps |
+|----------|-------------|------------|
+| NPL | probation_progress, sps_health | Listing prep + SPS follow-up |
+| Minimize Violations | ahr_health | Violation center triage |
+| Budget Optimization | ad_roas_efficiency | Pause/reallocate underperforming campaigns |
+| Product Scaling | product_scaling_opportunity | Scale top SKU ads + inventory |
+| Refund Spike | refund_spike_indicator | Root-cause refund review |
+| Stockout Prevention | inventory_health | Reorder at-risk SKUs |
+
+UI: `web/src/components/workflows/operations/ClarityCard` + `ReasoningPanel` — expandable reasoning with `data-testid` hooks for analytics.
+
 ## Out of scope (later slices)
 
-- Rules-only reasoning panel (`workflows/operations/`, P1.8-5)
 - Unified approval gate UI (P1.8-6)
