@@ -250,7 +250,7 @@ approve/reject/selective rates + reject reasons; reasoning-expansion clicks.
   decisions). Refactor `OperationsPipelineShell` placement; Decision as primary UI
   object mapping to validated `workflow_id`. Depends on P1.8-3, P1.8-4; relocates
   P1.8-5…7 surfaces into Decisions. Seller canvas **white** (`#FFFFFF`), not pink
-  tint `#FEF5F6` — pink accent only. _(parent PRD: #190; issues: #191–#200)_
+  tint `#FEF5F6` — pink accent only. _(parent PRD: #190; issues: #191–#199 implementation, #200 exit-gate tests + docs)_
 
 ### Exit gate → Phase 2
 
