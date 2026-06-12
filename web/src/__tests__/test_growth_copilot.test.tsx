@@ -144,7 +144,8 @@ describe("Issue #121: campaigns ranked by opportunity", () => {
 describe("Issue #121: shared executor", () => {
   it("dismiss removes campaign task from active queue", async () => {
     const user = userEvent.setup();
-    renderSellerHomeWithPersona("growth");
+    const persona = loadPersona("growth");
+    renderGrowthPanel(persona);
 
     await waitFor(() => {
       expect(screen.getByTestId("growth-copilot-panel")).toBeInTheDocument();
@@ -163,14 +164,14 @@ describe("Issue #121: shared executor", () => {
 });
 
 describe("Issue #121: shell integration", () => {
-  it("renders GrowthCopilotPanel when workflow is growth", async () => {
+  it("renders operations pipeline shell when growth persona is selected", async () => {
     renderSellerHomeWithPersona("growth");
 
     await waitFor(() => {
-      expect(screen.getByTestId("growth-copilot-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
     });
 
-    expect(screen.queryByTestId("task-queue")).not.toBeInTheDocument();
-    expect(screen.getByTestId("workflow-stage")).toHaveAttribute("data-stage", "growth");
+    expect(screen.queryByTestId("growth-copilot-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
   });
 });

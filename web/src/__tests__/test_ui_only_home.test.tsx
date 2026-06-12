@@ -48,17 +48,19 @@ describe("UI-only home (#71, #70)", () => {
       expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("workflow-breadcrumb")).toBeInTheDocument();
-    expect(screen.getByTestId("task-queue")).toBeInTheDocument();
+    expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
     expect(screen.getByTestId("persona-switcher")).toBeInTheDocument();
   });
 
-  it("shows default persona shop name in seller summary", async () => {
+  it("shows default persona shop name in shop health hero", async () => {
     const persona = loadPersona("new");
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByText(persona.profile.shop_name)).toBeInTheDocument();
+      expect(screen.getByTestId("shop-health-hero")).toHaveTextContent(
+        persona.profile.shop_name,
+      );
     });
   });
 });

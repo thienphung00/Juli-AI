@@ -1,5 +1,5 @@
 /**
- * AC2 — Seller home shell loads workflow UI with mock persona data (#118).
+ * AC2 — Seller home shell loads operations pipeline UI with mock persona data (#118, #181).
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
@@ -40,37 +40,34 @@ beforeEach(() => {
 });
 
 describe("AC2: Seller home shell modules", () => {
-  it("renders workflow breadcrumb and task queue", async () => {
+  it("renders operations pipeline shell with health hero and approval gate", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("workflow-breadcrumb")).toBeInTheDocument();
+      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("task-queue")).toBeInTheDocument();
-    expect(screen.getByTestId("seller-shop-summary")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("approval-gate-toolbar")).toBeInTheDocument();
   });
 
-  it("displays shop GMV with VND formatting", async () => {
+  it("displays shop name in health hero", async () => {
     const persona = loadPersona("new");
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("seller-gmv-30d")).toBeInTheDocument();
+      expect(screen.getByTestId("shop-health-hero")).toHaveTextContent(
+        persona.profile.shop_name,
+      );
     });
-
-    expect(screen.getByTestId("seller-gmv-30d")).toHaveTextContent(/₫/);
-    expect(screen.getByText(persona.profile.shop_name)).toBeInTheDocument();
   });
 
-  it("shows workflow tasks for default persona", async () => {
+  it("shows ranked clarity cards for default persona", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("task-queue-list")).toBeInTheDocument();
+      expect(screen.getAllByTestId("clarity-card").length).toBeGreaterThanOrEqual(1);
     });
-
-    expect(screen.getAllByTestId("task-card").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows active workflow label in header subtitle", async () => {

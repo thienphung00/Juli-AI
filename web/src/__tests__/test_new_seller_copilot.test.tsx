@@ -1,11 +1,14 @@
 /**
  * Issue #119 — New Seller Copilot UI (mocked)
+ * Issue #181 — Seller home uses operations pipeline; copilot panel tests render panel directly.
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HomePage } from "@/components/HomePage";
+import { NewSellerCopilotPanel } from "@/components/workflows/new-seller/NewSellerCopilotPanel";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
+import { getWorkflowTasks } from "@/lib/seller-workflows";
 import { ModeProvider } from "@/lib/mode-context";
 import { clearTaskExecutorSession } from "@/lib/task-executor";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
@@ -38,6 +41,12 @@ function renderNewSellerHome() {
   );
 }
 
+function renderNewSellerPanel() {
+  const persona = loadPersona("new");
+  const tasks = getWorkflowTasks(persona, "new_seller");
+  return render(<NewSellerCopilotPanel persona={persona} tasks={tasks} />);
+}
+
 const VIETNAMESE_DIACRITIC = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
 
 beforeEach(() => {
@@ -47,14 +56,14 @@ beforeEach(() => {
   document.documentElement.className = "";
 });
 
-describe("Issue #119: New Seller Copilot", () => {
-  it("integration: new-seller persona renders at least 3 tasks with Vietnamese titles", async () => {
+describe("Issue #119: New Seller Copilot panel", () => {
+  it("renders at least 3 tasks with Vietnamese titles", async () => {
     const persona = loadPersona("new");
     const expectedTitles = persona.tasks
       .filter((task) => task.workflow === "new_seller")
       .map((task) => task.title);
 
-    renderNewSellerHome();
+    renderNewSellerPanel();
 
     await waitFor(() => {
       expect(screen.getByTestId("new-seller-copilot-panel")).toBeInTheDocument();
@@ -70,11 +79,11 @@ describe("Issue #119: New Seller Copilot", () => {
     }
   });
 
-  it("integration: each task shows Vietnamese justification body from fixtures", async () => {
+  it("each task shows Vietnamese justification body from fixtures", async () => {
     const persona = loadPersona("new");
     const firstTask = persona.tasks.find((task) => task.workflow === "new_seller")!;
 
-    renderNewSellerHome();
+    renderNewSellerPanel();
 
     await waitFor(() => {
       expect(screen.getByTestId("new-seller-copilot-panel")).toBeInTheDocument();
@@ -84,8 +93,8 @@ describe("Issue #119: New Seller Copilot", () => {
     expect(firstTask.body).toMatch(VIETNAMESE_DIACRITIC);
   });
 
-  it("integration: first-sale milestone progress is visible with Vietnamese label", async () => {
-    renderNewSellerHome();
+  it("first-sale milestone progress is visible with Vietnamese label", async () => {
+    renderNewSellerPanel();
 
     await waitFor(() => {
       expect(screen.getByTestId("first-sale-milestone")).toBeInTheDocument();
@@ -97,9 +106,9 @@ describe("Issue #119: New Seller Copilot", () => {
     expect(within(milestone).getByTestId("milestone-percent")).toBeInTheDocument();
   });
 
-  it("integration: approve removes task from active queue", async () => {
+  it("approve removes task from active queue", async () => {
     const user = userEvent.setup();
-    renderNewSellerHome();
+    renderNewSellerPanel();
 
     await waitFor(() => {
       expect(screen.getByTestId("task-queue-list")).toBeInTheDocument();
@@ -118,7 +127,7 @@ describe("Issue #119: New Seller Copilot", () => {
 
   it("renders empty state when all checklist tasks are completed in session", async () => {
     const user = userEvent.setup();
-    renderNewSellerHome();
+    renderNewSellerPanel();
 
     await waitFor(() => {
       expect(screen.getByTestId("task-queue-list")).toBeInTheDocument();
@@ -135,5 +144,18 @@ describe("Issue #119: New Seller Copilot", () => {
 
     expect(screen.getByTestId("new-seller-copilot-panel")).toBeInTheDocument();
     expect(screen.getByTestId("first-sale-milestone")).toBeInTheDocument();
+  });
+});
+
+describe("Issue #181: seller home operations shell for new persona", () => {
+  it("renders operations pipeline with NPL recommendation instead of copilot panel", async () => {
+    renderNewSellerHome();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("new-seller-copilot-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("approval-approve-npl")).toBeInTheDocument();
   });
 });

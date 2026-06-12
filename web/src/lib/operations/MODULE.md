@@ -56,8 +56,18 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | Refund Spike | refund_spike_indicator | Root-cause refund review |
 | Stockout Prevention | inventory_health | Reorder at-risk SKUs |
 
-UI: `web/src/components/workflows/operations/ClarityCard` + `ReasoningPanel` — expandable reasoning with `data-testid` hooks for analytics.
+UI: `web/src/components/workflows/operations/` — `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsPipelineShell` (P1.8-5…6).
+
+## Approval gate & routing (P1.8-6)
+
+| Workflow | Route | Executor |
+|----------|-------|----------|
+| `npl` | listing | `ListingWorkflowPanel` via `list_products` task |
+| `refund_spike_detection` | leakage | `LeakageWorkflowPanel` via mapped P1.7 task type |
+| others | noop | Session-only approval + Phase 2 toast |
+
+Session: `operations/approval-session.ts` (workflow dispositions) + `use-operations-approval.ts` (selective / approve-all / reject-with-reason via `TaskDismissModal`).
 
 ## Out of scope (later slices)
 
-- Unified approval gate UI (P1.8-6)
+- Outcome tracking views (P1.8-7)
