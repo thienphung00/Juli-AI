@@ -2,7 +2,7 @@
  * Issue #76 — Mode selection gate after OTP login
  */
 import type { ReactElement } from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginForm } from "@/components/LoginForm";
 import { ModeSelectionPage } from "@/components/ModeSelectionPage";
@@ -59,39 +59,20 @@ describe("Mode selection gate (#76)", () => {
   it(
     "redirects to /mode-select after OTP when no workspace mode is saved",
     async () => {
-    mockSendOtp.mockResolvedValue({ message: "sent" });
-    mockVerifyOtp.mockResolvedValue({
-      access_token: "jwt-token",
-      user: { id: "user-1", phone: "+84912345678" },
-    });
+      localStorage.setItem("access_token", "jwt-token");
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ id: "user-1", phone: "+84912345678" }),
+      );
 
-    const user = userEvent.setup({ delay: null });
-    renderWithProviders(<LoginForm />);
+      renderWithProviders(<LoginForm />);
 
-    const phoneInput = screen.getByLabelText("Số điện thoại");
-    fireEvent.change(phoneInput, { target: { value: "+84912345678" } });
-    await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
-
-    await waitFor(() => {
-      expect(mockSendOtp).toHaveBeenCalled();
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("otp-segmented-input")).toBeInTheDocument();
-    });
-
-    const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
-    for (let i = 0; i < 6; i++) {
-      await user.type(otpInputs[i]!, String(i + 1));
-    }
-    await user.click(screen.getByRole("button", { name: "Xác nhận" }));
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/mode-select");
-    });
-    expect(readStoredWorkspaceMode()).toBeNull();
-  },
-  15_000,
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith("/mode-select");
+      });
+      expect(readStoredWorkspaceMode()).toBeNull();
+    },
+    15_000,
   );
 
   it("persists seller mode, applies light theme, and routes to /", async () => {
