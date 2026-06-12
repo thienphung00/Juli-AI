@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, Sparkles } from "lucide-react";
+import { Home, ListChecks, Sparkles } from "lucide-react";
 
 export interface NavTab {
   href: string;
@@ -9,10 +9,11 @@ export interface NavTab {
   live?: boolean;
 }
 
-/** Bottom navigation — seller home + Juli AI (issue #123 retires creator-matching tabs). */
+/** Bottom navigation — Home, Decisions, Juli AI (ADR-028 #191). */
 export const BOTTOM_NAV_TABS: NavTab[] = [
-  { href: "/", label: "Trang chủ", Icon: Home, color: "#FF1493" },
-  { href: "/ai-chat", label: "Juli", Icon: Sparkles, color: "#FF1493" },
+  { href: "/", label: "Trang chủ", Icon: Home, color: "var(--primary)" },
+  { href: "/decisions", label: "Quyết định", Icon: ListChecks, color: "var(--primary)" },
+  { href: "/ai-chat", label: "Juli", Icon: Sparkles, color: "var(--primary)" },
 ];
 
 import { LEGACY_ROUTE_REDIRECTS as legacyRedirects } from "../../legacy-redirects.js";
