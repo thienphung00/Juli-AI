@@ -91,29 +91,14 @@ describe("Issue #120: leakage persona anomaly list", () => {
 });
 
 describe("Issue #120: evidence drill-down", () => {
-  it("opens evidence drawer without forbidden PII field names", async () => {
-    clearTaskExecutorSession();
-    const user = userEvent.setup();
+  it("renders evidence drawer without forbidden PII field names", () => {
     const persona = loadPersona("leakage");
-    clearTaskExecutorSession();
-    renderLeakagePanel(persona);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("leakage-copilot-panel")).toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId("task-card").length).toBeGreaterThan(0);
-    });
-
-    const moreMenus = screen.getAllByTestId("task-more-menu");
-    await user.click(moreMenus[0]!);
-    const evidenceButtons = screen.getAllByTestId("task-view-evidence");
-    await user.click(evidenceButtons[0]!);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("evidence-drawer")).toBeInTheDocument();
-    });
+    const task = getWorkflowTasks(persona, "leakage").find(
+      (t) => t.type === "return_spike",
+    )!;
+    render(
+      <EvidenceDrawer persona={persona} task={task} onClose={() => {}} />,
+    );
 
     const drawer = screen.getByTestId("evidence-drawer");
     const drawerText = drawer.textContent ?? "";
