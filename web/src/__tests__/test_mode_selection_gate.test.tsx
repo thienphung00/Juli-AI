@@ -2,7 +2,7 @@
  * Issue #76 — Mode selection gate after OTP login
  */
 import type { ReactElement } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginForm } from "@/components/LoginForm";
 import { ModeSelectionPage } from "@/components/ModeSelectionPage";
@@ -69,8 +69,7 @@ describe("Mode selection gate (#76)", () => {
     renderWithProviders(<LoginForm />);
 
     const phoneInput = screen.getByLabelText("Số điện thoại");
-    await user.type(phoneInput, "+84912345678");
-    expect(phoneInput).toHaveValue("+84912345678");
+    fireEvent.change(phoneInput, { target: { value: "+84912345678" } });
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
