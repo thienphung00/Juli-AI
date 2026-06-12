@@ -213,7 +213,7 @@ export function useOperationsApproval(options: {
       setWorkflowFeedback({
         kind: "dismissed",
         taskId: rejectModalWorkflowId,
-        message: "Đã từ chối gợi ý trong phiên này.",
+        message: "Đã từ chối đề xuất trong phiên này.",
       });
     },
     [rejectModalWorkflowId],

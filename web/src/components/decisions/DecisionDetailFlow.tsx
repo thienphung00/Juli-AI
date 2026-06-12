@@ -288,7 +288,7 @@ export function DecisionDetailFlow({
         data-testid="decision-ask-juli"
         onClick={() => saveActiveDecisionForChat(recommendation.workflow_id)}
       >
-        Hỏi Juli về quyết định này
+        Hỏi Juli về đề xuất này
       </Link>
 
       <div

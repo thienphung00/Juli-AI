@@ -140,7 +140,7 @@ describe("Issue #95: Recommendation feed", () => {
       expect(screen.getByTestId("match-decision-card")).toBeInTheDocument();
       expect(screen.getByTestId("recommendation-card")).toBeInTheDocument();
     });
-    expect(screen.getByLabelText("Độ tin cậy")).toHaveTextContent("82%");
+    expect(screen.queryByLabelText("Độ tin cậy")).not.toBeInTheDocument();
   });
 });
 

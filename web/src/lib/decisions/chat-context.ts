@@ -17,32 +17,32 @@ export interface DecisionChatContext {
 
 const WORKFLOW_SUGGESTED_PROMPTS: Record<ValidatedWorkflowId, string[]> = {
   npl: [
-    "Giải thích quyết định này",
+    "Giải thích đề xuất này",
     "Sản phẩm nào nên thêm trước?",
     "So sánh sản phẩm",
   ],
   minimize_violations: [
-    "Giải thích quyết định này",
+    "Giải thích đề xuất này",
     "Vi phạm nào cần xử lý trước?",
     "Rủi ro nếu không hành động?",
   ],
   budget_optimization: [
-    "Giải thích quyết định này",
+    "Giải thích đề xuất này",
     "Tại sao ROAS thấp?",
     "Nên điều chỉnh ngân sách thế nào?",
   ],
   product_scaling: [
-    "Giải thích quyết định này",
+    "Giải thích đề xuất này",
     "So sánh sản phẩm",
     "SKU nào có tiềm năng mở rộng?",
   ],
   refund_spike_detection: [
-    "Giải thích quyết định này",
+    "Giải thích đề xuất này",
     "Tại sao tỷ lệ hoàn tiền tăng?",
     "Rủi ro nếu không xử lý?",
   ],
   stockout_prevention: [
-    "Giải thích quyết định này",
+    "Giải thích đề xuất này",
     "SKU nào sắp hết hàng?",
     "Ảnh hưởng doanh thu nếu hết hàng?",
   ],
@@ -86,17 +86,17 @@ export function buildDefaultDecisionPrompts(
 ): string[] {
   const workflowPrompts = WORKFLOW_SUGGESTED_PROMPTS[recommendation.workflow_id];
   return [
-    `Giải thích quyết định "${recommendation.workflow_name}"`,
+    `Giải thích đề xuất "${recommendation.workflow_name}"`,
     ...workflowPrompts.slice(1),
   ];
 }
 
 export function buildDecisionAwareWelcome(context: DecisionChatContext): string {
-  return `Mình đang xem quyết định "${context.title}" cùng bạn. Hỏi mình về lý do đề xuất, tín hiệu sức khỏe shop (${context.health_signal}), hoặc bước tiếp theo nhé.`;
+  return `Mình đang xem đề xuất "${context.title}" cùng bạn. Hỏi mình về lý do, tín hiệu sức khỏe shop (${context.health_signal}), hoặc bước tiếp theo nhé.`;
 }
 
 export function buildTopDecisionWelcome(recommendation: WorkflowRecommendation): string {
-  return `Quyết định ưu tiên nhất hiện tại là "${recommendation.workflow_name}". Hỏi mình về lý do, tác động dự kiến, hoặc cách hoàn tất quyết định này nhé.`;
+  return `Đề xuất ưu tiên nhất hiện tại là "${recommendation.workflow_name}". Hỏi mình về lý do, tác động dự kiến, hoặc cách hoàn tất đề xuất này nhé.`;
 }
 
 export function buildDecisionAwareMockReply(
@@ -105,12 +105,12 @@ export function buildDecisionAwareMockReply(
 ): string {
   const normalized = userText.trim();
 
-  if (/giải thích|quyết định này|tại sao đề xuất/i.test(normalized)) {
-    return `Quyết định "${context.title}" được đề xuất vì ${context.rationale} Tín hiệu sức khỏe shop: ${context.health_signal}. Tác động dự kiến — ${context.impact_metric}: ${formatNumber(context.impact_value)} (độ tin cậy ${context.confidence}).`;
+  if (/giải thích|đề xuất này|tại sao đề xuất/i.test(normalized)) {
+    return `Đề xuất "${context.title}" được đưa ra vì ${context.rationale} Tín hiệu sức khỏe shop: ${context.health_signal}. Tác động dự kiến — ${context.impact_metric}: ${formatNumber(context.impact_value)}.`;
   }
 
   if (/roas|ngân sách|quảng cáo/i.test(normalized) && context.workflow_id === "budget_optimization") {
-    return `Với "${context.title}", ${context.health_signal}. Điều chỉnh ngân sách theo quyết định này nhằm đưa ROAS về mục tiêu và giảm chi tiêu lãng phí trên chiến dịch dưới chuẩn.`;
+    return `Với "${context.title}", ${context.health_signal}. Điều chỉnh ngân sách theo đề xuất này nhằm đưa ROAS về mục tiêu và giảm chi tiêu lãng phí trên chiến dịch dưới chuẩn.`;
   }
 
   if (/so sánh|sản phẩm|sku/i.test(normalized)) {
@@ -125,7 +125,7 @@ export function buildDecisionAwareMockReply(
     return `"${context.title}" dựa trên ${context.health_signal}. Bổ sung tồn kho đúng lúc tránh mất đơn cuối tuần.`;
   }
 
-  return `Về quyết định "${context.title}": ${context.health_signal}. ${context.impact_metric} dự kiến ${formatNumber(context.impact_value)}. Bạn muốn đi sâu vào lý do, số liệu, hay bước thực hiện?`;
+  return `Về đề xuất "${context.title}": ${context.health_signal}. ${context.impact_metric} dự kiến ${formatNumber(context.impact_value)}. Bạn muốn đi sâu vào lý do, số liệu, hay bước thực hiện?`;
 }
 
 export function isWorkflowSpecificPrompt(prompt: string, workflowId: ValidatedWorkflowId): boolean {
