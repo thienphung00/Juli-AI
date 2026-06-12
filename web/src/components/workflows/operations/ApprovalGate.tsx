@@ -77,6 +77,7 @@ export function ApprovalClarityCard({
   onToggleSelect,
   onApprove,
   onReject,
+  onViewOutcome,
 }: {
   recommendation: WorkflowRecommendation;
   health: HealthCheckResults;
@@ -85,6 +86,7 @@ export function ApprovalClarityCard({
   onToggleSelect: () => void;
   onApprove: () => void;
   onReject: () => void;
+  onViewOutcome?: () => void;
 }) {
   const workflowId = recommendation.workflow_id;
   const isPending = disposition === "pending";
@@ -106,13 +108,25 @@ export function ApprovalClarityCard({
       <ClarityCard recommendation={recommendation} health={health} />
 
       {disposition === "approved" && (
-        <p
-          className="text-sm font-medium"
-          style={{ color: "var(--success)" }}
-          data-testid={`approval-status-approved-${workflowId}`}
-        >
-          Đã phê duyệt
-        </p>
+        <div className="space-y-2">
+          <p
+            className="text-sm font-medium"
+            style={{ color: "var(--success)" }}
+            data-testid={`approval-status-approved-${workflowId}`}
+          >
+            Đã phê duyệt
+          </p>
+          {onViewOutcome && (
+            <button
+              type="button"
+              className="btn-secondary w-full"
+              data-testid={`outcome-view-${workflowId}`}
+              onClick={onViewOutcome}
+            >
+              Theo dõi kết quả
+            </button>
+          )}
+        </div>
       )}
 
       {disposition === "rejected" && (
@@ -157,6 +171,7 @@ export function OperationsRecommendationsList({
   onToggleSelect,
   onApprove,
   onReject,
+  onViewOutcome,
 }: {
   recommendations: WorkflowRecommendation[];
   health: HealthCheckResults;
@@ -165,6 +180,7 @@ export function OperationsRecommendationsList({
   onToggleSelect: (workflowId: ValidatedWorkflowId) => void;
   onApprove: (workflowId: ValidatedWorkflowId) => void;
   onReject: (workflowId: ValidatedWorkflowId) => void;
+  onViewOutcome?: (workflowId: ValidatedWorkflowId) => void;
 }) {
   if (recommendations.length === 0) {
     return (
@@ -190,6 +206,9 @@ export function OperationsRecommendationsList({
           onToggleSelect={() => onToggleSelect(recommendation.workflow_id)}
           onApprove={() => onApprove(recommendation.workflow_id)}
           onReject={() => onReject(recommendation.workflow_id)}
+          onViewOutcome={
+            onViewOutcome ? () => onViewOutcome(recommendation.workflow_id) : undefined
+          }
         />
       ))}
     </div>

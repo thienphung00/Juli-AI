@@ -8,6 +8,7 @@ Rules-based shop profile classification, health check indicators, and validated 
 - `computeHealthCheckResults(unifiedModel) → health_check_results` — pure health indicators keyed by indicator ID (P1.8-3)
 - `rankWorkflowRecommendations(profile, health) → workflow_recommendations` — pure ranking by profile + health signals (P1.8-4)
 - `buildWorkflowReasoning(recommendation, health) → WorkflowReasoning` — rules-only Why / Impact / Next Steps copy (P1.8-5)
+- `loadWorkflowOutcomeMetrics(workflowId) → workflow_outcome_metrics` — mock outcome envelope + ADR-026 Appendix B success criteria (P1.8-7)
 - `useOperationsPipeline({ personaId })` / `runOperationsPipeline(personaId)` — load → classify → health → rank (P1.8-4)
 - `HEALTH_INDICATOR_TRACEABILITY_MAP` / `getWorkflowsForHealthIndicator(id)` — indicator→workflow traceability (ADR-026 constraint #5)
 - `WORKFLOW_CATALOG` / `getWorkflowsForProfile(profile)` — ADR-026 Appendix A profile→workflow map (six workflows only)
@@ -56,7 +57,7 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | Refund Spike | refund_spike_indicator | Root-cause refund review |
 | Stockout Prevention | inventory_health | Reorder at-risk SKUs |
 
-UI: `web/src/components/workflows/operations/` — `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsPipelineShell` (P1.8-5…6).
+UI: `web/src/components/workflows/operations/` — `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsPipelineShell`, `OutcomeTrackingView` (P1.8-5…7).
 
 ## Approval gate & routing (P1.8-6)
 
@@ -68,6 +69,13 @@ UI: `web/src/components/workflows/operations/` — `ClarityCard`, `ReasoningPane
 
 Session: `operations/approval-session.ts` (workflow dispositions) + `use-operations-approval.ts` (selective / approve-all / reject-with-reason via `TaskDismissModal`).
 
-## Out of scope (later slices)
+## Outcome tracking (P1.8-7)
 
-- Outcome tracking views (P1.8-7)
+| Cadence | Purpose |
+|---------|---------|
+| `realtime` | Execution status immediately after approval |
+| `daily` | Preliminary 24h readings |
+| `weekly` | Full assessment vs ADR-026 Appendix B threshold |
+| `monthly` | Aggregate trend |
+
+Success criteria copy is frozen in `WORKFLOW_OUTCOME_SUCCESS_CRITERIA` (ADR-026 Appendix B). UI: `OutcomeTrackingView` with cadence tabs; reachable from approved Clarity Cards without clearing executor session.

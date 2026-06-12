@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import type { ValidatedWorkflowId } from "@/lib/mock-data/operations/schemas";
 import { TaskDismissModal } from "@/components/tasks/TaskDismissModal";
 import { TaskExecutorModals } from "@/components/tasks/TaskExecutorModals";
 import { TaskFeedbackBanner } from "@/components/tasks/TaskFeedbackBanner";
@@ -12,6 +14,7 @@ import {
   ApprovalGateToolbar,
   OperationsRecommendationsList,
 } from "./ApprovalGate";
+import { OutcomeTrackingView } from "./OutcomeTrackingView";
 import { ShopHealthHero } from "./ShopHealthHero";
 
 export function OperationsPipelineShell({
@@ -21,6 +24,9 @@ export function OperationsPipelineShell({
   persona: SellerPersona;
   personaId: PersonaId;
 }) {
+  const [viewingOutcomeWorkflowId, setViewingOutcomeWorkflowId] =
+    useState<ValidatedWorkflowId | null>(null);
+
   const pipeline = useOperationsPipeline({ personaId });
   const { healthResults, workflowRecommendations, shopProfile } = pipeline;
   const healthSummary = computeShopHealthSummary(shopProfile, healthResults);
@@ -76,23 +82,33 @@ export function OperationsPipelineShell({
         summary={healthSummary}
       />
 
-      <ApprovalGateToolbar
-        pendingCount={pendingRecommendations.length}
-        selectedCount={selectedIds.size}
-        onApproveAll={approveAllPending}
-        onApproveSelected={approveSelected}
-        onSelectAll={selectAllPending}
-      />
+      {!viewingOutcomeWorkflowId && (
+        <ApprovalGateToolbar
+          pendingCount={pendingRecommendations.length}
+          selectedCount={selectedIds.size}
+          onApproveAll={approveAllPending}
+          onApproveSelected={approveSelected}
+          onSelectAll={selectAllPending}
+        />
+      )}
 
-      <OperationsRecommendationsList
-        recommendations={workflowRecommendations.recommended_workflows}
-        health={healthResults}
-        getDisposition={getDisposition}
-        selectedIds={selectedIds}
-        onToggleSelect={toggleSelection}
-        onApprove={approveWorkflow}
-        onReject={requestRejectWorkflow}
-      />
+      {viewingOutcomeWorkflowId ? (
+        <OutcomeTrackingView
+          workflowId={viewingOutcomeWorkflowId}
+          onBack={() => setViewingOutcomeWorkflowId(null)}
+        />
+      ) : (
+        <OperationsRecommendationsList
+          recommendations={workflowRecommendations.recommended_workflows}
+          health={healthResults}
+          getDisposition={getDisposition}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelection}
+          onApprove={approveWorkflow}
+          onReject={requestRejectWorkflow}
+          onViewOutcome={setViewingOutcomeWorkflowId}
+        />
+      )}
     </section>
   );
 }

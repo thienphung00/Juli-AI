@@ -34,6 +34,21 @@ export type {
   WorkflowRecommendation,
   WorkflowRecommendations,
 } from "./recommendations";
+export {
+  loadAllWorkflowOutcomeMetrics,
+  loadWorkflowOutcomeMetrics,
+  OUTCOME_CADENCE_IDS,
+  WORKFLOW_OUTCOME_SUCCESS_CRITERIA,
+  getWorkflowOutcomeSuccessCriteria,
+} from "./outcome-metrics";
+export type {
+  OutcomeCadenceId,
+  OutcomeCadenceSlice,
+  OutcomeMetricReading,
+  OutcomeReadingStatus,
+  WorkflowOutcomeMetrics,
+  WorkflowOutcomeSuccessCriteria,
+} from "./outcome-metrics";
 export { runOperationsPipeline, useOperationsPipeline } from "./use-operations-pipeline";
 export type {
   OperationsPipelineState,
