@@ -58,4 +58,5 @@ P2 swaps session/executor sources; status enum and mapping stay stable.
 - `DecisionsPage` Recommended sub-tab — full ranked list + approval gate (#195) ✅
 - `DecisionDetailFlow` on `/decisions/[decisionId]` — 5-step guided approve (#196) ✅
 - `DecisionsPage` In Progress (#197)
+- `DecisionsPage` Workflow Templates — `DecisionsWorkflowTemplatesShell` (#198) ✅
 - Juli Chat decision context (#199)

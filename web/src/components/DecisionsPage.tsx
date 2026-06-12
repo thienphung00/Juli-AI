@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { AuthenticatedShell } from "./AuthenticatedShell";
 import { DecisionsSubTabs, type DecisionsSubTab } from "./decisions/DecisionsSubTabs";
+import { DecisionsWorkflowTemplatesShell } from "./decisions/DecisionsWorkflowTemplatesShell";
 import { OperationsApprovalShell } from "./workflows/operations/OperationsApprovalShell";
 import { restoreDecisionsRecommendedScroll } from "@/lib/decisions/detail-content";
 import { useDemoPersona } from "@/lib/demo-persona-context";
@@ -64,10 +65,7 @@ export function DecisionsPage() {
           message="Quyết định đang thực hiện sẽ có trong bản cập nhật tiếp theo."
         />
       ) : (
-        <DecisionsTabPlaceholder
-          testId="decisions-templates-placeholder"
-          message="Mẫu quy trình sẽ có trong bản cập nhật tiếp theo."
-        />
+        <DecisionsWorkflowTemplatesShell />
       )}
     </AuthenticatedShell>
   );
