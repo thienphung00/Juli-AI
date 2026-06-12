@@ -57,7 +57,7 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | Refund Spike | refund_spike_indicator | Root-cause refund review |
 | Stockout Prevention | inventory_health | Reorder at-risk SKUs |
 
-UI: `web/src/components/workflows/operations/` — `HomeSummaryShell` (read-only Home, P1.8-9 #193), `DecisionPreviewCard`, `RecommendedDecisionsPreview`, `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsPipelineShell` (Decisions tab), `OutcomeTrackingView` (P1.8-5…7).
+UI: `web/src/components/workflows/operations/` — `HomeSummaryShell` (read-only Home, P1.8-9 #193), `DecisionPreviewCard`, `RecommendedDecisionsPreview`, `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsApprovalShell` (Decisions Recommended tab, #195), `OperationsPipelineShell` (legacy test composite), `OutcomeTrackingView` (P1.8-5…7).
 
 Today's Report (P1.8-9 #194): `buildAllDomainReportSummaries(unifiedModel)` in `todays-report.ts`; UI in `web/src/components/home/todays-report/` (`TodaysReportPanel` embedded in `HomeSummaryShell`).
 

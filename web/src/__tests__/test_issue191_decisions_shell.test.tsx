@@ -8,6 +8,7 @@ import { render, screen } from "@testing-library/react";
 import { NavBar } from "@/components/NavBar";
 import { DecisionsPage } from "@/components/DecisionsPage";
 import { AuthProvider } from "@/lib/auth-context";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { ModeProvider } from "@/lib/mode-context";
 import { BOTTOM_NAV_TABS, LEGACY_ROUTE_REDIRECTS } from "@/lib/nav-config";
 import { applyWorkspaceTheme, WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
@@ -27,7 +28,9 @@ jest.mock("next/navigation", () => ({
 function renderWithProviders(ui: ReactElement) {
   return render(
     <AuthProvider>
-      <ModeProvider>{ui}</ModeProvider>
+      <ModeProvider>
+        <DemoPersonaProvider>{ui}</DemoPersonaProvider>
+      </ModeProvider>
     </AuthProvider>,
   );
 }
@@ -73,14 +76,16 @@ describe("Issue #191: white canvas + 3-tab nav + decisions shell", () => {
     expect(nav.querySelector('a[href="/decisions"]')).toBeInTheDocument();
   });
 
-  it("loads authenticated seller decisions shell with placeholder content", () => {
+  it("loads authenticated seller decisions shell with Recommended sub-tab", async () => {
     localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
     applyWorkspaceTheme("seller");
 
     renderWithProviders(<DecisionsPage />);
 
     expect(screen.getByRole("heading", { name: "Quyết định" })).toBeInTheDocument();
-    expect(screen.getByTestId("decisions-shell-placeholder")).toBeInTheDocument();
+    expect(await screen.findByTestId("decisions-sub-tabs")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Đề xuất" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByTestId("decisions-shell-placeholder")).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
   });
 
