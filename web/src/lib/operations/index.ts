@@ -50,6 +50,19 @@ export type {
   WorkflowOutcomeSuccessCriteria,
 } from "./outcome-metrics";
 export { runOperationsPipeline, useOperationsPipeline } from "./use-operations-pipeline";
+export {
+  buildAllDomainReportSummaries,
+  buildDomainReportSummary,
+  REPORT_DOMAIN_IDS,
+  resolveDefaultReportDomain,
+} from "./todays-report";
+export type {
+  DomainReportSummary,
+  DomainStatusTone,
+  MetricDelta,
+  ReportDomainId,
+  TrendDirection,
+} from "./todays-report";
 export type {
   OperationsPipelineState,
   OperationsPipelineStatus,
