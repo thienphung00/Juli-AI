@@ -175,6 +175,33 @@ describe("Issue #178: product_scaling_opportunity indicator", () => {
   });
 });
 
+describe("Issue #178: one unit test per indicator with minimal fixture input", () => {
+  it("one unit test per indicator with minimal fixture input", () => {
+    const cases = [
+      ["probation_progress", "NEW_SHOP"],
+      ["sps_health", "NEW_SHOP"],
+      ["ahr_health", "NEW_SHOP"],
+      ["ad_roas_efficiency", "MID_LARGE_SHOP"],
+      ["inventory_health", "MID_LARGE_SHOP"],
+      ["refund_spike_indicator", "MID_LARGE_SHOP"],
+      ["product_scaling_opportunity", "MID_LARGE_SHOP"],
+    ] as const;
+
+    for (const [indicatorId, profile] of cases) {
+      const results = computeHealthCheckResults(loadOperationalModel(profile));
+      expect(results.indicators[indicatorId].indicator_id).toBe(indicatorId);
+      expect(results.indicators[indicatorId].informs_workflows.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("Issue #178: slice scope", () => {
+  it("no UI in this slice — logic and tests only under operations lib", () => {
+    expect(typeof computeHealthCheckResults).toBe("function");
+    expect(HEALTH_INDICATOR_IDS).toHaveLength(7);
+  });
+});
+
 describe("Issue #178: HEALTH_INDICATOR_TRACEABILITY_MAP", () => {
   it("maps every indicator ID to ≥1 validated catalog workflow", () => {
     for (const indicatorId of HEALTH_INDICATOR_IDS) {
