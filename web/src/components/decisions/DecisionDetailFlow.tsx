@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -7,6 +8,7 @@ import { TaskDismissModal } from "@/components/tasks/TaskDismissModal";
 import { TaskExecutorModals } from "@/components/tasks/TaskExecutorModals";
 import { TaskFeedbackBanner } from "@/components/tasks/TaskFeedbackBanner";
 import { ReasoningPanel } from "@/components/workflows/operations/ReasoningPanel";
+import { saveActiveDecisionForChat } from "@/lib/decisions/chat-session";
 import {
   buildDecisionAnalytics,
   getDecisionPreviewRisks,
@@ -285,6 +287,16 @@ export function DecisionDetailFlow({
       </button>
 
       <DecisionDetailStepIndicator currentStep={currentStep} />
+
+      <Link
+        href={`/ai-chat?decision=${recommendation.workflow_id}`}
+        className="btn-secondary inline-flex w-full items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        style={{ outlineColor: "var(--primary)" }}
+        data-testid="decision-ask-juli"
+        onClick={() => saveActiveDecisionForChat(recommendation.workflow_id)}
+      >
+        Hỏi Juli về quyết định này
+      </Link>
 
       <div
         className="card p-4"

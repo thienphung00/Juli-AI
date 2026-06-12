@@ -18,6 +18,8 @@ this module; execution remains keyed by `workflow_id`.
 | `getRequiredInputsForWorkflow(workflowId)` | Static required-input catalog per workflow (mock P1.8-9) |
 | `DECISION_DETAIL_STEPS`, `getNextStep`, `getPreviousStep` | Step graph for detail flow (#196) |
 | `buildDecisionAnalytics`, `getDecisionPreviewRisks` | Mock analytics + risks for detail steps 2 & 4 |
+| `buildDecisionChatContext`, `buildContextualSuggestedPrompts`, `buildDecisionAwareMockReply` | Juli Chat decision context (#199) |
+| `saveActiveDecisionForChat`, `readActiveDecisionForChat` | Session + URL `?decision=` handoff to `/ai-chat` |
 
 ## Decision envelope
 
@@ -59,4 +61,4 @@ P2 swaps session/executor sources; status enum and mapping stay stable.
 - `DecisionDetailFlow` on `/decisions/[decisionId]` — 5-step guided approve (#196) ✅
 - `DecisionsPage` In Progress (#197)
 - `DecisionsPage` Workflow Templates — `DecisionsWorkflowTemplatesShell` (#198) ✅
-- Juli Chat decision context (#199)
+- Juli Chat decision context (#199) ✅

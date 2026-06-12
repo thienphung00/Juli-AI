@@ -4,7 +4,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AiChatPage } from "@/components/AiChatPage";
+import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { ModeProvider } from "@/lib/mode-context";
+import { runOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
 import * as aiChatService from "@/lib/services/ai-chat";
 import { api } from "@/lib/api-client";
@@ -57,6 +59,7 @@ jest.mock("@/lib/auth-context", () => ({
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
   usePathname: () => "/ai-chat",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const mockGetChatBootstrap = aiChatService.getChatBootstrap as jest.MockedFunction<
@@ -76,7 +79,9 @@ function renderChat(mode: "seller" | "affiliate") {
 
   return render(
     <ModeProvider>
-      <AiChatPage uiOnly />
+      <DemoPersonaProvider>
+        <AiChatPage uiOnly />
+      </DemoPersonaProvider>
     </ModeProvider>
   );
 }
@@ -106,14 +111,20 @@ describe("Juli AI chat tab (#82)", () => {
     expect(screen.getByTestId("chat-send-button")).toBeInTheDocument();
   });
 
-  it("shows seller suggested prompts in seller mode", async () => {
+  it("shows decision-oriented seller prompts when recommendations exist", async () => {
     renderChat("seller");
 
     await waitFor(() => {
       expect(screen.getByTestId("suggested-prompts")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Creator nào nên đẩy tối nay?")).toBeInTheDocument();
+    const pipeline = runOperationsPipeline("new");
+    const top = pipeline.workflowRecommendations.recommended_workflows[0]!;
+
+    expect(
+      screen.getByText(`Giải thích quyết định "${top.workflow_name}"`),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Creator nào nên đẩy tối nay?")).not.toBeInTheDocument();
     expect(screen.queryByText("Sản phẩm nào đang xu hướng trước khi bão hòa?")).not.toBeInTheDocument();
   });
 
@@ -157,7 +168,10 @@ describe("Juli AI chat tab (#82)", () => {
       expect(screen.getByTestId("chat-message-list")).toBeInTheDocument();
     });
 
-    expect(mockGetChatBootstrap).toHaveBeenCalledWith("seller");
+    expect(mockGetChatBootstrap).toHaveBeenCalledWith(
+      "seller",
+      expect.objectContaining({ topRecommendation: expect.objectContaining({ workflow_id: expect.any(String) }) }),
+    );
     expect(api.shops.list).not.toHaveBeenCalled();
   });
 });

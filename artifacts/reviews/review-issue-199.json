@@ -1,0 +1,85 @@
+{
+  "id": "review-issue-199",
+  "issue": 199,
+  "timestamp": "2026-06-12T06:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-9 Juli Chat decision context: contextual suggested prompts and decision-aware mock replies wired to operations pipeline via URL param, session handoff, and top-recommendation fallback.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/lib/decisions/chat-context.ts",
+    "web/src/lib/decisions/chat-session.ts",
+    "web/src/lib/decisions/index.ts",
+    "web/src/lib/decisions/MODULE.md",
+    "web/src/lib/services/ai-chat.ts",
+    "web/src/components/AiChatPage.tsx",
+    "web/src/components/decisions/DecisionDetailFlow.tsx",
+    "web/src/__tests__/test_issue199_chat_decision_context.test.ts",
+    "web/src/__tests__/test_issue199_chat_decision_context.test.tsx",
+    "web/src/__tests__/test_ai_chat_tab.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/decisions",
+      "interface": "chat-context",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Pure functions for decision-aware chat prompts, welcome, and mock replies."
+    },
+    {
+      "module": "web/src/lib/services/ai-chat",
+      "interface": "getChatBootstrap",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Optional ChatBootstrapOptions for decision context or top recommendation."
+    },
+    {
+      "module": "web/src/components/AiChatPage",
+      "interface": "AiChatPage",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Resolves decision context from ?decision=, session, or pipeline top recommendation."
+    },
+    {
+      "module": "web/src/components/decisions/DecisionDetailFlow",
+      "interface": "DecisionDetailFlow",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Adds Hỏi Juli link with decision handoff to /ai-chat."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Navigating from Decisions Review to Chat (or chat with ?decision=) shows contextual suggested prompts",
+          "test": "web/src/__tests__/test_issue199_chat_decision_context.test.tsx::renders workflow-specific prompt chips when ?decision= is set"
+        },
+        {
+          "criterion": "Mock reply mentions decision/workflow-specific content when context present",
+          "test": "web/src/__tests__/test_issue199_chat_decision_context.test.tsx::mock reply references decision-specific content when context present"
+        },
+        {
+          "criterion": "Test: chat page with decision context renders ≥1 workflow-specific prompt chip",
+          "test": "web/src/__tests__/test_issue199_chat_decision_context.test.ts::builds contextual prompts with at least one workflow-specific chip"
+        },
+        {
+          "criterion": "Generic-only prompt set does not ship as default when recommendations exist",
+          "test": "web/src/__tests__/test_issue199_chat_decision_context.test.tsx::uses top-recommendation prompts instead of generic defaults without ?decision="
+        }
+      ]
+    },
+    "unit": {
+      "passed": 6,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}

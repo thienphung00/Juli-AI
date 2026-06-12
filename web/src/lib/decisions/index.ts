@@ -36,3 +36,19 @@ export {
   restoreDecisionsRecommendedScroll,
   DECISIONS_RECOMMENDED_SCROLL_KEY,
 } from "./detail-content";
+export {
+  buildContextualSuggestedPrompts,
+  buildDecisionAwareMockReply,
+  buildDecisionAwareWelcome,
+  buildDecisionChatContext,
+  buildDefaultDecisionPrompts,
+  buildTopDecisionWelcome,
+  isWorkflowSpecificPrompt,
+  type DecisionChatContext,
+} from "./chat-context";
+export {
+  clearActiveDecisionForChat,
+  DECISION_CHAT_SESSION_KEY,
+  readActiveDecisionForChat,
+  saveActiveDecisionForChat,
+} from "./chat-session";
