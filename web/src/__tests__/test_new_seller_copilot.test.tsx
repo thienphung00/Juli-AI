@@ -147,15 +147,18 @@ describe("Issue #119: New Seller Copilot panel", () => {
   });
 });
 
-describe("Issue #181: seller home operations shell for new persona", () => {
-  it("renders operations pipeline with NPL recommendation instead of copilot panel", async () => {
+describe("Issue #181 / #193: seller home read-only summary for new persona", () => {
+  it("renders home summary with NPL decision preview instead of copilot panel", async () => {
     renderNewSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+      expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
     expect(screen.queryByTestId("new-seller-copilot-panel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("approval-approve-npl")).toBeInTheDocument();
+    expect(screen.queryByTestId("approval-approve-npl")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("decision-preview-list").querySelector('[data-workflow-id="npl"]'),
+    ).toBeInTheDocument();
   });
 });

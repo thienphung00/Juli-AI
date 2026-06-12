@@ -2,7 +2,7 @@
 
 import { useDemoPersona } from "@/lib/demo-persona-context";
 
-import { OperationsPipelineShell } from "@/components/workflows/operations/OperationsPipelineShell";
+import { HomeSummaryShell } from "@/components/workflows/operations/HomeSummaryShell";
 
 function SellerHomeSkeleton() {
   return (
@@ -23,7 +23,7 @@ export function SellerHomeShell() {
 
   return (
     <div className="seller-home-grid" data-testid="seller-home-shell">
-      <OperationsPipelineShell persona={persona} personaId={personaId} />
+      <HomeSummaryShell persona={persona} personaId={personaId} />
     </div>
   );
 }

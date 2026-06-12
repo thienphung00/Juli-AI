@@ -3,7 +3,7 @@
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { SellerHomeShell } from "@/components/seller-home/SellerHomeShell";
+import { OperationsPipelineShell } from "@/components/workflows/operations/OperationsPipelineShell";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
 import { DEMO_PERSONA_STORAGE_KEY } from "@/lib/demo-persona";
@@ -27,15 +27,17 @@ jest.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-function renderSellerHome(personaId: "new" | "leakage" | "growth") {
+function renderPipelineShell(personaId: "new" | "leakage" | "growth") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
   document.documentElement.classList.remove("dark");
 
+  const persona = loadPersona(personaId);
+
   return render(
     <ModeProvider>
       <DemoPersonaProvider>
-        <SellerHomeShell />
+        <OperationsPipelineShell persona={persona} personaId={personaId} />
       </DemoPersonaProvider>
     </ModeProvider>,
   );
@@ -51,7 +53,7 @@ beforeEach(() => {
 
 describe("Issue #181: operations pipeline shell", () => {
   it("renders shop health hero and ranked clarity cards for NEW_SHOP", async () => {
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
@@ -70,7 +72,7 @@ describe("Issue #181: NEW_SHOP approve NPL opens listing workflow", () => {
   it("approve npl opens listing modal and completes happy path stub", async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-npl")).toBeInTheDocument();
@@ -108,7 +110,7 @@ describe("Issue #181: MID_LARGE_SHOP approve refund spike opens leakage workflow
   it("approve refund_spike_detection opens leakage modal for return_spike task", async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    renderSellerHome("leakage");
+    renderPipelineShell("leakage");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-refund_spike_detection")).toBeInTheDocument();
@@ -150,7 +152,7 @@ describe("Issue #181: MID_LARGE_SHOP approve refund spike opens leakage workflow
 describe("Issue #181: deferred workflow approval", () => {
   it("approve minimize_violations shows no-op toast without modal", async () => {
     const user = userEvent.setup();
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-minimize_violations")).toBeInTheDocument();
@@ -174,7 +176,7 @@ describe("Issue #181: deferred workflow approval", () => {
 describe("Issue #181: selective and bulk approval session", () => {
   it("approve selected updates only chosen workflow records", async () => {
     const user = userEvent.setup();
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-select-npl")).toBeInTheDocument();
@@ -193,7 +195,7 @@ describe("Issue #181: selective and bulk approval session", () => {
 
   it("approve all marks every pending recommendation approved", async () => {
     const user = userEvent.setup();
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-all")).toBeEnabled();
@@ -212,7 +214,7 @@ describe("Issue #181: selective and bulk approval session", () => {
 describe("Issue #181: reject with reason", () => {
   it("blocks reject submit until reason selected", async () => {
     const user = userEvent.setup();
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-reject-npl")).toBeInTheDocument();
@@ -227,7 +229,7 @@ describe("Issue #181: reject with reason", () => {
 
   it("records dismiss reason on workflow rejection", async () => {
     const user = userEvent.setup();
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-reject-minimize_violations")).toBeInTheDocument();
@@ -251,7 +253,7 @@ describe("Issue #181: reject with reason", () => {
 
 describe("Issue #181: ranking visibility", () => {
   it("surfaces refund_spike_detection first for leakage persona fixture", async () => {
-    renderSellerHome("leakage");
+    renderPipelineShell("leakage");
 
     await waitFor(() => {
       expect(screen.getAllByTestId("clarity-card").length).toBeGreaterThan(0);

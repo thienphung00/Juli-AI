@@ -1,0 +1,74 @@
+{
+  "id": "review-issue-193",
+  "issue": 193,
+  "timestamp": "2026-06-12T04:45:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-9 Home read-only shell: Shop Health hero + top-3 decision preview via Decision view-model; approval pipeline removed from Home and retained on OperationsPipelineShell for Decisions tab.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/components/workflows/operations/HomeSummaryShell.tsx",
+    "web/src/components/workflows/operations/DecisionPreviewCard.tsx",
+    "web/src/components/workflows/operations/RecommendedDecisionsPreview.tsx",
+    "web/src/components/seller-home/SellerHomeShell.tsx",
+    "web/src/components/workflows/operations/index.ts",
+    "web/src/lib/decisions/MODULE.md",
+    "web/src/lib/operations/MODULE.md",
+    "web/MODULE.md",
+    "web/src/__tests__/test_issue193_home_read_only.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/components/workflows/operations",
+      "interface": "HomeSummaryShell",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Read-only Home composition: health hero + takeTopDecisions preview."
+    },
+    {
+      "module": "web/src/components/seller-home",
+      "interface": "SellerHomeShell",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Mounts HomeSummaryShell instead of OperationsPipelineShell on /."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Home shows Shop Health hero and at most 3 decision preview cards",
+          "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::shows Shop Health hero and at most 3 decision preview cards"
+        },
+        {
+          "criterion": "Home has zero approve, reject, or approval-toolbar controls (CI test)",
+          "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::has zero approve, reject, or approval-toolbar controls on Home (CI gate)"
+        },
+        {
+          "criterion": "Preview link navigates to /decisions",
+          "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::preview link navigates to /decisions"
+        },
+        {
+          "criterion": "Existing persona/demo switching still works",
+          "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::persona switching still updates shop health hero and preview cards"
+        },
+        {
+          "criterion": "Integration test: load seller home → pipeline envelopes present → no approval UI",
+          "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::integration: load seller home → pipeline envelopes present → no approval UI"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 423,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}

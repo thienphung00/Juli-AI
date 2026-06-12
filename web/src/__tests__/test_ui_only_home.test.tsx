@@ -48,7 +48,7 @@ describe("UI-only home (#71, #70)", () => {
       expect(screen.getByTestId("seller-home-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
     expect(screen.getByTestId("persona-switcher")).toBeInTheDocument();
   });

@@ -52,6 +52,6 @@ P2 swaps session/executor sources; status enum and mapping stay stable.
 
 ## Consumers (planned)
 
-- `HomeSummaryShell` — `takeTopDecisions(_, 3)` (#193)
+- `HomeSummaryShell` — `takeTopDecisions(_, 3)` (#193) ✅
 - `DecisionsPage` Recommended / In Progress (#195, #197)
 - Juli Chat decision context (#199)

@@ -3,8 +3,9 @@
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { SellerHomeShell } from "@/components/seller-home/SellerHomeShell";
+import { OperationsPipelineShell } from "@/components/workflows/operations/OperationsPipelineShell";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
+import { loadPersona } from "@/lib/mock-data/seller-personas";
 import { DEMO_PERSONA_STORAGE_KEY } from "@/lib/demo-persona";
 import { ModeProvider } from "@/lib/mode-context";
 import { WORKFLOW_OUTCOME_SUCCESS_CRITERIA } from "@/lib/operations/outcome-metrics";
@@ -25,15 +26,17 @@ jest.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-function renderSellerHome(personaId: "new" | "leakage" | "growth") {
+function renderPipelineShell(personaId: "new" | "leakage" | "growth") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
   document.documentElement.classList.remove("dark");
 
+  const persona = loadPersona(personaId);
+
   return render(
     <ModeProvider>
       <DemoPersonaProvider>
-        <SellerHomeShell />
+        <OperationsPipelineShell persona={persona} personaId={personaId} />
       </DemoPersonaProvider>
     </ModeProvider>,
   );
@@ -50,7 +53,7 @@ beforeEach(() => {
 describe("Issue #182: outcome view after mock execution", () => {
   it("renders success criteria for approved workflow with cadence tabs", async () => {
     const user = userEvent.setup();
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-minimize_violations")).toBeInTheDocument();
@@ -87,7 +90,7 @@ describe("Issue #182: outcome view after mock execution", () => {
   it("navigates back to recommendations without clearing executor session", async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-npl")).toBeInTheDocument();
@@ -126,7 +129,7 @@ describe("Issue #182: outcome view after mock execution", () => {
 
   it("shows outcome link on approved card in recommendations list", async () => {
     const user = userEvent.setup();
-    renderSellerHome("new");
+    renderPipelineShell("new");
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-npl")).toBeInTheDocument();

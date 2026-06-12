@@ -6,7 +6,7 @@ for TikTok Shop sellers: phone-OTP login, homepage with GMV/livestream/AI
 modules, orders management with filtering and shipment confirmation.
 
 ## Public Interface
-- `SellerHomeShell`, `PersonaSwitcher` — Phase 1 seller entry: operations pipeline home (health hero + Clarity Cards + approval gate) + demo persona switcher (`components/seller-home/`, `components/workflows/operations/`)
+- `SellerHomeShell`, `PersonaSwitcher` — Phase 1 seller entry: read-only home summary (health hero + top-3 decision preview) + demo persona switcher; approval pipeline lives on `/decisions` (`components/seller-home/`, `components/workflows/operations/`)
 - `resolveSellerWorkflow`, `getWorkflowTasks`, `WORKFLOW_ENTRIES` — rules-based workflow routing from mock personas (`lib/seller-workflows.ts`)
 - `DemoPersonaProvider`, `useDemoPersona` — persisted demo persona selection (`lib/demo-persona-context.tsx`)
 - `TaskCard`, `TaskQueue`, `DemoModeNotice` — Phase 1 shared task UI + no-op approve/dismiss (`components/tasks/`)
