@@ -1,6 +1,8 @@
 /**
  * Issue #192 — Decision view-model (P1.8-9)
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   classifyShopProfile,
   computeHealthCheckResults,
@@ -164,5 +166,17 @@ describe("Issue #192: integration with operations pipeline", () => {
       expect(decision.title.length).toBeGreaterThan(0);
       expect(decision.reasoning_summary.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("Issue #192: MODULE.md contract", () => {
+  it("documents public interface in lib/decisions/MODULE.md", () => {
+    const modulePath = join(process.cwd(), "src/lib/decisions/MODULE.md");
+    const text = readFileSync(modulePath, "utf8");
+
+    expect(text).toContain("toDecision");
+    expect(text).toContain("takeTopDecisions");
+    expect(text).toContain("applyDecisionLifecycle");
+    expect(text).toContain("sortDecisionsByImpact");
   });
 });
