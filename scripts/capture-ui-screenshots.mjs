@@ -185,15 +185,40 @@ async function main() {
     { id: "growth", name: "growth", label: "Copilot Tăng Trưởng" },
   ];
 
-  console.log("\n[dashboard] Seller home personas");
+  console.log("\n[dashboard] Seller home personas (read-only, white canvas)");
   for (const persona of personas) {
     await setupAuth(page, { mode: "seller", persona: persona.id });
-    await captureViewports(page, "dashboard", `home-${persona.name}`, `${BASE}/`, {
-      screen: `Trang chủ — ${persona.label}`,
-      goal: "Xem luồng công việc và nhiệm vụ theo giai đoạn cửa hàng",
-      cta: "Phê duyệt nhiệm vụ / Xem checklist",
-      notes: `Persona demo: ${persona.id}`,
-    });
+    await captureViewports(
+      page,
+      "dashboard",
+      `home-${persona.name}`,
+      `${BASE}/`,
+      {
+        screen: `Trang chủ — ${persona.label}`,
+        goal: "Xem trạng thái shop, báo cáo hôm nay và xem trước quyết định (read-only)",
+        cta: "Xem tất cả quyết định → /decisions",
+        notes: `Persona demo: ${persona.id}; ADR-028 white canvas; no approvals on Home`,
+      },
+      '[data-testid="home-summary-shell"]',
+    );
+  }
+
+  console.log("\n[workflows] Decisions tab (Recommended)");
+  for (const persona of personas.filter((p) => p.id === "new" || p.id === "leakage")) {
+    await setupAuth(page, { mode: "seller", persona: persona.id });
+    await captureViewports(
+      page,
+      "workflows",
+      `decisions-recommended-${persona.name}`,
+      `${BASE}/decisions`,
+      {
+        screen: `Quyết định — Đề xuất — ${persona.label}`,
+        goal: "Xem danh sách quyết định xếp hạng và phê duyệt",
+        cta: "Phê duyệt / Xem chi tiết quyết định",
+        notes: `Persona demo: ${persona.id}; approval gate on Decisions only`,
+      },
+      '[data-testid="decisions-recommended-shell"]',
+    );
   }
 
   // ── Dashboard: Affiliate out-of-scope ──────────────────────────────────

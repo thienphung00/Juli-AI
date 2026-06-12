@@ -12,14 +12,13 @@ import time
 from typing import Any, Optional, TypeVar, overload
 
 import requests
-
 from pydantic import BaseModel
-
-T = TypeVar("T", bound=BaseModel)
 
 from src.modules.catalog.domain.integrations.tiktok.exceptions import error_from_response
 from src.modules.catalog.domain.integrations.tiktok.schemas import validate_data
 from src.modules.catalog.domain.integrations.tiktok.signing import sign_request
+
+T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
