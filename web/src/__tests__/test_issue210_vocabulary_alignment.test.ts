@@ -52,7 +52,7 @@ describe("Issue #210: seller vocabulary alignment", () => {
     expect(reasoning.expected_impact).toMatch(/Dự kiến cải thiện/);
   });
 
-  it("decision analytics use canonical SPS label for npl workflow", () => {
+  it("SPS AHR labels match shop-health-metrics on decision analytics", () => {
     const npl = pipeline.workflowRecommendations.recommended_workflows.find(
       (item) => item.workflow_id === "npl",
     );

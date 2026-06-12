@@ -1,28 +1,27 @@
-# Definition of Done — Issue #199
+# Definition of Done — Issue #210
 
-Checklist for `scripts/validate/check_done_md.py`. Juli Chat decision context (ADR-028 P1.8-9).
+Checklist for `scripts/validate/check_done_md.py`. Align AI Chat and Reports copy with seller vocabulary system.
 
 ## Required
 
-- [x] Issue acceptance criteria each have a named test mapping in `artifacts/reviews/review-issue-199.json`
-- [x] `artifacts/reviews/review-issue-199.json` written; review `status` is `PASS`
-- [x] Frontend: `npm test -- --testPathPattern=test_issue199` passes
+- [x] Issue acceptance criteria each have a named test mapping in `artifacts/reviews/review-issue-210.json`
+- [x] `artifacts/reviews/review-issue-210.json` written; review `status` is `PASS`
+- [x] Frontend: `npm test -- --testPathPattern=test_issue210` passes
 - [x] Frontend: `npx tsc --noEmit` clean
 - [x] Backend: N/A — web-only change
 - [x] Migrations: N/A — no migration changes
-- [x] `artifacts/validation/validation-issue-199.json` exists with `status: "PASS"`
+- [x] `artifacts/validation/validation-issue-210.json` exists with `status: "PASS"`
 - [x] No secrets, tokens, or credentials committed
 
 ## Conditional
 
 | Item | Status |
 |------|--------|
-| `web/src/lib/decisions/MODULE.md` | Documents chat-context exports |
-| Handoff | `docs/handoffs/issue-199-review.md` |
+| Handoff | `docs/handoffs/issue-210-review.md` |
 
 ## Artifacts
 
 | Artifact | Path |
 |----------|------|
-| Review | `artifacts/reviews/review-issue-199.json` |
-| Validation | `artifacts/validation/validation-issue-199.json` |
+| Review | `artifacts/reviews/review-issue-210.json` |
+| Validation | `artifacts/validation/validation-issue-210.json` |
