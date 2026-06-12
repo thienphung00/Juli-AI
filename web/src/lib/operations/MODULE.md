@@ -6,6 +6,8 @@ Rules-based shop profile classification, health check indicators, and validated 
 
 - `classifyShopProfile(unifiedModel) → NEW_SHOP | MID_LARGE_SHOP` — pure classifier from `unified_operational_data_model`
 - `computeHealthCheckResults(unifiedModel) → health_check_results` — pure health indicators keyed by indicator ID (P1.8-3)
+- `rankWorkflowRecommendations(profile, health) → workflow_recommendations` — pure ranking by profile + health signals (P1.8-4)
+- `useOperationsPipeline({ personaId })` / `runOperationsPipeline(personaId)` — load → classify → health → rank (P1.8-4)
 - `HEALTH_INDICATOR_TRACEABILITY_MAP` / `getWorkflowsForHealthIndicator(id)` — indicator→workflow traceability (ADR-026 constraint #5)
 - `WORKFLOW_CATALOG` / `getWorkflowsForProfile(profile)` — ADR-026 Appendix A profile→workflow map (six workflows only)
 - `PROFILE_BOUNDARY_FIXTURES` — golden boundary inputs for QA
@@ -35,7 +37,14 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | `refund_spike_indicator` | Refund Spike Detection | refund rate 7d vs baseline, spike flag |
 | `product_scaling_opportunity` | Product Scaling | top SKUs by growth potential |
 
+## Workflow recommendations (P1.8-4)
+
+| Profile | Workflows ranked | Logic |
+|---------|------------------|-------|
+| NEW_SHOP | NPL, Minimize Violations | Probation timeline urgency + SPS/AHR gaps; never growth/loss workflows |
+| MID_LARGE_SHOP | Budget, Scaling, Refund Spike, Stockout | Impact/urgency from health indicators; impact-threshold filter skipped until Product sets `MID_LARGE_IMPACT_THRESHOLD_VND` in EXECUTION.md |
+
 ## Out of scope (later slices)
 
-- Ranking (`recommendations.ts`, P1.8-4)
-- UI / `useOperationsPipeline` hook
+- Rules-only reasoning panel (`workflows/operations/`, P1.8-5)
+- Unified approval gate UI (P1.8-6)
