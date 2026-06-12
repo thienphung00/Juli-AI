@@ -33,7 +33,7 @@ function model(overrides: Partial<UnifiedOperationalDataModel> = {}): UnifiedOpe
 
 describe("Issue #177: classifyShopProfile", () => {
   describe("fixture alignment", () => {
-    it("classifies NEW_SHOP fixture as NEW_SHOP", () => {
+    it("classifyShopProfile classifies NEW_SHOP fixture as NEW_SHOP", () => {
       expect(classifyShopProfile(loadOperationalModel("NEW_SHOP"))).toBe("NEW_SHOP");
     });
 
