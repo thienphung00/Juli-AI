@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { MoreVertical } from "lucide-react";
 import type { MockTask, PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import { formatVND } from "@/lib/format";
 import { taskSeverityLabel, taskSeverityStyle } from "@/lib/task-executor";
@@ -10,20 +12,39 @@ export function TaskCard({
   personaId,
   onApprove,
   onDismiss,
+  onViewEvidence,
   disabled = false,
 }: {
   task: MockTask;
   personaId: PersonaId;
   onApprove: (taskId: string) => void;
   onDismiss: (taskId: string) => void;
+  onViewEvidence?: (taskId: string) => void;
   disabled?: boolean;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const severityStyle = taskSeverityStyle(task.severity);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [menuOpen]);
 
   const handleCardEngagement = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return;
     if (
-      target.closest('[data-testid="task-approve"], [data-testid="task-dismiss"]')
+      target.closest(
+        '[data-testid="task-approve"], [data-testid="task-dismiss"], [data-testid="task-more-menu"], [data-testid="task-view-evidence"]',
+      )
     ) {
       return;
     }
@@ -52,11 +73,11 @@ export function TaskCard({
         </span>
         {task.estimated_impact_vnd !== null && (
           <span
-            className="text-xs font-semibold"
-            style={{ color: "#10b981" }}
+            className="text-xs font-medium"
+            style={{ color: "var(--success)" }}
             data-testid="task-gmv-impact"
           >
-            +{formatVND(task.estimated_impact_vnd)} GMV dự kiến
+            +{formatVND(task.estimated_impact_vnd)}
           </span>
         )}
       </div>
@@ -73,31 +94,78 @@ export function TaskCard({
         {task.body}
       </p>
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+      <div className="mt-4 flex gap-2">
         <button
           type="button"
-          className="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-          style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)" }}
+          className="btn-primary min-h-[44px] flex-1 disabled:opacity-50"
           disabled={disabled}
           onClick={() => onApprove(task.id)}
           data-testid="task-approve"
         >
           {task.cta_label}
         </button>
-        <button
-          type="button"
-          className="flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
-          style={{
-            borderColor: "var(--border)",
-            color: "var(--foreground)",
-            background: "transparent",
-          }}
-          disabled={disabled}
-          onClick={() => onDismiss(task.id)}
-          data-testid="task-dismiss"
-        >
-          Bỏ qua
-        </button>
+
+        <div className="relative shrink-0" ref={menuRef}>
+          <button
+            type="button"
+            aria-label="Tùy chọn nhiệm vụ"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:opacity-50"
+            style={{
+              borderColor: "var(--border)",
+              color: "var(--foreground)",
+              background: "transparent",
+            }}
+            disabled={disabled}
+            onClick={() => setMenuOpen((open) => !open)}
+            data-testid="task-more-menu"
+          >
+            <MoreVertical size={18} aria-hidden />
+          </button>
+
+          {menuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 top-full z-10 mt-1 min-w-[10rem] rounded-xl border py-1 shadow-lg"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--card)",
+            }}
+          >
+            {onViewEvidence && (
+              <button
+                type="button"
+                role="menuitem"
+                className="w-full px-3 py-2.5 text-left text-sm transition-colors hover:opacity-80"
+                style={{ color: "var(--muted-foreground)" }}
+                disabled={disabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onViewEvidence(task.id);
+                }}
+                data-testid="task-view-evidence"
+              >
+                Xem bằng chứng
+              </button>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:opacity-80"
+              style={{ color: "var(--foreground)" }}
+              disabled={disabled}
+              onClick={() => {
+                setMenuOpen(false);
+                onDismiss(task.id);
+              }}
+              data-testid="task-dismiss"
+            >
+              Bỏ qua
+            </button>
+          </div>
+          )}
+        </div>
       </div>
     </article>
   );

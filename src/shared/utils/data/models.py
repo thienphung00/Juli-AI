@@ -89,9 +89,87 @@ class Order(Base):
         server_default=func.now(), onupdate=func.now()
     )
 
+    line_items: Mapped[list["OrderItem"]] = relationship(back_populates="order")
+    returns: Mapped[list["Return"]] = relationship(back_populates="order")
+
     __table_args__ = (
         Index("ix_orders_shop_created", "shop_id", "created_at"),
         Index("ix_orders_shop_tiktok", "shop_id", "tiktok_order_id", unique=True),
+    )
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("orders.id"), nullable=False
+    )
+    tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    tiktok_product_id: Mapped[str | None] = mapped_column(String(100))
+    tiktok_sku_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    quantity: Mapped[int] = mapped_column(nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    update_time: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    order: Mapped["Order"] = relationship(back_populates="line_items")
+
+    __table_args__ = (
+        Index("ix_order_items_shop_order", "shop_id", "order_id"),
+        Index(
+            "ix_order_items_shop_order_sku",
+            "shop_id",
+            "tiktok_order_id",
+            "tiktok_sku_id",
+            unique=True,
+        ),
+    )
+
+
+class Return(Base):
+    __tablename__ = "returns"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id"))
+    tiktok_return_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    buyer_id: Mapped[str | None] = mapped_column(String(100))
+    tiktok_product_id: Mapped[str | None] = mapped_column(String(100))
+    tiktok_sku_id: Mapped[str | None] = mapped_column(String(100))
+    return_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    return_condition: Mapped[str] = mapped_column(
+        String(30), default="unknown", server_default="unknown", nullable=False
+    )
+    return_reason: Mapped[str | None] = mapped_column(String(500))
+    refund_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    update_time: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    order: Mapped["Order | None"] = relationship(back_populates="returns")
+
+    __table_args__ = (
+        Index("ix_returns_shop_created", "shop_id", "created_at"),
+        Index(
+            "ix_returns_shop_tiktok",
+            "shop_id",
+            "tiktok_return_id",
+            unique=True,
+        ),
     )
 
 

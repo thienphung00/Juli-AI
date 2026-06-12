@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Store, Users } from "lucide-react";
 import { MODE_SELECT_OPTIONS } from "@/lib/mock-data/mode-select";
 import { useModeGuard } from "@/lib/use-mode-guard";
 import { useWorkspaceMode } from "@/lib/mode-context";
@@ -12,6 +13,11 @@ function PageSpinner() {
     </div>
   );
 }
+
+const MODE_ICONS = {
+  seller: Store,
+  affiliate: Users,
+} as const;
 
 export function ModeSelectionPage() {
   const { loading } = useModeGuard("require-no-mode");
@@ -44,22 +50,56 @@ export function ModeSelectionPage() {
         </div>
 
         <div className="space-y-4">
-          {MODE_SELECT_OPTIONS.map((option) => (
-            <button
-              key={option.mode}
-              type="button"
-              aria-label={option.title}
-              onClick={() => handleSelect(option.mode)}
-              className="card w-full p-5 text-left transition-opacity hover:opacity-90"
-            >
-              <span className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
-                {option.title}
-              </span>
-              <p className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
-                {option.description}
-              </p>
-            </button>
-          ))}
+          {MODE_SELECT_OPTIONS.map((option) => {
+            const Icon = MODE_ICONS[option.mode];
+            const isAffiliate = option.mode === "affiliate";
+
+            return (
+              <button
+                key={option.mode}
+                type="button"
+                aria-label={option.title}
+                onClick={() => handleSelect(option.mode)}
+                className="card relative w-full p-4 text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              >
+                {isAffiliate && (
+                  <span
+                    className="absolute right-4 top-4 rounded-full px-2 py-0.5 text-xs font-semibold"
+                    style={{
+                      background: "color-mix(in srgb, var(--primary) 15%, transparent)",
+                      color: "var(--primary)",
+                    }}
+                  >
+                    Sắp ra mắt
+                  </span>
+                )}
+                <div className="flex items-start gap-4">
+                  <span
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl${option.mode === "seller" ? " gradient-primary" : ""}`}
+                    style={
+                      option.mode === "seller"
+                        ? undefined
+                        : { background: "var(--muted)" }
+                    }
+                    aria-hidden
+                  >
+                    <Icon
+                      size={24}
+                      color={option.mode === "seller" ? "#fff" : "var(--primary)"}
+                    />
+                  </span>
+                  <div className="min-w-0 pr-16">
+                    <span className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                      {option.title}
+                    </span>
+                    <p className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
+                      {option.description}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

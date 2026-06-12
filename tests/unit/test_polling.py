@@ -26,6 +26,7 @@ from src.apps.cron_jobs.services.polling.sync import (
     sync_livestreams,
     sync_orders,
     sync_products,
+    sync_returns,
     sync_settlements,
 )
 
@@ -184,6 +185,41 @@ class TestSyncOrders:
 
         assert len(handoff_calls) == 0
         assert "orders_last_update_time" not in sync_state
+
+
+@pytest.fixture
+def mock_returns_resource():
+    resource = MagicMock()
+    resource.search_returns_all.return_value = [
+        {
+            "return_id": "r1",
+            "order_id": "o1",
+            "update_time": 1700000300,
+            "refund": {"refund_total": "25.00"},
+        },
+    ]
+    return resource
+
+
+class TestSyncReturns:
+    @pytest.mark.asyncio
+    async def test_fetches_returns_and_publishes(
+        self, mock_returns_resource, mock_rate_limiter, publish_fn, handoff_calls, sync_state
+    ):
+        await sync_returns(
+            resource=mock_returns_resource,
+            rate_limiter=mock_rate_limiter,
+            publish_fn=publish_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+        )
+
+        assert len(handoff_calls) == 1
+        assert handoff_calls[0]["channel"] == "tiktok.returns.raw"
+        payload = json.loads(handoff_calls[0]["value"])
+        assert payload["return_id"] == "r1"
+        assert sync_state["returns_last_update_time"] == 1700000300
 
 
 class TestSyncProducts:

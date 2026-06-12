@@ -119,7 +119,7 @@ function Avatar({ name, url }: { name: string; url: string | null }) {
   return (
     <span
       className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
-      style={{ background: "#ff006e20", color: "var(--primary)" }}
+      style={{ background: "#f86ba520", color: "var(--primary)" }}
     >
       {initials}
     </span>

@@ -6,6 +6,14 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+from src.modules.catalog.domain.integrations.tiktok.mapping import (
+    normalize_creator,
+    normalize_livestream,
+    normalize_order,
+    normalize_product,
+    normalize_return,
+    normalize_statement,
+)
 from src.modules.ordering.use_cases.etl.channels import RAW_CHANNELS
 
 TransformError = ValueError
@@ -26,6 +34,12 @@ def _unix_to_datetime(value: Any) -> datetime:
     raise TransformError(f"unsupported update_time type: {type(value)}")
 
 
+def _nested_payment_amount(payment: Any) -> Any:
+    if not isinstance(payment, dict):
+        return None
+    return payment.get("total_amount") or payment.get("payment_amount")
+
+
 def _coerce_int(value: Any, *, default: int = 0) -> int:
     if value is None:
         return default
@@ -41,11 +55,16 @@ def _unwrap_webhook(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _transform_order(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
-    order_id = body.get("order_id")
+    order_id = body.get("order_id") or body.get("id")
     if not order_id:
         raise TransformError("order_id required")
     status = body.get("order_status") or body.get("status") or "UNKNOWN"
-    amount = body.get("total_amount") or body.get("payment_amount") or 0
+    amount = (
+        body.get("total_amount")
+        or body.get("payment_amount")
+        or _nested_payment_amount(body.get("payment"))
+        or 0
+    )
     return {
         "tiktok_order_id": str(order_id),
         "status": str(status),
@@ -58,8 +77,64 @@ def _transform_order(body: dict[str, Any], payload: dict[str, Any]) -> dict[str,
     }
 
 
+def _transform_order_item(
+    body: dict[str, Any], payload: dict[str, Any]
+) -> dict[str, Any]:
+    sku_id = body.get("sku_id")
+    tiktok_order_id = body.get("tiktok_order_id")
+    if not sku_id or not tiktok_order_id:
+        raise TransformError("sku_id and tiktok_order_id required")
+    quantity = _coerce_int(body.get("quantity"), default=1)
+    unit_price = body.get("unit_price") or 0
+    line_total = body.get("line_total")
+    if line_total is None:
+        line_total = Decimal(str(unit_price)) * quantity
+    return {
+        "tiktok_order_id": str(tiktok_order_id),
+        "tiktok_product_id": (
+            str(body["product_id"]) if body.get("product_id") is not None else None
+        ),
+        "tiktok_sku_id": str(sku_id),
+        "quantity": quantity,
+        "unit_price": Decimal(str(unit_price)),
+        "line_total": Decimal(str(line_total)),
+        "update_time": _unix_to_datetime(
+            body.get("update_time") or payload.get("timestamp")
+        ),
+    }
+
+
+def _transform_return(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    return_id = body.get("return_id")
+    if not return_id:
+        raise TransformError("return_id required")
+    tiktok_order_id = body.get("tiktok_order_id") or body.get("order_id")
+    if not tiktok_order_id:
+        raise TransformError("tiktok_order_id required")
+    refund = body.get("refund_amount") or 0
+    return {
+        "tiktok_return_id": str(return_id),
+        "tiktok_order_id": str(tiktok_order_id),
+        "buyer_id": body.get("buyer_id"),
+        "tiktok_product_id": (
+            str(body["product_id"]) if body.get("product_id") is not None else None
+        ),
+        "tiktok_sku_id": str(body["sku_id"]) if body.get("sku_id") is not None else None,
+        "return_type": str(body.get("return_type") or "other"),
+        "return_condition": str(body.get("return_condition") or "unknown"),
+        "return_reason": body.get("return_reason"),
+        "refund_amount": Decimal(str(refund)),
+        "status": str(body.get("status") or body.get("return_status") or "pending_review"),
+        "update_time": _unix_to_datetime(
+            body.get("update_time")
+            or body.get("create_time")
+            or payload.get("timestamp")
+        ),
+    }
+
+
 def _transform_product(body: dict[str, Any]) -> dict[str, Any]:
-    product_id = body.get("product_id")
+    product_id = body.get("product_id") or body.get("id")
     if not product_id:
         raise TransformError("product_id required")
     return {
@@ -98,6 +173,7 @@ def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[
 
 
 def _transform_creator(body: dict[str, Any]) -> dict[str, Any]:
+    body = normalize_creator(body)
     creator_id = body.get("creator_id")
     if not creator_id:
         raise TransformError("creator_id required")
@@ -111,6 +187,7 @@ def _transform_creator(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _transform_livestream(body: dict[str, Any]) -> dict[str, Any]:
+    body = normalize_livestream(body)
     livestream_id = body.get("livestream_id")
     if not livestream_id:
         raise TransformError("livestream_id required")
@@ -128,6 +205,7 @@ def _transform_livestream(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _transform_settlement(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    body = normalize_statement(body)
     settlement_id = body.get("settlement_id")
     if not settlement_id:
         raise TransformError("settlement_id required")
@@ -160,13 +238,39 @@ def transform_for_channel(
 
     body = _unwrap_webhook(payload)
 
-    if channel == "tiktok.orders.raw" or channel.startswith("tiktok.order") or body.get("order_id"):
-        return "order", _transform_order(body, payload)
+    if (
+        channel == "tiktok.orders.raw"
+        or (
+            channel.startswith("tiktok.order")
+            and channel != "tiktok.order_items.raw"
+        )
+        or (
+            (body.get("order_id") or body.get("id"))
+            and not body.get("return_id")
+            and channel != "tiktok.order_items.raw"
+        )
+    ):
+        return "order", _transform_order(normalize_order(body), payload)
 
-    if channel == "tiktok.products.raw" or body.get("product_id") and not body.get("sku_id"):
-        return "product", _transform_product(body)
+    if channel == "tiktok.order_items.raw":
+        return "order_item", _transform_order_item(body, payload)
 
-    if channel == "tiktok.inventory.raw" or body.get("sku_id"):
+    if channel == "tiktok.returns.raw" or body.get("return_id"):
+        return "return", _transform_return(normalize_return(body), payload)
+
+    if (
+        channel == "tiktok.products.raw"
+        or (
+            (body.get("product_id") or body.get("id"))
+            and not body.get("sku_id")
+            and not body.get("return_id")
+        )
+    ):
+        return "product", _transform_product(normalize_product(body))
+
+    if channel == "tiktok.inventory.raw" or (
+        body.get("sku_id") and channel not in ("tiktok.order_items.raw", "tiktok.returns.raw")
+    ):
         return "inventory", _transform_inventory(body, payload)
 
     if channel in ("tiktok.creators.raw", "creator-events") or body.get("creator_id"):

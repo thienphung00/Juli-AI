@@ -18,7 +18,8 @@ data. For module layout see [`map.md`](map.md); for phases and gates see
 | **P1.5** | Phase 1.5 (Weeks 6–9) — **backtest** (parquet) / synthetic for ML training |
 | **P1.6** | Phase 1.6 (Weeks 9–10) — listing workflow **mock fixtures** + client export |
 | **P1.7** | Phase 1.7 (Weeks 10–11) — leakage workflow **mock fixtures** + client mock execute |
-| **P2** | Phase 2 (Weeks 11–15) — **live** TikTok API polling + daily inference |
+| **P1.8** | Phase 1.8 (Weeks 11–13) — operations-system orchestration **mock fixtures** (unified operational data model) |
+| **P2** | Phase 2 (Weeks 13–17) — **live** TikTok API polling + daily inference |
 | **Later** | Phase 2.5+ / Phase 3+ — out of the next 15 weeks |
 | **Forbidden** | Must never appear in any PR (ToS, privacy, or stability risk) |
 
@@ -26,20 +27,32 @@ data. For module layout see [`map.md`](map.md); for phases and gates see
 
 | Source | P1 | P1.5 | P2 | Powers | Notes |
 |--------|----|------|----|--------|-------|
-| **TikTok Orders** | Mock | Backtest (parquet) | Live polling | Returns, refunds, GMV → Revenue Leakage Detection | Bounded order history (~90d); per-(app × shop × endpoint) rate limits; API ref: [`tiktok_api/endpoints.md`](../tiktok_api/endpoints.md) |
+| **TikTok Orders** | Mock | Backtest (parquet) | Live polling | Returns, refunds, GMV → Refund Spike Detection (Revenue Leakage) | Bounded order history (~90d); per-(app × shop × endpoint) rate limits; API ref: [`tiktok_api/endpoints.md`](../tiktok_api/endpoints.md) |
+| **TikTok Products** | Mock | Backtest | Live polling | Product performance (GMV, sell-through) → Product Scaling, NPL category gaps | API ref: [`tiktok_api/endpoints.md`](../tiktok_api/endpoints.md) |
 | **TikTok Affiliate** | Mock | Backtest | Live polling | Cancellation rates, commission disputes, collab type (Open vs Targeted) → fraud detection / Revenue Leakage | Scope-gated; masked buyer contact only; Targeted rate overrides Open; 30-day grace on seller rate decrease; settlement 3rd/15th day after delivery |
-| **TikTok Ads** | Mock | Backtest | Live polling | Spend, CPC, conversions (daily) → Growth Copilot | Daily ad-performance signals |
+| **TikTok Ads** | Mock | Backtest | Live polling | Spend, CPC, conversions, ROAS → Budget Optimization | Daily ad-performance signals |
 | **TikTok Shop Account** | Mock | Backtest | Live polling | Shop age, order count, **account health** (VP/AHR if exposed) → seller-stage / New Seller Copilot / Revenue Leakage | **P2-1 gate:** VP/AHR API exposure is **UNKNOWN** until verified in Partner Center API Reference + API Testing Tool. Use `health_data_source: api \| proxy \| unavailable` (see Operational rules). Platform ref: [`tiktok_platform/seller/account-health.md`](../tiktok_platform/seller/account-health.md). API ref: [`tiktok_api/endpoints.md`](../tiktok_api/endpoints.md) → Account Health section. |
 | **Supabase Postgres** (`src/shared/utils/data`) | — | — | Live | OLTP persistence, Alembic migrations, shop-scoped repos | Single backend DB; source of truth for persisted state ([ADR-002](../decisions/002-supabase-backend-service.md)) |
 | **Ollama** (local inference node) | — | — | Live | Copy layer — summarize + localize structured signals for UI / alerts | Optional optimization path; **rules fallback** if offline or budget exceeded; never blocks ingestion or task execution |
 | **Kalodata / Shoplus** | N/A | Optional backtest | — | Return-pattern validation only | **Phase 2.5+**; never user-facing analytics |
 | **Leakage workflow fixtures** (`web/src/lib/mock-data/leakage-workflow/`) | Mock | — | — | Revenue Leakage executable workflow (P1.7) | Juli-internal schemas per `canonical-entities.md` § Leakage workflow; no network; masked IDs only |
 | **Listing workflow fixtures** (`web/src/lib/mock-data/listing-workflow/`) | Mock | — | — | New Seller listing workflow (P1.6) | Juli-internal; see ADR-020 |
+| **Unified operational data model fixtures** (`web/src/lib/mock-data/operations/`) | Mock | — | — | Operations-system pipeline (P1.8): classification, health check, ranking, outcome tracking | Juli-internal; every datum maps to ≥1 validated workflow (traceability); masked IDs only; see [ADR-026](../decisions/026-operations-system-orchestration.md) |
+| **TikTok Inventory (scoped signals)** | — | — | Live polling | Inventory level, sales velocity, reorder lead time → Stockout Prevention + Product Scaling | **P2+ only**, narrow scope — **signals not management**; field exposure subject to **P2-1 gate**; see [ADR-026](../decisions/026-operations-system-orchestration.md) |
 
 ## Operational rules
 
 - **Phase gating:** No real TikTok API calls before Phase 2. Phase 1 is mock JSON;
-  Phase 1.5 is offline backtest/synthetic only.
+  Phase 1.5 is offline backtest/synthetic only; Phase 1.8 is mock orchestration fixtures only.
+- **Operations-system traceability (P1.8+):** Every datum in `unified_operational_data_model`
+  must map to ≥1 validated workflow; every `health_check_results` indicator must inform
+  ≥1 workflow decision; every recommendation must map to ≥1 validated workflow. Do not
+  collect data or compute metrics that no workflow consumes ([ADR-026](../decisions/026-operations-system-orchestration.md)).
+- **Scoped inventory (P2+ only):** Inventory level, sales velocity, and reorder lead
+  time may be collected **solely** to power Stockout Prevention + Product Scaling.
+  This is **signals, not inventory/finance management** — no stock editing, no
+  settlement/finance features. Field exposure is subject to the **P2-1** API gate;
+  degrade explicitly if unavailable (no scraping).
 - **Rate limits (P2):** Never sync all shops in the same second; respect
   per-(app × shop × endpoint) buckets; reuse the existing `RateLimiter`.
 - **Daily inference (P2):** Models score live seller data at **08:00 UTC**.

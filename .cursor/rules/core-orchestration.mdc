@@ -1,0 +1,36 @@
+---
+description: Core orchestration — Focus router, agents, skills governance (always on)
+alwaysApply: true
+---
+
+# Core Orchestration
+
+## Focus is the router
+
+For every non-trivial task, read and follow [`.cursor/skills/standalone/focus/SKILL.md`](../skills/standalone/focus/SKILL.md) and produce a **Context Plan** (docs, rules, skills, MCPs).
+
+- **Ad-hoc chat:** Focus only — do not auto-enter discover/tdd/review pipelines.
+- **Feature pipeline:** `build-feature` → discover → to-prd → to-issues → Focus per issue → tdd → review → ship.
+- **Bug pipeline:** `fix-bug` → qa → Focus → tdd → review → ship.
+- **MCP/plugin skills:** load only what Focus selects via [skill-catalog](../skills/skill-catalog/SKILL.md); read MCP tool schemas after selection, not at startup.
+
+## Agent delegation
+
+- **Planning & decomposition** when a task spans modules or requirements are unclear.
+- **Review** after non-trivial code changes.
+- **Security pass** when touching auth, PII, billing, secrets, or external integrations.
+- **Test/CI triage** for build/test failures.
+- Run independent tasks in parallel; avoid serial work without a hard dependency.
+
+## Skills governance
+
+- **Never** add skill files under `.cursor/skills/` unless the user explicitly asks in this conversation.
+- **Never** scaffold skills for convenience — use `docs/handoffs/` or existing docs instead.
+- **Allowed:** read/follow existing skills; edit when the task requires it.
+- **New skill needed:** ask permission; propose name, path, one-line purpose; wait for approval.
+
+| Need | Use instead of a new skill |
+|------|----------------------------|
+| Repeatable prompts | `docs/handoffs/*.md` |
+| Always-on behavior | `.cursor/rules/*.mdc` |
+| One-off workflow | Chat or update an existing skill |

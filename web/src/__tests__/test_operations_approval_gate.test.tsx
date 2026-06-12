@@ -59,7 +59,7 @@ describe("Issue #181: operations pipeline shell", () => {
       expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
     expect(screen.getByTestId("approval-gate-toolbar")).toBeInTheDocument();
     expect(screen.getAllByTestId("clarity-card").length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByTestId("growth-copilot-panel")).not.toBeInTheDocument();

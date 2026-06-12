@@ -7,6 +7,8 @@ DLQ_CHANNEL = "tiktok.events.dlq"
 RAW_CHANNELS: frozenset[str] = frozenset(
     {
         "tiktok.orders.raw",
+        "tiktok.order_items.raw",
+        "tiktok.returns.raw",
         "tiktok.products.raw",
         "tiktok.inventory.raw",
         "tiktok.creators.raw",

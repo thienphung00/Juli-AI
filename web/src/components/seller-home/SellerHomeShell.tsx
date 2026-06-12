@@ -22,7 +22,7 @@ export function SellerHomeShell() {
   }
 
   return (
-    <div className="seller-home-grid" data-testid="seller-home-shell">
+    <div data-testid="seller-home-shell">
       <HomeSummaryShell persona={persona} personaId={personaId} />
     </div>
   );

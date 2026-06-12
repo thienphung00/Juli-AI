@@ -31,7 +31,7 @@ export function MilestoneProgress({
         </h3>
         <span
           className="text-sm font-bold"
-          style={{ color: "#6366f1" }}
+          style={{ color: "var(--primary)" }}
           data-testid="listing-milestone-percent"
         >
           {listingMilestone.percent}%
@@ -49,11 +49,8 @@ export function MilestoneProgress({
         data-testid="listing-milestone-progress-bar"
       >
         <div
-          className="h-full rounded-full transition-all"
-          style={{
-            width: `${listingMilestone.percent}%`,
-            background: "linear-gradient(135deg, #6366f1 0%, #818cf8 100%)",
-          }}
+          className="gradient-primary h-full rounded-full transition-all"
+          style={{ width: `${listingMilestone.percent}%` }}
         />
       </div>
 
@@ -76,7 +73,7 @@ export function MilestoneProgress({
         </h3>
         <span
           className="text-sm font-bold"
-          style={{ color: "#10b981" }}
+          style={{ color: "var(--success)" }}
           data-testid="milestone-percent"
         >
           {milestone.percent}%
@@ -97,7 +94,7 @@ export function MilestoneProgress({
           className="h-full rounded-full transition-all"
           style={{
             width: `${milestone.percent}%`,
-            background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
+            background: "var(--success)",
           }}
         />
       </div>

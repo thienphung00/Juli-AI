@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TrendingUp } from "lucide-react";
 import { AuthenticatedShell } from "./AuthenticatedShell";
 import { SellerHomeShell } from "./seller-home";
 import { formatNumber, formatVND } from "@/lib/format";
@@ -16,11 +17,6 @@ import { isUiOnly } from "@/lib/ui-only";
 
 function formatPct(value: number, digits = 1): string {
   return `${(value * 100).toFixed(digits).replace(".", ",")}%`;
-}
-
-function formatDeltaPct(value: number): string {
-  const pct = (value * 100).toFixed(1).replace(".", ",");
-  return `▲ +${pct}%`;
 }
 
 export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
@@ -89,8 +85,12 @@ function AffiliateHomeView({ dashboard }: { dashboard: AffiliateHomeDashboard })
             <p className="mt-1 text-xl font-bold" style={{ color: "var(--primary)" }}>
               {formatVND(dashboard.kpis.commission_today_vnd)}
             </p>
-            <p className="mt-1 text-xs font-medium" style={{ color: "#10b981" }}>
-              ▲ +{dashboard.kpis.commission_wow_pct}% WoW
+            <p
+              className="mt-1 flex items-center gap-1 text-xs font-medium"
+              style={{ color: "var(--success)" }}
+            >
+              <TrendingUp size={14} aria-hidden className="shrink-0" />
+              +{dashboard.kpis.commission_wow_pct}% WoW
             </p>
           </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { TrendingUp } from "lucide-react";
 import { formatNumber, formatVND } from "@/lib/format";
 import type { AffiliateOperationData } from "@/lib/mock-data/operation-affiliate";
 import type { SellerOperationData } from "@/lib/mock-data/operation-seller";
@@ -149,8 +150,12 @@ export function AffiliateProductsPanel({ data }: { data: AffiliateOperationData 
         <p className="mt-1 text-xl font-bold" style={{ color: "var(--primary)" }}>
           {formatVND(data.products_summary.commission_this_month_vnd)}
         </p>
-        <p className="mt-1 text-xs font-medium" style={{ color: "#10b981" }}>
-          ▲ +{data.products_summary.commission_mom_pct}% so với tháng trước
+        <p
+          className="mt-1 flex items-center gap-1 text-xs font-medium"
+          style={{ color: "var(--success)" }}
+        >
+          <TrendingUp size={14} aria-hidden className="shrink-0" />
+          +{data.products_summary.commission_mom_pct}% so với tháng trước
         </p>
         <p className="text-muted mt-1 text-xs">
           {data.products_summary.active_partnerships} đối tác đang hoạt động

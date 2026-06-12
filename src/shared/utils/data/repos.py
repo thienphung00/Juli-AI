@@ -17,9 +17,11 @@ from src.shared.utils.data.models import (
     InventoryItem,
     Livestream,
     Order,
+    OrderItem,
     ProcessedEvent,
     Product,
     Recommendation,
+    Return,
     Settlement,
     Shop,
     TikTokCredential,
@@ -292,6 +294,48 @@ class OrdersRepo(ShopScopedRepo[Order]):
         order.update_time = datetime.now(timezone.utc)
         await self._session.flush()
         return order
+
+
+class OrderItemsRepo(ShopScopedRepo[OrderItem]):
+    _model = OrderItem
+    _lookup_attr = "tiktok_sku_id"
+
+    async def upsert(self, *, shop_id: uuid.UUID, **kwargs) -> OrderItem:
+        tiktok_order_id = kwargs.get("tiktok_order_id")
+        tiktok_sku_id = kwargs.get("tiktok_sku_id")
+        if not tiktok_order_id or not tiktok_sku_id:
+            raise ValueError("tiktok_order_id and tiktok_sku_id required")
+
+        stmt = select(self._model).where(
+            self._model.shop_id == shop_id,
+            self._model.tiktok_order_id == tiktok_order_id,
+            self._model.tiktok_sku_id == tiktok_sku_id,
+        )
+        result = await self._session.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if existing is not None:
+            incoming_ut = kwargs.get("update_time")
+            if (
+                incoming_ut is not None
+                and existing.update_time is not None
+                and incoming_ut <= existing.update_time
+            ):
+                return existing
+            for key, value in kwargs.items():
+                setattr(existing, key, value)
+            await self._session.flush()
+            return existing
+
+        entity = OrderItem(id=uuid.uuid4(), shop_id=shop_id, **kwargs)
+        self._session.add(entity)
+        await self._session.flush()
+        return entity
+
+
+class ReturnsRepo(ShopScopedRepo[Return]):
+    _model = Return
+    _lookup_attr = "tiktok_return_id"
 
 
 class ProductsRepo(ShopScopedRepo[Product]):

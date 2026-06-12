@@ -14,16 +14,22 @@ that any new module added in a PR is also listed here.
 
 ## North star
 
-Juli-AI helps TikTok Shop sellers **make and keep more money** through three
-agentic workflows — **New Seller Copilot**, **Revenue Leakage Detection**, and
-**Growth Copilot**. Built UI-first (Phase 1), then ML (Phase 1.5), then live data
-(Phase 2). See [`../../EXECUTION.md`](../../EXECUTION.md).
+Juli AI is an **AI Operations System** for TikTok Shop sellers — **make and keep
+more money** via profile-classified, health-ranked, validated workflows only
+([ADR-026](../decisions/026-operations-system-orchestration.md)). Copilot surfaces:
+**New Seller Copilot** (NEW_SHOP), **Growth Copilot** + **Revenue Leakage** loss
+prevention (MID_LARGE_SHOP). Built UI-first (Phase 1), ML (Phase 1.5), executable
+mock workflows (P1.6–1.7), operations orchestration mock (P1.8), live data (P2).
+See [`../../EXECUTION.md`](../../EXECUTION.md).
 
-**What we build:** seller-money workflows — get to first profitable sales, stop
-revenue leakage (buyer return anomalies: item swap, empty return; plus policy-driven refunds/disputes), grow ad ROAS.
+**What we build:** probation completion (new shops), revenue growth (ROAS, scaling),
+and loss prevention (refund spikes, stockouts) — not generic analytics or CRM.
 
 **What we do _not_ build:** generic analytics dashboards, CRM, inventory/finance/
-settlement software, or creator↔shop matching (Phase 3+, see ADR history).
+settlement **management** software, or creator↔shop matching (Phase 3+, see ADR
+history). Exception: narrow inventory **signals** (level, sales velocity, lead time)
+in P2+ that power Stockout Prevention + Product Scaling
+([ADR-026](../decisions/026-operations-system-orchestration.md)).
 
 ## Code layout (actual)
 
@@ -91,18 +97,29 @@ Tracked by [ADR-020](../decisions/020-new-seller-listing-workflow-scope.md) and
 | [`web/src/components/workflows/new-seller/listing`](../../web/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | 2 | Modal listing workflow from approved `list_products` | `ListingWorkflowPanel` | domain: web |
 | [`web/src/components/workflows/new-seller/ListingProgressWidget`](../../web/src/components/workflows/new-seller/ListingProgressWidget.tsx) | 2 | Copilot home listing progress widget | `ListingProgressWidget` | domain: web |
 
-## Planned modules (Phase 1.7 / Phase 2 — not yet deployed)
+## Planned modules (Phase 1.7 / 1.8 / Phase 2 — not yet deployed)
 
-Tracked by [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md) and
-`EXECUTION.md` slices P1.7-1…P1.7-5, P2-7…P2-10. Add rows here when code lands.
+Tracked by [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md),
+[ADR-026](../decisions/026-operations-system-orchestration.md) and `EXECUTION.md`
+slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code lands.
 
 | Module (planned) | Target phase | Responsibility |
 |------------------|--------------|----------------|
 | `web/src/lib/mock-data/leakage-workflow/` | P1.7 | Leakage workflow fixtures: `LeakageWorkflowTask`, evidence bundles, execution plans |
 | `web/src/lib/workflows/leakage/state-machine.ts` + `use-leakage-workflow.ts` | P1.7 | Leakage step graph, session resume, `canAdvance` |
 | `web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` | P1.7 | Modal leakage workflow from approved leakage tasks; four task-type step renderers |
+| `web/src/lib/mock-data/operations/` | P1.8 | `unified_operational_data_model` fixtures + datum→workflow traceability map (P1.8-2) |
+| `web/src/lib/operations/classification.ts` | P1.8 | Rules-based `shop_profile` classification + profile→workflow catalog mapping (P1.8-1) |
+| `web/src/lib/operations/health-check.ts` | P1.8 | `health_check_results` indicators from mock operational data (P1.8-3) |
+| `web/src/lib/operations/recommendations.ts` + `use-operations-pipeline.ts` | P1.8 | `workflow_recommendations` ranking + pipeline orchestration hook (P1.8-4) |
+| `web/src/components/workflows/operations/` | P1.8 | Operations pipeline shell: reasoning panel, unified approval gate + routing, outcome tracking views (P1.8-5…P1.8-7) |
+| `web/src/app/decisions/` + `web/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-028](../decisions/028-decision-copilot-app-structure.md)) |
+| `web/src/components/home/todays-report/` | P1.8-9 | Today's Report domain cards (Revenue Growth, Revenue Protection, Product Listings, Advertising, Refunds) with animated domain switcher on Home |
+| `web/src/lib/decisions/` | P1.8-9 | Decision view-model: map `workflow_recommendations` → Decision envelopes + lifecycle status (`recommended` / `needs_input` / `executing` / `completed`) |
 | `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
 | `src/modules/catalog/domain/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
+| `src/modules/catalog/domain/operations/` *(TBD)* | P2 | Live operations pipeline (P2-11): real classification, health, ranking, outcome tracking |
+| `src/modules/catalog/domain/inventory/` *(TBD)* | P2 | Scoped inventory signals (level, velocity, lead time) for Stockout/Product Scaling (P2-12) — signals only, not inventory management |
 
 ## Pending cleanup (tracked in EXECUTION.md)
 
@@ -148,6 +165,15 @@ PR) to avoid breaking imports/tests:
 >
 > **Executable leakage workflow (Phase 1.7):** [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md)
 > — modal workflow from approved leakage tasks; mock execute only until P2-9/P2-10.
+>
+> **Operations-system orchestration (Phase 1.8):** [ADR-026](../decisions/026-operations-system-orchestration.md)
+> — mock pipeline (classify → health check → ranked recs → reasoning → approval →
+> outcome tracking) + 2 shop profiles + validated workflow catalog; narrow inventory
+> signals approved for P2+ (Stockout/Product Scaling only).
+>
+> **Decision Copilot app structure (Phase 1.8):** [ADR-028](../decisions/028-decision-copilot-app-structure.md)
+> — 3-tab IA (Home / Decisions / Juli Chat); Decision as primary UI object; Home
+> read-only; approval and templates on Decisions tab only.
 >
 > **Entity-centric data model:** [ADR-012](../decisions/012-entity-centric-data-model.md)
 > — `docs/data-models/` is ML schema authority; `tiktok_api/endpoints.md` is ingestion only.

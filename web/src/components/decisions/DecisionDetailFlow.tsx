@@ -30,18 +30,6 @@ import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 import { DecisionDetailStepIndicator } from "./DecisionDetailStepIndicator";
 
-function confidenceLabel(
-  confidence: WorkflowRecommendation["expected_impact"]["confidence"],
-): string {
-  if (confidence === "high") {
-    return "Cao";
-  }
-  if (confidence === "medium") {
-    return "Trung bình";
-  }
-  return "Thấp";
-}
-
 function DecisionDetailStepContent({
   step,
   recommendation,
@@ -142,14 +130,6 @@ function DecisionDetailStepContent({
             <div
               className="rounded-xl border p-3"
               style={{ borderColor: "var(--border)" }}
-              data-testid="decision-preview-confidence"
-            >
-              <p className="text-muted text-xs font-medium uppercase">Độ tin cậy</p>
-              <p className="mt-1 text-sm">{confidenceLabel(impact.confidence)}</p>
-            </div>
-            <div
-              className="rounded-xl border p-3"
-              style={{ borderColor: "var(--border)" }}
               data-testid="decision-preview-risks"
             >
               <p className="text-muted text-xs font-medium uppercase">Rủi ro tiềm ẩn</p>
@@ -175,8 +155,7 @@ function DecisionDetailStepContent({
           >
             <p className="font-medium">{recommendation.workflow_name}</p>
             <p className="text-muted mt-1 text-sm">
-              {impact.metric}: {formatNumber(impact.value)} · Độ tin cậy{" "}
-              {confidenceLabel(impact.confidence).toLowerCase()}
+              {impact.metric}: {formatNumber(impact.value)} điểm
             </p>
           </div>
         </div>

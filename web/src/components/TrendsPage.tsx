@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Flame,
+  Handshake,
+  Search,
+  Sparkles,
+  Star,
+  Store,
+  UserRound,
+} from "lucide-react";
 import { AuthenticatedShell } from "./AuthenticatedShell";
 import { formatNumber, formatVND } from "@/lib/format";
 import type { TrendsTab } from "@/lib/mock-data/trends";
@@ -61,8 +71,12 @@ function ProductTab({
           data-testid="trends-product-card"
           style={{ borderColor: "var(--border)", background: "var(--card)" }}
         >
-          <p className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>
-            🔥 #{product.rank}
+          <p
+            className="flex items-center gap-1 text-xs font-medium"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            <Flame size={14} aria-hidden style={{ color: "var(--primary)" }} />
+            #{product.rank}
           </p>
           <h3 className="mt-1 font-semibold">{product.name}</h3>
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
@@ -102,12 +116,19 @@ function CreatorTabSeller({ data }: { data: TrendsResults }) {
           data-testid="trends-creator-card"
           style={{ borderColor: "var(--border)", background: "var(--card)" }}
         >
-          <h3 className="font-semibold">{creator.handle}</h3>
+          <h3 className="flex items-center gap-1.5 font-semibold">
+            <UserRound size={16} aria-hidden style={{ color: "var(--muted-foreground)" }} />
+            {creator.handle}
+          </h3>
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
             {formatNumber(creator.followers)} followers · {creator.category}
           </p>
-          <p className="mt-2 text-sm" data-testid="trends-creator-brand-fit">
-            ✨ Điểm phù hợp thương hiệu: {formatPct(creator.brand_fit_score, 0)}
+          <p
+            className="mt-2 flex items-center gap-1.5 text-sm"
+            data-testid="trends-creator-brand-fit"
+          >
+            <Sparkles size={14} aria-hidden style={{ color: "var(--primary)" }} />
+            Điểm phù hợp thương hiệu: {formatPct(creator.brand_fit_score, 0)}
           </p>
           <p className="text-sm">
             Chuyển đổi TB: {formatPct(creator.avg_conversion_rate)} · Hoàn trả:{" "}
@@ -133,7 +154,10 @@ function CreatorTabAffiliate({ data }: { data: TrendsResults }) {
           data-testid="trends-creator-card"
           style={{ borderColor: "var(--border)", background: "var(--card)" }}
         >
-          <h3 className="font-semibold">{creator.handle}</h3>
+          <h3 className="flex items-center gap-1.5 font-semibold">
+            <UserRound size={16} aria-hidden style={{ color: "var(--muted-foreground)" }} />
+            {creator.handle}
+          </h3>
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
             {formatNumber(creator.followers)} followers · {creator.category}
           </p>
@@ -166,9 +190,13 @@ function ShopTabSeller({ data }: { data: TrendsResults }) {
           data-testid="trends-shop-card"
           style={{ borderColor: "var(--border)", background: "var(--card)" }}
         >
-          <h3 className="font-semibold">🏪 {shop.name}</h3>
-          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            {shop.rating}★ · {formatNumber(shop.followers)} followers · {shop.category}
+          <h3 className="flex items-center gap-1.5 font-semibold">
+            <Store size={16} aria-hidden style={{ color: "var(--muted-foreground)" }} />
+            {shop.name}
+          </h3>
+          <p className="flex items-center gap-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
+            <Star size={14} aria-hidden className="fill-current" style={{ color: "var(--warning)" }} />
+            {shop.rating} · {formatNumber(shop.followers)} followers · {shop.category}
           </p>
           <p className="mt-2 text-sm" data-testid="trends-shop-network-size">
             Số creator hợp tác: ~{shop.creator_network_size}
@@ -176,8 +204,13 @@ function ShopTabSeller({ data }: { data: TrendsResults }) {
           <p className="text-sm">Hoa hồng đang trả: {shop.commission_range_pct}</p>
           <p className="text-sm">Sản phẩm bán chạy: {shop.top_product}</p>
           {shop.commission_delta_alert ? (
-            <p className="text-sm" data-testid="trends-shop-commission-alert">
-              ⚠️ Tăng hoa hồng {shop.commission_delta_alert}
+            <p
+              className="flex items-center gap-1.5 text-sm"
+              data-testid="trends-shop-commission-alert"
+              style={{ color: "var(--warning)" }}
+            >
+              <AlertTriangle size={14} aria-hidden className="shrink-0" />
+              Tăng hoa hồng {shop.commission_delta_alert}
             </p>
           ) : null}
         </article>
@@ -199,18 +232,36 @@ function ShopTabAffiliate({ data }: { data: TrendsResults }) {
           data-testid="trends-shop-card"
           style={{ borderColor: "var(--border)", background: "var(--card)" }}
         >
-          <h3 className="font-semibold">🤝 {shop.name}</h3>
-          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            {shop.rating}★ · {formatNumber(shop.followers)} followers · {shop.category}
+          <h3 className="flex items-center gap-1.5 font-semibold">
+            <Handshake size={16} aria-hidden style={{ color: "var(--muted-foreground)" }} />
+            {shop.name}
+          </h3>
+          <p className="flex items-center gap-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
+            <Star size={14} aria-hidden className="fill-current" style={{ color: "var(--warning)" }} />
+            {shop.rating} · {formatNumber(shop.followers)} followers · {shop.category}
           </p>
-          <p className="mt-2 text-sm" data-testid="trends-shop-audience-fit">
-            ✨ Độ phù hợp với audience: {formatPct(shop.audience_fit_score, 0)}
+          <p
+            className="mt-2 flex items-center gap-1.5 text-sm"
+            data-testid="trends-shop-audience-fit"
+          >
+            <Sparkles size={14} aria-hidden style={{ color: "var(--primary)" }} />
+            Độ phù hợp với audience: {formatPct(shop.audience_fit_score, 0)}
           </p>
           <p className="text-sm">
             Hoa hồng: {shop.commission_range} · TB: {shop.avg_commission_pct}%
           </p>
           <p className="text-sm">
-            Chấp nhận creator mới: {shop.accepts_new_affiliates ? "✓ Có" : "Không"}
+            <span className="inline-flex items-center gap-1">
+              Chấp nhận creator mới:{" "}
+              {shop.accepts_new_affiliates ? (
+                <>
+                  <Check size={14} aria-hidden style={{ color: "var(--success)" }} />
+                  Có
+                </>
+              ) : (
+                "Không"
+              )}
+            </span>
           </p>
           <p className="text-sm">Thời gian duyệt mẫu: ~{shop.sample_approval_days} ngày</p>
         </article>

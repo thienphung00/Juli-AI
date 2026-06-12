@@ -53,7 +53,7 @@ function PersonaButton({
       aria-pressed={isActive}
       aria-label={label}
       onClick={() => onSelect(id)}
-      className="rounded-full px-2 py-1 text-[10px] font-semibold transition-opacity hover:opacity-90 sm:px-2.5 sm:text-xs"
+      className="min-h-[32px] rounded-full px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-90"
       style={{
         background: isActive ? "var(--primary)" : "transparent",
         color: isActive ? "#fff" : "var(--foreground)",

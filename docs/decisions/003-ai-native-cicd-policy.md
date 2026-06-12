@@ -125,7 +125,7 @@ fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
 - [`.cursor/skills/standalone/ship/ci-examples.md`](../../.cursor/skills/standalone/ship/ci-examples.md) — replaced with pointer to real workflows
 - [`.cursor/skills/workflow/build-feature/SKILL.md`](../../.cursor/skills/workflow/build-feature/SKILL.md) and [`fix-bug/SKILL.md`](../../.cursor/skills/workflow/fix-bug/SKILL.md) — chain updated
 - [`.cursor/skills/standalone/focus/routing-rules.md`](../../.cursor/skills/standalone/focus/routing-rules.md) — adds validation-stage routing
-- [`.cursor/rules/dev-workflow.mdc`](../../.cursor/rules/dev-workflow.mdc) — CI/CD subsection
+- [`.cursor/rules/git-baseline.mdc`](../../.cursor/rules/git-baseline.mdc) — CI/CD subsection
 
 **Operational impact:**
 
@@ -146,7 +146,7 @@ fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
 
 - Source policy and implementation drafts: `docs/ci/implementation-guide.md`,
   `docs/ci/quick-reference.md`, `docs/ci/troubleshooting.md`
-- [`.cursor/rules/dev-workflow.mdc`](../../.cursor/rules/dev-workflow.mdc) — version control + CI/CD rule
+- [`.cursor/rules/git-baseline.mdc`](../../.cursor/rules/git-baseline.mdc) — version control + CI/CD rule
 - [`.cursor/rules/issue-workflow.mdc`](../../.cursor/rules/issue-workflow.mdc) — disjoint-modules concurrency rule
 - [`docs/architecture/map.md`](../architecture/map.md) — authoritative module list
 - [`EXECUTION.md`](../../EXECUTION.md) — single source of truth (plan + cross-session ownership)

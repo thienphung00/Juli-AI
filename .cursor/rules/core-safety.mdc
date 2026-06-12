@@ -1,0 +1,14 @@
+---
+description: Core safety — secrets, injection, authZ essentials (always on)
+alwaysApply: true
+---
+
+# Core Safety
+
+Minimal security guardrails always active. For full standards, Focus loads `.cursor/rules/security.mdc` when auth, PII, financial data, or user input is involved.
+
+- **Never commit secrets** — use env vars or a secrets manager; `.env` in `.gitignore`.
+- **Validate at boundaries** — HTTP requests, webhooks, events, file inputs; server-side even if client validates.
+- **Parameterized data access** — no string interpolation in SQL/commands; use ORM or bound parameters.
+- **AuthZ at service layer** — not only at router/controller; least-privilege for tokens and API keys.
+- **Safe logging** — never log passwords, tokens, PII, or full card numbers; redact in error messages.

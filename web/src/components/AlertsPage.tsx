@@ -194,7 +194,7 @@ export function AlertsPage() {
               <button
                 type="button"
                 className="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)" }}
+                style={{ background: "var(--brand-gradient)" }}
                 onClick={onSave}
                 disabled={saving || rules.length === 0}
                 data-testid="save-alert-config"

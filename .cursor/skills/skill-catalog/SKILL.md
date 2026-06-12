@@ -6,7 +6,7 @@ description: >-
   Sentry, Figma, shadcn, library docs, browser/Playwright, Celery, Upstash) or when
   focus/build-feature/fix-bug needs to name the right plugin skill to load.
 catalog:
-  updated: "2026-06-03"
+  updated: "2026-06-09"
   projectStack:
     - python-fastapi
     - nextjs-web
@@ -153,6 +153,7 @@ catalog:
       - qa
       - to-prd
       - to-issues
+      - ui-ux-design
     domain:
       - python-patterns
       - python-testing
@@ -161,6 +162,16 @@ catalog:
   routing:
     readRules:
       - .cursor/rules/mcp-usage.mdc
+      - .cursor/rules/core-orchestration.mdc
+    tier1AlwaysOn:
+      - .cursor/rules/core-safety.mdc
+      - .cursor/rules/core-orchestration.mdc
+      - .cursor/rules/mcp-usage.mdc
+      - .cursor/rules/git-baseline.mdc
+    lazyLoad:
+      pluginSkills: true
+      mcpToolSchemas: true
+      tier2Rules: focus
     loadPluginSkillBeforeMcp:
       figma:
         - figma-use
@@ -174,10 +185,23 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 
 ## How agents should use this
 
-1. **Task involves an external product** (Supabase, Next.js deploy, Sentry, Figma, shadcn, library docs) → find the matching `catalog.mcpServers[].when` row, then **read and follow** the listed plugin `skills` before calling MCP tools.
-2. **MCP server name** for `CallMcpTool` must match `serverName` from `~/.cursor/projects/<project>/mcps/<folder>/SERVER_METADATA.json`, not the folder id alone.
-3. **Do not load every plugin skill** — pick the smallest set for the task (e.g. `sentry-python-sdk` only for FastAPI work).
-4. **Project skills** under `.cursor/skills/` are listed in `catalog.projectSkills`; use those for delivery workflow, not marketplace plugins.
+1. **Focus runs first** — [`.cursor/skills/standalone/focus/SKILL.md`](../standalone/focus/SKILL.md) selects capabilities; this catalog is the index, not a load-everything list.
+2. **Task involves an external product** → find matching `catalog.mcpServers[].when`, then **read and follow** listed plugin `skills` before calling MCP tools.
+3. **MCP server name** for `CallMcpTool` must match `serverName` from `~/.cursor/projects/<project>/mcps/<folder>/SERVER_METADATA.json`.
+4. **Do not load every plugin skill** — Cursor may list all marketplace skills in UI; ignore unselected ones. Pick the smallest set (e.g. `sentry-python-sdk` only for FastAPI work).
+5. **MCP tool schemas** — read from `mcps/<folder>/tools/` only after Focus lists that server in the Context Plan.
+6. **Project skills** under `.cursor/skills/` are in `catalog.projectSkills`; load per Focus workflow phase, not at startup.
+
+## Lazy-load contract
+
+| Surface | Default at startup | Load when |
+|---------|-------------------|-----------|
+| Tier 1 rules | Always (4 files) | — |
+| Tier 2 rules | No | Focus `RULE_TRIGGERS` |
+| Repo workflow skills | No | Focus workflow phase |
+| Domain pattern files | No | Language/stack detected |
+| Plugin skills | No | skill-catalog `when` + Focus |
+| MCP tool JSON | No | Focus selects server |
 
 ## Quick routing (Juli stack)
 
@@ -186,7 +210,7 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 | Alembic, RLS, Supabase auth | `supabase` | `supabase`, `supabase-postgres-best-practices` |
 | FastAPI / pytest change | — | `.cursor/skills/domain/python-*` |
 | `web/` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
-| Add UI component | `shadcn` (user-shadcn) | `shadcn` |
+| Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
 | TikTok API / webhooks | — | `docs/tiktok_api/`, MODULE.md (no plugin) |
 | New vendor API onboarding | `context7` | `api-docs` → `context7-mcp` |
@@ -201,7 +225,7 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 When the team adds or removes a Cursor marketplace plugin:
 
 1. Update `catalog.mcpServers` in this file (frontmatter).
-2. Align `.cursor/rules/mcp-usage.mdc` server table.
+2. Align `.cursor/rules/mcp-usage.mdc` principles if routing behavior changes.
 3. Add a row to `focus/routing-rules.md` if new detection patterns are needed.
 
 Plugin skills are **not** copied into this repo; they remain in the plugin install path. This catalog only documents names and routing so agents can invoke `/skill-name` when relevant.

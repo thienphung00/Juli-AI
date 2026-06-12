@@ -21,6 +21,9 @@
 | [023](023-listing-export-service.md) | Listing export service — client-side CSV/JSON from ProductDraft (P1.6-4) | Accepted |
 | [024](024-shop-progress-tracker.md) | Shop progress tracker — session-scoped listing milestone + widget states (P1.6-5) | Accepted |
 | [025](025-revenue-leakage-workflow-scope.md) | Revenue Leakage executable workflow — P1.7 mock modal journeys, P2-9/P2-10 executors | Accepted |
+| [026](026-operations-system-orchestration.md) | Operations-system orchestration (Phase 1.8) — pipeline + 2 shop profiles + validated workflow catalog + scoped inventory | Accepted |
+| [027](027-design-system-token-foundation.md) | Design system & token foundation (Phase 1.8) — theme swap (Seller light / Affiliate dark), one font + ≤6-size scale, semantic palette, states, elevation, motion | Accepted |
+| [028](028-decision-copilot-app-structure.md) | Decision Copilot app structure (Phase 1.8) — 3-tab IA (Home / Decisions / Juli Chat); Decision as primary object; Home read-only; approval on Decisions only | Accepted |
 
 ADRs 006–007 are **historical**: the product was rescoped from creator↔shop
 matching to **seller-money** workflows (New Seller Copilot, Revenue Leakage

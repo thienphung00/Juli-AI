@@ -1,7 +1,7 @@
 /**
  * Issue #195 — Decisions Recommended tab + approval gate relocation (ADR-028 P1.8-9)
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DecisionsPage } from "@/components/DecisionsPage";
 import { HomePage } from "@/components/HomePage";
@@ -112,12 +112,16 @@ describe("Issue #195: Recommended tab full ranked list", () => {
     );
   });
 
-  it("surfaces required inputs and review link on each decision card", async () => {
+  it("surfaces required inputs and detail link inside expanded decision card", async () => {
+    const user = userEvent.setup();
     renderDecisionsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId("approval-approve-npl")).toBeInTheDocument();
     });
+
+    const nplCard = document.querySelector('[data-workflow-id="npl"]') as HTMLElement;
+    await user.click(within(nplCard).getByTestId("reasoning-expand-toggle"));
 
     expect(screen.getByTestId("decision-required-inputs-npl")).toBeInTheDocument();
     expect(screen.getByTestId("decision-review-npl")).toHaveAttribute("href", "/decisions/npl");
