@@ -95,6 +95,9 @@ describe("Issue #120: evidence drill-down", () => {
     const persona = loadPersona("leakage");
     renderLeakagePanel(persona);
 
+    await waitFor(() => {
+      expect(screen.getAllByTestId("task-more-menu").length).toBeGreaterThan(0);
+    });
     const moreMenus = screen.getAllByTestId("task-more-menu");
     await user.click(moreMenus[0]!);
     const evidenceButtons = screen.getAllByTestId("task-view-evidence");
