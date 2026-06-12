@@ -65,22 +65,21 @@ describe("Mode selection gate (#76)", () => {
       user: { id: "user-1", phone: "+84912345678" },
     });
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderWithProviders(<LoginForm />);
 
-    await user.type(screen.getByLabelText("Số điện thoại"), "+84912345678");
+    const phoneInput = screen.getByLabelText("Số điện thoại");
+    await user.type(phoneInput, "+84912345678");
+    expect(phoneInput).toHaveValue("+84912345678");
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
       expect(mockSendOtp).toHaveBeenCalled();
     });
 
-    await waitFor(
-      () => {
-        expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
-      },
-      { timeout: 5000 },
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("otp-segmented-input")).toBeInTheDocument();
+    });
 
     const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
     for (let i = 0; i < 6; i++) {
