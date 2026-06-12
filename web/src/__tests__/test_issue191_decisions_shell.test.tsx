@@ -95,4 +95,14 @@ describe("Issue #191: white canvas + 3-tab nav + decisions shell", () => {
       ]),
     );
   });
+
+  it("documents /decisions route and 3-tab nav contract in web/MODULE.md", () => {
+    const moduleDoc = fs.readFileSync(
+      path.join(__dirname, "../../MODULE.md"),
+      "utf8",
+    );
+    expect(moduleDoc).toMatch(/\/decisions/);
+    expect(moduleDoc).toMatch(/Quyết định/);
+    expect(moduleDoc).toMatch(/BOTTOM_NAV_TABS/);
+  });
 });
