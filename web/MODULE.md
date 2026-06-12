@@ -41,6 +41,30 @@ modules, orders management with filtering and shipment confirmation.
 - Tailwind CSS
 - Vietnamese locale (VND ₫ formatting, diacritics, ICT timezone)
 
+## Decision object (ADR-028, #192)
+
+Primary seller-facing UI object — one envelope per validated `workflow_id` (ADR-026 six-workflow catalog).
+
+| Field | Source |
+|-------|--------|
+| `id` | `workflow_id` |
+| `title` | `workflow_name` |
+| `estimated_impact` | `expected_impact.metric` + `value` |
+| `confidence` | `expected_impact.confidence` |
+| `reasoning_summary` | `rationale` |
+| `required_inputs` | Per-workflow mock catalog |
+| `status` | `recommended` \| `needs_input` \| `executing` \| `completed` |
+
+Mapping lives in `lib/decisions/` (`toDecision`, `takeTopDecisions`, `applyDecisionLifecycle`). Home preview caps at **3**; Decisions Recommended shows the full ranked list.
+
+## White canvas invariant (ADR-028, #191)
+
+Seller workspace (`html` without `.dark`):
+
+- `--background`, `--header-background`, `--muted` → `#FFFFFF` (not pink tint `#FEF5F6`)
+- Brand pink `#F86BA5` is accent-only (health bars, primary CTAs, Juli tab highlight)
+- Affiliate workspace keeps dark canvas per ADR-027
+
 ## Bottom navigation (ADR-028, #191)
 Seller workspace exposes exactly **3** fixed tabs via `BOTTOM_NAV_TABS` in `lib/nav-config.ts`:
 
