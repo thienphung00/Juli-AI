@@ -7,6 +7,8 @@ Rules-based shop profile classification, health check indicators, and validated 
 - `classifyShopProfile(unifiedModel) → NEW_SHOP | MID_LARGE_SHOP` — pure classifier from `unified_operational_data_model`
 - `computeHealthCheckResults(unifiedModel) → health_check_results` — pure health indicators keyed by indicator ID (P1.8-3)
 - `rankWorkflowRecommendations(profile, health) → workflow_recommendations` — pure ranking by profile + health signals (P1.8-4)
+- `buildWorkflowReasoning(recommendation, health) → WorkflowReasoning` — rules-only Why / Impact / Next Steps copy (P1.8-5)
+- `loadWorkflowOutcomeMetrics(workflowId) → workflow_outcome_metrics` — mock outcome envelope + ADR-026 Appendix B success criteria (P1.8-7)
 - `useOperationsPipeline({ personaId })` / `runOperationsPipeline(personaId)` — load → classify → health → rank (P1.8-4)
 - `HEALTH_INDICATOR_TRACEABILITY_MAP` / `getWorkflowsForHealthIndicator(id)` — indicator→workflow traceability (ADR-026 constraint #5)
 - `WORKFLOW_CATALOG` / `getWorkflowsForProfile(profile)` — ADR-026 Appendix A profile→workflow map (six workflows only)
@@ -44,7 +46,36 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | NEW_SHOP | NPL, Minimize Violations | Probation timeline urgency + SPS/AHR gaps; never growth/loss workflows |
 | MID_LARGE_SHOP | Budget, Scaling, Refund Spike, Stockout | Impact/urgency from health indicators; impact-threshold filter skipped until Product sets `MID_LARGE_IMPACT_THRESHOLD_VND` in EXECUTION.md |
 
-## Out of scope (later slices)
+## Reasoning copy layer (P1.8-5)
 
-- Rules-only reasoning panel (`workflows/operations/`, P1.8-5)
-- Unified approval gate UI (P1.8-6)
+| Workflow | Why signals | Next steps |
+|----------|-------------|------------|
+| NPL | probation_progress, sps_health | Listing prep + SPS follow-up |
+| Minimize Violations | ahr_health | Violation center triage |
+| Budget Optimization | ad_roas_efficiency | Pause/reallocate underperforming campaigns |
+| Product Scaling | product_scaling_opportunity | Scale top SKU ads + inventory |
+| Refund Spike | refund_spike_indicator | Root-cause refund review |
+| Stockout Prevention | inventory_health | Reorder at-risk SKUs |
+
+UI: `web/src/components/workflows/operations/` — `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsPipelineShell`, `OutcomeTrackingView` (P1.8-5…7).
+
+## Approval gate & routing (P1.8-6)
+
+| Workflow | Route | Executor |
+|----------|-------|----------|
+| `npl` | listing | `ListingWorkflowPanel` via `list_products` task |
+| `refund_spike_detection` | leakage | `LeakageWorkflowPanel` via mapped P1.7 task type |
+| others | noop | Session-only approval + Phase 2 toast |
+
+Session: `operations/approval-session.ts` (workflow dispositions) + `use-operations-approval.ts` (selective / approve-all / reject-with-reason via `TaskDismissModal`).
+
+## Outcome tracking (P1.8-7)
+
+| Cadence | Purpose |
+|---------|---------|
+| `realtime` | Execution status immediately after approval |
+| `daily` | Preliminary 24h readings |
+| `weekly` | Full assessment vs ADR-026 Appendix B threshold |
+| `monthly` | Aggregate trend |
+
+Success criteria copy is frozen in `WORKFLOW_OUTCOME_SUCCESS_CRITERIA` (ADR-026 Appendix B). UI: `OutcomeTrackingView` with cadence tabs; reachable from approved Clarity Cards without clearing executor session.

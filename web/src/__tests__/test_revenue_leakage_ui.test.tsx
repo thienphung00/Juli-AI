@@ -142,20 +142,20 @@ describe("Issue #120: empty state", () => {
 });
 
 describe("Issue #120: shell integration", () => {
-  it("renders LeakageCopilotPanel when workflow is leakage", async () => {
+  it("renders operations pipeline shell when leakage persona is selected", async () => {
     renderSellerHomeWithPersona("leakage");
 
     await waitFor(() => {
-      expect(screen.getByTestId("leakage-copilot-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
     });
 
-    expect(screen.queryByTestId("task-queue")).not.toBeInTheDocument();
-    expect(screen.getByTestId("workflow-stage")).toHaveAttribute("data-stage", "leakage");
+    expect(screen.queryByTestId("leakage-copilot-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
   });
 
-  it("approve/dismiss uses shared executor on leakage tasks", async () => {
+  it("approve/dismiss uses shared executor on leakage copilot panel tasks", async () => {
     const user = userEvent.setup();
-    renderSellerHomeWithPersona("leakage");
+    renderLeakagePanel(loadPersona("leakage"));
 
     await waitFor(() => {
       expect(screen.getAllByTestId("task-card").length).toBeGreaterThan(0);

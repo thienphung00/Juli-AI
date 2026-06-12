@@ -22,12 +22,33 @@ export {
   MID_LARGE_IMPACT_THRESHOLD_VND,
   rankWorkflowRecommendations,
 } from "./recommendations";
+export {
+  buildWorkflowReasoning,
+  REASONING_COPY_SOURCE,
+  WORKFLOW_REASONING_TEMPLATES,
+} from "./reasoning";
+export type { ReasoningCopySource, WorkflowReasoning } from "./reasoning";
 export type {
   ImpactConfidence,
   WorkflowExpectedImpact,
   WorkflowRecommendation,
   WorkflowRecommendations,
 } from "./recommendations";
+export {
+  loadAllWorkflowOutcomeMetrics,
+  loadWorkflowOutcomeMetrics,
+  OUTCOME_CADENCE_IDS,
+  WORKFLOW_OUTCOME_SUCCESS_CRITERIA,
+  getWorkflowOutcomeSuccessCriteria,
+} from "./outcome-metrics";
+export type {
+  OutcomeCadenceId,
+  OutcomeCadenceSlice,
+  OutcomeMetricReading,
+  OutcomeReadingStatus,
+  WorkflowOutcomeMetrics,
+  WorkflowOutcomeSuccessCriteria,
+} from "./outcome-metrics";
 export { runOperationsPipeline, useOperationsPipeline } from "./use-operations-pipeline";
 export type {
   OperationsPipelineState,

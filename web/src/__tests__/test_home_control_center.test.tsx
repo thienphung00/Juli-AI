@@ -62,8 +62,8 @@ describe("Home control center (#79, #118)", () => {
       });
 
       expect(document.documentElement.classList.contains("dark")).toBe(false);
-      expect(screen.getByTestId("workflow-breadcrumb")).toBeInTheDocument();
-      expect(screen.getByTestId("task-queue")).toBeInTheDocument();
+      expect(screen.getByTestId("operations-pipeline-shell")).toBeInTheDocument();
+      expect(screen.getByTestId("shop-health-hero")).toBeInTheDocument();
       expect(screen.queryByTestId("home-hero-matches")).not.toBeInTheDocument();
     });
   });
