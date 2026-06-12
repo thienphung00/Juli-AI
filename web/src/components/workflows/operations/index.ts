@@ -2,6 +2,7 @@ export { ApprovalClarityCard, ApprovalGateToolbar, OperationsRecommendationsList
 export { ClarityCard } from "./ClarityCard";
 export { DecisionPreviewCard } from "./DecisionPreviewCard";
 export { HomeSummaryShell } from "./HomeSummaryShell";
+export { OperationsApprovalShell } from "./OperationsApprovalShell";
 export { OperationsPipelineShell } from "./OperationsPipelineShell";
 export { RecommendedDecisionsPreview } from "./RecommendedDecisionsPreview";
 export { OutcomeTrackingView } from "./OutcomeTrackingView";

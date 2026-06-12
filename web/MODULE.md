@@ -20,7 +20,7 @@ modules, orders management with filtering and shipment confirmation.
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — Seller home shell (workflow breadcrumb + persona tasks); canonical seller entry (#118, #123)
 - `toDecision`, `takeTopDecisions`, `applyDecisionLifecycle` — Decision view-model mapping `workflow_recommendations` → seller-facing Decision envelopes (`lib/decisions/`, #192)
-- `/decisions` — Decisions tab shell (placeholder; sub-tabs in #195+); ADR-028 3-tab IA (#191)
+- `/decisions` — Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; approval gate + full ranked list on Recommended (#195); ADR-028 3-tab IA (#191)
 - `/creators` — Legacy creator-matching; 301 → `/` (#123)
 - `/recommendations` — Legacy decision feed; 301 → `/decisions` (#191)
 - `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)

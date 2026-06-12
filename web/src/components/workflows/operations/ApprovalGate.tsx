@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+
+import { getRequiredInputsForWorkflow, type RequiredInput } from "@/lib/decisions";
 import type { ValidatedWorkflowId } from "@/lib/mock-data/operations/schemas";
 import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 import type { WorkflowApprovalDisposition } from "@/lib/operations/approval-session";
@@ -76,6 +79,7 @@ export function ApprovalClarityCard({
   personaId,
   disposition,
   selected,
+  requiredInputs,
   onToggleSelect,
   onApprove,
   onReject,
@@ -86,6 +90,7 @@ export function ApprovalClarityCard({
   personaId?: PersonaId;
   disposition: WorkflowApprovalDisposition;
   selected: boolean;
+  requiredInputs?: RequiredInput[];
   onToggleSelect: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -109,6 +114,34 @@ export function ApprovalClarityCard({
       )}
 
       <ClarityCard recommendation={recommendation} health={health} personaId={personaId} />
+
+      {requiredInputs && requiredInputs.length > 0 && (
+        <div
+          className="rounded-xl border px-3 py-2"
+          style={{ borderColor: "var(--border)" }}
+          data-testid={`decision-required-inputs-${workflowId}`}
+        >
+          <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+            Thông tin cần có
+          </p>
+          <ul className="text-muted mt-1 list-inside list-disc text-sm">
+            {requiredInputs.map((input) => (
+              <li key={input.key}>
+                {input.label}
+                {!input.required ? " (tùy chọn)" : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Link
+        href={`/decisions/${workflowId}`}
+        className="btn-secondary inline-flex w-full items-center justify-center"
+        data-testid={`decision-review-${workflowId}`}
+      >
+        Xem chi tiết
+      </Link>
 
       {disposition === "approved" && (
         <div className="space-y-2">
@@ -209,6 +242,7 @@ export function OperationsRecommendationsList({
           personaId={personaId}
           disposition={getDisposition(recommendation.workflow_id)}
           selected={selectedIds.has(recommendation.workflow_id)}
+          requiredInputs={getRequiredInputsForWorkflow(recommendation.workflow_id)}
           onToggleSelect={() => onToggleSelect(recommendation.workflow_id)}
           onApprove={() => onApprove(recommendation.workflow_id)}
           onReject={() => onReject(recommendation.workflow_id)}
