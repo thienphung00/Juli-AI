@@ -33,6 +33,7 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: mockPush, back: mockBack }),
   usePathname: () => mockPathname,
   useParams: () => ({ decisionId: mockDecisionId }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderDecisionsPage() {

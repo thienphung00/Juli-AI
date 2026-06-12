@@ -12,6 +12,14 @@ import {
   resolveTaskForWorkflow,
 } from "./approval-routing";
 import {
+  loadDecisionLifecycleSession,
+  markDecisionExecutorCompleted,
+  markDecisionExecutorExecuting,
+  markDecisionInputsCollected,
+  saveDecisionLifecycleSession,
+  type DecisionLifecycleSession,
+} from "@/lib/decisions/lifecycle-store";
+import {
   getWorkflowDisposition,
   loadOperationsApprovalSession,
   saveOperationsApprovalSession,
@@ -37,6 +45,9 @@ export function useOperationsApproval(options: {
   const [session, setSession] = useState<OperationsApprovalSession>(() =>
     loadOperationsApprovalSession(personaId),
   );
+  const [lifecycleSession, setLifecycleSession] = useState<DecisionLifecycleSession>(() =>
+    loadDecisionLifecycleSession(personaId),
+  );
   const [selectedIds, setSelectedIds] = useState<Set<ValidatedWorkflowId>>(() => new Set());
   const [rejectModalWorkflowId, setRejectModalWorkflowId] = useState<ValidatedWorkflowId | null>(
     null,
@@ -48,7 +59,12 @@ export function useOperationsApproval(options: {
   }, [session]);
 
   useEffect(() => {
+    saveDecisionLifecycleSession(lifecycleSession);
+  }, [lifecycleSession]);
+
+  useEffect(() => {
     setSession(loadOperationsApprovalSession(personaId));
+    setLifecycleSession(loadDecisionLifecycleSession(personaId));
     setSelectedIds(new Set());
     setRejectModalWorkflowId(null);
     setWorkflowFeedback(null);
@@ -138,6 +154,7 @@ export function useOperationsApproval(options: {
         const result = routeApprovedWorkflow(workflowId);
         if (result.openedExecutor) {
           openedExecutor = true;
+          setLifecycleSession((prev) => markDecisionExecutorExecuting(prev, workflowId));
         }
       }
 
@@ -204,8 +221,26 @@ export function useOperationsApproval(options: {
 
   const feedback = executor.feedback ?? workflowFeedback;
 
+  const completeLeakageWorkflow = useCallback(() => {
+    executor.completeLeakageWorkflow();
+    setLifecycleSession((prev) =>
+      markDecisionExecutorCompleted(prev, "refund_spike_detection"),
+    );
+  }, [executor.completeLeakageWorkflow]);
+
+  const recordInputsCollected = useCallback((workflowId: ValidatedWorkflowId) => {
+    setLifecycleSession((prev) => markDecisionInputsCollected(prev, workflowId));
+  }, []);
+
+  const executorWithLifecycle = {
+    ...executor,
+    completeLeakageWorkflow,
+  };
+
   return {
     session,
+    lifecycleSession,
+    recordInputsCollected,
     pendingRecommendations,
     selectedIds,
     toggleSelection,
@@ -223,7 +258,7 @@ export function useOperationsApproval(options: {
       clearWorkflowFeedback();
       executor.clearFeedback();
     },
-    executor,
+    executor: executorWithLifecycle,
     getDisposition: (workflowId: ValidatedWorkflowId) =>
       getWorkflowDisposition(session, workflowId),
   };

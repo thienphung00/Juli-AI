@@ -37,6 +37,24 @@ export {
   DECISIONS_RECOMMENDED_SCROLL_KEY,
 } from "./detail-content";
 export {
+  buildInProgressDecisions,
+  filterApprovedRecommendations,
+  hasOutcomeTracking,
+  IN_PROGRESS_STATUS_LABELS,
+  resolveWorkflowExecutorStatus,
+  toInProgressDecision,
+} from "./in-progress";
+export {
+  clearDecisionLifecycleSession,
+  loadDecisionLifecycleSession,
+  markDecisionExecutorCompleted,
+  markDecisionExecutorExecuting,
+  markDecisionInputsCollected,
+  saveDecisionLifecycleSession,
+  type DecisionLifecycleRecord,
+  type DecisionLifecycleSession,
+} from "./lifecycle-store";
+export {
   buildContextualSuggestedPrompts,
   buildDecisionAwareMockReply,
   buildDecisionAwareWelcome,

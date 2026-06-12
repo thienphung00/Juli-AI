@@ -22,6 +22,8 @@ Object.defineProperty(window, "matchMedia", {
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn(), back: jest.fn() }),
   usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({}),
 }));
 
 beforeEach(() => {
