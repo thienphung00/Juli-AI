@@ -1,0 +1,95 @@
+import type { UnifiedOperationalDataModel } from "../schemas";
+
+/** Stable fixture aligned with `new-persona.ts` (shop_mai_linh_001). */
+export const NEW_SHOP_OPERATIONAL_MODEL: UnifiedOperationalDataModel = {
+  shop_metadata: {
+    shop_id: "shop_mai_linh_001",
+    shop_name: "Cửa Hàng Mỹ Phẩm Mai Linh",
+    profile: "NEW_SHOP",
+    probation_status: "active",
+    graduation_date: null,
+    shop_age_days: 18,
+  },
+  probation: {
+    probation_start_date: "2026-05-25T00:00:00.000Z",
+    probation_end_date: "2026-07-25T00:00:00.000Z",
+    sps_current: 2.8,
+    sps_threshold: 4.0,
+    ahr_current: 78,
+    ahr_threshold: 90,
+    violations: [
+      {
+        violation_id: "viol_new_001",
+        category: "Misleading product claims",
+        count: 2,
+        severity: "medium",
+      },
+      {
+        violation_id: "viol_new_002",
+        category: "Late shipment rate",
+        count: 1,
+        severity: "high",
+      },
+    ],
+  },
+  ad_campaigns: [],
+  products: [
+    {
+      product_id: "prod_new_001",
+      sku_id: "sku_new_001",
+      product_name: "Serum Vitamin C 20ml — Dưỡng Sáng Da",
+      category: "Skincare",
+      units_sold_24h: 1,
+      units_sold_7d: 3,
+      units_sold_30d: 4,
+      revenue_vnd_24h: 289_000,
+      revenue_vnd_7d: 867_000,
+      revenue_vnd_30d: 1_156_000,
+      price_vnd: 289_000,
+      margin_pct: 42,
+      sell_through_rate: 0.18,
+    },
+    {
+      product_id: "prod_new_002",
+      sku_id: "sku_new_002",
+      product_name: "Kem Chống Nắng SPF50+ 50g",
+      category: "Skincare",
+      units_sold_24h: 0,
+      units_sold_7d: 2,
+      units_sold_30d: 2,
+      revenue_vnd_24h: 0,
+      revenue_vnd_7d: 698_000,
+      revenue_vnd_30d: 698_000,
+      price_vnd: 349_000,
+      margin_pct: 38,
+      sell_through_rate: 0.12,
+    },
+  ],
+  inventory: [
+    {
+      product_id: "prod_new_001",
+      sku_id: "sku_new_001",
+      inventory_level: 48,
+      sales_velocity_units_per_day: 0.4,
+      reorder_lead_time_days: 7,
+    },
+  ],
+  returns: {
+    refund_count_7d: 0,
+    refund_count_30d: 1,
+    refund_rate_7d: 0,
+    refund_rate_30d: 0.03,
+    baseline_refund_rate_30d: 0.05,
+    top_refund_reasons: [
+      {
+        reason: "Không vừa size / màu",
+        count_30d: 1,
+        share_pct: 100,
+      },
+    ],
+    pending_return_authorizations: [],
+  },
+  health_data_source: "mock",
+  collected_at: "2026-06-12T08:00:00.000Z",
+  demo_persona_id: "new",
+};
