@@ -70,8 +70,15 @@ describe("Mode selection gate (#76)", () => {
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
+      expect(mockSendOtp).toHaveBeenCalled();
     });
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
 
     const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
     for (let i = 0; i < 6; i++) {

@@ -13,7 +13,6 @@ jest.mock("next/navigation", () => ({
 beforeEach(() => {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   applyWorkspaceTheme("seller");
-  clearTaskExecutorSession();
 });
 
 afterEach(() => {
