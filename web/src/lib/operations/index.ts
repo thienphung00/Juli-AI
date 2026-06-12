@@ -18,6 +18,21 @@ export {
   REFUND_SPIKE_THRESHOLD_RATIO,
   TARGET_ROAS,
 } from "./health-check";
+export {
+  MID_LARGE_IMPACT_THRESHOLD_VND,
+  rankWorkflowRecommendations,
+} from "./recommendations";
+export type {
+  ImpactConfidence,
+  WorkflowExpectedImpact,
+  WorkflowRecommendation,
+  WorkflowRecommendations,
+} from "./recommendations";
+export { runOperationsPipeline, useOperationsPipeline } from "./use-operations-pipeline";
+export type {
+  OperationsPipelineState,
+  OperationsPipelineStatus,
+} from "./use-operations-pipeline";
 export type {
   AdRoasCampaignSnapshot,
   AdRoasEfficiencyIndicator,
