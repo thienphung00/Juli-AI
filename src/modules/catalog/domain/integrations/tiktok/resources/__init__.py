@@ -10,8 +10,12 @@ def strip_nones(d: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in d.items() if v is not None}
 
 
+from src.modules.catalog.domain.integrations.tiktok.resources.authorization import (  # noqa: E402
+    AuthorizationResource,
+)
 from src.modules.catalog.domain.integrations.tiktok.resources.orders import OrdersResource  # noqa: E402
 from src.modules.catalog.domain.integrations.tiktok.resources.products import ProductsResource  # noqa: E402
+from src.modules.catalog.domain.integrations.tiktok.resources.returns import ReturnsResource  # noqa: E402
 from src.modules.catalog.domain.integrations.tiktok.resources.inventory import InventoryResource  # noqa: E402
 from src.modules.catalog.domain.integrations.tiktok.resources.creators import CreatorsResource  # noqa: E402
 from src.modules.catalog.domain.integrations.tiktok.resources.livestreams import LivestreamsResource  # noqa: E402
@@ -19,8 +23,10 @@ from src.modules.catalog.domain.integrations.tiktok.resources.settlements import
 
 __all__ = [
     "strip_nones",
+    "AuthorizationResource",
     "OrdersResource",
     "ProductsResource",
+    "ReturnsResource",
     "InventoryResource",
     "CreatorsResource",
     "LivestreamsResource",

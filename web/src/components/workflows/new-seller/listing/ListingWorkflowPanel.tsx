@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { Compass, Package } from "lucide-react";
 import { formatVND } from "@/lib/format";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
 import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
@@ -199,21 +200,53 @@ function PathSelectionStep({
       </p>
       <button
         type="button"
-        className="card w-full p-4 text-left"
+        className="card w-full p-4 text-left transition-opacity hover:opacity-90"
         data-testid="listing-path-a"
         onClick={() => onSelectPath("path_a")}
       >
-        <p className="font-medium">Lộ trình A — Đã có nhà phân phối</p>
-        <p className="text-muted mt-1 text-sm">Nhập thông tin sản phẩm và chọn nhà cung cấp quen thuộc.</p>
+        <div className="flex items-start gap-3">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: "var(--muted)" }}
+            aria-hidden
+          >
+            <Package size={20} style={{ color: "var(--primary)" }} />
+          </span>
+          <div>
+            <p className="font-medium">Lộ trình A — Đã có nhà phân phối</p>
+            <p className="text-muted mt-1 text-sm">
+              Nhập thông tin sản phẩm và chọn nhà cung cấp quen thuộc.
+            </p>
+          </div>
+        </div>
       </button>
       <button
         type="button"
-        className="card w-full p-4 text-left"
+        className="card relative w-full p-4 text-left transition-opacity hover:opacity-90"
         data-testid="listing-path-b"
         onClick={() => onSelectPath("path_b")}
+        style={{ borderColor: "var(--primary)" }}
       >
-        <p className="font-medium">Lộ trình B — Khám phá cơ hội</p>
-        <p className="text-muted mt-1 text-sm">Lọc cơ hội theo vốn và danh mục, rồi chọn nhà phân phối phù hợp.</p>
+        <span
+          className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-xs font-semibold"
+          style={{ background: "color-mix(in srgb, var(--primary) 15%, transparent)", color: "var(--primary)" }}
+        >
+          Đề xuất
+        </span>
+        <div className="flex items-start gap-3">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl gradient-primary"
+            aria-hidden
+          >
+            <Compass size={20} color="#fff" />
+          </span>
+          <div>
+            <p className="font-medium">Lộ trình B — Khám phá cơ hội</p>
+            <p className="text-muted mt-1 text-sm">
+              Lọc cơ hội theo vốn và danh mục, rồi chọn nhà phân phối phù hợp.
+            </p>
+          </div>
+        </div>
       </button>
     </div>
   );
@@ -422,7 +455,7 @@ function OpportunityBrowseStep({
               style={{
                 outline:
                   selectedId === item.opportunity_id
-                    ? "2px solid var(--primary-500, #6366f1)"
+                    ? "2px solid var(--primary)"
                     : undefined,
               }}
             >
@@ -473,7 +506,7 @@ function DistributorPickStep({
               style={{
                 outline:
                   selectedId === item.distributor_id
-                    ? "2px solid var(--primary-500, #6366f1)"
+                    ? "2px solid var(--primary)"
                     : undefined,
               }}
             >

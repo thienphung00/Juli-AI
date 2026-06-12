@@ -10,10 +10,25 @@
 
 ## North star
 
-Juli-AI helps TikTok Shop sellers **make and keep more money** via three agentic
-workflows: **New Seller Copilot**, **Revenue Leakage Detection**, **Growth Copilot**.
-The product is built UI-first (Phase 1), then ML (Phase 1.5), then executable mock
-workflows (Phase 1.6–1.7), then live data (Phase 2).
+Juli AI is a **Decision Copilot** for TikTok Shop sellers — an AI Operations
+System that analyzes shop data, surfaces opportunities and risks, recommends
+validated high-impact workflows with impact estimates and reasoning, collects
+user decisions and inputs, and executes **only after explicit approval**
+([ADR-028](decisions/028-decision-copilot-app-structure.md)). The backend spine
+remains: profile classification → health evaluation → ranked recommendation →
+reasoning → user approval → Copilot execution → outcome tracking
+([ADR-026](decisions/026-operations-system-orchestration.md)).
+
+**Copilot surfaces** (UI pillars — not an open-ended workflow catalog):
+
+| Profile | Surface | Workflows |
+|---------|---------|-----------|
+| **NEW_SHOP** | New Seller Copilot | NPL; Minimize Violations |
+| **MID_LARGE_SHOP** | Growth Copilot | Budget Optimization; Product Scaling |
+| **MID_LARGE_SHOP** | Revenue Leakage (loss prevention) | Refund Spike Detection; Stockout Prevention |
+
+Phase progression: UI-first (Phase 1), ML (Phase 1.5), executable mock workflows
+(Phase 1.6–1.7), mock operations orchestration spine (Phase 1.8), live data (Phase 2).
 
 ---
 
@@ -21,14 +36,293 @@ workflows (Phase 1.6–1.7), then live data (Phase 2).
 
 Each subsystem evolves across phases. This table is the index; details follow below.
 
-| Subsystem | Phase 1 (UI) | Phase 1.5 (ML) | Phase 1.6 (listing) | Phase 1.7 (leakage) | Phase 2 (APIs) |
-|-----------|--------------|----------------|---------------------|---------------------|----------------|
-| **Agent decision tree** | Rules-based seller-stage detection | ML classifier | (unchanged) | (unchanged) | Live daily scoring |
-| **Data pipeline** | Mock JSON | Backtest (parquet) | Listing workflow fixtures | Leakage workflow fixtures | TikTok API polling |
-| **ML models** | none | Trained, serialized | none | none (optional `return_type` preview on mocks) | Production inference |
-| **Copy layer** | Hardcoded mock copy | Rules-only templates | Rules-only draft copy | Rules-only root-cause / action copy | Ollama + rules fallback |
-| **Executor** | Approve/dismiss (no-op) | (no changes) | Mock export (`list_products`) | Mock execute (4 leakage types) | Real task triggers |
-| **Workflow UI** | Task cards only | (no changes) | `ListingWorkflowPanel` modal | `LeakageWorkflowPanel` modal | Live inference + same modals |
+| Subsystem | Phase 1 (UI) | Phase 1.5 (ML) | Phase 1.6 (listing) | Phase 1.7 (leakage) | Phase 1.8 (orchestration) | Phase 2 (APIs) |
+|-----------|--------------|----------------|---------------------|---------------------|---------------------------|----------------|
+| **Agent decision tree** | Rules-based seller-stage detection | ML classifier | (unchanged) | (unchanged) | 2-profile classification + ranking (rules, mock) | Live daily scoring |
+| **Data pipeline** | Mock JSON | Backtest (parquet) | Listing workflow fixtures | Leakage workflow fixtures | `unified_operational_data_model` fixtures | TikTok API polling |
+| **Health check** | implicit (per-workflow) | — | — | — | `health_check_results` indicators (mock) | Live health scoring |
+| **ML models** | none | Trained, serialized | none | none (optional `return_type` preview on mocks) | none | Production inference |
+| **Copy / reasoning layer** | Hardcoded mock copy | Rules-only templates | Rules-only draft copy | Rules-only root-cause / action copy | Rules-only reasoning (Why / Impact / Next steps) | Ollama + rules fallback |
+| **Executor** | Approve/dismiss (no-op) | (no changes) | Mock export (`list_products`) | Mock execute (4 leakage types) | Unified approval gate + routing (NPL + Refund Spike executable; 4 workflows no-op) | Real task triggers |
+| **Outcome tracking** | UX engagement only | model metrics | — | — | `workflow_outcome_metrics` (mock) | Real outcome metrics |
+| **Workflow UI** | Task cards only | (no changes) | `ListingWorkflowPanel` modal | `LeakageWorkflowPanel` modal | 3-tab Decision Copilot IA (Home / Decisions / Chat — ADR-028) + operations pipeline + design-system tokens (ADR-027) | Live inference + same modals |
+
+---
+
+## Operations-system pipeline (Phase 1.8)
+
+Phase 1.8 introduces a single orchestration spine over the three workflows. Each
+stage has an explicit output envelope; Phase 2 swaps mock loaders for live data /
+inference / Ollama without changing the stage shapes
+([ADR-026](decisions/026-operations-system-orchestration.md)).
+
+```
+Data Collection (unified_operational_data_model)
+  ↓
+Health Check (health_check_results)
+  ↓
+Shop Profile Classification (shop_profile)
+  ↓
+Workflow Recommendation & Ranking (workflow_recommendations)
+  ↓
+LLM Reasoning (reasoning_summary — copy layer)
+  ↓
+User Approval (approved_workflows)
+  ↓
+Copilot Execution (workflow_results — mock in P1.8)
+  ↓
+Outcome Tracking (workflow_outcome_metrics)
+```
+
+### Shop profiles & validated workflow catalog (no others)
+
+`shop_profile ∈ {NEW_SHOP, MID_LARGE_SHOP}`. Exactly **six** validated workflows;
+no expansion without explicit evaluation ([ADR-026](decisions/026-operations-system-orchestration.md)).
+
+| Profile | Validated workflow | Copilot surface | P1.8 status | Real execution |
+|---------|--------------------|-----------------|-------------|----------------|
+| NEW_SHOP | Add New Product Listings (NPL) | New Seller | Executable — P1.6 `ListingWorkflowPanel` | P2-7 / P2-8 |
+| NEW_SHOP | Minimize Violations | New Seller | Card + reasoning; approve = no-op | P2-13 |
+| MID_LARGE_SHOP | Budget Optimization | Growth | Card + reasoning; approve = no-op | P2-14 |
+| MID_LARGE_SHOP | Product Scaling | Growth | Card + reasoning; approve = no-op | P2-14 |
+| MID_LARGE_SHOP | Refund Spike Detection | Revenue Leakage (loss) | Executable — P1.7 `LeakageWorkflowPanel` (4 sub-journeys) | P2-9 / P2-10 |
+| MID_LARGE_SHOP | Stockout Prevention | Revenue Leakage (loss) | Card + reasoning; approve = no-op | P2-12 / P2-15 |
+
+**Refund Spike sub-journeys (P1.7 task types under one validated workflow):**
+`return_spike`, `buyer_cancellation_cluster`, `refund_cluster`, `return_window_policy`.
+Ranking may surface any sub-journey; approval routes to the matching leakage panel flow.
+
+**Growth Copilot (P1-4):** reference mock UI from Phase 1 — P1.8 does **not** route
+approved Budget Optimization or Product Scaling into that panel; cards + no-op only.
+
+**Classification criteria (rules, mock in P1.8):**
+
+- **NEW_SHOP** — active shop in probation OR has not met graduation requirements.
+  Focus: probation completion (maximize SPS + AHR).
+- **MID_LARGE_SHOP** — graduated probation, 90+ days active, or ≥2 GMV metrics
+  tracked. Focus: revenue growth + loss prevention.
+
+Do **not** recommend growth/loss-prevention workflows to NEW_SHOP, or probation
+workflows to MID_LARGE_SHOP.
+
+### Health Check indicators (mock in P1.8)
+
+`health_check_results` is keyed by indicator; each indicator must inform ≥1 workflow.
+
+| Indicator | Used by | Output |
+|-----------|---------|--------|
+| Probation progress | NPL, Minimize Violations | % toward graduation, days remaining |
+| SPS health | NEW_SHOP, probation decision | current SPS, threshold gap |
+| AHR health | NEW_SHOP, probation decision | current AHR, threshold gap |
+| Ad ROAS efficiency | Budget Optimization | ROAS by campaign, % below target |
+| Inventory health | Stockout Prevention | days of inventory remaining, lead-time coverage |
+| Refund spike indicator | Refund Spike Detection | refund rate 7d vs 30d, % change, severity flag |
+| Product scaling opportunity | Product Scaling | top SKUs by growth potential |
+
+> **SPS vs VP/AHR:** SPS (Shop Performance Score) is a **probation/graduation
+> progress** indicator, **distinct** from the VP/AHR **account-health** contract
+> (§ Platform policy signals; [ADR-009](decisions/009-dual-read-vp-ahr-transition.md)).
+> Both are mock in P1.8; real exposure is gated by P2-1 verification.
+
+### Recommendation & ranking (mock in P1.8)
+
+`workflow_recommendations` per [ADR-026](decisions/026-operations-system-orchestration.md):
+each item carries `workflow_id`, `workflow_name`, `priority`, `rationale`,
+`expected_impact {metric, value, confidence}`, `preconditions_met`,
+`user_action_required`.
+
+**Output envelope (`workflow_recommendations`):**
+
+```json
+{
+  "shop_profile": "NEW_SHOP | MID_LARGE_SHOP",
+  "recommended_workflows": [
+    {
+      "workflow_id": "string",
+      "workflow_name": "string",
+      "priority": 1,
+      "rationale": "string",
+      "expected_impact": {
+        "metric": "string",
+        "value": 0,
+        "confidence": "high | medium | low"
+      },
+      "preconditions_met": true,
+      "user_action_required": true
+    }
+  ]
+}
+```
+
+**Ranking logic (rules, mock in P1.8):**
+
+- **NEW_SHOP:** determine probation requirement status (NPL, Minimize Violations) →
+  identify incomplete requirements → rank by probation timeline urgency. Do **not**
+  recommend growth or loss-prevention workflows.
+- **MID_LARGE_SHOP:** score Budget Optimization (ROAS efficiency), Product Scaling
+  (scaling potential), Refund Spike (severity + corrective feasibility), Stockout
+  Prevention (inventory risk) → rank by expected revenue impact / urgency → filter
+  where expected impact > threshold (**numeric threshold: Product lead — required
+  before P1.8-4 ships**; mock may skip filter until set).
+
+### LLM reasoning (copy layer)
+
+Maps onto the **copy layer** (§4). For each recommendation the layer renders **Why**
+(triggering health signals), **Expected Impact** (quantified), **Priority**, and
+**Next Steps** — rules-only templates in P1.8, Ollama + rules fallback in P2. The
+layer **never** invents workflows or claims capabilities beyond the validated catalog.
+
+### Approval, execution & outcome tracking
+
+- **Approval gate:** approve-all / selective / reject-with-reason / request-details.
+  Rejections log a reason and recommend re-evaluation in 7 days.
+- **Execution (mock in P1.8):** approved workflows route to their existing panel
+  (listing / leakage / growth) or **no-op** for deferred workflows; validate
+  preconditions; capture `workflow_results` (success / partial / failed). No retries
+  without explicit approval; no escalation to other workflows.
+- **Outcome tracking (mock in P1.8):** `workflow_outcome_metrics` per workflow with
+  success criteria + cadence (real-time execution status → daily preliminary →
+  weekly full assessment → monthly aggregate).
+
+| Workflow | Metric | Period | Success criteria |
+|----------|--------|--------|------------------|
+| NPL | SPS change | 7d post-publish | ≥ +5 SPS points |
+| Minimize Violations | AHR / violation count | 7d | ≥ +10 AHR points OR violations ↓ |
+| Budget Optimization | ROAS / revenue | 7d | ROAS +15% OR revenue +10% |
+| Product Scaling | Revenue per scaled SKU | 14d | ≥ +20% for scaled products |
+| Refund Spike Detection | Refund rate | 7d | Returns to baseline |
+| Stockout Prevention | Stockouts avoided | 30d | 0 unplanned stockouts |
+
+### Unified operational data model (P1.8 fixtures)
+
+Collect **only** data required by the six workflows. Output:
+`unified_operational_data_model` (JSON; schema in P1.8-2 fixtures).
+
+| Data set | Key fields | Workflows powered |
+|----------|------------|-------------------|
+| Shop metadata | `shop_id`, `profile`, `probation_status`, `graduation_date` | All (routing) |
+| New Shop probation | probation dates, SPS, SPS threshold, AHR, AHR threshold, violations | NPL, Minimize Violations |
+| Ad campaign performance | campaign id/name/status, spend, impressions, clicks, CTR, conversions, revenue, ROAS, CPC, CPM | Budget Optimization |
+| Product performance | product/SKU, category, units/revenue (24h/7d/30d), price, margin, sell-through | Product Scaling, NPL gaps |
+| Inventory & logistics | inventory level, sales velocity, reorder lead time | Stockout, Product Scaling |
+| Returns & refunds | refund count/rate, top reasons, return authorization status | Refund Spike |
+
+> SPS is Seller Center UI today — mock in P1.8; P2 uses `health_data_source`
+> contract ([`integration-audit-2026-06.md`](tiktok_api/integration-audit-2026-06.md) §7).
+
+### Decision Copilot app structure (P1.8-9)
+
+The seller web app exposes exactly **three main tabs** ([ADR-028](decisions/028-decision-copilot-app-structure.md)).
+Each screen answers one user question; workflow complexity stays hidden by default.
+
+| Tab | Route | Question | Seller actions |
+|-----|-------|----------|----------------|
+| **Home** | `/` | What is happening? | Read-only |
+| **Decisions** | `/decisions` | What should I do? | Review, approve, configure |
+| **Juli AI Chat** | `/ai-chat` | Help me understand and complete this. | Contextual Q&A |
+
+**Primary UI object: Decision** — a seller-facing recommendation wrapping one
+validated `workflow_id` (ADR-026 catalog), plus title, estimated impact, confidence,
+reasoning, required user inputs, and lifecycle status. Workflows are execution
+templates behind decisions; sellers never interact with a raw workflow catalog as
+the primary experience.
+
+#### Home (`/`)
+
+Three sections, **no approvals or execution** on Home:
+
+1. **Shop Status (hero)** — Shop Health Score, Account Health Rating (AHR/VP when
+   available), platform alerts/messages/violations. Answers shop visibility on the
+   platform right now. Reuses `ShopHealthHero` + `health_check_results`.
+2. **Today's Report** — single container with animated domain switching:
+   Revenue Growth · Revenue Protection · Product Listings · Advertising · Refunds.
+   Each domain card: current status, trend vs prior period, metric deltas. Domain
+   summaries aggregate signals from `unified_operational_data_model` (not a sixth
+   workflow).
+3. **Recommended Decisions Preview** — top **3** decisions by impact from
+   `workflow_recommendations`; title + estimated impact + revenue gain or
+   loss-prevention value. CTA **View All Decisions** → `/decisions`.
+
+#### Decisions (`/decisions`)
+
+Three sub-tabs:
+
+| Sub-tab | Content | Statuses |
+|---------|---------|----------|
+| **Recommended** | Full ranked decision cards: title, impact, confidence, reasoning, required inputs, Review CTA | `recommended` |
+| **In Progress** | Approved decisions awaiting input or execution | `needs_input`, `executing`, `completed` |
+| **Workflow Templates** | Advanced settings — thresholds, automation rules, per-workflow configuration (Budget Optimization, Stockout Prevention, Product Scaling, Refund Spike, etc.) | N/A (settings) |
+
+Hosts the unified **approval gate** (P1.8-6), full **reasoning expansion**
+(P1.8-5), **outcome tracking** entry (P1.8-7), and routes approval to existing
+P1.6/P1.7 modal executors or no-op per ADR-026.
+
+#### Decision detail flow
+
+Opened from **Review** on a decision card (`/decisions/[decisionId]` or equivalent
+drawer/stepper):
+
+1. **Why** — explain why the recommendation exists (reasoning + health signals)
+2. **Analytics** — supporting charts/metrics for the decision domain
+3. **User inputs** — product selection, budget limits, campaign goals, risk tolerance
+4. **Execution preview** — expected revenue impact, loss prevention, confidence, risks
+5. **Approve and execute** — approval gate → route to listing/leakage panel or no-op
+
+#### Juli AI Chat (`/ai-chat`)
+
+Contextual assistant connected to active/recent decisions — explain recommendations,
+compare products, clarify metrics, assist decision completion, configure workflows,
+answer platform questions. Not a generic chatbot; prompts and context derive from
+the operations pipeline and open decision state.
+
+#### Seller canvas (white)
+
+Seller workspace uses a **white canvas** (`#FFFFFF`) for `--background`, header,
+and muted surfaces — not the pink-tint `#FEF5F6` from ADR-027. Brand pink
+`#F86BA5` is accent-only (health progress, primary CTAs). Affiliate workspace
+stays dark per ADR-027.
+
+#### Design principles (IA)
+
+- Mobile-first · minimal cognitive load · recommendation-first
+- Workflow complexity hidden by default (Templates sub-tab is advanced)
+- Human approval required before execution (never from Home)
+- Clear business impact on every recommendation; every recommendation explains why
+- Every screen answers a specific user question (see table above)
+
+> **Migration note:** P1.8 shipped `OperationsPipelineShell` on Home with approval
+> on the landing page. P1.8-9 splits that shell: Home = summary; Decisions = action.
+
+### Design system & token foundation (P1.8-8)
+
+The orchestration surfaces (Shop Health hero, ranked "Clarity Card" recommendations,
+reasoning panel, approval gate, outcome views) share one token foundation
+([ADR-027](decisions/027-design-system-token-foundation.md)). Tokens live in
+`web/src/app/globals.css` + `tailwind.config.ts`; surfaces compose from `var(--*)` and
+`@layer components` utilities — never one-off theme hex.
+
+| Dimension | Standard |
+|-----------|----------|
+| **Theme** | **Seller = light** (`#FEF5F6`/white canvas, charcoal text); **Affiliate = dark**. Swaps the prior mapping (`html.dark` semantics inverted). |
+| **Typography** | One typeface (Inter). Single **≤6-size** scale; hierarchy from size + weight only — no serif/display or monospace fonts. |
+| **Color (60/30/10)** | Neutral structure (60%) → Growth `#16A34A` / Loss `#E5484D` (30%) → Primary pink `#F86BA5` (5–10%). Warning `#F59E0B`, New/Info `#2563EB`. Each semantic ships a low-opacity **background tint**. Color is never the only signal (pair with text/icon). |
+| **Interaction states** | Default (base, full opacity, standard border) · Hover (subtle color shift **or** shadow lift) · Active (darker fill + scale `0.98`) · Focus (3px visible ring + offset) · Disabled (muted fill, reduced contrast, `not-allowed`) · Loading (inline spinner + disabled). |
+| **Elevation** | 3-step shadow scale — `sm` cards · `md` modals/popovers · `lg` toasts. |
+| **Motion** | Card entry (fade + scale, staggered), metric counter on change, approval → success toast, loading shimmer/skeleton, tab/route fade. All gated by `prefers-reduced-motion`. |
+
+Applied as the Phase 1.8 polish slice; `web/MODULE.md` dual-theme invariant and
+`screenshots/` are re-baselined when the swap ships (code is authority).
+
+### Architecture constraints (non-negotiable)
+
+1. No new workflows without explicit necessity + fit evaluation.
+2. No new shop profiles without a business case.
+3. No additional ML models unless required by an existing workflow and vetted.
+4. **Data traceability:** every collected datum maps to ≥1 workflow.
+5. **Metric traceability:** every health indicator informs ≥1 workflow decision.
+6. **Recommendation traceability:** every recommendation maps to ≥1 validated workflow.
+7. Prefer explicit rules over implicit inference.
+8. Explainability: every recommendation includes Why + Expected Impact.
 
 ---
 
@@ -42,7 +336,8 @@ Routes a seller to the right workflow and the right next action.
 |-------|----------|
 | **Phase 1** | Rules-based seller-stage detection from mock seller profile (e.g. order count, shop age thresholds → New Seller vs Growth). Deterministic, hand-tuned. |
 | **Phase 1.5** | Replace rules with the trained **seller stage classifier** (see Models); run against backtest data offline to compare against the rules baseline. |
-| **Phase 2** | Live daily scoring — classifier runs on real polled seller data each morning; decision tree consumes model output to select workflow + tasks. |
+| **Phase 1.8** | Extend to `shop_profile ∈ {NEW_SHOP, MID_LARGE_SHOP}` and feed the recommendation & ranking stage (§ Operations-system pipeline). Rules-based, mock input. |
+| **Phase 2** | Live daily scoring — classifier runs on real polled seller data each morning; decision tree consumes model output to select profile, workflows + ranked tasks. |
 
 ### 2. Data pipeline
 
@@ -207,7 +502,8 @@ ML / rules → structured signals
 |-------|----------|
 | **Phase 1** | Hardcoded mock copy in fixtures; no LLM. |
 | **Phase 1.5** | Rules-only templates generated from backtest signals; validates copy quality offline. |
-| **Phase 2** | **Ollama** (local) renders copy from live signals — summarize + localize (Vietnamese); **rules fallback** on timeout, error, or daily token budget exceeded. |
+| **Phase 1.8** | Rules-only **reasoning** templates — per-recommendation Why / Expected Impact / Next Steps from deterministic signals (§ Operations-system pipeline). No LLM. |
+| **Phase 2** | **Ollama** (local) renders copy + reasoning from live signals — summarize + localize (Vietnamese); **rules fallback** on timeout, error, or daily token budget exceeded. |
 
 **Ollama implementation (Phase 2):**
 
@@ -270,7 +566,8 @@ Turns an approved recommendation into action.
 | **Phase 1.5** | No changes — UX still mocked. |
 | **Phase 1.6** | **`list_products` only** — approve opens `ListingWorkflowPanel`; execute exports CSV/JSON (client-side). Other task types remain no-op. |
 | **Phase 1.7** | **All four leakage task types** — approve opens `LeakageWorkflowPanel`; mock execute per `MockTask.type`. **Global skip-with-reason** on dismiss (all workflows). Session state in `task-executor/session-store`. |
-| **Phase 2** | **Real task triggers** — P2-5 generic executor; P2-7/P2-8 listing publish queue; P2-9/P2-10 leakage executors (listing update, support case, shop settings). |
+| **Phase 1.8** | **Unified approval gate + routing** — approve-all / selective / reject-with-reason; route **NPL** → listing panel, **Refund Spike** → leakage panel (by task type), or **no-op** for Violations, Stockout, Budget Optimization, Product Scaling. Captures mock `workflow_results`. |
+| **Phase 2** | **Real task triggers** — P2-5 generic executor; P2-7/P2-8 listing publish queue; P2-9/P2-10 leakage executors; P2-13/P2-14/P2-15 new-shop, growth, and stockout executors. |
 
 ### 7. Executable workflow UIs (Phase 1.6 / 1.7)
 
@@ -353,6 +650,7 @@ no-op.
 |-------|-----------------|-----|
 | **Phase 1** | UX engagement — task clicks, approval-flow completions | Validate workflows resonate before building ML |
 | **Phase 1.5** | Model performance — precision/recall on backtest | Confirm models are accurate enough to ship |
+| **Phase 1.8** | Pipeline completion rate, classification distribution, approve/reject/selective rates + reject reasons | Validate the operations-system UX end-to-end on mock data |
 | **Phase 2** | Revenue impact — recovered refunds, avoided cancellations, improved ROAS | Prove the product makes sellers money |
 
 ---

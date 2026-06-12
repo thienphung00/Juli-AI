@@ -114,11 +114,11 @@ For common anti-patterns with fix examples, see [anti-patterns.md](anti-patterns
 
 ## Integration with Cursor Rules
 
-This skill works alongside the workspace rules:
+This skill works alongside Tier 2 workspace rules (loaded via Focus):
 - `.cursor/rules/reliability.mdc` — defensive programming, error handling
-- `.cursor/rules/maintainability.mdc` — DRY, modularity, readability
+- `.cursor/rules/code-quality.mdc` — DRY, modularity, readability
 - `.cursor/rules/observability.mdc` — structured logging, metrics, tracing
-- `.cursor/rules/dev-workflow.mdc` — git, CI/CD, code reviews
+- `.cursor/rules/git-baseline.mdc` — git, CI/CD, code reviews
 
 The rules enforce standards passively during code generation. Guardrails actively audits and patches after the fact.
 

@@ -13,35 +13,33 @@ export function NavBar() {
       className="fixed bottom-0 left-0 right-0 z-50 safe-area-bottom"
       style={{ background: "var(--card)", borderTop: "1px solid var(--border)" }}
     >
-      <div className="mx-auto flex max-w-lg items-center justify-around px-1 pt-2 pb-3">
-        {BOTTOM_NAV_TABS.map(({ href, label, Icon, color, live }) => {
+      <div className="app-container flex items-center justify-around !px-1 pt-2 pb-3">
+        {BOTTOM_NAV_TABS.map(({ href, label, Icon, live }) => {
           const isActive = isNavTabActive(pathname, href);
           const isJuli = href === "/ai-chat";
+          const activeColor = "var(--primary)";
 
           return (
             <Link
               key={href}
               href={href}
-              className="relative flex flex-col items-center gap-1 rounded-xl px-2 py-1 transition-all"
+              className="relative flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 rounded-xl px-3 py-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               aria-current={isActive ? "page" : undefined}
             >
-              {isActive && !isJuli && (
+              {isActive && (
                 <span
                   className="absolute inset-0 rounded-xl"
-                  style={{ background: `${color}18` }}
+                  style={{ background: "color-mix(in srgb, var(--primary) 12%, transparent)" }}
                 />
               )}
 
               {isJuli ? (
                 <span className="relative">
                   <span
-                    className="flex h-10 w-10 items-center justify-center rounded-2xl transition-all"
+                    className={`flex h-10 w-10 items-center justify-center rounded-2xl transition-all${isActive ? " gradient-primary" : ""}`}
                     style={
                       isActive
-                        ? {
-                            background: "linear-gradient(135deg, #FF1493 0%, #FF69B4 100%)",
-                            boxShadow: "0 4px 14px #FF149340",
-                          }
+                        ? { boxShadow: "0 4px 14px var(--brand-glow)" }
                         : { background: "var(--muted)", border: "1px solid var(--border)" }
                     }
                   >
@@ -59,20 +57,20 @@ export function NavBar() {
                 <span className="relative flex h-7 w-7 items-center justify-center">
                   <Icon
                     size={22}
-                    style={{ color: isActive ? color : "var(--muted-foreground)" }}
+                    style={{ color: isActive ? activeColor : "var(--muted-foreground)" }}
                   />
                   {live && (
                     <span
                       className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border animate-pulse-slow"
-                      style={{ background: "#E61282", borderColor: "var(--background)" }}
+                      style={{ background: "var(--primary)", borderColor: "var(--background)" }}
                     />
                   )}
                 </span>
               )}
 
               <span
-                className="text-[9px] font-semibold transition-colors"
-                style={{ color: isActive && !isJuli ? color : "var(--muted-foreground)" }}
+                className="text-[11px] font-semibold transition-colors"
+                style={{ color: isActive ? activeColor : "var(--muted-foreground)" }}
               >
                 {label}
               </span>

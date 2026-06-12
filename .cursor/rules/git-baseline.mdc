@@ -1,0 +1,41 @@
+---
+description: Git baseline — branches, commits, PRs, CI/CD (always on)
+alwaysApply: true
+---
+
+# Git Baseline
+
+## Version control
+
+- Use feature branches; never push directly to `main`/`master`.
+- Keep commits small and atomic — one logical change per commit.
+- Conventional commits: `<type>: <description>` — types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`.
+- Tag releases and maintain a changelog.
+
+## Pull requests
+
+- All production changes go through PRs — no exceptions.
+- PR description summarizes **why** and what it affects; include a test plan.
+- Keep PRs reviewable (prefer <400 lines).
+- Reviewers check correctness, readability, test coverage, and security.
+
+## Research & reuse
+
+- Prefer existing repo patterns before adding new ones.
+- Confirm library behavior via primary docs (Context7 when Focus selects it).
+- Prefer battle-tested libraries over hand-rolled utilities.
+
+## CI/CD
+
+- Every PR must pass automated builds, linting, and tests before merge.
+- Deploy in small, safe batches; maintain rollback capability.
+- Automate repeatable builds, tests, deploys, and migrations.
+
+## Test-first (when practical)
+
+- Prefer red/green/refactor for new behavior and bug fixes.
+- Do not weaken flaky tests; make them deterministic.
+
+## Parallel issues
+
+When running multiple issues: load [`.cursor/rules/issue-workflow.mdc`](issue-workflow.mdc) and `docs/handoffs/parallel-status.md`.

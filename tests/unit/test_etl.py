@@ -103,6 +103,133 @@ async def test_make_etl_handoff_wires_producer_to_consumer(session, shop, publis
     assert orders[0].tiktok_order_id == "handoff-o1"
 
 
+async def test_etl_persists_order_item_after_parent_order(session, shop, publish_dlq):
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    order_payload = {
+        "order_id": "ord-with-lines",
+        "status": "AWAITING_SHIPMENT",
+        "total_amount": "100.00",
+        "currency": "VND",
+        "update_time": 1_700_000_400,
+        "event_id": "evt-order-lines-1",
+    }
+    line_payload = {
+        "tiktok_order_id": "ord-with-lines",
+        "product_id": "prod-1",
+        "sku_id": "sku-1",
+        "quantity": 1,
+        "unit_price": "100.00",
+        "line_total": "100.00",
+        "update_time": 1_700_000_400,
+        "event_id": "evt-line-1",
+    }
+
+    assert await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.orders.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(order_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    consumer2 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    assert await consumer2.ingest(
+        IngestRecord(
+            channel="tiktok.order_items.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(line_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    from src.shared.utils.data.models import OrderItem
+    from sqlalchemy import select
+
+    result = await session.execute(
+        select(OrderItem).where(OrderItem.tiktok_sku_id == "sku-1")
+    )
+    item = result.scalar_one()
+    assert item.tiktok_order_id == "ord-with-lines"
+    assert item.line_total == Decimal("100.00")
+
+
+async def test_etl_persists_return_record(session, shop, publish_dlq):
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.orders.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps({
+                "order_id": "ord-ret",
+                "status": "DELIVERED",
+                "total_amount": "50.00",
+                "currency": "VND",
+                "update_time": 1_700_000_500,
+                "event_id": "evt-order-ret",
+            }).encode(),
+        )
+    )
+    await session.commit()
+
+    consumer2 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    outcome = await consumer2.ingest(
+        IngestRecord(
+            channel="tiktok.returns.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps({
+                "return_id": "ret-100",
+                "order_id": "ord-ret",
+                "buyer_id": "buyer-x",
+                "sku_id": "sku-ret",
+                "refund_amount": "50.00",
+                "return_type": "other",
+                "return_condition": "unknown",
+                "status": "approved",
+                "update_time": 1_700_000_600,
+                "event_id": "evt-ret-1",
+            }).encode(),
+        )
+    )
+    assert outcome == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    from src.shared.utils.data.models import Return
+    from sqlalchemy import select
+
+    result = await session.execute(
+        select(Return).where(Return.tiktok_return_id == "ret-100")
+    )
+    ret = result.scalar_one()
+    assert ret.tiktok_order_id == "ord-ret"
+    assert ret.refund_amount == Decimal("50.00")
+
+
+async def test_etl_accepts_official_tiktok_order_shape(session, shop, publish_dlq):
+    """Versioned API returns id, user_id, payment.total_amount — not legacy handoff names."""
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    payload = {
+        "id": "577000000000099",
+        "user_id": "masked-buyer-1",
+        "order_status": "AWAITING_SHIPMENT",
+        "update_time": 1_700_000_500,
+        "payment": {"total_amount": "250.00", "currency": "VND"},
+        "event_id": "evt-official-1",
+    }
+    outcome = await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.orders.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(payload).encode(),
+        )
+    )
+    assert outcome == ProcessOutcome.PROCESSED
+    orders = await OrdersRepo(session).list(shop.id)
+    assert len(orders) == 1
+    assert orders[0].tiktok_order_id == "577000000000099"
+    assert orders[0].total_amount == Decimal("250.00")
+
+
 async def test_etl_processes_event_within_latency_budget(
     session, shop, publish_dlq, dlq_messages
 ):

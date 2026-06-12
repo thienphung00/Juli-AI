@@ -8,14 +8,17 @@ export function SuggestedPrompts({ prompts, onSelect, disabled = false }: Sugges
   if (prompts.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2" data-testid="suggested-prompts">
+    <div
+      className="scrollbar-hide -mx-1 flex gap-2 overflow-x-auto px-1 pb-2"
+      data-testid="suggested-prompts"
+    >
       {prompts.map((prompt) => (
         <button
           key={prompt}
           type="button"
           onClick={() => onSelect(prompt)}
           disabled={disabled}
-          className="rounded-full border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+          className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           style={{
             borderColor: "var(--border)",
             color: "var(--foreground)",

@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Optional
 
 from src.modules.catalog.domain.integrations.tiktok.client import TikTokClient
+from src.modules.catalog.domain.integrations.tiktok.constants import (
+    PRODUCT_SEARCH_PATH,
+    product_detail_path,
+)
 from src.modules.catalog.domain.integrations.tiktok.resources import strip_nones
 
 
@@ -21,14 +25,18 @@ class ProductsResource:
         update_time_from: Optional[int] = None,
         update_time_to: Optional[int] = None,
         page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
     ) -> dict:
-        body = strip_nones({
-            "status": status,
-            "update_time_from": update_time_from,
-            "update_time_to": update_time_to,
-            "page_size": page_size,
+        body = strip_nones({"status": status})
+        params = strip_nones({
+            "page_size": str(page_size) if page_size is not None else None,
+            "page_token": page_token,
         })
-        return self._client.post("/api/products/search", body=body)
+        if update_time_from is not None:
+            body["update_time_ge"] = update_time_from
+        if update_time_to is not None:
+            body["update_time_lt"] = update_time_to
+        return self._client.post(PRODUCT_SEARCH_PATH, body=body, params=params)
 
     def search_all(
         self,
@@ -38,20 +46,17 @@ class ProductsResource:
         update_time_to: Optional[int] = None,
         page_size: int = 50,
     ) -> list[dict]:
-        body = strip_nones({
-            "status": status,
-            "update_time_from": update_time_from,
-            "update_time_to": update_time_to,
-        })
+        body = strip_nones({"status": status})
+        if update_time_from is not None:
+            body["update_time_ge"] = update_time_from
+        if update_time_to is not None:
+            body["update_time_lt"] = update_time_to
         return self._client.get_all_pages(
-            path="/api/products/search",
+            path=PRODUCT_SEARCH_PATH,
             body=body,
             items_key="products",
             page_size=page_size,
         )
 
     def get_details(self, product_id: str) -> dict:
-        return self._client.get(
-            "/api/products/details",
-            params={"product_id": product_id},
-        )
+        return self._client.get(product_detail_path(product_id))

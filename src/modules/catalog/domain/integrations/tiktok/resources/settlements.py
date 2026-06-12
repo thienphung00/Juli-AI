@@ -1,19 +1,23 @@
-"""TikTok Shop Settlements resource — thin wrapper over TikTokClient.
-
-Settlement values may be pending for 7–14 days before confirming;
-update_time is the reconciliation key.
-"""
+"""TikTok Shop Finance statements — settlement reconciliation."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from src.modules.catalog.domain.integrations.tiktok.client import TikTokClient
+from src.modules.catalog.domain.integrations.tiktok.constants import FINANCE_STATEMENTS_PATH
+from src.modules.catalog.domain.integrations.tiktok.mapping import normalize_statement
 from src.modules.catalog.domain.integrations.tiktok.resources import strip_nones
+from src.modules.catalog.domain.integrations.tiktok.schemas import (
+    FinanceStatement,
+    FinanceStatementsData,
+    coerce_model,
+    validate_items,
+)
 
 
 class SettlementsResource:
-    """Search settlements with date-range filtering from TikTok Finance API."""
+    """Search finance statements (replaces legacy settlements/search)."""
 
     def __init__(self, client: TikTokClient) -> None:
         self._client = client
@@ -25,14 +29,23 @@ class SettlementsResource:
         settle_time_to: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
-    ) -> dict:
-        body = strip_nones({
-            "settle_time_from": settle_time_from,
-            "settle_time_to": settle_time_to,
-            "page_size": page_size,
+    ) -> dict[str, Any]:
+        params = strip_nones({
+            "sort_field": "statement_time",
+            "statement_time_ge": str(settle_time_from) if settle_time_from is not None else None,
+            "statement_time_lt": str(settle_time_to) if settle_time_to is not None else None,
+            "page_size": str(page_size) if page_size is not None else None,
             "page_token": page_token,
         })
-        return self._client.post("/api/finance/settlements/search", body=body)
+        parsed = coerce_model(
+            FinanceStatementsData,
+            self._client.get(
+                FINANCE_STATEMENTS_PATH,
+                params=params,
+                response_model=FinanceStatementsData,
+            ),
+        )
+        return parsed.model_dump()
 
     def list_all(
         self,
@@ -40,14 +53,17 @@ class SettlementsResource:
         settle_time_from: Optional[int] = None,
         settle_time_to: Optional[int] = None,
         page_size: int = 50,
-    ) -> List[Dict[str, Any]]:
-        body = strip_nones({
-            "settle_time_from": settle_time_from,
-            "settle_time_to": settle_time_to,
+    ) -> list[dict[str, Any]]:
+        params = strip_nones({
+            "sort_field": "statement_time",
+            "statement_time_ge": str(settle_time_from) if settle_time_from is not None else None,
+            "statement_time_lt": str(settle_time_to) if settle_time_to is not None else None,
         })
-        return self._client.get_all_pages(
-            path="/api/finance/settlements/search",
-            body=body,
-            items_key="settlements",
+        raw_items = self._client.get_all_pages_get(
+            FINANCE_STATEMENTS_PATH,
+            params=params,
+            items_key="statements",
             page_size=page_size,
         )
+        statements = validate_items(FinanceStatement, raw_items)
+        return [normalize_statement(s.model_dump()) for s in statements]

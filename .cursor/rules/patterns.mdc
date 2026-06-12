@@ -1,9 +1,11 @@
 ---
 description: Common patterns — repository interfaces and consistent API envelopes
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Common Patterns
+
+Load via Focus for backend/API work. Also covered in `code-quality.mdc`.
 
 ## Repository pattern
 

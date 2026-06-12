@@ -1,0 +1,54 @@
+---
+description: Code quality — style, readability, modularity (Focus-triggered)
+alwaysApply: false
+---
+
+# Code Quality
+
+Load via Focus for any code change. Review checklists: `.cursor/skills/standalone/review/SKILL.md`.
+
+## Core Principles
+
+- **KISS**: prefer the simplest solution that works.
+- **DRY**: extract repetition when it is real and stable.
+- **YAGNI**: avoid speculative generality; refactor when pressure is real.
+
+## Style & Naming
+
+- Variables/functions: `camelCase` with descriptive names.
+- Booleans: `is*`, `has*`, `can*`, `should*`.
+- Types/classes/components: `PascalCase`.
+- Constants: `UPPER_SNAKE_CASE`.
+- Prefer immutable updates over in-place mutation when it reduces side effects and improves testability.
+
+## Readability & Modularity
+
+- Prefer clear, self-documenting code over clever one-liners.
+- Use descriptive names — if a function needs a comment to explain *what* it does, rename or restructure it.
+- Each function/module should have a single responsibility; prefer composition over inheritance.
+- Extract shared logic into reusable utilities; split large modules.
+- Prefer high cohesion, low coupling; keep functions focused and readable.
+
+## Error Handling & Validation
+
+- Handle errors explicitly at boundaries; never silently swallow exceptions.
+- In server-side code: log structured, non-sensitive context.
+- Validate and sanitize at system boundaries (HTTP requests, webhooks, events, file inputs).
+- Fail fast with clear errors; never trust external data.
+
+## Documentation
+
+- Comment on *why*, not *what* — the code explains the what.
+- Keep `README.md` current; record significant design decisions (ADRs or inline rationale).
+
+## Common Patterns
+
+- **Repository pattern**: encapsulate data access behind a consistent interface so business logic doesn't depend on storage details.
+- **API response envelope**: consistent shape — `status`, `data` (nullable on error), `error` (nullable on success), `metadata` (pagination when listing).
+
+## Automation (Cursor Hooks)
+
+- Prefer explicit, reviewable automation over "magic."
+- Avoid automations that bypass safety checks or approvals.
+- Keep automations scoped to well-defined, repeatable workflows.
+- For multi-step work, keep a structured task list so progress and intent stay clear.

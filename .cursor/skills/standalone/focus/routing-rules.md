@@ -16,8 +16,9 @@ Before loading feature docs for integration work, consult the project plugin ind
 | New/stale vendor API reference | `api-docs`, `context7-mcp` | `context7` |
 | Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch TikTok Shop University + official policy pages) |
 | Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
-| `web/` Next.js, deploy | `nextjs`, `react-best-practices` | `plugin-vercel-vercel` (deploy only) |
-| shadcn component | `shadcn` | `shadcn` (prefer `user-shadcn`) |
+| `web/` Next.js UI (component, page, form) | `ui-ux-design`, `nextjs`, `react-best-practices` | — |
+| `web/` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
+| shadcn registry primitive | `shadcn` (with `ui-ux-design`) | `shadcn` (prefer `user-shadcn`) |
 | Sentry / prod errors | `sentry-workflow` → `sentry-python-sdk` or `sentry-nextjs-sdk` | `plugin-sentry-sentry` |
 | Figma | `figma-use` (required before `use_figma`) | `figma` |
 | E2E browser | — | `playwright` or `cursor-ide-browser` |
@@ -41,7 +42,8 @@ Before loading feature docs for integration work, consult the project plugin ind
 
 | Code Pattern | Detected Intent | Load |
 |-------------|-----------------|------|
-| `'use client'` | Client component | frontend patterns, state mgmt |
+| `'use client'` | Client component | `ui-ux-design`, `web/MODULE.md` |
+| `web/src/components/` | New/changed UI | `ui-ux-design`, nearest existing component |
 | `'use server'` | Server action | security (input validation) |
 | `useQuery`, `useSWR` | Data fetching | caching patterns |
 | `supabase.from` | DB access | Supabase patterns, RLS policies |

@@ -28,7 +28,7 @@ export function ChatMessageList({ messages }: { messages: ChatMessage[] }) {
             style={{
               background:
                 message.role === "user"
-                  ? "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)"
+                  ? "var(--brand-gradient)"
                   : "var(--card)",
               color: message.role === "user" ? "#fff" : "var(--foreground)",
               border:

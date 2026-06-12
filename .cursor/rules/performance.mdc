@@ -1,9 +1,11 @@
 ---
 description: Performance standards — fast responses, efficient resources
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Performance
+
+Load via Focus when new DB queries, high-traffic paths, or caching is involved.
 
 ## N+1 Query Prevention
 

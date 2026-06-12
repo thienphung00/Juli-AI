@@ -109,12 +109,12 @@ appropriate skill) with the failed-check summary.
 
 ## Integration with rules
 
-- [`.cursor/rules/dev-workflow.mdc`](../../../.cursor/rules/dev-workflow.mdc) —
+- [`.cursor/rules/git-baseline.mdc`](../../../.cursor/rules/git-baseline.mdc) —
   CI/CD subsection; this skill is the local mirror of the `pr.yml` validate-artifacts job.
 - [`.cursor/rules/issue-workflow.mdc`](../../../.cursor/rules/issue-workflow.mdc) —
   the `>3 modules` warning surfaced here defers to the disjoint-modules rule.
-- [`.cursor/rules/skills-governance.mdc`](../../../.cursor/rules/skills-governance.mdc) —
-  this skill is read-only; it never creates new skills or rules.
+- [`.cursor/rules/core-orchestration.mdc`](../../../.cursor/rules/core-orchestration.mdc) —
+  skills governance; this skill is read-only; it never creates new skills or rules.
 
 ## Integration with other skills
 

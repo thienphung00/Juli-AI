@@ -69,7 +69,7 @@ describe("AC1: Login OTP flow", () => {
       expect(mockSendOtp).toHaveBeenCalledWith("+84912345678");
     });
 
-    expect(screen.getByLabelText("Nhập mã OTP")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
   });
 
   it("shows error when OTP send fails", async () => {
@@ -101,10 +101,13 @@ describe("AC1: Login OTP flow", () => {
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Nhập mã OTP")).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText("Nhập mã OTP"), "123456");
+    const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
+    for (let i = 0; i < 6; i++) {
+      await user.type(otpInputs[i]!, String(i + 1));
+    }
     await user.click(screen.getByRole("button", { name: "Xác nhận" }));
 
     await waitFor(() => {
@@ -124,10 +127,13 @@ describe("AC1: Login OTP flow", () => {
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Nhập mã OTP")).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText("Nhập mã OTP"), "000000");
+    const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
+    for (let i = 0; i < 6; i++) {
+      await user.type(otpInputs[i]!, "0");
+    }
     await user.click(screen.getByRole("button", { name: "Xác nhận" }));
 
     await waitFor(() => {
@@ -146,7 +152,7 @@ describe("AC1: Login OTP flow", () => {
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Nhập mã OTP")).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
     });
 
     await user.click(screen.getByText("← Đổi số điện thoại"));

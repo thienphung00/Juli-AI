@@ -3,24 +3,31 @@
 **Status:** Published (Phase 1.5 exit gate P1.5-7)  
 **Authority:** [`EXECUTION.md`](../../EXECUTION.md) Phase 2 slices · [`system-design.md`](../system-design.md) subsystem columns · this file for the **end-to-end inference pipeline**.
 
-Phase 2 wires TikTok Shop Partner API polling, daily batch ML inference, an Ollama copy layer, and live task execution into the three seller-money workflows. Phase 1 validates UX with mock data; Phase 1.5 trains and serializes models offline. Phase 2 swaps mocks for live data while preserving the same product shape.
+Phase 2 wires TikTok Shop Partner API polling, daily batch ML inference, an Ollama
+copy layer, and live task execution into the **operations-system pipeline**
+(classify → health → rank → reason → approve → execute → track). Phase 1 validates
+copilot UX with mock data; Phase 1.5 trains models offline; Phase 1.8 validates the
+orchestration spine on mock fixtures ([ADR-026](../decisions/026-operations-system-orchestration.md)).
+Phase 2 swaps mock loaders for live data (P2-11) while preserving stage envelopes.
 
 ---
 
 ## Phase 1 vs Phase 2 — what stays mock vs goes live
 
-| Subsystem | Phase 1 (UI) | Phase 1.5 (ML) | Phase 2 (APIs) |
-|-----------|--------------|----------------|----------------|
-| **Data ingestion** | Mock JSON fixtures | Backtest parquet only | **Live** TikTok API poll → ETL → Postgres |
-| **Feature build** | N/A | Offline parquet readers | **Live** daily feature build (06:00–07:00 UTC) |
-| **ML models** | None | Trained + serialized (`models/`) | **Live** batch inference (08:00 UTC) |
-| **Policy signals** | Hardcoded mock thresholds | N/A | **Live** deterministic rules (VP/AHR, disputes, withholding) when data available |
-| **Decision tree** | Mock stage + tasks | N/A | **Live** — consumes model outputs + policy signals |
-| **Copy layer** | Hardcoded Vietnamese copy | Rules-only templates | **Live** Ollama summarize + localize; rules fallback |
-| **UI** | Mock inferences | N/A | **Live** — real scores replace mock JSON |
-| **Executor** | No-op (intent only) | N/A | **Live** — approved tasks trigger TikTok API actions |
+| Subsystem | Phase 1 (UI) | Phase 1.5 (ML) | Phase 1.8 (orchestration) | Phase 2 (APIs) |
+|-----------|--------------|----------------|---------------------------|----------------|
+| **Data ingestion** | Mock JSON fixtures | Backtest parquet only | `unified_operational_data_model` fixtures | **Live** TikTok API poll → ETL → Postgres |
+| **Health / classification** | Per-workflow implicit | — | Rules-based `health_check_results` + `shop_profile` | Live health + classifier |
+| **Recommendation** | Per-copilot task cards | — | Ranked `workflow_recommendations` (6 workflows) | Live ranking + impact filter |
+| **Feature build** | N/A | Offline parquet readers | N/A | **Live** daily feature build (06:00–07:00 UTC) |
+| **ML models** | None | Trained + serialized (`models/`) | None | **Live** batch inference (08:00 UTC) |
+| **Policy signals** | Hardcoded mock thresholds | N/A | Mock probation/SPS/AHR in fixtures | **Live** VP/AHR/proxy per P2-1 gate |
+| **Copy / reasoning** | Hardcoded Vietnamese copy | Rules-only templates | Rules-only Why / Impact / Next steps | **Live** Ollama + rules fallback |
+| **UI** | Copilot task cards | N/A | Operations pipeline shell + existing modals | Live scores replace mocks |
+| **Executor** | No-op (intent only) | N/A | NPL + Refund Spike executable; 5 no-op | **Live** — P2-5…P2-15 executors |
 
-Phase 1 runs the **same end-to-end shape** as Phase 2: data → decision tree → ranked tasks → copy → approve/dismiss → executor. Phase 2 replaces each mock layer with its live counterpart without changing workflow routing logic.
+Phase 1.8 runs the **full operations pipeline shape** on mock data. Phase 2 replaces
+each mock loader with its live counterpart (P2-11) without changing stage envelopes.
 
 ---
 

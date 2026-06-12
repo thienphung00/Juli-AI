@@ -99,6 +99,7 @@ describe("Issue #167: global skip-with-reason", () => {
     const user = userEvent.setup();
     render(<TaskQueue tasks={newPersona.tasks.slice(0, 1)} personaId="new" />);
 
+    await user.click(screen.getByTestId("task-more-menu"));
     await user.click(screen.getByTestId("task-dismiss"));
     await waitFor(() => {
       expect(screen.getByTestId("task-dismiss-modal")).toBeInTheDocument();

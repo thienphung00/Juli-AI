@@ -244,29 +244,53 @@ function StepIndicator({ currentStep }: { currentStep: LeakageWorkflowStep }) {
   const currentIndex = LEAKAGE_WORKFLOW_STEPS.indexOf(currentStep);
 
   return (
-    <ol
-      className="mt-3 flex gap-1"
-      data-testid="leakage-step-indicator"
-      aria-label="Tiến trình quy trình"
-    >
-      {LEAKAGE_WORKFLOW_STEPS.map((step, index) => (
-        <li
-          key={step}
-          className="flex-1 rounded-full py-1 text-center text-[10px] font-semibold"
-          data-testid={`leakage-step-indicator-${step}`}
-          aria-current={step === currentStep ? "step" : undefined}
-          style={{
-            background:
-              index <= currentIndex
-                ? "var(--primary-500, #6366f1)"
-                : "var(--muted)",
-            color: index <= currentIndex ? "#fff" : "var(--muted-foreground)",
-          }}
-        >
-          {STEP_LABELS[step]}
-        </li>
-      ))}
-    </ol>
+    <>
+      {/* Mobile: numbered dots */}
+      <ol
+        className="mt-3 flex items-center justify-between gap-1 sm:hidden"
+        data-testid="leakage-step-indicator"
+        aria-label="Tiến trình quy trình"
+      >
+        {LEAKAGE_WORKFLOW_STEPS.map((step, index) => (
+          <li
+            key={step}
+            className="flex flex-1 flex-col items-center gap-1"
+            data-testid={`leakage-step-indicator-${step}`}
+            aria-current={step === currentStep ? "step" : undefined}
+          >
+            <span
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+              title={STEP_LABELS[step]}
+              style={{
+                background: index <= currentIndex ? "var(--primary)" : "var(--muted)",
+                color: index <= currentIndex ? "#fff" : "var(--muted-foreground)",
+              }}
+            >
+              {index + 1}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {/* Tablet+: labeled pills */}
+      <ol
+        className="mt-3 hidden gap-1 sm:flex"
+        aria-label="Tiến trình quy trình"
+      >
+        {LEAKAGE_WORKFLOW_STEPS.map((step, index) => (
+          <li
+            key={`${step}-wide`}
+            className="flex-1 rounded-full px-1 py-1 text-center text-xs font-semibold"
+            aria-current={step === currentStep ? "step" : undefined}
+            style={{
+              background: index <= currentIndex ? "var(--primary)" : "var(--muted)",
+              color: index <= currentIndex ? "#fff" : "var(--muted-foreground)",
+            }}
+          >
+            {STEP_LABELS[step]}
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
 
@@ -549,7 +573,7 @@ function ExecutionStep({
       <p
         className="text-xs font-semibold uppercase tracking-wide"
         data-testid={`leakage-execution-mock-${actionType}`}
-        style={{ color: "var(--primary-500, #6366f1)" }}
+        style={{ color: "var(--primary)" }}
       >
         {ACTION_TYPE_LABELS[actionType]} (mock)
       </p>
@@ -572,13 +596,24 @@ function ExecutionStep({
                 <span
                   className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold"
                   style={{
-                    background: isComplete
-                      ? "var(--primary-500, #6366f1)"
-                      : "var(--muted)",
-                    color: isComplete ? "#fff" : "var(--muted-foreground)",
+                    background: isComplete ? "var(--primary)" : "var(--muted)",
+                    color: isComplete ? "var(--primary-foreground)" : "var(--muted-foreground)",
                   }}
+                  aria-hidden
                 >
-                  {isComplete ? "✓" : index + 1}
+                  {isComplete ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path
+                        d="M2.5 6L5 8.5L9.5 3.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ) : (
+                    index + 1
+                  )}
                 </span>
                 <p className="font-medium">{step.title_vi}</p>
               </div>
@@ -587,7 +622,7 @@ function ExecutionStep({
                 <p
                   className="mt-2 text-xs font-medium"
                   data-testid="leakage-execution-active"
-                  style={{ color: "var(--primary-500, #6366f1)" }}
+                  style={{ color: "var(--primary)" }}
                 >
                   Đang thực hiện…
                 </p>

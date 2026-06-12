@@ -56,7 +56,7 @@ export function MatchDecisionCard({
       <button
         type="button"
         className="mt-3 w-full rounded-xl px-3 py-2.5 text-sm font-semibold text-white"
-        style={{ background: "linear-gradient(135deg, #ff006e 0%, #ff4d94 100%)" }}
+        style={{ background: "var(--brand-gradient)" }}
         onClick={onAction}
         data-testid="recommendation-cta"
       >

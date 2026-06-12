@@ -64,10 +64,13 @@ describe("UI-only login", () => {
     await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Nhập mã OTP")).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText("Nhập mã OTP"), "123456");
+    const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
+    for (let i = 0; i < 6; i++) {
+      await user.type(otpInputs[i]!, String(i + 1));
+    }
     await user.click(screen.getByRole("button", { name: "Xác nhận" }));
 
     await waitFor(() => {

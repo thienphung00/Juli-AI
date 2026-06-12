@@ -13,10 +13,20 @@ from typing import Any, Optional
 
 import requests
 
+from pydantic import BaseModel
+
 from src.modules.catalog.domain.integrations.tiktok.exceptions import error_from_response
+from src.modules.catalog.domain.integrations.tiktok.schemas import validate_data
 from src.modules.catalog.domain.integrations.tiktok.signing import sign_request
 
 logger = logging.getLogger(__name__)
+
+_ACCESS_TOKEN_HEADER = "x-tts-access-token"
+
+
+def uses_header_auth(path: str) -> bool:
+    """Versioned Partner API routes use header token transport, not query param."""
+    return not path.startswith("/api/")
 
 
 class TikTokClient:
@@ -39,9 +49,15 @@ class TikTokClient:
         self._timeout = timeout
         self._session = requests.Session()
 
-    def get(self, path: str, params: Optional[dict[str, str]] = None) -> dict:
-        """Signed GET request. Returns the ``data`` payload."""
-        all_params = self._build_params(params)
+    def get(
+        self,
+        path: str,
+        params: Optional[dict[str, str]] = None,
+        *,
+        response_model: Optional[type[BaseModel]] = None,
+    ) -> dict | BaseModel:
+        """Signed GET request. Returns the ``data`` payload (optionally validated)."""
+        all_params = self._build_params(path, params)
         all_params["sign"] = sign_request(
             app_secret=self._app_secret,
             path=path,
@@ -51,21 +67,27 @@ class TikTokClient:
         resp = self._session.get(
             f"{self._base_url}{path}",
             params=all_params,
+            headers=self._auth_headers(path),
             timeout=self._timeout,
         )
-        return self._handle_response(resp)
+        data = self._handle_response(resp)
+        if response_model is not None:
+            return validate_data(response_model, data)
+        return data
 
     def post(
         self,
         path: str,
         body: Optional[dict[str, Any]] = None,
         params: Optional[dict[str, str]] = None,
-    ) -> dict:
+        *,
+        response_model: Optional[type[BaseModel]] = None,
+    ) -> dict | BaseModel:
         """Signed POST request with JSON body. Returns the ``data`` payload."""
         body = body or {}
         body_str = json.dumps(body, separators=(",", ":"), sort_keys=True)
 
-        all_params = self._build_params(params)
+        all_params = self._build_params(path, params)
         all_params["sign"] = sign_request(
             app_secret=self._app_secret,
             path=path,
@@ -77,9 +99,13 @@ class TikTokClient:
             f"{self._base_url}{path}",
             params=all_params,
             json=body,
+            headers=self._auth_headers(path),
             timeout=self._timeout,
         )
-        return self._handle_response(resp)
+        data = self._handle_response(resp)
+        if response_model is not None:
+            return validate_data(response_model, data)
+        return data
 
     def get_all_pages(
         self,
@@ -88,33 +114,74 @@ class TikTokClient:
         items_key: str,
         page_size: int = 50,
     ) -> list[dict]:
-        """Auto-paginate a POST endpoint using cursor-based page_token."""
+        """Auto-paginate a POST endpoint using ``page_token`` query param.
+
+        Official responses expose the next cursor as ``next_page_token``; legacy
+        testing-tool aliases may return ``page_token`` instead.
+        """
         all_items: list[dict] = []
-        page_body = {**body, "page_size": page_size}
+        query_params: dict[str, str] = {"page_size": str(page_size)}
+        page_body = dict(body)
 
         while True:
-            data = self.post(path, body=page_body)
+            data = self.post(path, body=page_body, params=query_params)
             items = data.get(items_key, [])
             all_items.extend(items)
 
-            page_token = data.get("page_token")
-            if not page_token:
+            next_token = data.get("next_page_token") or data.get("page_token")
+            if not next_token:
                 break
-            page_body["page_token"] = page_token
+            query_params = {
+                "page_size": str(page_size),
+                "page_token": str(next_token),
+            }
 
         return all_items
 
-    def _build_params(self, extra: Optional[dict[str, str]] = None) -> dict[str, str]:
+    def get_all_pages_get(
+        self,
+        path: str,
+        params: dict[str, str],
+        items_key: str,
+        page_size: int = 50,
+    ) -> list[dict]:
+        """Auto-paginate a GET endpoint using ``page_token`` query param."""
+        all_items: list[dict] = []
+        query_params: dict[str, str] = {**params, "page_size": str(page_size)}
+
+        while True:
+            data = self.get(path, params=query_params)
+            if not isinstance(data, dict):
+                break
+            items = data.get(items_key, [])
+            all_items.extend(items)
+
+            next_token = data.get("next_page_token") or data.get("page_token")
+            if not next_token:
+                break
+            query_params = {**params, "page_size": str(page_size), "page_token": str(next_token)}
+
+        return all_items
+
+    def _build_params(
+        self, path: str, extra: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
         params: dict[str, str] = {
             "app_key": self._app_key,
             "timestamp": str(int(time.time())),
-            "access_token": self._access_token,
         }
+        if not uses_header_auth(path):
+            params["access_token"] = self._access_token
         if self._shop_cipher:
             params["shop_cipher"] = self._shop_cipher
         if extra:
             params.update(extra)
         return params
+
+    def _auth_headers(self, path: str) -> dict[str, str]:
+        if uses_header_auth(path):
+            return {_ACCESS_TOKEN_HEADER: self._access_token}
+        return {}
 
     @staticmethod
     def _handle_response(resp: requests.Response) -> dict:

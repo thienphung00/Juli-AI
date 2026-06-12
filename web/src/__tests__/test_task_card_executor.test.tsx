@@ -62,7 +62,7 @@ describe("Issue #117: TaskCard", () => {
     expect(screen.getByTestId("task-body")).toHaveTextContent(task.body);
     expect(screen.getByTestId("task-severity")).toHaveTextContent("Ưu tiên cao");
     expect(screen.getByTestId("task-approve")).toHaveTextContent(task.cta_label);
-    expect(screen.getByTestId("task-gmv-impact")).toHaveTextContent("GMV dự kiến");
+    expect(screen.getByTestId("task-gmv-impact")).toHaveTextContent("₫");
   });
 
   it("omits GMV impact when estimated_impact_vnd is null", () => {
@@ -128,10 +128,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
       expect(within(list).getAllByTestId("task-card")).toHaveLength(1);
     });
 
-    const remainingDismiss = within(list).getByTestId("task-dismiss");
-    await dismissTaskWithReason(user, "false_positive", {
-      dismissButton: remainingDismiss,
-    });
+    await dismissTaskWithReason(user, "false_positive");
 
     await waitFor(() => {
       expect(screen.getByTestId("task-queue-empty")).toBeInTheDocument();
@@ -163,9 +160,7 @@ describe("Issue #117: TaskQueue no-op executor", () => {
     render(<TaskQueue tasks={sampleTasks} personaId="new" />);
 
     await user.click(screen.getAllByTestId("task-approve")[0]);
-    await dismissTaskWithReason(user, "not_relevant", {
-      dismissButton: screen.getAllByTestId("task-dismiss")[0],
-    });
+    await dismissTaskWithReason(user, "not_relevant");
 
     expect(api.shops.list).not.toHaveBeenCalled();
     expect(api.shops.me).not.toHaveBeenCalled();

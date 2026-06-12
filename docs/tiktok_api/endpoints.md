@@ -129,46 +129,82 @@ Rotate refresh token. See [authentication.md](authentication.md).
 
 | Method | Path | Methods |
 |--------|------|---------|
-| POST | `/api/products/search` | `search`, `search_all` |
-| GET | `/api/products/details` | `get_details(product_id)` |
+| POST | `/product/202502/products/search` | `search`, `search_all` |
+| GET | `/product/202502/products/{product_id}` | `get_details(product_id)` |
 
-**Body filters:** `status`, `update_time_from`, `update_time_to`, `page_size`.
+**Body:** `status`, optional `update_time_ge` / `update_time_lt` (via Python
+`update_time_from` / `update_time_to` aliases). **Query:** `page_size`, `page_token`.
 
-> **DISCREPANCY:** Client uses unversioned `/api/products/*` paths. Verify against
-> Partner Center API Reference during P2-1; upgrade to `202502` paths if required.
-
-**Phase:** P2 (`data-sources.md` — TikTok Products row).
+**ETL:** `normalize_product` maps `id` → `product_id`, `audit.status` → `status`.
 
 ---
 
 ## Orders
 
-### Implemented (`OrdersResource`)
+### Official (versioned) — implemented
 
-| Method | Path | Client method |
-|--------|------|---------------|
-| POST | `/api/orders/search` | `search`, `search_all` |
-| POST | `/api/orders/detail/query` | `get_details(order_ids)` |
+| | |
+|---|---|
+| **Search** | `POST /order/202309/orders/search` |
+| **Detail** | `GET /order/202309/orders?ids=id1,id2` |
+| **Permissions** | Shop token + `shop_cipher` |
+| **Pagination** | Query `page_size`, `page_token`; response `next_page_token` |
 
 **Search body:**
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `status` | string | Filter by order status |
-| `update_time_from` | integer | Unix — incremental sync key |
-| `update_time_to` | integer | Window end |
-| `page_size` | integer | Default 50 in `search_all` |
+| `order_status` | string | `UNPAID`, `AWAITING_SHIPMENT`, `CANCELLED`, … |
+| `update_time_ge` | integer | Unix — incremental sync lower bound |
+| `update_time_lt` | integer | Window end (exclusive) |
 
-**Pagination:** `page_token` cursor via `TikTokClient.get_all_pages`, items key `orders`.
+**Python API aliases:** `OrdersResource.search(status=…)` maps to `order_status`;
+`update_time_from` / `update_time_to` map to `update_time_ge` / `update_time_lt`.
+
+**Response fields (integration mirrors — confirm with live samples):**
+
+| Field | Juli mapping |
+|-------|--------------|
+| `orders[].id` | `order_id` via `normalize_order` |
+| `orders[].user_id` | `buyer_id` |
+| `orders[].payment.total_amount` | `total_amount` |
+| `orders[].cancellation_initiator` | `is_seller_fault` proxy when cancelled |
+| `orders[].line_items[]` | `tiktok.order_items.raw` → `OrderItem` table |
 
 **Juli use:** Revenue Leakage Detection — returns, refunds, cancellation patterns.
 
-**Constraints:** Bounded history ~90d (operational assumption per `data-sources.md`).
+**Phase:** P2. See [`integration-audit-2026-06.md`](integration-audit-2026-06.md).
 
-**Phase:** P2.
+---
 
-> **UNKNOWN — not in extracted official pages:** Full request/response schema for
-> `/api/orders/search`. Confirm in Partner Center API Reference before P2-1.
+## Returns / Refunds
+
+### Implemented (`ReturnsResource`)
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| POST | `/return_refund/202309/returns/search` | `search_returns`, `search_returns_all` |
+| POST | `/return_refund/202309/cancellations/search` | `search_cancellations`, `search_cancellations_all` |
+
+**Search body:** `return_status` (returns only), `update_time_ge`, `update_time_lt`.
+**Items key:** `return_orders` (returns), `cancellations` (cancellations).
+
+**ETL:** `normalize_return` → `tiktok.returns.raw` → `Return` table. `return_type`
+derived from `return_condition` / API `return_type`.
+
+**Sync:** `sync_returns` in `src/apps/cron_jobs/services/polling/sync.py`.
+
+---
+
+## Authorization
+
+### Implemented (`AuthorizationResource`)
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| GET | `/authorization/202309/shops` | `list_shops`, `list_all_shops` |
+
+Returns `shops[]` with `id` (tiktok shop id) and `cipher` (`shop_cipher`).
 
 ---
 
@@ -178,8 +214,8 @@ Rotate refresh token. See [authentication.md](authentication.md).
 
 | Method | Path | Client method |
 |--------|------|---------------|
-| POST | `/api/affiliate/creators/search` | `list`, `list_all` |
-| GET | `/api/affiliate/creators/details` | `get(creator_id)` |
+| POST | `/affiliate_seller/202406/marketplace_creators/search` | `list`, `list_all` |
+| GET | `/affiliate_seller/202406/marketplace_creators/{creator_user_id}` | `get(creator_id)` |
 
 **Permissions:** Affiliate scope — `PermissionDeniedError` if seller has not approved.
 
@@ -195,10 +231,12 @@ Rotate refresh token. See [authentication.md](authentication.md).
 
 | Method | Path | Client method |
 |--------|------|---------------|
-| POST | `/api/affiliate/livestreams/search` | `list`, `list_all` |
-| GET | `/api/affiliate/livestreams/details` | `get(livestream_id)` |
+| GET | `/affiliate_seller/202412/open_collaborations/creator_content_details` | `list`, `list_all`, `get` |
 
-**Search body:** `creator_id`, `start_time`, `end_time`, `page_size`, `page_token`.
+**Query:** `creator_id`, `start_time`, `end_time`, `page_size`, `page_token`.
+
+> Replaces legacy `/api/affiliate/livestreams/*` (testing-tool alias). Maps
+> `room_id` / `content_id` → `livestream_id` for ETL compatibility.
 
 **Constraint:** Post-stream summaries only. Realtime in-stream data is **Forbidden** (#8).
 
@@ -219,15 +257,16 @@ Rotate refresh token. See [authentication.md](authentication.md).
 
 ---
 
-## Finance — Settlements
+## Finance — Statements (settlements)
 
 ### Implemented (`SettlementsResource`)
 
 | Method | Path | Client method |
 |--------|------|---------------|
-| POST | `/api/finance/settlements/search` | `list`, `list_all` |
+| GET | `/finance/202309/statements` | `list`, `list_all` |
 
-**Search body:** `settle_time_from`, `settle_time_to`, `page_size`, `page_token`.
+**Query:** `sort_field=statement_time`, `statement_time_ge`, `statement_time_lt`,
+`page_size`, `page_token`. Maps `statement_id` → `settlement_id` for ETL.
 
 **Operational rule:** Treat amounts as `pending` for 7–14 days.
 
