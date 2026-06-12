@@ -93,11 +93,17 @@ describe("Issue #120: evidence drill-down", () => {
   it("opens evidence drawer without forbidden PII field names", async () => {
     const user = userEvent.setup();
     const persona = loadPersona("leakage");
+    clearTaskExecutorSession();
     renderLeakagePanel(persona);
 
     await waitFor(() => {
-      expect(screen.getAllByTestId("task-more-menu").length).toBeGreaterThan(0);
+      expect(screen.getByTestId("leakage-copilot-panel")).toBeInTheDocument();
     });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("task-card").length).toBeGreaterThan(0);
+    });
+
     const moreMenus = screen.getAllByTestId("task-more-menu");
     await user.click(moreMenus[0]!);
     const evidenceButtons = screen.getAllByTestId("task-view-evidence");
