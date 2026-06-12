@@ -11,15 +11,26 @@
 
 ## North star
 
-**Seller money, not creator matching.** Juli-AI helps TikTok Shop sellers
-**make and keep more money** through three agentic workflows:
+**Seller money, not creator matching.** Juli AI is an **AI Operations System**
+for TikTok Shop sellers that helps them **make and keep more money** by executing
+only validated, high-impact workflows — classified by shop profile, ranked by
+health signals, explained, approved, and tracked.
 
-1. **New Seller Copilot** — get a new seller to first profitable sales.
-2. **Revenue Leakage Detection** — catch buyer-behavior return anomalies (item swaps, empty returns) and policy-driven leakage (refunds, commission disputes).
-3. **Growth Copilot** — improve ad ROAS and scale what works.
+**Copilot surfaces (execution UI pillars):**
 
-Rescope rationale: validate that these workflows resonate with real sellers
-**before** spending engineering on ML. UX viability first, then models, then live data.
+| Profile | Copilot | Validated workflows (6 total — no others) |
+|---------|---------|-------------------------------------------|
+| **NEW_SHOP** | **New Seller Copilot** | Add New Product Listings (NPL); Minimize Violations |
+| **MID_LARGE_SHOP** | **Growth Copilot** | Budget Optimization; Product Scaling |
+| **MID_LARGE_SHOP** | **Revenue Leakage** (loss prevention) | Refund Spike Detection; Stockout Prevention |
+
+Core pipeline: data collection → health check → profile classification → workflow
+recommendation & ranking → reasoning → user approval → Copilot execution → outcome
+tracking ([ADR-026](docs/decisions/026-operations-system-orchestration.md)).
+
+Rescope rationale: validate that the operations-system UX and validated workflow
+catalog resonate with real sellers **before** spending engineering on ML and live
+APIs. UX viability first (Phase 1 → 1.8), then models (1.5), then live data (2).
 
 > Creator ↔ Shop matching is **Phase 3+** and explicitly out of the next 13 weeks.
 > Its prior design lives in ADR history ([ADR-006](docs/decisions/006-matching-pivot.md),
@@ -35,7 +46,8 @@ Rescope rationale: validate that these workflows resonate with real sellers
 | **Phase 1.5** | 6–9 | Train + validate 3 model suites | Backtest (parquet) / synthetic | trained, serialized | precision/recall on backtest meets targets |
 | **Phase 1.6** | 9–10 | New Seller listing workflow (executable) | Mock fixtures | none | E2E `list_products` → export |
 | **Phase 1.7** | 10–11 | Revenue Leakage workflow (executable) | Mock fixtures | none | E2E leakage task → mock execute |
-| **Phase 2** | 11–15 | Real APIs + daily inference + Ollama copy + live execution | TikTok API polling | production inference + Ollama (copy layer) | 50 live sellers, zero critical bugs, 2 weeks stable |
+| **Phase 1.8** | 11–13 | Operations-system orchestration (mock) | Mock fixtures | none | E2E pipeline: classify → health check → ranked recs → reasoning → approval → outcome tracking |
+| **Phase 2** | 13–17 | Real APIs + daily inference + Ollama copy + live execution | TikTok API polling | production inference + Ollama (copy layer) | 50 live sellers, zero critical bugs, 2 weeks stable |
 
 **Parallel track:** TikTok API polling setup proceeds alongside Phase 1 (mock feed
 in P1, real data wired in P2).
@@ -155,19 +167,100 @@ dismiss reasons (global executor).
 - [x] **P1.7-1** Leakage workflow fixtures + schemas — `LeakageWorkflowTask`, evidence bundles, root cause, execution plan; align `leakage-persona.ts` task types (`buyer_cancellation_cluster`, `return_window_policy`). _(issue: #164)_
 - [x] **P1.7-2** Leakage state machine + `useLeakageWorkflow` hook — step graph, session resume, `canAdvance`. _(issue: #165)_
 - [x] **P1.7-3** `LeakageWorkflowPanel` modal UI — four task-type step renderers (mirror `ListingWorkflowPanel`). _(issue: #166)_
-- [ ] **P1.7-4** Executor integration — approve opens workflow; **global** skip-with-reason; complete → session disposition. _(issue: #167)_
+- [x] **P1.7-4** Executor integration — approve opens workflow; **global** skip-with-reason; complete → session disposition. _(issue: #167)_
 - [x] **P1.7-5** Integration tests + UX instrumentation — happy path per type, PII guard, step events. _(issue: #168)_
 
-### Exit gate → Phase 2
+### Exit gate → Phase 1.8
 
-- [ ] All four leakage task types completable E2E through success screen
-- [ ] Evidence step enforces masked IDs (no PII)
-- [ ] Skip-with-reason works on all three workflows
-- [ ] Product lead confirms operational UX resonates (same engagement bar as P1)
+- [x] All four leakage task types completable E2E through success screen
+- [x] Evidence step enforces masked IDs (no PII)
+- [x] Skip-with-reason works on all three copilot surfaces
+- [ ] Product lead confirms leakage operational UX resonates (same engagement bar as P1)
 
 ---
 
-## Phase 2 — Real APIs + Daily Inference (Weeks 11–15)
+## Phase 1.8 — Operations-System Orchestration (Weeks 11–13)
+
+**Goal:** Tie the three workflows together into one **AI Operations System** spine,
+all on **mock data**. Deliver the end-to-end pipeline UX — classify shop profile →
+evaluate health → rank explainable recommendations → approval gate → route execution
+→ track outcomes — over the **existing** mock workflows (listing P1.6, leakage P1.7,
+growth P1-4). No TikTok API, no ML inference, no Postgres, no Ollama.
+
+**Design reference:** [`docs/system-design.md`](docs/system-design.md) → Phase 1.8 columns
++ § Operations-system pipeline.
+**ADR:** [ADR-026](docs/decisions/026-operations-system-orchestration.md).
+
+**Profiles & validated workflows (no others):**
+
+- **NEW_SHOP** → Add New Product Listings (NPL, = listing workflow), Minimize Violations.
+- **MID_LARGE_SHOP** → Budget Optimization, Product Scaling, Refund Spike Detection
+  (= leakage workflow), Stockout Prevention.
+
+> **Traceability (non-negotiable):** every collected datum maps to ≥1 workflow; every
+> health indicator informs ≥1 workflow decision; every recommendation maps to ≥1
+> validated workflow; the copy/LLM layer never invents workflows.
+
+**Metrics:** Pipeline completion rate; classification distribution; recommendation
+approve/reject/selective rates + reject reasons; reasoning-expansion clicks.
+
+### Slices
+
+- [ ] **P1.8-1** Shop profile classification — extend rules-based seller-stage
+  detection (P1-6) to `shop_profile ∈ {NEW_SHOP, MID_LARGE_SHOP}` + profile→workflow
+  catalog mapping. Mock input. _(issue: #177)_
+- [x] **P1.8-2** Unified operational data model fixtures — `unified_operational_data_model`
+  mock JSON covering required data sets (shop metadata, probation, ads, product,
+  inventory, returns) with a datum→workflow traceability map. _(issue: #176)_
+- [x] **P1.8-3** Health Check subsystem (mock) — compute `health_check_results`
+  indicators (probation progress, SPS, AHR, ROAS efficiency, inventory health, refund
+  spike, scaling opportunity); each keyed to the workflow it informs. _(issue: #178)_
+- [ ] **P1.8-4** Workflow Recommendation & Ranking (mock) — profile + health →
+  ranked `workflow_recommendations` (priority/impact/confidence, preconditions,
+  rationale); impact-threshold filter for MID_LARGE_SHOP. _(issue: #179)_
+- [ ] **P1.8-5** LLM Reasoning panel (rules-only copy) — per-recommendation Why /
+  Expected Impact / Next Steps from deterministic signals; copy-layer templates
+  (Ollama deferred to P2). _(issue: #180)_
+- [ ] **P1.8-6** Unified Approval Gate + execution routing (mock) — approve all /
+  selective / reject-with-reason; route approved workflow to **executable** panels
+  (NPL → listing P1.6; Refund Spike → leakage P1.7 by task type) or **no-op** for
+  deferred workflows (Violations, Stockout, Budget Optimization, Product Scaling).
+  _(issue: #181)_
+- [ ] **P1.8-7** Outcome Tracking (mock) — per-workflow `workflow_outcome_metrics`
+  with success criteria + tracking cadence views (real-time / daily / weekly /
+  monthly). _(issue: #182)_
+- [ ] **P1.8-8** Design-system & interaction polish — apply the token foundation
+  ([ADR-027](docs/decisions/027-design-system-token-foundation.md)) across the
+  orchestration surfaces: **theme swap (Seller=light / Affiliate=dark)**, one typeface +
+  ≤6-size type scale, semantic palette `#16A34A`/`#E5484D`/`#F59E0B`/`#2563EB` with
+  background tints, full interaction states (default/hover/active/focus/disabled/loading),
+  3-step elevation scale, and motion (card entry, metric counter, approval→toast, loading
+  shimmer, tab fade) honoring `prefers-reduced-motion`. Update `web/MODULE.md` invariant +
+  re-baseline screenshots. _(issue: #174)_
+
+### Exit gate → Phase 2
+
+- [ ] E2E pipeline runs for both profiles on mock data: classify → health check →
+  ranked recommendations → reasoning → approval → routed execution → outcome view
+- [ ] Every mock datum and health indicator maps to ≥1 validated workflow (traceability check)
+- [ ] Recommendations never reference a workflow outside the validated catalog
+- [ ] Approval gate supports approve-all / selective / reject-with-reason on all workflows
+- [ ] Design-system tokens applied (theme swap + states + elevation + motion); both
+  Seller (light) and Affiliate (dark) modes verified; no stray theme hex ([ADR-027](docs/decisions/027-design-system-token-foundation.md))
+- [ ] Product lead confirms the operations-system UX resonates (same engagement bar as P1)
+
+> **Deferred (not built in P1.8):** standalone executors for Minimize Violations,
+> Stockout Prevention, Budget Optimization, and Product Scaling
+> — recommended as cards with rules-only reasoning; approval is a **no-op** until P2-13
+> / P2-14 / P2-15. Growth Copilot (P1-4) remains reference UI only; P1.8 does not
+> route approvals into the growth mock panel.
+>
+> **Impact threshold (MID_LARGE_SHOP):** Product lead sets numeric filter before
+> P1.8-4 ships; mock may rank all eligible workflows until threshold is recorded.
+
+---
+
+## Phase 2 — Real APIs + Daily Inference (Weeks 13–17)
 
 **Goal:** Wire TikTok API, run daily batch inference, deploy **Ollama** for the
 copy layer, swap mock data → real inferences in the UI, enable live task execution.
@@ -208,6 +301,19 @@ task delivery must not block on Ollama availability.
 - [ ] **P2-8** Products API publish executor — live listing from approved drafts. _(issue: TBD)_
 - [ ] **P2-9** Leakage approval queue — gate listing-update / settings / support-case executors. _(issue: TBD)_
 - [ ] **P2-10** Leakage live executors — Products API listing update, support case draft submit, shop settings. _(issue: TBD)_
+- [ ] **P2-11** Live operations pipeline — wire P1.8 orchestration (classification →
+  health check → ranking → reasoning → approval → outcome tracking) to real data +
+  inference + Ollama copy; swap mock loaders for live ones. _(issue: TBD)_
+- [ ] **P2-12** Scoped inventory collection — inventory level, sales velocity, reorder
+  lead time via TikTok API (**P2-1 gate** for field exposure); powers Stockout
+  Prevention + Product Scaling **only** (no inventory/finance management). _(issue: TBD)_
+- [ ] **P2-13** New-Shop workflow executor — Minimize Violations (corrective-action
+  recommendations) live behind approval. _(issue: TBD)_
+- [ ] **P2-14** Growth workflow executors — Budget Optimization (campaign budget
+  reallocation) and Product Scaling (inventory/marketing investment recommendations)
+  behind approval. _(issue: TBD)_
+- [ ] **P2-15** Stockout Prevention executor — reorder-point calc + reorder timing /
+  quantity recommendation behind approval. _(issue: TBD)_
 
 ### Exit gate → done / next phase
 
@@ -224,7 +330,9 @@ task delivery must not block on Ollama availability.
 - ✅ Phase 1.5 (Weeks 6–9): Train and validate three ML model suites
 - ✅ Phase 1.6 (Weeks 9–10): New Seller listing executable workflow (mock)
 - ✅ Phase 1.7 (Weeks 10–11): Revenue Leakage executable workflow (mock)
-- ✅ Phase 2 (Weeks 11–15): Real API polling + daily inference + Ollama copy layer + live task execution
+- ✅ Phase 1.8 (Weeks 11–13): Operations-system orchestration pipeline (mock)
+- ✅ Phase 2 (Weeks 13–17): Real API polling + daily inference + Ollama copy layer + live task execution
+- ✅ Scoped inventory data (level, sales velocity, lead time) — **P2+ only**, to power Stockout Prevention + Product Scaling ([ADR-026](docs/decisions/026-operations-system-orchestration.md))
 - ✅ Parallel: TikTok API polling setup (mock feed in P1, real data in P2)
 
 ## Explicitly out
@@ -236,6 +344,9 @@ task delivery must not block on Ollama availability.
 - ❌ Seller Center scraping, buyer PII, realtime unofficial streams (**permanently forbidden**)
 - ❌ Web analytics dashboard, iOS parity, nav redesign
 - ❌ Seller OS / CRM as standalone features
+- ❌ Inventory / finance / settlement **management** software — except the narrow,
+  workflow-justified inventory **signals** (level, sales velocity, lead time) that
+  power Stockout Prevention + Product Scaling in P2+ ([ADR-026](docs/decisions/026-operations-system-orchestration.md))
 - ❌ Folder reshaping of `src/` (deferred to Phase 2.5)
 
 ---

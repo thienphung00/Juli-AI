@@ -10,3 +10,28 @@ export {
   getWorkflowsForProfile,
   WORKFLOW_CATALOG,
 } from "./workflow-catalog";
+export {
+  computeHealthCheckResults,
+  getWorkflowsForHealthIndicator,
+  HEALTH_INDICATOR_IDS,
+  HEALTH_INDICATOR_TRACEABILITY_MAP,
+  REFUND_SPIKE_THRESHOLD_RATIO,
+  TARGET_ROAS,
+} from "./health-check";
+export type {
+  AdRoasCampaignSnapshot,
+  AdRoasEfficiencyIndicator,
+  AhrHealthIndicator,
+  HealthCheckIndicators,
+  HealthCheckResults,
+  HealthIndicator,
+  HealthIndicatorId,
+  HealthIndicatorSeverity,
+  InventoryHealthIndicator,
+  InventorySkuHealth,
+  ProbationProgressIndicator,
+  ProductScalingCandidate,
+  ProductScalingOpportunityIndicator,
+  RefundSpikeIndicator,
+  SpsHealthIndicator,
+} from "./health-check";
