@@ -1,0 +1,48 @@
+{
+  "id": "review-issue-233",
+  "issue": 233,
+  "timestamp": "2026-06-13T13:30:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-10 B3.1: decision detail preview step adds Xem trên Trang chủ return link via journey registry, matching ClarityCard href behavior; omits link when highlight anchor missing.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/components/decisions/DecisionDetailFlow.tsx",
+    "web/src/__tests__/test_issue233_decision_detail_home_link.test.tsx"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Detail flow renders Xem trên Trang chủ when journey link exists for workflow",
+          "test": "web/src/__tests__/test_issue233_decision_detail_home_link.test.tsx::renders Xem trên Trang chủ link on preview step when journey link exists (growth)"
+        },
+        {
+          "criterion": "Link href matches list card for same workflow_id growth and new-seller fixtures",
+          "test": "web/src/__tests__/test_issue233_decision_detail_home_link.test.tsx::link href matches list card for new-seller npl fixture"
+        },
+        {
+          "criterion": "Integration test detail page link href equals buildHomeHighlightLink output",
+          "test": "web/src/__tests__/test_issue233_decision_detail_home_link.test.tsx::links refund_spike_detection to inventory_refunds refund metric on Home"
+        },
+        {
+          "criterion": "Invalid or missing journey link link omitted no broken anchor",
+          "test": "web/src/__tests__/test_issue233_decision_detail_home_link.test.tsx::omits Home link when journey highlight is missing"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 4,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
