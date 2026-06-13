@@ -89,6 +89,24 @@ describe("Issue #234: zero-extension estimated bar CTA state", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("no-extension bar uses accessible disabled label not silent div-only chart", async () => {
+    const user = userEvent.setup();
+    renderSellerHomeWithPersona("new");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("todays-report-tab-inventory_refunds"));
+
+    const noExtension = screen.getByTestId(
+      "report-metric-estimated-inventory_refunds-pending_return_count-no-extension",
+    );
+    expect(noExtension.tagName).toBe("P");
+    expect(noExtension).toHaveAttribute("aria-disabled", "true");
+    expect(noExtension.textContent?.length).toBeGreaterThan(10);
+  });
+
   it("pending_return_count with workflow link offers Juli suggestion-only path when extension is zero", async () => {
     const user = userEvent.setup();
     renderSellerHomeWithPersona("new");
