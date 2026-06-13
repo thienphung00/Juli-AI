@@ -13,13 +13,16 @@ import {
 } from "@/lib/operations/todays-report";
 
 import { TodaysReportDomainCard } from "./TodaysReportDomainCard";
+import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 export function TodaysReportPanel({
   model,
   profile,
+  recommendations = [],
 }: {
   model: UnifiedOperationalDataModel;
   profile: ShopProfileType;
+  recommendations?: WorkflowRecommendation[];
 }) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const summaries = useMemo(() => buildAllDomainReportSummaries(model), [model]);
@@ -70,6 +73,7 @@ export function TodaysReportPanel({
           key={activeDomain}
           summary={activeSummary}
           animate={!prefersReducedMotion}
+          recommendations={recommendations}
         />
       </div>
     </section>

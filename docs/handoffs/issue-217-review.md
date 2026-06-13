@@ -1,43 +1,24 @@
-# Handoff: review → ship — Issue #217
+# Handoff: review → ship — Issue #217 (reopen)
 
 ## Issue
 
-- **#217** — Home Reward charts — sparklines, deltas, and CTAs to Decisions (P1.8-10)
+- **#217** — Home Real/Estimated visualizations + decision linking (P1.8-10 reopen)
+- Parent: **#215**
 
 ## PR
 
-- #223 — `feature/issue-217-home-reward-charts` → `main`
+- Branch: `fix/issue-217-home-viz-decision-linking` → `main`
 
-## Status
+## Root Cause
+
+Original #217 shipped sparkline Reward tiles with text CTAs and 5 Daily Report tabs. Product review (#215 follow-up) required Real/Estimated two-tone bars, click-on-Estimated navigation, 3-tab consolidation, and Shop Health bar upgrade — scope superseded the closed implementation.
+
+## Review Status
 
 - Critical findings: 0
 - Warnings: 0
-- Info: Depends on #216 journey link registry (merged in #222)
+- All 505 tests passing
 
-## Modules
+## Rollback
 
-| Module | Change |
-|--------|--------|
-| `ReportMetricChart.tsx` | SVG sparkline + delta + CTA row |
-| `TodaysReportDomainCard.tsx` | Chart rows replace number-only metric tiles |
-| `DecisionPreviewCard.tsx` | Link wrapper for full-card tap target |
-| `todays-report.ts` | `metricKey`, `series`, `deriveSparklineSeries` |
-| `journey-loop.ts` | `resolveJourneyLinkForMetric` reverse lookup |
-
-## Bootstrap
-
-Branch `feature/issue-217-home-reward-charts` from `main` (includes #216 via merge).
-
-## Review artifact
-
-- `artifacts/reviews/review-issue-217.json` — PASS, 5/5 AC mapped
-
-## Test Results
-
-- Issue tests: `test_issue217_home_reward_charts` (7)
-- Full web suite: 497 tests passing
-- Type-check: clean
-
-## Ready for ship
-
-All acceptance criteria mapped. No migrations. Rollback = revert PR.
+Revert PR merge; Home returns to sparkline + 5-tab layout from prior #217.

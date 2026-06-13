@@ -1,52 +1,32 @@
 "use client";
 
-import Link from "next/link";
+import type { MetricDelta, ReportDomainId } from "@/lib/operations/todays-report";
+import { buildDecisionsHighlightLink } from "@/lib/operations/journey-loop";
+import { resolveMetricWorkflowId } from "@/lib/operations/metric-action-mapping";
+import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
-import type { MetricDelta, TrendDirection } from "@/lib/operations/todays-report";
-import { buildDecisionsHighlightLink, resolveJourneyLinkForMetric } from "@/lib/operations/journey-loop";
-import type { ReportDomainId } from "@/lib/operations/todays-report";
+import { RealEstimatedBar } from "@/components/workflows/operations/RealEstimatedBar";
 
-const CHART_WIDTH = 120;
-const CHART_HEIGHT = 40;
-
-function trendColor(direction: TrendDirection | undefined): string {
+function trendColor(direction: MetricDelta["direction"]): string {
   if (direction === "up") return "var(--success)";
   if (direction === "down") return "var(--loss)";
-  return "var(--muted-foreground)";
-}
-
-function buildSparklinePoints(series: number[]): string {
-  if (series.length === 0) {
-    return "";
-  }
-
-  const min = Math.min(...series);
-  const max = Math.max(...series);
-  const range = max - min || 1;
-
-  return series
-    .map((value, index) => {
-      const x =
-        series.length === 1 ? CHART_WIDTH / 2 : (index / (series.length - 1)) * CHART_WIDTH;
-      const normalized = (value - min) / range;
-      const y = CHART_HEIGHT - normalized * (CHART_HEIGHT - 4) - 2;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  return "var(--brand-primary)";
 }
 
 export function ReportMetricChart({
   domainId,
   metric,
   animate,
+  recommendations = [],
 }: {
   domainId: ReportDomainId;
   metric: MetricDelta;
   animate: boolean;
+  recommendations?: WorkflowRecommendation[];
 }) {
-  const journeyLink = resolveJourneyLinkForMetric(domainId, metric.metricKey);
-  const ctaHref = journeyLink ? buildDecisionsHighlightLink(journeyLink.workflowId) : null;
-  const deltaColor = trendColor(metric.direction);
+  const workflowId = resolveMetricWorkflowId(domainId, metric.metricKey, recommendations);
+  const href = workflowId ? buildDecisionsHighlightLink(workflowId) : null;
+  const barColor = trendColor(metric.direction);
 
   return (
     <article
@@ -62,47 +42,44 @@ export function ReportMetricChart({
             {metric.label}
           </h4>
           <p className="mt-1 text-base font-semibold tabular-nums">{metric.value}</p>
-        </div>
-
-        <div className="flex shrink-0 flex-col items-end gap-1">
           {metric.deltaLabel ? (
             <span
               className="text-xs font-semibold tabular-nums"
-              style={{ color: deltaColor }}
+              style={{ color: barColor }}
               data-testid="report-metric-delta"
             >
               {metric.deltaLabel}
             </span>
           ) : null}
-          <svg
-            width={CHART_WIDTH}
-            height={CHART_HEIGHT}
-            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-            aria-hidden="true"
-            className="overflow-visible"
-          >
-            <polyline
-              fill="none"
-              stroke={deltaColor}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              points={buildSparklinePoints(metric.series)}
-            />
-          </svg>
         </div>
       </div>
 
-      {ctaHref ? (
-        <Link
-          href={ctaHref}
-          className="mt-3 inline-flex text-sm font-medium underline-offset-2 hover:underline"
-          style={{ color: "var(--brand-primary)" }}
-          data-testid={`report-metric-cta-${domainId}-${metric.metricKey}`}
+      {href ? (
+        <RealEstimatedBar
+          realValue={metric.realValue}
+          estimatedValue={metric.estimatedValue}
+          scaleMax={metric.scaleMax}
+          colorForValue={() => barColor}
+          href={href}
+          testIdPrefix={`report-metric-estimated-${domainId}-${metric.metricKey}`}
+          estimatedGainLabel={metric.estimatedGainLabel}
+          ariaLabel={`${metric.label}: dự kiến cải thiện nếu phê duyệt`}
+        />
+      ) : (
+        <div
+          className="mt-2 h-3 rounded-full"
+          style={{ background: "color-mix(in srgb, var(--brand-primary) 14%, transparent)" }}
+          data-testid={`report-metric-estimated-${domainId}-${metric.metricKey}-real-only`}
         >
-          Xem đề xuất liên quan →
-        </Link>
-      ) : null}
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${Math.min(100, (metric.realValue / metric.scaleMax) * 100)}%`,
+              background: barColor,
+            }}
+          />
+        </div>
+      )}
     </article>
   );
 }

@@ -59,6 +59,11 @@ export {
   SPARKLINE_POINT_COUNT,
 } from "./todays-report";
 export {
+  resolveAhrWorkflowId,
+  resolveMetricWorkflowId,
+  resolveSpsWorkflowId,
+} from "./metric-action-mapping";
+export {
   buildDecisionsHighlightLink,
   buildHomeHighlightLink,
   formatAnticipationImpact,

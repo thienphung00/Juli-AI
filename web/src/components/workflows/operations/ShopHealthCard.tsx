@@ -2,10 +2,20 @@
 
 import type { UnifiedOperationalDataModel } from "@/lib/mock-data/operations/schemas";
 import { AHR_METRIC, SPS_METRIC } from "@/lib/metrics/shop-health-metrics";
+import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
-import { HealthMetricBar } from "./HealthMetricBar";
+import {
+  HealthMetricBar,
+  deriveShopHealthEstimates,
+} from "./HealthMetricBar";
 
-export function ShopHealthCard({ model }: { model: UnifiedOperationalDataModel }) {
+export function ShopHealthCard({
+  model,
+  recommendations = [],
+}: {
+  model: UnifiedOperationalDataModel;
+  recommendations?: WorkflowRecommendation[];
+}) {
   const probation = model.probation;
 
   return (
@@ -16,22 +26,38 @@ export function ShopHealthCard({ model }: { model: UnifiedOperationalDataModel }
       </div>
 
       {probation ? (
-        <>
-          <HealthMetricBar
-            label={SPS_METRIC.label}
-            description={SPS_METRIC.description}
-            current={probation.sps_current}
-            target={probation.sps_threshold}
-            testId="shop-health-sps"
-          />
-          <HealthMetricBar
-            label={AHR_METRIC.label}
-            description={AHR_METRIC.description}
-            current={probation.ahr_current}
-            target={probation.ahr_threshold}
-            testId="shop-health-ahr"
-          />
-        </>
+        (() => {
+          const { spsEstimated, ahrEstimated } = deriveShopHealthEstimates(
+            probation.sps_current,
+            probation.ahr_current,
+            recommendations,
+          );
+
+          return (
+            <>
+              <HealthMetricBar
+                label={SPS_METRIC.label}
+                description={SPS_METRIC.description}
+                current={probation.sps_current}
+                estimated={spsEstimated}
+                scaleMax={5}
+                testId="shop-health-sps"
+                metricKind="sps"
+                recommendations={recommendations}
+              />
+              <HealthMetricBar
+                label={AHR_METRIC.label}
+                description={AHR_METRIC.description}
+                current={probation.ahr_current}
+                estimated={ahrEstimated}
+                scaleMax={1000}
+                testId="shop-health-ahr"
+                metricKind="ahr"
+                recommendations={recommendations}
+              />
+            </>
+          );
+        })()
       ) : (
         <p className="text-muted text-sm" data-testid="shop-health-unavailable">
           Chỉ số SPS/AHR chỉ áp dụng cho shop đang trong giai đoạn thử nghiệm.

@@ -1,5 +1,5 @@
 /**
- * Issue #217 — Home Reward charts + CTAs to Decisions (P1.8-10)
+ * Issue #217 — Home Real/Estimated visualizations + decision linking (P1.8-10 reopen)
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -15,12 +15,8 @@ import {
   buildDecisionsHighlightLink,
   getJourneyLink,
 } from "@/lib/operations/journey-loop";
-import {
-  SPARKLINE_POINT_COUNT,
-  buildDomainReportSummary,
-  deriveSparklineSeries,
-} from "@/lib/operations/todays-report";
 import { runOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
+import { REPORT_DOMAIN_IDS } from "@/lib/operations/todays-report";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
 
 jest.mock("@/lib/auth-context", () => ({
@@ -54,7 +50,7 @@ function mockMatchMedia(reducedMotion: boolean) {
   });
 }
 
-function renderSellerHomeWithPersona(personaId: "growth" | "leakage" = "growth") {
+function renderSellerHomeWithPersona(personaId: "growth" | "leakage" | "new" = "growth") {
   localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, "seller");
   localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, personaId);
   document.documentElement.classList.remove("dark");
@@ -75,64 +71,84 @@ beforeEach(() => {
   mockMatchMedia(false);
 });
 
-describe("Issue #217: Home Reward charts + CTAs", () => {
-  it("derives deterministic 7-point sparkline series from model inputs", () => {
-    const model = loadOperationalModelForPersona("growth");
-    const summary = buildDomainReportSummary("revenue_growth", model);
-    const revenueMetric = summary.metrics.find((metric) => metric.metricKey === "revenue_7d");
+describe("Issue #217: Home Real/Estimated visualizations", () => {
+  it("renders exactly three Daily Report domain tabs", async () => {
+    renderSellerHomeWithPersona("growth");
 
-    expect(revenueMetric?.series).toHaveLength(SPARKLINE_POINT_COUNT);
-    expect(deriveSparklineSeries(100, 80, "seed-a")).toEqual(
-      deriveSparklineSeries(100, 80, "seed-a"),
-    );
-    expect(deriveSparklineSeries(100, 80, "seed-a")).not.toEqual(
-      deriveSparklineSeries(100, 80, "seed-b"),
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
+    });
+
+    expect(REPORT_DOMAIN_IDS).toHaveLength(3);
+    for (const domainId of REPORT_DOMAIN_IDS) {
+      expect(screen.getByTestId(`todays-report-tab-${domainId}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId("todays-report-tab-revenue_protection")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("todays-report-tab-advertising")).not.toBeInTheDocument();
   });
 
-  it("renders revenue and units sparklines with delta labels on growth Tăng trưởng tab", async () => {
+  it("renders Shop Health SPS/AHR as two-tone bars with estimated affordance", async () => {
+    renderSellerHomeWithPersona("new");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("shop-health-sps-estimated")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("shop-health-ahr-estimated")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-health-sps-real")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-health-sps-tick-3_5")).toBeInTheDocument();
+    expect(screen.getByTestId("shop-health-sps-tick-4_5")).toBeInTheDocument();
+    expect(screen.queryByTestId("report-metric-cta-revenue_growth-revenue_7d")).not.toBeInTheDocument();
+  });
+
+  it("renders growth metrics as Real/Estimated bars linked to budget_optimization", async () => {
     renderSellerHomeWithPersona("growth");
 
     await waitFor(() => {
       expect(screen.getByTestId("todays-report-card-revenue_growth")).toBeInTheDocument();
     });
 
-    const revenueChart = screen.getByTestId(
-      "report-metric-chart-revenue_growth-revenue_7d",
+    const revenueEstimated = screen.getByTestId(
+      "report-metric-estimated-revenue_growth-revenue_7d-estimated",
     );
-    const unitsChart = screen.getByTestId(
-      "report-metric-chart-revenue_growth-units_sold_7d",
+    const unitsEstimated = screen.getByTestId(
+      "report-metric-estimated-revenue_growth-units_sold_7d-estimated",
+    );
+    const roasEstimated = screen.getByTestId(
+      "report-metric-estimated-revenue_growth-roas-estimated",
     );
 
-    expect(revenueChart).toBeInTheDocument();
-    expect(unitsChart).toBeInTheDocument();
-    expect(within(revenueChart).getByTestId("report-metric-delta")).toBeVisible();
-    expect(within(unitsChart).getByTestId("report-metric-delta")).toBeVisible();
-    expect(revenueChart.querySelector("polyline")).toBeInTheDocument();
-    expect(unitsChart.querySelector("polyline")).toBeInTheDocument();
+    expect(revenueEstimated).toHaveAttribute(
+      "href",
+      buildDecisionsHighlightLink("budget_optimization"),
+    );
+    expect(unitsEstimated).toHaveAttribute(
+      "href",
+      buildDecisionsHighlightLink("budget_optimization"),
+    );
+    expect(roasEstimated).toHaveAttribute(
+      "href",
+      buildDecisionsHighlightLink("budget_optimization"),
+    );
+    expect(screen.queryByText("Xem đề xuất liên quan")).not.toBeInTheDocument();
   });
 
-  it("wires chart CTAs through the journey registry deep links", async () => {
-    renderSellerHomeWithPersona("growth");
+  it("links inventory and refund metrics to distinct workflow actions", async () => {
+    const user = userEvent.setup();
+    renderSellerHomeWithPersona("leakage");
 
     await waitFor(() => {
-      expect(
-        screen.getByTestId("report-metric-cta-revenue_growth-revenue_7d"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
     });
 
-    const revenueCta = screen.getByTestId("report-metric-cta-revenue_growth-revenue_7d");
-    const unitsCta = screen.getByTestId("report-metric-cta-revenue_growth-units_sold_7d");
+    await user.click(screen.getByTestId("todays-report-tab-inventory_refunds"));
 
-    expect(revenueCta).toHaveAttribute(
-      "href",
-      buildDecisionsHighlightLink("product_scaling"),
-    );
-    expect(unitsCta).toHaveAttribute(
-      "href",
-      buildDecisionsHighlightLink("product_scaling"),
-    );
-    expect(revenueCta).toHaveTextContent("Xem đề xuất liên quan");
+    expect(
+      screen.getByTestId("report-metric-estimated-inventory_refunds-low_stock_rate-estimated"),
+    ).toHaveAttribute("href", buildDecisionsHighlightLink("stockout_prevention"));
+    expect(
+      screen.getByTestId("report-metric-estimated-inventory_refunds-refund_rate_7d-estimated"),
+    ).toHaveAttribute("href", buildDecisionsHighlightLink("refund_spike_detection"));
   });
 
   it("makes opportunity preview cards fully tappable decision deep links", async () => {
@@ -150,29 +166,7 @@ describe("Issue #217: Home Reward charts + CTAs", () => {
     expect(getJourneyLink(decision.workflow_id)).not.toBeNull();
   });
 
-  it("renders preview cards on Home as tappable deep links", async () => {
-    renderSellerHomeWithPersona("growth");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("decision-preview-list")).toBeInTheDocument();
-    });
-
-    const links = screen.getAllByTestId(/^decision-preview-link-/);
-    expect(links.length).toBeGreaterThan(0);
-
-    for (const link of links) {
-      const workflowId = link
-        .getAttribute("data-testid")
-        ?.replace("decision-preview-link-", "");
-      expect(workflowId).toBeTruthy();
-      expect(isValidatedWorkflowId(workflowId!)).toBe(true);
-      if (isValidatedWorkflowId(workflowId!)) {
-        expect(link).toHaveAttribute("href", buildDecisionsHighlightLink(workflowId));
-      }
-    }
-  });
-
-  it("exposes report metric chart and CTA test ids without chart library dependencies", async () => {
+  it("exposes chart test ids without npm chart dependencies", async () => {
     renderSellerHomeWithPersona("growth");
 
     await waitFor(() => {
@@ -182,9 +176,8 @@ describe("Issue #217: Home Reward charts + CTAs", () => {
     });
 
     expect(
-      screen.getByTestId("report-metric-cta-revenue_growth-revenue_7d"),
+      screen.getByTestId("report-metric-estimated-revenue_growth-revenue_7d-estimated"),
     ).toBeInTheDocument();
-    expect(screen.getAllByTestId(/^decision-preview-link-/).length).toBeGreaterThan(0);
 
     const pkg = (await import("../../package.json")).default as {
       dependencies?: Record<string, string>;
@@ -195,11 +188,13 @@ describe("Issue #217: Home Reward charts + CTAs", () => {
 
   it("disables chart entry animation when prefers-reduced-motion is reduce", async () => {
     mockMatchMedia(true);
+    const pipeline = runOperationsPipeline("growth");
 
     render(
       <TodaysReportPanel
-        model={loadOperationalModelForPersona("growth")}
-        profile="MID_LARGE_SHOP"
+        model={pipeline.unifiedModel}
+        profile={pipeline.shopProfile}
+        recommendations={pipeline.workflowRecommendations.recommended_workflows}
       />,
     );
 

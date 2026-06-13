@@ -1,83 +1,93 @@
 {
   "id": "review-issue-217",
   "issue": 217,
-  "timestamp": "2026-06-13T05:45:00Z",
+  "timestamp": "2026-06-13T12:00:00Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "P1.8-10 Home Reward charts: SVG sparklines with delta labels on Today's Report, journey-registry CTAs to Decisions, tappable opportunity preview cards, prefers-reduced-motion respected. No chart library added.",
+  "summary": "P1.8-10 reopen: Shop Health SPS/AHR two-tone pink ramp bars with threshold ticks; Today's Report collapsed to 3 tabs with Real/Estimated interactive bars (no sparklines or text CTAs); fixed metric→workflow mapping via metric-action-mapping.ts.",
   "criticalFindings": [],
   "warnings": [],
   "modulesTouched": [
+    "web/src/components/workflows/operations/RealEstimatedBar.tsx",
+    "web/src/components/workflows/operations/HealthMetricBar.tsx",
+    "web/src/components/workflows/operations/ShopHealthCard.tsx",
     "web/src/components/home/todays-report/ReportMetricChart.tsx",
-    "web/src/components/home/todays-report/TodaysReportDomainCard.tsx",
-    "web/src/components/workflows/operations/DecisionPreviewCard.tsx",
     "web/src/lib/operations/todays-report.ts",
     "web/src/lib/operations/journey-loop.ts",
-    "web/src/lib/operations/index.ts",
+    "web/src/lib/operations/metric-action-mapping.ts",
     "web/src/__tests__/test_issue217_home_reward_charts.test.tsx"
   ],
   "interfaceChanges": [
     {
       "module": "web/src/lib/operations/todays-report",
-      "interface": "deriveSparklineSeries / MetricDelta.series",
-      "changeType": "added",
-      "breaking": false,
-      "description": "Deterministic 7-point mock series and metricKey on MetricDelta for sparkline rendering."
+      "interface": "MetricDelta realValue/estimatedValue/scaleMax",
+      "changeType": "modified",
+      "breaking": true,
+      "description": "Replaced sparkline series with Real/Estimated bar fields; REPORT_DOMAIN_IDS reduced to 3 tabs."
     },
     {
-      "module": "web/src/lib/operations/journey-loop",
-      "interface": "resolveJourneyLinkForMetric",
+      "module": "web/src/lib/operations/metric-action-mapping",
+      "interface": "resolveMetricWorkflowId / resolveSpsWorkflowId / resolveAhrWorkflowId",
       "changeType": "added",
       "breaking": false,
-      "description": "Reverse lookup from report domain + metric key to workflow journey link for chart CTAs."
-    },
-    {
-      "module": "web/src/components/home/todays-report",
-      "interface": "ReportMetricChart",
-      "changeType": "added",
-      "breaking": false,
-      "description": "Lightweight SVG sparkline row with delta annotation and Decisions deep-link CTA."
+      "description": "Authoritative metric→workflow mapping and Shop Health fallthrough resolution."
     },
     {
       "module": "web/src/components/workflows/operations",
-      "interface": "DecisionPreviewCard",
-      "changeType": "modified",
+      "interface": "RealEstimatedBar",
+      "changeType": "added",
       "breaking": false,
-      "description": "Entire preview card wrapped in Link to /decisions?highlight=<workflow_id>."
+      "description": "Shared two-tone bar with clickable Estimated segment and optional threshold ticks."
     }
   ],
   "moduleDrift": false,
   "driftDetails": [],
   "testCoverage": {
     "acceptance": {
-      "total": 5,
-      "mapped": 5,
+      "total": 9,
+      "mapped": 9,
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "Growth persona Tăng trưởng tab Doanh thu and Đơn vị bán sparklines with delta labels",
-          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::renders revenue and units sparklines with delta labels on growth Tăng trưởng tab"
+          "criterion": "Shop Health renders SPS/AHR as two-tone health bars with pink ramp and SPS threshold ticks",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::renders Shop Health SPS/AHR as two-tone bars with estimated affordance"
         },
         {
-          "criterion": "Each chart CTA href matches registry output for linked workflow_id",
-          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::wires chart CTAs through the journey registry deep links"
+          "criterion": "Daily Report shows exactly 3 domain tabs",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::renders exactly three Daily Report domain tabs"
         },
         {
-          "criterion": "Tapping opportunity preview card navigates to decisions highlight workflow_id",
-          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::makes opportunity preview cards fully tappable decision deep links"
+          "criterion": "Growth tab revenue units ROAS Real/Estimated bars Estimated click budget_optimization",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::renders growth metrics as Real/Estimated bars linked to budget_optimization"
         },
         {
-          "criterion": "data-testid hooks report-metric-chart report-metric-cta decision-preview-link",
-          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::exposes report metric chart and CTA test ids without chart library dependencies"
+          "criterion": "Product tab SKU count bar Estimated click product_scaling fallback npl",
+          "test": "web/src/__tests__/test_journey_loop_registry.test.ts::maps new-shop workflows to product and shop health anchors"
+        },
+        {
+          "criterion": "Inventory and Refunds tab low-stock and refund metrics with distinct action targets",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::links inventory and refund metrics to distinct workflow actions"
+        },
+        {
+          "criterion": "No static text CTAs growth metrics Real Estimated budget_optimization",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::renders growth metrics as Real/Estimated bars linked to budget_optimization"
+        },
+        {
+          "criterion": "exposes chart test ids without npm chart dependencies data-testid",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::exposes chart test ids without npm chart dependencies"
+        },
+        {
+          "criterion": "maps growth persona workflows consolidated 3-tab anchors journey registry",
+          "test": "web/src/__tests__/test_journey_loop_registry.test.ts::maps growth persona workflows to the consolidated 3-tab anchors"
         },
         {
           "criterion": "No new npm chart dependencies",
-          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::exposes report metric chart and CTA test ids without chart library dependencies"
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::exposes chart test ids without npm chart dependencies"
         }
       ]
     },
     "unit": {
-      "passed": 7,
+      "passed": 505,
       "failed": 0
     }
   },

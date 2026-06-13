@@ -1,6 +1,7 @@
 "use client";
 
 import type { DomainReportSummary, TrendDirection } from "@/lib/operations/todays-report";
+import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 import { ReportMetricChart } from "./ReportMetricChart";
 
@@ -52,9 +53,11 @@ function trendColor(direction: TrendDirection): string {
 export function TodaysReportDomainCard({
   summary,
   animate,
+  recommendations = [],
 }: {
   summary: DomainReportSummary;
   animate: boolean;
+  recommendations?: WorkflowRecommendation[];
 }) {
   const badgeStyle = statusStyle(summary.statusTone);
 
@@ -113,6 +116,7 @@ export function TodaysReportDomainCard({
                 domainId={summary.domainId}
                 metric={metric}
                 animate={animate}
+                recommendations={recommendations}
               />
             ))}
           </div>
