@@ -27,11 +27,13 @@ export function ReportMetricChart({
   metric,
   animate,
   recommendations = [],
+  highlighted = false,
 }: {
   domainId: ReportDomainId;
   metric: MetricDelta;
   animate: boolean;
   recommendations?: WorkflowRecommendation[];
+  highlighted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
@@ -58,6 +60,7 @@ export function ReportMetricChart({
       style={{ borderColor: "var(--border)" }}
       data-testid={`report-metric-chart-${domainId}-${metric.metricKey}`}
       data-animate={animate ? "true" : "false"}
+      data-highlighted={highlighted ? "true" : undefined}
     >
       {hasSuggestionAccordion ? (
         <button
