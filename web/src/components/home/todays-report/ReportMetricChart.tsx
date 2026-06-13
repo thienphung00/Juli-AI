@@ -7,6 +7,8 @@ import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 import { RealEstimatedBar } from "@/components/workflows/operations/RealEstimatedBar";
 
+import { MetricSparkline } from "./MetricSparkline";
+
 function trendColor(direction: MetricDelta["direction"]): string {
   if (direction === "up") return "var(--success)";
   if (direction === "down") return "var(--loss)";
@@ -51,6 +53,16 @@ export function ReportMetricChart({
             </span>
           ) : null}
         </div>
+
+        {metric.series && metric.series.length > 1 ? (
+          <MetricSparkline
+            series={metric.series}
+            color={barColor}
+            domainId={domainId}
+            metricKey={metric.metricKey}
+            animate={animate}
+          />
+        ) : null}
       </div>
 
       {href ? (

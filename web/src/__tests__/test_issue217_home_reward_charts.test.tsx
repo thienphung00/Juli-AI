@@ -171,24 +171,23 @@ describe("Issue #217: Home Real/Estimated visualizations", () => {
     expect(getJourneyLink(decision.workflow_id)).not.toBeNull();
   });
 
-  it("exposes chart test ids without npm chart dependencies", async () => {
+  it("renders Recharts sparklines on growth revenue and profit tiles", async () => {
     renderSellerHomeWithPersona("growth");
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("report-metric-chart-revenue_growth-revenue_7d"),
+        screen.getByTestId("report-metric-sparkline-revenue_growth-revenue_7d"),
       ).toBeInTheDocument();
     });
 
     expect(
-      screen.getByTestId("report-metric-estimated-revenue_growth-revenue_7d-estimated"),
+      screen.getByTestId("report-metric-sparkline-revenue_growth-profit_margin"),
     ).toBeInTheDocument();
 
     const pkg = (await import("../../package.json")).default as {
       dependencies?: Record<string, string>;
     };
-    expect(pkg.dependencies?.recharts).toBeUndefined();
-    expect(pkg.dependencies?.["chart.js"]).toBeUndefined();
+    expect(pkg.dependencies?.recharts).toBeDefined();
   });
 
   it("disables chart entry animation when prefers-reduced-motion is reduce", async () => {
