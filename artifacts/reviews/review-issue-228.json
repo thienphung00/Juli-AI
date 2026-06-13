@@ -1,0 +1,71 @@
+{
+  "id": "review-issue-228",
+  "issue": 228,
+  "timestamp": "2026-06-13T12:30:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-10 B1.4/B1.5: Restores Recharts sparklines on Tăng trưởng revenue/profit tiles with deterministic 7-point series; adds separate Lợi nhuận / biên tile with RealEstimatedBar and product_scaling deep link.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/components/home/todays-report/MetricSparkline.tsx",
+    "web/src/components/home/todays-report/ReportMetricChart.tsx",
+    "web/src/lib/operations/todays-report.ts",
+    "web/src/lib/operations/metric-action-mapping.ts",
+    "web/src/__tests__/test_issue228_growth_sparklines.test.tsx",
+    "web/src/__tests__/test_issue217_home_reward_charts.test.tsx",
+    "web/package.json"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/operations/todays-report",
+      "interface": "MetricDelta.series / deriveSparklineSeries / profit_margin metric",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Restored optional sparkline series on growth metrics; added Lợi nhuận / biên tile computed from product margin_pct."
+    },
+    {
+      "module": "web/src/components/home/todays-report",
+      "interface": "MetricSparkline",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Recharts LineChart wrapper for compact 7-point sparklines with reduced-motion animation control."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Tăng trưởng tab renders distinct Doanh thu 7 ngày and Profit/margin tiles",
+          "test": "web/src/__tests__/test_issue228_growth_sparklines.test.tsx::includes distinct Doanh thu and Lợi nhuận / biên tiles in growth summary"
+        },
+        {
+          "criterion": "Sparkline SVG/Recharts wrapper present on revenue + profit tiles",
+          "test": "web/src/__tests__/test_issue228_growth_sparklines.test.tsx::integration: growth Tăng trưởng tab renders profit tile and Recharts sparklines"
+        },
+        {
+          "criterion": "deriveSparklineSeries drives deterministic 7-point mock series",
+          "test": "web/src/__tests__/test_issue228_growth_sparklines.test.tsx::builds deterministic 7-point sparkline series from model inputs"
+        },
+        {
+          "criterion": "Reduced-motion disables chart entry animation",
+          "test": "web/src/__tests__/test_issue228_growth_sparklines.test.tsx::disables sparkline entry animation when prefers-reduced-motion is reduce"
+        },
+        {
+          "criterion": "Integration test: growth persona Tăng trưởng tab has profit tile + sparkline test IDs",
+          "test": "web/src/__tests__/test_issue228_growth_sparklines.test.tsx::integration: growth Tăng trưởng tab renders profit tile and Recharts sparklines"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 525,
+      "failed": 0
+    }
+  },
+  "recommendations": []
+}
