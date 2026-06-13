@@ -8,6 +8,10 @@ import {
   parseHomeHighlight,
   resolveHomeHighlight,
 } from "@/lib/operations/journey-loop";
+import {
+  buildDecisionsHighlightLink as exportedBuildDecisionsHighlightLink,
+  getJourneyLink as exportedGetJourneyLink,
+} from "@/lib/operations";
 
 describe("operations/journey-loop registry", () => {
   it("defines a non-empty journey link for every ADR-026 workflow_id", () => {
@@ -86,5 +90,10 @@ describe("operations/journey-loop registry", () => {
       reportDomain: "refunds",
       metricKey: "refund_rate_7d",
     });
+  });
+
+  it("exports journey registry helpers from the operations public interface", () => {
+    expect(exportedGetJourneyLink("npl")).not.toBeNull();
+    expect(exportedBuildDecisionsHighlightLink("npl")).toBe("/decisions?highlight=npl");
   });
 });
