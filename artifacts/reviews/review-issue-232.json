@@ -1,0 +1,54 @@
+{
+  "id": "review-issue-232",
+  "issue": 232,
+  "timestamp": "2026-06-13T13:30:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-10 B2.6/B2.7/B3.2: trim Shop Health subtitle on Home, bump SPS threshold labels to text-xs (12px), unify Decisions sub-tab pills with Báo cáo tab styling.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/components/workflows/operations/ShopHealthCard.tsx",
+    "web/src/components/workflows/operations/HealthMetricBar.tsx",
+    "web/src/components/decisions/DecisionsSubTabs.tsx",
+    "web/src/__tests__/test_issue232_home_polish.test.tsx"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Shop Health card on Home has no multi-sentence explanatory paragraph",
+          "test": "web/src/__tests__/test_issue232_home_polish.test.tsx::omits SPS/AHR domain description paragraphs on Home Shop Health card"
+        },
+        {
+          "criterion": "SPS threshold tick labels render at 12px computed font-size",
+          "test": "web/src/__tests__/test_issue232_home_polish.test.tsx::renders Mega-campaign and Star Shop labels at text-xs (≥12px), not text-[10px]"
+        },
+        {
+          "criterion": "Decisions sub-tabs use same pill classes as TodaysReportPanel switcher",
+          "test": "web/src/__tests__/test_issue232_home_polish.test.tsx::uses btn-primary / btn-secondary pill classes matching TodaysReportPanel"
+        },
+        {
+          "criterion": "WCAG P0-14 pass for SPS labels",
+          "test": "web/src/__tests__/test_issue232_home_polish.test.tsx::renders Mega-campaign and Star Shop labels at text-xs (≥12px), not text-[10px]"
+        },
+        {
+          "criterion": "Snapshot or class assertion on Decisions tab active state",
+          "test": "web/src/__tests__/test_issue232_home_polish.test.tsx::switches active pill class when selecting a different Decisions sub-tab"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 4,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
