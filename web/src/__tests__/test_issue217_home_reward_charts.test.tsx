@@ -8,7 +8,7 @@ import { DecisionPreviewCard } from "@/components/workflows/operations/DecisionP
 import { SellerHomeShell } from "@/components/seller-home/SellerHomeShell";
 import { DEMO_PERSONA_STORAGE_KEY } from "@/lib/demo-persona";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
-import { toDecision } from "@/lib/decisions";
+import { toDecision, isValidatedWorkflowId } from "@/lib/decisions";
 import { loadOperationalModelForPersona } from "@/lib/mock-data/operations";
 import { ModeProvider } from "@/lib/mode-context";
 import {
@@ -161,9 +161,36 @@ describe("Issue #217: Home Reward charts + CTAs", () => {
     expect(links.length).toBeGreaterThan(0);
 
     for (const link of links) {
-      const workflowId = link.getAttribute("data-testid")?.replace("decision-preview-link-", "");
-      expect(link).toHaveAttribute("href", buildDecisionsHighlightLink(workflowId!));
+      const workflowId = link
+        .getAttribute("data-testid")
+        ?.replace("decision-preview-link-", "");
+      expect(workflowId).toBeTruthy();
+      expect(isValidatedWorkflowId(workflowId!)).toBe(true);
+      if (isValidatedWorkflowId(workflowId!)) {
+        expect(link).toHaveAttribute("href", buildDecisionsHighlightLink(workflowId));
+      }
     }
+  });
+
+  it("exposes report metric chart and CTA test ids without chart library dependencies", async () => {
+    renderSellerHomeWithPersona("growth");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("report-metric-chart-revenue_growth-revenue_7d"),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByTestId("report-metric-cta-revenue_growth-revenue_7d"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^decision-preview-link-/).length).toBeGreaterThan(0);
+
+    const pkg = (await import("../../package.json")).default as {
+      dependencies?: Record<string, string>;
+    };
+    expect(pkg.dependencies?.recharts).toBeUndefined();
+    expect(pkg.dependencies?.["chart.js"]).toBeUndefined();
   });
 
   it("disables chart entry animation when prefers-reduced-motion is reduce", async () => {
