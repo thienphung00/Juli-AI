@@ -32,7 +32,6 @@ function spsUnlockLabel(current: number, estimated: number): string | undefined 
 
 export function HealthMetricBar({
   label,
-  description,
   current,
   estimated,
   scaleMax,
@@ -42,7 +41,6 @@ export function HealthMetricBar({
   highlighted = false,
 }: {
   label: string;
-  description: string;
   current: number;
   estimated: number;
   scaleMax: number;
@@ -73,7 +71,6 @@ export function HealthMetricBar({
           <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
             {label}
           </p>
-          <p className="text-muted mt-0.5 text-xs">{description}</p>
         </div>
         <p
           className="text-right text-sm font-bold tabular-nums"
@@ -98,7 +95,8 @@ export function HealthMetricBar({
 
       {metricKind === "sps" ? (
         <div
-          className="text-muted mt-1 flex flex-wrap gap-2 text-[10px]"
+          className="text-muted mt-1 flex flex-wrap gap-2 text-xs"
+          data-testid={`${testId}-threshold-labels`}
           aria-hidden="true"
         >
           {SPS_THRESHOLD_TICKS.map((tick) => (
