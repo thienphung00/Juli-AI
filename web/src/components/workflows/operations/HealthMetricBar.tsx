@@ -93,7 +93,7 @@ export function HealthMetricBar({
 
       {metricKind === "sps" ? (
         <div
-          className="text-muted mt-1 flex flex-wrap gap-2 text-xs"
+          className="text-muted mt-1 flex flex-wrap gap-2 text-[10px]"
           aria-hidden="true"
         >
           {SPS_THRESHOLD_TICKS.map((tick) => (

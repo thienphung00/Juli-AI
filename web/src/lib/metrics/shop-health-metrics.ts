@@ -14,7 +14,7 @@ export const SPS_METRIC = {
   label: "SPS",
   fullLabel: "Shop Performance Score",
   description:
-    "Điểm hiệu suất cửa hàng trong giai đoạn thử nghiệm — đo tiến độ tốt nghiệp so với ngưỡng TikTok Shop.",
+    "Điểm hiệu suất cửa hàng trong giai đoạn thử nghiệm — đo tiến độ tốt nghiệm so với ngưỡng TikTok Shop.",
 } as const;
 
 export const AHR_METRIC = {
