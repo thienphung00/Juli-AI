@@ -27,6 +27,10 @@ import { useOperationsApproval } from "@/lib/operations/use-operations-approval"
 import { buildWorkflowReasoning } from "@/lib/operations/reasoning";
 import type { HealthCheckResults } from "@/lib/operations/health-check";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
+import {
+  buildHomeHighlightLink,
+  resolveHomeHighlight,
+} from "@/lib/operations/journey-loop";
 
 import { DecisionDetailStepIndicator } from "./DecisionDetailStepIndicator";
 
@@ -49,6 +53,11 @@ function DecisionDetailStepContent({
   const analytics = buildDecisionAnalytics(recommendation, health);
   const risks = getDecisionPreviewRisks(recommendation.workflow_id);
   const { expected_impact: impact } = recommendation;
+  const workflowId = recommendation.workflow_id;
+  const homeHighlightAnchor = resolveHomeHighlight(workflowId);
+  const homeHighlightLink = homeHighlightAnchor
+    ? buildHomeHighlightLink(homeHighlightAnchor)
+    : null;
 
   switch (step) {
     case "why":
@@ -126,6 +135,15 @@ function DecisionDetailStepContent({
               <p className="mt-1 text-sm">
                 {impact.metric}: {formatNumber(impact.value)} điểm
               </p>
+              {homeHighlightLink && (
+                <Link
+                  href={homeHighlightLink}
+                  className="link-secondary mt-2 inline-block"
+                  data-testid={`decision-detail-home-link-${workflowId}`}
+                >
+                  Xem trên Trang chủ →
+                </Link>
+              )}
             </div>
             <div
               className="rounded-xl border p-3"
