@@ -111,7 +111,7 @@ export function TodaysReportDomainCard({
             {summary.trendLabel}
           </p>
 
-          <div className="space-y-3">
+          <div className="todays-report-metrics-grid" data-testid="todays-report-metrics-grid">
             {summary.metrics.map((metric) => (
               <ReportMetricChart
                 key={metric.metricKey}

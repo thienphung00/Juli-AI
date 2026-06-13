@@ -28,7 +28,9 @@ export function PageHeader({ title, subtitle, shopMetadata }: PageHeaderProps) {
             {title}
           </h1>
           {shopMetadata ? (
-            <ShopInfoHeader metadata={shopMetadata} />
+            <div className="seller-home-header-shop-info">
+              <ShopInfoHeader metadata={shopMetadata} />
+            </div>
           ) : subtitle ? (
             <p
               className="mt-0.5 line-clamp-2 text-xs"
