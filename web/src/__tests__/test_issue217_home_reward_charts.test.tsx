@@ -101,7 +101,8 @@ describe("Issue #217: Home Real/Estimated visualizations", () => {
 
     const spsEstimated = screen.getByTestId("shop-health-sps-estimated");
     expect(spsEstimated).toHaveAttribute("href", buildDecisionsHighlightLink("npl"));
-    expect(spsEstimated.getAttribute("title")).toMatch(/if approved/i);
+    expect(spsEstimated.getAttribute("title")).toMatch(/nếu phê duyệt/);
+    expect(spsEstimated.getAttribute("title")).not.toMatch(/if approved/i);
     expect(screen.queryByTestId("report-metric-cta-revenue_growth-revenue_7d")).not.toBeInTheDocument();
   });
 

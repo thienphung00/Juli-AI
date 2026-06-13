@@ -3,6 +3,13 @@ import type {
   UnifiedOperationalDataModel,
 } from "@/lib/mock-data/operations/schemas";
 import { formatNumber, formatVND } from "@/lib/format";
+import {
+  formatCountGainLabel,
+  formatRatePointGainLabel,
+  formatRoasGainLabel,
+  formatStaticGainLabel,
+  formatVndGainLabel,
+} from "@/lib/operations/estimated-gain-label";
 
 export const REPORT_DOMAIN_IDS = [
   "revenue_growth",
@@ -164,7 +171,7 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
       realValue: revenue7d,
       estimatedValue: revenueEstimated,
       scaleMax: scaleHeadroom(revenue7d, revenueEstimated),
-      estimatedGainLabel: `+${formatVND(revenueEstimated - revenue7d)} if approved`,
+      estimatedGainLabel: formatVndGainLabel(revenue7d, revenueEstimated),
     },
     {
       label: "Đơn vị bán 7 ngày",
@@ -175,7 +182,7 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
       realValue: units7d,
       estimatedValue: unitsEstimated,
       scaleMax: scaleHeadroom(units7d, unitsEstimated),
-      estimatedGainLabel: `+${formatNumber(unitsEstimated - units7d)} đơn if approved`,
+      estimatedGainLabel: formatCountGainLabel(units7d, unitsEstimated, "đơn"),
     },
   ];
 
@@ -189,7 +196,7 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
       realValue: blendedRoas,
       estimatedValue: roasEstimated,
       scaleMax: scaleHeadroom(blendedRoas, roasEstimated),
-      estimatedGainLabel: `+${(roasEstimated - blendedRoas).toFixed(1)}x ROAS if approved`,
+      estimatedGainLabel: formatRoasGainLabel(blendedRoas, roasEstimated),
     });
   }
 
@@ -239,7 +246,7 @@ function buildProductListingsSummary(model: UnifiedOperationalDataModel): Domain
         realValue: productCount,
         estimatedValue: productEstimated,
         scaleMax: scaleHeadroom(productCount, productEstimated),
-        estimatedGainLabel: `+${productEstimated - productCount} SKU if approved`,
+        estimatedGainLabel: formatCountGainLabel(productCount, productEstimated, "SKU"),
       },
     ],
     isEmpty: false,
@@ -280,7 +287,7 @@ function buildInventoryRefundsSummary(model: UnifiedOperationalDataModel): Domai
         realValue: lowStockRate,
         estimatedValue: lowStockEstimated,
         scaleMax: 1,
-        estimatedGainLabel: "Giảm SKU at-risk if approved",
+        estimatedGainLabel: formatStaticGainLabel("Giảm số SKU rủi ro"),
       },
       {
         label: "Tỷ lệ hoàn 7 ngày",
@@ -291,7 +298,7 @@ function buildInventoryRefundsSummary(model: UnifiedOperationalDataModel): Domai
         realValue: refundRate,
         estimatedValue: refundEstimated,
         scaleMax: Math.max(refundRate, refundEstimated, 0.1),
-        estimatedGainLabel: `−${formatRatePct(refundRate - refundEstimated)} if approved`,
+        estimatedGainLabel: formatRatePointGainLabel(refundRate, refundEstimated),
       },
       {
         label: "Hoàn tiền chờ xử lý",
@@ -300,7 +307,7 @@ function buildInventoryRefundsSummary(model: UnifiedOperationalDataModel): Domai
         realValue: pendingCount,
         estimatedValue: Math.max(0, pendingCount - 2),
         scaleMax: scaleHeadroom(pendingCount, Math.max(0, pendingCount - 2)),
-        estimatedGainLabel: "Giảm yêu cầu chờ duyệt if approved",
+        estimatedGainLabel: formatStaticGainLabel("Giảm yêu cầu chờ duyệt"),
       },
     ],
     isEmpty: model.inventory.length === 0 && refundRate === 0 && pendingCount === 0,
