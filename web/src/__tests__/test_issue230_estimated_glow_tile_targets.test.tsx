@@ -128,6 +128,23 @@ describe("Issue #230: estimated glow + whole-tile targets", () => {
     expect(touchTarget.className).toMatch(/min-h-11/);
   });
 
+  it("keeps bar track height stable while glow animates on touch wrapper", async () => {
+    renderSellerHomeWithPersona("growth");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("report-metric-estimated-revenue_growth-revenue_7d-touch-target"),
+      ).toBeInTheDocument();
+    });
+
+    const touchTarget = screen.getByTestId(
+      "report-metric-estimated-revenue_growth-revenue_7d-touch-target",
+    );
+    const track = touchTarget.querySelector('[role="group"]');
+    expect(track).toHaveClass("h-3");
+    expect(touchTarget.className).toMatch(/min-h-11/);
+  });
+
   it("keyboard: Enter toggles expand and Tab reaches Decisions CTA after target expansion", async () => {
     const user = userEvent.setup();
     renderSellerHomeWithPersona("growth");
