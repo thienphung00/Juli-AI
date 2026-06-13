@@ -176,6 +176,10 @@ html.dark {
     }
   }
 
+  .estimated-segment-glow {
+    animation: estimated-segment-glow 2.5s ease-in-out infinite;
+  }
+
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
@@ -433,7 +437,8 @@ html.dark {
   .badge-live::before,
   .spinner,
   .skeleton,
-  .btn-primary.btn-loading::after {
+  .btn-primary.btn-loading::after,
+  .estimated-segment-glow {
     animation: none;
   }
 
@@ -456,6 +461,15 @@ html.dark {
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.6; transform: scale(1.3); }
+}
+
+@keyframes estimated-segment-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px 1px color-mix(in srgb, var(--brand-primary) 20%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 10px 3px color-mix(in srgb, var(--brand-primary) 40%, transparent);
+  }
 }
 @keyframes skeleton-shimmer {
   0% { background-position: 200% 0; }

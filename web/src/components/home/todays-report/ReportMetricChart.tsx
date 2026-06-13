@@ -56,7 +56,7 @@ export function ReportMetricChart({
 
   return (
     <article
-      className={`rounded-lg border px-3 py-3${animate ? " report-metric-chart-animate" : ""}`}
+      className={`min-h-11 rounded-lg border px-3 py-3${animate ? " report-metric-chart-animate" : ""}`}
       style={{ borderColor: "var(--border)" }}
       data-testid={`report-metric-chart-${domainId}-${metric.metricKey}`}
       data-animate={animate ? "true" : "false"}

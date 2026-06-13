@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
+
 const ESTIMATED_OPACITY = 0.4;
 
 export function RealEstimatedBar({
@@ -29,6 +31,7 @@ export function RealEstimatedBar({
   trackClassName?: string;
 }) {
   const [hovered, setHovered] = useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const safeMax = scaleMax > 0 ? scaleMax : 1;
   const realPct = Math.min(100, (realValue / safeMax) * 100);
   const estimatedPct = Math.min(100, (estimatedValue / safeMax) * 100);
@@ -37,11 +40,15 @@ export function RealEstimatedBar({
   const extensionPct = Math.max(0, extensionEndPct - extensionStartPct);
   const realColor = colorForValue(realValue);
   const estimatedColor = colorForValue(estimatedValue);
+  const showGlow = extensionPct > 0 && !prefersReducedMotion;
 
   return (
-    <div className="relative">
+    <div
+      className="relative flex min-h-11 items-center"
+      data-testid={`${testIdPrefix}-touch-target`}
+    >
       <div
-        className={`relative overflow-hidden rounded-full ${trackClassName}`}
+        className={`relative w-full rounded-full ${trackClassName}`}
         style={{ background: "color-mix(in srgb, var(--brand-primary) 14%, transparent)" }}
         role="group"
         aria-label={ariaLabel}
@@ -63,7 +70,7 @@ export function RealEstimatedBar({
         })}
 
         <div
-          className="absolute inset-y-0 left-0 rounded-full"
+          className="absolute inset-y-0 left-0 overflow-hidden rounded-full"
           style={{
             width: `${realPct}%`,
             background: realColor,
@@ -74,7 +81,9 @@ export function RealEstimatedBar({
         {extensionPct > 0 ? (
           <Link
             href={href}
-            className="absolute inset-y-0 rounded-r-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-offset-2"
+            className={`absolute inset-y-0 rounded-r-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-offset-2${
+              showGlow ? " estimated-segment-glow" : ""
+            }`}
             style={{
               left: `${extensionStartPct}%`,
               width: `${extensionPct}%`,
@@ -82,6 +91,7 @@ export function RealEstimatedBar({
               opacity: hovered ? 1 : ESTIMATED_OPACITY,
             }}
             data-testid={`${testIdPrefix}-estimated`}
+            data-estimated-glow={showGlow ? "on" : "off"}
             aria-label={estimatedGainLabel ?? ariaLabel}
             title={estimatedGainLabel}
             onMouseEnter={() => setHovered(true)}
