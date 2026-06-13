@@ -195,16 +195,16 @@ async function main() {
       `${BASE}/`,
       {
         screen: `Trang chủ — ${persona.label}`,
-        goal: "Xem trạng thái shop, báo cáo hôm nay và xem trước quyết định (read-only)",
-        cta: "Xem tất cả quyết định → /decisions",
-        notes: `Persona demo: ${persona.id}; ADR-028 white canvas; no approvals on Home`,
+        goal: "Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)",
+        cta: "Gợi ý từ Juli trên metric tile → /decisions?highlight=…",
+        notes: `Persona demo: ${persona.id}; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home`,
       },
       '[data-testid="home-summary-shell"]',
     );
   }
 
   console.log("\n[workflows] Decisions tab (Recommended)");
-  for (const persona of personas.filter((p) => p.id === "new" || p.id === "leakage")) {
+  for (const persona of personas) {
     await setupAuth(page, { mode: "seller", persona: persona.id });
     await captureViewports(
       page,
@@ -214,7 +214,7 @@ async function main() {
       {
         screen: `Quyết định — Đề xuất — ${persona.label}`,
         goal: "Xem danh sách quyết định xếp hạng và phê duyệt",
-        cta: "Phê duyệt / Xem chi tiết quyết định",
+        cta: "Phê duyệt / Xem trên Trang chủ → (RRAA return)",
         notes: `Persona demo: ${persona.id}; approval gate on Decisions only`,
       },
       '[data-testid="decisions-recommended-shell"]',
@@ -271,7 +271,7 @@ async function main() {
   console.log("\n[modals] Overlays");
   await setupAuth(page, { mode: "seller", persona: "leakage" });
   await page.setViewportSize(VIEWPORTS.desktop);
-  await waitForScreen(page, `${BASE}/`, '[data-testid="leakage-copilot-panel"]');
+  await waitForScreen(page, `${BASE}/`, '[data-testid="home-summary-shell"]');
 
   await page.click('[data-testid="alert-bell-button"]');
   await page.waitForSelector('[data-testid="alert-bell-drawer"]');
@@ -320,7 +320,7 @@ async function main() {
     await page.waitForTimeout(300);
   }
 
-  const approveBtn = page.locator('[data-testid="task-approve"]').first();
+  const approveBtn = page.locator('[data-testid="task-approve"], [data-testid^="approval-approve-"]').first();
   if (await approveBtn.count()) {
     await approveBtn.click();
     await page.waitForSelector('[data-testid="leakage-workflow"]', { timeout: 8000 });
@@ -376,9 +376,9 @@ async function main() {
   console.log("\n[workflows] Listing workflow");
   await setupAuth(page, { mode: "seller", persona: "new" });
   await page.setViewportSize(VIEWPORTS.desktop);
-  await waitForScreen(page, `${BASE}/`, '[data-testid="new-seller-copilot-panel"]');
-  const listApprove = page.locator('[data-testid="task-approve"]').filter({ hasText: /đăng|listing|sản phẩm/i }).first();
-  const anyApprove = page.locator('[data-testid="task-approve"]').first();
+  await waitForScreen(page, `${BASE}/decisions`, '[data-testid="decisions-recommended-shell"]');
+  const listApprove = page.locator('[data-testid^="approval-approve-"]').filter({ hasText: /đăng|listing|sản phẩm|npl/i }).first();
+  const anyApprove = page.locator('[data-testid^="approval-approve-"]').first();
   const target = (await listApprove.count()) ? listApprove : anyApprove;
   if (await target.count()) {
     await target.click();

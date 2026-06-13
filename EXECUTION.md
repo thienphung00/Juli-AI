@@ -251,6 +251,12 @@ approve/reject/selective rates + reject reasons; reasoning-expansion clicks.
   object mapping to validated `workflow_id`. Depends on P1.8-3, P1.8-4; relocates
   P1.8-5…7 surfaces into Decisions. Seller canvas **white** (`#FFFFFF`), not pink
   tint `#FEF5F6` — pink accent only. _(parent PRD: #190; issues: #191–#199 implementation, #200 exit-gate tests + docs)_
+- [x] **P1.8-10** User Journey RRAA loop — chart-first Home ↔ Decisions closed navigation
+  ([ADR-029](docs/decisions/029-user-journey-rraa-loop.md); product label *Phase 1.8.6*):
+  journey link registry, Home metric charts + Juli two-step suggestion, Decisions RRAA card
+  chrome, inbound `?highlight=` on both routes, **Xem trên Trang chủ →** return path; no
+  preview/Tiến độ/Reward labels on Home. _(parent PRD: #215; issues: #216–#234 implementation,
+  #221 exit-gate E2E + screenshots + MODULE.md)_
 
 ### Exit gate → Phase 2
 
@@ -263,6 +269,9 @@ approve/reject/selective rates + reject reasons; reasoning-expansion clicks.
   Seller (light) and Affiliate (dark) modes verified; no stray theme hex ([ADR-027](docs/decisions/027-design-system-token-foundation.md))
 - [ ] 3-tab seller IA verified: Home read-only (no approve/execute); Decisions hosts
   approval + in-progress + templates; Juli Chat contextual to decisions ([ADR-028](docs/decisions/028-decision-copilot-app-structure.md))
+- [x] RRAA loop verified on growth persona: Home Juli suggestion → Decisions `?highlight=` →
+  **Xem trên Trang chủ →** return with Home metric highlight; chart-first Home gate
+  (no preview/Tiến độ/Reward labels) ([ADR-029](docs/decisions/029-user-journey-rraa-loop.md))
 - [ ] Product lead confirms the operations-system UX resonates (same engagement bar as P1)
 
 > **Deferred (not built in P1.8):** standalone executors for Minimize Violations,
