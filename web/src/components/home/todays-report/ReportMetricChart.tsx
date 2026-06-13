@@ -10,6 +10,8 @@ import {
   buildDecisionsHighlightLink,
   resolveJourneyLinkForMetric,
 } from "@/lib/operations/journey-loop";
+import { hasEstimatedExtension } from "@/lib/operations/estimated-extension";
+import { formatNoEstimatedExtensionCopy } from "@/lib/operations/metric-no-extension-copy";
 import { resolveMetricWorkflowId } from "@/lib/operations/metric-action-mapping";
 import type { MetricDelta, ReportDomainId } from "@/lib/operations/todays-report";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
@@ -42,6 +44,16 @@ export function ReportMetricChart({
   const journeyLink = resolveJourneyLinkForMetric(domainId, metric.metricKey);
   const barColor = trendColor(metric.direction);
   const hasSuggestionAccordion = Boolean(href && journeyLink?.reasonTemplate);
+  const hasExtension = hasEstimatedExtension(
+    metric.realValue,
+    metric.estimatedValue,
+    metric.scaleMax,
+  );
+  const noExtensionCopy = formatNoEstimatedExtensionCopy(
+    metric.metricKey,
+    Boolean(href),
+  );
+  const estimatedBarTestIdPrefix = `report-metric-estimated-${domainId}-${metric.metricKey}`;
 
   function toggleExpanded() {
     setExpanded((value) => !value);
@@ -138,24 +150,39 @@ export function ReportMetricChart({
             scaleMax={metric.scaleMax}
             colorForValue={() => barColor}
             href={href}
-            testIdPrefix={`report-metric-estimated-${domainId}-${metric.metricKey}`}
+            testIdPrefix={estimatedBarTestIdPrefix}
             estimatedGainLabel={metric.estimatedGainLabel}
             ariaLabel={`${metric.label}: dự kiến cải thiện nếu phê duyệt`}
+            noExtensionCopy={hasExtension ? undefined : noExtensionCopy}
           />
         </div>
       ) : (
-        <div
-          className="mt-2 h-3 rounded-full"
-          style={{ background: "color-mix(in srgb, var(--brand-primary) 14%, transparent)" }}
-          data-testid={`report-metric-estimated-${domainId}-${metric.metricKey}-real-only`}
-        >
+        <div className="mt-2 space-y-2" data-testid={`${estimatedBarTestIdPrefix}-touch-target`}>
           <div
-            className="h-full rounded-full"
-            style={{
-              width: `${Math.min(100, (metric.realValue / metric.scaleMax) * 100)}%`,
-              background: barColor,
-            }}
-          />
+            className="h-3 rounded-full"
+            style={{ background: "color-mix(in srgb, var(--brand-primary) 14%, transparent)" }}
+            role="group"
+            aria-label={metric.label}
+          >
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(100, (metric.realValue / metric.scaleMax) * 100)}%`,
+                background: barColor,
+              }}
+              data-testid={`${estimatedBarTestIdPrefix}-real`}
+            />
+          </div>
+          {!hasExtension ? (
+            <p
+              className="text-xs"
+              style={{ color: "var(--muted-foreground)" }}
+              data-testid={`${estimatedBarTestIdPrefix}-no-extension`}
+              aria-disabled="true"
+            >
+              {noExtensionCopy}
+            </p>
+          ) : null}
         </div>
       )}
     </article>

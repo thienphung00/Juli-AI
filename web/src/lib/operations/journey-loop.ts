@@ -95,6 +95,18 @@ const METRIC_JOURNEY_OVERRIDES: Partial<
     revenue_7d: "budget_optimization",
     units_sold_7d: "budget_optimization",
   },
+  inventory_refunds: {
+    pending_return_count: "refund_spike_detection",
+  },
+};
+
+const METRIC_JOURNEY_REASON_OVERRIDES: Partial<
+  Record<ReportDomainId, Partial<Record<string, string>>>
+> = {
+  inventory_refunds: {
+    pending_return_count:
+      "Chưa có yêu cầu hoàn tiền chờ duyệt — theo dõi tỷ lệ hoàn 7 ngày để phát hiện rò rỉ sớm.",
+  },
 };
 
 export function resolveJourneyLinkForMetric(
@@ -103,7 +115,23 @@ export function resolveJourneyLinkForMetric(
 ): JourneyLink | null {
   const workflowId = resolveMetricWorkflowId(reportDomain, metricKey);
   if (workflowId) {
-    return getJourneyLink(workflowId);
+    const link = getJourneyLink(workflowId);
+    if (!link) {
+      return null;
+    }
+
+    const reasonOverride =
+      METRIC_JOURNEY_REASON_OVERRIDES[reportDomain]?.[metricKey];
+    if (!reasonOverride) {
+      return link;
+    }
+
+    return {
+      ...link,
+      reportDomain,
+      metricKey,
+      reasonTemplate: reasonOverride,
+    };
   }
 
   for (const id of VALIDATED_WORKFLOW_IDS) {
