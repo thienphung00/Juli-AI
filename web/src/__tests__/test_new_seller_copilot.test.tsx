@@ -147,8 +147,8 @@ describe("Issue #119: New Seller Copilot panel", () => {
   });
 });
 
-describe("Issue #181 / #193: seller home read-only summary for new persona", () => {
-  it("renders home summary with NPL decision preview instead of copilot panel", async () => {
+describe("Issue #181 / #193 / #226: seller home read-only summary for new persona", () => {
+  it("renders chart-first home summary instead of copilot panel or task preview", async () => {
     renderNewSellerHome();
 
     await waitFor(() => {
@@ -157,8 +157,8 @@ describe("Issue #181 / #193: seller home read-only summary for new persona", () 
 
     expect(screen.queryByTestId("new-seller-copilot-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-npl")).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId("recent-progress-card").querySelector('[data-workflow-id="npl"]'),
-    ).toBeInTheDocument();
+    expect(screen.queryByTestId("recommended-decisions-preview")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("recent-progress-card")).not.toBeInTheDocument();
+    expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
   });
 });

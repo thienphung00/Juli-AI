@@ -6,14 +6,13 @@
  */
 import fs from "fs";
 import path from "path";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DecisionsPage } from "@/components/DecisionsPage";
 import { DecisionDetailPage } from "@/components/decisions/DecisionDetailPage";
 import { HomePage } from "@/components/HomePage";
 import { DEMO_PERSONA_STORAGE_KEY } from "@/lib/demo-persona";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
-import { takeTopDecisions, toDecisionsFromRecommendations } from "@/lib/decisions";
 import { ModeProvider } from "@/lib/mode-context";
 import {
   clearOperationsApprovalSession,
@@ -118,26 +117,19 @@ beforeEach(() => {
 });
 
 describe("Issue #200: Home read-only exit gate", () => {
-  it("shows at most top-3 decision preview cards with link to /decisions", async () => {
+  it("does not show decision preview cards on Home (#226 chart-first IA)", async () => {
     renderSellerPage(<HomePage uiOnly />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("recommended-decisions-preview")).toBeInTheDocument();
+      expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
-    const pipeline = runOperationsPipeline("new");
-    const expectedPreview = takeTopDecisions(
-      toDecisionsFromRecommendations(pipeline.workflowRecommendations.recommended_workflows),
-      3,
-    );
-
-    expect(screen.getAllByTestId("decision-preview-card")).toHaveLength(expectedPreview.length);
-    expect(expectedPreview.length).toBeLessThanOrEqual(3);
-    expect(screen.getByTestId("decisions-preview-view-all")).toHaveAttribute("href", "/decisions");
+    expect(screen.queryByTestId("recommended-decisions-preview")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("decision-preview-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("decisions-preview-view-all")).not.toBeInTheDocument();
   });
 
   it("has zero approval CTAs on Home for any persona", async () => {
-    const user = userEvent.setup();
     renderSellerPage(<HomePage uiOnly />);
 
     await waitFor(() => {
@@ -147,11 +139,13 @@ describe("Issue #200: Home read-only exit gate", () => {
     expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /phê duyệt/i })).not.toBeInTheDocument();
 
-    await switchPersona(user, /Rò rỉ doanh thu/i);
+    cleanup();
+    renderSellerPage(<HomePage uiOnly />, { personaId: "leakage" });
 
     await waitFor(() => {
-      expect(screen.getByTestId("recommended-decisions-preview")).toBeInTheDocument();
+      expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
     });
+    expect(screen.queryByTestId("recommended-decisions-preview")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /phê duyệt/i })).not.toBeInTheDocument();
   });

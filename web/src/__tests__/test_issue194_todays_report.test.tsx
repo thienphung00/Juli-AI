@@ -66,23 +66,25 @@ beforeEach(() => {
 });
 
 describe("Issue #194: Today's Report domain cards", () => {
-  it("renders three domain tabs on Home between shop health and recent progress", async () => {
+  it("renders three domain tabs on Home with shop info in header", async () => {
     renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
     });
 
+    const header = screen.getByRole("banner");
     const shell = screen.getByTestId("home-summary-shell");
-    const shopHealth = screen.getByTestId("shop-health-card");
     const report = screen.getByTestId("todays-report-panel");
-    const progress = screen.getByTestId("recent-progress-card");
+    const shopHealth = screen.getByTestId("shop-health-card");
 
-    expect(shell.contains(shopHealth)).toBe(true);
+    expect(within(header).getByTestId("shop-info-card")).toBeInTheDocument();
     expect(shell.contains(report)).toBe(true);
-    expect(shell.contains(progress)).toBe(true);
-    expect(shopHealth.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(report.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(shell.contains(shopHealth)).toBe(true);
+    expect(
+      report.compareDocumentPosition(shopHealth) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByTestId("recent-progress-card")).not.toBeInTheDocument();
 
     for (const domainId of REPORT_DOMAIN_IDS) {
       expect(screen.getByTestId(`todays-report-tab-${domainId}`)).toBeInTheDocument();

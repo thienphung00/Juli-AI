@@ -1,6 +1,7 @@
 "use client";
 
 import { formatNumber } from "@/lib/format";
+import { formatHealthScoreGainLabel } from "@/lib/operations/estimated-gain-label";
 import {
   AHR_SCALE_MAX,
   AHR_METRIC,
@@ -18,12 +19,6 @@ import {
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 import { RealEstimatedBar } from "./RealEstimatedBar";
-
-function formatScoreDelta(current: number, estimated: number): string {
-  const delta = Math.round((estimated - current) * 10) / 10;
-  const sign = delta > 0 ? "+" : "";
-  return `${sign}${formatNumber(delta)}`;
-}
 
 function spsUnlockLabel(current: number, estimated: number): string | undefined {
   if (current < 4.5 && estimated >= 4.5) {
@@ -57,15 +52,14 @@ export function HealthMetricBar({
   const workflowId =
     metricKind === "sps" ? resolveSpsWorkflowId(recommendations) : resolveAhrWorkflowId(recommendations);
   const href = buildDecisionsHighlightLink(workflowId) ?? "/decisions";
-  const deltaLabel = formatScoreDelta(current, estimated);
   const unlock =
     metricKind === "sps" ? spsUnlockLabel(current, estimated) : undefined;
-  const gainTooltip =
-    metricKind === "sps"
-      ? unlock
-        ? `${deltaLabel} ${label} if approved — unlocks ${unlock}`
-        : `${deltaLabel} ${label} if approved`
-      : `${deltaLabel} ${label} if approved`;
+  const gainTooltip = formatHealthScoreGainLabel(
+    current,
+    estimated,
+    label,
+    unlock,
+  );
 
   return (
     <div data-testid={testId}>

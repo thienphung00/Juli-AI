@@ -5,7 +5,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LeakageCopilotPanel } from "@/components/workflows/leakage";
 import { EvidenceDrawer } from "@/components/workflows/leakage/EvidenceDrawer";
-import { SellerHomeShell } from "@/components/seller-home/SellerHomeShell";
+import { HomePage } from "@/components/HomePage";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
 import { FORBIDDEN_PII_KEYS } from "@/lib/mock-data/seller-personas";
@@ -28,6 +28,11 @@ jest.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
+  usePathname: () => "/",
+}));
+
 function renderLeakagePanel(persona: SellerPersona) {
   const tasks = getWorkflowTasks(persona, "leakage");
   return render(<LeakageCopilotPanel persona={persona} tasks={tasks} />);
@@ -41,7 +46,7 @@ function renderSellerHomeWithPersona(personaId: "leakage" = "leakage") {
   return render(
     <ModeProvider>
       <DemoPersonaProvider>
-        <SellerHomeShell />
+        <HomePage uiOnly />
       </DemoPersonaProvider>
     </ModeProvider>,
   );

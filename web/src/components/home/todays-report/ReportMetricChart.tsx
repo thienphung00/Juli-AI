@@ -37,8 +37,7 @@ export function ReportMetricChart({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-muted text-xs font-medium uppercase tracking-wide">Reward</p>
-          <h4 className="mt-0.5 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+          <h4 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
             {metric.label}
           </h4>
           <p className="mt-1 text-base font-semibold tabular-nums">{metric.value}</p>
