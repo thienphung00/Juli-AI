@@ -22,7 +22,7 @@
       "module": "web/src/lib/operations/todays-report",
       "interface": "MetricDelta realValue/estimatedValue/scaleMax",
       "changeType": "modified",
-      "breaking": true,
+      "breaking": false,
       "description": "Replaced sparkline series with Real/Estimated bar fields; REPORT_DOMAIN_IDS reduced to 3 tabs."
     },
     {
