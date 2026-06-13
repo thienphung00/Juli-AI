@@ -57,7 +57,7 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | Refund Spike | refund_spike_indicator | Root-cause refund review |
 | Stockout Prevention | inventory_health | Reorder at-risk SKUs |
 
-UI: `web/src/components/workflows/operations/` — `HomeSummaryShell` (read-only Home, P1.8-9 #193), `DecisionPreviewCard`, `RecommendedDecisionsPreview`, `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsApprovalShell` (Decisions Recommended tab, #195), `OperationsPipelineShell` (legacy test composite), `OutcomeTrackingView` (P1.8-5…7).
+UI: `web/src/components/workflows/operations/` — `HomeSummaryShell` (read-only Home, P1.8-9 #193), `DecisionPreviewCard`, `RecommendedDecisionsPreview`, `ClarityCard` (RRAA chrome: Liên quan header, registry Reason/Anticipation, Home back-link — #218), `JourneyEmphasisText`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsApprovalShell` (Decisions Recommended tab, #195), `OperationsPipelineShell` (legacy test composite), `OutcomeTrackingView` (P1.8-5…7).
 
 Today's Report (P1.8-9 #194): `buildAllDomainReportSummaries(unifiedModel)` in `todays-report.ts`; UI in `web/src/components/home/todays-report/` (`TodaysReportPanel` embedded in `HomeSummaryShell`).
 
@@ -74,6 +74,7 @@ RRAA cross-screen loop ([ADR-029](../../../docs/decisions/029-user-journey-rraa-
 | `buildHomeHighlightLink(anchor)` | `/?highlight=<report_domain>:<metric_key>` |
 | `parseDecisionsHighlight(param)` | Validate Decisions `?highlight=` — returns `null` for invalid values |
 | `parseHomeHighlight(param)` | Parse Home `?highlight=domain:metric` — returns `null` for invalid values |
+| `useJourneyHighlight(workflowIds)` | Client hook: parse Decisions `?highlight=`, scroll target `ClarityCard` into view, apply 2s primary ring (`data-highlighted=true`); instant scroll when `prefers-reduced-motion` |
 
 Types: `JourneyLink`, `HomeMetricAnchor`, `RecentProgressState` (`pending` \| `completed`).
 
