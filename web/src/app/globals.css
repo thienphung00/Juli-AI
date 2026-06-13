@@ -381,14 +381,54 @@ html.dark {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    min-width: 0;
   }
 
-  @media (min-width: 768px) {
+  .seller-home-sidebar {
+    display: none;
+    min-width: 0;
+  }
+
+  .seller-home-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .seller-home-header-shop-info {
+    display: block;
+  }
+
+  @media (min-width: 1024px) {
     .seller-home-grid {
       display: grid;
       grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
       gap: 1.25rem;
       align-items: start;
+    }
+
+    .seller-home-sidebar {
+      display: block;
+    }
+
+    .seller-home-header-shop-info {
+      display: none;
+    }
+  }
+
+  .todays-report-metrics-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  @media (min-width: 768px) {
+    .todays-report-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
     }
   }
 
