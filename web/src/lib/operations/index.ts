@@ -56,6 +56,16 @@ export {
   REPORT_DOMAIN_IDS,
   resolveDefaultReportDomain,
 } from "./todays-report";
+export {
+  buildDecisionsHighlightLink,
+  buildHomeHighlightLink,
+  formatAnticipationImpact,
+  getJourneyLink,
+  parseDecisionsHighlight,
+  parseHomeHighlight,
+  resolveHomeHighlight,
+} from "./journey-loop";
+export type { HomeMetricAnchor, JourneyLink, RecentProgressState } from "./journey-loop";
 export type {
   DomainReportSummary,
   DomainStatusTone,
