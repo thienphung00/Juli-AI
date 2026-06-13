@@ -27,29 +27,29 @@ describe("operations/journey-loop registry", () => {
     }
   });
 
-  it("maps growth persona workflows to the PRD Home metric anchors", () => {
-    expect(getJourneyLink("product_scaling")).toMatchObject({
-      reportDomain: "revenue_growth",
-      metricKey: "revenue_7d",
-    });
+  it("maps growth persona workflows to the consolidated 3-tab anchors", () => {
     expect(getJourneyLink("budget_optimization")).toMatchObject({
-      reportDomain: "advertising",
+      reportDomain: "revenue_growth",
       metricKey: "roas",
     });
     expect(getJourneyLink("refund_spike_detection")).toMatchObject({
-      reportDomain: "refunds",
+      reportDomain: "inventory_refunds",
       metricKey: "refund_rate_7d",
+    });
+    expect(getJourneyLink("stockout_prevention")).toMatchObject({
+      reportDomain: "inventory_refunds",
+      metricKey: "low_stock_rate",
     });
   });
 
-  it("maps new-shop workflows to the PRD Home metric anchors", () => {
+  it("maps new-shop workflows to product and shop health anchors", () => {
     expect(getJourneyLink("npl")).toMatchObject({
       reportDomain: "product_listings",
       metricKey: "product_count",
     });
     expect(getJourneyLink("minimize_violations")).toMatchObject({
-      reportDomain: "revenue_protection",
-      metricKey: "violation_count",
+      reportDomain: "shop_health",
+      metricKey: "ahr",
     });
   });
 
@@ -61,7 +61,7 @@ describe("operations/journey-loop registry", () => {
       "/?highlight=revenue_growth:revenue_7d",
     );
     expect(resolveHomeHighlight("budget_optimization")).toEqual({
-      reportDomain: "advertising",
+      reportDomain: "revenue_growth",
       metricKey: "roas",
     });
   });
@@ -84,11 +84,15 @@ describe("operations/journey-loop registry", () => {
     expect(parseHomeHighlight("unknown_domain:metric")).toBeNull();
   });
 
-  it("parses valid highlight params", () => {
+  it("parses valid highlight params including shop_health", () => {
     expect(parseDecisionsHighlight("refund_spike_detection")).toBe("refund_spike_detection");
-    expect(parseHomeHighlight("refunds:refund_rate_7d")).toEqual({
-      reportDomain: "refunds",
+    expect(parseHomeHighlight("inventory_refunds:refund_rate_7d")).toEqual({
+      reportDomain: "inventory_refunds",
       metricKey: "refund_rate_7d",
+    });
+    expect(parseHomeHighlight("shop_health:ahr")).toEqual({
+      reportDomain: "shop_health",
+      metricKey: "ahr",
     });
   });
 

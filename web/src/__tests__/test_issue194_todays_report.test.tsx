@@ -66,7 +66,7 @@ beforeEach(() => {
 });
 
 describe("Issue #194: Today's Report domain cards", () => {
-  it("renders all five domain tabs on Home between shop health and recent progress", async () => {
+  it("renders three domain tabs on Home between shop health and recent progress", async () => {
     renderSellerHome();
 
     await waitFor(() => {
@@ -98,39 +98,40 @@ describe("Issue #194: Today's Report domain cards", () => {
     });
 
     expect(screen.getByTestId("todays-report-card-product_listings")).toBeInTheDocument();
-    expect(screen.queryByTestId("todays-report-card-advertising")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("todays-report-card-inventory_refunds")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("todays-report-tab-advertising"));
+    await user.click(screen.getByTestId("todays-report-tab-inventory_refunds"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("todays-report-panel-advertising")).toBeInTheDocument();
+      expect(screen.getByTestId("todays-report-panel-inventory_refunds")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("todays-report-card-advertising")).toBeInTheDocument();
+    expect(screen.getByTestId("todays-report-card-inventory_refunds")).toBeInTheDocument();
     expect(screen.queryByTestId("todays-report-card-product_listings")).not.toBeInTheDocument();
 
-    const advertisingSummary = buildDomainReportSummary(
-      "advertising",
+    const inventorySummary = buildDomainReportSummary(
+      "inventory_refunds",
       loadOperationalModelForPersona("new"),
     );
-    expect(screen.getByTestId("todays-report-status-advertising")).toHaveTextContent(
-      advertisingSummary.statusLabel,
+    expect(screen.getByTestId("todays-report-status-inventory_refunds")).toHaveTextContent(
+      inventorySummary.statusLabel,
     );
   });
 
-  it("shows calm empty state for sparse advertising domain on NEW_SHOP persona", async () => {
+  it("shows inventory and refunds metrics on consolidated tab", async () => {
     const user = userEvent.setup();
-    const model = loadOperationalModelForPersona("new");
+    const model = loadOperationalModelForPersona("leakage");
 
     render(
-      <TodaysReportPanel model={model} profile="NEW_SHOP" />,
+      <TodaysReportPanel model={model} profile="MID_LARGE_SHOP" />,
     );
 
-    await user.click(screen.getByTestId("todays-report-tab-advertising"));
+    await user.click(screen.getByTestId("todays-report-tab-inventory_refunds"));
 
-    expect(screen.getByTestId("todays-report-empty-advertising")).toHaveTextContent(
-      "Chưa có đủ dữ liệu",
-    );
+    expect(screen.getByTestId("todays-report-card-inventory_refunds")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("report-metric-chart-inventory_refunds-low_stock_rate"),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

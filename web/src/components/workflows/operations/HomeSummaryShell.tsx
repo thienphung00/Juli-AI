@@ -32,8 +32,15 @@ export function HomeSummaryShell({
   return (
     <section className="space-y-4" data-testid="home-summary-shell">
       <ShopInfoCard metadata={unifiedModel.shop_metadata} />
-      <ShopHealthCard model={unifiedModel} />
-      <TodaysReportPanel model={unifiedModel} profile={pipeline.shopProfile} />
+      <ShopHealthCard
+        model={unifiedModel}
+        recommendations={workflowRecommendations.recommended_workflows}
+      />
+      <TodaysReportPanel
+        model={unifiedModel}
+        profile={pipeline.shopProfile}
+        recommendations={workflowRecommendations.recommended_workflows}
+      />
       <RecommendedDecisionsPreview decisions={previewDecisions} />
       <RecentProgressCard items={recentProgress} />
     </section>

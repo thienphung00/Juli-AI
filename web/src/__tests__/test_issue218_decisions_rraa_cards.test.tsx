@@ -56,7 +56,7 @@ beforeEach(() => {
 });
 
 describe("Issue #218: ClarityCard RRAA chrome", () => {
-  it("shows Liên quan header referencing Doanh thu 7 ngày for product_scaling on growth persona", async () => {
+  it("shows Liên quan header referencing product count anchor for product_scaling on growth persona", async () => {
     renderDecisionsPage("growth");
 
     await waitFor(() => {
@@ -68,8 +68,8 @@ describe("Issue #218: ClarityCard RRAA chrome", () => {
 
     const journeyHeader = within(card).getByTestId("clarity-card-journey-reward");
     expect(journeyHeader).toHaveTextContent("Liên quan");
-    expect(journeyHeader).toHaveTextContent("Doanh thu 7 ngày");
-    expect(getJourneyLink("product_scaling")?.rewardLabel).toContain("Doanh thu 7 ngày");
+    expect(journeyHeader).toHaveTextContent("Sản phẩm đang bán");
+    expect(getJourneyLink("product_scaling")?.rewardLabel).toContain("Sản phẩm");
   });
 
   it("shows VND-formatted anticipation impact instead of abstract điểm for growth workflows", async () => {
@@ -98,7 +98,7 @@ describe("Issue #218: ClarityCard RRAA chrome", () => {
 
     expect(screen.getByTestId("clarity-card-home-link-product_scaling")).toHaveAttribute(
       "href",
-      "/?highlight=revenue_growth:revenue_7d",
+      "/?highlight=product_listings:product_count",
     );
     expect(screen.getByTestId("clarity-card-home-link-product_scaling")).toHaveTextContent(
       "Xem trên Trang chủ",

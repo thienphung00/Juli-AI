@@ -3,18 +3,19 @@ import {
   type ValidatedWorkflowId,
 } from "@/lib/mock-data/operations/schemas";
 
+import { resolveMetricWorkflowId } from "./metric-action-mapping";
 import { REPORT_DOMAIN_IDS, type ReportDomainId } from "./todays-report";
 
 export type RecentProgressState = "pending" | "completed";
 
 export interface HomeMetricAnchor {
-  reportDomain: ReportDomainId;
+  reportDomain: ReportDomainId | "shop_health";
   metricKey: string;
 }
 
 export interface JourneyLink {
   workflowId: ValidatedWorkflowId;
-  reportDomain: ReportDomainId;
+  reportDomain: ReportDomainId | "shop_health";
   metricKey: string;
   rewardLabel: string;
   reasonTemplate: string;
@@ -22,7 +23,7 @@ export interface JourneyLink {
 }
 
 interface JourneyLinkDefinition {
-  reportDomain: ReportDomainId;
+  reportDomain: ReportDomainId | "shop_health";
   metricKey: string;
   rewardLabel: string;
   reasonTemplate: string;
@@ -31,36 +32,36 @@ interface JourneyLinkDefinition {
 
 const JOURNEY_LINK_REGISTRY: Record<ValidatedWorkflowId, JourneyLinkDefinition> = {
   product_scaling: {
-    reportDomain: "revenue_growth",
-    metricKey: "revenue_7d",
-    rewardLabel: "Tăng trưởng · Doanh thu 7 ngày",
+    reportDomain: "product_listings",
+    metricKey: "product_count",
+    rewardLabel: "Sản phẩm · Sản phẩm đang bán",
     reasonTemplate:
       "Doanh thu 7 ngày tăng **10,7%** nhưng **2 SKU** chiếm **>60%** doanh thu — mở rộng biên lợi nhuận trước khi tăng trưởng chậm lại.",
     anticipationTemplate:
       "**+₫12,4M** doanh thu/tuần dự kiến khi scale top SKU (ROAS hiện tại **4,2x**).",
   },
   budget_optimization: {
-    reportDomain: "advertising",
+    reportDomain: "revenue_growth",
     metricKey: "roas",
-    rewardLabel: "Quảng cáo · ROAS trung bình",
+    rewardLabel: "Tăng trưởng · ROAS trung bình",
     reasonTemplate:
       "ROAS trung bình **2,1x** — **3/5** chiến dịch dưới ngưỡng mục tiêu **3x**, làm lãng phí **₫2,8M/tuần**.",
     anticipationTemplate:
       "Cải thiện ROAS lên **+0,8x** → tiết kiệm **~₫2,8M/tuần** chi tiêu quảng cáo.",
   },
   refund_spike_detection: {
-    reportDomain: "refunds",
+    reportDomain: "inventory_refunds",
     metricKey: "refund_rate_7d",
-    rewardLabel: "Hoàn tiền · Tỷ lệ hoàn 7 ngày",
+    rewardLabel: "Tồn kho & Hoàn tiền · Tỷ lệ hoàn 7 ngày",
     reasonTemplate:
       "Tỷ lệ hoàn 7 ngày **8,2%** — cao hơn **42%** so với baseline **30 ngày**; **12** yêu cầu chờ duyệt.",
     anticipationTemplate:
       "Giảm tỷ lệ hoàn **~1,5 điểm %** → ngăn rò rỉ **~₫4,1M/tuần**.",
   },
   stockout_prevention: {
-    reportDomain: "product_listings",
-    metricKey: "sell_through_rate",
-    rewardLabel: "Sản phẩm · Tỷ lệ bán hết TB",
+    reportDomain: "inventory_refunds",
+    metricKey: "low_stock_rate",
+    rewardLabel: "Tồn kho & Hoàn tiền · Tỷ lệ tồn kho dưới ngưỡng",
     reasonTemplate:
       "**2 SKU** chỉ còn **≤7 ngày** tồn kho tại tốc độ bán hiện tại — nguy cơ hết hàng làm gián đoạn doanh thu.",
     anticipationTemplate:
@@ -75,9 +76,9 @@ const JOURNEY_LINK_REGISTRY: Record<ValidatedWorkflowId, JourneyLinkDefinition> 
     anticipationTemplate: "**+3 listing** đạt Standard → SPS **+4,2 điểm**.",
   },
   minimize_violations: {
-    reportDomain: "revenue_protection",
-    metricKey: "violation_count",
-    rewardLabel: "Bảo vệ · Vi phạm đang theo dõi",
+    reportDomain: "shop_health",
+    metricKey: "ahr",
+    rewardLabel: "Sức khỏe cửa hàng · AHR",
     reasonTemplate:
       "**2** vi phạm mức cao đang mở — AHR dưới ngưỡng an toàn, cần xử lý trước khi ảnh hưởng hiển thị shop.",
     anticipationTemplate: "AHR **+6 điểm** dự kiến khi xử lý **2** vi phạm mức cao.",
@@ -85,13 +86,14 @@ const JOURNEY_LINK_REGISTRY: Record<ValidatedWorkflowId, JourneyLinkDefinition> 
 };
 
 const VALIDATED_WORKFLOW_ID_SET = new Set<string>(VALIDATED_WORKFLOW_IDS);
-const REPORT_DOMAIN_SET = new Set<string>(REPORT_DOMAIN_IDS);
+const REPORT_DOMAIN_SET = new Set<string>([...REPORT_DOMAIN_IDS, "shop_health"]);
 
 const METRIC_JOURNEY_OVERRIDES: Partial<
   Record<ReportDomainId, Partial<Record<string, ValidatedWorkflowId>>>
 > = {
   revenue_growth: {
-    units_sold_7d: "product_scaling",
+    revenue_7d: "budget_optimization",
+    units_sold_7d: "budget_optimization",
   },
 };
 
@@ -99,8 +101,13 @@ export function resolveJourneyLinkForMetric(
   reportDomain: ReportDomainId,
   metricKey: string,
 ): JourneyLink | null {
-  for (const workflowId of VALIDATED_WORKFLOW_IDS) {
-    const link = getJourneyLink(workflowId);
+  const workflowId = resolveMetricWorkflowId(reportDomain, metricKey);
+  if (workflowId) {
+    return getJourneyLink(workflowId);
+  }
+
+  for (const id of VALIDATED_WORKFLOW_IDS) {
+    const link = getJourneyLink(id);
     if (link?.reportDomain === reportDomain && link.metricKey === metricKey) {
       return link;
     }
@@ -184,7 +191,7 @@ export function parseHomeHighlight(value: string | null | undefined): HomeMetric
   }
 
   return {
-    reportDomain: reportDomain as ReportDomainId,
+    reportDomain: reportDomain as HomeMetricAnchor["reportDomain"],
     metricKey,
   };
 }
