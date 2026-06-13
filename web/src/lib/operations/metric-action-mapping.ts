@@ -12,6 +12,7 @@ const METRIC_PRIMARY_WORKFLOW: Partial<Record<`${ReportDomainId}:${string}`, Val
     "product_listings:product_count": "product_scaling",
     "inventory_refunds:low_stock_rate": "stockout_prevention",
     "inventory_refunds:refund_rate_7d": "refund_spike_detection",
+    "inventory_refunds:pending_return_count": "refund_spike_detection",
   };
 
 const SPS_TAGGED_WORKFLOW_IDS: ValidatedWorkflowId[] = [
