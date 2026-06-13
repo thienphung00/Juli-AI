@@ -183,4 +183,27 @@ describe("Issue #229: Juli suggestion two-step accordion", () => {
       screen.getByTestId("report-metric-suggestion-panel-revenue_growth-roas"),
     ).toBeInTheDocument();
   });
+
+  it("uses info token styling instead of purple AI gradients on Juli suggestion panel", async () => {
+    const user = userEvent.setup();
+    renderSellerHomeWithPersona("growth");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("report-metric-suggestion-expand-revenue_growth-revenue_7d"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(
+      screen.getByTestId("report-metric-suggestion-expand-revenue_growth-revenue_7d"),
+    );
+
+    const suggestionPanel = screen.getByTestId(
+      "report-metric-suggestion-panel-revenue_growth-revenue_7d",
+    );
+    expect(suggestionPanel.className).not.toMatch(/purple|violet|ai-gradient/i);
+    expect(suggestionPanel).toHaveStyle({
+      background: "color-mix(in srgb, var(--info) 6%, transparent)",
+    });
+  });
 });
