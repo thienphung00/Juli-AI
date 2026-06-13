@@ -36,7 +36,6 @@ export function ShopHealthCard({
             <>
               <HealthMetricBar
                 label={SPS_METRIC.label}
-                description={SPS_METRIC.description}
                 current={probation.sps_current}
                 estimated={spsEstimated}
                 scaleMax={5}
@@ -49,7 +48,6 @@ export function ShopHealthCard({
               />
               <HealthMetricBar
                 label={AHR_METRIC.label}
-                description={AHR_METRIC.description}
                 current={probation.ahr_current}
                 estimated={ahrEstimated}
                 scaleMax={1000}
