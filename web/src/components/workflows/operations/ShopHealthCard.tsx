@@ -12,9 +12,13 @@ import {
 export function ShopHealthCard({
   model,
   recommendations = [],
+  highlightedMetricKey = null,
+  shopHealthMetricKey = null,
 }: {
   model: UnifiedOperationalDataModel;
   recommendations?: WorkflowRecommendation[];
+  highlightedMetricKey?: string | null;
+  shopHealthMetricKey?: string | null;
 }) {
   const probation = model.probation;
 
@@ -39,6 +43,9 @@ export function ShopHealthCard({
                 testId="shop-health-sps"
                 metricKind="sps"
                 recommendations={recommendations}
+                highlighted={
+                  shopHealthMetricKey === "sps" && highlightedMetricKey === "sps"
+                }
               />
               <HealthMetricBar
                 label={AHR_METRIC.label}
@@ -49,6 +56,9 @@ export function ShopHealthCard({
                 testId="shop-health-ahr"
                 metricKind="ahr"
                 recommendations={recommendations}
+                highlighted={
+                  shopHealthMetricKey === "ahr" && highlightedMetricKey === "ahr"
+                }
               />
             </>
           );

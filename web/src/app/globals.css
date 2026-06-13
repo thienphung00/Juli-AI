@@ -163,6 +163,19 @@ html.dark {
     transition: box-shadow 0.2s ease;
   }
 
+  [data-testid^="report-metric-chart-"][data-highlighted="true"],
+  [data-testid^="shop-health-"][data-highlighted="true"] {
+    box-shadow: 0 0 0 3px var(--primary);
+    transition: box-shadow 0.2s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-testid^="report-metric-chart-"][data-highlighted="true"],
+    [data-testid^="shop-health-"][data-highlighted="true"] {
+      transition: none;
+    }
+  }
+
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);

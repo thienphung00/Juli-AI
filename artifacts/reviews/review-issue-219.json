@@ -1,0 +1,78 @@
+{
+  "id": "review-issue-219",
+  "issue": 219,
+  "timestamp": "2026-06-13T12:45:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-10: Home inbound highlight closes Decisions Anticipation → Reward return path via useHomeJourneyHighlight — auto-switches Báo cáo tab, scrolls metric tile or Shop Health bar, 2s pulse ring; reduced-motion scroll-only; invalid params ignored.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/lib/operations/use-home-journey-highlight.ts",
+    "web/src/components/workflows/operations/HomeSummaryShell.tsx",
+    "web/src/components/home/todays-report/TodaysReportPanel.tsx",
+    "web/src/components/home/todays-report/ReportMetricChart.tsx",
+    "web/src/components/workflows/operations/ShopHealthCard.tsx",
+    "web/src/components/workflows/operations/HealthMetricBar.tsx",
+    "web/src/app/globals.css",
+    "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/operations",
+      "interface": "useHomeJourneyHighlight",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Client hook parsing Home ?highlight=domain:metric for tab switch, scroll, and pulse ring."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 8,
+      "mapped": 8,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "highlight revenue_growth revenue_7d selects Tăng trưởng tab and highlights Doanh thu 7 ngày tile",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::selects Tăng trưởng tab and highlights Doanh thu 7 ngày for revenue_growth:revenue_7d"
+        },
+        {
+          "criterion": "highlight revenue_growth roas selects Tăng trưởng tab and highlights ROAS tile",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::selects Tăng trưởng tab and highlights ROAS for revenue_growth:roas"
+        },
+        {
+          "criterion": "highlight inventory_refunds refund_rate_7d selects Tồn kho tab and highlights refund rate tile",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::selects Tồn kho & Hoàn tiền and highlights refund rate for inventory_refunds:refund_rate_7d"
+        },
+        {
+          "criterion": "highlight shop_health ahr scrolls to AHR bar on new-seller persona",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::scrolls to AHR bar for shop_health:ahr on new-seller persona"
+        },
+        {
+          "criterion": "invalid Home highlight ignored silently",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::ignores invalid ?highlight=foo silently"
+        },
+        {
+          "criterion": "reduced-motion scroll without pulse animation",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::scrolls without pulse when prefers-reduced-motion is reduce"
+        },
+        {
+          "criterion": "Home read-only gate unchanged no approve CTAs",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::keeps Home read-only — no approve CTAs when highlight param is present"
+        },
+        {
+          "criterion": "Decisions Anticipation link Home lands correct tab data-highlighted",
+          "test": "web/src/__tests__/test_issue219_home_inbound_highlight.test.tsx::lands on correct Home tab with data-highlighted from clarity card home link"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 539,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}

@@ -54,10 +54,12 @@ export function TodaysReportDomainCard({
   summary,
   animate,
   recommendations = [],
+  highlightedMetricKey = null,
 }: {
   summary: DomainReportSummary;
   animate: boolean;
   recommendations?: WorkflowRecommendation[];
+  highlightedMetricKey?: string | null;
 }) {
   const badgeStyle = statusStyle(summary.statusTone);
 
@@ -117,6 +119,7 @@ export function TodaysReportDomainCard({
                 metric={metric}
                 animate={animate}
                 recommendations={recommendations}
+                highlighted={highlightedMetricKey === metric.metricKey}
               />
             ))}
           </div>

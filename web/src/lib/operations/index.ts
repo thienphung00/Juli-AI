@@ -50,6 +50,8 @@ export type {
   WorkflowOutcomeSuccessCriteria,
 } from "./outcome-metrics";
 export { runOperationsPipeline, useOperationsPipeline } from "./use-operations-pipeline";
+export { useHomeJourneyHighlight } from "./use-home-journey-highlight";
+export type { HomeJourneyHighlightState } from "./use-home-journey-highlight";
 export {
   buildAllDomainReportSummaries,
   buildDomainReportSummary,

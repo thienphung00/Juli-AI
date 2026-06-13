@@ -75,6 +75,7 @@ RRAA cross-screen loop ([ADR-029](../../../docs/decisions/029-user-journey-rraa-
 | `parseDecisionsHighlight(param)` | Validate Decisions `?highlight=` — returns `null` for invalid values |
 | `parseHomeHighlight(param)` | Parse Home `?highlight=domain:metric` — returns `null` for invalid values |
 | `useJourneyHighlight(workflowIds)` | Client hook: parse Decisions `?highlight=`, scroll target `ClarityCard` into view, apply 2s primary ring (`data-highlighted=true`); instant scroll when `prefers-reduced-motion` |
+| `useHomeJourneyHighlight()` | Client hook: parse Home `?highlight=domain:metric`, auto-switch Báo cáo tab, scroll metric tile or Shop Health bar into view, 2s pulse ring; scroll-only when `prefers-reduced-motion` |
 
 Types: `JourneyLink`, `HomeMetricAnchor`, `RecentProgressState` (`pending` \| `completed`).
 

@@ -39,6 +39,7 @@ export function HealthMetricBar({
   testId,
   metricKind,
   recommendations,
+  highlighted = false,
 }: {
   label: string;
   description: string;
@@ -48,6 +49,7 @@ export function HealthMetricBar({
   testId: string;
   metricKind: "sps" | "ahr";
   recommendations: WorkflowRecommendation[];
+  highlighted?: boolean;
 }) {
   const workflowId =
     metricKind === "sps" ? resolveSpsWorkflowId(recommendations) : resolveAhrWorkflowId(recommendations);
@@ -62,7 +64,10 @@ export function HealthMetricBar({
   );
 
   return (
-    <div data-testid={testId}>
+    <div
+      data-testid={testId}
+      data-highlighted={highlighted ? "true" : undefined}
+    >
       <div className="flex items-end justify-between gap-2">
         <div>
           <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
