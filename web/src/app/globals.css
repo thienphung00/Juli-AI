@@ -426,6 +426,10 @@ html.dark {
     transition: none;
     animation: none;
   }
+
+  .report-metric-chart-animate {
+    animation: none;
+  }
 }
 
 @keyframes spin {
@@ -442,6 +446,21 @@ html.dark {
 
 .todays-report-card-animate {
   animation: todays-report-fade-in 300ms ease-out;
+}
+
+.report-metric-chart-animate {
+  animation: report-metric-chart-fade-in 280ms ease-out;
+}
+
+@keyframes report-metric-chart-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes todays-report-fade-in {

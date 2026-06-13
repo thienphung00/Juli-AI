@@ -2,6 +2,8 @@
 
 import type { DomainReportSummary, TrendDirection } from "@/lib/operations/todays-report";
 
+import { ReportMetricChart } from "./ReportMetricChart";
+
 function statusStyle(tone: DomainReportSummary["statusTone"]): {
   background: string;
   color: string;
@@ -104,27 +106,16 @@ export function TodaysReportDomainCard({
             {summary.trendLabel}
           </p>
 
-          <dl className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-3">
             {summary.metrics.map((metric) => (
-              <div
-                key={metric.label}
-                className="rounded-lg border px-3 py-2"
-                style={{ borderColor: "var(--border)" }}
-                data-testid={`todays-report-metric-${summary.domainId}-${metric.label}`}
-              >
-                <dt className="text-muted text-xs">{metric.label}</dt>
-                <dd className="mt-1 text-base font-semibold tabular-nums">{metric.value}</dd>
-                {metric.deltaLabel && (
-                  <dd
-                    className="mt-0.5 text-xs font-medium tabular-nums"
-                    style={{ color: trendColor(metric.direction ?? summary.trend) }}
-                  >
-                    {metric.deltaLabel}
-                  </dd>
-                )}
-              </div>
+              <ReportMetricChart
+                key={metric.metricKey}
+                domainId={summary.domainId}
+                metric={metric}
+                animate={animate}
+              />
             ))}
-          </dl>
+          </div>
         </>
       )}
     </article>
