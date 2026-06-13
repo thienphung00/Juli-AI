@@ -61,6 +61,22 @@ UI: `web/src/components/workflows/operations/` — `HomeSummaryShell` (read-only
 
 Today's Report (P1.8-9 #194): `buildAllDomainReportSummaries(unifiedModel)` in `todays-report.ts`; UI in `web/src/components/home/todays-report/` (`TodaysReportPanel` embedded in `HomeSummaryShell`).
 
+## Journey link registry (P1.8-10)
+
+RRAA cross-screen loop ([ADR-029](../../../docs/decisions/029-user-journey-rraa-loop.md)): maps each ADR-026 `workflow_id` to a Home Today's Report metric anchor, standardized Reason/Anticipation copy, and deep-link query params.
+
+| Export | Purpose |
+|--------|---------|
+| `getJourneyLink(workflowId)` | Full registry row: `reportDomain`, `metricKey`, `rewardLabel`, `reasonTemplate`, `anticipationTemplate` |
+| `resolveHomeHighlight(workflowId)` | Home metric anchor for Anticipation back-link / Recent Progress completed rows |
+| `formatAnticipationImpact(workflowId)` | Standardized **TÁC ĐỘNG DỰ KIẾN** copy (VND, %, units — not abstract điểm where a Home chart exists) |
+| `buildDecisionsHighlightLink(workflowId)` | `/decisions?highlight=<workflow_id>` |
+| `buildHomeHighlightLink(anchor)` | `/?highlight=<report_domain>:<metric_key>` |
+| `parseDecisionsHighlight(param)` | Validate Decisions `?highlight=` — returns `null` for invalid values |
+| `parseHomeHighlight(param)` | Parse Home `?highlight=domain:metric` — returns `null` for invalid values |
+
+Types: `JourneyLink`, `HomeMetricAnchor`, `RecentProgressState` (`pending` \| `completed`).
+
 ## Approval gate & routing (P1.8-6)
 
 | Workflow | Route | Executor |
