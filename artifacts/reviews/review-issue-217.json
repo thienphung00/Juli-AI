@@ -1,0 +1,85 @@
+{
+  "id": "review-issue-217",
+  "issue": 217,
+  "timestamp": "2026-06-13T05:45:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-10 Home Reward charts: SVG sparklines with delta labels on Today's Report, journey-registry CTAs to Decisions, tappable opportunity preview cards, prefers-reduced-motion respected. No chart library added.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/components/home/todays-report/ReportMetricChart.tsx",
+    "web/src/components/home/todays-report/TodaysReportDomainCard.tsx",
+    "web/src/components/workflows/operations/DecisionPreviewCard.tsx",
+    "web/src/lib/operations/todays-report.ts",
+    "web/src/lib/operations/journey-loop.ts",
+    "web/src/lib/operations/index.ts",
+    "web/src/__tests__/test_issue217_home_reward_charts.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/operations/todays-report",
+      "interface": "deriveSparklineSeries / MetricDelta.series",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Deterministic 7-point mock series and metricKey on MetricDelta for sparkline rendering."
+    },
+    {
+      "module": "web/src/lib/operations/journey-loop",
+      "interface": "resolveJourneyLinkForMetric",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Reverse lookup from report domain + metric key to workflow journey link for chart CTAs."
+    },
+    {
+      "module": "web/src/components/home/todays-report",
+      "interface": "ReportMetricChart",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Lightweight SVG sparkline row with delta annotation and Decisions deep-link CTA."
+    },
+    {
+      "module": "web/src/components/workflows/operations",
+      "interface": "DecisionPreviewCard",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Entire preview card wrapped in Link to /decisions?highlight=<workflow_id>."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Growth persona Tăng trưởng tab Doanh thu and Đơn vị bán sparklines with delta labels",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::renders revenue and units sparklines with delta labels on growth Tăng trưởng tab"
+        },
+        {
+          "criterion": "Each chart CTA href matches registry output for linked workflow_id",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::wires chart CTAs through the journey registry deep links"
+        },
+        {
+          "criterion": "Tapping opportunity preview card navigates to decisions highlight workflow_id",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::makes opportunity preview cards fully tappable decision deep links"
+        },
+        {
+          "criterion": "data-testid hooks report-metric-chart report-metric-cta decision-preview-link",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::exposes report metric chart and CTA test ids without chart library dependencies"
+        },
+        {
+          "criterion": "No new npm chart dependencies",
+          "test": "web/src/__tests__/test_issue217_home_reward_charts.test.tsx::exposes report metric chart and CTA test ids without chart library dependencies"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "recommendations": []
+}

@@ -53,8 +53,10 @@ export { runOperationsPipeline, useOperationsPipeline } from "./use-operations-p
 export {
   buildAllDomainReportSummaries,
   buildDomainReportSummary,
+  deriveSparklineSeries,
   REPORT_DOMAIN_IDS,
   resolveDefaultReportDomain,
+  SPARKLINE_POINT_COUNT,
 } from "./todays-report";
 export {
   buildDecisionsHighlightLink,
@@ -64,6 +66,7 @@ export {
   parseDecisionsHighlight,
   parseHomeHighlight,
   resolveHomeHighlight,
+  resolveJourneyLinkForMetric,
 } from "./journey-loop";
 export type { HomeMetricAnchor, JourneyLink, RecentProgressState } from "./journey-loop";
 export type {

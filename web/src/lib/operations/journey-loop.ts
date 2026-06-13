@@ -87,6 +87,33 @@ const JOURNEY_LINK_REGISTRY: Record<ValidatedWorkflowId, JourneyLinkDefinition> 
 const VALIDATED_WORKFLOW_ID_SET = new Set<string>(VALIDATED_WORKFLOW_IDS);
 const REPORT_DOMAIN_SET = new Set<string>(REPORT_DOMAIN_IDS);
 
+const METRIC_JOURNEY_OVERRIDES: Partial<
+  Record<ReportDomainId, Partial<Record<string, ValidatedWorkflowId>>>
+> = {
+  revenue_growth: {
+    units_sold_7d: "product_scaling",
+  },
+};
+
+export function resolveJourneyLinkForMetric(
+  reportDomain: ReportDomainId,
+  metricKey: string,
+): JourneyLink | null {
+  for (const workflowId of VALIDATED_WORKFLOW_IDS) {
+    const link = getJourneyLink(workflowId);
+    if (link?.reportDomain === reportDomain && link.metricKey === metricKey) {
+      return link;
+    }
+  }
+
+  const overrideWorkflowId = METRIC_JOURNEY_OVERRIDES[reportDomain]?.[metricKey];
+  if (overrideWorkflowId) {
+    return getJourneyLink(overrideWorkflowId);
+  }
+
+  return null;
+}
+
 export function getJourneyLink(workflowId: ValidatedWorkflowId): JourneyLink | null {
   const definition = JOURNEY_LINK_REGISTRY[workflowId];
   if (!definition) {
