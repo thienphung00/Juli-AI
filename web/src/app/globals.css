@@ -158,6 +158,11 @@ html.dark {
     box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
   }
 
+  [data-testid="clarity-card"][data-highlighted="true"] {
+    box-shadow: 0 0 0 3px var(--primary);
+    transition: box-shadow 0.2s ease;
+  }
+
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);

@@ -81,6 +81,7 @@ export function OperationsRecommendationsList({
   onApprove,
   onReject,
   onViewOutcome,
+  highlightedWorkflowId = null,
 }: {
   recommendations: WorkflowRecommendation[];
   health: HealthCheckResults;
@@ -91,6 +92,7 @@ export function OperationsRecommendationsList({
   onApprove: (workflowId: ValidatedWorkflowId) => void;
   onReject: (workflowId: ValidatedWorkflowId) => void;
   onViewOutcome?: (workflowId: ValidatedWorkflowId) => void;
+  highlightedWorkflowId?: ValidatedWorkflowId | null;
 }) {
   if (recommendations.length === 0) {
     return (
@@ -115,6 +117,7 @@ export function OperationsRecommendationsList({
           disposition={getDisposition(recommendation.workflow_id)}
           selected={selectedIds.has(recommendation.workflow_id)}
           requiredInputs={getRequiredInputsForWorkflow(recommendation.workflow_id)}
+          highlighted={highlightedWorkflowId === recommendation.workflow_id}
           onToggleSelect={() => onToggleSelect(recommendation.workflow_id)}
           onApprove={() => onApprove(recommendation.workflow_id)}
           onReject={() => onReject(recommendation.workflow_id)}
