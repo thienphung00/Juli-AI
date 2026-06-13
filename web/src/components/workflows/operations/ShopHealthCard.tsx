@@ -20,11 +20,6 @@ export function ShopHealthCard({
 
   return (
     <section className="card space-y-4 p-4" data-testid="shop-health-card">
-      <div>
-        <p className="text-muted text-xs font-medium uppercase tracking-wide">Sức khỏe cửa hàng</p>
-        <p className="text-muted mt-1 text-sm">SPS và AHR là chỉ số quan trọng nhất trên Trang chủ.</p>
-      </div>
-
       {probation ? (
         (() => {
           const { spsEstimated, ahrEstimated } = deriveShopHealthEstimates(

@@ -98,6 +98,10 @@ describe("Issue #217: Home Real/Estimated visualizations", () => {
     expect(screen.getByTestId("shop-health-sps-real")).toBeInTheDocument();
     expect(screen.getByTestId("shop-health-sps-tick-3_5")).toBeInTheDocument();
     expect(screen.getByTestId("shop-health-sps-tick-4_5")).toBeInTheDocument();
+
+    const spsEstimated = screen.getByTestId("shop-health-sps-estimated");
+    expect(spsEstimated).toHaveAttribute("href", buildDecisionsHighlightLink("npl"));
+    expect(spsEstimated.getAttribute("title")).toMatch(/if approved/i);
     expect(screen.queryByTestId("report-metric-cta-revenue_growth-revenue_7d")).not.toBeInTheDocument();
   });
 

@@ -2,14 +2,12 @@
  * Issue #193 — Home read-only shell: shop info, health, report, progress (ADR-028 P1.8-9)
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { HomePage } from "@/components/HomePage";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
 import { ModeProvider } from "@/lib/mode-context";
 import { runOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 import { DEMO_PERSONA_STORAGE_KEY } from "@/lib/demo-persona";
-import { WORKFLOW_ENTRIES } from "@/lib/seller-workflows";
 import { WORKSPACE_MODE_STORAGE_KEY } from "@/lib/workspace-mode";
 
 jest.mock("@/lib/auth-context", () => ({
@@ -47,17 +45,27 @@ beforeEach(() => {
 });
 
 describe("Issue #193: Home read-only shell", () => {
-  it("shows shop info, health, today's report, and recent progress sections", async () => {
+  it("shows shop info in header and today's report + shop health in body", async () => {
     renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
-    expect(screen.getByTestId("shop-health-card")).toBeInTheDocument();
-    expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("recent-progress-card")).toBeInTheDocument();
+    const header = screen.getByRole("banner");
+    const shell = screen.getByTestId("home-summary-shell");
+    const shopInfo = within(header).getByTestId("shop-info-card");
+    const report = screen.getByTestId("todays-report-panel");
+    const shopHealth = screen.getByTestId("shop-health-card");
+
+    expect(shell.contains(report)).toBe(true);
+    expect(shell.contains(shopHealth)).toBe(true);
+    expect(shell.contains(shopInfo)).toBe(false);
+    expect(
+      report.compareDocumentPosition(shopHealth) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByTestId("recent-progress-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("recommended-decisions-preview")).not.toBeInTheDocument();
   });
 
   it("has zero approve, reject, or approval-toolbar controls on Home (CI gate)", async () => {
@@ -93,36 +101,29 @@ describe("Issue #193: Home read-only shell", () => {
     expect(screen.queryByTestId("outcome-tracking-view")).not.toBeInTheDocument();
   });
 
-  it("persona switching updates shop info and progress items", async () => {
-    const user = userEvent.setup();
+  it("stored leakage persona shows active shop status in header", async () => {
+    const leakagePersona = loadPersona("leakage");
+    localStorage.setItem(DEMO_PERSONA_STORAGE_KEY, "leakage");
     renderSellerHome();
 
-    const newPersona = loadPersona("new");
     await waitFor(() => {
-      expect(screen.getByTestId("shop-info-card")).toHaveTextContent(newPersona.profile.shop_name);
-    });
-
-    const leakagePersona = loadPersona("leakage");
-    await user.click(screen.getByRole("button", { name: /Rò rỉ doanh thu/i }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("shop-info-card")).toHaveTextContent(
+      expect(within(screen.getByRole("banner")).getByTestId("shop-info-card")).toHaveTextContent(
         leakagePersona.profile.shop_name,
       );
     });
 
-    expect(localStorage.getItem(DEMO_PERSONA_STORAGE_KEY)).toBe("leakage");
     expect(screen.getByTestId("shop-info-status")).toHaveTextContent("Hoạt động");
     expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
-    expect(screen.getByTestId("recent-progress-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("recent-progress-card")).not.toBeInTheDocument();
   });
 
-  it("shows active workflow label from stage router in page header", async () => {
+  it("shows shop info in header without workflow copilot subtitle", async () => {
     renderSellerHome();
 
     await waitFor(() => {
       const header = screen.getByRole("banner");
-      expect(within(header).getByText(WORKFLOW_ENTRIES.new.label)).toBeInTheDocument();
+      expect(within(header).getByTestId("shop-info-card")).toBeInTheDocument();
+      expect(within(header).queryByText(/Copilot/i)).not.toBeInTheDocument();
     });
   });
 });
