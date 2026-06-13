@@ -1,0 +1,60 @@
+{
+  "id": "review-issue-231",
+  "issue": 231,
+  "timestamp": "2026-06-13T14:30:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-10 B2.2: seller-home-grid mosaic at 1024px+ with shop info sidebar, 2-column báo cáo metrics grid from 768px, header shop info hidden on desktop; mobile single-column stack preserved.",
+  "criticalFindings": [],
+  "warnings": [],
+  "modulesTouched": [
+    "web/src/app/globals.css",
+    "web/src/components/workflows/operations/HomeSummaryShell.tsx",
+    "web/src/components/home/todays-report/TodaysReportDomainCard.tsx",
+    "web/src/components/PageHeader.tsx",
+    "web/src/components/workflows/operations/ShopInfoCard.tsx",
+    "web/src/__tests__/test_issue231_seller_home_grid.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/components/workflows/operations/ShopInfoCard",
+      "interface": "ShopInfoCard",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Optional dataTestId and statusTestId props for sidebar vs header instances."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "seller-home-grid class applied to Home shell at ≥1024px",
+          "test": "web/src/__tests__/test_issue231_seller_home_grid.test.tsx::wraps home summary in seller-home-grid mosaic shell"
+        },
+        {
+          "criterion": "Báo cáo metric tiles use 2-column layout on tablet/desktop breakpoints",
+          "test": "web/src/__tests__/test_issue231_seller_home_grid.test.tsx::uses 2-column metrics grid class on báo cáo chart tiles"
+        },
+        {
+          "criterion": "No horizontal scroll at 320px mobile (grid collapses to stack)",
+          "test": "web/src/__tests__/test_issue231_seller_home_grid.test.tsx::mobile metrics grid stacks without horizontal overflow wrapper"
+        },
+        {
+          "criterion": "At 1280px viewport, grid columns > 1 for chart area",
+          "test": "web/src/__tests__/test_issue231_seller_home_grid.test.tsx::globals.css activates seller-home-grid mosaic at 1024px"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 553,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}
