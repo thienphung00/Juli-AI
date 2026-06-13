@@ -6,6 +6,7 @@ import type { ReportDomainId } from "./todays-report";
 const METRIC_PRIMARY_WORKFLOW: Partial<Record<`${ReportDomainId}:${string}`, ValidatedWorkflowId>> =
   {
     "revenue_growth:revenue_7d": "budget_optimization",
+    "revenue_growth:profit_margin": "product_scaling",
     "revenue_growth:units_sold_7d": "budget_optimization",
     "revenue_growth:roas": "budget_optimization",
     "product_listings:product_count": "product_scaling",

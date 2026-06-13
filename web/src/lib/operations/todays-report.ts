@@ -35,6 +35,8 @@ export interface MetricDelta {
   estimatedValue: number;
   scaleMax: number;
   estimatedGainLabel?: string;
+  /** 7-point sparkline series for chart-first growth metrics. */
+  series?: number[];
 }
 
 export interface DomainReportSummary {
@@ -97,6 +99,44 @@ function scaleHeadroom(real: number, estimated: number): number {
   return Math.max(real, estimated, 1) * 1.05;
 }
 
+function hashSeed(seed: string): number {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function seededUnitNoise(seed: string, index: number): number {
+  const value = hashSeed(`${seed}:${index}`);
+  return (value % 1000) / 1000;
+}
+
+function buildMetricSeries(
+  model: UnifiedOperationalDataModel,
+  domainId: ReportDomainId,
+  metricKey: string,
+  current: number,
+  prior: number,
+): number[] {
+  const shopId = model.shop_metadata.shop_id;
+  return deriveSparklineSeries(current, prior, `${shopId}:${domainId}:${metricKey}`);
+}
+
+function computeProfit7d(model: UnifiedOperationalDataModel): number {
+  return model.products.reduce(
+    (sum, product) => sum + product.revenue_vnd_7d * (product.margin_pct / 100),
+    0,
+  );
+}
+
+function computeProfitPrior(model: UnifiedOperationalDataModel): number {
+  return model.products.reduce(
+    (sum, product) => sum + (product.revenue_vnd_30d / 4) * (product.margin_pct / 100),
+    0,
+  );
+}
+
 function computeBlendedRoas(model: UnifiedOperationalDataModel): number {
   const totalSpend = model.ad_campaigns.reduce((sum, campaign) => sum + campaign.spend_vnd, 0);
   const totalRevenue = model.ad_campaigns.reduce((sum, campaign) => sum + campaign.revenue_vnd, 0);
@@ -139,6 +179,8 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
     (sum, product) => sum + product.revenue_vnd_30d / 4,
     0,
   );
+  const profit7d = computeProfit7d(model);
+  const profitPrior = computeProfitPrior(model);
   const units7d = model.products.reduce((sum, product) => sum + product.units_sold_7d, 0);
   const unitsPrior = model.products.reduce(
     (sum, product) => sum + product.units_sold_30d / 4,
@@ -146,12 +188,15 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
   );
   const blendedRoas = computeBlendedRoas(model);
   const revenueTrend = computeTrend(revenue7d, revenuePrior);
+  const profitTrend = computeTrend(profit7d, profitPrior);
   const unitsTrend = computeTrend(units7d, unitsPrior);
   const roasTrend = computeTrend(blendedRoas, TARGET_ROAS * 0.7);
 
   const revenueEstimated = Math.round(revenue7d * 1.107);
+  const profitEstimated = Math.round(profit7d * 1.107);
   const unitsEstimated = Math.round(units7d * 1.107);
   const roasEstimated = Math.min(TARGET_ROAS, Math.round((blendedRoas + 0.8) * 100) / 100);
+  const blendedMarginPct = revenue7d > 0 ? (profit7d / revenue7d) * 100 : 0;
 
   const statusTone: DomainStatusTone =
     revenueTrend.direction === "down"
@@ -172,6 +217,19 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
       estimatedValue: revenueEstimated,
       scaleMax: scaleHeadroom(revenue7d, revenueEstimated),
       estimatedGainLabel: formatVndGainLabel(revenue7d, revenueEstimated),
+      series: buildMetricSeries(model, "revenue_growth", "revenue_7d", revenue7d, revenuePrior),
+    },
+    {
+      label: "Lợi nhuận / biên",
+      metricKey: "profit_margin",
+      value: `${formatVND(profit7d)} · ${blendedMarginPct.toFixed(1)}%`,
+      deltaLabel: formatDeltaPct(profitTrend.deltaPct),
+      direction: profitTrend.direction,
+      realValue: profit7d,
+      estimatedValue: profitEstimated,
+      scaleMax: scaleHeadroom(profit7d, profitEstimated),
+      estimatedGainLabel: formatVndGainLabel(profit7d, profitEstimated),
+      series: buildMetricSeries(model, "revenue_growth", "profit_margin", profit7d, profitPrior),
     },
     {
       label: "Đơn vị bán 7 ngày",
@@ -183,6 +241,7 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
       estimatedValue: unitsEstimated,
       scaleMax: scaleHeadroom(units7d, unitsEstimated),
       estimatedGainLabel: formatCountGainLabel(units7d, unitsEstimated, "đơn"),
+      series: buildMetricSeries(model, "revenue_growth", "units_sold_7d", units7d, unitsPrior),
     },
   ];
 
@@ -197,6 +256,13 @@ function buildRevenueGrowthSummary(model: UnifiedOperationalDataModel): DomainRe
       estimatedValue: roasEstimated,
       scaleMax: scaleHeadroom(blendedRoas, roasEstimated),
       estimatedGainLabel: formatRoasGainLabel(blendedRoas, roasEstimated),
+      series: buildMetricSeries(
+        model,
+        "revenue_growth",
+        "roas",
+        blendedRoas,
+        TARGET_ROAS * 0.7,
+      ),
     });
   }
 
@@ -341,21 +407,27 @@ export function buildAllDomainReportSummaries(
   return REPORT_DOMAIN_IDS.map((domainId) => buildDomainReportSummary(domainId, model));
 }
 
-/** @deprecated Sparklines removed in #217 reopen — kept for test migration only. */
+/** Deterministic 7-point series for sparklines — derived from the same model inputs as metric values. */
 export const SPARKLINE_POINT_COUNT = 7;
 
-/** @deprecated */
 export function deriveSparklineSeries(
   current: number,
   prior: number,
-  _seed: string,
+  seed: string,
   pointCount = SPARKLINE_POINT_COUNT,
 ): number[] {
   if (pointCount < 2) {
     return [current];
   }
-  return Array.from({ length: pointCount }, (_, index) => {
+
+  const amplitude = Math.abs(current - prior);
+  const points = Array.from({ length: pointCount }, (_, index) => {
     const progress = index / (pointCount - 1);
-    return prior + (current - prior) * progress;
+    const base = prior + (current - prior) * progress;
+    const wobble = (seededUnitNoise(seed, index) - 0.5) * amplitude * 0.08;
+    return Math.max(0, base + wobble);
   });
+
+  points[pointCount - 1] = current;
+  return points;
 }
