@@ -84,10 +84,10 @@ def test_system_design_cross_links_inference_signatures(system_design_text: str)
     assert "Inference signatures" in system_design_text or "inference signature" in system_design_text.lower()
 
 
-def test_anomaly_group_references_adr_011_scope(feature_store_text: str):
-    """Group A feature descriptions reflect ADR-011 buyer-behavior anomaly scope."""
+def test_anomaly_group_references_adr_008_scope(feature_store_text: str):
+    """Group A feature descriptions reflect ADR-008 buyer-behavior anomaly scope."""
     group_a = feature_store_text.split("## Group A", 1)[1].split("## Group B", 1)[0]
-    assert "ADR-011" in group_a or "011-buyer-behavior-anomaly-scope" in group_a
+    assert "008-buyer-behavior-anomaly-scope" in group_a
     assert "affiliate" in group_a.lower() or "Affiliate" in group_a
 
 

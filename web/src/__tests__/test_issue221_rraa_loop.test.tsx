@@ -3,6 +3,8 @@
  *
  * Full growth-persona loop: Home Juli suggestion → Decisions highlight → Home return.
  */
+import fs from "fs";
+import path from "path";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DecisionsPage } from "@/components/DecisionsPage";
@@ -204,5 +206,20 @@ describe("Issue #221: RRAA loop E2E — growth persona", () => {
 
     const card = document.querySelector(`[data-workflow-id="${workflowId}"]`);
     expect(card).toHaveAttribute("data-highlighted", "true");
+  });
+});
+
+describe("Issue #221: screenshot baselines", () => {
+  it("commits chart-first growth Home and Decisions screenshot baselines", () => {
+    const repoRoot = path.join(__dirname, "../../..");
+    const required = [
+      "screenshots/dashboard/home-growth-default-desktop.png",
+      "screenshots/dashboard/home-growth-default-mobile.png",
+      "screenshots/workflows/decisions-recommended-growth-default-desktop.png",
+      "screenshots/workflows/decisions-recommended-growth-default-mobile.png",
+    ];
+    for (const rel of required) {
+      expect(fs.existsSync(path.join(repoRoot, rel))).toBe(true);
+    }
   });
 });

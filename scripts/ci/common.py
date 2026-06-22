@@ -366,7 +366,12 @@ def new_adr_files(changed: Iterable[str]) -> list[str]:
     adrs: list[str] = []
     for rel in changed:
         name = Path(rel).name
-        if rel.startswith("docs/decisions/") and ADR_FILE_RE.match(name):
+        path = REPO_ROOT / rel
+        if (
+            rel.startswith("docs/decisions/")
+            and ADR_FILE_RE.match(name)
+            and path.is_file()
+        ):
             adrs.append(rel)
     return adrs
 
