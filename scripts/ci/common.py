@@ -20,7 +20,6 @@ DECISIONS_DIR = REPO_ROOT / "docs" / "decisions"
 REVIEWS_DIR = REPO_ROOT / "artifacts" / "reviews"
 VALIDATION_DIR = REPO_ROOT / "artifacts" / "validation"
 RELEASES_DIR = REPO_ROOT / "artifacts" / "releases"
-DONE_MD = REPO_ROOT / "done.md"
 
 ISSUE_BRANCH_RE = re.compile(r"(?:feat|fix)/issue-(\d+)", re.IGNORECASE)
 MODULE_ROW_RE = re.compile(

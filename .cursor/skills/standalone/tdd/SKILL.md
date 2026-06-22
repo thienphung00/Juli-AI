@@ -3,6 +3,50 @@ name: tdd
 description: Guides implementation using test-driven development with a red-green-refactor loop and integration-style tests focused on public behavior. Use when the user wants test-first development, mentions “red-green-refactor”, requests integration tests, or asks to fix a bug via TDD.
 ---
 
+## Domain skills (from focus handoff)
+
+At the start of the TDD loop, read `domain_skills` from the focus handoff block.
+Load each listed skill before writing any test or implementation code.
+The domain skill provides the testing conventions and implementation patterns for that domain.
+
+Specific overrides per domain:
+
+```
+ui-ux-design.mdc loaded:
+  - SwiftUI: use Preview as the fast feedback loop. XCTest snapshot tests acceptable.
+  - Next.js: component-level tests with React Testing Library. No e2e for UI-only changes.
+  - Follow Juli AI's design token system (defined in ui-ux-design.mdc) for all values.
+
+mle-agent loaded:
+  - Unit test data transformation functions, not model accuracy.
+  - Mock external API responses (TikTok Shop) at the service boundary.
+  - Test the LLM prompt template structure, not LLM output.
+
+swift-patterns loaded:
+  - XCTest for unit logic. SwiftUI Previews for visual components.
+  - No simulator required for unit tests — keep the loop fast.
+
+postgres-patterns loaded:
+  - Test migrations with a test Supabase instance or pg Docker container.
+  - Never run migration tests against the production or staging database.
+
+security.mdc loaded:
+  - Write a test that confirms auth is enforced before the happy path.
+  - The failing-auth test must be the first test written.
+```
+
+## Refactor mode (green-only)
+
+When the pipeline is `refactor` (indicated in the focus handoff block):
+
+- Do not write new tests.
+- Run the existing test suite before making any change (confirm green).
+- Make the structural change.
+- Run the existing test suite after the change (confirm still green).
+- If any test fails after the change, stop. Surface the failure. Do not patch the test.
+
+---
+
 ## Test-driven development (TDD)
 
 ### Philosophy

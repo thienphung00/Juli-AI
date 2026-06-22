@@ -3,7 +3,7 @@
 > **Authority:** `EXECUTION.md` > `system-design.md` > **this file** > `tiktok_api/endpoints.md` (ingestion only).
 > This is the **source of truth** for entity schemas used in mock data generation,
 > ML training, feature engineering, inference pipelines, and future multi-platform
-> expansion (Shopee/Lazada — Phase 2.5+).
+> expansion (Shopee/Lazada — Phase 3+).
 >
 > `docs/tiktok_api/endpoints.md` is the **ingestion layer** — it maps raw TikTok API
 > responses onto these canonical entities. Keep `endpoints.md` unchanged; extend
@@ -23,7 +23,7 @@ Raw Events / Responses
 Canonical Entities  ◄── THIS FILE
         │
         ├──► Mock Data (P1 fixtures)
-        ├──► Backtest Parquet (P1.5 training)
+        ├──► Backtest Parquet (Phase 2 MVP Milestone A training)
         ├──► Postgres (P2 OLTP)
         └──► Feature Store (feature-store-schema.md)
                 │
@@ -42,7 +42,7 @@ TikTok API → endpoints.md → direct to ML
 
 **Why the change:** The old flow couples feature engineering to TikTok response
 schemas. Canonical entities decouple ingestion from ML, enable synthetic data
-generation without API access (P1.5), and allow Shopee/Lazada adapters to feed
+generation without API access (Phase 2 MVP Milestone A), and allow Shopee/Lazada adapters to feed
 the same feature store without rewriting ML code.
 
 ---
@@ -111,7 +111,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 **Operational rules:**
 - Never populate `vp_score` / `ahr_score` / `withholding_active` from proxy computation — these are API-only fields.
 - If `health_data_source = 'unavailable'`, surface "health score unavailable" in UI; do not emit a numeric estimate.
-- VP → AHR transition (May–July 2026): dual-read `vp_score` and `ahr_score` when `health_data_source = 'api'` ([ADR-009](../decisions/009-dual-read-vp-ahr-transition.md)).
+- VP → AHR transition (May–July 2026): dual-read `vp_score` and `ahr_score` when `health_data_source = 'api'` ([ADR-006](../decisions/006-dual-read-vp-ahr-transition.md)).
 - Do not gate affiliate recommendations when `health_data_source != 'api'` — use `listing_audit_status` and known eligibility rules instead.
 - `settlement_tier = standard` (8 days) is the default for any shop where the tier is unknown.
 
@@ -140,7 +140,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
   "inventory": "integer",             // units in stock across all SKUs
 
   // Sales aggregates — computed in feature build step (06:00–07:00 UTC)
-  // P1: seeded from mock fixtures; P1.5: from backtest parquet; P2: from polled orders
+  // P1: seeded from mock fixtures; Phase 2 MVP Milestone A: from backtest parquet; P2: from polled orders
   "sales_7d": "integer",              // units sold in last 7 days
   "sales_30d": "integer",             // units sold in last 30 days
   "sales_prev_7d": "integer",         // units sold in the 7 days before sales_7d window (for growth calc)
@@ -209,7 +209,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 
 **Operational rules:**
 - `buyer_id` must remain masked at all layers — never store full buyer identity ([Forbidden #17](../architecture/data-sources.md)).
-- P1.5 parquet must use the same field names (`order_id`, `buyer_id`, `status`, `order_value`) to avoid P2 ETL drift.
+- Phase 2 MVP Milestone A parquet must use the same field names (`order_id`, `buyer_id`, `status`, `order_value`) to avoid P2 ETL drift.
 - `is_seller_fault` and `cancel_reason` are marked UNKNOWN — use `null` in mock/synthetic data and emit a runtime warning if missing in P2.
 
 ---
@@ -222,8 +222,8 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 
 > **Critical:** Without `OrderItem`, anomaly detection for `item_swap` returns is
 > impossible — you cannot compare ordered SKU vs returned SKU without the line-item
-> record. This entity **must** be populated in P1.5 parquet and P2 persistence.
-> See `system-design.md` §Return schema contract and [ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md).
+> record. This entity **must** be populated in Phase 2 MVP Milestone A parquet and P2 persistence.
+> See `system-design.md` §Return schema contract and ADR-008.
 
 ```json
 {
@@ -268,7 +268,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
   "product_id": "string",             // which product was returned
   "sku_id": "string",                 // which SKU was returned — compare vs OrderItem.sku_id
 
-  // Classification (ML label in P1.5 training; ETL-derived in P2)
+  // Classification (ML label in Phase 2 MVP Milestone A training; ETL-derived in P2)
   // Enum is the ground truth used in system-design.md §Return schema contract
   "return_type": "string (enum: item_swap | empty_return | other)",
 
@@ -295,7 +295,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 3. `other`: all remaining — legitimate returns (size, SNAD, change-of-mind). Used as **negative class** in anomaly training.
 
 **Null handling:**
-- `return_condition = 'unknown'` when inspection outcome is not exposed by the API — do not infer `return_type` from `return_reason` text alone in P1.5.
+- `return_condition = 'unknown'` when inspection outcome is not exposed by the API — do not infer `return_type` from `return_reason` text alone in Phase 2 MVP Milestone A.
 - `sku_id = null` blocks item_swap detection — emit data quality alert; label `return_type = other` conservatively.
 
 ---
@@ -306,8 +306,8 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 **History:** Current snapshot; 30-day rolling for gmv_generated aggregation  
 **Data lineage:** `POST /api/affiliate/creators/search` + `GET /api/affiliate/creators/details` (see `endpoints.md` §Affiliate — Creators)
 
-> **Scope note:** `Creator` is **not an input** to the P1.5 anomaly ML model
-> ([ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md)). It powers
+> **Scope note:** `Creator` is **not an input** to the Phase 2 MVP Milestone A anomaly ML model
+> (ADR-008). It powers
 > commission-dispute **policy alerts** (Phase 2) and is forward-looking context
 > for Growth Copilot / creator matching (Phase 3+).
 
@@ -338,7 +338,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
   // Affiliate Creator: follower_count >= 1000 — full commission eligible
   "creator_tier": "string (enum: link_share_only | affiliate_creator)",
 
-  // KYC status (VN region — REGION-VARIANT, ADR-010)
+  // KYC status (VN region — REGION-VARIANT, ADR-007)
   // VN only since Jul 1, 2025: CCCD + tax code required to withdraw commissions
   "kyc_complete": "boolean | null",   // null for non-VN regions
 
@@ -362,7 +362,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 
 > **Forward-looking:** Livestream is out of P2 core scope (polling worker slated for
 > removal per `map.md`). Schema is defined now so P2/P3 recommendation systems can
-> ingest it without a schema migration. Do NOT include in P1.5 anomaly training data.
+> ingest it without a schema migration. Do NOT include in Phase 2 MVP Milestone A anomaly training data.
 >
 > **Constraint:** Post-stream summaries only. Realtime in-stream telemetry is
 > **permanently forbidden** (Forbidden #8 — ToS risk).
@@ -451,8 +451,8 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 
 ## Workflow entities (New Seller Copilot)
 
-Juli-internal workflow schemas — **not** TikTok API entities. Used in Phase 1.6 mock
-fixtures and Phase 2 Postgres persistence. Authority: [ADR-020](../decisions/020-new-seller-listing-workflow-scope.md).
+Juli-internal workflow schemas — **not** TikTok API entities. Used in listing workflow (pre-MVP) mock
+fixtures and Phase 2 Postgres persistence. Authority: ADR-016.
 
 ### ProductDraft
 
@@ -536,9 +536,9 @@ fixtures and Phase 2 Postgres persistence. Authority: [ADR-020](../decisions/020
 
 ## Workflow entities (Revenue Leakage)
 
-Juli-internal workflow schemas — **not** TikTok API entities. Used in Phase 1.7 mock
+Juli-internal workflow schemas — **not** TikTok API entities. Used in leakage workflow (pre-MVP) mock
 fixtures and Phase 2 Postgres persistence. Authority:
-[ADR-025](../decisions/025-revenue-leakage-workflow-scope.md).
+ADR-013.
 
 ### LeakageWorkflowTask
 
@@ -627,7 +627,7 @@ Mock stub in P1.7; persisted outcome in P2.
 
 ---
 
-## Multi-platform expansion note (Shopee / Lazada — Phase 2.5+)
+## Multi-platform expansion note (Shopee / Lazada — Phase 3+)
 
 These canonical entities are designed to be **platform-agnostic**. A Shopee or
 Lazada adapter would populate the same entity schema by mapping its own API
@@ -635,7 +635,7 @@ response fields, using the same ETL derivation rules (especially for `return_typ
 derivation and masked `buyer_id`).
 
 - Add a `platform` field (`tiktok | shopee | lazada`) to each entity when
-  multi-platform work begins (Phase 2.5+).
+  multi-platform work begins (Phase 3+).
 - Do not add `platform` now — it would be YAGNI and requires schema migration.
 - The feature store (`feature-store-schema.md`) already uses canonical entity
   field names, so ML features compose correctly across platforms once the adapters exist.

@@ -1,94 +1,134 @@
-# Context Routing Rules
+# Focus Routing Rules
 
-Detailed rules for deciding what context to load based on code patterns detected.
+Canonical routing for the `focus` skill. Load **only** what the task type requires, then add conditional context from detection tables below.
+
+## Task types
+
+### Planning task
+
+**Signals:** new initiative, rescope, `grill-with-docs`, architecture review, `to-prd` prep, domain modeling, "what should we build?"
+
+```
+Planning task
+  → EXECUTION.md          (phases, slices, gates, in/out scope)
+  → Tier 1 doc            (pick ONE from table below)
+  → ADR(s)                (relevant docs/decisions/NNN-*.md only)
+```
+
+**Do not load by default:** GitHub issue bodies, PRD attachments, full `MODULE.md` trees, vendor API field maps.
+
+### Implementation task
+
+**Signals:** GitHub issue #N, `tdd`, bug fix with issue, `review`/`ship`/`validate` on a scoped change.
+
+```
+Implementation task
+  → Issue                 (acceptance criteria, module hints, linked PR)
+  → PRD                   (parent issue / `to-prd` output — usually the issue body)
+  → ADR(s)                (relevant docs/decisions/NNN-*.md only)
+```
+
+**Add on demand** (from detection tables): affected `MODULE.md`, ONE Tier 1 doc when the issue spans a domain not covered by the PRD, Tier 2 rules, domain skills, vendor docs, MCP schemas.
+
+---
+
+## Tier 1 selection
+
+Read [`docs/README.md`](../../../docs/README.md) for the full index. Pick **one** Tier 1 file per planning task; for implementation, load only when the issue touches that domain.
+
+| Task touches… | Tier 1 doc |
+|---------------|------------|
+| Subsystem behavior, envelopes, ML thresholds | [`docs/system-design.md`](../../../docs/system-design.md) |
+| External data availability by phase | [`docs/architecture/data-sources.md`](../../../docs/architecture/data-sources.md) |
+| Deployed modules, paths, endpoints | [`docs/architecture/map.md`](../../../docs/architecture/map.md) |
+| MVP stack diagram, daily UTC schedule | [`docs/phases/phase-2-mvp.md`](../../../docs/phases/phase-2-mvp.md) |
+| KPI charts, T1–T8 techniques | [`docs/ml_layer.md`](../../../docs/ml_layer.md) |
+| Home rendering, advisory signals | [`docs/visual_layer.md`](../../../docs/visual_layer.md) |
+| Workflow → action taxonomy | [`docs/execution_layer.md`](../../../docs/execution_layer.md) |
+| Entity schemas, features, synthetic data | [`docs/data-models/README.md`](../../../docs/data-models/README.md) |
+| TikTok API field maps | [`docs/tiktok_api/endpoints.md`](../../../docs/tiktok_api/endpoints.md) |
+| Post-MVP real-time / polyglot | [`docs/phases/phase-3-vision.md`](../../../docs/phases/phase-3-vision.md) |
+| Pre-MVP history | [`docs/phases/phase-1-completed.md`](../../../docs/phases/phase-1-completed.md) |
+
+**Authority chain:** Code → `EXECUTION.md` → Tier 1 → ADR.
+
+---
 
 ## Plugin skills and MCP
 
-Before loading feature docs for integration work, consult the project plugin index:
+Consult [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) and [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc). Read MCP tool schemas only for selected servers.
 
-- **Catalog:** [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) (`catalog` frontmatter lists MCP servers + `/skill-name` invocations)
-- **MCP routing rule:** [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc)
-
-| Task signal | Plugin skill(s) to load | MCP `serverName` |
-|-------------|-------------------------|------------------|
-| Supabase schema, RLS, auth | `supabase`, `supabase-postgres-best-practices` | `supabase` |
+| Task signal | Plugin skill(s) | MCP `serverName` |
+|-------------|-----------------|------------------|
+| Supabase schema, RLS, migrations | `supabase`, `supabase-postgres-best-practices` | `supabase` |
 | Framework/library docs | `context7-mcp` | `context7` |
-| New/stale vendor API reference | `api-docs`, `context7-mcp` | `context7` |
-| Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch TikTok Shop University + official policy pages) |
-| Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
-| `web/` Next.js UI (component, page, form) | `ui-ux-design`, `nextjs`, `react-best-practices` | — |
-| `web/` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
-| shadcn registry primitive | `shadcn` (with `ui-ux-design`) | `shadcn` (prefer `user-shadcn`) |
-| Sentry / prod errors | `sentry-workflow` → `sentry-python-sdk` or `sentry-nextjs-sdk` | `plugin-sentry-sentry` |
-| Figma | `figma-use` (required before `use_figma`) | `figma` |
-| E2E browser | — | `playwright` or `cursor-ide-browser` |
+| New/stale vendor API | `api-docs`, `context7-mcp` | `context7` |
+| Seller / creator policy | `platform-docs` | — |
+| Existing vendor integration | — | — (load `docs/<vendor>_api/` + MODULE.md) |
+| `web/` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices` | — |
+| shadcn registry primitive | `shadcn` + `ui-ux-design` | `shadcn` |
+| Deploy / env vars | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
+| Production error | `sentry-workflow` | `plugin-sentry-sentry` |
+| Figma sync | `figma-use` | `figma` |
+| E2E / browser verify | — | `playwright` or `cursor-ide-browser` |
 | Celery / Redis | — | `celery`, `upstash` |
+| TikTok API / webhooks | — | — (use `docs/tiktok_api/`) |
 
-## Detection Patterns → Context Mapping
+---
 
-### Python/FastAPI Patterns
+## Code detection → Tier 2 rules and domain skills
 
-| Code Pattern | Detected Intent | Load |
-|-------------|-----------------|------|
-| `@app.post`, `@app.get` | New endpoint | api-endpoint checklist, security |
-| `openai.`, `AsyncOpenAI`, rule-based forecast | AI / heuristic call | review (ai-integration), reliability |
-| `celery_app.task` | Background job | reliability (retry/idempotency) |
-| `httpx.get`, `requests.post` | External API | reliability (timeout/retry) |
-| `select(Model).where` | DB query | performance (N+1, indexes) |
-| `alembic.op.` | Migration | db-changes spec, rollback plan |
-| `os.environ`, `settings.` | Config | security (secrets handling) |
+Tier 1 rules (`core-safety`, `core-orchestration`, `mcp-usage`, `git-baseline`) are always on. Load Tier 2 selectively.
 
-### TypeScript/Next.js Patterns
+| Detection | Load |
+|-----------|------|
+| External API call | `reliability.mdc`, `observability.mdc` |
+| AI / model call | `review/checklists/ai-integration.md`, `reliability.mdc`, `observability.mdc` |
+| Auth / PII / financial data | `security.mdc`, `reliability.mdc` |
+| New endpoint | `review/checklists/api-endpoint.md`, `security.mdc`, `observability.mdc` |
+| DB query / migration | `postgres-patterns`, `performance.mdc`, `reliability.mdc` |
+| Python / FastAPI | `python-patterns`, `code-quality.mdc`, `patterns.mdc` |
+| ML train/infer / copy layer | `mle-agent.md`, `system-design.md` § ML |
+| ML algorithm vetting | `data-scientist.md`, `ml_layer.md`, ADR-011 |
+| Python tests | `python-testing`, `reliability.mdc` |
+| SwiftUI / iOS | `swift-patterns` |
+| Frontend component / page | `ui-ux-design`, `web/MODULE.md`, `ui-ux-design.mdc` |
+| Background job | `reliability.mdc`, `observability.mdc` |
+| Architecture / rescope | `architect.md`, `map.md` |
+| Parallel issues / worktrees | `issue-workflow.mdc` |
+| Automation / hooks | `hooks.mdc` |
+| Review phase | `code-review.mdc` |
 
-| Code Pattern | Detected Intent | Load |
-|-------------|-----------------|------|
-| `'use client'` | Client component | `ui-ux-design`, `web/MODULE.md` |
-| `web/src/components/` | New/changed UI | `ui-ux-design`, nearest existing component |
-| `'use server'` | Server action | security (input validation) |
-| `useQuery`, `useSWR` | Data fetching | caching patterns |
-| `supabase.from` | DB access | Supabase patterns, RLS policies |
-| `<Chart`, `<Recharts` | Visualization | dashboard component library |
+**Priority:** security wins for auth/PII/financial data; reliability is additive with AI integration.
 
-### Infrastructure Patterns
+---
 
-| Code Pattern | Detected Intent | Load |
-|-------------|-----------------|------|
-| `Dockerfile`, `docker-compose` | Container config | deployment standards |
-| `.github/workflows` | CI/CD | ship, ci-examples |
-| `nginx.conf` | Load balancing | infrastructure section |
-| `railway.json` | Deploy config | deployment environment docs |
+## Layer map (implementation add-on)
 
-## Priority Override Rules
+Load `MODULE.md` for affected paths only. Module list: [`docs/architecture/map.md`](../../../docs/architecture/map.md).
 
-Some detections override others:
+| Layer | Path(s) |
+|-------|---------|
+| Integrations | `src/modules/catalog/domain/integrations/tiktok/` |
+| Services | `src/apps/cron_jobs/services/polling/`, webhook ingest |
+| Intelligence / ML | `src/modules/catalog/domain/intelligence/`, `src/modules/ml/` |
+| Data | `src/` repos, Alembic, Supabase |
+| API | `src/apps/api_gateway/` |
+| Interface | `web/`, `ios/` |
 
-1. **Security always wins** — if financial data or auth is involved, security standards load regardless of other priorities
-2. **AI core is additive** — never replaces reliability; both load together
-3. **Performance is conditional** — only loads when new queries or high-traffic paths are involved
+---
 
-## Context Freshness Rules
+## Context budget
 
-| Context Type | Staleness Threshold | Action |
-|-------------|--------------------:|--------|
-| EXECUTION.md / system-design.md | If rescope PR merged | Reload affected slices/sections |
-| GitHub issue / PRD | If discover handoff updated since issue filed | Reload issue + handoff |
-| Standards | Never stale | Always use latest |
-| Architecture | If new services added | Regenerate affected sections |
+Target **60–70%** of the window for code and task work. Docs **20–30%**. If overloaded, drop Tier 1 extras first, then vendor docs, never drop Issue + ADR on implementation tasks.
 
-## Multi-Feature Context
+---
 
-When a task spans multiple EXECUTION.md slices or subsystems:
+## Multi-slice tasks
 
-1. Load shared architectural context ONCE (`EXECUTION.md`, `map.md`, `data-sources.md`)
-2. Load each affected `system-design.md` subsystem section
-3. Load GitHub issues / discover handoffs for each slice
-4. Deduplicate overlapping standards
-5. Flag potential conflicts between slice scopes
+When an issue spans multiple EXECUTION slices:
 
-Example: "Add demand forecasting on top of TikTok inventory polling (P2-1 + P1.5-4)"
-- Load: `EXECUTION.md` slices P2-1, P1.5-4
-- Load: `docs/system-design.md` → Data pipeline + ML models sections
-- Load: `docs/architecture/data-sources.md` (confirm #1 API only)
-- Load: `src/services/polling/MODULE.md`, `src/data/MODULE.md`
-- Load: review ai-integration checklist (shared, if model calls added)
-- Flag: shared `InventoryItem` schema between sync and forecast jobs
+1. Load shared planning context once (`EXECUTION.md` + one Tier 1 + ADRs).
+2. Load each issue/PRD section for the active slice only.
+3. Deduplicate Tier 2 rules and domain skills.
+4. Flag scope conflicts in the Context Plan.

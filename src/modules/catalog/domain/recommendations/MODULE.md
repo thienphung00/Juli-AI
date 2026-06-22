@@ -3,7 +3,7 @@
 > **Phase-1 matching seed.** `get_host_product_matching` already produces
 > creator↔product matches with a score + justification + CTA — the smallest delta
 > toward the Creator ↔ Shop Matching product. This module is the basis for the
-> future `matching/` + `agents/` layers (see `docs/decisions/006-matching-pivot.md`).
+> future `matching/` + `agents/` layers (creator-matching ADRs removed; see `EXECUTION.md`).
 > The `intelligence/{scoring,forecasting}` dependencies below are **legacy signals**
 > to be folded into `matching/prediction` or removed.
 

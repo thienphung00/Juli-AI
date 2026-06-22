@@ -45,6 +45,30 @@ Orchestrates the full bug-fix lifecycle by invoking skills in a fixed sequence. 
 
 ---
 
+## Input types
+
+**Type A — Incorrect Acceptance Criteria**
+User pastes or describes a failing acceptance criterion:
+the behaviour the code exhibits vs the behaviour the criterion specifies.
+Entry point: qa creates the GitHub issue directly.
+  gh issue create --title "AC mismatch: [criterion summary]" --label bug \
+    --body "[failing criterion]\n\nActual behaviour: [description]"
+
+**Type B — Terminal error**
+User pastes a raw stack trace, crash log, or error output.
+Entry point: invoke diagnose before qa.
+diagnose completes root-cause analysis → qa creates the issue with the root cause in the body.
+  gh issue create --title "[error type]: [one-line summary]" --label bug \
+    --body "[root cause from diagnose]\n\nReproduction: [steps from diagnose]"
+
+**Routing rule**
+If the input contains a stack trace, exception type, line number reference,
+or build error output → Type B.
+If the input is a description of mismatched behaviour against a spec → Type A.
+When ambiguous, ask the user one question: "Is this a crash/error output or a behaviour mismatch?"
+
+---
+
 ## Phase 1: QA
 
 **Skill:** `qa`
@@ -72,7 +96,7 @@ Orchestrates the full bug-fix lifecycle by invoking skills in a fixed sequence. 
 
 ### Implementation Order
 Process issues top-to-bottom. For each issue: run focus → tdd → review → ship.
-If a report required architectural change to fix, note it — may need `discover` first to update canonical docs (`EXECUTION.md`, `system-design.md`, architecture, ADRs).
+If a report required architectural change to fix, note it — may need `grill-with-docs` first to update canonical docs (`EXECUTION.md`, `system-design.md`, architecture, ADRs).
 ```
 
 ---
@@ -343,5 +367,5 @@ When all issues in the queue are shipped:
 | Performance degradation (no functional bug) | `review` + profiling |
 | Flaky test (not a production bug) | `tdd` to stabilize the test |
 | Security vulnerability (needs immediate action) | Hotfix process in `ship` (SEV1) |
-| Bug requires architectural change to fix properly | `discover` first to update canonical docs, then come back here |
+| Bug requires architectural change to fix properly | `grill-with-docs` first to update canonical docs, then come back here |
 | Single skill in isolation (just need to file issues) | Invoke `qa` directly |

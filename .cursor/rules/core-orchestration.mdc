@@ -9,10 +9,38 @@ alwaysApply: true
 
 For every non-trivial task, read and follow [`.cursor/skills/standalone/focus/SKILL.md`](../skills/standalone/focus/SKILL.md) and produce a **Context Plan** (docs, rules, skills, MCPs).
 
-- **Ad-hoc chat:** Focus only — do not auto-enter discover/tdd/review pipelines.
-- **Feature pipeline:** `build-feature` → discover → to-prd → to-issues → Focus per issue → tdd → review → ship.
-- **Bug pipeline:** `fix-bug` → qa → Focus → tdd → review → ship.
+- **Ad-hoc chat:** Focus only — do not auto-enter grill-with-docs/tdd/review pipelines.
+- **Feature pipeline (build-feature):** `grill-with-docs` → `to-prd` → `to-issues` → [per-issue: focus → tdd → review → validate → ship] → `handoff`
+- **Refactor pipeline:** `grill-with-docs` → `improve-codebase-arch` → `to-issues` → [per-issue: focus → tdd(green-only) → review → ship] → `handoff`
+  - Invariant: tdd in this pipeline runs tests before and after each change. No new tests are written.
+  - Any issue that requires a new test is not a refactor — route it to build-feature.
+- **Bug pipeline (fix-bug):** [diagnose?] → `qa` → [per-issue: focus → tdd → review → validate → ship]
+  - `diagnose` is conditional:
+    - Input is a pasted terminal error → invoke diagnose before qa
+    - Input is an incorrect Acceptance Criterion → skip diagnose, qa creates the issue directly
+- **UI-bug pipeline:** `screenshot-annotate` → `grill-with-docs` → `to-issues` → [per-issue: focus → tdd → review → ship]
 - **MCP/plugin skills:** load only what Focus selects via [skill-catalog](../skills/skill-catalog/SKILL.md); read MCP tool schemas after selection, not at startup.
+
+## Domain skill routing
+
+`focus` reads this table when classifying an issue.
+`tdd` receives the resolved `domain_skills` list from the focus handoff block.
+
+Issue classification → domain_skills loaded in focus + tdd:
+
+| Classification | domain_skills |
+|---|---|
+| UI / design / layout / screen / SwiftUI view / React component / animation | `ui-ux-design.mdc` (Tier 2 rule), `swift-patterns` (if ios/), python-patterns skipped |
+| ML / forecast / anomaly / classification / ranking / LightGBM / Prophet / model | `mle-agent` (`.cursor/skills/domain/mle-agent.md`) |
+| ML algorithm selection / technique vetting / model fit / data availability / T1–T8 evaluation | `data-scientist` (`.cursor/skills/domain/data-scientist.md`) |
+| API / endpoint / route / service / FastAPI / backend / middleware | `patterns.mdc` (Tier 2 rule), `python-patterns` skill |
+| iOS / Swift / SwiftUI / Xcode / mobile / XCTest | `swift-patterns` skill |
+| Database / migration / query / Postgres / Supabase / Alembic / SQLAlchemy | `postgres-patterns` skill |
+| Auth / token / session / OAuth / API key / permission / AuthZ | `security.mdc` (Tier 2 rule) |
+| Architecture / rescope / module boundary / system design / large refactor plan | `architect` (`.cursor/skills/standalone/domain/architect.md`) |
+| Testing / coverage / pytest / XCTest / snapshot | `python-testing` skill (backend), `swift-patterns` skill (ios/) |
+
+Multiple domains may apply to a single issue. Load all matching entries.
 
 ## Agent delegation
 

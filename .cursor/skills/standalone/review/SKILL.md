@@ -126,6 +126,6 @@ The rules enforce standards passively during code generation. Guardrails activel
 
 | Skill | How Guardrails Interacts |
 |-------|------------------------|
-| `discover` | Uses discover handoff edge cases, `system-design.md`, and issue acceptance criteria as validation source |
+| `grill-with-docs` | Uses grill-with-docs handoff edge cases, `system-design.md`, and issue acceptance criteria as validation source |
 | `ship` | Pre-merge checklist gates the delivery pipeline |
 | `focus` | Focus loads review selectively based on detected code patterns |

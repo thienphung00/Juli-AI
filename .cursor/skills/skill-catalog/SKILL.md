@@ -141,20 +141,27 @@ catalog:
     workflow:
       - build-feature
       - fix-bug
+      - grill-with-docs
+      - handoff
+      - refactor
+      - ui-bug
     standalone:
       - api-docs
       - platform-docs
-      - discover
+      - diagnose
+      - domain-modeling
       - focus
       - tdd
       - review
       - ship
       - validate
       - qa
+      - screenshot-annotate
       - to-prd
       - to-issues
       - ui-ux-design
     domain:
+      - architect
       - python-patterns
       - python-testing
       - postgres-patterns
@@ -192,6 +199,28 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 5. **MCP tool schemas** — read from `mcps/<folder>/tools/` only after Focus lists that server in the Context Plan.
 6. **Project skills** under `.cursor/skills/` are in `catalog.projectSkills`; load per Focus workflow phase, not at startup.
 
+## New workflow skills
+
+Load when explicitly triggered or invoked by pipeline:
+
+| Skill | Path | Purpose |
+|-------|------|---------|
+| `grill-with-docs` | `.cursor/skills/standalone/grill-with-docs/SKILL.md` | Align plan + builds CONTEXT.md inline |
+| `handoff` | `.cursor/skills/standalone/handoff/SKILL.md` | Session-end compression; produces `docs/handoffs/*.md` |
+| `refactor` | `.cursor/skills/workflow/refactor/SKILL.md` | v1A→v1B structural refactor with test-pass invariant |
+| `ui-bug` | `.cursor/skills/workflow/ui-bug/SKILL.md` | Screenshot → annotate → design align → issues |
+
+## New utility skills
+
+Load when invoked by parent skill or explicitly triggered:
+
+| Skill | Path | Purpose |
+|-------|------|---------|
+| `domain-modeling` | `.cursor/skills/standalone/domain-modeling/SKILL.md` | Stewards CONTEXT.md and `docs/decisions/` ADRs |
+| `diagnose` | `.cursor/skills/standalone/diagnose/SKILL.md` | Root-cause loop for terminal errors and hard bugs |
+| `screenshot-annotate` | `.cursor/skills/standalone/screenshot-annotate/SKILL.md` | Screenshot → structured markdown; invoked by ui-bug only |
+| `extract-design-md` | `.cursor/skills/standalone/extract-design-md/SKILL.md` | Extract DESIGN.md design system from frontend source code |
+
 ## Lazy-load contract
 
 | Surface | Default at startup | Load when |
@@ -208,7 +237,10 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 | Task signal | MCP server | Plugin skill(s) |
 |-------------|------------|-----------------|
 | Alembic, RLS, Supabase auth | `supabase` | `supabase`, `supabase-postgres-best-practices` |
-| FastAPI / pytest change | — | `.cursor/skills/domain/python-*` |
+| Architecture / rescope / module boundary / structural refactor / system design review | — | `.cursor/skills/standalone/domain/architect.md` |
+| FastAPI / pytest change | — | `.cursor/skills/standalone/domain/python-*` |
+| ML train/infer/features/forecast/anomaly | — | `.cursor/skills/domain/mle-agent.md` |
+| ML algorithm vetting / technique fit / data availability / T1–T8 scope | — | `.cursor/skills/domain/data-scientist.md` |
 | `web/` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
 | Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |

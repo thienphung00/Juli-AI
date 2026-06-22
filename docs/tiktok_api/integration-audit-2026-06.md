@@ -17,7 +17,7 @@ require login and could not be scraped here. Field-level claims are tagged by co
 
 ---
 
-## Phase 1 — Authentication Layer
+## pre-MVP — Authentication Layer
 
 ### Verified
 
@@ -146,7 +146,7 @@ UNVERIFIED in 202502 body.
 | Empty return detection | No | Field not in API samples |
 | Seller fault cancel rate | Partial | Proxy via `cancellation_initiator` in mapper |
 | Late dispatch rate | Partial | Timestamps in orders API; formula unbuilt |
-| Anomaly ML (P1.5) | Synthetic only | Not live-API grounded |
+| Anomaly ML (Phase 2 MVP Milestone A) | Synthetic only | Not live-API grounded |
 
 ---
 

@@ -1,12 +1,12 @@
 # Feature Store Schema
 
 > **Authority:** `EXECUTION.md` > `system-design.md` > this file.  
-> Feature definitions are tied to **Phase 1.5** ML training (backtest/synthetic)
+> Feature definitions are tied to **Phase 2 MVP Milestone A** ML training (backtest/synthetic)
 > and must align with `system-design.md` §Return schema contract.
 >
 > All features are derived from **canonical entities** defined in
 > [`canonical-entities.md`](canonical-entities.md). Feature names here are the
-> **authoritative identifiers** — P1.5 parquet, P2 Postgres feature tables, and
+> **authoritative identifiers** — Phase 2 MVP Milestone A parquet, P2 Postgres feature tables, and
 > inference signatures must all use these exact names (no drift).
 
 ---
@@ -23,7 +23,7 @@
   Writes: model outputs (seller stage, anomaly flags, ad diagnoses)
 ```
 
-In P1.5, the feature build runs on **backtest parquet** (batch, offline). The job
+In Phase 2 MVP Milestone A, the feature build runs on **backtest parquet** (batch, offline). The job
 interface is kept runner-agnostic (plain Python functions) so Phase 2 swaps the
 parquet reader for Postgres queries without rewriting feature logic.
 
@@ -42,10 +42,10 @@ parquet reader for Postgres queries without rewriting feature logic.
 
 ## Group A — Anomaly Detector Features (buyer-behavior)
 
-These features are the **primary inputs** to the Phase 1.5 anomaly detector
-(`item_swap`, `empty_return` classification — [ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md)).
+These features are the **primary inputs** to the Phase 2 MVP Milestone A anomaly detector
+(`item_swap`, `empty_return` classification — [ADR-005](../decisions/008-buyer-behavior-anomaly-scope.md)).
 They are derived from `Order`, `OrderItem`, and `Return` entities only.
-Affiliate signals are **excluded** from this group per ADR-011.
+Affiliate signals are **excluded** from this group per ADR-005.
 
 ---
 
@@ -201,7 +201,7 @@ seller_fault_cancel_rate_30d =
 **Dependencies:** `Order.status`, `Order.is_seller_fault`, `Order.created_at`, `Order.shop_id`
 
 > **UNKNOWN gate:** `is_seller_fault` is not confirmed in Partner API (see
-> `canonical-entities.md` §Unknown fields). In P1.5 synthetic data, simulate with
+> `canonical-entities.md` §Unknown fields). In Phase 2 MVP Milestone A synthetic data, simulate with
 > a boolean sampled from a realistic base rate (~5%). In P2, emit a data quality
 > warning and set feature to `null` if the field is absent.
 
@@ -273,7 +273,7 @@ inventory_risk_score =
 ## Group D — Seller Stage Classifier Features
 
 Shop-level features for the **seller stage classifier** (`new` | `leakage` | `growth`).
-Aligned with Phase 1 seller profile fields and `build_seller_stage_features` output
+Aligned with pre-MVP seller profile fields and `build_seller_stage_features` output
 (#137). Grain: **shop × date**.
 
 ---
@@ -517,7 +517,7 @@ account_spend_velocity_30d = SUM(ads.parquet.spend_vnd WHERE date >= now() - 30d
 ## Group C — Creator / Affiliate Features
 
 Used for **commission dispute detection** (Revenue Leakage) and
-**Growth Copilot** context. Not inputs to the P1.5 anomaly detector.
+**Growth Copilot** context. Not inputs to the Phase 2 MVP Milestone A anomaly detector.
 
 ---
 
@@ -575,12 +575,12 @@ creator_commission_pending_rate =
 
 ---
 
-## Feature table layout (P1.5 parquet → P2 Postgres)
+## Feature table layout (Phase 2 MVP Milestone A parquet → P2 Postgres)
 
 ### Buyer-level feature table
 
 ```
-buyer_features.parquet (P1.5) / buyer_features (P2 Postgres)
+buyer_features.parquet (Phase 2 MVP Milestone A) / buyer_features (P2 Postgres)
 ─────────────────────────────────────────────────────
 buyer_id            string (masked)       PK component
 shop_id             string (uuid)         PK component
@@ -595,7 +595,7 @@ buyer_repeat_anomaly_flag       integer (0 | 1)
 ### Shop-level feature table (seller stage)
 
 ```
-shop_features_seller_stage.parquet (P1.5) / shop_features_seller_stage (P2 Postgres)
+shop_features_seller_stage.parquet (Phase 2 MVP Milestone A) / shop_features_seller_stage (P2 Postgres)
 ─────────────────────────────────────────────────────
 shop_id             string (uuid)         PK component
 feature_date        date                  PK component
@@ -610,7 +610,7 @@ gmv_30d_vnd                     float
 ### Campaign-level feature table (ad performance)
 
 ```
-ad_features.parquet (P1.5) / ad_features (P2 Postgres)
+ad_features.parquet (Phase 2 MVP Milestone A) / ad_features (P2 Postgres)
 ─────────────────────────────────────────────────────
 shop_id             string (uuid)         PK component
 campaign_id         string                PK component
@@ -629,7 +629,7 @@ account_spend_velocity_30d      float
 ### Shop-level feature table (anomaly shop aggregates)
 
 ```
-shop_features.parquet (P1.5) / shop_features (P2 Postgres)
+shop_features.parquet (Phase 2 MVP Milestone A) / shop_features (P2 Postgres)
 ─────────────────────────────────────────────────────
 shop_id             string (uuid)         PK component
 feature_date        date                  PK component
@@ -641,7 +641,7 @@ seller_fault_cancel_rate_30d    float | null
 ### Product-level feature table
 
 ```
-product_features.parquet (P1.5) / product_features (P2 Postgres)
+product_features.parquet (Phase 2 MVP Milestone A) / product_features (P2 Postgres)
 ─────────────────────────────────────────────────────
 product_id          string                PK component
 shop_id             string (uuid)         PK component
@@ -654,7 +654,7 @@ inventory_risk_score    float | null      (days)
 ### Creator-level feature table
 
 ```
-creator_features.parquet (P1.5) / creator_features (P2 Postgres)
+creator_features.parquet (Phase 2 MVP Milestone A) / creator_features (P2 Postgres)
 ─────────────────────────────────────────────────────
 creator_id          string (uuid)         PK component
 shop_id             string (uuid)         PK component
@@ -682,7 +682,7 @@ publisher (#141) and validated at load time.
 
 ## Inference signatures (ML artifact contract)
 
-Each serialized model (Phase 1.5 → Phase 2) records the feature schema hash
+Each serialized model (Phase 2 MVP Milestone A → Phase 2) records the feature schema hash
 alongside model weights so drift is caught at load time, not at prediction time.
 Cross-linked from [`system-design.md`](../system-design.md) § ML models.
 
@@ -725,7 +725,7 @@ Public inference entrypoint: `predict_seller_stage(model, features)`.
 
 ### Anomaly detector (buyer-behavior)
 
-Per [ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md): classes `item_swap`
+Per [ADR-005](../decisions/008-buyer-behavior-anomaly-scope.md): classes `item_swap`
 and `empty_return` only. Affiliate and creator features are **excluded** from
 training, labels, and inference.
 

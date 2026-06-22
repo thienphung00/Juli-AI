@@ -18,7 +18,7 @@ decision-focused, not dashboard/reporting.
 ## Removed in the matching pivot
 `orders`, `inventory`, `settlements`, `analytics`, `livestreams`, and `alerts`
 routers were deleted as misaligned with Phase 1 (inventory/finance/order management,
-analytics, and threshold alerting). See `docs/decisions/006-matching-pivot.md`.
+analytics, and threshold alerting) during the superseded creator-matching pivot.
 
 ## Dependencies
 - `identity` — `get_current_user` for JWT-based authentication
