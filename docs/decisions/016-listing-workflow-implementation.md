@@ -32,6 +32,10 @@ ships in Phase 2 MVP with live Products API publish.
 - **We will:** Increment listing count on successful export; render progress widget on Home.
 - **Phase 2 MVP:** Persist shop progress in Postgres; Products API publish executor.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - E2E path: recommend → approve → Path A or B → forms → export (mock) → live publish (Phase 2 MVP).

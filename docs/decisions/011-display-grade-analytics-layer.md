@@ -45,6 +45,10 @@ needs were conflated:
    - **Execution layer** → [`execution_layer.md`](../execution_layer.md)
    - T8 router selects rule set per shop profile; not a UI grouping.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Phase 2 MVP serves display-grade techniques at 08:00 UTC daily batch after API approval.

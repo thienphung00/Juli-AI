@@ -35,6 +35,10 @@ data, single Postgres, hosted Haiku, and Railway deployment.
 - **Tenant isolation — service layer is the live boundary.** `ShopScopedRepo` `shop_id`
   filtering; RLS policies are defense-in-depth only.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Phase 2 MVP architecture documented in [`phase-2-mvp.md`](../phases/phase-2-mvp.md).

@@ -29,3 +29,14 @@ The VP → AHR transition window (May–July 2026) overlaps Phase 2 MVP producti
 1. **May 2026:** `health_check_mode=dual`; AHR stored but VP drives gates/alerts.
 2. **July 2026:** Verify TikTok enforcement on AHR for pilot shops; flip to `ahr`.
 3. **Post-cutover:** Retain VP field read-only for 90 days, then drop.
+
+## Rationale
+
+Dual-read avoids a hard calendar cutover while TikTok VN enforcement transitions from VP
+to AHR. A feature flag lets pilot shops validate AHR gates before global flip.
+
+## Consequences
+
+- Phase 2 MVP polling stores both VP and AHR when available.
+- Alert copy and recommendation gates follow `health_check_mode` until AHR cutover.
+- Post-cutover: simplify to AHR-only reads after the 90-day VP retention window.

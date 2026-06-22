@@ -21,6 +21,10 @@ not a standalone alerts microservice.
 - We will not: Silently downgrade affiliate or growth recommendations without surfacing
   the underlying policy reason to the seller.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Phase 2 MVP: VP-based alerts active alongside API polling.

@@ -25,6 +25,10 @@ rules in Phase 2 MVP.
 - **We will not:** Remove TikTok Affiliate from polling — it powers commission-dispute
   **policy alerts** and growth context, but not the anomaly model.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Backtest parquet uses `return_type` enum with synthetic `item_swap` / `empty_return` labels.

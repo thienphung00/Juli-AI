@@ -47,6 +47,10 @@ T8 router selects rule set per profile ([ADR-011](011-display-grade-analytics-la
 SPS and VP/AHR may not be exposed via Partner API. Phase 2 MVP degrades explicitly per
 `health_data_source: api | proxy | unavailable`.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Phase 2 MVP swaps mock loaders for live data/inference without changing stage envelopes.

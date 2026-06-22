@@ -20,6 +20,10 @@ requires a platform-agnostic canonical layer for ETL, feature engineering, and i
   feature build / Postgres persistence.
 - **We will not:** Fabricate UNKNOWN platform fields until API verification.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Single source of truth for mock, parquet, Postgres, and inference.

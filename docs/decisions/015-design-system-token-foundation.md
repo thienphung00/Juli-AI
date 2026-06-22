@@ -25,6 +25,10 @@ Single design-token foundation for the Juli web app:
 
 We will **not** introduce serif/monospace fonts, decorative gradients, or bounce animations.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Token source: `globals.css` + `tailwind.config.ts`.

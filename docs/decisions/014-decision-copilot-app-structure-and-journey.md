@@ -56,6 +56,10 @@ Chart-first Home ↔ Decisions closed navigation:
 required inputs, status, and impact estimate. Workflows are execution templates;
 Decisions are what sellers review and approve.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Seller canvas **white** (`#FFFFFF`); pink accent only ([ADR-015](015-design-system-token-foundation.md)).

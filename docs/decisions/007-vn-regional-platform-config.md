@@ -18,6 +18,10 @@ CHR/AHR zone boundaries; VP → AHR transition May–July 2026.
   inline magic numbers. Reference source articles in `docs/tiktok_platform/`.
 - We will not: Assume global TikTok policy applies to all shops without region lookup.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Phase 2 MVP: Single region `VN` in config; all shops default to VN thresholds.

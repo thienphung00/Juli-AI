@@ -40,6 +40,10 @@ creator/livestream signals — seller-money ML must not extend it.
 - **We will:** Gate promotion on backtest thresholds documented in `feature-store-schema.md`.
 - **We will not:** Persist artifacts to Postgres in offline training mode.
 
+## Rationale
+
+Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN policy while routing alerts through the operations pipeline instead of a standalone service.
+
 ## Consequences
 
 - Phase 2 MVP batch inference (08:00 UTC) loads from the same artifact layout.
