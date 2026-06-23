@@ -1,30 +1,32 @@
 # Checkpoint + Handoff Persistence
 
-Two durable layers support workflow resumption and knowledge transfer. Agents maintain these
-directly — **no Python helper module**. Read/write YAML and Markdown files at phase boundaries.
+Two durable layers support agent-phase resumption and knowledge transfer. Agents
+maintain these directly — **no Python helper module**. Read/write YAML and Markdown
+files at phase boundaries.
 
 ## Invocation modes
 
 | Context | Persistence | Rule |
 |---------|-------------|------|
-| **Workflow** (`build-feature`, `fix-bug`) | **Mandatory** | Every phase writes checkpoint + handoff per table below. Child skills inherit this even when their own `SKILL.md` marks persistence optional. |
-| **Standalone** (skill invoked directly) | **Optional** | Deliver phase output in chat. Write checkpoint/handoff files only when the user asks or when resuming an in-flight issue. |
+| **Full issue cycle** (Planning → Implementation → Review) | **Mandatory** | Every phase writes checkpoint + handoff per table below |
+| **Standalone** (skill invoked directly) | **Optional** | Deliver phase output in chat. Write checkpoint/handoff files only when the user asks or when resuming an in-flight issue |
 
 **Resume** (any context, when `.agent-state/` exists): read checkpoint → latest `docs/handoffs/issue-{N}-*.md` → GitHub issue. Do not re-read full chat history.
 
-### Workflow phase obligations
+### Agent phase obligations
 
 | Phase | Checkpoint section | Handoff file |
 |-------|-------------------|--------------|
-| `grill-with-docs` | `grill_with_docs_phase` on feature checkpoint | chat only |
-| `to-prd` | `to_prd_phase` on feature checkpoint | chat only |
-| `to-issues` | stub `issue-{N}.checkpoint.yml` per filed issue | chat only |
-| `qa` (fix-bug) | stub `issue-{N}.checkpoint.yml` when issue filed | chat only |
+| Planning (`to-prd`, `to-issues`) | `to_prd_phase` / `to_issues_phase` on feature or issue checkpoint | chat only |
+| `qa` (bug filing) | stub `issue-{N}.checkpoint.yml` when issue filed | chat only |
 | `focus` | `focus_phase` | `docs/handoffs/issue-{N}-focus.md` |
-| `tdd` | `tdd_phase` | `docs/handoffs/issue-{N}-tdd.md` |
+| Implementation (Executor) | `implementation_phase` | `docs/handoffs/issue-{N}-implementation.md` |
 | `review` | `review_phase` | `docs/handoffs/issue-{N}-review.md` |
 | `validate` | `validate_phase` | checkpoint only (JSON artifact is system of record) |
 | `ship` | `ship_phase` (status ✓) | `docs/handoffs/issue-{N}-ship.md` optional |
+
+Legacy handoff names `issue-{N}-tdd.md` and checkpoint `tdd_phase` are still valid
+for resume on in-flight issues.
 
 Paths: `.agent-state/feature-{slug}.checkpoint.yml` (planning) · `.agent-state/issue-{N}.checkpoint.yml` (implementation). Both gitignored.
 
@@ -36,7 +38,7 @@ Paths: `.agent-state/feature-{slug}.checkpoint.yml` (planning) · `.agent-state/
 
 ```
 ✅ DO:  "✓ focus done — wrote docs/handoffs/issue-{N}-focus.md
-         Key decisions: [1–2 lines]. Next: tdd."
+         Key decisions: [1–2 lines]. Next: implementation."
 
 ❌ DON'T: paste the full handoff markdown body into the chat thread
 ```
@@ -44,7 +46,7 @@ Paths: `.agent-state/feature-{slug}.checkpoint.yml` (planning) · `.agent-state/
 Rules:
 - Echo ≤ 5 lines in chat after each phase; reference the file by path.
 - The next agent reads the handoff file directly — not the chat echo.
-- For standalone skill invocations (not via build-feature/fix-bug workflow), skip the handoff file entirely and end with one inline recap line: `✅ Done: [what changed] — [file:lines] — Next: [next step]`
+- For standalone skill invocations on ad-hoc tasks, skip the handoff file and end with one inline recap line: `✅ Done: [what changed] — [file:lines] — Next: [next step]`
 
 ---
 
@@ -58,7 +60,7 @@ Rules:
 ### Resume protocol (mandatory on session start or mid-issue takeover)
 
 1. Read `.agent-state/issue-{N}.checkpoint.yml` if it exists (~400 tokens).
-2. Read the latest handoff: `docs/handoffs/issue-{N}-{last_phase}.md`.
+2. Read the latest handoff: `docs/handoffs/issue-{N}-{last_phase}.md` (accept `-tdd` as legacy alias for `-implementation`).
 3. Read GitHub issue `#N` for acceptance criteria.
 4. Do **not** re-read full chat history unless checkpoint/handoffs are missing.
 
@@ -88,9 +90,10 @@ focus_phase:
       rejected: ["{alt 1}"]
   architectural_notes: ["ADR-NNN in docs/decisions/", "{module boundary note}"]
 
-tdd_phase:
+implementation_phase:                # legacy alias: tdd_phase
   status: "✓" | "⏳" | "✗"
-  branch: "feature/issue-{N}-{slug}"  # or fix/issue-{N}-{slug} for fix-bug
+  branch: "feature/issue-{N}-{slug}"  # or fix/issue-{N}-{slug}
+  executor_domain: "backend" | "ui-ux" | "data-platform" | "machine-learning"
   tests_written: {number}
   test_summary: ["{file}::{test} — {behavior}"]
   acceptance_criteria_status:
@@ -131,7 +134,7 @@ tokens_to_resume: ~400
 
 ### Feature planning checkpoint schema
 
-Used by `grill-with-docs` → `to-prd` → `to-issues` before per-issue files exist:
+Used by Architect Agent Planning (`to-prd` → `to-issues`) before per-issue files exist:
 
 ```yaml
 # .agent-state/feature-{slug}.checkpoint.yml
@@ -140,7 +143,7 @@ title: "{feature name}"
 created_at: "{ISO-8601}"
 last_updated_at: "{ISO-8601}"
 
-grill_with_docs_phase:
+planning_phase:                      # canonical doc governance (formerly discover)
   status: "✓" | "⏳" | "✗"
   key_findings: ["{finding}"]
   assumptions: ["{assumption}"]
@@ -166,7 +169,7 @@ to_issues_phase:
 |-------|--------|---------|
 | `to-issues` | Create stub per filed issue | `to_issues_phase` + issue metadata |
 | `focus` | Append decisions + files | `focus_phase` |
-| `tdd` | Append test metrics + branch | `tdd_phase` |
+| Implementation | Append test metrics + branch | `implementation_phase` |
 | `review` | Append findings + review artifact | `review_phase` |
 | `validate` | Append gate results | `validate_phase` |
 | `ship` | Mark shipped + commit/PR | `ship_phase` |
@@ -186,11 +189,13 @@ for future agents. Follow existing repo style (see `docs/handoffs/issue-120-focu
 
 | Phase | File | Required |
 |-------|------|----------|
-| `focus` | `docs/handoffs/issue-{N}-focus.md` | **Yes** — before `tdd` |
-| `tdd` | `docs/handoffs/issue-{N}-tdd.md` | **Yes** — before `review` |
+| `focus` | `docs/handoffs/issue-{N}-focus.md` | **Yes** — before Implementation |
+| Implementation | `docs/handoffs/issue-{N}-implementation.md` | **Yes** — before `review` |
 | `review` | `docs/handoffs/issue-{N}-review.md` | **Yes** — before `validate` |
 | `validate` | (checkpoint only) | No separate file |
 | `ship` | `docs/handoffs/issue-{N}-ship.md` | Optional — after merge |
+
+Legacy `issue-{N}-tdd.md` files remain valid for historical issues.
 
 ### Handoff templates
 
@@ -198,10 +203,11 @@ Templates live in `docs/templates/handoffs/` — load the specific file only whe
 
 | Phase | Template |
 |-------|---------|
-| `focus` → `tdd` | [`docs/templates/handoffs/focus-tdd.md`](../../../docs/templates/handoffs/focus-tdd.md) |
-| `tdd` → `review` | [`docs/templates/handoffs/tdd-review.md`](../../../docs/templates/handoffs/tdd-review.md) |
+| `focus` → Implementation | [`docs/templates/handoffs/focus-implementation.md`](../../../docs/templates/handoffs/focus-implementation.md) |
+| Implementation → `review` | [`docs/templates/handoffs/implementation-review.md`](../../../docs/templates/handoffs/implementation-review.md) |
 | `review` → `validate` | [`docs/templates/handoffs/review-validate.md`](../../../docs/templates/handoffs/review-validate.md) |
 | `ship` (optional) | [`docs/templates/handoffs/ship-complete.md`](../../../docs/templates/handoffs/ship-complete.md) |
+| Planning → `to-prd` | [`docs/templates/handoffs/planning-to-prd.md`](../../../docs/templates/handoffs/planning-to-prd.md) |
 
 ---
 
@@ -210,14 +216,15 @@ Templates live in `docs/templates/handoffs/` — load the specific file only whe
 | Metric | Target |
 |--------|--------|
 | Checkpoint per issue | 100% after `to-issues` stubs |
-| Handoff files | focus + tdd + review (minimum) |
+| Handoff files | focus + implementation + review (minimum) |
 | Resume tokens | <500 from checkpoint alone |
 | Onboarding | <5 min via handoffs + issue body |
 | Phase completeness | Every phase has status ✓/⏳/✗ |
 
 ## Integration
 
-- **Workflow skills** (`build-feature`, `fix-bug`): one-line pointer here; persistence always on.
-- **Standalone skills** (`grill-with-docs`, `to-prd`, `to-issues`, `focus`, `tdd`, `review`, `validate`, `ship`, `qa`): each has a short optional/mandatory block linking here.
-- **Validate gate:** `scripts/validate/check_handoff.py` skips when no legacy handoff on branch.
-- **Parallel agents:** one worktree per issue; slice status in `EXECUTION.md`; see `issue-workflow.mdc`.
+- **Agent runtime:** [`docs/architecture/agent-runtime.md`](../../../docs/architecture/agent-runtime.md) — phase model and ownership
+- **Standalone skills** (`to-prd`, `to-issues`, `focus`, `review`, `validate`, `ship`, `qa`): each links here for persistence rules
+- **Validate gate:** `scripts/validate/check_handoff.py` skips when no legacy handoff on branch;
+  `docs/handoffs/issue-*-{phase}.md` files are the continuity source alongside `EXECUTION.md`
+- **Parallel agents:** `docs/handoffs/_bootstrap.md` — each window reads its issue checkpoint first

@@ -1,0 +1,109 @@
+{
+  "id": "review-issue-174",
+  "issue": 174,
+  "timestamp": "2026-06-23T07:31:01Z",
+  "reviewedBy": "review skill",
+  "status": "PASS_WITH_WARNINGS",
+  "summary": "ADR-027 token foundation slice 1: theme swap (Seller=light/Affiliate=dark), semantic palette with tints, interaction state utilities on buttons/cards/inputs, 3-step elevation scale. Theme bootstrap + init script inverted; 310 web tests green.",
+  "criticalFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Surface migration and screenshot re-baseline deferred to follow-up issue within P1.8-8"
+    }
+  ],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "applyWorkspaceTheme",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Seller removes dark class (light); affiliate adds dark class."
+    },
+    {
+      "module": "web",
+      "interface": "globals.css design tokens",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "ADR-027 semantic hex, tints, elevation vars, state utilities (.card-interactive, .btn-loading, .elevation-*)."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 8,
+      "mapped": 8,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Seller workspace uses light canvas",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::applies light theme (no dark class) for seller workspace mode"
+        },
+        {
+          "criterion": "Affiliate workspace uses dark theme",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::applies dark theme for affiliate workspace mode"
+        },
+        {
+          "criterion": "Theme init script avoids FOUC with correct mapping",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::inline init script maps seller to light and affiliate to dark"
+        },
+        {
+          "criterion": "Semantic palette ADR-027 hex",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::defines ADR-027 semantic hex values"
+        },
+        {
+          "criterion": "Semantic background tints as CSS variables",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::defines semantic background tint variables"
+        },
+        {
+          "criterion": "maps seller to light canvas and affiliate to dark canvas in globals.css",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::maps seller to light canvas and affiliate to dark canvas"
+        },
+        {
+          "criterion": "3-step elevation scale",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::defines 3-step elevation scale"
+        },
+        {
+          "criterion": "Interaction state utilities on primitives",
+          "test": "web/src/__tests__/test_design_token_foundation.test.ts::extends interactive primitives with hover, active, and focus-visible states"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 310,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Follow-up PR: motion utilities, type scale, high-traffic surface migration, screenshots re-baseline"
+  ],
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Surface migration and screenshot re-baseline deferred to follow-up issue within P1.8-8"
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Surface migration and screenshot re-baseline deferred to follow-up issue within P1.8-8"
+    }
+  ],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

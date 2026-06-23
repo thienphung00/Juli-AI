@@ -1,0 +1,115 @@
+{
+  "id": "review-issue-95",
+  "issue": 95,
+  "timestamp": "2026-06-23T07:31:05Z",
+  "reviewedBy": "review skill",
+  "status": "PASS_WITH_WARNINGS",
+  "summary": "Recommendation-first bottom nav (Home/Creators/G\u1ee3i \u00fd/Juli); MatchDecisionCard + PredictedOutcomePanel on /recommendations; home hero wired to GET /v1/recommendations; CTA analytics via recommendation_action_tapped.",
+  "criticalFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "web/src/lib/services/home.ts \u2014 recommendations.list() failures are swallowed with .catch(() => ({ items: [] })) \u2014 empty hero with no structured log"
+    },
+    {
+      "type": "maintainability",
+      "severity": "WARNING",
+      "description": "done.md \u2014 Root done.md still titles Issue #70; update when closing #95 for traceability"
+    }
+  ],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "BOTTOM_NAV_TABS",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Seller nav pivots to Home/Creators/G\u1ee3i \u00fd/Juli; /creators and /recommendations no longer redirected"
+    },
+    {
+      "module": "web",
+      "interface": "getHomeDashboard",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Hero matches sourced from api.recommendations.list()"
+    },
+    {
+      "module": "web",
+      "interface": "trackRecommendationAction",
+      "changeType": "added",
+      "breaking": false,
+      "description": "web/src/lib/analytics.ts \u2014 juli:analytics CustomEvent for CTA taps"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "AC1: /creators and /recommendations reachable from nav without redirect",
+          "test": "web/src/__tests__/test_issue95_recommendation_nav.test.tsx::AC1: bottom nav exposes Home, Creators, G\u1ee3i \u00fd, Juli without legacy redirects"
+        },
+        {
+          "criterion": "AC2: Recommendations feed renders match score, predicted block, CTA for host_product_match",
+          "test": "web/src/__tests__/test_recommendation_cards_with_cta.test.tsx::AC2: host_product_match renders match score, predicted block, and CTA"
+        },
+        {
+          "criterion": "AC3: Empty state shows \u0110ang thu th\u1eadp d\u1eef li\u1ec7u",
+          "test": "web/src/__tests__/test_recommendation_cards_with_cta.test.tsx::AC3: empty state shows collecting-data copy"
+        },
+        {
+          "criterion": "AC4: Home hero shows top 1\u20133 matches from recommendations API",
+          "test": "web/src/__tests__/test_issue95_home_recommendations_api.test.ts::AC4: hero shows top 1\u20133 host_product_match rows from recommendations API"
+        },
+        {
+          "criterion": "AC5: Nav + CTA tap fires analytics event",
+          "test": "web/src/__tests__/test_issue95_recommendation_nav.test.tsx::AC5: CTA tap dispatches juli:analytics recommendation_action_tapped"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 81,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Manual smoke: /creators and /recommendations with dev server; confirm juli:analytics on CTA in devtools.",
+    "Update done.md header to Issue #95 before merge if team tracks DoD per issue."
+  ],
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "web/src/lib/services/home.ts \u2014 recommendations.list() failures are swallowed with .catch(() => ({ items: [] })) \u2014 empty hero with no structured log"
+    },
+    {
+      "type": "maintainability",
+      "severity": "WARNING",
+      "description": "done.md \u2014 Root done.md still titles Issue #70; update when closing #95 for traceability"
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "web/src/lib/services/home.ts \u2014 recommendations.list() failures are swallowed with .catch(() => ({ items: [] })) \u2014 empty hero with no structured log"
+    }
+  ],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

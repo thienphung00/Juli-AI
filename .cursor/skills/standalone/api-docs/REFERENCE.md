@@ -172,7 +172,7 @@ When auth boundaries, ingestion model, or forbidden substitutes are non-obvious,
 
 - File: `docs/decisions/NNN-<slug>.md` (three-digit, zero-padded)
 - Update `docs/decisions/README.md` index
-- Use the trade-off-first template from grill-with-docs (Context / Decision / Options / Consequences)
+- Use the trade-off-first ADR template (Context / Decision / Options / Consequences)
 
 Example triggers:
 

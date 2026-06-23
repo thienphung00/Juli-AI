@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/implementation-artifact.schema.json",
+  "title": "Implementation Artifact",
+  "description": "Executor Agent execution signal consumed by Review Agent and Meta Agent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactType",
+    "issueId",
+    "executorDomain",
+    "phaseRunId",
+    "startedAt",
+    "completedAt",
+    "executionDurationMs",
+    "toolsUsed",
+    "toolInvocationCount",
+    "contextFilesLoaded",
+    "skillsLoaded",
+    "filesModified",
+    "testsAdded",
+    "testsUpdated",
+    "redGreenRefactorEvidence",
+    "implementationSummary",
+    "assumptions",
+    "risks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver schema version. Current: 1.0.0"
+    },
+    "artifactType": {
+      "const": "implementation"
+    },
+    "issueId": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "executorDomain": {
+      "type": "string",
+      "enum": ["ui-ux", "backend", "data-platform", "machine-learning"]
+    },
+    "phaseRunId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Correlates all artifacts from one agent-phase execution."
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "executionDurationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tokenUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "output": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "toolsUsed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["toolName", "count", "stage"],
+        "properties": {
+          "toolName": { "type": "string", "minLength": 1 },
+          "count": { "type": "integer", "minimum": 0 },
+          "stage": {
+            "type": "string",
+            "enum": ["red", "green", "refactor", "implementation", "other"]
+          }
+        }
+      }
+    },
+    "toolInvocationCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "contextFilesLoaded": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "skillsLoaded": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "filesModified": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "testsAdded": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "testsUpdated": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "redGreenRefactorEvidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cycle"],
+        "properties": {
+          "cycle": { "type": "integer", "minimum": 1 },
+          "failingTestEvidence": { "type": "string" },
+          "passingTestEvidence": { "type": "string" },
+          "refactorEvidence": { "type": "string" },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["command", "exitCode"],
+              "properties": {
+                "command": { "type": "string" },
+                "exitCode": { "type": "integer" },
+                "outputSummary": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "implementationSummary": {
+      "type": "string"
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

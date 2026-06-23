@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/harness-config.schema.json",
+  "title": "Agent Runtime Harness Config",
+  "description": "Declarative source of truth for tunable Meta Agent harness settings. Meta may optimize this config, not product code or architecture source documents.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "prompt",
+    "model",
+    "context",
+    "routing",
+    "executors",
+    "skills",
+    "tools",
+    "agent_structure",
+    "benchmark"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_prompt"],
+      "properties": {
+        "system_prompt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of a prompt variant, or literal prompt text when no variant matches."
+        },
+        "variants": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Named system prompt variants available to the runtime builder."
+        },
+        "additional_instructions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "verbosity": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary", "fallback"],
+      "properties": {
+        "primary": { "type": "string", "minLength": 1 },
+        "fallback": { "type": "string", "minLength": 1 },
+        "allowed": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["budget_tokens", "max_files"],
+      "properties": {
+        "budget_tokens": { "type": "integer", "minimum": 1000 },
+        "max_files": { "type": "integer", "minimum": 1 },
+        "retrieval_depth": { "type": "integer", "minimum": 1 },
+        "reserved_reasoning_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["number", "string", "array", "object", "boolean"]
+      },
+      "required": [
+        "backend_threshold",
+        "ui_threshold",
+        "data_threshold",
+        "ml_threshold"
+      ],
+      "properties": {
+        "backend_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ui_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "data_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ml_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "domain_mappings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "hints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "executors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": ["backend", "ui-ux", "data-platform", "machine-learning"]
+          }
+        },
+        "default": {
+          "type": "string",
+          "enum": ["backend", "ui-ux", "data-platform", "machine-learning"]
+        }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      },
+      "description": "Executor domain to ordered skill identifiers."
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "disabled": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "max_invocations_per_run": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "agent_structure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "single_executor",
+            "planner_executor",
+            "planner_executor_reviewer"
+          ]
+        }
+      }
+    },
+    "benchmark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

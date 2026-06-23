@@ -1,0 +1,175 @@
+{
+  "id": "validation-issue-140",
+  "issue": 140,
+  "timestamp": "2026-06-23T07:55:25Z",
+  "validatedBy": "validate skill",
+  "status": "FAIL",
+  "passedChecks": 6,
+  "failedChecks": 6,
+  "checks": [
+    {
+      "name": "review_artifact_present",
+      "status": "FAIL",
+      "description": "status 'PASS_WITH_WARNINGS' does not match derived 'FAIL' (warnings=1, critical=0)",
+      "details": {
+        "issues": [
+          "status 'PASS_WITH_WARNINGS' does not match derived 'FAIL' (warnings=1, critical=0)"
+        ]
+      }
+    },
+    {
+      "name": "acceptance_criteria_mapped",
+      "status": "PASS",
+      "description": "All acceptance criteria mapped to tests",
+      "details": {
+        "total": 7,
+        "mapped": 7,
+        "unmapped": [],
+        "problems": []
+      }
+    },
+    {
+      "name": "module_boundaries",
+      "status": "PASS",
+      "description": "Module boundaries respected",
+      "details": {
+        "violations": [],
+        "cycles": [],
+        "modulesTouched": 0,
+        "warning": null
+      }
+    },
+    {
+      "name": "module_md_sync",
+      "status": "PASS",
+      "description": "MODULE.md in sync for touched modules",
+      "details": {
+        "drift": [],
+        "missingInterfaces": []
+      }
+    },
+    {
+      "name": "handoff_structure",
+      "status": "PASS",
+      "description": "No handoff on branch (skipped)",
+      "details": {
+        "required": false,
+        "missingFields": []
+      }
+    },
+    {
+      "name": "adr_requirement",
+      "status": "PASS",
+      "description": "No architectural change detected",
+      "details": {
+        "architecturalChange": false,
+        "adrPresent": true,
+        "adrs": [
+          "docs/decisions/003-ai-native-cicd-policy.md"
+        ],
+        "adrProblems": {}
+      }
+    },
+    {
+      "name": "done_md_completion",
+      "status": "PASS",
+      "description": "done.md required checklist complete",
+      "details": {
+        "unchecked": []
+      }
+    },
+    {
+      "name": "critical_findings_resolved",
+      "status": "FAIL",
+      "description": "mlGates.coldStartThresholdDocumented required for ML modules",
+      "details": {
+        "status": "PASS_WITH_WARNINGS",
+        "derivedStatus": "FAIL",
+        "criticalCount": 0,
+        "mandatoryFailReasons": [
+          "mlGates.coldStartThresholdDocumented required for ML modules",
+          "mlGates.promotionGateDocumented required for ML modules"
+        ],
+        "problems": [
+          "mlGates.coldStartThresholdDocumented required for ML modules",
+          "mlGates.promotionGateDocumented required for ML modules",
+          "status 'PASS_WITH_WARNINGS' does not match derived 'FAIL'"
+        ]
+      }
+    },
+    {
+      "name": "findings_acknowledged",
+      "status": "FAIL",
+      "description": "1 WARNING finding(s) missing acceptanceByReviewer, ownerAck, and fixedInCommit or shipAsIsReason",
+      "details": {
+        "warningCount": 1,
+        "unacknowledgedCount": 1,
+        "unacknowledged": [
+          {
+            "description": "Golden fixture augmentation required for stable scale/cut predictions on small synthetic datasets. \u2014 Rationale: Document",
+            "acceptanceByReviewer": null,
+            "ownerAck": null,
+            "fixedInCommit": null,
+            "shipAsIsReason": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "reviewer_signoff_present",
+      "status": "FAIL",
+      "description": "reviewerSignoff.statement missing",
+      "details": {
+        "required": true,
+        "hasStatement": false,
+        "hasTimestamp": false,
+        "acceptedRisks": null
+      }
+    },
+    {
+      "name": "owner_signoff_present",
+      "status": "FAIL",
+      "description": "ownerSignoff.statement missing",
+      "details": {
+        "required": true,
+        "hasStatement": false,
+        "hasTimestamp": false,
+        "acknowledged": null
+      }
+    },
+    {
+      "name": "ml_gates_enforced",
+      "status": "FAIL",
+      "description": "mlGates.coldStartThresholdDocumented required for ML modules",
+      "details": {
+        "mlModules": [
+          "src/modules/ml/ad_performance"
+        ],
+        "coldStartThresholdDocumented": false,
+        "promotionGateDocumented": false,
+        "problems": [
+          "mlGates.coldStartThresholdDocumented required for ML modules",
+          "mlGates.promotionGateDocumented required for ML modules"
+        ]
+      }
+    }
+  ],
+  "overallSummary": "6 validation check(s) failed.",
+  "readyForMerge": false,
+  "warningGated": true,
+  "mergeBlockedByWarnings": true,
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewWarningCount": 1,
+  "schemaVersion": "1.0.0",
+  "artifactType": "validation",
+  "sourceReviewArtifact": "artifacts/reviews/review-issue-140.json",
+  "validationFailures": 6,
+  "readyForShip": false,
+  "retryCount": 0,
+  "testsExecuted": 7,
+  "testsPassed": 7,
+  "testsFailed": 0,
+  "coveragePercentage": 0,
+  "benchmarkStatus": "not_run",
+  "executionDurationMs": 0
+}

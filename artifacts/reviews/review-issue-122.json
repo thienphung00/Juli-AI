@@ -1,0 +1,96 @@
+{
+  "id": "review-issue-122",
+  "issue": 122,
+  "timestamp": "2026-06-23T07:30:58Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 1 UX instrumentation: task_clicked, task_approved, task_dismissed events via juli:analytics with workflow, task_type, persona_id, session_id payloads. Wired through TaskCard, useTaskExecutor, TaskQueue, and all three workflow panels. Fail-silent emit. Engagement threshold documented in PRD.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "trackTaskClicked / trackTaskApproved / trackTaskDismissed",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Phase 1 UX analytics sink in lib/ux-analytics; dispatches juli:analytics CustomEvents."
+    },
+    {
+      "module": "web",
+      "interface": "TaskCard",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Requires personaId; emits task_clicked on card engagement (excludes approve/dismiss buttons)."
+    },
+    {
+      "module": "web",
+      "interface": "useTaskExecutor",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Requires personaId option; emits task_approved and task_dismissed on actions."
+    },
+    {
+      "module": "web",
+      "interface": "trackTaskExecutorAction",
+      "changeType": "removed",
+      "breaking": false,
+      "description": "Replaced by structured task_* UX events (issue #122)."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Events emitted: task_clicked, task_approved, task_dismissed",
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::emits task_approved and task_dismissed from TaskQueue"
+        },
+        {
+          "criterion": "Payload includes workflow, task_type, persona_id, session_id; no PII",
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::emits task_clicked with workflow, task_type, persona_id, session_id"
+        },
+        {
+          "criterion": "Instrumentation wired into shared task card and all three workflow pages",
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::wires instrumentation into all three workflow panels"
+        },
+        {
+          "criterion": "Analytics failures do not break approve/dismiss or navigation",
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::analytics failures do not break approve or dismiss"
+        },
+        {
+          "criterion": "Unit tests assert events fire on click, approve, dismiss",
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::emits task_clicked with workflow, task_type, persona_id, session_id"
+        },
+        {
+          "criterion": "Engagement threshold definition documented",
+          "test": "web/src/__tests__/test_ux_instrumentation.test.tsx::documents engagement threshold for Phase 1 exit gate"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 181,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

@@ -1,0 +1,87 @@
+{
+  "id": "review-issue-92",
+  "issue": 92,
+  "timestamp": "2026-06-23T07:31:05Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Additive commerce graph layer: Campaign and GraphEdge models, Alembic migration 006, shop-scoped GraphRepo with idempotent upsert_edge, list_edges, and create_campaign. Five integration tests cover all acceptance criteria including tenant isolation.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "src/shared/utils/data"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "src/shared/utils/data",
+      "interface": "Campaign",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Campaign graph node with creator_id, shop_id, predicted/realized metrics"
+    },
+    {
+      "module": "src/shared/utils/data",
+      "interface": "GraphEdge",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Relationship edges: has_sold, potential_match, trust_score, predicted_vs_actual"
+    },
+    {
+      "module": "src/shared/utils/data",
+      "interface": "GraphRepo",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Shop-scoped graph persistence: upsert_edge, list_edges, create_campaign"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "AC1: Alembic migration creates campaigns and graph_edges tables with shop_id FK and indexes",
+          "test": "tests/unit/test_graph.py::test_ac1_migration_tables_registered"
+        },
+        {
+          "criterion": "AC2: GraphRepo.upsert_edge is idempotent on (shop_id, edge_type, source, target)",
+          "test": "tests/unit/test_graph.py::test_ac2_upsert_edge_is_idempotent"
+        },
+        {
+          "criterion": "AC3: GraphRepo.list_edges returns only edges for the given shop (tenant isolation)",
+          "test": "tests/unit/test_graph.py::test_ac3_list_edges_scoped_by_shop"
+        },
+        {
+          "criterion": "AC4: GraphRepo.create_campaign persists Campaign node with creator_id + shop_id",
+          "test": "tests/unit/test_graph.py::test_ac4_create_campaign_persists_node"
+        },
+        {
+          "criterion": "AC5: Integration test proves shop A cannot read shop B graph edges",
+          "test": "tests/unit/test_graph.py::test_ac5_shop_a_cannot_read_shop_b_edges"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 172,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Run alembic upgrade head on staging before P1-2 matching engine work."
+  ],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

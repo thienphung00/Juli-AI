@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a review artifact template for an issue."""
+"""Generate or refresh a review artifact for an issue."""
 
 from __future__ import annotations
 
@@ -8,7 +8,15 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import REVIEWS_DIR, load_json, resolve_issue_number, utc_now_iso, write_json
+from common import (
+    REVIEWS_DIR,
+    build_review_artifact,
+    load_json,
+    load_review_artifact,
+    resolve_issue_number,
+    review_artifact_path,
+    write_json,
+)
 
 
 def main() -> int:
@@ -17,7 +25,12 @@ def main() -> int:
     parser.add_argument(
         "--input-json",
         type=Path,
-        help="Optional JSON file to merge into the generated artifact",
+        help="Optional JSON file to merge into the artifact (deep merge)",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Ignore existing artifact on disk; start from template + --input-json only",
     )
     args = parser.parse_args()
     issue = resolve_issue_number(args.issue)
@@ -25,37 +38,14 @@ def main() -> int:
         print("error: could not resolve issue number (use --issue or feat/issue-N branch)", file=sys.stderr)
         return 1
 
-    artifact = {
-        "id": f"review-issue-{issue}",
-        "issue": issue,
-        "timestamp": utc_now_iso(),
-        "reviewedBy": "review skill",
-        "status": "PASS",
-        "summary": "",
-        "criticalFindings": [],
-        "modulesTouched": [],
-        "interfaceChanges": [],
-        "moduleDrift": False,
-        "driftDetails": [],
-        "testCoverage": {
-            "acceptance": {
-                "total": 0,
-                "mapped": 0,
-                "unmapped": [],
-                "mappings": [],
-            },
-            "unit": {"passed": 0, "failed": 0},
-        },
-        "recommendations": [],
-        "approvalReady": True,
-    }
+    existing = None if args.fresh else load_review_artifact(issue)
+    overrides = load_json(args.input_json) if args.input_json and args.input_json.exists() else None
 
-    if args.input_json and args.input_json.exists():
-        artifact.update(load_json(args.input_json))
+    artifact = build_review_artifact(issue, existing=existing, overrides=overrides, fresh=args.fresh)
 
-    out = REVIEWS_DIR / f"review-issue-{issue}.json"
+    out = review_artifact_path(issue)
     write_json(out, artifact)
-    print(f"wrote {out}")
+    print(f"wrote {out} status={artifact.get('status')}")
     return 0
 
 

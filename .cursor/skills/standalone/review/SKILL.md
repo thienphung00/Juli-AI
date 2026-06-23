@@ -10,7 +10,146 @@ description: >-
 
 # Guardrails
 
+Review Agent skill: validates code quality after Executor implementation. Owns the
+`review` step in `review → validate → ship-ready`. Does not substitute for Validate.
+
+Emits `artifacts/reviews/review-issue-<n>.json` (ADR-003 CI gate + Meta fields per
+[`docs/architecture/agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)).
+
 A validator, reviewer, checklist provider, and patch suggester. This skill does NOT generate features — it enforces quality on existing or proposed code.
+
+## Artifact emission (required)
+
+After review completes, write or update the review artifact before handing off to
+`validate`. The JSON file is the system of record — not chat output.
+
+| Field group | Purpose |
+|-------------|---------|
+| ADR-003 CI | `status`, `criticalFindings`, `modulesTouched`, `testCoverage.acceptance` — consumed by `pr.yml` |
+| Meta optimization | `reviewFailures`, `findings`, `securityFindings`, `architectureFindings`, `maintainabilityFindings`, `reviewDurationMs` |
+
+### Workflow
+
+1. Read `artifacts/implementations/implementation-issue-<n>.json` when present (Executor handoff).
+2. Run review checks (below) and populate `criticalFindings`.
+3. Map acceptance criteria to tests in `testCoverage.acceptance.mappings`.
+4. Set `status`: `FAIL` if any `criticalFindings[*].severity == "CRITICAL"` or
+   `actionRequired: true`; `PASS_WITH_WARNINGS` if WARNING findings only; else `PASS`.
+   **Do not** use legacy top-level `warnings[]` — all findings belong in
+   `criticalFindings` with the correct `severity`.
+5. Write artifact:
+
+```bash
+python scripts/ci/generate_review_artifact.py --issue <n> --input-json /tmp/review-fields.json
+```
+
+Merge handoff fields via `--input-json`. Existing artifact content on disk is
+preserved unless you pass `--fresh` (starts from template + input only).
+The generator deep-merges, normalizes findings, aligns `status`, and adds Meta fields.
+
+### Status semantics
+
+| `status` | When | Merge |
+|----------|------|-------|
+| `FAIL` | Any CRITICAL finding, mandatory fail trigger, or merge-blocking issue | Blocked |
+| `PASS_WITH_WARNINGS` | WARNING findings only | Blocked until signoff + per-finding ack |
+| `PASS` | No blocking findings | Allowed when validation passes |
+
+`reviewFailures` counts findings with `severity == "CRITICAL"` or `actionRequired: true`.
+
+### Gating WARNING findings (`PASS_WITH_WARNINGS`)
+
+Each WARNING in `criticalFindings` must include:
+
+```json
+{
+  "severity": "WARNING",
+  "description": "N+1 query",
+  "acceptanceByReviewer": true,
+  "ownerAck": true,
+  "fixedInCommit": "abc123"
+}
+```
+
+Use `shipAsIsReason` instead of `fixedInCommit` when shipping as-is.
+
+When `status` is `PASS_WITH_WARNINGS`, also set:
+
+```json
+"reviewerSignoff": {
+  "statement": "I reviewed and accepted these risks",
+  "timestamp": "2026-06-23T12:00:00Z",
+  "acceptedRisks": true
+},
+"ownerSignoff": {
+  "statement": "I acknowledge and will fix",
+  "timestamp": "2026-06-23T12:05:00Z",
+  "acknowledged": true
+}
+```
+
+### ML modules (`src/modules/ml/*`)
+
+When ML modules are touched, document gates:
+
+```json
+"mlGates": {
+  "coldStartThresholdDocumented": true,
+  "promotionGateDocumented": true,
+  "notes": "Sparse-history hold threshold; promotion via evaluate_promotion_status",
+  "thresholds": {
+    "SPARSE_HISTORY_MIN_IMPRESSIONS": 50,
+    "AD_PERFORMANCE_MAX_ROAS_MAPE": 50.0
+  }
+}
+```
+
+Missing ML gates is a mandatory `FAIL` trigger. CI also scans `thresholds.py` in
+source for required constants (see `scripts/ci/ml_thresholds.py`).
+
+### Hotfix override (`overriddenMerge`)
+
+For P0 incidents only — never for CRITICAL security or data exposure:
+
+```json
+"overriddenMerge": {
+  "timestamp": "2026-06-24T08:15:00Z",
+  "overriddenBy": "thien@juli.ai",
+  "reason": "Production incident hotfix; P0 impact outweighs ML gate validation",
+  "incidentLink": "INC-789"
+}
+```
+
+Keep `status: "FAIL"`; validation passes when override clears overridable gates.
+
+### Post-deploy feedback (`productionOutcome`)
+
+After ship, link incidents to accepted findings (use `criticalFindings[].id`):
+
+```json
+"productionOutcome": {
+  "incidents": [{
+    "incidentId": "INC-456",
+    "linkedFinding": "find-140-threshold",
+    "shipAsIsReason": "acceptable at current scale",
+    "actualOutcome": "False positive rate spiked; was NOT acceptable",
+    "timestamp": "2026-07-15T09:00:00Z"
+  }]
+}
+```
+
+### Inputs
+
+- Implementation artifact: `artifacts/implementations/implementation-issue-<n>.json`
+- GitHub issue acceptance criteria
+- Changed files on branch
+
+### Outputs
+
+- `artifacts/reviews/review-issue-<n>.json`
+- Human-readable findings (markdown below) for the handoff template
+
+Schema: [`docs/schemas/agent-runtime/review-artifact.schema.json`](../../../docs/schemas/agent-runtime/review-artifact.schema.json)
 
 ## Role
 
@@ -126,6 +265,7 @@ The rules enforce standards passively during code generation. Guardrails activel
 
 | Skill | How Guardrails Interacts |
 |-------|------------------------|
-| `grill-with-docs` | Uses grill-with-docs handoff edge cases, `system-design.md`, and issue acceptance criteria as validation source |
-| `ship` | Pre-merge checklist gates the delivery pipeline |
-| `focus` | Focus loads review selectively based on detected code patterns |
+| Executor (domain skills) | Consumes implementation artifact; uses issue acceptance criteria and `system-design.md` as validation source |
+| `validate` | Review artifact is input to Validate; review does not replace deterministic gates |
+| `ship` | Pre-merge checklist gates the delivery pipeline after validation passes |
+| `focus` | Focus loads review selectively based on detected code patterns; Meta consumes review artifact post-validation |

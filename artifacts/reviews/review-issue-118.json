@@ -1,0 +1,100 @@
+{
+  "id": "review-issue-118",
+  "issue": 118,
+  "timestamp": "2026-06-23T07:30:57Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Seller home shell replaces legacy creator-matching seller entry with stage-routed workflow UI, persisted persona switcher, Vietnamese copy, and integration tests for routing. Phone-OTP auth unchanged.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "SellerHomeShell",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Primary seller entry: workflow breadcrumb, shop summary, task queue from mock persona."
+    },
+    {
+      "module": "web",
+      "interface": "PersonaSwitcher",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Header control to switch new/leakage/growth demo personas with localStorage persistence."
+    },
+    {
+      "module": "web",
+      "interface": "resolveSellerWorkflow",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Maps mock persona profile through stage router to workflow entry metadata."
+    },
+    {
+      "module": "web",
+      "interface": "DemoPersonaProvider",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Client context for persisted demo persona selection."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Post-login seller lands in home shell (not legacy recommendation feed)",
+          "test": "web/src/__tests__/test_seller_home_shell.test.tsx::lands seller in home shell instead of legacy recommendation feed"
+        },
+        {
+          "criterion": "Persona switcher loads mock personas and re-routes on change",
+          "test": "web/src/__tests__/test_seller_home_shell.test.tsx::loads mock personas in persona switcher"
+        },
+        {
+          "criterion": "Stage router selects workflow; UI shows which workflow is active",
+          "test": "web/src/__tests__/test_seller_home_shell.test.tsx::shows active workflow label from stage router"
+        },
+        {
+          "criterion": "Vietnamese copy, VND formatting, responsive mobile layout",
+          "test": "web/src/__tests__/test_seller_home_shell.test.tsx::shows shop GMV with VND formatting"
+        },
+        {
+          "criterion": "Integration test: switching persona changes visible workflow/stage",
+          "test": "web/src/__tests__/test_seller_home_shell.test.tsx::integration: switching persona changes visible workflow and stage"
+        },
+        {
+          "criterion": "Integration test: new/leakage/growth personas route to expected workflow entry",
+          "test": "web/src/__tests__/test_seller_home_shell.test.tsx::integration: leakage persona routes to expected workflow entry"
+        },
+        {
+          "criterion": "Verifies OTP and stores session (phone-OTP auth flow unchanged)",
+          "test": "web/src/__tests__/test_login_otp_flow.test.tsx::verifies OTP and stores session"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 158,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

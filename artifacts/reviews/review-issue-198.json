@@ -1,0 +1,87 @@
+{
+  "id": "review-issue-198",
+  "issue": 198,
+  "timestamp": "2026-06-23T07:31:02Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-9 Workflow Templates sub-tab: grouped mock threshold sliders and automation toggles for all six validated workflows; session-local state; advanced styling; no approval or execution actions.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web/src/components/DecisionsPage.tsx",
+    "web/src/components/decisions/DecisionsWorkflowTemplatesShell.tsx",
+    "web/src/components/decisions/WorkflowTemplateGroup.tsx",
+    "web/src/lib/decisions/workflow-templates.ts",
+    "web/src/lib/decisions/MODULE.md",
+    "web/MODULE.md",
+    "web/src/__tests__/test_issue198_decisions_templates.test.tsx"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/components/decisions",
+      "interface": "DecisionsWorkflowTemplatesShell",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Advanced Workflow Templates sub-tab with per-workflow mock settings."
+    },
+    {
+      "module": "web/src/lib/decisions",
+      "interface": "workflow-templates",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Mock template definitions and session-local persistence helpers."
+    },
+    {
+      "module": "web/src/components/DecisionsPage",
+      "interface": "DecisionsPage",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Replaces Templates placeholder with DecisionsWorkflowTemplatesShell."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Workflow Templates sub-tab reachable from Decisions; not the default tab",
+          "test": "web/src/__tests__/test_issue198_decisions_templates.test.tsx::is not the default Decisions tab \u2014 Recommended stays selected on load"
+        },
+        {
+          "criterion": "At least one configurable control per workflow group (mock)",
+          "test": "web/src/__tests__/test_issue198_decisions_templates.test.tsx::renders at least one configurable control per workflow group"
+        },
+        {
+          "criterion": "No approval or execution actions on Templates tab",
+          "test": "web/src/__tests__/test_issue198_decisions_templates.test.tsx::does not surface approval toolbar or execute actions"
+        },
+        {
+          "criterion": "Component test: sub-tab switch shows template groups",
+          "test": "web/src/__tests__/test_issue198_decisions_templates.test.tsx::shows template groups for all six validated workflows after sub-tab switch"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 5,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

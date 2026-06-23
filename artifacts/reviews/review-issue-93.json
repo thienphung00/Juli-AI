@@ -1,0 +1,106 @@
+{
+  "id": "review-issue-93",
+  "issue": 93,
+  "timestamp": "2026-06-23T07:31:05Z",
+  "reviewedBy": "review skill",
+  "status": "PASS_WITH_WARNINGS",
+  "summary": "Outcome-driven host-product matching: graph edge weights (potential_match, has_sold) drive ranking; prediction module emits GMV band, conversion, engagement, risks, action_type, and confidence; GET /v1/recommendations exposes extended host_product_match schema with rules fallback when LLM quota is exhausted.",
+  "criticalFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "src/modules/catalog/domain/recommendations/engine.py:get_host_product_matching \u2014 score_livestream is awaited inside creator\u00d7product nested loops (N+1). Acceptable for MVP limit=3 shops; batch or cache livestream scores before P1-4 scale."
+    }
+  ],
+  "modulesTouched": [
+    "src/modules/catalog/domain/recommendations",
+    "src/apps/api_gateway/api/routers/recommendations",
+    "src/apps/api_gateway/api/routers/outcomes"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "recommendations",
+      "interface": "HostProductMatch",
+      "changeType": "extended",
+      "breaking": false,
+      "description": "Adds predicted_outcome, action_type, confidence, computed_at"
+    },
+    {
+      "module": "recommendations",
+      "interface": "prediction",
+      "changeType": "added",
+      "breaking": false,
+      "description": "PredictedOutcome estimation and action CTA builders"
+    },
+    {
+      "module": "api/recommendations",
+      "interface": "GET /v1/recommendations",
+      "changeType": "extended",
+      "breaking": false,
+      "description": "Response items include match_score, predicted_outcome, action_type, confidence, source"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "AC1: Rankings use graph edge weights when present",
+          "test": "tests/unit/test_recommendations.py::test_issue93_graph_edge_boosts_ranking"
+        },
+        {
+          "criterion": "AC2: predicted_outcome on each host_product_match",
+          "test": "tests/unit/test_recommendations.py::test_issue93_host_product_match_predicted_outcome_fields"
+        },
+        {
+          "criterion": "AC3: action_type + CTA",
+          "test": "tests/unit/test_recommendations.py::test_issue93_host_product_match_action_type_and_cta"
+        },
+        {
+          "criterion": "AC4: LLM quota exceeded \u2192 source rules",
+          "test": "tests/unit/test_recommendations.py::test_issue93_host_product_matching_llm_quota_uses_rules"
+        },
+        {
+          "criterion": "AC5: GET /v1/recommendations extended schema",
+          "test": "tests/unit/test_api_recommendations.py::test_recommendations_host_product_match_extended_schema"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 177,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Cache per-livestream scores in get_host_product_matching before UI scale (P1-4)."
+  ],
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "src/modules/catalog/domain/recommendations/engine.py:get_host_product_matching \u2014 score_livestream is awaited inside creator\u00d7product nested loops (N+1). Acceptable for MVP limit=3 shops; batch or cache livestream scores before P1-4 scale."
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "src/modules/catalog/domain/recommendations/engine.py:get_host_product_matching \u2014 score_livestream is awaited inside creator\u00d7product nested loops (N+1). Acceptable for MVP limit=3 shops; batch or cache livestream scores before P1-4 scale."
+    }
+  ],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}
