@@ -9,6 +9,28 @@ description: >-
 
 # Launchpad
 
+Review Agent skill for ship-readiness. Runs only after `validate` passes and a
+validation artifact exists. Never ship before validation.
+
+## Validation artifact gate (required)
+
+Before merge or release preparation:
+
+1. Confirm `artifacts/validation/validation-issue-<n>.json` exists on the branch.
+2. Assert `status == "PASS"` and `readyForMerge == true`.
+3. If `readyForShip` is present, it must also be `true` (mirrors `readyForMerge`).
+4. On failure, return to `validate` or `review` — do not proceed.
+
+```bash
+python -c "
+import json, sys
+v = json.load(open('artifacts/validation/validation-issue-<n>.json'))
+sys.exit(0 if v.get('status')=='PASS' and v.get('readyForMerge') else 1)
+"
+```
+
+Schema: [`docs/schemas/agent-runtime/validation-artifact.schema.json`](../../../docs/schemas/agent-runtime/validation-artifact.schema.json)
+
 Everything related to shipping safely. This skill prepares deployment artifacts, validates readiness, and generates rollout plans. It NEVER directly deploys.
 
 ## Workflow
@@ -41,28 +63,6 @@ pr-checks:
 - [ ] Architecture decision documented (if applicable)
 - [ ] API contract changes backward-compatible (or versioned)
 - [ ] Feature flag wraps new behavior
-
-## Secret scan gate (pre-merge, required)
-
-Run the following. If any command exits non-zero or returns matches, block the merge
-and surface the finding. Do not proceed until the finding is resolved.
-
-```bash
-# iOS surface
-git diff HEAD --name-only | grep '\.swift\|\.plist\|\.xcconfig' | xargs -I{} \
-  grep -n "apiKey\|api_key\|secret\|password\|token\s*=\s*\"" {} 2>/dev/null
-
-# Next.js web surface
-git diff HEAD --name-only | grep '^web/' | xargs -I{} \
-  grep -n "NEXT_PUBLIC_.*KEY\|NEXT_PUBLIC_.*SECRET\|hardcoded" {} 2>/dev/null
-
-# Python/FastAPI surface
-git diff HEAD --name-only | grep '^src/' | xargs -I{} \
-  grep -n "password\s*=\s*['\"].\|secret\s*=\s*['\"].\|api_key\s*=\s*['\"]." {} 2>/dev/null
-```
-
-Exclusions (do not flag): `.env.example`, `*.test.*`, `conftest.py` mock values,
-README code blocks, and files explicitly listed in `.gitignore`.
 
 ## Git Workflow
 
@@ -232,9 +232,9 @@ Detect (Sentry/Grafana alert)
 
 | Skill | Relationship |
 |-------|-------------|
-| `grill-with-docs` | `EXECUTION.md`, `system-design.md`, and ADRs inform deployment topology and rollback plans |
-| `review` | Pre-merge checklist is the gate before ship takes over |
-| `focus` | Focus loads ship when deployment/CI work is detected |
+| `validate` | **Requires** `artifacts/validation/validation-issue-<n>.json` with `readyForMerge: true` |
+| `review` | Pre-merge checklist follows review; ship gates on validation artifact, not review prose |
+| `focus` | Meta Agent runs harness optimization after validation; ship does not consume optimization artifacts |
 
 ## Additional Resources
 

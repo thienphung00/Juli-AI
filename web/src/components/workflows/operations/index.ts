@@ -10,5 +10,4 @@ export { ReasoningPanel } from "./ReasoningPanel";
 export { ShopHealthCard } from "./ShopHealthCard";
 export { ShopHealthHero } from "./ShopHealthHero";
 export { ShopInfoCard } from "./ShopInfoCard";
-export { ShopInfoHeader } from "./ShopInfoHeader";
 export { RecommendedDecisionsPreview } from "./RecommendedDecisionsPreview";

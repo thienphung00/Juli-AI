@@ -1,0 +1,89 @@
+{
+  "id": "review-issue-123",
+  "issue": 123,
+  "timestamp": "2026-06-23T07:30:58Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Retired legacy creator-matching routes (/creators, /recommendations) via 301 redirects to seller home. Bottom nav reduced to Trang ch\u1ee7 + Juli. Client-side LegacyRouteRedirect fallback preserves session. Auth and mode-select flows unchanged.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "BOTTOM_NAV_TABS",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Removed Creators and G\u1ee3i \u00fd tabs; seller home + Juli only."
+    },
+    {
+      "module": "web",
+      "interface": "LEGACY_ROUTE_REDIRECTS",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Added /creators and /recommendations \u2192 / permanent redirects."
+    },
+    {
+      "module": "web",
+      "interface": "LegacyRouteRedirect",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Client-side redirect component for legacy routes."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Legacy creator-matching routes redirect to seller home or return 301 to /",
+          "test": "web/src/__tests__/test_legacy_creator_routes_retired.test.tsx::registers 301 redirects for /creators and /recommendations to seller home"
+        },
+        {
+          "criterion": "Primary navigation no longer promotes creator-matching pages",
+          "test": "web/src/__tests__/test_legacy_creator_routes_retired.test.tsx::does not promote creator-matching pages in primary navigation"
+        },
+        {
+          "criterion": "Existing auth and mode-select flows still work",
+          "test": "web/src/__tests__/test_mode_selection_gate.test.tsx::redirects to /mode-select after OTP when no workspace mode is saved"
+        },
+        {
+          "criterion": "Integration test: /recommendations and /creators redirect without breaking session",
+          "test": "web/src/__tests__/test_legacy_creator_routes_retired.test.tsx::redirects legacy creator routes to seller home without clearing session"
+        },
+        {
+          "criterion": "Integration test: seller home loads after redirect",
+          "test": "web/src/__tests__/test_legacy_creator_routes_retired.test.tsx::loads seller home shell after redirect target"
+        },
+        {
+          "criterion": "No removal of phone-OTP login",
+          "test": "web/src/__tests__/test_login_otp_flow.test.tsx::renders phone input with Vietnamese label"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 187,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

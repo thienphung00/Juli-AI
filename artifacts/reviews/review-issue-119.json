@@ -1,0 +1,96 @@
+{
+  "id": "review-issue-119",
+  "issue": 119,
+  "timestamp": "2026-06-23T07:30:57Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "New Seller Copilot panel adds checklist header, first-sale milestone progress bar, and TaskQueue integration for new_seller workflow. Vietnamese fixture copy, shared no-op executor, integration tests for tasks/milestone/approve. No TikTok API calls.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "NewSellerCopilotPanel",
+      "changeType": "added",
+      "breaking": false,
+      "description": "New-seller workflow panel: checklist header, milestone bar, delegates to TaskQueue."
+    },
+    {
+      "module": "web",
+      "interface": "MilestoneProgress",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Visual first-sale milestone progress with Vietnamese label and percent bar."
+    },
+    {
+      "module": "web",
+      "interface": "computeFirstSaleMilestone",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Pure helper computing milestone % from mock profile order count and GMV."
+    },
+    {
+      "module": "web",
+      "interface": "SellerHomeShell",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Renders NewSellerCopilotPanel when workflowId is new_seller; other workflows unchanged."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Checklist tasks render for new-seller persona with Vietnamese titles",
+          "test": "web/src/__tests__/test_new_seller_copilot.test.tsx::integration: new-seller persona renders at least 3 tasks with Vietnamese titles"
+        },
+        {
+          "criterion": "Each task explains why it matters (Vietnamese copy from fixtures)",
+          "test": "web/src/__tests__/test_new_seller_copilot.test.tsx::integration: each task shows Vietnamese justification body from fixtures"
+        },
+        {
+          "criterion": "First-sale milestone progress visible",
+          "test": "web/src/__tests__/test_new_seller_copilot.test.tsx::integration: first-sale milestone progress is visible with Vietnamese label"
+        },
+        {
+          "criterion": "Approve/dismiss via shared executor; empty state without layout breaks",
+          "test": "web/src/__tests__/test_new_seller_copilot.test.tsx::renders empty state when all checklist tasks are completed in session"
+        },
+        {
+          "criterion": "Integration test: approve removes task from active queue",
+          "test": "web/src/__tests__/test_new_seller_copilot.test.tsx::integration: approve removes task from active queue"
+        },
+        {
+          "criterion": "No TikTok API calls",
+          "test": "web/src/__tests__/test_task_card_executor.test.tsx::no API calls on approve or dismiss"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 163,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

@@ -9,16 +9,15 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Optional, TypeVar, overload
+from typing import Any, Optional
 
 import requests
+
 from pydantic import BaseModel
 
 from src.modules.catalog.domain.integrations.tiktok.exceptions import error_from_response
 from src.modules.catalog.domain.integrations.tiktok.schemas import validate_data
 from src.modules.catalog.domain.integrations.tiktok.signing import sign_request
-
-T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
@@ -50,31 +49,13 @@ class TikTokClient:
         self._timeout = timeout
         self._session = requests.Session()
 
-    @overload
-    def get(
-        self,
-        path: str,
-        params: Optional[dict[str, str]] = None,
-        *,
-        response_model: type[T],
-    ) -> T: ...
-
-    @overload
-    def get(
-        self,
-        path: str,
-        params: Optional[dict[str, str]] = None,
-        *,
-        response_model: None = None,
-    ) -> dict[str, Any]: ...
-
     def get(
         self,
         path: str,
         params: Optional[dict[str, str]] = None,
         *,
         response_model: Optional[type[BaseModel]] = None,
-    ) -> dict[str, Any] | BaseModel:
+    ) -> dict | BaseModel:
         """Signed GET request. Returns the ``data`` payload (optionally validated)."""
         all_params = self._build_params(path, params)
         all_params["sign"] = sign_request(
@@ -94,26 +75,6 @@ class TikTokClient:
             return validate_data(response_model, data)
         return data
 
-    @overload
-    def post(
-        self,
-        path: str,
-        body: Optional[dict[str, Any]] = None,
-        params: Optional[dict[str, str]] = None,
-        *,
-        response_model: type[T],
-    ) -> T: ...
-
-    @overload
-    def post(
-        self,
-        path: str,
-        body: Optional[dict[str, Any]] = None,
-        params: Optional[dict[str, str]] = None,
-        *,
-        response_model: None = None,
-    ) -> dict[str, Any]: ...
-
     def post(
         self,
         path: str,
@@ -121,7 +82,7 @@ class TikTokClient:
         params: Optional[dict[str, str]] = None,
         *,
         response_model: Optional[type[BaseModel]] = None,
-    ) -> dict[str, Any] | BaseModel:
+    ) -> dict | BaseModel:
         """Signed POST request with JSON body. Returns the ``data`` payload."""
         body = body or {}
         body_str = json.dumps(body, separators=(",", ":"), sort_keys=True)
@@ -164,8 +125,6 @@ class TikTokClient:
 
         while True:
             data = self.post(path, body=page_body, params=query_params)
-            if not isinstance(data, dict):
-                break
             items = data.get(items_key, [])
             all_items.extend(items)
 

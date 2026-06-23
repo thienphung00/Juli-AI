@@ -50,32 +50,12 @@ export type {
   WorkflowOutcomeSuccessCriteria,
 } from "./outcome-metrics";
 export { runOperationsPipeline, useOperationsPipeline } from "./use-operations-pipeline";
-export { useHomeJourneyHighlight } from "./use-home-journey-highlight";
-export type { HomeJourneyHighlightState } from "./use-home-journey-highlight";
 export {
   buildAllDomainReportSummaries,
   buildDomainReportSummary,
-  deriveSparklineSeries,
   REPORT_DOMAIN_IDS,
   resolveDefaultReportDomain,
-  SPARKLINE_POINT_COUNT,
 } from "./todays-report";
-export {
-  resolveAhrWorkflowId,
-  resolveMetricWorkflowId,
-  resolveSpsWorkflowId,
-} from "./metric-action-mapping";
-export {
-  buildDecisionsHighlightLink,
-  buildHomeHighlightLink,
-  formatAnticipationImpact,
-  getJourneyLink,
-  parseDecisionsHighlight,
-  parseHomeHighlight,
-  resolveHomeHighlight,
-  resolveJourneyLinkForMetric,
-} from "./journey-loop";
-export type { HomeMetricAnchor, JourneyLink, RecentProgressState } from "./journey-loop";
 export type {
   DomainReportSummary,
   DomainStatusTone,

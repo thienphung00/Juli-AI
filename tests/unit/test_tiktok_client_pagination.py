@@ -1,6 +1,6 @@
 """Pagination behavior for TikTokClient.get_all_pages."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 

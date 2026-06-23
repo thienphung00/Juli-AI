@@ -1,15 +1,40 @@
 # Architecture Map
 
-> **Tier 1 — as-built registry.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
-> **Owns:** deployed module paths, endpoints, jobs. **Does not own:** subsystem envelopes (`system-design.md`), data phase gates (`data-sources.md`), MVP target diagram (`phase-2-mvp.md`).
+**As-built source of truth for what is deployed** in the Juli-AI codebase —
+modules, polling jobs, API schemas, endpoints. `focus` consults this first to
+compute a minimum context-loading set for any task. The `review` skill verifies
+that any new module added in a PR is also listed here.
 
-Update this file when you add, rename, remove, or restructure a module.
+> Update this file whenever you add, rename, remove, or significantly restructure
+> a module. For the plan that drives changes see [`../../EXECUTION.md`](../../EXECUTION.md);
+> for technical design see [`../system-design.md`](../system-design.md).
+>
+> **Authority:** `EXECUTION.md` > `system-design.md` > this file. This file describes
+> **reality as deployed**, not the target.
 
-**Authority:** `EXECUTION.md` > `system-design.md` > this file.
+## North star
+
+Juli AI is an **AI Operations System** for TikTok Shop sellers — **make and keep
+more money** via profile-classified, health-ranked, validated workflows only
+([ADR-026](../decisions/026-operations-system-orchestration.md)). Copilot surfaces:
+**New Seller Copilot** (NEW_SHOP), **Growth Copilot** + **Revenue Leakage** loss
+prevention (MID_LARGE_SHOP). Built UI-first (Phase 1), ML (Phase 1.5), executable
+mock workflows (P1.6–1.7), operations orchestration mock (P1.8), live data (P2).
+See [`../../EXECUTION.md`](../../EXECUTION.md).
+
+**What we build:** probation completion (new shops), revenue growth (ROAS, scaling),
+and loss prevention (refund spikes, stockouts) — not generic analytics or CRM.
+
+**What we do _not_ build:** generic analytics dashboards, CRM, inventory/finance/
+settlement **management** software, or creator↔shop matching (Phase 3+, see ADR
+history). Exception: narrow inventory **signals** (level, sales velocity, lead time)
+in P2+ that power Stockout Prevention + Product Scaling
+([ADR-026](../decisions/026-operations-system-orchestration.md)).
 
 ## Code layout (actual)
 
-The backend is a modular monolith under `src/`. No folder reshaping until Phase 3 — `src/apps` + `src/modules` stays as-is.
+The backend is a modular monolith under `src/`. **No folder reshaping until Phase
+2.5** — `src/apps` + `src/modules` stays as-is.
 
 ```
 src/
@@ -61,7 +86,7 @@ Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
 
 ## Phase 1.6 modules (deployed — listing workflow)
 
-Tracked by [ADR-016](../decisions/016-listing-workflow-implementation.md) and
+Tracked by [ADR-020](../decisions/020-new-seller-listing-workflow-scope.md) and
 `EXECUTION.md` slices P1.6-1…P1.6-5.
 
 | Module | Tier | Responsibility | Public Surface | Owners |
@@ -74,8 +99,8 @@ Tracked by [ADR-016](../decisions/016-listing-workflow-implementation.md) and
 
 ## Planned modules (Phase 1.7 / 1.8 / Phase 2 — not yet deployed)
 
-Tracked by [ADR-013](../decisions/013-operations-pipeline-spine.md),
-[ADR-013](../decisions/013-operations-pipeline-spine.md) and `EXECUTION.md`
+Tracked by [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md),
+[ADR-026](../decisions/026-operations-system-orchestration.md) and `EXECUTION.md`
 slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code lands.
 
 | Module (planned) | Target phase | Responsibility |
@@ -88,7 +113,7 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 | `web/src/lib/operations/health-check.ts` | P1.8 | `health_check_results` indicators from mock operational data (P1.8-3) |
 | `web/src/lib/operations/recommendations.ts` + `use-operations-pipeline.ts` | P1.8 | `workflow_recommendations` ranking + pipeline orchestration hook (P1.8-4) |
 | `web/src/components/workflows/operations/` | P1.8 | Operations pipeline shell: reasoning panel, unified approval gate + routing, outcome tracking views (P1.8-5…P1.8-7) |
-| `web/src/app/decisions/` + `web/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)) |
+| `web/src/app/decisions/` + `web/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-028](../decisions/028-decision-copilot-app-structure.md)) |
 | `web/src/components/home/todays-report/` | P1.8-9 | Today's Report domain cards (Revenue Growth, Revenue Protection, Product Listings, Advertising, Refunds) with animated domain switcher on Home |
 | `web/src/lib/decisions/` | P1.8-9 | Decision view-model: map `workflow_recommendations` → Decision envelopes + lifecycle status (`recommended` / `needs_input` / `executing` / `completed`) |
 | `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
@@ -138,24 +163,33 @@ PR) to avoid breaking imports/tests:
 > — buyer return anomalies (`item_swap`, `empty_return`) only; schema in
 > [`data-models/canonical-entities.md`](../data-models/canonical-entities.md) § Return, § OrderItem.
 >
-> **Executable leakage workflow (Phase 1.7):** [ADR-013](../decisions/013-operations-pipeline-spine.md)
+> **Executable leakage workflow (Phase 1.7):** [ADR-025](../decisions/025-revenue-leakage-workflow-scope.md)
 > — modal workflow from approved leakage tasks; mock execute only until P2-9/P2-10.
 >
-> **Operations-system orchestration (Phase 1.8):** [ADR-013](../decisions/013-operations-pipeline-spine.md)
+> **Operations-system orchestration (Phase 1.8):** [ADR-026](../decisions/026-operations-system-orchestration.md)
 > — mock pipeline (classify → health check → ranked recs → reasoning → approval →
 > outcome tracking) + 2 shop profiles + validated workflow catalog; narrow inventory
 > signals approved for P2+ (Stockout/Product Scaling only).
 >
-> **Decision Copilot app structure (Phase 1.8):** [ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)
+> **Decision Copilot app structure (Phase 1.8):** [ADR-028](../decisions/028-decision-copilot-app-structure.md)
 > — 3-tab IA (Home / Decisions / Juli Chat); Decision as primary UI object; Home
 > read-only; approval and templates on Decisions tab only.
 >
-> **Entity-centric data model:** ADR-009 — `docs/data-models/` is ML schema authority.
+> **Entity-centric data model:** [ADR-012](../decisions/012-entity-centric-data-model.md)
+> — `docs/data-models/` is ML schema authority; `tiktok_api/endpoints.md` is ingestion only.
+>
+> **Historical decisions:** [ADR-006](../decisions/006-matching-pivot.md) (creator↔shop
+> matching pivot) and [ADR-007](../decisions/007-ml-north-star-models.md) (north-star
+> ML models) are **superseded** by the seller-money rescope in `EXECUTION.md`. Kept
+> as ADR history only.
 
-## Target architecture (Phase 2 MVP)
+## Target architecture (Phase 2)
 
-Forward-looking stack diagram and daily schedule: [`phase-2-mvp.md`](../phases/phase-2-mvp.md).  
-This file (`map.md`) is **as-built only**.
+The **planned** Phase 2 inference pipeline (poll → ETL → feature build → batch
+inference → Ollama copy → UI → executor) is documented in
+[`target-v2.md`](target-v2.md). This file (`map.md`) remains the **as-built**
+registry; `target-v2.md` is the forward-looking design reference for P2-1 … P2-10
+implementation slices in [`EXECUTION.md`](../../EXECUTION.md).
 
 ## Adding / removing a module
 

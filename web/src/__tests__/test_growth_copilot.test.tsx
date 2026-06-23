@@ -4,7 +4,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GrowthCopilotPanel } from "@/components/workflows/growth";
-import { HomePage } from "@/components/HomePage";
+import { SellerHomeShell } from "@/components/seller-home/SellerHomeShell";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
 import type { SellerPersona } from "@/lib/mock-data/seller-personas/schemas";
@@ -27,11 +27,6 @@ jest.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
-  usePathname: () => "/",
-}));
-
 function renderGrowthPanel(persona: SellerPersona) {
   const tasks = getWorkflowTasks(persona, "growth");
   return render(<GrowthCopilotPanel persona={persona} tasks={tasks} />);
@@ -45,7 +40,7 @@ function renderSellerHomeWithPersona(personaId: "growth" = "growth") {
   return render(
     <ModeProvider>
       <DemoPersonaProvider>
-        <HomePage uiOnly />
+        <SellerHomeShell />
       </DemoPersonaProvider>
     </ModeProvider>,
   );

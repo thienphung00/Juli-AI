@@ -122,7 +122,7 @@ describe("Juli AI chat tab (#82)", () => {
     const top = pipeline.workflowRecommendations.recommended_workflows[0]!;
 
     expect(
-      screen.getByText(`Giải thích đề xuất "${top.workflow_name}"`),
+      screen.getByText(`Giải thích quyết định "${top.workflow_name}"`),
     ).toBeInTheDocument();
     expect(screen.queryByText("Creator nào nên đẩy tối nay?")).not.toBeInTheDocument();
     expect(screen.queryByText("Sản phẩm nào đang xu hướng trước khi bão hòa?")).not.toBeInTheDocument();

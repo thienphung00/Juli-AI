@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/review-artifact.schema.json",
+  "title": "Review Artifact",
+  "description": "Review Agent output. Extends ADR-003 CI gate contract with optional Meta optimization fields.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "issue",
+    "status",
+    "criticalFindings",
+    "modulesTouched",
+    "testCoverage"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "artifactType": {
+      "const": "review"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^review-issue-\\d+$"
+    },
+    "issue": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reviewedBy": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "PASS_WITH_WARNINGS", "FAIL"],
+      "description": "ADR-003 CI gate field. Authoritative for pr.yml."
+    },
+    "summary": {
+      "type": "string"
+    },
+    "criticalFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["severity"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "boundary_violation",
+              "test_gap",
+              "drift",
+              "interface_change",
+              "security",
+              "architecture",
+              "maintainability",
+              "other"
+            ]
+          },
+          "module": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["CRITICAL", "WARNING", "INFO"]
+          },
+          "actionRequired": { "type": "boolean" },
+          "suggestion": { "type": "string" },
+          "id": {
+            "type": "string",
+            "description": "Stable finding id for productionOutcome.incidents[].linkedFinding."
+          },
+          "acceptanceByReviewer": {
+            "type": "boolean",
+            "description": "Reviewer explicitly accepted this gating WARNING."
+          },
+          "ownerAck": {
+            "type": "boolean",
+            "description": "Developer acknowledged the finding."
+          },
+          "fixedInCommit": {
+            "type": "string",
+            "description": "Commit SHA that fixes the finding, when applicable."
+          },
+          "shipAsIsReason": {
+            "type": "string",
+            "description": "Rationale when shipping with the WARNING unresolved."
+          },
+          "targetFixDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Planned remediation date when shipping as-is (debt tracking)."
+          }
+        }
+      }
+    },
+    "modulesTouched": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "interfaceChanges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "module": { "type": "string" },
+          "interface": { "type": "string" },
+          "changeType": {
+            "type": "string",
+            "enum": ["added", "modified", "removed"]
+          },
+          "breaking": { "type": "boolean" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "moduleDrift": { "type": "boolean" },
+    "driftDetails": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "testCoverage": {
+      "type": "object",
+      "required": ["acceptance"],
+      "properties": {
+        "acceptance": {
+          "type": "object",
+          "required": ["total", "mapped", "mappings"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "mapped": { "type": "integer", "minimum": 0 },
+            "unmapped": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "mappings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["criterion", "test"],
+                "properties": {
+                  "criterion": { "type": "string" },
+                  "test": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "unit": {
+          "type": "object",
+          "properties": {
+            "passed": { "type": "integer", "minimum": 0 },
+            "failed": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "approvalReady": { "type": "boolean" },
+    "reviewerSignoff": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "statement": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "acceptedRisks": { "type": "boolean" },
+        "reviewer": { "type": "string" }
+      }
+    },
+    "ownerSignoff": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "statement": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "acknowledged": { "type": "boolean" },
+        "owner": { "type": "string" }
+      }
+    },
+    "mlGates": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "coldStartThresholdDocumented": { "type": "boolean" },
+        "promotionGateDocumented": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "thresholds": {
+          "type": "object",
+          "description": "Optional declared constants cross-checked against thresholds.py in source.",
+          "additionalProperties": {
+            "type": ["number", "string"]
+          }
+        }
+      }
+    },
+    "overriddenMerge": {
+      "type": ["object", "null"],
+      "description": "Audited hotfix override when merging despite FAIL from overridable gates.",
+      "additionalProperties": false,
+      "required": ["timestamp", "overriddenBy", "reason", "incidentLink"],
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "overriddenBy": { "type": "string", "description": "Email or handle of approver." },
+        "reason": { "type": "string" },
+        "incidentLink": { "type": "string", "description": "Incident id or URL (e.g. INC-789)." }
+      }
+    },
+    "productionOutcome": {
+      "type": ["object", "null"],
+      "description": "Post-deployment feedback linking incidents to shipped-as-is findings.",
+      "properties": {
+        "incidents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["incidentId", "linkedFinding"],
+            "properties": {
+              "incidentId": { "type": "string" },
+              "linkedFinding": { "type": "string" },
+              "shipAsIsReason": { "type": "string" },
+              "actualOutcome": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      }
+    },
+    "priorReviewBlockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "resolved": { "type": "boolean" },
+          "resolvedInCommit": { "type": "string" }
+        }
+      }
+    },
+    "sourceImplementationArtifact": {
+      "type": "string",
+      "description": "Path to implementation-artifact for this run."
+    },
+    "phaseRunId": { "type": "string" },
+    "reviewStatus": {
+      "type": "string",
+      "enum": ["PASS", "PASS_WITH_WARNINGS", "FAIL"],
+      "description": "Optional mirror of status for Meta scoring."
+    },
+    "reviewFailures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of findings that blocked or degraded review."
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "category": { "type": "string" },
+          "severity": { "type": "string" },
+          "description": { "type": "string" },
+          "module": { "type": "string" }
+        }
+      }
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high", "critical"],
+      "description": "Aggregate review severity for Meta."
+    },
+    "securityFindings": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "architectureFindings": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "maintainabilityFindings": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "suggestedRemediation": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "staticAnalysisExecuted": { "type": "boolean" },
+    "dynamicTestsExecuted": { "type": "boolean" },
+    "reviewDurationMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

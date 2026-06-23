@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" suppressHydrationWarning className="font-sans">
+    <html lang="vi" suppressHydrationWarning>
       <head>
         <Script id="workspace-theme-init" strategy="beforeInteractive">
           {WORKSPACE_THEME_INIT_SCRIPT}

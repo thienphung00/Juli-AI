@@ -18,7 +18,7 @@ Region: Vietnam (VN) | Last reviewed: 2026-06-05
 
 ---
 
-## Alert Candidates (Phase 2 MVP Milestone A+)
+## Alert Candidates (Phase 1.5+)
 
 | Policy rule | Trigger | User-facing message (VI) | Module |
 |-------------|---------|--------------------------|--------|

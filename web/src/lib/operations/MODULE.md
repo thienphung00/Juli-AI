@@ -57,27 +57,9 @@ Extends — does not replace — `seller-stage-router` / `resolveSellerWorkflow`
 | Refund Spike | refund_spike_indicator | Root-cause refund review |
 | Stockout Prevention | inventory_health | Reorder at-risk SKUs |
 
-UI: `web/src/components/workflows/operations/` — `HomeSummaryShell` (read-only Home, P1.8-9 #193), `DecisionPreviewCard`, `RecommendedDecisionsPreview`, `ClarityCard` (RRAA chrome: Liên quan header, registry Reason/Anticipation, Home back-link — #218), `JourneyEmphasisText`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsApprovalShell` (Decisions Recommended tab, #195), `OperationsPipelineShell` (legacy test composite), `OutcomeTrackingView` (P1.8-5…7).
+UI: `web/src/components/workflows/operations/` — `HomeSummaryShell` (read-only Home, P1.8-9 #193), `DecisionPreviewCard`, `RecommendedDecisionsPreview`, `ClarityCard`, `ReasoningPanel`, `ShopHealthHero`, `ApprovalGate`, `OperationsApprovalShell` (Decisions Recommended tab, #195), `OperationsPipelineShell` (legacy test composite), `OutcomeTrackingView` (P1.8-5…7).
 
 Today's Report (P1.8-9 #194): `buildAllDomainReportSummaries(unifiedModel)` in `todays-report.ts`; UI in `web/src/components/home/todays-report/` (`TodaysReportPanel` embedded in `HomeSummaryShell`).
-
-## Journey link registry (P1.8-10)
-
-RRAA cross-screen loop ([ADR-014](../../../docs/decisions/014-decision-copilot-app-structure-and-journey.md)): maps each ADR-013 `workflow_id` to a Home Today's Report metric anchor, standardized Reason/Anticipation copy, and deep-link query params.
-
-| Export | Purpose |
-|--------|---------|
-| `getJourneyLink(workflowId)` | Full registry row: `reportDomain`, `metricKey`, `rewardLabel`, `reasonTemplate`, `anticipationTemplate` |
-| `resolveHomeHighlight(workflowId)` | Home metric anchor for Anticipation back-link / Recent Progress completed rows |
-| `formatAnticipationImpact(workflowId)` | Standardized **TÁC ĐỘNG DỰ KIẾN** copy (VND, %, units — not abstract điểm where a Home chart exists) |
-| `buildDecisionsHighlightLink(workflowId)` | `/decisions?highlight=<workflow_id>` |
-| `buildHomeHighlightLink(anchor)` | `/?highlight=<report_domain>:<metric_key>` |
-| `parseDecisionsHighlight(param)` | Validate Decisions `?highlight=` — returns `null` for invalid values |
-| `parseHomeHighlight(param)` | Parse Home `?highlight=domain:metric` — returns `null` for invalid values |
-| `useJourneyHighlight(workflowIds)` | Client hook: parse Decisions `?highlight=`, scroll target `ClarityCard` into view, apply 2s primary ring (`data-highlighted=true`); instant scroll when `prefers-reduced-motion` |
-| `useHomeJourneyHighlight()` | Client hook: parse Home `?highlight=domain:metric`, auto-switch Báo cáo tab, scroll metric tile or Shop Health bar into view, 2s pulse ring; scroll-only when `prefers-reduced-motion` |
-
-Types: `JourneyLink`, `HomeMetricAnchor`, `RecentProgressState` (`pending` \| `completed`).
 
 ## Approval gate & routing (P1.8-6)
 

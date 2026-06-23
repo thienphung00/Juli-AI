@@ -13,14 +13,8 @@ const config: Config = {
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
       },
       colors: {
-        border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
-        background: "var(--background)",
-        foreground: "var(--foreground)",
         primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
+          DEFAULT: "#F86BA5",
           50: "#FEF5F6",
           100: "#FDE8EC",
           200: "#F9C4D4",
@@ -32,26 +26,6 @@ const config: Config = {
           800: "#B0386A",
           900: "#8C2D54",
         },
-        secondary: {
-          DEFAULT: "var(--secondary)",
-          foreground: "var(--secondary-foreground)",
-        },
-        destructive: {
-          DEFAULT: "var(--destructive)",
-          foreground: "var(--destructive-foreground)",
-        },
-        muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "var(--muted-foreground)",
-        },
-        accent: {
-          DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
-        },
-        card: {
-          DEFAULT: "var(--card)",
-          foreground: "var(--card-foreground)",
-        },
         brand: {
           pink: "#F86BA5",
           "pink-background": "#FEF5F6",
@@ -60,6 +34,7 @@ const config: Config = {
           gradient: "linear-gradient(135deg, #F86BA5 0%, #FAA5C4 100%)",
         },
         success: "#16A34A",
+        destructive: "#E5484D",
         warning: "#F59E0B",
         info: "#2563EB",
       },

@@ -9,7 +9,7 @@ export function ChatMessageList({ messages }: { messages: ChatMessage[] }) {
     return (
       <div className="flex flex-1 flex-col gap-3" data-testid="chat-message-list">
         <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          Chưa có tin nhắn — hãy chọn đề xuất hoặc nhập câu hỏi.
+          Chưa có tin nhắn — hãy chọn gợi ý hoặc nhập câu hỏi.
         </p>
       </div>
     );

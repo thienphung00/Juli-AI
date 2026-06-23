@@ -1,0 +1,95 @@
+{
+  "id": "review-issue-77",
+  "issue": 77,
+  "timestamp": "2026-06-23T07:31:04Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Shared authenticated header (mode switcher + alert drawer), 5-tab bottom nav, legacy route redirects, and placeholder routes for /trends, /operation, /ai-chat.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "AuthenticatedShell",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Wraps PageHeader + main + NavBar for all authenticated pages"
+    },
+    {
+      "module": "web",
+      "interface": "NavBar",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Six tabs reduced to five; routes /trends, /operation, /ai-chat"
+    },
+    {
+      "module": "web",
+      "interface": "next.config redirects",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Permanent redirects for /alerts, /recommendations, /products, /orders, /inventory, /creators"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Header on authenticated screens with mode switcher + alert bell",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::renders shared header with title, mode switcher, and alert bell"
+        },
+        {
+          "criterion": "Mode switch flips theme instantly",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::flips mode and theme instantly from the header switcher"
+        },
+        {
+          "criterion": "Alert bell drawer with badge count",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::opens alert drawer with badge count from mock alerts"
+        },
+        {
+          "criterion": "Exactly 5 bottom nav tabs, Vietnamese labels",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::defines exactly 5 bottom nav tabs with Vietnamese labels"
+        },
+        {
+          "criterion": "No mode label in bottom nav",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::does not show a mode label in bottom nav"
+        },
+        {
+          "criterion": "Authenticated shell includes header + nav",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::wraps authenticated content with header and bottom nav"
+        },
+        {
+          "criterion": "Legacy route permanent redirects",
+          "test": "web/src/__tests__/test_nav_header_redirects.test.tsx::maps legacy routes to permanent redirect destinations"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 70,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Manually verify redirects: curl -I http://localhost:3000/products should return 308 to /trends."
+  ],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

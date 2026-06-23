@@ -12,7 +12,7 @@ import type {
 import { useDemoPersonaOptional } from "@/lib/demo-persona-context";
 import { useWorkspaceMode } from "@/lib/mode-context";
 import { getHomeDashboard, getHomeSubtitle } from "@/lib/services/home";
-import { useOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
+import { resolveSellerWorkflow } from "@/lib/seller-workflows";
 import { isUiOnly } from "@/lib/ui-only";
 
 function formatPct(value: number, digits = 1): string {
@@ -22,8 +22,6 @@ function formatPct(value: number, digits = 1): string {
 export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
   const { mode } = useWorkspaceMode();
   const personaContext = useDemoPersonaOptional();
-  const personaId = personaContext?.personaId ?? "new";
-  const pipeline = useOperationsPipeline({ personaId });
   const [dashboard, setDashboard] = useState<HomeDashboardData | null>(null);
   const [loading, setLoading] = useState(mode === "affiliate");
 
@@ -54,20 +52,16 @@ export function HomePage({ uiOnly = isUiOnly }: { uiOnly?: boolean }) {
     };
   }, [mode, uiOnly]);
 
-  const shopMetadata =
-    mode === "seller" && personaContext?.isReady
-      ? pipeline.unifiedModel.shop_metadata
+  const sellerSubtitle =
+    mode === "seller" && personaContext?.persona
+      ? resolveSellerWorkflow(personaContext.persona).label
       : undefined;
 
   const affiliateSubtitle = dashboard ? getHomeSubtitle(dashboard) : undefined;
-  const subtitle = mode === "affiliate" ? affiliateSubtitle : undefined;
+  const subtitle = mode === "seller" ? sellerSubtitle : affiliateSubtitle;
 
   return (
-    <AuthenticatedShell
-      title="Juli"
-      subtitle={subtitle}
-      shopMetadata={shopMetadata}
-    >
+    <AuthenticatedShell title="Juli" subtitle={subtitle}>
       {mode === "seller" ? (
         <SellerHomeShell />
       ) : loading || !dashboard || dashboard.mode !== "affiliate" ? (

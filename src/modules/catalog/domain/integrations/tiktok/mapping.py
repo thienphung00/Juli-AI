@@ -70,23 +70,16 @@ def expand_order_line_items(order: dict[str, Any]) -> list[dict[str, Any]]:
         if not sku_id:
             continue
         unit_price = line.get("sale_price") or line.get("unit_price") or 0
-        quantity_raw = line.get("quantity")
-        if quantity_raw is None:
-            quantity = 1
-        else:
-            try:
-                quantity = int(quantity_raw)
-            except (TypeError, ValueError):
-                quantity = 1
+        quantity = line.get("quantity") if line.get("quantity") is not None else 1
         try:
-            line_total = Decimal(str(unit_price)) * quantity
+            line_total = Decimal(str(unit_price)) * int(quantity)
         except (TypeError, ValueError):
             line_total = Decimal("0")
         items.append({
             "tiktok_order_id": tiktok_order_id,
             "product_id": line.get("product_id"),
             "sku_id": str(sku_id),
-            "quantity": quantity,
+            "quantity": int(quantity),
             "unit_price": unit_price,
             "line_total": str(line_total),
             "update_time": update_time,

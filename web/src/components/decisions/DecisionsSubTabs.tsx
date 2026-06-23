@@ -22,25 +22,24 @@ export function DecisionsSubTabs({
       aria-label="Quyết định"
       data-testid="decisions-sub-tabs"
     >
-      {DECISIONS_SUB_TABS.map((tab) => {
-        const isActive = activeTab === tab.id;
-
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            data-testid={`decisions-sub-tab-${tab.id}`}
-            onClick={() => onTabChange(tab.id)}
-            className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold sm:text-sm${
-              isActive ? " btn-primary" : " btn-secondary"
-            }`}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
+      {DECISIONS_SUB_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === tab.id}
+          data-testid={`decisions-sub-tab-${tab.id}`}
+          onClick={() => onTabChange(tab.id)}
+          className="shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          style={{
+            background: activeTab === tab.id ? "var(--primary)" : "var(--muted)",
+            color:
+              activeTab === tab.id ? "var(--primary-foreground, #fff)" : "var(--foreground)",
+          }}
+        >
+          {tab.label}
+        </button>
+      ))}
     </div>
   );
 }

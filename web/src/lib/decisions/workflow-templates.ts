@@ -56,8 +56,8 @@ function buildControlsForWorkflow(workflowId: ValidatedWorkflowId): TemplateCont
         {
           id: "min_confidence",
           type: "slider",
-          label: "Ngưỡng chất lượng tối thiểu",
-          description: "Chỉ đề xuất listing khi điểm chất lượng đạt ngưỡng này.",
+          label: "Ngưỡng confidence tối thiểu",
+          description: "Chỉ đề xuất listing khi độ tin cậy đạt ngưỡng này.",
           min: 50,
           max: 95,
           step: 5,
@@ -68,7 +68,7 @@ function buildControlsForWorkflow(workflowId: ValidatedWorkflowId): TemplateCont
           id: "auto_suggest",
           type: "toggle",
           label: "Tự động đề xuất listing mới",
-          description: "Đề xuất sản phẩm tiềm năng khi phát hiện cơ hội.",
+          description: "Gợi ý sản phẩm tiềm năng khi phát hiện cơ hội.",
           defaultEnabled: false,
         },
       ];

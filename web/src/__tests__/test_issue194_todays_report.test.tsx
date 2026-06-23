@@ -66,25 +66,23 @@ beforeEach(() => {
 });
 
 describe("Issue #194: Today's Report domain cards", () => {
-  it("renders three domain tabs on Home with shop info in header", async () => {
+  it("renders all five domain tabs on Home between shop health and recent progress", async () => {
     renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
     });
 
-    const header = screen.getByRole("banner");
     const shell = screen.getByTestId("home-summary-shell");
-    const report = screen.getByTestId("todays-report-panel");
     const shopHealth = screen.getByTestId("shop-health-card");
+    const report = screen.getByTestId("todays-report-panel");
+    const progress = screen.getByTestId("recent-progress-card");
 
-    expect(within(header).getByTestId("shop-info-card")).toBeInTheDocument();
-    expect(shell.contains(report)).toBe(true);
     expect(shell.contains(shopHealth)).toBe(true);
-    expect(
-      report.compareDocumentPosition(shopHealth) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(screen.queryByTestId("recent-progress-card")).not.toBeInTheDocument();
+    expect(shell.contains(report)).toBe(true);
+    expect(shell.contains(progress)).toBe(true);
+    expect(shopHealth.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(report.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     for (const domainId of REPORT_DOMAIN_IDS) {
       expect(screen.getByTestId(`todays-report-tab-${domainId}`)).toBeInTheDocument();
@@ -100,40 +98,39 @@ describe("Issue #194: Today's Report domain cards", () => {
     });
 
     expect(screen.getByTestId("todays-report-card-product_listings")).toBeInTheDocument();
-    expect(screen.queryByTestId("todays-report-card-inventory_refunds")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("todays-report-card-advertising")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("todays-report-tab-inventory_refunds"));
+    await user.click(screen.getByTestId("todays-report-tab-advertising"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("todays-report-panel-inventory_refunds")).toBeInTheDocument();
+      expect(screen.getByTestId("todays-report-panel-advertising")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("todays-report-card-inventory_refunds")).toBeInTheDocument();
+    expect(screen.getByTestId("todays-report-card-advertising")).toBeInTheDocument();
     expect(screen.queryByTestId("todays-report-card-product_listings")).not.toBeInTheDocument();
 
-    const inventorySummary = buildDomainReportSummary(
-      "inventory_refunds",
+    const advertisingSummary = buildDomainReportSummary(
+      "advertising",
       loadOperationalModelForPersona("new"),
     );
-    expect(screen.getByTestId("todays-report-status-inventory_refunds")).toHaveTextContent(
-      inventorySummary.statusLabel,
+    expect(screen.getByTestId("todays-report-status-advertising")).toHaveTextContent(
+      advertisingSummary.statusLabel,
     );
   });
 
-  it("shows inventory and refunds metrics on consolidated tab", async () => {
+  it("shows calm empty state for sparse advertising domain on NEW_SHOP persona", async () => {
     const user = userEvent.setup();
-    const model = loadOperationalModelForPersona("leakage");
+    const model = loadOperationalModelForPersona("new");
 
     render(
-      <TodaysReportPanel model={model} profile="MID_LARGE_SHOP" />,
+      <TodaysReportPanel model={model} profile="NEW_SHOP" />,
     );
 
-    await user.click(screen.getByTestId("todays-report-tab-inventory_refunds"));
+    await user.click(screen.getByTestId("todays-report-tab-advertising"));
 
-    expect(screen.getByTestId("todays-report-card-inventory_refunds")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("report-metric-chart-inventory_refunds-low_stock_rate"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("todays-report-empty-advertising")).toHaveTextContent(
+      "Chưa có đủ dữ liệu",
+    );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

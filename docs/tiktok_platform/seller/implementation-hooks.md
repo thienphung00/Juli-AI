@@ -19,7 +19,7 @@ Region: Vietnam (VN) | Last reviewed: 2026-06-05
 
 ---
 
-## Alert Candidates (Phase 2 MVP Milestone A+)
+## Alert Candidates (Phase 1.5+)
 
 These map directly to the **Revenue Leakage Detection** and **New Seller Copilot** workflows.
 

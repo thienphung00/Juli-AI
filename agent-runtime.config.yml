@@ -1,0 +1,89 @@
+version: 1
+
+prompt:
+  system_prompt: default
+  verbosity: medium
+  variants:
+    default: Meta Agent routes context, assigns one executor domain, and optimizes only declarative harness configuration from runtime artifacts.
+  additional_instructions:
+    - Preserve product code, ADRs, PRDs, and architecture documents during harness optimization.
+    - Prefer measurable changes to context budget, routing, skill loading, model choice, tools, and benchmark thresholds.
+
+model:
+  primary: claude-sonnet
+  fallback: claude-haiku
+  allowed:
+    - claude-sonnet
+    - claude-haiku
+    - gpt-5
+    - gpt-5-mini
+
+context:
+  budget_tokens: 50000
+  max_files: 25
+  retrieval_depth: 2
+  reserved_reasoning_ratio: 0.10
+
+routing:
+  backend_threshold: 0.70
+  ui_threshold: 0.70
+  data_threshold: 0.70
+  ml_threshold: 0.70
+  domain_mappings:
+    backend:
+      - src/api
+      - src/auth
+      - src/services
+    ui-ux:
+      - web
+      - ios
+    data-platform:
+      - src/data
+      - migrations
+    machine-learning:
+      - src/modules/ml
+      - src/intelligence
+  hints: []
+
+executors:
+  enabled:
+    - backend
+    - ui-ux
+    - data-platform
+    - machine-learning
+  default: backend
+
+skills:
+  backend:
+    - backend
+    - python-patterns
+    - patterns
+  ui-ux:
+    - ui-ux
+    - ui-ux-design
+    - nextjs
+  data-platform:
+    - data-platform
+    - postgres-patterns
+  machine-learning:
+    - machine-learning
+
+tools:
+  enabled:
+    - ReadFile
+    - rg
+    - Glob
+    - ApplyPatch
+    - Shell
+  disabled: []
+  max_invocations_per_run: 80
+
+agent_structure:
+  mode: single_executor
+
+benchmark:
+  enabled: true
+  thresholds:
+    execution_time_regression_ratio: 0.10
+    token_usage_regression_ratio: 0.10
+    failure_regression_count: 0

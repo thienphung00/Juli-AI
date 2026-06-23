@@ -69,7 +69,7 @@ describe("Issue #199: Juli Chat decision context UI", () => {
       expect(screen.getByTestId("suggested-prompts")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Giải thích đề xuất này")).toBeInTheDocument();
+    expect(screen.getByText("Giải thích quyết định này")).toBeInTheDocument();
     const chips = screen.getAllByTestId("suggested-prompt-chip");
     expect(
       chips.some((chip) => isWorkflowSpecificPrompt(chip.textContent ?? "", decisionId)),
@@ -93,7 +93,7 @@ describe("Issue #199: Juli Chat decision context UI", () => {
     const top = pipeline.workflowRecommendations.recommended_workflows[0]!;
 
     expect(
-      screen.getByText(`Giải thích đề xuất "${top.workflow_name}"`),
+      screen.getByText(`Giải thích quyết định "${top.workflow_name}"`),
     ).toBeInTheDocument();
     expect(screen.queryByText("Creator nào nên đẩy tối nay?")).not.toBeInTheDocument();
   });
@@ -107,16 +107,16 @@ describe("Issue #199: Juli Chat decision context UI", () => {
     renderChat();
 
     await waitFor(() => {
-      expect(screen.getByText("Giải thích đề xuất này")).toBeInTheDocument();
+      expect(screen.getByText("Giải thích quyết định này")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Giải thích đề xuất này"));
+    await user.click(screen.getByText("Giải thích quyết định này"));
 
     await waitFor(() => {
       const assistantMessages = screen.getAllByTestId("chat-message-assistant");
       expect(assistantMessages.length).toBeGreaterThanOrEqual(2);
       expect(assistantMessages[assistantMessages.length - 1]?.textContent).toMatch(
-        /được đưa ra vì/i,
+        /được đề xuất vì/i,
       );
     });
   });

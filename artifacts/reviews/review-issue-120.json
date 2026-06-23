@@ -1,0 +1,100 @@
+{
+  "id": "review-issue-120",
+  "issue": 120,
+  "timestamp": "2026-06-23T07:30:57Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Revenue leakage workflow UI: ranked anomaly tasks with severity/VND impact, masked evidence drill-down via resolveEvidence, leakage-specific empty state, shared no-op executor. Rebased onto main (#119); SellerHomeShell routes new_seller + leakage workflows. No TikTok API calls; PII keys excluded from evidence drawer.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "resolveEvidence",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Pure function mapping evidence_refs to masked orders/returns/affiliate slices from persona."
+    },
+    {
+      "module": "web",
+      "interface": "LeakageCopilotPanel",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Leakage workflow panel with ranked tasks, evidence drill-down, and Vietnamese empty state."
+    },
+    {
+      "module": "web",
+      "interface": "EvidenceDrawer",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Per-task evidence drawer showing masked order/return/affiliate rows."
+    },
+    {
+      "module": "web",
+      "interface": "SellerHomeShell",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Routes leakage workflow to LeakageCopilotPanel instead of generic TaskQueue."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Leakage persona renders ranked anomaly tasks with severity and VND impact",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::renders ranked anomaly tasks with severity labels"
+        },
+        {
+          "criterion": "Drill-down shows supporting mock evidence (order IDs, return reasons, affiliate IDs \u2014 masked)",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::opens evidence drawer without forbidden PII field names"
+        },
+        {
+          "criterion": "Recommended fix visible per anomaly (task body + cta_label)",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::shows recommended fix via task body and cta_label"
+        },
+        {
+          "criterion": "Approve/dismiss via shared executor",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::approve/dismiss uses shared executor on leakage tasks"
+        },
+        {
+          "criterion": "Empty state: Kh\u00f4ng ph\u00e1t hi\u1ec7n r\u00f2 r\u1ec9 tu\u1ea7n n\u00e0y for persona with no signals",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::shows \"Kh\u00f4ng ph\u00e1t hi\u1ec7n r\u00f2 r\u1ec9 tu\u1ea7n n\u00e0y\" when persona has no leakage tasks"
+        },
+        {
+          "criterion": "Integration test: leakage persona renders anomalies with severity labels",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::renders ranked anomaly tasks with severity labels"
+        },
+        {
+          "criterion": "Integration test: drill-down opens evidence without PII fields",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::resolveEvidence maps evidence_refs to masked entity slices"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 170,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

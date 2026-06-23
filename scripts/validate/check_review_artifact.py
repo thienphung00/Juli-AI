@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate: review artifact exists and status is mergeable."""
+"""Gate: review artifact exists and is structurally valid."""
 
 from __future__ import annotations
 
@@ -9,10 +9,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
+    derive_review_status,
     load_review_artifact,
+    normalize_review_findings,
     parse_args,
     print_check_result,
     resolve_issue_number,
+    review_status_issues,
 )
 
 
@@ -30,24 +33,26 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     if status not in {"PASS", "PASS_WITH_WARNINGS", "FAIL"}:
         return False, f"Invalid status: {status}", {}
 
-    critical = [
-        f for f in review.get("criticalFindings", []) if f.get("severity") == "CRITICAL"
-    ]
-    if critical and status != "FAIL":
-        return (
-            False,
-            "CRITICAL findings present but status is not FAIL",
-            {"criticalCount": len(critical)},
-        )
-    if status == "FAIL":
-        return False, "Review status is FAIL", {"status": status}
+    issues = review_status_issues(review)
+    if issues:
+        return False, issues[0], {"issues": issues}
 
     acceptance = review.get("testCoverage", {}).get("acceptance", {})
     for field in ("total", "mapped", "mappings"):
         if field not in acceptance:
             return False, f"testCoverage.acceptance missing {field}", {}
 
-    return True, "Review artifact present and structurally valid", {"status": status}
+    findings = normalize_review_findings(review)
+    derived = derive_review_status(findings, review)
+    warning_count = sum(1 for f in findings if f.get("severity") == "WARNING")
+    detail = f"Review artifact present; status {status}"
+    if warning_count:
+        detail += f" ({warning_count} gating warning(s))"
+    return True, detail, {
+        "status": status,
+        "derivedStatus": derived,
+        "warningCount": warning_count,
+    }
 
 
 def main() -> int:
@@ -57,7 +62,8 @@ def main() -> int:
         print("error: issue number required", file=sys.stderr)
         return 1
     passed, description, details = run_check(issue)
-    return print_check_result("review_artifact_present", passed, description if not passed else "")
+    detail = description if not passed else ""
+    return print_check_result("review_artifact_present", passed, detail)
 
 
 if __name__ == "__main__":

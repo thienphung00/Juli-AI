@@ -1,0 +1,112 @@
+{
+  "id": "review-issue-137",
+  "issue": 137,
+  "timestamp": "2026-06-23T07:30:58Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 1.5 shared feature builder: new ml/features module with build_seller_stage_features, build_anomaly_features, and build_ad_features. Group A anomaly columns match feature-store-schema.md; ADR-011 enforced via forbidden-column guard. Manifest gains dataset_dir for downstream parquet resolution.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "src/modules/ml/features",
+    "src/modules/ml/dataset"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "src/modules/ml/features",
+      "interface": "build_seller_stage_features",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Shop-level seller stage feature matrix from backtest manifest."
+    },
+    {
+      "module": "src/modules/ml/features",
+      "interface": "build_anomaly_features",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Group A buyer-behavior anomaly features; rejects affiliate/creator columns."
+    },
+    {
+      "module": "src/modules/ml/features",
+      "interface": "build_ad_features",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Campaign/day ad features with account-level ROAS and spend baselines."
+    },
+    {
+      "module": "src/modules/ml/features",
+      "interface": "FeatureMatrix",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Dataclass wrapping grain, feature_columns, frame, and metadata."
+    },
+    {
+      "module": "src/modules/ml/dataset",
+      "interface": "assemble_backtest_dataset manifest",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Manifest now includes dataset_dir for feature builder consumption."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 8,
+      "mapped": 8,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "build_seller_stage_features with shop-level columns",
+          "test": "tests/unit/test_feature_builder.py::test_all_three_builders_run_on_tiny_dataset_fixture"
+        },
+        {
+          "criterion": "build_anomaly_features Group A only; rejects affiliate/creator columns",
+          "test": "tests/unit/test_feature_builder.py::test_anomaly_builder_rejects_affiliate_creator_columns"
+        },
+        {
+          "criterion": "build_ad_features with spend, ROAS, CPC, conversion, account baselines",
+          "test": "tests/unit/test_feature_builder.py::test_all_three_builders_run_on_tiny_dataset_fixture"
+        },
+        {
+          "criterion": "Buyer aggregates computable",
+          "test": "tests/unit/test_feature_builder.py::test_buyer_aggregate_counts_match_hand_computed_fixture"
+        },
+        {
+          "criterion": "Golden mini-parquet anomaly column names match schema",
+          "test": "tests/unit/test_feature_builder.py::test_anomaly_feature_columns_match_feature_store_schema"
+        },
+        {
+          "criterion": "Anomaly builder raises on non Order/OrderItem/Return columns",
+          "test": "tests/unit/test_feature_builder.py::test_anomaly_builder_rejects_affiliate_creator_columns"
+        },
+        {
+          "criterion": "Buyer aggregate counts match hand-computed fixture",
+          "test": "tests/unit/test_feature_builder.py::test_buyer_aggregate_counts_match_hand_computed_fixture"
+        },
+        {
+          "criterion": "Integration test all three builders on #136 fixture",
+          "test": "tests/unit/test_feature_builder.py::test_all_three_builders_run_on_tiny_dataset_fixture"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 4,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

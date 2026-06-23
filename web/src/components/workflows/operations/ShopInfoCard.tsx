@@ -3,19 +3,11 @@
 import type { ShopMetadata } from "@/lib/mock-data/operations/schemas";
 import { resolveShopStatusLabel } from "@/lib/metrics/shop-health-metrics";
 
-export function ShopInfoCard({
-  metadata,
-  dataTestId = "shop-info-card",
-  statusTestId = "shop-info-status",
-}: {
-  metadata: ShopMetadata;
-  dataTestId?: string;
-  statusTestId?: string;
-}) {
+export function ShopInfoCard({ metadata }: { metadata: ShopMetadata }) {
   const statusLabel = resolveShopStatusLabel(metadata);
 
   return (
-    <section className="card p-4" data-testid={dataTestId}>
+    <section className="card p-4" data-testid="shop-info-card">
       <p className="text-muted text-xs font-medium uppercase tracking-wide">Thông tin cửa hàng</p>
       <h2 className="mt-1 text-lg font-bold" style={{ color: "var(--foreground)" }}>
         {metadata.shop_name}
@@ -26,7 +18,7 @@ export function ShopInfoCard({
           background: "color-mix(in srgb, var(--brand-primary) 12%, transparent)",
           color: "var(--brand-primary)",
         }}
-        data-testid={statusTestId}
+        data-testid="shop-info-status"
       >
         {statusLabel}
       </p>

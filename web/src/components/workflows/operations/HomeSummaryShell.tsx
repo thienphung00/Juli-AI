@@ -1,9 +1,10 @@
 "use client";
 
 import type { PersonaId, SellerPersona } from "@/lib/mock-data/seller-personas/schemas";
-import { useHomeJourneyHighlight } from "@/lib/operations/use-home-journey-highlight";
+import { buildRecentProgressItems } from "@/lib/operations/recent-progress";
 import { useOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 
+import { RecentProgressCard } from "@/components/home/RecentProgressCard";
 import { TodaysReportPanel } from "@/components/home/todays-report";
 
 import { ShopHealthCard } from "./ShopHealthCard";
@@ -17,38 +18,17 @@ export function HomeSummaryShell({
 }) {
   const pipeline = useOperationsPipeline({ personaId });
   const { unifiedModel, workflowRecommendations } = pipeline;
-  const { highlightDomain, highlightedMetricKey, anchor } = useHomeJourneyHighlight();
+
+  const recentProgress = buildRecentProgressItems(
+    workflowRecommendations.recommended_workflows,
+  );
 
   return (
-    <section data-testid="home-summary-shell">
-      <div className="seller-home-grid" data-testid="seller-home-grid">
-        <aside className="seller-home-sidebar" data-testid="seller-home-sidebar">
-          <ShopInfoCard
-            metadata={unifiedModel.shop_metadata}
-            dataTestId="shop-info-sidebar-card"
-            statusTestId="shop-info-sidebar-status"
-          />
-        </aside>
-        <div className="seller-home-main" data-testid="seller-home-main">
-          <TodaysReportPanel
-            model={unifiedModel}
-            profile={pipeline.shopProfile}
-            recommendations={workflowRecommendations.recommended_workflows}
-            highlightDomain={highlightDomain}
-            highlightedMetricKey={highlightedMetricKey}
-          />
-          <ShopHealthCard
-            model={unifiedModel}
-            recommendations={workflowRecommendations.recommended_workflows}
-            highlightedMetricKey={
-              anchor?.reportDomain === "shop_health" ? highlightedMetricKey : null
-            }
-            shopHealthMetricKey={
-              anchor?.reportDomain === "shop_health" ? anchor.metricKey : null
-            }
-          />
-        </div>
-      </div>
+    <section className="space-y-4" data-testid="home-summary-shell">
+      <ShopInfoCard metadata={unifiedModel.shop_metadata} />
+      <ShopHealthCard model={unifiedModel} />
+      <TodaysReportPanel model={unifiedModel} profile={pipeline.shopProfile} />
+      <RecentProgressCard items={recentProgress} />
     </section>
   );
 }

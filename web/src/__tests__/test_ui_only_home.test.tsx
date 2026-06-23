@@ -1,7 +1,7 @@
 /**
  * Regression: #71 UI-only shows home UI; #70 skips API wait in UI-only mode.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";
 import { DemoPersonaProvider } from "@/lib/demo-persona-context";
 import { loadPersona } from "@/lib/mock-data/seller-personas";
@@ -49,17 +49,16 @@ describe("UI-only home (#71, #70)", () => {
     });
 
     expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
-    expect(within(screen.getByRole("banner")).getByTestId("shop-info-card")).toBeInTheDocument();
-    expect(screen.queryByTestId("persona-switcher")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("demo-controls-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
+    expect(screen.getByTestId("persona-switcher")).toBeInTheDocument();
   });
 
-  it("shows default persona shop name in header", async () => {
+  it("shows default persona shop name in shop health hero", async () => {
     const persona = loadPersona("new");
     renderSellerHome();
 
     await waitFor(() => {
-      expect(within(screen.getByRole("banner")).getByTestId("shop-info-card")).toHaveTextContent(
+      expect(screen.getByTestId("shop-info-card")).toHaveTextContent(
         persona.profile.shop_name,
       );
     });

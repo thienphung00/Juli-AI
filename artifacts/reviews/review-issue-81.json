@@ -1,0 +1,76 @@
+{
+  "id": "review-issue-81",
+  "issue": 81,
+  "timestamp": "2026-06-23T07:31:04Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Operations hub at /operation with mode-aware sub-tabs (4 seller / 3 affiliate), panel components, mock data + service layer; UI-only path avoids API client.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web",
+      "interface": "OperationPage",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Role-based sub-tabs and panels via getOperationData service"
+    },
+    {
+      "module": "web",
+      "interface": "getOperationData",
+      "changeType": "added",
+      "breaking": false,
+      "description": "web/src/lib/services/operation.ts branches isUiOnly mock vs empty stub"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Seller mode shows 4 sub-tabs: S\u1ea3n ph\u1ea9m, Creator, \u0110\u01a1n h\u00e0ng, Ho\u00e0n tr\u1ea3.",
+          "test": "web/src/__tests__/test_operation_hub.test.tsx::shows 4 sub-tabs including Creator"
+        },
+        {
+          "criterion": "Affiliate mode shows 3 sub-tabs: S\u1ea3n ph\u1ea9m, \u0110\u01a1n h\u00e0ng, Ho\u00e0n tr\u1ea3 (no Creator tab).",
+          "test": "web/src/__tests__/test_operation_hub.test.tsx::shows 3 sub-tabs without Creator"
+        },
+        {
+          "criterion": "Seller products tab shows GMV and ROI fields from mock data.",
+          "test": "web/src/__tests__/test_operation_hub.test.tsx::shows GMV and ROI fields on products tab"
+        },
+        {
+          "criterion": "With NEXT_PUBLIC_UI_ONLY=1, operations renders with mock data without API calls.",
+          "test": "web/src/__tests__/test_operation_hub.test.tsx::loads operation data via service without calling api-client"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 6,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Manually smoke /operation in seller and affiliate modes with NEXT_PUBLIC_UI_ONLY=1."
+  ],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

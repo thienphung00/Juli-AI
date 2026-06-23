@@ -1,0 +1,84 @@
+{
+  "id": "review-issue-177",
+  "issue": 177,
+  "timestamp": "2026-06-23T07:31:01Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-1 shop profile classification: classifyShopProfile pure function, ADR-026 WORKFLOW_CATALOG, boundary fixtures, and 14 unit tests. Extends seller-stage-router without replacing demo persona routing.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web/src/lib/operations/classification.ts",
+    "web/src/lib/operations/workflow-catalog.ts",
+    "web/src/lib/operations/thresholds.ts",
+    "web/src/lib/operations/boundary-fixtures.ts",
+    "web/src/lib/operations/index.ts",
+    "web/src/lib/operations/MODULE.md",
+    "web/src/__tests__/test_operations_classification.test.ts"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/operations",
+      "interface": "classifyShopProfile",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Rules-based NEW_SHOP | MID_LARGE_SHOP classifier from unified operational model."
+    },
+    {
+      "module": "web/src/lib/operations",
+      "interface": "WORKFLOW_CATALOG / getWorkflowsForProfile",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Profile-gated map to six ADR-026 validated workflow IDs."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "classifyShopProfile() pure function with exported types",
+          "test": "web/src/__tests__/test_operations_classification.test.ts::classifyShopProfile classifies NEW_SHOP fixture as NEW_SHOP"
+        },
+        {
+          "criterion": "WORKFLOW_CATALOG mapping profiles to exactly the six ADR-026 workflows",
+          "test": "web/src/__tests__/test_operations_classification.test.ts::covers every validated workflow exactly once across profiles"
+        },
+        {
+          "criterion": "Unit tests with boundary fixtures: probation shop \u2192 NEW_SHOP; graduated mid/large \u2192 MID_LARGE_SHOP",
+          "test": "web/src/__tests__/test_operations_classification.test.ts::routes active probation shops to NEW_SHOP"
+        },
+        {
+          "criterion": "Test: NEW_SHOP catalog excludes growth/loss workflows; MID_LARGE excludes probation-only framing",
+          "test": "web/src/__tests__/test_operations_classification.test.ts::maps NEW_SHOP to probation workflows only"
+        },
+        {
+          "criterion": "Test: catalog never references workflow IDs outside ADR-026 stable IDs",
+          "test": "web/src/__tests__/test_operations_classification.test.ts::never references workflow IDs outside ADR-026 stable IDs"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 14,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

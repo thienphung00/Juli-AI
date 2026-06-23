@@ -1,6 +1,6 @@
 """Access token transport for versioned vs legacy TikTok API paths."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 

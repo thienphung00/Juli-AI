@@ -1,6 +1,5 @@
 import type { HealthCheckResults } from "@/lib/operations/health-check";
 import { formatNumber } from "@/lib/format";
-import { SPS_METRIC } from "@/lib/metrics/shop-health-metrics";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 export interface DecisionAnalyticsMetric {
@@ -29,7 +28,7 @@ export function buildDecisionAnalytics(
         },
         {
           key: "sps",
-          label: `${SPS_METRIC.label} hiện tại`,
+          label: "SPS hiện tại",
           value: `${formatNumber(sps.sps_current)}/${formatNumber(sps.sps_threshold)}`,
           trend: `Thiếu ${formatNumber(sps.threshold_gap)} điểm`,
         },
@@ -74,6 +73,7 @@ export function buildDecisionAnalytics(
           key: "impact",
           label: recommendation.expected_impact.metric,
           value: formatNumber(recommendation.expected_impact.value),
+          trend: `Độ tin cậy ${recommendation.expected_impact.confidence}`,
         },
         {
           key: "priority",

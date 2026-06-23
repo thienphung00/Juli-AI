@@ -4,7 +4,7 @@ description: >-
   Index of Cursor marketplace plugins, MCP servers, and plugin skills available in
   this workspace. Use when routing external integrations (Supabase, Next.js/Vercel,
   Sentry, Figma, shadcn, library docs, browser/Playwright, Celery, Upstash) or when
-  focus/build-feature/fix-bug needs to name the right plugin skill to load.
+  focus/agent phases need to name the right plugin skill to load.
 catalog:
   updated: "2026-06-09"
   projectStack:
@@ -138,30 +138,22 @@ catalog:
         - redis upstash cache kv
       skills: []
   projectSkills:
-    workflow:
-      - build-feature
-      - fix-bug
-      - grill-with-docs
-      - handoff
-      - refactor
-      - ui-bug
     standalone:
       - api-docs
       - platform-docs
-      - diagnose
-      - domain-modeling
       - focus
-      - tdd
       - review
       - ship
       - validate
       - qa
-      - screenshot-annotate
       - to-prd
       - to-issues
       - ui-ux-design
     domain:
-      - architect
+      - ui-ux
+      - backend
+      - data-platform
+      - machine-learning
       - python-patterns
       - python-testing
       - postgres-patterns
@@ -188,7 +180,7 @@ catalog:
 
 # Skill catalog
 
-Machine-readable index for **focus** and workflow skills. Plugin skills ship with Cursor marketplace plugins (user cache); this file records what is enabled for **Juli-AI-Next** and how to invoke them.
+Machine-readable index for **focus** and agent-phase routing. Plugin skills ship with Cursor marketplace plugins (user cache); this file records what is enabled for **Juli-AI-Next** and how to invoke them.
 
 ## How agents should use this
 
@@ -197,29 +189,7 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 3. **MCP server name** for `CallMcpTool` must match `serverName` from `~/.cursor/projects/<project>/mcps/<folder>/SERVER_METADATA.json`.
 4. **Do not load every plugin skill** — Cursor may list all marketplace skills in UI; ignore unselected ones. Pick the smallest set (e.g. `sentry-python-sdk` only for FastAPI work).
 5. **MCP tool schemas** — read from `mcps/<folder>/tools/` only after Focus lists that server in the Context Plan.
-6. **Project skills** under `.cursor/skills/` are in `catalog.projectSkills`; load per Focus workflow phase, not at startup.
-
-## New workflow skills
-
-Load when explicitly triggered or invoked by pipeline:
-
-| Skill | Path | Purpose |
-|-------|------|---------|
-| `grill-with-docs` | `.cursor/skills/standalone/grill-with-docs/SKILL.md` | Align plan + builds CONTEXT.md inline |
-| `handoff` | `.cursor/skills/standalone/handoff/SKILL.md` | Session-end compression; produces `docs/handoffs/*.md` |
-| `refactor` | `.cursor/skills/workflow/refactor/SKILL.md` | v1A→v1B structural refactor with test-pass invariant |
-| `ui-bug` | `.cursor/skills/workflow/ui-bug/SKILL.md` | Screenshot → annotate → design align → issues |
-
-## New utility skills
-
-Load when invoked by parent skill or explicitly triggered:
-
-| Skill | Path | Purpose |
-|-------|------|---------|
-| `domain-modeling` | `.cursor/skills/standalone/domain-modeling/SKILL.md` | Stewards CONTEXT.md and `docs/decisions/` ADRs |
-| `diagnose` | `.cursor/skills/standalone/diagnose/SKILL.md` | Root-cause loop for terminal errors and hard bugs |
-| `screenshot-annotate` | `.cursor/skills/standalone/screenshot-annotate/SKILL.md` | Screenshot → structured markdown; invoked by ui-bug only |
-| `extract-design-md` | `.cursor/skills/standalone/extract-design-md/SKILL.md` | Extract DESIGN.md design system from frontend source code |
+6. **Project skills** under `.cursor/skills/` are in `catalog.projectSkills`; load per Focus agent phase, not at startup.
 
 ## Lazy-load contract
 
@@ -227,7 +197,7 @@ Load when invoked by parent skill or explicitly triggered:
 |---------|-------------------|-----------|
 | Tier 1 rules | Always (4 files) | — |
 | Tier 2 rules | No | Focus `RULE_TRIGGERS` |
-| Repo workflow skills | No | Focus workflow phase |
+| Repo agent skills | No | Focus agent phase |
 | Domain pattern files | No | Language/stack detected |
 | Plugin skills | No | skill-catalog `when` + Focus |
 | MCP tool JSON | No | Focus selects server |
@@ -237,12 +207,9 @@ Load when invoked by parent skill or explicitly triggered:
 | Task signal | MCP server | Plugin skill(s) |
 |-------------|------------|-----------------|
 | Alembic, RLS, Supabase auth | `supabase` | `supabase`, `supabase-postgres-best-practices` |
-| Architecture / rescope / module boundary / structural refactor / system design review | — | `.cursor/skills/standalone/domain/architect.md` |
-| FastAPI / pytest change | — | `.cursor/skills/standalone/domain/python-*` |
-| ML train/infer/features/forecast/anomaly | — | `.cursor/skills/domain/mle-agent.md` |
-| ML algorithm vetting / technique fit / data availability / T1–T8 scope | — | `.cursor/skills/domain/data-scientist.md` |
+| FastAPI / pytest change | — | `backend` executor, `.cursor/skills/domain/python-*` |
 | `web/` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
-| Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
+| Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux` executor, `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
 | TikTok API / webhooks | — | `docs/tiktok_api/`, MODULE.md (no plugin) |
 | New vendor API onboarding | `context7` | `api-docs` → `context7-mcp` |

@@ -1,0 +1,80 @@
+{
+  "id": "review-issue-192",
+  "issue": 192,
+  "timestamp": "2026-06-23T07:31:02Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-9 Decision view-model: pure mapping from workflow_recommendations to seller-facing Decision envelopes with impact sorting, catalog guard, and lifecycle helpers.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web/src/lib/decisions/types.ts",
+    "web/src/lib/decisions/decision.ts",
+    "web/src/lib/decisions/required-inputs.ts",
+    "web/src/lib/decisions/index.ts",
+    "web/src/lib/decisions/MODULE.md",
+    "web/MODULE.md",
+    "web/src/__tests__/test_decisions_view_model.test.ts"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/decisions",
+      "interface": "toDecision",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Maps WorkflowRecommendation to Decision envelope for Decisions UI (#195)."
+    },
+    {
+      "module": "web/src/lib/decisions",
+      "interface": "takeTopDecisions",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Returns top N decisions by estimated impact for Home preview (#193)."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Unit tests: toDecision() maps mock recommendation envelope correctly",
+          "test": "web/src/__tests__/test_decisions_view_model.test.ts::maps a workflow_recommendation envelope to a Decision"
+        },
+        {
+          "criterion": "Unit tests: takeTopDecisions(_, 3) returns highest-impact three only",
+          "test": "web/src/__tests__/test_decisions_view_model.test.ts::returns the three highest-impact decisions only"
+        },
+        {
+          "criterion": "Unit tests: invalid/unknown workflow_id rejected or filtered (catalog guard)",
+          "test": "web/src/__tests__/test_decisions_view_model.test.ts::filters invalid workflow_id values when mapping recommendation batches"
+        },
+        {
+          "criterion": "MODULE.md documents public interface",
+          "test": "web/src/__tests__/test_decisions_view_model.test.ts::documents public interface in lib/decisions/MODULE.md"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 416,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

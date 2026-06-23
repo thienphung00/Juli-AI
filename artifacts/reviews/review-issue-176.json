@@ -1,0 +1,85 @@
+{
+  "id": "review-issue-176",
+  "issue": 176,
+  "timestamp": "2026-06-23T07:31:01Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P1.8-2 unified operational data model fixtures: typed schemas, NEW_SHOP/MID_LARGE_SHOP mock envelopes, datum\u2192workflow traceability map with CI enforcement, and PersonaSwitcher loaders.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web/src/lib/mock-data/operations/schemas.ts",
+    "web/src/lib/mock-data/operations/traceability.ts",
+    "web/src/lib/mock-data/operations/validate.ts",
+    "web/src/lib/mock-data/operations/index.ts",
+    "web/src/lib/mock-data/operations/fixtures/new-shop.ts",
+    "web/src/lib/mock-data/operations/fixtures/mid-large-shop.ts",
+    "web/src/lib/mock-data/operations/MODULE.md",
+    "web/src/__tests__/test_operations_fixtures.test.ts"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "web/src/lib/mock-data/operations",
+      "interface": "loadOperationalModel / loadOperationalModelForPersona",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Public loaders for unified_operational_data_model fixtures per shop profile and demo persona."
+    },
+    {
+      "module": "web/src/lib/mock-data/operations",
+      "interface": "DATUM_TRACEABILITY_MAP / exportTraceabilityArtifact",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Datum\u2192workflow_id traceability map enforcing ADR-026 constraint #4."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Typed schemas for unified_operational_data_model with validation tests",
+          "test": "web/src/__tests__/test_operations_fixtures.test.ts::validates both profile fixtures without errors"
+        },
+        {
+          "criterion": "Fixture files for NEW_SHOP and MID_LARGE_SHOP profiles demoable in UI-only mode",
+          "test": "web/src/__tests__/test_operations_fixtures.test.ts::validates each loaded fixture individually"
+        },
+        {
+          "criterion": "Traceability map artifact test asserting every datum key maps to catalog workflow_id",
+          "test": "web/src/__tests__/test_operations_fixtures.test.ts::asserts every present datum in fixtures maps to \u22651 workflow"
+        },
+        {
+          "criterion": "Test asserting no datum exists outside the six-workflow signal requirements",
+          "test": "web/src/__tests__/test_operations_fixtures.test.ts::asserts no datum exists outside the six-workflow signal requirements"
+        },
+        {
+          "criterion": "operations MODULE stub documents public loader interface",
+          "test": "web/src/__tests__/test_operations_fixtures.test.ts::ships MODULE.md documenting operations loaders"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
+}

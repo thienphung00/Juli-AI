@@ -14,14 +14,7 @@ import { trackReasoningExpansion } from "@/lib/operations/operations-analytics";
 import { buildWorkflowReasoning } from "@/lib/operations/reasoning";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 import { formatNumber } from "@/lib/format";
-import {
-  buildHomeHighlightLink,
-  formatAnticipationImpact,
-  getJourneyLink,
-  resolveHomeHighlight,
-} from "@/lib/operations/journey-loop";
 
-import { JourneyEmphasisText } from "./JourneyEmphasisText";
 import { ReasoningPanel } from "./ReasoningPanel";
 
 export function ClarityCard({
@@ -35,7 +28,6 @@ export function ClarityCard({
   onApprove,
   onReject,
   onViewOutcome,
-  highlighted = false,
 }: {
   recommendation: WorkflowRecommendation;
   health: HealthCheckResults;
@@ -47,18 +39,12 @@ export function ClarityCard({
   onApprove?: () => void;
   onReject?: () => void;
   onViewOutcome?: () => void;
-  highlighted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const workflowId = recommendation.workflow_id;
   const isPending = disposition === "pending";
   const reasoning = buildWorkflowReasoning(recommendation, health);
   const { expected_impact: impact } = recommendation;
-  const journeyLink = getJourneyLink(workflowId);
-  const homeHighlightAnchor = resolveHomeHighlight(workflowId);
-  const homeHighlightLink = homeHighlightAnchor
-    ? buildHomeHighlightLink(homeHighlightAnchor)
-    : null;
 
   function handleToggleExpansion() {
     setExpanded((value) => {
@@ -78,7 +64,6 @@ export function ClarityCard({
       className="card space-y-3 p-4"
       data-testid="clarity-card"
       data-workflow-id={workflowId}
-      data-highlighted={highlighted ? "true" : undefined}
     >
       <div>
         <p className="text-muted text-xs font-medium uppercase tracking-wide">
@@ -87,44 +72,18 @@ export function ClarityCard({
         <h3 className="mt-1 text-base font-semibold">{recommendation.workflow_name}</h3>
       </div>
 
-      {journeyLink && (
-        <div data-testid="clarity-card-journey-reward">
-          <p className="text-muted text-xs font-medium uppercase">Liên quan</p>
-          <p className="mt-1 text-sm font-medium">{journeyLink.rewardLabel}</p>
-        </div>
-      )}
-
       <div>
         <p className="text-muted text-xs font-medium uppercase">Vấn đề</p>
         <p className="mt-1 text-sm" data-testid="clarity-card-rationale">
-          {journeyLink ? (
-            <JourneyEmphasisText text={journeyLink.reasonTemplate} />
-          ) : (
-            recommendation.rationale
-          )}
+          {recommendation.rationale}
         </p>
       </div>
 
       <div>
         <p className="text-muted text-xs font-medium uppercase">Tác động dự kiến</p>
         <p className="mt-1 text-sm font-medium" data-testid="clarity-card-metric">
-          {journeyLink ? (
-            <JourneyEmphasisText text={formatAnticipationImpact(workflowId)} />
-          ) : (
-            <>
-              {impact.metric}: {formatNumber(impact.value)} điểm
-            </>
-          )}
+          {impact.metric}: {formatNumber(impact.value)} điểm
         </p>
-        {homeHighlightLink && (
-          <Link
-            href={homeHighlightLink}
-            className="link-secondary mt-2 inline-block"
-            data-testid={`clarity-card-home-link-${workflowId}`}
-          >
-            Xem trên Trang chủ →
-          </Link>
-        )}
       </div>
 
       <button

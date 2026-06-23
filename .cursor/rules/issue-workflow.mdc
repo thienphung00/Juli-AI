@@ -10,17 +10,22 @@ alwaysApply: false
 | `Modules` overlaps any other **ready** issue (`Unblocked` or `Isolate`) | **Isolate** — one issue at a time |
 | `Unblocked` and disjoint `Modules` from all other ready issues | **Parallel** — one worktree per issue |
 
-- Slice status and scope: [`EXECUTION.md`](../../EXECUTION.md)
-- Module list: [`docs/architecture/map.md`](../../docs/architecture/map.md)
-- Parallel coordination: `.worktrees/issue-<N>/` per branch; one agent owns GitHub ops
+- Bootstrap prompts: `docs/handoffs/tiktok-mvp-issues-01.md` § Bootstrap prompts
+- Locks: `docs/handoffs/parallel-status.md` (module rows + GitHub ops lock)
+- Steps: `docs/handoffs/_bootstrap.md`
 
 ## GitHub ops (parallel runs)
 
 When multiple agents run in parallel:
 
-- **One agent** holds the GitHub ops lock — it alone runs `git push`, `gh pr create`,
-  `gh pr merge`, `gh pr checks`, and status updates on `main`.
+- **One agent** holds the GitHub ops lock in `parallel-status.md` — it alone runs
+  `git push`, `gh pr create`, `gh pr merge`, `gh pr checks`, and status-registry
+  updates on `main`.
 - **All other agents** commit locally only; hand off push/PR/merge to the ops owner.
-- **Stagger** remote GitHub commands by at least **30 seconds** between operations.
+- **Stagger** remote GitHub commands by at least **30 seconds** between operations
+  (update `Last remote op` in the registry after each one).
 
-After each merge, update slice status in `EXECUTION.md` and close or unblock dependent issues.
+See `docs/handoffs/_bootstrap.md` § GitHub ops coordination.
+
+After each merge, update Status (`Done` / `Blocked` / `Unblocked` / `Isolate`) in the handoff registry.
+

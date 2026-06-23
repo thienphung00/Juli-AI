@@ -60,10 +60,9 @@ async def test_api_boots_with_versioned_routes(client):
     resp = await client.get("/docs")
     assert resp.status_code == 200
 
-    openapi = await client.get("/openapi.json")
-    assert openapi.status_code == 200
-    paths = openapi.json().get("paths", {})
-    assert any(path.startswith("/v1/") for path in paths)
+    app = client._transport.app
+    route_paths = [getattr(r, "path", "") for r in app.routes]
+    assert any(p.startswith("/v1/") for p in route_paths)
 
 
 async def test_api_rejects_unauthenticated(client):

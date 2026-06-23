@@ -1,59 +1,96 @@
-# Phase 3.0 — Vision (Forward-Looking)
+# Phase 3 — First User Testing (10 Shops)
 
-> **Tier 1 — forward scope.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
-> **Owns:** Phase 3 capabilities only. Detail: ADR-004 (Kafka), ADR-012 (polyglot).
+> **Tier 1 — user-testing scope.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
+> **Owns:** Phase 3 user behavior validation, product analytics, and exit criteria.  
+> **Does not own:** Phase 2 pipeline mechanics (`phase-2-mvp.md`), subsystem envelopes (`system-design.md`).
 
-Phase 3 expands Juli from batch/daily MVP to real-time, polyglot, and creator-facing
-capabilities — adopted only when data volume, dashboard latency, or webhook burst
-justify the infrastructure cost.
+**Goal:** Validate user behavior — not whether we can generate recommendations (solved in Phase 2).
 
----
-
-## Real-time
-
-- Supabase Realtime subscriptions and/or SSE for live KPI updates
-- Event-driven action-card refresh (vs daily 08:00 UTC batch)
-- Sub-second seller alerts for critical policy milestones
-
-**MVP posture:** Batch/daily only in Phase 2 (ADR-012).
+The question is: **do sellers trust recommendations enough to approve and execute them?**
 
 ---
 
-## Live-stream / TikTok LIVE API
-
-- Official TikTok LIVE and live-stream API integration for creator analytics
-- `sync_livestreams` and in-stream signal collection (currently forbidden for unofficial websockets)
-- Creator ↔ shop matching workflows (explicitly deferred from MVP)
-
-**Reference:** [`tiktok_platform/creator/feature-guide.md`](../tiktok_platform/creator/feature-guide.md)
-
----
-
-## Polyglot data plane
-
-When Postgres alone cannot serve analytics latency or raw-archive volume:
+## Architecture
 
 | Component | Role |
 |-----------|------|
-| **ClickHouse** | High-volume analytics queries, dashboard aggregates |
-| **Amazon S3** | Raw JSON landing, replayable archive |
-| **AWS SQS** | Async webhook queue, burst ingestion |
-| **Kafka** | Event streams ([ADR-004](../decisions/004-etl-kafka-consumer.md)) |
+| **Web app** | Next.js seller UI — Morning Report, recommendations, approval flow |
+| **REST** | FastAPI API layer |
+| **Postgres** | Data store |
+| **Redis** | Cache + Celery broker |
+| **Celery** | Async tool execution (carried forward from Phase 2) |
+| **PostHog** | Product analytics (introduced in Phase 3) |
 
-Migration path: read ClickHouse from Postgres replication — planned migration, not rewrite.
+Still **no WebSockets. No Kafka.**
 
-**Interim (pre-polyglot):** In-DB `raw_payloads` (`jsonb`) table for replayable archive.
+### Architecture evolution from Phase 2
+
+```
+Phase 2:  FastAPI · Postgres · Redis · Celery · rules-based copy
+Phase 3:  + Web app · PostHog
+```
+
+Copy layer remains **rules-based** — deterministic templates from ML signals. No cloud LLM.
 
 ---
 
-## Additional Phase 3 capabilities
+## User flow
 
-- **Sentiment / CSAT:** Requires buyer review/comment/chat text sources (none in MVP)
-- **Celery / multi-node workers:** Background job scaling beyond cron/APScheduler
-- **Vendor scrapers:** Kalodata, Shoplus, FastMoss (training data enrichment)
-- **DSPy prompt optimization:** After labeled eval set exists
-- **Sync preferences / cross-device:** Supabase Realtime or push
-- **`src/` folder reshaping:** Modular monolith → service boundaries
+```
+Morning Report → Recommendation → Approve → Execution
+```
+
+Product analytics events to track:
+
+| Event | Meaning |
+|-------|---------|
+| `recommendation_viewed` | Seller saw the recommendation |
+| `recommendation_approved` | Seller explicitly approved |
+| `execution_started` | Celery job dispatched |
+| `execution_succeeded` | Tool call completed successfully |
+
+---
+
+## Recommendation refresh
+
+**1×/day** — morning report cadence. Same daily batch pipeline as Phase 2.
+
+---
+
+## Cost
+
+**$30–100/month** — primarily hosting, Postgres, Redis. No LLM cost (rules-only copy).
+
+---
+
+## Exit criteria
+
+| Metric | What we learn |
+|--------|---------------|
+| **Activation** | Connected shop |
+| **Engagement** | Daily report opened |
+| **Trust** | Recommendation approved |
+| **Core metric: Execution rate** | Approved recommendations → executed actions |
+
+If recommendations are viewed but not executed, **the product failed** — regardless of
+recommendation quality.
+
+When exit criteria pass → see [`phase-4-beta-launch.md`](phase-4-beta-launch.md).
+
+---
+
+## Deferred from this phase
+
+The following are explicitly **not** Phase 3 scope:
+
+- Webhook ingestion (event-driven refresh)
+- WebSockets (live execution status)
+- Cloud LLM copy (Haiku / Claude)
+- Kafka / polyglot data plane (ClickHouse, S3, SQS)
+- Creator ↔ shop matching
+- Real-time recommendation refresh (>1×/day)
+- TikTok LIVE API integration
+- Sentiment / CSAT modeling
 
 ---
 

@@ -4,8 +4,8 @@
 > synthetic datasets that conform to schemas in [`canonical-entities.md`](canonical-entities.md).
 >
 > **When to use this document:**
-> - **pre-MVP (P1):** Generating hardcoded mock fixtures for UI (seller profiles, sample orders, returns).
-> - **Phase 2 MVP Milestone A (Phase 2 MVP Milestone A):** Generating `backtest/*.parquet` training datasets when historical TikTok data is unavailable.
+> - **Phase 1 (P1):** Generating hardcoded mock fixtures for UI (seller profiles, sample orders, returns).
+> - **Phase 1.5 (P1.5):** Generating `backtest/*.parquet` training datasets when historical TikTok data is unavailable.
 >
 > `canonical-entities.md` is the **schema authority** — this document only shows how
 > to populate those schemas synthetically. If a schema field changes there, update
@@ -20,7 +20,7 @@
 ## Generator design principles
 
 1. **Schema-first:** Every generated record must validate against the canonical entity JSON schema.
-2. **Labeled anomalies:** Phase 2 MVP Milestone A synthetic data must include `return_type` labels (`item_swap`, `empty_return`, `other`) at a realistic base rate — not all returns are anomalous.
+2. **Labeled anomalies:** P1.5 synthetic data must include `return_type` labels (`item_swap`, `empty_return`, `other`) at a realistic base rate — not all returns are anomalous.
 3. **Referential integrity:** Foreign key chains must be consistent (`Return.order_id` → valid `Order.id`, etc.).
 4. **Masked PII:** `buyer_id` must always be masked (e.g. `buyer_a1b2c3`). Never generate realistic names, emails, or phone numbers.
 5. **Realistic distributions:** Skew toward the `other` (negative) class — anomaly prevalence in real data is typically 2–8% of returns. Oversampling for training is done in the ML pipeline, not the generator.
@@ -201,8 +201,8 @@ backtest/product_growth/
 ## Dataset 2 — Revenue Leakage Detection
 
 **Purpose:** Train the anomaly detector to classify `item_swap`, `empty_return`,
-and `other` returns. This is the **primary Phase 2 MVP Milestone A training dataset** per
-[ADR-005](../decisions/008-buyer-behavior-anomaly-scope.md).
+and `other` returns. This is the **primary P1.5 training dataset** per
+[ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md).
 
 **Entities joined:** `Order` + `OrderItem` + `Return` + `Settlement`
 
@@ -337,10 +337,10 @@ backtest/revenue_leakage/
   labels.parquet           # return_id, ground_truth_anomaly (bool), return_type
 ```
 
-> **Phase 2 MVP Milestone A-1 requirement:** The parquet generator must emit `return_type` enum in
-> `labels.parquet`. The anomaly detector (Phase 2 MVP Milestone A-3) trains on `returns.parquet` joined
+> **P1.5-1 requirement:** The parquet generator must emit `return_type` enum in
+> `labels.parquet`. The anomaly detector (P1.5-3) trains on `returns.parquet` joined
 > with `order_items.parquet` using `return_type` as the classification target.
-> See `system-design.md` §Phase 2 MVP Milestone A parquet layout.
+> See `system-design.md` §P1.5 parquet layout.
 
 ---
 
@@ -653,7 +653,7 @@ def save_dataset(dataset: dict[str, list[dict]], output_dir: str) -> None:
 **Example usage:**
 
 ```python
-# Generate the Revenue Leakage detection dataset for Phase 2 MVP Milestone A training
+# Generate the Revenue Leakage detection dataset for P1.5 training
 dataset = generate_leakage_dataset(n_shops=30, orders_per_shop=500)
 save_dataset(dataset, "backtest/revenue_leakage/")
 
@@ -674,4 +674,4 @@ print(labels_df["return_type"].value_counts(normalize=True))
 - [ ] `Numeric(18,2)` monetary fields are stored as strings (not floats) in parquet
 - [ ] `sku_id` in `Return` differs from `OrderItem.sku_id` for all `item_swap` records
 - [ ] `return_condition = 'empty_parcel'` for all `empty_return` records
-- [ ] Column names match `system-design.md` §Phase 2 MVP Milestone A parquet layout exactly
+- [ ] Column names match `system-design.md` §P1.5 parquet layout exactly

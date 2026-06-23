@@ -58,9 +58,20 @@ export function collectIndicatorNumericValues(indicator: HealthIndicator): numbe
   return values;
 }
 
+function confidenceLabel(confidence: WorkflowRecommendation["expected_impact"]["confidence"]): string {
+  switch (confidence) {
+    case "high":
+      return "cao";
+    case "medium":
+      return "trung bình";
+    default:
+      return "thấp";
+  }
+}
+
 function formatImpactSentence(recommendation: WorkflowRecommendation): string {
-  const { metric, value } = recommendation.expected_impact;
-  return `Dự kiến cải thiện ${metric} khoảng ${formatNumber(value)} điểm.`;
+  const { metric, value, confidence } = recommendation.expected_impact;
+  return `Dự kiến cải thiện ${metric} khoảng ${formatNumber(value)} điểm với độ tin cậy ${confidenceLabel(confidence)}.`;
 }
 
 const buildNplReasoning: ReasoningTemplate = (recommendation, health) => {

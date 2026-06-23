@@ -29,7 +29,6 @@ jest.mock("@/lib/auth-context", () => ({
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
   usePathname: () => "/decisions",
-  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderDecisionsPage() {

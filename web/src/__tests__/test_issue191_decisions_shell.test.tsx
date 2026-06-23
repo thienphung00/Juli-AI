@@ -23,7 +23,6 @@ const mockPathname = jest.fn(() => "/decisions");
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
   usePathname: () => mockPathname(),
-  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderWithProviders(ui: ReactElement) {

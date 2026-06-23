@@ -1,14 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 import { AuthenticatedShell } from "@/components/AuthenticatedShell";
-import {
-  getRequiredInputsForWorkflow,
-  isValidatedWorkflowId,
-  type DecisionDetailStep,
-} from "@/lib/decisions";
+import { getRequiredInputsForWorkflow, isValidatedWorkflowId } from "@/lib/decisions";
 import { useDemoPersona } from "@/lib/demo-persona-context";
 import { useOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 
@@ -24,17 +19,8 @@ function DecisionDetailSkeleton() {
   );
 }
 
-function resolveInitialDetailStep(stepParam: string | null): DecisionDetailStep | undefined {
-  if (stepParam === "inputs") {
-    return "inputs";
-  }
-  return undefined;
-}
-
 export function DecisionDetailPage({ decisionId }: { decisionId: string }) {
   const { persona, personaId, isReady } = useDemoPersona();
-  const searchParams = useSearchParams();
-  const initialStep = resolveInitialDetailStep(searchParams.get("step"));
   const pipeline = useOperationsPipeline({ personaId });
 
   if (!isValidatedWorkflowId(decisionId)) {
@@ -84,7 +70,6 @@ export function DecisionDetailPage({ decisionId }: { decisionId: string }) {
           persona={persona}
           personaId={personaId}
           requiredInputs={getRequiredInputsForWorkflow(decisionId)}
-          initialStep={initialStep}
         />
       )}
     </AuthenticatedShell>

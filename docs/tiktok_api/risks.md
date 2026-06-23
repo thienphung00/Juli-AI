@@ -14,7 +14,7 @@ Technical and compliance risks for TikTok Shop API integration. Complements
 | API version / path drift | Medium | High | Pin versions; reconcile `/api/*` vs `/product/202502/*` in P2-1 |
 | VP/AHR/withholding fields not exposed in Partner API | High (P2) | High | **P2-1 gate:** verify in Partner Center API Reference + API Testing Tool; implement degraded-mode `health_data_source: api \| proxy \| unavailable`; **no Seller Center scraping** |
 | Undocumented Ads endpoints | High (P2) | Medium | Block Growth Copilot live ads until paths scoped |
-| Bounded order history (~90d) | High | Medium | Document in UI; long-horizon in Phase 3+ vendor data |
+| Bounded order history (~90d) | High | Medium | Document in UI; long-horizon in Phase 2.5+ vendor data |
 | Settlement lag 7–14d | High | Low | `pending` status; out of P2 core |
 | Affiliate scope denial | Medium | Medium | Re-consent UX; do not block orders/products sync |
 | Webhook catalog incomplete | Medium | Medium | Polling reconciliation every 15 min minimum |
@@ -61,9 +61,9 @@ migrate to current versioned paths or confirm alias behavior with API Testing To
 
 ## ADR candidates
 
-- [ ] **ADR-005: Webhook-primary vs polling-primary for P2** — EXECUTION.md emphasizes
+- [ ] **ADR-008: Webhook-primary vs polling-primary for P2** — EXECUTION.md emphasizes
   polling; webhooks optional until registration proven stable.
-- [ ] **ADR-006: API path version migration** — unversioned client paths vs 202502/202309
+- [ ] **ADR-009: API path version migration** — unversioned client paths vs 202502/202309
   official surface.
 - [ ] **ADR-NNN: Degraded health polling (api | proxy | unavailable)** — if VP/AHR are not exposed,
   Juli must degrade explicitly (no fabricated numbers) and never scrape Seller Center. See

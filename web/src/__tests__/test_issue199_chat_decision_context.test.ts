@@ -19,7 +19,7 @@ describe("Issue #199: decision chat context (pure)", () => {
     const prompts = buildContextualSuggestedPrompts(context);
 
     expect(prompts.length).toBeGreaterThanOrEqual(3);
-    expect(prompts[0]).toBe("Giải thích đề xuất này");
+    expect(prompts[0]).toBe("Giải thích quyết định này");
     expect(isWorkflowSpecificPrompt(prompts[1]!, context.workflow_id)).toBe(true);
   });
 
@@ -33,7 +33,7 @@ describe("Issue #199: decision chat context (pure)", () => {
 
   it("mock reply mentions decision title and health signal when context present", () => {
     const context = buildDecisionChatContext(recommendation, pipeline.healthResults);
-    const reply = buildDecisionAwareMockReply(context, "Giải thích đề xuất này");
+    const reply = buildDecisionAwareMockReply(context, "Giải thích quyết định này");
 
     expect(reply).toContain(context.title);
     expect(reply).toContain(context.health_signal);
