@@ -42,6 +42,28 @@ pr-checks:
 - [ ] API contract changes backward-compatible (or versioned)
 - [ ] Feature flag wraps new behavior
 
+## Secret scan gate (pre-merge, required)
+
+Run the following. If any command exits non-zero or returns matches, block the merge
+and surface the finding. Do not proceed until the finding is resolved.
+
+```bash
+# iOS surface
+git diff HEAD --name-only | grep '\.swift\|\.plist\|\.xcconfig' | xargs -I{} \
+  grep -n "apiKey\|api_key\|secret\|password\|token\s*=\s*\"" {} 2>/dev/null
+
+# Next.js web surface
+git diff HEAD --name-only | grep '^web/' | xargs -I{} \
+  grep -n "NEXT_PUBLIC_.*KEY\|NEXT_PUBLIC_.*SECRET\|hardcoded" {} 2>/dev/null
+
+# Python/FastAPI surface
+git diff HEAD --name-only | grep '^src/' | xargs -I{} \
+  grep -n "password\s*=\s*['\"].\|secret\s*=\s*['\"].\|api_key\s*=\s*['\"]." {} 2>/dev/null
+```
+
+Exclusions (do not flag): `.env.example`, `*.test.*`, `conftest.py` mock values,
+README code blocks, and files explicitly listed in `.gitignore`.
+
 ## Git Workflow
 
 ### Branch Strategy
@@ -210,7 +232,7 @@ Detect (Sentry/Grafana alert)
 
 | Skill | Relationship |
 |-------|-------------|
-| `discover` | `EXECUTION.md`, `system-design.md`, and ADRs inform deployment topology and rollback plans |
+| `grill-with-docs` | `EXECUTION.md`, `system-design.md`, and ADRs inform deployment topology and rollback plans |
 | `review` | Pre-merge checklist is the gate before ship takes over |
 | `focus` | Focus loads ship when deployment/CI work is detected |
 

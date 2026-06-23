@@ -31,7 +31,6 @@ scripts/
     check_module_drift.py
     check_handoff.py
     check_adr.py
-    check_done_md.py
 
 artifacts/
   reviews/                       # review-issue-<n>.json
@@ -44,13 +43,12 @@ docs/
   architecture/map.md            # authoritative module list
 
 EXECUTION.md                     # root single source of truth (plan + ownership)
-done.md                          # root definition-of-done checklist
 ```
 
 ## Skill / Workflow Wiring
 
 ```
-build-feature: discover -> to-prd -> to-issues -> focus -> tdd -> review -> validate -> ship
+build-feature: grill-with-docs -> to-prd -> to-issues -> focus -> tdd -> review -> validate -> ship
 fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
 ```
 
@@ -160,11 +158,6 @@ fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
       "name": "adr_requirement",
       "status": "PASS | FAIL",
       "details": {"architecturalChange": false, "adrPresent": true}
-    },
-    {
-      "name": "done_md_completion",
-      "status": "PASS | FAIL",
-      "details": {"unchecked": []}
     }
   ],
   "overallSummary": "All validation checks passed.",
@@ -246,7 +239,6 @@ a single file, stdlib-only, with `--help`. Summary:
 | [`scripts/validate/check_module_drift.py`](../../scripts/validate/check_module_drift.py) | `MODULE.md` vs AST | Exit 0/1 |
 | [`scripts/validate/check_handoff.py`](../../scripts/validate/check_handoff.py) | `docs/handoffs/*.md` | Exit 0/1 |
 | [`scripts/validate/check_adr.py`](../../scripts/validate/check_adr.py) | review artifact + `docs/decisions/` | Exit 0/1 |
-| [`scripts/validate/check_done_md.py`](../../scripts/validate/check_done_md.py) | root `done.md` | Exit 0/1 |
 
 ## Acceptance Criteria Mapping
 

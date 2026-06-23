@@ -34,7 +34,24 @@ Decisions approval flow, and Juli AI chat.
 
 **Not on Home:** top-3 decision preview, Tiến độ gần đây, workflow breadcrumb, persona copilot panels (`NewSellerCopilotPanel`, `LeakageCopilotPanel`, `GrowthCopilotPanel` retired from Home).
 
-**Metric interaction:** tap tile → expand **Gợi ý từ Juli** (blue info icon); second action → `/decisions?highlight=<workflow_id>`. RRAA is cross-screen logic only — **no stage labels in UI**.
+**Metric interaction:** tap tile → expand **Gợi ý từ Juli** (blue info icon); second action → `/decisions?highlight=<workflow_id>`. Estimated bar segment remains a secondary deep link to the same destination. RRAA is cross-screen logic only — **no stage labels in UI**.
+
+## RRAA journey loop (P1.8-10, ADR-029)
+
+Cross-screen **Reward → Reason → Action → Anticipation** loop between Home charts and Decisions cards. Registry and parsers live in `lib/operations/journey-loop.ts`; hooks in `use-journey-highlight.ts` (Decisions inbound) and `use-home-journey-highlight.ts` (Home inbound).
+
+| Export / hook | Role |
+|---------------|------|
+| `getJourneyLink(workflowId)` | Registry row: Home metric anchor, Reason/Anticipation copy |
+| `resolveJourneyLinkForMetric(domain, metricKey)` | Metric tile → workflow mapping (incl. overrides) |
+| `buildDecisionsHighlightLink(workflowId)` | Outbound Home → `/decisions?highlight=<workflow_id>` |
+| `buildHomeHighlightLink(anchor)` | Outbound Decisions → `/?highlight=<domain>:<metric>` |
+| `parseDecisionsHighlight(param)` | Validates Decisions `?highlight=` (invalid → ignored) |
+| `parseHomeHighlight(param)` | Parses Home `?highlight=<domain>:<metric>` |
+| `useJourneyHighlight(workflowIds)` | Decisions: scroll + 2s ring on matching `ClarityCard` |
+| `useHomeJourneyHighlight()` | Home: auto-select Báo cáo tab, scroll + pulse target metric/chart |
+
+**Interaction model (growth example):** expand metric tile **Gợi ý từ Juli** → CTA to Decisions; or tap estimated bar → same `?highlight=`; on Decisions card, **Xem trên Trang chủ →** after Anticipation returns to Home with `/?highlight=revenue_growth:roas` (tab switch + chart highlight). Full loop covered by `test_issue221_rraa_loop.test.tsx`.
 
 ## Dependencies
 - `api` (read-only) — consumes `GET /v1/shops`, `GET /v1/shops/me`, orders endpoints

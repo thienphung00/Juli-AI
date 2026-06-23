@@ -16,7 +16,7 @@ directly — **no Python helper module**. Read/write YAML and Markdown files at 
 
 | Phase | Checkpoint section | Handoff file |
 |-------|-------------------|--------------|
-| `discover` | `discover_phase` on feature checkpoint | chat only |
+| `grill-with-docs` | `grill_with_docs_phase` on feature checkpoint | chat only |
 | `to-prd` | `to_prd_phase` on feature checkpoint | chat only |
 | `to-issues` | stub `issue-{N}.checkpoint.yml` per filed issue | chat only |
 | `qa` (fix-bug) | stub `issue-{N}.checkpoint.yml` when issue filed | chat only |
@@ -131,7 +131,7 @@ tokens_to_resume: ~400
 
 ### Feature planning checkpoint schema
 
-Used by `discover` → `to-prd` → `to-issues` before per-issue files exist:
+Used by `grill-with-docs` → `to-prd` → `to-issues` before per-issue files exist:
 
 ```yaml
 # .agent-state/feature-{slug}.checkpoint.yml
@@ -140,7 +140,7 @@ title: "{feature name}"
 created_at: "{ISO-8601}"
 last_updated_at: "{ISO-8601}"
 
-discover_phase:
+grill_with_docs_phase:
   status: "✓" | "⏳" | "✗"
   key_findings: ["{finding}"]
   assumptions: ["{assumption}"]
@@ -218,7 +218,6 @@ Templates live in `docs/templates/handoffs/` — load the specific file only whe
 ## Integration
 
 - **Workflow skills** (`build-feature`, `fix-bug`): one-line pointer here; persistence always on.
-- **Standalone skills** (`discover`, `to-prd`, `to-issues`, `focus`, `tdd`, `review`, `validate`, `ship`, `qa`): each has a short optional/mandatory block linking here.
-- **Validate gate:** `scripts/validate/check_handoff.py` skips when no legacy handoff on branch;
-  `docs/handoffs/issue-*-{phase}.md` files are the continuity source alongside `EXECUTION.md`
-- **Parallel agents:** `docs/handoffs/_bootstrap.md` — each window reads its issue checkpoint first
+- **Standalone skills** (`grill-with-docs`, `to-prd`, `to-issues`, `focus`, `tdd`, `review`, `validate`, `ship`, `qa`): each has a short optional/mandatory block linking here.
+- **Validate gate:** `scripts/validate/check_handoff.py` skips when no legacy handoff on branch.
+- **Parallel agents:** one worktree per issue; slice status in `EXECUTION.md`; see `issue-workflow.mdc`.

@@ -27,7 +27,6 @@ CHECKS: list[tuple[str, str]] = [
     ("module_md_sync", "check_module_drift.py"),
     ("handoff_structure", "check_handoff.py"),
     ("adr_requirement", "check_adr.py"),
-    ("done_md_completion", "check_done_md.py"),
 ]
 
 

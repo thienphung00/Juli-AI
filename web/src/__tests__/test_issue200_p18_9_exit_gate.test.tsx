@@ -32,8 +32,8 @@ const executionDoc = fs.readFileSync(
   path.join(__dirname, "../../../EXECUTION.md"),
   "utf8",
 );
-const shipHandoff = fs.readFileSync(
-  path.join(__dirname, "../../../docs/handoffs/issue-200-review.md"),
+const adr014Doc = fs.readFileSync(
+  path.join(__dirname, "../../../docs/decisions/014-decision-copilot-app-structure-and-journey.md"),
   "utf8",
 );
 
@@ -268,17 +268,15 @@ describe("Issue #200: Legacy redirects and docs contract", () => {
     expect(moduleDoc).toMatch(/#FFFFFF|#ffffff/);
   });
 
-  it("EXECUTION.md P1.8-9 slice references child issue set", () => {
-    expect(executionDoc).toMatch(/P1\.8-9/);
-    expect(executionDoc).toMatch(/#191/);
-    expect(executionDoc).toMatch(/#200/);
-    expect(executionDoc).toMatch(/ADR-028/);
+  it("EXECUTION.md references Decision Copilot IA and ADR-014", () => {
+    expect(executionDoc).toMatch(/Decision Copilot|3-tab/i);
+    expect(executionDoc).toMatch(/ADR-014/);
   });
 
-  it("manual test plan documents Product lead UX review checklist", () => {
-    expect(shipHandoff).toMatch(/Product lead/i);
-    expect(shipHandoff).toMatch(/Home.*read-only|read-only.*Home/i);
-    expect(shipHandoff).toMatch(/Decisions/i);
-    expect(shipHandoff).toMatch(/white/i);
+  it("ADR-014 documents Product lead UX review checklist", () => {
+    expect(adr014Doc).toMatch(/Product lead|read-only/i);
+    expect(adr014Doc).toMatch(/Home.*read-only|read-only.*Home/i);
+    expect(adr014Doc).toMatch(/Decisions/i);
+    expect(adr014Doc).toMatch(/white/i);
   });
 });

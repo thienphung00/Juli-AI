@@ -1,0 +1,57 @@
+{
+  "id": "review-issue-221",
+  "issue": 221,
+  "timestamp": "2026-06-22T12:00:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "RRAA loop exit-gate verification: chart-first Home gate, full growth-persona Home→Decisions→Home loop, screenshot baselines, and doc contracts after seller-money rescope.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "web/src/__tests__/test_issue221_rraa_loop.test.tsx",
+    "web/src/lib/operations/journey-loop.ts",
+    "web/MODULE.md",
+    "EXECUTION.md"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "completes Home Decisions Home via Juli suggestion CTA",
+          "test": "web/src/__tests__/test_issue221_rraa_loop.test.tsx::completes Home → Decisions → Home via Juli suggestion CTA and Xem trên Trang chủ"
+        },
+        {
+          "criterion": "documents 3-tab IA routes and Decision object in web MODULE",
+          "test": "web/src/__tests__/test_issue200_p18_9_exit_gate.test.tsx::documents 3-tab IA routes and Decision object in web/MODULE.md"
+        },
+        {
+          "criterion": "scrolls to and highlights matching card for decisions highlight product_scaling",
+          "test": "web/src/__tests__/test_issue218_decisions_rraa_cards.test.tsx::scrolls to and highlights the matching card for /decisions?highlight=product_scaling"
+        },
+        {
+          "criterion": "commits chart-first growth Home and Decisions screenshot baselines",
+          "test": "web/src/__tests__/test_issue221_rraa_loop.test.tsx::commits chart-first growth Home and Decisions screenshot baselines"
+        },
+        {
+          "criterion": "exports journey registry helpers from the operations public interface",
+          "test": "web/src/__tests__/test_journey_loop_registry.test.ts::exports journey registry helpers from the operations public interface"
+        },
+        {
+          "criterion": "EXECUTION references Decision Copilot IA and ADR-014",
+          "test": "web/src/__tests__/test_issue200_p18_9_exit_gate.test.tsx::EXECUTION.md references Decision Copilot IA and ADR-014"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true
+}

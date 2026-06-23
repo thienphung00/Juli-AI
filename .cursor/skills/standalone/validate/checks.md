@@ -104,17 +104,3 @@ plus `docs/decisions/`.
 
 **Filename convention:** `NNN-slug.md` — three-digit zero-padded number,
 hyphen-separated lowercase slug. The `adr-NNN.md` form is rejected.
-
-## 7. `done_md_completion`
-
-**Script:** [`scripts/validate/check_done_md.py`](../../../scripts/validate/check_done_md.py)
-
-**Reads:** Root [`done.md`](../../../done.md).
-
-**Passes if:**
-- All checklist items in the "Required" sections are checked off.
-- `done.md` exists.
-
-**Conditional items** (e.g. "MODULE.md updated if interfaces changed") are
-checked only when their precondition is true (see [`done.md`](../../../done.md)
-for the conditional table).

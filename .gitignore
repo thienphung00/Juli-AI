@@ -7,6 +7,15 @@ build/
 .env
 .DS_Store
 
+# Node (root Playwright screenshot tooling)
+node_modules/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Local git worktrees (not source control)
+.worktrees/
+
 # Agent runtime state (local resumption only — not source control)
 .agent-state/
 

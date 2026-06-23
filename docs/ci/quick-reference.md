@@ -24,9 +24,7 @@ Cheat sheet for [ADR-003](../decisions/003-ai-native-cicd-policy.md). Pair with
   (per [`docs/architecture/map.md`](../architecture/map.md))
 - ADR added at `docs/decisions/NNN-slug.md` if the change is architectural
 - Cross-session work tracked against the driving slice in
-  [`EXECUTION.md`](../../EXECUTION.md) (the `docs/handoffs/` registry was removed
-  in the seller-money rescope)
-- Root `done.md` checklist all checked off
+  [`EXECUTION.md`](../../EXECUTION.md)
 
 ## CI Failure Map
 
@@ -43,18 +41,17 @@ Cheat sheet for [ADR-003](../decisions/003-ai-native-cicd-policy.md). Pair with
 | MODULE.md drift | Interface changed but `MODULE.md` not updated (Tier 1/2 only) |
 | ADR requirement | Architectural change but no new `docs/decisions/NNN-*.md` |
 | Handoff structure | Handoff exists but missing required sections |
-| done.md | Unchecked items in root `done.md` |
 
 ## Workflow Skill Chains
 
 ```
-build-feature: discover -> to-prd -> to-issues -> focus -> tdd -> review -> validate -> ship
+build-feature: grill-with-docs -> to-prd -> to-issues -> focus -> tdd -> review -> validate -> ship
 fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
 ```
 
 | Step | Output |
 |------|--------|
-| `discover` | Feature spec |
+| `grill-with-docs` | Feature spec |
 | `to-prd` | PRD GitHub issue |
 | `to-issues` | Tracer-bullet issues with acceptance criteria |
 | `focus` | Context loading plan |

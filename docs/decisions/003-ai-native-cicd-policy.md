@@ -16,7 +16,7 @@ agents lose context across sessions. We have already accepted that:
 - Persistent state lives in Supabase ([ADR-002](002-supabase-backend-service.md)).
 - Modules are tracked in [`docs/architecture/map.md`](../architecture/map.md) with
   per-module `MODULE.md` files.
-- The `build-feature` and `fix-bug` workflow skills chain `discover -> to-prd ->
+- The `build-feature` and `fix-bug` workflow skills chain `grill-with-docs -> to-prd ->
   to-issues -> focus -> tdd -> review -> validate -> ship` and `qa -> focus -> tdd
   -> review -> validate -> ship` respectively.
 - Issue concurrency is governed by [`.cursor/rules/issue-workflow.mdc`](../../.cursor/rules/issue-workflow.mdc)
@@ -49,7 +49,7 @@ The policy is implemented as:
 - Three GitHub Actions workflows: `pr.yml`, `release.yml`, `architecture-audit.yml`.
 - Python validation and audit scripts under `scripts/validate/` and `scripts/ci/`.
 - Three artifact directories: `artifacts/reviews/`, `artifacts/validation/`, `artifacts/releases/`.
-- A root [`done.md`](../../done.md) checklist consumed by `check_done_md.py`.
+- A root definition-of-done checklist in [`EXECUTION.md`](../../EXECUTION.md) slice exit gates.
 
 The full implementation reference lives in
 [`docs/ci/implementation-guide.md`](../ci/implementation-guide.md), with the
@@ -105,7 +105,7 @@ CI **must warn (not fail)** on:
 **Skill chain (updated):**
 
 ```
-build-feature: discover -> to-prd -> to-issues -> focus -> tdd -> review -> validate -> ship
+build-feature: grill-with-docs -> to-prd -> to-issues -> focus -> tdd -> review -> validate -> ship
 fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
 ```
 
@@ -115,7 +115,6 @@ fix-bug:       qa -> focus -> tdd -> review -> validate -> ship
 - `.github/workflows/pr.yml`, `release.yml`, `architecture-audit.yml`
 - `scripts/ci/*.py`, `scripts/validate/*.py`
 - `artifacts/{reviews,validation,releases}/.gitkeep`, `artifacts/README.md`
-- `done.md`
 - `docs/ci/implementation-guide.md`, `quick-reference.md`, `troubleshooting.md`
 
 **Files updated:**

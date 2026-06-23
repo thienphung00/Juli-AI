@@ -5,7 +5,7 @@ description: >-
   covering Feature Guide and Policy Center sections, under docs/<vendor>_platform/.
   Use when onboarding marketplace feature knowledge (tools, programs, workflows),
   seller/creator policy rules (account health, limits, eligibility, compliance),
-  or preparing decision context for discover, api-docs, focus, to-prd, and review.
+  or preparing decision context for grill-with-docs, api-docs, focus, to-prd, and review.
 catalog:
   pluginIndex: skill-catalog
   loadWhen:
@@ -45,7 +45,7 @@ Both dimensions must be extracted and kept in separate subdirectories.
 |-------|-------------|----------------|
 | **`platform-docs`** | Seller / creator / operator | Features, rules, limits, health, eligibility, enforcement |
 | **`api-docs`** | Developer / integrator | Endpoints, schemas, auth, webhooks, rate limits |
-| **`discover`** | Product / feature | Updates canonical docs (`EXECUTION.md`, `system-design.md`, architecture, ADRs) informed by both |
+| **`grill-with-docs`** | Product / feature | Updates canonical docs (`EXECUTION.md`, `system-design.md`, architecture, ADRs) informed by both |
 | **`focus`** | Implementation routing | Loads `docs/<vendor>_platform/` + `docs/<vendor>_api/` |
 
 **MUST:** pull official sources only (Seller Center, Creator Center, Help Center, Policy Hub,
@@ -147,10 +147,10 @@ Do **not** create parallel filenames (`overview.md`, `tos-summary.md`, `limits-c
 
 ## Handoff
 
-### → discover / api-docs
+### → grill-with-docs / api-docs
 
 ```markdown
-## Handoff: platform-docs → discover
+## Handoff: platform-docs → grill-with-docs
 ### Vendor
 <name> — docs/<vendor>_platform/
 ### Scope covered

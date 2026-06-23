@@ -2,7 +2,7 @@
 name: build-feature
 description: >-
   End-to-end feature pipeline that chains skills in sequence:
-  discover → to-prd → to-issues → [focus → tdd → review → ship] per issue.
+  grill-with-docs → to-prd → to-issues → [focus → tdd → review → ship] per issue → handoff.
   Each skill receives a handoff from the previous and produces a handoff for
   the next. Use when building a new feature from idea to deployed code.
 ---
@@ -13,12 +13,12 @@ Orchestrates the full feature lifecycle by invoking skills in a fixed sequence. 
 
 ## Pipeline
 
-For a **net-new external vendor**, run **`api-docs`** (`docs/<vendor>_api/`) and **`platform-docs`** (`docs/<vendor>_platform/`) before discover.
+For a **net-new external vendor**, run **`api-docs`** (`docs/<vendor>_api/`) and **`platform-docs`** (`docs/<vendor>_platform/`) before grill-with-docs.
 
 ```
-┌───────────┐    ┌──────────┐    ┌───────────┐
-│  discover │───▶│  to-prd  │───▶│ to-issues │
-└───────────┘    └──────────┘    └─────┬─────┘
+┌────────────────┐    ┌──────────┐    ┌───────────┐
+│ grill-with-docs│───▶│  to-prd  │───▶│ to-issues │
+└────────────────┘    └──────────┘    └─────┬─────┘
                                        │
                             ┌──────────▼──────────┐
                             │  Per-issue loop:     │
@@ -40,14 +40,18 @@ For a **net-new external vendor**, run **`api-docs`** (`docs/<vendor>_api/`) and
                             │  └───────┘           │
                             │                      │
                             │  (repeat next issue) │
+                            └──────────┬───────────┘
+                                       ▼
+                            ┌──────────────────────┐
+                            │       handoff        │
                             └──────────────────────┘
 ```
 
 ---
 
-## Phase 1: Discover
+## Phase 1: Grill with docs
 
-**Skill:** `discover`
+**Skill:** `grill-with-docs`
 
 **What it does:**
 - Loads canonical docs (`EXECUTION.md`, `docs/system-design.md`, `docs/architecture/`, `docs/decisions/`)
@@ -60,7 +64,7 @@ For a **net-new external vendor**, run **`api-docs`** (`docs/<vendor>_api/`) and
 **Handoff → to-prd:**
 
 ```markdown
-## Handoff: discover → to-prd
+## Handoff: grill-with-docs → to-prd
 
 ### Feature summary
 [One paragraph: what, why, for whom]
@@ -103,7 +107,7 @@ For a **net-new external vendor**, run **`api-docs`** (`docs/<vendor>_api/`) and
 **Skill:** `to-prd`
 
 **What it does:**
-- Synthesizes the discover handoff and codebase understanding into a structured PRD
+- Synthesizes the grill-with-docs handoff and codebase understanding into a structured PRD
 - Proposes deep modules (small interface, deep logic) rather than file-level plans
 - Does a lightweight alignment check with the user
 - Submits the PRD as a GitHub issue via `gh issue create`
@@ -378,6 +382,15 @@ When all issues in the queue are shipped:
 ### Follow-ups
 - [ ] [Anything deferred or noted during implementation]
 ```
+
+---
+
+## Phase 5: Handoff
+
+**Skill:** `handoff`
+
+After all issues in the queue are shipped, invoke `handoff` to compact the session into
+`docs/handoffs/YYYY-MM-DD-{slug}.md` for the next session.
 
 ---
 
