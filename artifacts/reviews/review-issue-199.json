@@ -1,12 +1,11 @@
 {
   "id": "review-issue-199",
   "issue": 199,
-  "timestamp": "2026-06-12T06:00:00Z",
+  "timestamp": "2026-06-23T07:31:03Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-9 Juli Chat decision context: contextual suggested prompts and decision-aware mock replies wired to operations pipeline via URL param, session handoff, and top-recommendation fallback.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/decisions/chat-context.ts",
     "web/src/lib/decisions/chat-session.ts",
@@ -46,7 +45,7 @@
       "interface": "DecisionDetailFlow",
       "changeType": "modified",
       "breaking": false,
-      "description": "Adds Hỏi Juli link with decision handoff to /ai-chat."
+      "description": "Adds H\u1ecfi Juli link with decision handoff to /ai-chat."
     }
   ],
   "moduleDrift": false,
@@ -66,7 +65,7 @@
           "test": "web/src/__tests__/test_issue199_chat_decision_context.test.tsx::mock reply references decision-specific content when context present"
         },
         {
-          "criterion": "Test: chat page with decision context renders ≥1 workflow-specific prompt chip",
+          "criterion": "Test: chat page with decision context renders \u22651 workflow-specific prompt chip",
           "test": "web/src/__tests__/test_issue199_chat_decision_context.test.ts::builds contextual prompts with at least one workflow-specific chip"
         },
         {
@@ -81,5 +80,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

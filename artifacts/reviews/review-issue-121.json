@@ -1,13 +1,14 @@
 {
   "id": "review-issue-121",
   "issue": 121,
-  "timestamp": "2026-06-05T22:00:00Z",
+  "timestamp": "2026-06-23T07:30:57Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Growth Copilot workflow UI: ad performance summary (spend, ROAS, CPC, conversions) from mock fixtures, ranked scale/cut recommendations with metric citations in task bodies, shared no-op executor. SellerHomeShell routes growth workflow to GrowthCopilotPanel. No TikTok API calls.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -70,7 +71,7 @@
           "test": "web/src/__tests__/test_growth_copilot.test.tsx::dismiss removes campaign task from active queue"
         },
         {
-          "criterion": "Integration test: growth persona renders ≥2 ad tasks with metric citations",
+          "criterion": "Integration test: growth persona renders \u22652 ad tasks with metric citations",
           "test": "web/src/__tests__/test_growth_copilot.test.tsx::renders at least 2 ad tasks with ROAS or CPC metric citations in body"
         },
         {
@@ -89,5 +90,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

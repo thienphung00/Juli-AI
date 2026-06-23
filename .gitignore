@@ -10,9 +10,9 @@ build/
 # Agent runtime state (local resumption only — not source control)
 .agent-state/
 
-# CI/review artifacts (generated per run — not source control)
-artifacts/reviews/
-artifacts/validation/
+# Large runtime telemetry (small JSON artifacts under artifacts/ are committed per ADR-003)
+artifacts/runtime/raw/
+artifacts/runtime/logs/
 
 # Serialized ML model artifacts (runtime output — not source control)
 models/

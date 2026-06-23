@@ -1,12 +1,11 @@
 {
   "id": "review-issue-194",
   "issue": 194,
-  "timestamp": "2026-06-12T12:00:00Z",
+  "timestamp": "2026-06-23T07:31:02Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-9 Today's Report: five domain cards with tab switcher on Home, aggregating unified operational fixtures; reduced-motion respected; embedded between Shop Status hero and decision preview.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/operations/todays-report.ts",
     "web/src/components/home/todays-report/TodaysReportPanel.tsx",
@@ -78,5 +77,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

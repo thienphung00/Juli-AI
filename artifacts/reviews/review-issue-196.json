@@ -1,13 +1,14 @@
 {
   "id": "review-issue-196",
   "issue": 196,
-  "timestamp": "2026-06-12T05:15:00Z",
+  "timestamp": "2026-06-23T07:46:27Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "Decision detail flow on /decisions/[decisionId]: 5-step guided stepper (why → analytics → inputs → preview → approve) with Vietnamese labels, mock analytics/inputs/preview, scroll restoration on back, and reuse of useOperationsApproval + #181 executor routing.",
+  "summary": "Decision detail flow on /decisions/[decisionId]: 5-step guided stepper (why \u2192 analytics \u2192 inputs \u2192 preview \u2192 approve) with Vietnamese labels, mock analytics/inputs/preview, scroll restoration on back, and reuse of useOperationsApproval + #181 executor routing.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -67,5 +68,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

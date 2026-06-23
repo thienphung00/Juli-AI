@@ -1,12 +1,11 @@
 {
   "id": "review-issue-195",
   "issue": 195,
-  "timestamp": "2026-06-12T18:00:00Z",
+  "timestamp": "2026-06-23T07:31:02Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-9 Decisions Recommended tab: sub-tab chrome with full ranked clarity cards, required inputs, review links, and relocated approval gate via OperationsApprovalShell; Home remains read-only.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/components/DecisionsPage.tsx",
     "web/src/components/decisions/DecisionsSubTabs.tsx",
@@ -77,5 +76,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

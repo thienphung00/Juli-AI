@@ -58,7 +58,7 @@ Refactor completed 2026-06-09. Focus + skill-catalog are the authoritative route
 | Reliability / testing | `reliability.mdc` + `review` checklists |
 | MCP routing | `skill-catalog` index; Focus decides; `mcp-usage` principles |
 | Security (full) | `security.mdc`; essentials in `core-safety.mdc` |
-| Engineering pipeline | `build-feature` / `fix-bug` skills (not rules) |
+| Engineering pipeline | Agent phases in `docs/architecture/agent-runtime.md` (not rules) |
 | Review checks | `review/SKILL.md` + checklists (not duplicated in rules) |
 
 ## Repo skills inventory
@@ -67,18 +67,18 @@ Refactor completed 2026-06-09. Focus + skill-catalog are the authoritative route
 |-------|----------|---------|---------|
 | focus | standalone | **Router** | Every non-trivial task |
 | skill-catalog | index | Reference | Focus Step 0 / MCP touch |
-| discover | standalone | No | New feature / rescope |
-| to-prd | standalone | No | After discover |
+| to-prd | standalone | No | Planning (Architect) |
 | to-issues | standalone | No | After PRD |
-| tdd | standalone | No | Implementation |
-| review | standalone | No | Post-implementation |
-| ship | standalone | No | Merge / deploy |
+| ui-ux | domain | No | UI/UX Executor |
+| backend | domain | No | Backend Executor |
+| data-platform | domain | No | Data Platform Executor |
+| machine-learning | domain | No | ML Executor |
+| review | standalone | No | Review Agent phase |
+| ship | standalone | No | After validate passes |
 | validate | standalone | No | Pre-merge gates |
 | qa | standalone | No | Bug triage |
 | api-docs | standalone | No | New/stale vendor API |
 | platform-docs | standalone | No | Policy / feature guides |
-| build-feature | workflow | No | End-to-end feature |
-| fix-bug | workflow | No | Bug / regression |
 | python-patterns | domain | No | `src/**/*.py` |
 | python-testing | domain | No | pytest |
 | postgres-patterns | domain | No | SQL / migrations |

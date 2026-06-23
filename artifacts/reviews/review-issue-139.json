@@ -1,20 +1,20 @@
 {
   "id": "review-issue-139",
   "issue": 139,
-  "timestamp": "2026-06-06T12:00:00Z",
+  "timestamp": "2026-06-23T07:30:58Z",
   "reviewedBy": "review skill",
-  "status": "PASS",
+  "status": "PASS_WITH_WARNINGS",
   "summary": "Phase 1.5 buyer-behavior anomaly detector: trains on labels.parquet joined to Group A features, reports per-class precision/recall for item_swap and empty_return, exposes inference schema with feature_summary for Phase 2 UI evidence. ADR-011 scope enforced.",
-  "criticalFindings": [],
-  "warnings": [
+  "criticalFindings": [
     {
-      "domain": "reliability",
-      "description": "Sparse empty_return labels in small synthetic datasets require golden profile augmentation for stable 3-class training.",
-      "status": "accepted",
-      "rationale": "Documented in ADR-016 and train.py; production backtest runs use larger datasets."
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Sparse empty_return labels in small synthetic datasets require golden profile augmentation for stable 3-class training. \u2014 Rationale: Documented in ADR-016 and train.py; production backtest runs use larger datasets."
     }
   ],
-  "modulesTouched": ["src/modules/ml/anomaly"],
+  "modulesTouched": [
+    "src/modules/ml/anomaly"
+  ],
   "interfaceChanges": [
     {
       "module": "src/modules/ml/anomaly",
@@ -35,7 +35,7 @@
       "interface": "build_anomaly_training_frame",
       "changeType": "added",
       "breaking": false,
-      "description": "Return-level join of labels.parquet and buyer×shop feature matrix."
+      "description": "Return-level join of labels.parquet and buyer\u00d7shop feature matrix."
     }
   ],
   "moduleDrift": false,
@@ -90,5 +90,29 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Sparse empty_return labels in small synthetic datasets require golden profile augmentation for stable 3-class training. \u2014 Rationale: Documented in ADR-016 and train.py; production backtest runs use larger datasets."
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Sparse empty_return labels in small synthetic datasets require golden profile augmentation for stable 3-class training. \u2014 Rationale: Documented in ADR-016 and train.py; production backtest runs use larger datasets."
+    }
+  ],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

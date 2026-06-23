@@ -1,12 +1,11 @@
 {
   "id": "review-issue-198",
   "issue": 198,
-  "timestamp": "2026-06-12T05:45:00Z",
+  "timestamp": "2026-06-23T07:31:02Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-9 Workflow Templates sub-tab: grouped mock threshold sliders and automation toggles for all six validated workflows; session-local state; advanced styling; no approval or execution actions.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/components/DecisionsPage.tsx",
     "web/src/components/decisions/DecisionsWorkflowTemplatesShell.tsx",
@@ -49,7 +48,7 @@
       "mappings": [
         {
           "criterion": "Workflow Templates sub-tab reachable from Decisions; not the default tab",
-          "test": "web/src/__tests__/test_issue198_decisions_templates.test.tsx::is not the default Decisions tab — Recommended stays selected on load"
+          "test": "web/src/__tests__/test_issue198_decisions_templates.test.tsx::is not the default Decisions tab \u2014 Recommended stays selected on load"
         },
         {
           "criterion": "At least one configurable control per workflow group (mock)",
@@ -71,5 +70,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

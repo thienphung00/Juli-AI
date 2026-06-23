@@ -1,13 +1,14 @@
 {
   "id": "review-issue-115",
   "issue": 115,
-  "timestamp": "2026-06-05T12:00:00Z",
+  "timestamp": "2026-06-23T07:30:57Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Affiliate workspace mode gated behind a Vietnamese out-of-scope shell in AuthenticatedShell; seller mode retains dark theme and workflow UI. Mode switcher and localStorage persistence unchanged.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -64,5 +65,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

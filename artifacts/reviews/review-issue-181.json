@@ -1,12 +1,11 @@
 {
   "id": "review-issue-181",
   "issue": 181,
-  "timestamp": "2026-06-12T12:00:00Z",
+  "timestamp": "2026-06-23T07:31:01Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-6 unified approval gate + execution routing: OperationsPipelineShell with Shop Health hero, Clarity Cards, approval toolbar; approve-all/selective/reject-with-reason; routes NPL to ListingWorkflowPanel, Refund Spike to LeakageWorkflowPanel, deferred workflows to no-op toast. Reuses TaskDismissModal and useTaskExecutor.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/components/workflows/operations/OperationsPipelineShell.tsx",
     "web/src/components/workflows/operations/ApprovalGate.tsx",
@@ -76,5 +75,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

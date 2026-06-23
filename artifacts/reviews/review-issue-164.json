@@ -1,12 +1,11 @@
 {
   "id": "review-issue-164",
   "issue": 164,
-  "timestamp": "2026-06-08T09:15:00Z",
+  "timestamp": "2026-06-23T07:31:00Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.7 leakage workflow mock fixtures: typed LeakageWorkflowTask loaders for all four task types with evidence bundles, root cause, execution plans, and PII-safe validation. Persona aligned (buyer_cancellation_cluster, return_window_policy). No API or DB calls.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/mock-data/leakage-workflow",
     "web/src/lib/mock-data/seller-personas/fixtures/leakage-persona"
@@ -75,6 +74,25 @@
           "test": "web/src/__tests__/test_leakage_workflow_fixtures.test.ts::has no TikTok API or Postgres imports in fixture module entrypoint"
         }
       ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
     }
-  }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }

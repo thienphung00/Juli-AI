@@ -1,13 +1,14 @@
 {
   "id": "review-issue-118",
   "issue": 118,
-  "timestamp": "2026-06-05T20:00:00Z",
+  "timestamp": "2026-06-23T07:30:57Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Seller home shell replaces legacy creator-matching seller entry with stage-routed workflow UI, persisted persona switcher, Vietnamese copy, and integration tests for routing. Phone-OTP auth unchanged.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -82,5 +83,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

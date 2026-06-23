@@ -1,13 +1,14 @@
 {
   "id": "review-issue-120",
   "issue": 120,
-  "timestamp": "2026-06-05T21:00:00Z",
+  "timestamp": "2026-06-23T07:30:57Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Revenue leakage workflow UI: ranked anomaly tasks with severity/VND impact, masked evidence drill-down via resolveEvidence, leakage-specific empty state, shared no-op executor. Rebased onto main (#119); SellerHomeShell routes new_seller + leakage workflows. No TikTok API calls; PII keys excluded from evidence drawer.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -51,7 +52,7 @@
           "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::renders ranked anomaly tasks with severity labels"
         },
         {
-          "criterion": "Drill-down shows supporting mock evidence (order IDs, return reasons, affiliate IDs — masked)",
+          "criterion": "Drill-down shows supporting mock evidence (order IDs, return reasons, affiliate IDs \u2014 masked)",
           "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::opens evidence drawer without forbidden PII field names"
         },
         {
@@ -63,8 +64,8 @@
           "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::approve/dismiss uses shared executor on leakage tasks"
         },
         {
-          "criterion": "Empty state: Không phát hiện rò rỉ tuần này for persona with no signals",
-          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::shows \"Không phát hiện rò rỉ tuần này\" when persona has no leakage tasks"
+          "criterion": "Empty state: Kh\u00f4ng ph\u00e1t hi\u1ec7n r\u00f2 r\u1ec9 tu\u1ea7n n\u00e0y for persona with no signals",
+          "test": "web/src/__tests__/test_revenue_leakage_ui.test.tsx::shows \"Kh\u00f4ng ph\u00e1t hi\u1ec7n r\u00f2 r\u1ec9 tu\u1ea7n n\u00e0y\" when persona has no leakage tasks"
         },
         {
           "criterion": "Integration test: leakage persona renders anomalies with severity labels",
@@ -82,5 +83,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

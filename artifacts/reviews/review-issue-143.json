@@ -1,12 +1,11 @@
 {
   "id": "review-issue-143",
   "issue": 143,
-  "timestamp": "2026-06-06T14:00:00Z",
+  "timestamp": "2026-06-23T07:30:59Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.5-7 Phase 2 target architecture published in target-v2.md with mermaid/ASCII pipeline, Phase 1 vs Phase 2 comparison, health_data_source contract, buyer-behavior anomaly scope, forbidden scope table, and cross-links from EXECUTION, system-design, and map. Eight doc contract tests lock acceptance criteria.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "docs/architecture/target-v2.md",
     "docs/system-design.md",
@@ -52,6 +51,25 @@
           "test": "tests/unit/test_target_v2_docs.py::test_target_v2_excludes_forbidden_scope"
         }
       ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
     }
-  }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }

@@ -1,7 +1,7 @@
 {
   "id": "review-issue-70",
   "issue": 70,
-  "timestamp": "2026-05-29T12:00:00Z",
+  "timestamp": "2026-06-23T07:31:04Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "UI-only home renders the seller dashboard with demo shop data, skips shops API, and splits authenticated routing to reduce cold-compile graph; lucide import optimization in next.config.js.",
@@ -51,5 +51,17 @@
   "recommendations": [
     "Manually verify cold first compile with rm -rf .next/cache && NEXT_PUBLIC_UI_ONLY=1 npm run dev."
   ],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }

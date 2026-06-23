@@ -2,7 +2,7 @@
 name: focus
 description: >-
   Default context router — classifies tasks and produces a Context Plan for docs,
-  rules, skills, MCPs, and workflow phases. Invoke at conversation start and before
+  rules, skills, MCPs, and agent phases. Invoke at conversation start and before
   implementation; also when switching features or context overload is detected.
 catalog:
   pluginIndex: skill-catalog
@@ -18,7 +18,7 @@ The most important skill. LLMs fail because of too much context, wrong context, 
 
 ## Purpose
 
-Decide what gets loaded into the agent's context window. Acts as the **single router** for workflow phases, Tier 2 rules, canonical docs, domain patterns, plugin skills, and MCP servers.
+Decide what gets loaded into the agent's context window. Acts as the **single router** for agent phases, Meta Agent context/skill routing, Tier 2 rules, canonical docs, domain patterns, plugin skills, and MCP servers.
 
 ## When to Invoke
 
@@ -27,11 +27,11 @@ Decide what gets loaded into the agent's context window. Acts as the **single ro
 | Trigger | Action |
 |---------|--------|
 | New user message (non-trivial) | Classify task → produce Context Plan |
-| After `discover` → `to-prd`/`to-issues` | Re-run before implementation |
+| After Planning (`to-prd` / `to-issues`) | Re-run before implementation |
 | Switching features mid-session | Re-run; update DO NOT Load list |
 | Context window large / agent confused | Re-run; trim loaded context |
 
-**Ad-hoc chat:** Focus only — do not auto-enter discover/tdd/review unless the user asks.
+**Ad-hoc chat:** Focus only — do not auto-enter Review, Executor, or Validate phases unless the user asks.
 
 ## Runtime Flow
 
@@ -39,22 +39,24 @@ Decide what gets loaded into the agent's context window. Acts as the **single ro
 User message
   → Tier 1 rules (core-safety, core-orchestration, mcp-usage, git-baseline)
   → Focus (this skill) → Context Plan
-  → Load selected: workflow phase | Tier 2 rules | docs | domain skills | plugin skills | MCP schemas
+  → Load selected: agent phase | Tier 2 rules | docs | domain skills | plugin skills | MCP schemas
   → Execute task
 ```
 
 ## Context Decision Algorithm
 
-### Step 0: Classify workflow phase
+### Step 0: Classify agent phase
 
-| Task signal | Workflow |
-|-------------|----------|
-| New initiative / rescope | `discover` → canonical docs |
-| Spec from conversation | `to-prd` → `to-issues` |
-| GitHub issue implementation | `focus` → `tdd` → `review` → `ship` → `validate` |
-| Bug / failing test / Sentry | `fix-bug`: `qa` → `focus` → `tdd` → … |
-| End-to-end feature build | `build-feature` orchestrator |
-| Parallel issues / worktrees | `issue-workflow.mdc` + `docs/handoffs/` |
+| Task signal | Agent phase | Load |
+|-------------|-------------|------|
+| New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../docs/architecture/agent-runtime.md) Planning section; canonical docs; `to-prd` path |
+| Spec from conversation | Planning | `to-prd` → `to-issues` |
+| GitHub issue implementation | Implementation | Meta routing; domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
+| Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
+| Post-implementation quality gate | Review + Testing | `review` → `validate` → `ship` |
+| Parallel issues / worktrees | Implementation | `issue-workflow.mdc` + `docs/handoffs/` |
+
+Domain executor skills live under `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning}/`.
 
 ### Step 1: Plugin and MCP routing
 
@@ -90,11 +92,11 @@ Detect what the implementation involves:
 | AI model integration | → `review` (ai-integration checklist), reliability, observability rules |
 | Financial/sensitive data | → `review` (security section), `.cursor/rules/security.mdc` |
 | New API endpoint | → `review` (api-endpoint checklist), security, observability |
-| Database changes / SQL | → `.cursor/skills/domain/postgres-patterns.md`, `.cursor/rules/performance.mdc` |
-| Python code / FastAPI | → `.cursor/skills/domain/python-patterns.md`, `code-quality.mdc` |
-| Python tests / pytest | → `.cursor/skills/domain/python-testing.md`, `reliability.mdc` |
-| SwiftUI / iOS | → `.cursor/skills/domain/swift-patterns.md` |
-| Frontend component / page / form | → `ui-ux-design`, `web/MODULE.md`; `shadcn` only if adding registry primitives |
+| Database changes / SQL | → `data-platform` executor, `postgres-patterns`, `performance.mdc` |
+| Python code / FastAPI | → `backend` executor, `python-patterns`, `code-quality.mdc` |
+| Python tests / pytest | → `backend` executor, `python-testing`, `reliability.mdc` |
+| SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
+| Frontend component / page / form | → `ui-ux` executor, `ui-ux-design`, `web/MODULE.md`; `shadcn` only if adding registry primitives |
 | Background job | → Celery MCP, reliability, observability |
 | TikTok integration / webhook | → `docs/tiktok_api/`, `data-sources.md`, affected MODULE.md |
 | Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first |
@@ -117,14 +119,14 @@ ALWAYS load:
 
 ### Step 4: Load Task Context
 
-From the GitHub issue (PRD from `to-prd`), discover handoff, and vendor docs:
+From the GitHub issue (PRD from `to-prd`), planning handoff, and vendor docs:
 
 ```
 ALWAYS load:
   - Relevant EXECUTION.md slice(s) driving the issue
   - docs/system-design.md sections for affected subsystems
   - GitHub issue body (acceptance criteria, user stories)
-  - discover → to-prd handoff (scope, edge cases, implementation decisions)
+  - to-prd / planning handoff (scope, edge cases, implementation decisions)
 
 LOAD WHEN VENDOR/PLATFORM WORK:
   - docs/<vendor>_api/*.md as needed (auth, webhooks, endpoints, rate-limits)
@@ -236,11 +238,12 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 ```markdown
 ## Context Plan: [Feature/Task Name]
 
-### Workflow Phase
+### Agent Phase
 - [ ] ad-hoc (Focus only)
-- [x] issue implementation: focus → tdd → review → ship
-- [ ] fix-bug: qa → focus → tdd → …
-- [ ] discover / to-prd / to-issues / build-feature
+- [ ] Planning: Architect Agent (focus → to-prd → to-issues)
+- [x] Implementation: Meta routing → Executor (built-in TDD)
+- [ ] Review + Testing: review → validate → ship-ready
+- [ ] Harness Optimization: Meta (post-validation)
 
 ### Rules (Tier 2 — load selectively)
 - [x] `.cursor/rules/reliability.mdc`
@@ -250,7 +253,7 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 - [ ] `.cursor/rules/code-quality.mdc`
 
 ### Skills
-- [x] `tdd`
+- [x] Executor built-in TDD (Red → Green → Refactor)
 - [ ] `review` (post-implementation)
 - [ ] Plugin: `nextjs` (web/ work)
 
@@ -283,10 +286,64 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 
 | Agent | Uses Navigator For |
 |-------|-------------------|
-| Discovery Agent | Updates canonical docs; handoff consumed by to-prd |
-| Implementation Agent | Gets precisely scoped context for coding |
-| Validation Agent | Gets standards + canonical docs + issue for review |
-| Context Manager | IS the focus skill |
+| Architect Agent | Planning context; canonical docs; `to-prd` / `to-issues` handoffs |
+| Meta Agent | Context routing, skill routing, executor domain assignment (IS built on focus) |
+| Executor Agent | Precisely scoped implementation context; built-in TDD |
+| Review Agent | Standards + canonical docs + issue for review and validation |
+
+## Meta Agent — Harness Optimization (post-validation)
+
+After `validate` completes (PASS or FAIL), Meta Agent consumes execution artifacts
+and emits optimization output. This is a **Focus-routed** step — not a separate skill.
+
+### When to run
+
+| Trigger | Action |
+|---------|--------|
+| Validation artifact written | Read all three execution artifacts; emit harness optimization |
+| Repeated failure pattern (2+ issues) | Consider product-development optimization |
+| Benchmark rerun (Phase 6) | Compare `baselineMetrics` per [`agent-runtime-benchmarks.md`](../../../docs/architecture/agent-runtime-benchmarks.md) |
+
+### Inputs (required)
+
+| Artifact | Path |
+|----------|------|
+| Implementation | `artifacts/implementations/implementation-issue-<n>.json` |
+| Review | `artifacts/reviews/review-issue-<n>.json` |
+| Validation | `artifacts/validation/validation-issue-<n>.json` |
+
+### Harness optimization output (every run)
+
+Write `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json`:
+
+1. Copy signals from source artifacts (`tokenUsage`, `toolInvocationCount`, `reviewFailures`, `validationFailures`, `retryCount`, `contextFilesLoaded`, `skillsLoaded`).
+2. Populate `baselineMetrics` with all eight metrics (see [`agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)).
+3. Set `rootCauseCategory` from the initial enum set (`context_overloaded`, `wrong_executor_domain`, etc.).
+4. Propose one concrete `proposedOptimization` with `expectedMetricImpact`.
+5. Set `autoApplyEligible: true` only for safe harness-config changes (context budget, routing hints) — never for skills, rules, or product scope.
+6. Set `appliedStatus: "proposed"` until Architect approves and a benchmark rerun marks `"measured"`.
+
+Schema: [`docs/schemas/agent-runtime/harness-optimization-artifact.schema.json`](../../../docs/schemas/agent-runtime/harness-optimization-artifact.schema.json)
+
+### Product-development optimization (occasional)
+
+Emit only when repeated evidence indicates planning or architecture process failure
+(e.g. same module fails review 3+ times, recurring executor domain mismatch, missing
+acceptance criteria across issues).
+
+Write `artifacts/optimization/product-development-<id>.json` with `acceptedByArchitect: "pending"`.
+
+Schema: [`docs/schemas/agent-runtime/product-development-optimization-artifact.schema.json`](../../../docs/schemas/agent-runtime/product-development-optimization-artifact.schema.json)
+
+Handoff template: [`docs/templates/handoffs/validation-meta.md`](../../../docs/templates/handoffs/validation-meta.md)
+
+Benchmark protocol: [`docs/architecture/agent-runtime-benchmarks.md`](../../../docs/architecture/agent-runtime-benchmarks.md)
+
+### Must not (Meta Agent)
+
+- Implement features or bypass Review Agent / Validate
+- Auto-edit skills, rules, ADRs, PRDs, or architecture docs
+- Ship or merge PRs
 
 ## Anti-Patterns
 
@@ -300,9 +357,10 @@ Loading specs from features that have since changed — causes hallucinated patt
 Loading the same information from multiple sources — wastes budget, risks conflicts.
 
 ### Missing Context
-Not loading discover handoff edge cases or system-design failure modes — agent produces happy-path-only code.
+Not loading planning handoff edge cases, issue acceptance criteria, or system-design failure modes — agent produces happy-path-only code.
 
 ## Additional Resources
 
-- For architecture layer reference, see `discover/architecture-context.md`
+- Agent runtime architecture: [`docs/architecture/agent-runtime.md`](../../../docs/architecture/agent-runtime.md)
+- Runtime artifacts: [`docs/architecture/agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)
 - For context routing rules, see [routing-rules.md](routing-rules.md)

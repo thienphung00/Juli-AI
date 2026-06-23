@@ -12,6 +12,9 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
     VALIDATION_DIR,
+    enrich_validation_artifact,
+    load_review_artifact,
+    merge_override_active,
     resolve_issue_number,
     utc_now_iso,
     write_json,
@@ -28,6 +31,11 @@ CHECKS: list[tuple[str, str]] = [
     ("handoff_structure", "check_handoff.py"),
     ("adr_requirement", "check_adr.py"),
     ("done_md_completion", "check_done_md.py"),
+    ("critical_findings_resolved", "check_critical_findings_resolved.py"),
+    ("findings_acknowledged", "check_findings_acknowledged.py"),
+    ("reviewer_signoff_present", "check_reviewer_signoff.py"),
+    ("owner_signoff_present", "check_owner_signoff.py"),
+    ("ml_gates_enforced", "check_ml_gates.py"),
 ]
 
 
@@ -69,6 +77,42 @@ def main() -> int:
         print(f"{check_name}: {'PASS' if passed else 'FAIL'}")
 
     status = "PASS" if failed == 0 else "FAIL"
+    review = load_review_artifact(issue)
+    warning_count = 0
+    review_status = None
+    if review:
+        review_status = review.get("status")
+        warning_count = sum(
+            1
+            for finding in review.get("criticalFindings", [])
+            if finding.get("severity") == "WARNING"
+        )
+
+    if failed == 0 and review_status == "PASS_WITH_WARNINGS":
+        overall = (
+            f"All {len(results)} validation checks passed; review has {warning_count} "
+            "gating warning(s) with explicit signoff (PASS_WITH_WARNINGS)."
+        )
+    elif failed == 0:
+        overall = "All validation checks passed."
+    else:
+        overall = f"{failed} validation check(s) failed."
+
+    merge_blocked_by_warnings = (
+        review_status == "PASS_WITH_WARNINGS"
+        and any(c["name"] in {
+            "findings_acknowledged",
+            "reviewer_signoff_present",
+            "owner_signoff_present",
+        } and c["status"] == "FAIL" for c in results)
+    )
+
+    merge_allowed_with_override = (
+        review is not None
+        and review.get("status") == "FAIL"
+        and merge_override_active(review)
+    )
+
     artifact: dict[str, Any] = {
         "id": f"validation-issue-{issue}",
         "issue": issue,
@@ -78,11 +122,16 @@ def main() -> int:
         "passedChecks": len(results) - failed,
         "failedChecks": failed,
         "checks": results,
-        "overallSummary": "All validation checks passed."
-        if failed == 0
-        else f"{failed} validation check(s) failed.",
-        "readyForMerge": failed == 0,
+        "overallSummary": overall,
+        "readyForMerge": failed == 0 and (review_status != "FAIL" or merge_allowed_with_override),
+        "warningGated": review_status == "PASS_WITH_WARNINGS",
+        "mergeBlockedByWarnings": merge_blocked_by_warnings,
+        "mergeOverrideActive": merge_allowed_with_override,
     }
+    if review_status:
+        artifact["reviewStatus"] = review_status
+        artifact["reviewWarningCount"] = warning_count
+    enrich_validation_artifact(artifact, issue, review)
 
     out = VALIDATION_DIR / f"validation-issue-{issue}.json"
     write_json(out, artifact)

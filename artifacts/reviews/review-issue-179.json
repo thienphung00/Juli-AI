@@ -1,12 +1,11 @@
 {
   "id": "review-issue-179",
   "issue": 179,
-  "timestamp": "2026-06-12T10:00:00Z",
+  "timestamp": "2026-06-23T07:31:01Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "P1.8-4 workflow recommendation ranking: rankWorkflowRecommendations pure function, workflow_recommendations envelope, profile-gated scoring, useOperationsPipeline hook orchestrating load → classify → health → rank. MID_LARGE impact threshold deferred (null) per ADR-026.",
+  "summary": "P1.8-4 workflow recommendation ranking: rankWorkflowRecommendations pure function, workflow_recommendations envelope, profile-gated scoring, useOperationsPipeline hook orchestrating load \u2192 classify \u2192 health \u2192 rank. MID_LARGE impact threshold deferred (null) per ADR-026.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/operations/recommendations.ts",
     "web/src/lib/operations/use-operations-pipeline.ts",
@@ -52,7 +51,7 @@
           "test": "web/src/__tests__/test_operations_recommendations.test.ts::never references workflow IDs outside the validated catalog"
         },
         {
-          "criterion": "Integration test: mock persona fixture → full classify → health → rank envelope chain via hook",
+          "criterion": "Integration test: mock persona fixture \u2192 full classify \u2192 health \u2192 rank envelope chain via hook",
           "test": "web/src/__tests__/test_operations_pipeline_hook.test.ts::integration mock persona classify health rank envelope chain via hook"
         },
         {
@@ -67,5 +66,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

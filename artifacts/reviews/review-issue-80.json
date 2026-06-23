@@ -1,13 +1,14 @@
 {
   "id": "review-issue-80",
   "issue": 80,
-  "timestamp": "2026-05-29T04:35:00Z",
+  "timestamp": "2026-06-23T07:31:04Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Trends discovery page with debounced search, Product/Creator/Shop tabs, role-aware seller vs affiliate fields, mock data service layer, and market-intel placeholder banner on cross-shop tabs.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -60,5 +61,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

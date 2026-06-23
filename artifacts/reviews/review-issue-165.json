@@ -1,12 +1,11 @@
 {
   "id": "review-issue-165",
   "issue": 165,
-  "timestamp": "2026-06-08T09:50:00Z",
+  "timestamp": "2026-06-23T07:31:00Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Leakage workflow state machine and useLeakageWorkflow hook: six-step graph with workflow_status transitions, canAdvance guards (evidence reviewed + PII guard), sessionStorage resume. Pure state-machine unit tests; no UI, API, or DB.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/workflows/leakage"
   ],
@@ -77,6 +76,25 @@
           "test": "web/src/__tests__/test_leakage_workflow_state_machine.test.ts::has no TikTok API or Postgres imports in leakage workflow module"
         }
       ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
     }
-  }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }

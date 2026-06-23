@@ -1,12 +1,11 @@
 {
   "id": "review-issue-177",
   "issue": 177,
-  "timestamp": "2026-06-12T02:00:00Z",
+  "timestamp": "2026-06-23T07:31:01Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-1 shop profile classification: classifyShopProfile pure function, ADR-026 WORKFLOW_CATALOG, boundary fixtures, and 14 unit tests. Extends seller-stage-router without replacing demo persona routing.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/operations/classification.ts",
     "web/src/lib/operations/workflow-catalog.ts",
@@ -49,7 +48,7 @@
           "test": "web/src/__tests__/test_operations_classification.test.ts::covers every validated workflow exactly once across profiles"
         },
         {
-          "criterion": "Unit tests with boundary fixtures: probation shop → NEW_SHOP; graduated mid/large → MID_LARGE_SHOP",
+          "criterion": "Unit tests with boundary fixtures: probation shop \u2192 NEW_SHOP; graduated mid/large \u2192 MID_LARGE_SHOP",
           "test": "web/src/__tests__/test_operations_classification.test.ts::routes active probation shops to NEW_SHOP"
         },
         {
@@ -68,5 +67,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

@@ -1,12 +1,11 @@
 {
   "id": "review-issue-176",
   "issue": 176,
-  "timestamp": "2026-06-12T00:55:00Z",
+  "timestamp": "2026-06-23T07:31:01Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "P1.8-2 unified operational data model fixtures: typed schemas, NEW_SHOP/MID_LARGE_SHOP mock envelopes, datum→workflow traceability map with CI enforcement, and PersonaSwitcher loaders.",
+  "summary": "P1.8-2 unified operational data model fixtures: typed schemas, NEW_SHOP/MID_LARGE_SHOP mock envelopes, datum\u2192workflow traceability map with CI enforcement, and PersonaSwitcher loaders.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/mock-data/operations/schemas.ts",
     "web/src/lib/mock-data/operations/traceability.ts",
@@ -30,7 +29,7 @@
       "interface": "DATUM_TRACEABILITY_MAP / exportTraceabilityArtifact",
       "changeType": "added",
       "breaking": false,
-      "description": "Datum→workflow_id traceability map enforcing ADR-026 constraint #4."
+      "description": "Datum\u2192workflow_id traceability map enforcing ADR-026 constraint #4."
     }
   ],
   "moduleDrift": false,
@@ -51,7 +50,7 @@
         },
         {
           "criterion": "Traceability map artifact test asserting every datum key maps to catalog workflow_id",
-          "test": "web/src/__tests__/test_operations_fixtures.test.ts::asserts every present datum in fixtures maps to ≥1 workflow"
+          "test": "web/src/__tests__/test_operations_fixtures.test.ts::asserts every present datum in fixtures maps to \u22651 workflow"
         },
         {
           "criterion": "Test asserting no datum exists outside the six-workflow signal requirements",
@@ -62,6 +61,25 @@
           "test": "web/src/__tests__/test_operations_fixtures.test.ts::ships MODULE.md documenting operations loaders"
         }
       ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
     }
-  }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }

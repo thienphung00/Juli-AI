@@ -1,27 +1,28 @@
 {
   "id": "review-issue-123",
   "issue": 123,
-  "timestamp": "2026-06-05T23:45:00Z",
+  "timestamp": "2026-06-23T07:30:58Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "Retired legacy creator-matching routes (/creators, /recommendations) via 301 redirects to seller home. Bottom nav reduced to Trang chủ + Juli. Client-side LegacyRouteRedirect fallback preserves session. Auth and mode-select flows unchanged.",
+  "summary": "Retired legacy creator-matching routes (/creators, /recommendations) via 301 redirects to seller home. Bottom nav reduced to Trang ch\u1ee7 + Juli. Client-side LegacyRouteRedirect fallback preserves session. Auth and mode-select flows unchanged.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
       "interface": "BOTTOM_NAV_TABS",
       "changeType": "modified",
       "breaking": false,
-      "description": "Removed Creators and Gợi ý tabs; seller home + Juli only."
+      "description": "Removed Creators and G\u1ee3i \u00fd tabs; seller home + Juli only."
     },
     {
       "module": "web",
       "interface": "LEGACY_ROUTE_REDIRECTS",
       "changeType": "modified",
       "breaking": false,
-      "description": "Added /creators and /recommendations → / permanent redirects."
+      "description": "Added /creators and /recommendations \u2192 / permanent redirects."
     },
     {
       "module": "web",
@@ -71,5 +72,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

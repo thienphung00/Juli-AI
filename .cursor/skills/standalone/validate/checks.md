@@ -20,6 +20,13 @@ listed below, in this order.
 - If `status == "FAIL"`, validation immediately fails (do not merge a FAIL review).
 - If any `criticalFindings[*].severity == "CRITICAL"`, the artifact's `status`
   must be `FAIL` — mismatches fail this check.
+- If any `criticalFindings[*].severity == "WARNING"` (after normalizing legacy
+  `warnings[]`), `status` must be `PASS_WITH_WARNINGS`, not `PASS`.
+- Legacy top-level `warnings[]` entries must be migrated into `criticalFindings`;
+  non-empty `warnings[]` fails this check (regenerate via
+  `scripts/ci/generate_review_artifact.py` or `normalize_review_artifacts.py`).
+- Structural validity only — blocking CRITICAL findings and `FAIL` status are
+  enforced by `critical_findings_resolved`.
 
 ## 2. `acceptance_criteria_mapped`
 
@@ -118,3 +125,94 @@ hyphen-separated lowercase slug. The `adr-NNN.md` form is rejected.
 **Conditional items** (e.g. "MODULE.md updated if interfaces changed") are
 checked only when their precondition is true (see [`done.md`](../../../done.md)
 for the conditional table).
+
+## 8. `critical_findings_resolved`
+
+**Script:** [`scripts/validate/check_critical_findings_resolved.py`](../../../scripts/validate/check_critical_findings_resolved.py)
+
+**Reads:** review artifact `status`, `criticalFindings`, `testCoverage`, `mlGates`,
+`priorReviewBlockers`.
+
+**Passes if:**
+- No effective mandatory fail triggers after applying a valid `overriddenMerge`
+  (see merge gating summary).
+- Mandatory triggers: CRITICAL security, production data exposure, test regression,
+  incomplete acceptance criteria, unresolved prior blockers, missing ML gates when
+  ML modules touched.
+- Any `severity == "CRITICAL"` or `actionRequired: true` finding forces
+  `status: "FAIL"` (never overridable).
+- `status: "FAIL"` blocks merge unless `overriddenMerge` clears all overridable
+  mandatory fails and no CRITICAL/actionRequired findings remain.
+
+**`overriddenMerge` (hotfix):** requires `timestamp`, `overriddenBy`, `reason`,
+`incidentLink`. Clears overridable mandatory fails only; CRITICAL security and
+production data exposure are never cleared.
+
+## 9. `findings_acknowledged`
+
+**Script:** [`scripts/validate/check_findings_acknowledged.py`](../../../scripts/validate/check_findings_acknowledged.py)
+
+**Passes if (when `status == "PASS_WITH_WARNINGS"`):**
+- **Every** WARNING finding has `acceptanceByReviewer: true`, `ownerAck: true`, and
+  either `fixedInCommit` or `shipAsIsReason`.
+
+**Per-finding dual signoff (blocks entire review):** There is no partial merge.
+If one WARNING lacks reviewer acceptance, the whole review blocks — even when
+other findings are fully acknowledged and global signoffs are present.
+
+| Finding #1 | Finding #2 | Merge? |
+|--------------|------------|--------|
+| ack'd | ack'd | Yes (if global signoffs present) |
+| ack'd | `acceptanceByReviewer: false` | **No** — blocks on #2 |
+| ack'd | missing `ownerAck` | **No** |
+
+`shipAsIsReason` documents accepted risk; `targetFixDate` tracks planned debt.
+Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
+
+**Skipped when:** review is `PASS` (no gating warnings).
+
+## 10. `reviewer_signoff_present`
+
+**Script:** [`scripts/validate/check_reviewer_signoff.py`](../../../scripts/validate/check_reviewer_signoff.py)
+
+**Passes if (when `status == "PASS_WITH_WARNINGS"`):**
+- `reviewerSignoff.statement`, `reviewerSignoff.timestamp`, and
+  `reviewerSignoff.acceptedRisks: true` are present.
+
+## 11. `owner_signoff_present`
+
+**Script:** [`scripts/validate/check_owner_signoff.py`](../../../scripts/validate/check_owner_signoff.py)
+
+**Passes if (when `status == "PASS_WITH_WARNINGS"`):**
+- `ownerSignoff.statement`, `ownerSignoff.timestamp`, and
+  `ownerSignoff.acknowledged: true` are present.
+
+## 12. `ml_gates_enforced`
+
+**Script:** [`scripts/validate/check_ml_gates.py`](../../../scripts/validate/check_ml_gates.py)
+
+**Passes if (when any `modulesTouched` path is under `src/modules/ml/`):**
+- `mlGates.coldStartThresholdDocumented: true`
+- `mlGates.promotionGateDocumented: true`
+- Source scan: cold-start constants exist in `thresholds.py` for touched inference
+  modules (`ad_performance`, `anomaly`, `seller_stage`).
+- Source scan: promotion constants exist in `artifacts/thresholds.py` when trainer
+  modules are touched.
+- When `mlGates.thresholds` is declared, values must match source constants.
+
+**Skipped when:** no ML modules touched.
+
+## Merge gating summary
+
+| Review status | Blocks merge? |
+|---------------|---------------|
+| `PASS` | No (when all 12 checks pass) |
+| `PASS_WITH_WARNINGS` | Yes until **every** WARNING has per-finding ack + global signoffs |
+| `FAIL` | Yes — unless valid `overriddenMerge` clears overridable mandatory fails |
+
+**Per-finding rule:** All WARNING findings must pass `finding_is_acknowledged()`
+individually; one unacked finding blocks the entire review (no partial merge).
+
+**Override rule:** `overriddenMerge` is audited hotfix metadata. Never overrides
+CRITICAL security, production data exposure, CRITICAL findings, or
+`actionRequired` items.

@@ -7,7 +7,7 @@ description: Synthesizes the current conversation context and codebase understan
 
 Turn the current conversation context into a PRD and submit it as a GitHub issue. Do **not** interview the user—synthesize what you already know from the conversation and repository patterns.
 
-In the `build-feature` pipeline, consume the **discover → to-prd handoff** and updated
+In the Planning phase, consume the **planning → to-prd handoff** and updated
 canonical docs (`EXECUTION.md`, `docs/system-design.md`, `docs/architecture/`, ADRs).
 Do not re-interview; note assumptions from the handoff in the PRD.
 
@@ -15,7 +15,7 @@ Do not re-interview; note assumptions from the handoff in the PRD.
 
 #### 1) Understand the current state
 
-- Read the discover handoff (if present) and relevant `EXECUTION.md` slices
+- Read the planning handoff (if present) and relevant `EXECUTION.md` slices
 - Explore the repo enough to understand:
   - the product surface area (apps/services/packages)
   - the major modules and boundaries

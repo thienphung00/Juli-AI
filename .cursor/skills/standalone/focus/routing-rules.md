@@ -71,7 +71,7 @@ Some detections override others:
 | Context Type | Staleness Threshold | Action |
 |-------------|--------------------:|--------|
 | EXECUTION.md / system-design.md | If rescope PR merged | Reload affected slices/sections |
-| GitHub issue / PRD | If discover handoff updated since issue filed | Reload issue + handoff |
+| GitHub issue / PRD | If planning handoff updated since issue filed | Reload issue + handoff |
 | Standards | Never stale | Always use latest |
 | Architecture | If new services added | Regenerate affected sections |
 
@@ -81,7 +81,7 @@ When a task spans multiple EXECUTION.md slices or subsystems:
 
 1. Load shared architectural context ONCE (`EXECUTION.md`, `map.md`, `data-sources.md`)
 2. Load each affected `system-design.md` subsystem section
-3. Load GitHub issues / discover handoffs for each slice
+3. Load GitHub issues / planning handoffs for each slice
 4. Deduplicate overlapping standards
 5. Flag potential conflicts between slice scopes
 

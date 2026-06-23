@@ -1,13 +1,14 @@
 {
   "id": "review-issue-79",
   "issue": 79,
-  "timestamp": "2026-05-29T20:30:00Z",
+  "timestamp": "2026-06-23T07:31:04Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Home restructured as mode-aware control center with seller/affiliate KPI layouts, inline AI recommendation and alert cards, mock-data/service layer per branch-runtime-strategy.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -72,5 +73,18 @@
   "recommendations": [
     "Manually verify seller above-fold layout on a 667px viewport with NEXT_PUBLIC_UI_ONLY=1."
   ],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

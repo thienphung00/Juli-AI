@@ -9,7 +9,7 @@ description: >-
 
 # Validate
 
-Sits between `review` and `ship` in both workflow chains. Generates the
+Sits between `review` and `ship` in the Review Agent phase. Generates the
 machine-readable JSON artifact that `ship` and CI consume to gate merges.
 
 This skill is non-conversational. It runs Python scripts, aggregates their
@@ -31,10 +31,15 @@ artifact — not the chat output — is the system of record.
 
 ## Outputs
 
-- `artifacts/validation/validation-issue-<n>.json` (schema in
-  [`docs/ci/implementation-guide.md`](../../../docs/ci/implementation-guide.md)).
+- `artifacts/validation/validation-issue-<n>.json`
+  - ADR-003 CI fields: [`docs/ci/implementation-guide.md`](../../../docs/ci/implementation-guide.md)
+  - Meta fields: [`docs/architecture/agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)
+  - Schema: [`docs/schemas/agent-runtime/validation-artifact.schema.json`](../../../docs/schemas/agent-runtime/validation-artifact.schema.json)
 - Process exit code: `0` if every check passes, `1` otherwise.
 - Concise console summary (one line per check).
+
+The generator enriches the artifact with `schemaVersion`, `validationFailures`,
+`readyForShip`, and test counts derived from the review artifact when available.
 
 ## Pipeline
 
@@ -42,7 +47,7 @@ artifact — not the chat output — is the system of record.
 review artifact -> validate skill -> validation artifact -> ship skill / CI
 ```
 
-The validate skill itself just orchestrates the seven gate scripts. Each gate
+The validate skill itself orchestrates twelve gate scripts. Each gate
 is a single-purpose Python file under `scripts/validate/`. Per-check semantics
 are documented in [checks.md](checks.md).
 
@@ -76,16 +81,20 @@ python scripts/validate/check_module_drift.py
 
 ## Status semantics
 
-| Validation status | Condition |
-|-------------------|-----------|
-| `PASS` | Every check is `PASS` |
-| `FAIL` | Any check is `FAIL` |
+| Validation status | Blocks merge? | Condition |
+|-------------------|---------------|-----------|
+| `PASS` | No | Every check is `PASS`; review is `PASS` or `PASS_WITH_WARNINGS` with full signoff |
+| `FAIL` | Yes | Any check is `FAIL`, or review `status` is `FAIL` |
 
-There is no `PASS_WITH_WARNINGS` at the validation layer. Warnings live in the
-review artifact's `criticalFindings[*].severity == "WARNING"` and the nightly
-audit artifacts.
+`PASS_WITH_WARNINGS` on the **review** artifact blocks merge until
+`findings_acknowledged`, `reviewer_signoff_present`, and `owner_signoff_present`
+all pass. Warnings live in `criticalFindings[*].severity == "WARNING"` with
+`acceptanceByReviewer`, `ownerAck`, and `fixedInCommit` or `shipAsIsReason`.
 
 ## Handoff to `ship`
+
+Ship **requires** `readyForMerge: true` on the validation artifact. Do not hand off
+when `status` is `FAIL` or `readyForMerge` is `false`.
 
 ```markdown
 ## Handoff: validate -> ship
@@ -96,7 +105,7 @@ audit artifacts.
 ### Validation Artifact
 - File: artifacts/validation/validation-issue-<n>.json
 - Status: PASS
-- Checks: 7/7 passed
+- Checks: 12/12 passed
 
 ### Notes
 - [Any gate that emitted warnings, even at PASS]
@@ -121,10 +130,10 @@ appropriate skill) with the failed-check summary.
 | Skill | How validate interacts |
 |-------|------------------------|
 | `review` | Consumes the review artifact; never edits it |
-| `ship` | Reads the validation artifact as the merge gate |
-| `focus` | Routes here after the review handoff |
-| `tdd` | If validate fails on `acceptance_criteria_mapped`, hands back to tdd to add tests |
-| `qa` | Not consulted by validate; only used upstream in fix-bug |
+| `ship` | Reads the validation artifact as the merge gate (`readyForMerge` / `readyForShip`) |
+| `focus` | Meta Agent routes here after review; consumes validation artifact for harness optimization |
+| Executor (domain skills) | If validate fails on `acceptance_criteria_mapped`, hands back to Executor to add tests |
+| `qa` | Not consulted by validate; used upstream when filing bug issues before Implementation |
 
 ## Anti-patterns
 

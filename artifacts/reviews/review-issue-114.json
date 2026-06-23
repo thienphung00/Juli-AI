@@ -1,13 +1,14 @@
 {
   "id": "review-issue-114",
   "issue": 114,
-  "timestamp": "2026-06-05T07:30:00Z",
+  "timestamp": "2026-06-23T07:30:57Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1 mock data layer for seller personas: typed schemas, validators, PII key forbids, and three Vietnamese fixtures (new/leakage/growth) with volumetric orders, returns, affiliate events, ad campaigns, and colocated task copy.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -64,6 +65,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }
-

@@ -1,7 +1,7 @@
 {
   "id": "review-issue-39",
   "issue": 39,
-  "timestamp": "2026-05-27T12:00:00Z",
+  "timestamp": "2026-06-23T07:31:03Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Rule-based recommendations module with four acceptance tests; no critical findings.",
@@ -36,19 +36,19 @@
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "AC1 — get_product_push_suggestions ranked by trend + stock + margin",
+          "criterion": "AC1 \u2014 get_product_push_suggestions ranked by trend + stock + margin",
           "test": "tests/unit/test_recommendations.py::TestProductPushCombinesTrendStockMargin::test_product_push_combines_trend_stock_margin"
         },
         {
-          "criterion": "AC2 — plain Vietnamese, no analytics jargon",
+          "criterion": "AC2 \u2014 plain Vietnamese, no analytics jargon",
           "test": "tests/unit/test_recommendations.py::TestRecommendationsOutputVietnamese::test_recommendations_output_vietnamese"
         },
         {
-          "criterion": "AC3 — actionable CTA on each recommendation",
+          "criterion": "AC3 \u2014 actionable CTA on each recommendation",
           "test": "tests/unit/test_recommendations.py::TestRecommendationsIncludeCta::test_recommendations_include_cta"
         },
         {
-          "criterion": "AC4 — rule-based only, no LLM",
+          "criterion": "AC4 \u2014 rule-based only, no LLM",
           "test": "tests/unit/test_recommendations.py::TestRuleBasedNoLlmDependency::test_rule_based_no_llm_dependency"
         }
       ]
@@ -59,5 +59,17 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

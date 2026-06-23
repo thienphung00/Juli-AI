@@ -20,16 +20,17 @@ Open each path in a **separate Cursor window** (`File → Open Folder`).
 
 ## Per-window pipeline
 
-Each window runs the build-feature implementation loop:
+Each window runs the Implementation agent phase:
 
 ```
-focus → tdd → review → ship
+focus → Executor (built-in TDD) → review → validate → ship
 ```
 
 1. **focus** — read `docs/handoffs/issue-<N>-focus.md`; load context; do not code yet.
-2. **tdd** — red-green-refactor per acceptance criteria; commit on feature branch.
+2. **Executor** — red-green-refactor per acceptance criteria; commit on feature branch.
 3. **review** — full test suite; write `artifacts/reviews/review-issue-<N>.json`; open PR (ops owner) or prepare PR body locally.
-4. **ship** — merge when gates pass; close issue; update `EXECUTION.md`.
+4. **validate** — run validation gates; write validation artifact.
+5. **ship** — merge when gates pass; close issue; update `EXECUTION.md`.
 
 ## GitHub ops coordination
 

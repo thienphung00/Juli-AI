@@ -1,13 +1,14 @@
 {
   "id": "review-issue-92",
   "issue": 92,
-  "timestamp": "2026-06-03T09:00:00Z",
+  "timestamp": "2026-06-23T07:31:05Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Additive commerce graph layer: Campaign and GraphEdge models, Alembic migration 006, shop-scoped GraphRepo with idempotent upsert_edge, list_edges, and create_campaign. Five integration tests cover all acceptance criteria including tenant isolation.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["src/shared/utils/data"],
+  "modulesTouched": [
+    "src/shared/utils/data"
+  ],
   "interfaceChanges": [
     {
       "module": "src/shared/utils/data",
@@ -69,5 +70,18 @@
   "recommendations": [
     "Run alembic upgrade head on staging before P1-2 matching engine work."
   ],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

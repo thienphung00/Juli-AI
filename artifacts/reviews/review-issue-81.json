@@ -1,13 +1,14 @@
 {
   "id": "review-issue-81",
   "issue": 81,
-  "timestamp": "2026-05-29T22:00:00Z",
+  "timestamp": "2026-06-23T07:31:04Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Operations hub at /operation with mode-aware sub-tabs (4 seller / 3 affiliate), panel components, mock data + service layer; UI-only path avoids API client.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -33,11 +34,11 @@
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "Seller mode shows 4 sub-tabs: Sản phẩm, Creator, Đơn hàng, Hoàn trả.",
+          "criterion": "Seller mode shows 4 sub-tabs: S\u1ea3n ph\u1ea9m, Creator, \u0110\u01a1n h\u00e0ng, Ho\u00e0n tr\u1ea3.",
           "test": "web/src/__tests__/test_operation_hub.test.tsx::shows 4 sub-tabs including Creator"
         },
         {
-          "criterion": "Affiliate mode shows 3 sub-tabs: Sản phẩm, Đơn hàng, Hoàn trả (no Creator tab).",
+          "criterion": "Affiliate mode shows 3 sub-tabs: S\u1ea3n ph\u1ea9m, \u0110\u01a1n h\u00e0ng, Ho\u00e0n tr\u1ea3 (no Creator tab).",
           "test": "web/src/__tests__/test_operation_hub.test.tsx::shows 3 sub-tabs without Creator"
         },
         {
@@ -58,5 +59,18 @@
   "recommendations": [
     "Manually smoke /operation in seller and affiliate modes with NEXT_PUBLIC_UI_ONLY=1."
   ],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

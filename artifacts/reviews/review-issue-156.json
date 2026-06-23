@@ -1,12 +1,11 @@
 {
   "id": "review-issue-156",
   "issue": 156,
-  "timestamp": "2026-06-08T22:00:00Z",
+  "timestamp": "2026-06-23T07:30:59Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.6 listing export execute step: client-side CSV/JSON serialization from ProductDraft, blocked-draft guard via canExportProductDraft, Vietnamese manual Seller Center upload success copy, export_completed analytics. No TikTok API or Postgres writes.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/workflows/new-seller/listing",
     "web/src/components/workflows/new-seller/listing"
@@ -68,7 +67,7 @@
         },
         {
           "criterion": "Integration test Path B E2E complete Path B export succeeds",
-          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::Path B E2E — complete Path B and export succeeds"
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::Path B E2E \u2014 complete Path B and export succeeds"
         },
         {
           "criterion": "UX instrumentation hook export_completed analytics event",
@@ -86,5 +85,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

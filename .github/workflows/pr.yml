@@ -142,6 +142,8 @@ jobs:
             echo "==> $script"
             python "$script" --issue "$issue" || failed=1
           done
+          echo "==> scripts/ci/normalize_review_artifacts.py --check"
+          python scripts/ci/normalize_review_artifacts.py --issue "$issue" --check || failed=1
           exit "$failed"
 
   generate-validation-artifact:

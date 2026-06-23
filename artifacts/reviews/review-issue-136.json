@@ -1,13 +1,14 @@
 {
   "id": "review-issue-136",
   "issue": 136,
-  "timestamp": "2026-06-05T12:00:00Z",
+  "timestamp": "2026-06-23T07:30:58Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.5 backtest dataset assembly: new ml/dataset module with synthetic parquet generator, schema validation, manifest output, and assemble-backtest-dataset CLI. Pins pandas, pyarrow, scikit-learn, xgboost. No TikTok API or Postgres writes.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["src/modules/ml/dataset"],
+  "modulesTouched": [
+    "src/modules/ml/dataset"
+  ],
   "interfaceChanges": [
     {
       "module": "src/modules/ml/dataset",
@@ -87,5 +88,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

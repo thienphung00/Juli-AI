@@ -1,19 +1,20 @@
 {
   "id": "review-issue-174",
   "issue": 174,
-  "timestamp": "2026-06-12T01:06:30Z",
+  "timestamp": "2026-06-23T07:31:01Z",
   "reviewedBy": "review skill",
-  "status": "PASS",
+  "status": "PASS_WITH_WARNINGS",
   "summary": "ADR-027 token foundation slice 1: theme swap (Seller=light/Affiliate=dark), semantic palette with tints, interaction state utilities on buttons/cards/inputs, 3-step elevation scale. Theme bootstrap + init script inverted; 310 web tests green.",
-  "criticalFindings": [],
-  "warnings": [
+  "criticalFindings": [
     {
-      "id": "W1",
-      "message": "Surface migration and screenshot re-baseline deferred to follow-up issue within P1.8-8",
-      "resolution": "accepted — user scoped this PR to token layer only"
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Surface migration and screenshot re-baseline deferred to follow-up issue within P1.8-8"
     }
   ],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -80,5 +81,29 @@
   "recommendations": [
     "Follow-up PR: motion utilities, type scale, high-traffic surface migration, screenshots re-baseline"
   ],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Surface migration and screenshot re-baseline deferred to follow-up issue within P1.8-8"
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Surface migration and screenshot re-baseline deferred to follow-up issue within P1.8-8"
+    }
+  ],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

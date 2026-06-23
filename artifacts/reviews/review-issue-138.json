@@ -1,20 +1,20 @@
 {
   "id": "review-issue-138",
   "issue": 138,
-  "timestamp": "2026-06-06T12:00:00Z",
+  "timestamp": "2026-06-23T07:30:58Z",
   "reviewedBy": "review skill",
-  "status": "PASS",
+  "status": "PASS_WITH_WARNINGS",
   "summary": "Phase 1.5 seller stage classifier: rules baseline ported from Phase 1 TypeScript router, RandomForest training on backtest features with class_weight=balanced, ML inference signature, and rules-vs-ML comparison report. CLI train-seller-stage writes metrics and training log JSON.",
-  "criticalFindings": [],
-  "warnings": [
+  "criticalFindings": [
     {
-      "domain": "reliability",
-      "description": "Tiny synthetic datasets may yield single-class eval splits; train/eval fallback uses stratified shop holdout.",
-      "status": "accepted",
-      "rationale": "Integration tests use small fixtures; production backtest runs use larger n_shops."
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Tiny synthetic datasets may yield single-class eval splits; train/eval fallback uses stratified shop holdout. \u2014 Rationale: Integration tests use small fixtures; production backtest runs use larger n_shops."
     }
   ],
-  "modulesTouched": ["src/modules/ml/seller_stage"],
+  "modulesTouched": [
+    "src/modules/ml/seller_stage"
+  ],
   "interfaceChanges": [
     {
       "module": "src/modules/ml/seller_stage",
@@ -93,5 +93,29 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Tiny synthetic datasets may yield single-class eval splits; train/eval fallback uses stratified shop holdout. \u2014 Rationale: Integration tests use small fixtures; production backtest runs use larger n_shops."
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Tiny synthetic datasets may yield single-class eval splits; train/eval fallback uses stratified shop holdout. \u2014 Rationale: Integration tests use small fixtures; production backtest runs use larger n_shops."
+    }
+  ],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

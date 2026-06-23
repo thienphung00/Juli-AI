@@ -1,12 +1,11 @@
 {
   "id": "review-issue-94",
   "issue": 94,
-  "timestamp": "2026-06-03T18:00:00Z",
+  "timestamp": "2026-06-23T07:31:05Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "POST /v1/outcomes ingests realized GMV/conversion idempotently, writes Campaign + predicted_vs_actual creator→product edges with calibration weight, and matching engine uses those edges to boost scores. Recommendations GET remains independent of outcome write failures.",
+  "summary": "POST /v1/outcomes ingests realized GMV/conversion idempotently, writes Campaign + predicted_vs_actual creator\u2192product edges with calibration weight, and matching engine uses those edges to boost scores. Recommendations GET remains independent of outcome write failures.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "src/modules/catalog/domain/feedback",
     "src/apps/api_gateway/api/routers/outcomes",
@@ -47,7 +46,7 @@
           "test": "tests/unit/test_api_outcomes.py::test_ac4_recommendations_unaffected_when_outcome_invalid"
         },
         {
-          "criterion": "AC5: E2E ingest → matching score update",
+          "criterion": "AC5: E2E ingest \u2192 matching score update",
           "test": "tests/unit/test_api_outcomes.py::test_ac5_ingest_outcome_then_matching_score_reflects_update"
         }
       ]
@@ -59,5 +58,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

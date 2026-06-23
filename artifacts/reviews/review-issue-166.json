@@ -1,12 +1,11 @@
 {
   "id": "review-issue-166",
   "issue": 166,
-  "timestamp": "2026-06-08T12:00:00Z",
+  "timestamp": "2026-06-23T07:31:00Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "LeakageWorkflowPanel portal modal with six step renderers for all four leakage task types. Fixture-driven detail, evidence (PII guard), root cause, recommended action, mock execution stepper, and success screens. UI-only; no new routes or backend calls.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx",
     "web/src/components/workflows/leakage/index.ts",
@@ -66,6 +65,25 @@
           "test": "web/src/__tests__/test_leakage_workflow_ui.test.tsx::exports LeakageWorkflowPanel from leakage workflow index"
         }
       ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
     }
-  }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }

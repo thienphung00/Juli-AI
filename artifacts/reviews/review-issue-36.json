@@ -1,12 +1,15 @@
 {
   "id": "review-issue-36",
   "issue": 36,
-  "timestamp": "2026-05-27T12:00:00Z",
+  "timestamp": "2026-06-23T07:31:03Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Alerts rule engine with FCM adapter, cooldown dedup, and pluggable ChannelAdapter. All five acceptance criteria covered by unit tests.",
   "criticalFindings": [],
-  "modulesTouched": ["src/alerts", "src/data"],
+  "modulesTouched": [
+    "src/alerts",
+    "src/data"
+  ],
   "interfaceChanges": [
     {
       "module": "src/alerts",
@@ -46,23 +49,23 @@
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "AC1 — evaluate_rules produces Alert objects",
+          "criterion": "AC1 \u2014 evaluate_rules produces Alert objects",
           "test": "tests/unit/test_alerts.py::test_evaluate_rules_produces_alerts"
         },
         {
-          "criterion": "AC2 — FCM delivery within 30 seconds",
+          "criterion": "AC2 \u2014 FCM delivery within 30 seconds",
           "test": "tests/unit/test_alerts.py::test_fcm_delivery_within_latency"
         },
         {
-          "criterion": "AC3 — No duplicate alerts within cooldown",
+          "criterion": "AC3 \u2014 No duplicate alerts within cooldown",
           "test": "tests/unit/test_alerts.py::test_deduplication_within_cooldown"
         },
         {
-          "criterion": "AC4 — configure_rules per-shop thresholds",
+          "criterion": "AC4 \u2014 configure_rules per-shop thresholds",
           "test": "tests/unit/test_alerts.py::test_per_shop_rule_configuration"
         },
         {
-          "criterion": "AC5 — ChannelAdapter protocol pluggable",
+          "criterion": "AC5 \u2014 ChannelAdapter protocol pluggable",
           "test": "tests/unit/test_alerts.py::test_channel_adapter_protocol_pluggable"
         }
       ]
@@ -75,5 +78,17 @@
   "recommendations": [
     "Wire FCM HTTP v1 client with service account credentials before production push."
   ],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

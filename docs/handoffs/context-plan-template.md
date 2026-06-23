@@ -5,12 +5,19 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 ```markdown
 ## Context Plan: [Feature/Task Name]
 
-### Workflow Phase
+### Agent Phase
 - [ ] ad-hoc (Focus only)
-- [ ] issue implementation: focus → tdd → review → ship → validate
-- [ ] fix-bug: qa → focus → tdd → review → ship
-- [ ] discover → to-prd → to-issues
-- [ ] build-feature (full pipeline)
+- [ ] Planning: Architect Agent (focus → to-prd → to-issues)
+- [ ] Implementation: Meta routing → Executor (built-in TDD)
+- [ ] Review + Testing: review → validate → ship-ready
+- [ ] Harness Optimization: Meta (post-validation)
+
+### Runtime artifacts (commit on branch when phase completes)
+- [ ] `artifacts/implementations/implementation-issue-<n>.json` (Executor)
+- [ ] `artifacts/reviews/review-issue-<n>.json` (Review)
+- [ ] `artifacts/validation/validation-issue-<n>.json` (Validate)
+- [ ] `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` (Meta)
+- [ ] `artifacts/optimization/product-development-<id>.json` (Meta, occasional)
 
 ### Rules (Tier 2 — load selectively)
 - [ ] `.cursor/rules/security.mdc`
@@ -24,8 +31,8 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 - [ ] `.cursor/rules/issue-workflow.mdc`
 
 ### Skills
-- [ ] `discover` / `to-prd` / `to-issues`
-- [ ] `tdd` / `review` / `ship` / `validate` / `qa`
+- [ ] `to-prd` / `to-issues` (Architect planning; `discover` deprecated Phase 2)
+- [ ] `review` / `validate` / `ship` / `qa` (Executor uses built-in TDD; standalone `tdd` deprecated Phase 2)
 - [ ] `api-docs` / `platform-docs`
 - [ ] Domain: `python-patterns` / `python-testing` / `postgres-patterns` / `swift-patterns`
 - [ ] Plugin: _______________
@@ -61,6 +68,8 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 
 ## References
 
+- Runtime: [`docs/architecture/agent-runtime.md`](../architecture/agent-runtime.md)
+- Artifacts: [`docs/architecture/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md)
 - Router: [`.cursor/skills/standalone/focus/SKILL.md`](../../.cursor/skills/standalone/focus/SKILL.md)
 - Catalog: [`.cursor/skills/skill-catalog/SKILL.md`](../../.cursor/skills/skill-catalog/SKILL.md)
 - Audit: [`context-routing-audit.md`](context-routing-audit.md)

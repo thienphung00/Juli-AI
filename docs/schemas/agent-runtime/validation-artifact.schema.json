@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/validation-artifact.schema.json",
+  "title": "Validation Artifact",
+  "description": "Validate stage output. Extends ADR-003 CI gate contract with optional Meta optimization fields.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["id", "issue", "status", "checks", "readyForMerge"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "artifactType": {
+      "const": "validation"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^(validation-issue-\\d+|audit-[a-z]+-\\d{4}-\\d{2}-\\d{2})$"
+    },
+    "issue": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "validatedBy": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"],
+      "description": "ADR-003 CI gate field."
+    },
+    "passedChecks": { "type": "integer", "minimum": 0 },
+    "failedChecks": { "type": "integer", "minimum": 0 },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "WARN", "SKIP"]
+          },
+          "description": { "type": "string" },
+          "details": { "type": "object" }
+        }
+      }
+    },
+    "overallSummary": { "type": "string" },
+    "readyForMerge": {
+      "type": "boolean",
+      "description": "ADR-003 CI gate field. Authoritative for merge readiness. false when any check FAILs or review status is FAIL; PASS_WITH_WARNINGS requires explicit signoff checks."
+    },
+    "warningGated": {
+      "type": "boolean",
+      "description": "True when source review status is PASS_WITH_WARNINGS."
+    },
+    "mergeBlockedByWarnings": {
+      "type": "boolean",
+      "description": "True when gating-warning signoff checks failed."
+    },
+    "reviewStatus": {
+      "type": "string",
+      "enum": ["PASS", "PASS_WITH_WARNINGS", "FAIL"]
+    },
+    "reviewWarningCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sourceReviewArtifact": {
+      "type": "string",
+      "description": "Path to review-artifact for this run."
+    },
+    "phaseRunId": { "type": "string" },
+    "testsExecuted": { "type": "integer", "minimum": 0 },
+    "testsPassed": { "type": "integer", "minimum": 0 },
+    "testsFailed": { "type": "integer", "minimum": 0 },
+    "coveragePercentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "benchmarkStatus": {
+      "type": "string",
+      "enum": ["not_run", "pass", "fail", "skipped"]
+    },
+    "executionDurationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "retryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "validationFailures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of failed validation checks for Meta scoring."
+    },
+    "readyForShip": {
+      "type": "boolean",
+      "description": "Optional mirror of readyForMerge for Meta."
+    }
+  }
+}

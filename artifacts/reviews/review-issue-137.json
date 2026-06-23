@@ -1,13 +1,15 @@
 {
   "id": "review-issue-137",
   "issue": 137,
-  "timestamp": "2026-06-05T16:30:00Z",
+  "timestamp": "2026-06-23T07:30:58Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.5 shared feature builder: new ml/features module with build_seller_stage_features, build_anomaly_features, and build_ad_features. Group A anomaly columns match feature-store-schema.md; ADR-011 enforced via forbidden-column guard. Manifest gains dataset_dir for downstream parquet resolution.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["src/modules/ml/features", "src/modules/ml/dataset"],
+  "modulesTouched": [
+    "src/modules/ml/features",
+    "src/modules/ml/dataset"
+  ],
   "interfaceChanges": [
     {
       "module": "src/modules/ml/features",
@@ -93,5 +95,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

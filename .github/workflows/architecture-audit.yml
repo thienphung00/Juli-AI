@@ -55,9 +55,25 @@ jobs:
           name: audit-size
           path: artifacts/validation/audit-size-*.json
 
+  audit-pipeline-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit review/validation coverage and status semantics
+        run: python scripts/ci/audit_pipeline_coverage.py --json
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-pipeline-coverage
+          path: artifacts/validation/audit-pipeline-coverage-*.json
+
   summarize:
     runs-on: ubuntu-latest
-    needs: [audit-drift, audit-cycles, audit-size]
+    needs: [audit-drift, audit-cycles, audit-size, audit-pipeline-coverage]
     if: always()
     steps:
       - name: Summarize audit results
@@ -65,10 +81,11 @@ jobs:
           echo "Drift: ${{ needs.audit-drift.result }}"
           echo "Cycles: ${{ needs.audit-cycles.result }}"
           echo "Size: ${{ needs.audit-size.result }}"
+          echo "Pipeline coverage: ${{ needs.audit-pipeline-coverage.result }}"
 
   file-issue-on-critical:
     runs-on: ubuntu-latest
-    needs: [audit-drift, audit-cycles, audit-size]
+    needs: [audit-drift, audit-cycles, audit-size, audit-pipeline-coverage]
     if: failure() && github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4

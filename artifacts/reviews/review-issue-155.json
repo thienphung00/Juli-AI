@@ -1,12 +1,11 @@
 {
   "id": "review-issue-155",
   "issue": 155,
-  "timestamp": "2026-06-08T21:30:00Z",
+  "timestamp": "2026-06-23T07:30:59Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.6 E2E listing workflow UI: dual-path state machine modal launched from approved list_products task; integrates generateProductDraft at draft review; session-scoped navigation with Vietnamese labels. No backend or TikTok API calls.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/components/workflows/new-seller/listing",
     "web/src/lib/workflows/new-seller/listing",
@@ -92,5 +91,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

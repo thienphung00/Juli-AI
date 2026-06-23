@@ -19,7 +19,10 @@ HANDOFFS_DIR = REPO_ROOT / "docs" / "handoffs"
 DECISIONS_DIR = REPO_ROOT / "docs" / "decisions"
 REVIEWS_DIR = REPO_ROOT / "artifacts" / "reviews"
 VALIDATION_DIR = REPO_ROOT / "artifacts" / "validation"
+IMPLEMENTATIONS_DIR = REPO_ROOT / "artifacts" / "implementations"
+OPTIMIZATION_DIR = REPO_ROOT / "artifacts" / "optimization"
 RELEASES_DIR = REPO_ROOT / "artifacts" / "releases"
+RUNTIME_SCHEMA_VERSION = "1.0.0"
 DONE_MD = REPO_ROOT / "done.md"
 
 ISSUE_BRANCH_RE = re.compile(r"(?:feat|fix)/issue-(\d+)", re.IGNORECASE)
@@ -57,6 +60,76 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2)
         fh.write("\n")
+
+
+def deep_merge_under(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge overlay into base; overlay values win at every level."""
+    result = dict(base)
+    for key, value in overlay.items():
+        if (
+            key in result
+            and isinstance(result[key], dict)
+            and isinstance(value, dict)
+        ):
+            result[key] = deep_merge_under(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def review_artifact_template(issue: int) -> dict[str, Any]:
+    """ADR-003 review artifact skeleton with empty placeholders."""
+    return {
+        "id": f"review-issue-{issue}",
+        "issue": issue,
+        "timestamp": utc_now_iso(),
+        "reviewedBy": "review skill",
+        "status": "PASS",
+        "summary": "",
+        "criticalFindings": [],
+        "modulesTouched": [],
+        "interfaceChanges": [],
+        "moduleDrift": False,
+        "driftDetails": [],
+        "testCoverage": {
+            "acceptance": {
+                "total": 0,
+                "mapped": 0,
+                "unmapped": [],
+                "mappings": [],
+            },
+            "unit": {"passed": 0, "failed": 0},
+        },
+        "recommendations": [],
+        "approvalReady": True,
+        "reviewerSignoff": None,
+        "ownerSignoff": None,
+        "mlGates": None,
+        "priorReviewBlockers": [],
+    }
+
+
+def build_review_artifact(
+    issue: int,
+    *,
+    existing: dict[str, Any] | None = None,
+    overrides: dict[str, Any] | None = None,
+    fresh: bool = False,
+    update_timestamp: bool = True,
+) -> dict[str, Any]:
+    """Assemble a review artifact without clobbering existing review content."""
+    artifact = review_artifact_template(issue)
+    if existing and not fresh:
+        artifact = deep_merge_under(artifact, existing)
+    if overrides:
+        artifact = deep_merge_under(artifact, overrides)
+    artifact["id"] = f"review-issue-{issue}"
+    artifact["issue"] = issue
+    if update_timestamp:
+        artifact["timestamp"] = utc_now_iso()
+    elif existing and existing.get("timestamp"):
+        artifact["timestamp"] = existing["timestamp"]
+    return finalize_review_artifact(artifact)
 
 
 def parse_args(description: str) -> argparse.Namespace:
@@ -208,9 +281,14 @@ def criterion_matches_test(criterion: str, test_name: str) -> bool:
     t = normalize_label(test_name)
     if not c or not t:
         return False
-    return c in t or t in c or any(
-        token in t for token in c.split("_") if len(token) > 3
-    )
+    if c in t or t.endswith(c):
+        return True
+    tokens = [token for token in c.split("_") if len(token) > 3]
+    if not tokens:
+        return False
+    # Require at least two token hits — blocks cosmetic single-token overlaps
+    # (e.g. criterion "No TikTok API calls" vs test_has_no_tiktok).
+    return sum(1 for token in tokens if token in t) >= 2
 
 
 def parse_pytest_node(node_id: str) -> tuple[Path, str]:
@@ -268,6 +346,397 @@ def load_review_artifact(issue: int) -> dict[str, Any] | None:
     if not path.exists():
         return None
     return load_json(path)
+
+
+_LEGACY_WARNING_DOMAIN_TYPES = {
+    "observability": "other",
+    "reliability": "other",
+    "maintainability": "maintainability",
+    "security": "security",
+    "architecture": "architecture",
+    "performance": "other",
+}
+
+
+def legacy_warning_to_finding(warning: dict[str, Any]) -> dict[str, Any]:
+    """Convert a legacy top-level ``warnings[]`` entry to ``criticalFindings`` shape."""
+    severity = str(warning.get("severity", "WARNING")).upper()
+    if severity not in {"CRITICAL", "WARNING", "INFO"}:
+        severity = "WARNING"
+
+    domain = str(warning.get("domain") or warning.get("category") or "").lower()
+    finding_type = warning.get("type") or _LEGACY_WARNING_DOMAIN_TYPES.get(domain, "other")
+
+    parts: list[str] = []
+    if warning.get("location"):
+        parts.append(str(warning["location"]))
+    for key in ("message", "description"):
+        if warning.get(key):
+            parts.append(str(warning[key]))
+    if warning.get("rationale"):
+        parts.append(f"Rationale: {warning['rationale']}")
+
+    finding: dict[str, Any] = {
+        "type": finding_type,
+        "severity": severity,
+        "description": " — ".join(parts) if parts else "Legacy warning migrated from warnings[]",
+    }
+    if warning.get("module"):
+        finding["module"] = warning["module"]
+    if warning.get("actionRequired"):
+        finding["actionRequired"] = True
+    if warning.get("suggestion"):
+        finding["suggestion"] = warning["suggestion"]
+    return finding
+
+
+def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    """Merge ``criticalFindings`` with legacy ``warnings[]`` into one canonical list."""
+    findings: list[dict[str, Any]] = list(artifact.get("criticalFindings") or [])
+    legacy = artifact.get("warnings") or []
+    if not legacy:
+        return findings
+
+    seen = {f.get("description") for f in findings if f.get("description")}
+    for warning in legacy:
+        converted = legacy_warning_to_finding(warning)
+        description = converted.get("description")
+        if description and description in seen:
+            continue
+        findings.append(converted)
+        if description:
+            seen.add(description)
+    return findings
+
+
+ML_MODULE_PREFIX = "src/modules/ml/"
+
+
+def ml_modules_touched(modules: Iterable[str]) -> list[str]:
+    """Return module paths under ``src/modules/ml/`` touched by the change."""
+    touched: list[str] = []
+    for module in modules:
+        normalized = str(module).replace("\\", "/")
+        if normalized == "src/modules/ml" or normalized.startswith(ML_MODULE_PREFIX):
+            touched.append(normalized)
+    return touched
+
+
+def warning_findings(findings: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [f for f in findings if f.get("severity") == "WARNING"]
+
+
+def finding_is_acknowledged(finding: dict[str, Any]) -> bool:
+    """A gating WARNING finding is mergeable only after explicit dual signoff."""
+    if not finding.get("acceptanceByReviewer"):
+        return False
+    if not finding.get("ownerAck"):
+        return False
+    if finding.get("fixedInCommit"):
+        return True
+    return bool(finding.get("shipAsIsReason"))
+
+
+def unacknowledged_findings(findings: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [f for f in warning_findings(findings) if not finding_is_acknowledged(f)]
+
+
+NON_OVERRIDABLE_FAIL_PREFIXES = (
+    "CRITICAL security finding",
+    "production data exposure",
+)
+
+
+def is_overridable_fail_reason(reason: str) -> bool:
+    return not any(reason.startswith(prefix) for prefix in NON_OVERRIDABLE_FAIL_PREFIXES)
+
+
+def overridden_merge_valid(artifact: dict[str, Any]) -> tuple[bool, str]:
+    """Validate audited hotfix override metadata on a review artifact."""
+    override = artifact.get("overriddenMerge")
+    if not override:
+        return False, ""
+    required = ("timestamp", "overriddenBy", "reason", "incidentLink")
+    missing = [field for field in required if not override.get(field)]
+    if missing:
+        return False, f"overriddenMerge missing: {', '.join(missing)}"
+    return True, ""
+
+
+def effective_mandatory_fail_reasons(artifact: dict[str, Any]) -> list[str]:
+    """Mandatory fails after applying a valid audited override (hotfix path)."""
+    reasons = mandatory_fail_reasons(artifact)
+    if not overridden_merge_valid(artifact)[0]:
+        return reasons
+    return [reason for reason in reasons if not is_overridable_fail_reason(reason)]
+
+
+def merge_override_active(artifact: dict[str, Any]) -> bool:
+    """True when a valid override clears all overridable mandatory fail triggers."""
+    if not overridden_merge_valid(artifact)[0]:
+        return False
+    return bool(mandatory_fail_reasons(artifact)) and not effective_mandatory_fail_reasons(artifact)
+
+
+def ml_gates_satisfied(artifact: dict[str, Any]) -> tuple[bool, list[str]]:
+    """ML-touched reviews must document cold-start handling and promotion gate."""
+    touched = ml_modules_touched(artifact.get("modulesTouched") or [])
+    if not touched:
+        return True, []
+    ml_gates = artifact.get("mlGates") or {}
+    problems: list[str] = []
+    if not ml_gates.get("coldStartThresholdDocumented"):
+        problems.append("mlGates.coldStartThresholdDocumented required for ML modules")
+    if not ml_gates.get("promotionGateDocumented"):
+        problems.append("mlGates.promotionGateDocumented required for ML modules")
+
+    from ml_thresholds import verify_ml_gates_threshold_values  # noqa: PLC0415
+
+    scan_ok, scan_problems, _ = verify_ml_gates_threshold_values(touched, ml_gates)
+    if not scan_ok:
+        problems.extend(scan_problems)
+    return len(problems) == 0, problems
+
+
+def mandatory_fail_reasons(artifact: dict[str, Any]) -> list[str]:
+    """Non-overridable FAIL triggers enforced before merge."""
+    reasons: list[str] = []
+    findings = normalize_review_findings(artifact)
+
+    for finding in findings:
+        if finding.get("type") == "security" and finding.get("severity") == "CRITICAL":
+            reasons.append(
+                "CRITICAL security finding (no override): "
+                f"{finding.get('description', '')[:120]}"
+            )
+        if finding.get("type") in ("production_data_exposure", "data_exposure"):
+            reasons.append(
+                "production data exposure (no override): "
+                f"{finding.get('description', '')[:120]}"
+            )
+
+    unit = artifact.get("testCoverage", {}).get("unit", {})
+    failed = int(unit.get("failed", 0))
+    if failed > 0:
+        reasons.append(f"test regression: {failed} unit test(s) failed")
+
+    acceptance = artifact.get("testCoverage", {}).get("acceptance", {})
+    total = int(acceptance.get("total", 0))
+    mapped = int(acceptance.get("mapped", 0))
+    if total != mapped:
+        reasons.append(f"incomplete acceptance criteria: mapped {mapped}/{total}")
+    unmapped = acceptance.get("unmapped") or []
+    if unmapped:
+        reasons.append(f"unmapped acceptance criteria: {unmapped}")
+
+    for blocker in artifact.get("priorReviewBlockers") or []:
+        if not blocker.get("resolved"):
+            label = blocker.get("description") or blocker.get("id") or "unknown"
+            reasons.append(f"unresolved prior review blocker: {label}")
+
+    ml_ok, ml_problems = ml_gates_satisfied(artifact)
+    if not ml_ok:
+        reasons.extend(ml_problems)
+
+    return reasons
+
+
+def warnings_require_signoff(artifact: dict[str, Any]) -> bool:
+    """PASS_WITH_WARNINGS requires reviewer + owner signoff and per-finding ack."""
+    return artifact.get("status") == "PASS_WITH_WARNINGS"
+
+
+def reviewer_signoff_valid(artifact: dict[str, Any]) -> tuple[bool, str]:
+    if not warnings_require_signoff(artifact):
+        return True, ""
+    signoff = artifact.get("reviewerSignoff") or {}
+    if not signoff.get("statement"):
+        return False, "reviewerSignoff.statement missing"
+    if not signoff.get("timestamp"):
+        return False, "reviewerSignoff.timestamp missing"
+    if signoff.get("acceptedRisks") is not True:
+        return False, "reviewerSignoff.acceptedRisks must be true"
+    return True, ""
+
+
+def owner_signoff_valid(artifact: dict[str, Any]) -> tuple[bool, str]:
+    if not warnings_require_signoff(artifact):
+        return True, ""
+    signoff = artifact.get("ownerSignoff") or {}
+    if not signoff.get("statement"):
+        return False, "ownerSignoff.statement missing"
+    if not signoff.get("timestamp"):
+        return False, "ownerSignoff.timestamp missing"
+    if signoff.get("acknowledged") is not True:
+        return False, "ownerSignoff.acknowledged must be true"
+    return True, ""
+
+
+def derive_review_status(
+    findings: Iterable[dict[str, Any]],
+    artifact: dict[str, Any] | None = None,
+) -> str:
+    """Compute ADR-003 review status from normalized findings and artifact context."""
+    if artifact is not None and mandatory_fail_reasons(artifact):
+        return "FAIL"
+
+    findings_list = list(findings)
+    if any(f.get("severity") == "CRITICAL" for f in findings_list):
+        return "FAIL"
+    if any(f.get("actionRequired") for f in findings_list):
+        return "FAIL"
+    if any(f.get("severity") == "WARNING" for f in findings_list):
+        return "PASS_WITH_WARNINGS"
+    return "PASS"
+
+
+def review_status_issues(artifact: dict[str, Any]) -> list[str]:
+    """Return human-readable status/findings mismatches without mutating the artifact."""
+    issues: list[str] = []
+    legacy = artifact.get("warnings") or []
+    if legacy:
+        issues.append(
+            f"legacy warnings[] has {len(legacy)} entr{'y' if len(legacy) == 1 else 'ies'}; "
+            "migrate to criticalFindings and set status via generate_review_artifact.py"
+        )
+
+    findings = normalize_review_findings(artifact)
+    derived = derive_review_status(findings, artifact)
+    current = artifact.get("status")
+    if current not in {"PASS", "PASS_WITH_WARNINGS", "FAIL"}:
+        issues.append(f"invalid status: {current!r}")
+    elif current != derived:
+        warning_count = sum(1 for f in findings if f.get("severity") == "WARNING")
+        critical_count = sum(1 for f in findings if f.get("severity") == "CRITICAL")
+        issues.append(
+            f"status {current!r} does not match derived {derived!r} "
+            f"(warnings={warning_count}, critical={critical_count})"
+        )
+    return issues
+
+
+def normalize_review_artifact(
+    artifact: dict[str, Any],
+    *,
+    fix_status: bool = False,
+) -> tuple[dict[str, Any], list[str]]:
+    """Normalize findings and optionally align status. Returns (artifact, issues)."""
+    artifact["criticalFindings"] = normalize_review_findings(artifact)
+    if artifact.get("warnings"):
+        artifact.pop("warnings", None)
+
+    if fix_status:
+        artifact["status"] = derive_review_status(artifact["criticalFindings"], artifact)
+        return artifact, []
+
+    return artifact, review_status_issues(artifact)
+
+
+def finalize_review_artifact(
+    artifact: dict[str, Any],
+    *,
+    phase_run_id: str | None = None,
+    source_implementation: str | None = None,
+) -> dict[str, Any]:
+    """Normalize findings, align status, and add Meta fields."""
+    normalize_review_artifact(artifact, fix_status=True)
+    return enrich_review_artifact(
+        artifact,
+        phase_run_id=phase_run_id,
+        source_implementation=source_implementation,
+    )
+
+
+def implementation_artifact_path(issue: int) -> Path:
+    return IMPLEMENTATIONS_DIR / f"implementation-issue-{issue}.json"
+
+
+def enrich_review_artifact(
+    artifact: dict[str, Any],
+    *,
+    phase_run_id: str | None = None,
+    source_implementation: str | None = None,
+) -> dict[str, Any]:
+    """Add Agent Runtime Meta fields; preserve ADR-003 CI gate fields."""
+    findings = normalize_review_findings(artifact)
+    artifact["criticalFindings"] = findings
+    review_failures = sum(
+        1
+        for finding in findings
+        if finding.get("severity") == "CRITICAL" or finding.get("actionRequired")
+    )
+    if any(f.get("severity") == "CRITICAL" for f in findings):
+        aggregate_severity = "critical"
+    elif any(f.get("severity") == "WARNING" for f in findings):
+        aggregate_severity = "medium"
+    elif findings:
+        aggregate_severity = "low"
+    else:
+        aggregate_severity = "none"
+
+    artifact["schemaVersion"] = RUNTIME_SCHEMA_VERSION
+    artifact["artifactType"] = "review"
+    artifact["reviewStatus"] = artifact.get("status")
+    artifact["reviewFailures"] = review_failures
+    artifact["findings"] = findings
+    artifact["severity"] = aggregate_severity
+    artifact["securityFindings"] = [
+        f for f in findings if f.get("type") == "security"
+    ]
+    artifact["architectureFindings"] = [
+        f
+        for f in findings
+        if f.get("type") in ("boundary_violation", "interface_change", "drift")
+    ]
+    artifact["maintainabilityFindings"] = [
+        f for f in findings if f.get("type") in ("test_gap", "other", "drift")
+    ]
+    artifact["suggestedRemediation"] = [
+        s for f in findings if (s := f.get("suggestion"))
+    ]
+    artifact.setdefault("staticAnalysisExecuted", True)
+    unit = artifact.get("testCoverage", {}).get("unit", {})
+    artifact.setdefault("dynamicTestsExecuted", bool(unit.get("passed") or unit.get("failed")))
+    if phase_run_id:
+        artifact["phaseRunId"] = phase_run_id
+    if source_implementation:
+        artifact["sourceImplementationArtifact"] = source_implementation
+    impl_path = implementation_artifact_path(artifact.get("issue", 0))
+    if source_implementation is None and impl_path.exists():
+        artifact["sourceImplementationArtifact"] = impl_path.relative_to(REPO_ROOT).as_posix()
+    return artifact
+
+
+def enrich_validation_artifact(
+    artifact: dict[str, Any],
+    issue: int,
+    review: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Add Agent Runtime Meta fields; preserve ADR-003 CI gate fields."""
+    failed = artifact.get("failedChecks", 0)
+    unit = (review or {}).get("testCoverage", {}).get("unit", {})
+    tests_passed = int(unit.get("passed", 0))
+    tests_failed = int(unit.get("failed", 0))
+    tests_executed = tests_passed + tests_failed
+    review_status = (review or {}).get("status")
+    warning_gated = review_status == "PASS_WITH_WARNINGS"
+
+    artifact["schemaVersion"] = RUNTIME_SCHEMA_VERSION
+    artifact["artifactType"] = "validation"
+    artifact["sourceReviewArtifact"] = review_artifact_path(issue).relative_to(REPO_ROOT).as_posix()
+    artifact["validationFailures"] = failed
+    artifact["readyForShip"] = artifact.get("readyForMerge", False)
+    artifact["warningGated"] = warning_gated
+    artifact["retryCount"] = 0
+    artifact["testsExecuted"] = tests_executed
+    artifact["testsPassed"] = tests_passed
+    artifact["testsFailed"] = tests_failed
+    artifact.setdefault("coveragePercentage", 0)
+    artifact.setdefault("benchmarkStatus", "not_run")
+    artifact.setdefault("executionDurationMs", 0)
+    if review and review.get("phaseRunId"):
+        artifact["phaseRunId"] = review["phaseRunId"]
+    return artifact
 
 
 def tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:

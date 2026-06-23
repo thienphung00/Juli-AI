@@ -1,12 +1,11 @@
 {
   "id": "review-issue-193",
   "issue": 193,
-  "timestamp": "2026-06-12T04:45:00Z",
+  "timestamp": "2026-06-23T07:31:02Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-9 Home read-only shell: Shop Health hero + top-3 decision preview via Decision view-model; approval pipeline removed from Home and retained on OperationsPipelineShell for Decisions tab.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/components/workflows/operations/HomeSummaryShell.tsx",
     "web/src/components/workflows/operations/DecisionPreviewCard.tsx",
@@ -59,8 +58,8 @@
           "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::persona switching still updates shop health hero and preview cards"
         },
         {
-          "criterion": "Integration test: load seller home → pipeline envelopes present → no approval UI",
-          "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::integration: load seller home → pipeline envelopes present → no approval UI"
+          "criterion": "Integration test: load seller home \u2192 pipeline envelopes present \u2192 no approval UI",
+          "test": "web/src/__tests__/test_issue193_home_read_only.test.tsx::integration: load seller home \u2192 pipeline envelopes present \u2192 no approval UI"
         }
       ]
     },
@@ -70,5 +69,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

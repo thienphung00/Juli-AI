@@ -1,13 +1,14 @@
 {
   "id": "review-issue-82",
   "issue": 82,
-  "timestamp": "2026-05-29T22:00:00Z",
+  "timestamp": "2026-06-23T07:31:04Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Juli AI chat at /ai-chat with mode-aware suggested prompts, mock bootstrap/replies via ai-chat service, subcomponents for list/input/prompts; XSS-safe content display.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -21,7 +22,7 @@
       "interface": "getChatBootstrap",
       "changeType": "added",
       "breaking": false,
-      "description": "web/src/lib/services/ai-chat.ts — UI-only mock bootstrap and sendMockMessage"
+      "description": "web/src/lib/services/ai-chat.ts \u2014 UI-only mock bootstrap and sendMockMessage"
     }
   ],
   "moduleDrift": false,
@@ -54,5 +55,18 @@
   "recommendations": [
     "Verify /ai-chat from bottom nav with dev server NEXT_PUBLIC_UI_ONLY=1."
   ],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

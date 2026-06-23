@@ -1,13 +1,14 @@
 {
   "id": "review-issue-116",
   "issue": 116,
-  "timestamp": "2026-06-05T14:00:00Z",
+  "timestamp": "2026-06-23T07:30:57Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Deterministic rules-based seller-stage router with documented thresholds and golden boundary fixtures. Pure function classifySellerStage(profile) maps mock metrics to new | leakage | growth.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web"],
+  "modulesTouched": [
+    "web"
+  ],
   "interfaceChanges": [
     {
       "module": "web",
@@ -26,7 +27,7 @@
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "classifies new persona as new — one of three stages",
+          "criterion": "classifies new persona as new \u2014 one of three stages",
           "test": "web/src/__tests__/test_seller_stage_router.test.ts::classifies new persona as new"
         },
         {
@@ -53,5 +54,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

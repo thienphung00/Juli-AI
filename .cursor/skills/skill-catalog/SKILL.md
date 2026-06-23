@@ -4,7 +4,7 @@ description: >-
   Index of Cursor marketplace plugins, MCP servers, and plugin skills available in
   this workspace. Use when routing external integrations (Supabase, Next.js/Vercel,
   Sentry, Figma, shadcn, library docs, browser/Playwright, Celery, Upstash) or when
-  focus/build-feature/fix-bug needs to name the right plugin skill to load.
+  focus/agent phases need to name the right plugin skill to load.
 catalog:
   updated: "2026-06-09"
   projectStack:
@@ -138,15 +138,10 @@ catalog:
         - redis upstash cache kv
       skills: []
   projectSkills:
-    workflow:
-      - build-feature
-      - fix-bug
     standalone:
       - api-docs
       - platform-docs
-      - discover
       - focus
-      - tdd
       - review
       - ship
       - validate
@@ -155,6 +150,10 @@ catalog:
       - to-issues
       - ui-ux-design
     domain:
+      - ui-ux
+      - backend
+      - data-platform
+      - machine-learning
       - python-patterns
       - python-testing
       - postgres-patterns
@@ -181,7 +180,7 @@ catalog:
 
 # Skill catalog
 
-Machine-readable index for **focus** and workflow skills. Plugin skills ship with Cursor marketplace plugins (user cache); this file records what is enabled for **Juli-AI-Next** and how to invoke them.
+Machine-readable index for **focus** and agent-phase routing. Plugin skills ship with Cursor marketplace plugins (user cache); this file records what is enabled for **Juli-AI-Next** and how to invoke them.
 
 ## How agents should use this
 
@@ -190,7 +189,7 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 3. **MCP server name** for `CallMcpTool` must match `serverName` from `~/.cursor/projects/<project>/mcps/<folder>/SERVER_METADATA.json`.
 4. **Do not load every plugin skill** — Cursor may list all marketplace skills in UI; ignore unselected ones. Pick the smallest set (e.g. `sentry-python-sdk` only for FastAPI work).
 5. **MCP tool schemas** — read from `mcps/<folder>/tools/` only after Focus lists that server in the Context Plan.
-6. **Project skills** under `.cursor/skills/` are in `catalog.projectSkills`; load per Focus workflow phase, not at startup.
+6. **Project skills** under `.cursor/skills/` are in `catalog.projectSkills`; load per Focus agent phase, not at startup.
 
 ## Lazy-load contract
 
@@ -198,7 +197,7 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 |---------|-------------------|-----------|
 | Tier 1 rules | Always (4 files) | — |
 | Tier 2 rules | No | Focus `RULE_TRIGGERS` |
-| Repo workflow skills | No | Focus workflow phase |
+| Repo agent skills | No | Focus agent phase |
 | Domain pattern files | No | Language/stack detected |
 | Plugin skills | No | skill-catalog `when` + Focus |
 | MCP tool JSON | No | Focus selects server |
@@ -208,9 +207,9 @@ Machine-readable index for **focus** and workflow skills. Plugin skills ship wit
 | Task signal | MCP server | Plugin skill(s) |
 |-------------|------------|-----------------|
 | Alembic, RLS, Supabase auth | `supabase` | `supabase`, `supabase-postgres-best-practices` |
-| FastAPI / pytest change | — | `.cursor/skills/domain/python-*` |
+| FastAPI / pytest change | — | `backend` executor, `.cursor/skills/domain/python-*` |
 | `web/` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
-| Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
+| Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux` executor, `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
 | TikTok API / webhooks | — | `docs/tiktok_api/`, MODULE.md (no plugin) |
 | New vendor API onboarding | `context7` | `api-docs` → `context7-mcp` |

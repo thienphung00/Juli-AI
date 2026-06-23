@@ -1,20 +1,20 @@
 {
   "id": "review-issue-141",
   "issue": 141,
-  "timestamp": "2026-06-06T15:00:00Z",
+  "timestamp": "2026-06-23T07:30:59Z",
   "reviewedBy": "review skill",
-  "status": "PASS",
+  "status": "PASS_WITH_WARNINGS",
   "summary": "Phase 1.5 model artifact publisher: serializes all three trainers to joblib with metadata.json, promotion gate, metrics copy, and golden-fixture smoke tests.",
-  "criticalFindings": [],
-  "warnings": [
+  "criticalFindings": [
     {
-      "domain": "maintainability",
-      "description": "Promotion thresholds in thresholds.py are provisional until #142 Product sign-off.",
-      "status": "accepted",
-      "rationale": "Gate logic is in place; numeric targets will be finalized in system-design.md via #142."
+      "type": "maintainability",
+      "severity": "WARNING",
+      "description": "Promotion thresholds in thresholds.py are provisional until #142 Product sign-off. \u2014 Rationale: Gate logic is in place; numeric targets will be finalized in system-design.md via #142."
     }
   ],
-  "modulesTouched": ["src/modules/ml/artifacts"],
+  "modulesTouched": [
+    "src/modules/ml/artifacts"
+  ],
   "interfaceChanges": [
     {
       "module": "src/modules/ml/artifacts",
@@ -89,5 +89,23 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "maintainability",
+      "severity": "WARNING",
+      "description": "Promotion thresholds in thresholds.py are provisional until #142 Product sign-off. \u2014 Rationale: Gate logic is in place; numeric targets will be finalized in system-design.md via #142."
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

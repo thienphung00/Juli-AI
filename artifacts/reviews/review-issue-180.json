@@ -1,12 +1,11 @@
 {
   "id": "review-issue-180",
   "issue": 180,
-  "timestamp": "2026-06-12T12:00:00Z",
+  "timestamp": "2026-06-23T07:31:01Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "P1.8-5 rules-only reasoning copy layer: buildWorkflowReasoning templates per validated workflow_id; ClarityCard expandable Why / Expected Impact / Next Steps; copy_source rules; reasoning_expanded analytics.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/operations/reasoning.ts",
     "web/src/components/workflows/operations/ClarityCard.tsx",
@@ -60,5 +59,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

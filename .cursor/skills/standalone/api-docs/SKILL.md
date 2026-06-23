@@ -3,8 +3,8 @@ name: api-docs
 description: >-
   Converts official vendor API documentation into implementation-ready reference
   docs under docs/<vendor>_api/. Use when onboarding a new external API, refreshing
-  stale integration docs, or preparing source-of-truth material for discover, focus,
-  to-prd, to-issues, tdd, and review.
+  stale integration docs, or preparing source-of-truth material for Architect planning,
+  focus, to-prd, to-issues, Executor implementation, and review.
 catalog:
   pluginIndex: skill-catalog
   loadWhen:
@@ -30,7 +30,7 @@ source-of-truth material that downstream skills load without re-reading vendor s
 |-------|----------------|
 | **`api-docs`** | Extract, normalize, and file vendor API reference under `docs/<vendor>_api/` |
 | **`platform-docs`** | Seller/creator platform docs under `docs/<vendor>_platform/` (features, limits, health, eligibility) |
-| **`discover`** | Interview, scope features, update `EXECUTION.md`, `system-design.md`, `docs/architecture/`, `docs/decisions/` |
+| **Architect Agent (Planning)** | Interview, scope features, update `EXECUTION.md`, `system-design.md`, `docs/architecture/`, `docs/decisions/` |
 | **`to-prd` / `to-issues`** | Turn feature context into PRDs and GitHub issues |
 | **`focus`** | Route which docs to load for implementation |
 
@@ -98,10 +98,10 @@ Do **not** create parallel filenames (`overview.md`, `domain-model.md`, etc.) �
 
 ## Handoff
 
-### → discover
+### → Planning (Architect Agent)
 
 ```markdown
-## Handoff: api-docs → discover
+## Handoff: api-docs → planning
 ### Vendor
 <name> — docs/<vendor>_api/
 ### Data source row

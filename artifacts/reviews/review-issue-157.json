@@ -1,12 +1,11 @@
 {
   "id": "review-issue-157",
   "issue": 157,
-  "timestamp": "2026-06-08T22:30:00Z",
+  "timestamp": "2026-06-23T07:31:00Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.6 shop progress tracker: session-scoped mock listing count toward 10-listing Standard status, copilot home ListingProgressWidget with four workflow states, MilestoneProgress listing bar, readiness_score_bucket on export_completed analytics. No TikTok API; published_stub is mock-only.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/lib/workflows/new-seller/shop-progress",
     "web/src/components/workflows/new-seller",
@@ -60,7 +59,7 @@
         },
         {
           "criterion": "Task card widget renders correct state enum based on workflow progress",
-          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::widget state transitions NoDistributor → DistributorKnown → DraftGenerated → Published-stub"
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::widget state transitions NoDistributor \u2192 DistributorKnown \u2192 DraftGenerated \u2192 Published-stub"
         },
         {
           "criterion": "Widget states NoDistributor DistributorKnown DraftGenerated Published-stub",
@@ -72,7 +71,7 @@
         },
         {
           "criterion": "Integration test widget state transitions through happy path",
-          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::widget state transitions NoDistributor → DistributorKnown → DraftGenerated → Published-stub"
+          "test": "web/src/__tests__/test_listing_workflow_ui.test.tsx::widget state transitions NoDistributor \u2192 DistributorKnown \u2192 DraftGenerated \u2192 Published-stub"
         },
         {
           "criterion": "Metrics hooks export rate and readiness score bucket via UX instrumentation",
@@ -90,5 +89,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

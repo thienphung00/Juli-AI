@@ -1,13 +1,14 @@
 {
   "id": "review-issue-154",
   "issue": 154,
-  "timestamp": "2026-06-08T20:30:00Z",
+  "timestamp": "2026-06-23T07:30:59Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.6 rules-based listing generation: deterministic generateProductDraft with manual form, URL stub, and opportunity card extraction; compliance checks; readiness scoring; export guard. No LLM or API calls.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web/src/lib/workflows/new-seller/listing"],
+  "modulesTouched": [
+    "web/src/lib/workflows/new-seller/listing"
+  ],
   "interfaceChanges": [
     {
       "module": "web/src/lib/workflows/new-seller/listing",
@@ -73,6 +74,25 @@
           "test": "web/src/__tests__/test_listing_rules_engine.test.ts::generateProductDraft module has no cloud LLM and no API calls in the public entrypoint"
         }
       ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
     }
-  }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }

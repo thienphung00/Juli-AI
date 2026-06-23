@@ -1,12 +1,11 @@
 {
   "id": "review-issue-191",
   "issue": 191,
-  "timestamp": "2026-06-12T04:00:00Z",
+  "timestamp": "2026-06-23T07:31:02Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "ADR-028 P1.8-9 seller shell foundation: white canvas tokens, 3-tab bottom nav (Home / Decisions / Juli), /decisions placeholder route, and /recommendations → /decisions legacy redirect.",
+  "summary": "ADR-028 P1.8-9 seller shell foundation: white canvas tokens, 3-tab bottom nav (Home / Decisions / Juli), /decisions placeholder route, and /recommendations \u2192 /decisions legacy redirect.",
   "criticalFindings": [],
-  "warnings": [],
   "modulesTouched": [
     "web/src/app/globals.css",
     "web/src/lib/nav-config.ts",
@@ -22,7 +21,7 @@
       "interface": "BOTTOM_NAV_TABS",
       "changeType": "modified",
       "breaking": false,
-      "description": "Adds Quyết định tab at /decisions between Home and Juli."
+      "description": "Adds Quy\u1ebft \u0111\u1ecbnh tab at /decisions between Home and Juli."
     },
     {
       "module": "web",
@@ -45,8 +44,8 @@
           "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::defines seller --background as white in globals.css (#FFFFFF)"
         },
         {
-          "criterion": "Bottom nav shows exactly 3 tabs Trang chủ Quyết định Juli",
-          "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::renders exactly 3 bottom nav tabs: Trang chủ, Quyết định, Juli"
+          "criterion": "Bottom nav shows exactly 3 tabs Trang ch\u1ee7 Quy\u1ebft \u0111\u1ecbnh Juli",
+          "test": "web/src/__tests__/test_issue191_decisions_shell.test.tsx::renders exactly 3 bottom nav tabs: Trang ch\u1ee7, Quy\u1ebft \u0111\u1ecbnh, Juli"
         },
         {
           "criterion": "/decisions loads authenticated seller shell without error",
@@ -72,5 +71,18 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

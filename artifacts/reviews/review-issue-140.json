@@ -1,20 +1,20 @@
 {
   "id": "review-issue-140",
   "issue": 140,
-  "timestamp": "2026-06-06T14:00:00Z",
+  "timestamp": "2026-06-23T07:30:58Z",
   "reviewedBy": "review skill",
-  "status": "PASS",
+  "status": "PASS_WITH_WARNINGS",
   "summary": "Phase 1.5 ad performance analyzer: trains ROAS regressor and scale/cut/hold classifier on campaign/day features with account baselines, reports ROAS MAPE on held-out window, handles sparse ad history with low-confidence hold.",
-  "criticalFindings": [],
-  "warnings": [
+  "criticalFindings": [
     {
-      "domain": "reliability",
-      "description": "Golden fixture augmentation required for stable scale/cut predictions on small synthetic datasets.",
-      "status": "accepted",
-      "rationale": "Documented in ADR-017 and train.py; production backtest runs use larger datasets."
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Golden fixture augmentation required for stable scale/cut predictions on small synthetic datasets. \u2014 Rationale: Documented in ADR-017 and train.py; production backtest runs use larger datasets."
     }
   ],
-  "modulesTouched": ["src/modules/ml/ad_performance"],
+  "modulesTouched": [
+    "src/modules/ml/ad_performance"
+  ],
   "interfaceChanges": [
     {
       "module": "src/modules/ml/ad_performance",
@@ -82,5 +82,29 @@
     }
   },
   "recommendations": [],
-  "approvalReady": true
+  "approvalReady": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Golden fixture augmentation required for stable scale/cut predictions on small synthetic datasets. \u2014 Rationale: Documented in ADR-017 and train.py; production backtest runs use larger datasets."
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "severity": "WARNING",
+      "description": "Golden fixture augmentation required for stable scale/cut predictions on small synthetic datasets. \u2014 Rationale: Documented in ADR-017 and train.py; production backtest runs use larger datasets."
+    }
+  ],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
 }

@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/harness-optimization-artifact.schema.json",
+  "title": "Harness Optimization Artifact",
+  "description": "Meta Agent primary output. Captures baseline metrics and proposed harness improvements.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactType",
+    "issueId",
+    "phaseRunId",
+    "phasePath",
+    "executorAssigned",
+    "contextFilesLoaded",
+    "skillsLoaded",
+    "tokenUsage",
+    "executionDurationMs",
+    "reviewFailures",
+    "validationFailures",
+    "retryCount",
+    "contextTransferCount",
+    "toolInvocationCount",
+    "baselineMetrics",
+    "rootCauseCategory",
+    "proposedOptimization",
+    "configTarget",
+    "expectedMetricImpact",
+    "expectedImpact",
+    "harnessConfigTargets",
+    "autoApplyEligible",
+    "appliedStatus",
+    "sourceArtifacts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "artifactType": {
+      "const": "harness_optimization"
+    },
+    "issueId": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "phaseRunId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "phasePath": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "planning",
+          "implementation",
+          "review",
+          "validation",
+          "harness_optimization"
+        ]
+      },
+      "description": "Agent phases executed in this run."
+    },
+    "executorAssigned": {
+      "type": "string",
+      "enum": ["ui-ux", "backend", "data-platform", "machine-learning", "none"]
+    },
+    "contextFilesLoaded": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "skillsLoaded": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tokenUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total"],
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "output": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "executionDurationMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Baseline metric: Execution Time."
+    },
+    "reviewFailures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Baseline metric input: Review Failure Rate."
+    },
+    "validationFailures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Baseline metric input: Validation Failure Rate."
+    },
+    "retryCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Baseline metric: Retry Count."
+    },
+    "contextTransferCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Handoffs or context-plan regenerations during the run."
+    },
+    "toolInvocationCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Baseline metric: Tool Invocation Count."
+    },
+    "baselineMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executionTimeMs",
+        "tokenUsageTotal",
+        "testPassRate",
+        "coveragePercentage",
+        "reviewFailureRate",
+        "validationFailureRate",
+        "retryCount",
+        "toolInvocationCount"
+      ],
+      "description": "Normalized snapshot of the eight baseline metrics for benchmark comparison.",
+      "properties": {
+        "executionTimeMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokenUsageTotal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "testPassRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "testsPassed / testsExecuted when testsExecuted > 0; else null semantics use 1.0."
+        },
+        "coveragePercentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reviewFailureRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "validationFailureRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "retryCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolInvocationCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "rootCauseCategory": {
+      "type": "string",
+      "enum": [
+        "context_underloaded",
+        "context_overloaded",
+        "wrong_executor_domain",
+        "insufficient_tdd_evidence",
+        "review_gap",
+        "validation_failure",
+        "tool_overuse",
+        "phase_loop",
+        "artifact_incomplete",
+        "architecture_unclear",
+        "none"
+      ]
+    },
+    "rootCause": {
+      "type": "string",
+      "description": "Compatibility alias for rootCauseCategory used by script-generated summaries."
+    },
+    "proposedOptimization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "changeType"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "changeType": {
+          "type": "string",
+          "enum": [
+            "context_budget",
+            "routing_hint",
+            "executor_assignment",
+            "benchmark_threshold",
+            "focus_table",
+            "other"
+          ]
+        },
+        "details": { "type": "string" }
+      }
+    },
+    "configTarget": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Dotted harness configuration path targeted by the proposal."
+    },
+    "expectedMetricImpact": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metric", "direction"],
+        "properties": {
+          "metric": {
+            "type": "string",
+            "enum": [
+              "executionTimeMs",
+              "tokenUsageTotal",
+              "testPassRate",
+              "coveragePercentage",
+              "reviewFailureRate",
+              "validationFailureRate",
+              "retryCount",
+              "toolInvocationCount"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": ["decrease", "increase", "neutral"]
+          },
+          "magnitude": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          }
+        }
+      }
+    },
+    "expectedImpact": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable expected impact summary."
+    },
+    "harnessConfigTargets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "focus_routing",
+          "context_plan_template",
+          "agent_runtime_config",
+          "benchmark_tasks",
+          "executor_domain_hints"
+        ]
+      }
+    },
+    "autoApplyEligible": {
+      "type": "boolean",
+      "description": "True only for safe, config-scoped harness changes."
+    },
+    "appliedStatus": {
+      "type": "string",
+      "enum": ["proposed", "accepted", "rejected", "applied", "measured"]
+    },
+    "sourceArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "implementation": { "type": "string" },
+        "review": { "type": "string" },
+        "validation": { "type": "string" }
+      }
+    },
+    "measuredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Set when appliedStatus is measured after benchmark rerun."
+    },
+    "notes": { "type": "string" }
+  }
+}

@@ -1,13 +1,14 @@
 {
   "id": "review-issue-153",
   "issue": 153,
-  "timestamp": "2026-06-08T18:30:00Z",
+  "timestamp": "2026-06-23T07:30:59Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "Phase 1.6 listing workflow mock fixtures: typed ProductDraft, Distributor, Opportunity loaders with stable UUIDs, schema validation, and P1.6 source policy enforcement. Mirrors seller-personas module layout. No API or DB calls.",
   "criticalFindings": [],
-  "warnings": [],
-  "modulesTouched": ["web/src/lib/mock-data/listing-workflow"],
+  "modulesTouched": [
+    "web/src/lib/mock-data/listing-workflow"
+  ],
   "interfaceChanges": [
     {
       "module": "web/src/lib/mock-data/listing-workflow",
@@ -75,6 +76,25 @@
           "test": "web/src/__tests__/test_listing_workflow_fixtures.test.ts::has no TikTok API or Postgres imports in fixture module entrypoint"
         }
       ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
     }
-  }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "warnings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
 }
