@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, FastAPI
 
 from src.apps.api_gateway.api.routers.alerts import router as alerts_router
@@ -14,13 +16,14 @@ from src.apps.api_gateway.api.routers.settlements import router as settlements_r
 from src.apps.api_gateway.api.routers.shops import router as shops_router
 
 
-def create_app() -> FastAPI:
+def create_app(*, lifespan: Any | None = None) -> FastAPI:
     """Build and return the Juli API application."""
     app = FastAPI(
         title="Juli API",
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     v1_router = APIRouter(prefix="/v1")

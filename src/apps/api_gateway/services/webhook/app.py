@@ -10,7 +10,7 @@ import hashlib
 import hmac
 import json
 import logging
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -57,13 +57,14 @@ def create_app(
     app_secret: str,
     handoff_fn: HandoffFn | None = None,
     publish_fn: HandoffFn | None = None,
+    lifespan: Any | None = None,
 ) -> FastAPI:
     """Build a FastAPI app wired to the given ingest handoff function."""
     resolved_handoff = handoff_fn or publish_fn
     if resolved_handoff is None:
         raise TypeError("create_app requires handoff_fn= or publish_fn=")
 
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
 
     @app.post("/webhooks/tiktok")
     async def handle_webhook(request: Request) -> JSONResponse:
