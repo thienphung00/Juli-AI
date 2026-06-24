@@ -1,7 +1,7 @@
 import type { ShopProfileType, ValidatedWorkflowId } from "@/lib/mock-data/operations/schemas";
 
 /**
- * ADR-026 Appendix A — profile-gated validated workflow catalog.
+ * ADR-013 Appendix A — profile-gated validated workflow catalog.
  * Ranking and recommendations must only surface IDs from this map.
  */
 export const WORKFLOW_CATALOG: Readonly<

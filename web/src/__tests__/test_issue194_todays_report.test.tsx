@@ -1,5 +1,5 @@
 /**
- * Issue #194 — Today's Report domain cards with animated domain switcher (ADR-028 P1.8-9)
+ * Issue #194 — Today's Report domain cards with animated domain switcher (ADR-014 P1.8-9)
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

@@ -1,5 +1,5 @@
 /**
- * Issue #195 — Decisions Recommended tab + approval gate relocation (ADR-028 P1.8-9)
+ * Issue #195 — Decisions Recommended tab + approval gate relocation (ADR-014 P1.8-9)
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

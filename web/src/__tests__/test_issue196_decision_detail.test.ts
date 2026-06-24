@@ -1,5 +1,5 @@
 /**
- * Issue #196 — Decision detail flow step graph + approve routing (ADR-028 P1.8-9)
+ * Issue #196 — Decision detail flow step graph + approve routing (ADR-014 P1.8-9)
  */
 import {
   DECISION_DETAIL_STEP_LABELS,

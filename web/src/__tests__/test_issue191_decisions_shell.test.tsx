@@ -1,5 +1,5 @@
 /**
- * Issue #191 — White seller canvas, 3-tab nav, /decisions route shell (ADR-028 P1.8-9)
+ * Issue #191 — White seller canvas, 3-tab nav, /decisions route shell (ADR-014 P1.8-9)
  */
 import fs from "fs";
 import path from "path";

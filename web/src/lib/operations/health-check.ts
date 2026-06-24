@@ -117,7 +117,7 @@ export type HealthCheckIndicators = {
 
 /**
  * Stable P1.8 output envelope for the operations pipeline health stage.
- * P2 swaps loaders; schema shape remains stable per ADR-026.
+ * P2 swaps loaders; schema shape remains stable per ADR-013.
  */
 export interface HealthCheckResults {
   shop_id: string;
@@ -127,7 +127,7 @@ export interface HealthCheckResults {
 }
 
 /**
- * Indicator→workflow traceability map (ADR-026 constraint #5).
+ * Indicator→workflow traceability map (ADR-013 constraint #5).
  * Every health indicator must inform ≥1 validated workflow decision.
  */
 export const HEALTH_INDICATOR_TRACEABILITY_MAP: Readonly<
@@ -145,7 +145,7 @@ export const HEALTH_INDICATOR_TRACEABILITY_MAP: Readonly<
 /** Target ROAS for budget optimization efficiency scoring (mock P1.8). */
 export const TARGET_ROAS = 5.0;
 
-/** Refund spike threshold — matches ADR-026 Appendix C preconditions. */
+/** Refund spike threshold — matches ADR-013 Appendix C preconditions. */
 export const REFUND_SPIKE_THRESHOLD_RATIO = 0.2;
 
 const MS_PER_DAY = 86_400_000;

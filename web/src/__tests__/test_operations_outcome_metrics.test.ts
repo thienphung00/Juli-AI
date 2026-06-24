@@ -1,5 +1,5 @@
 /**
- * Issue #182 — workflow_outcome_metrics fixtures + ADR-026 Appendix B criteria (P1.8-7)
+ * Issue #182 — workflow_outcome_metrics fixtures + ADR-013 Appendix B criteria (P1.8-7)
  */
 import {
   loadAllWorkflowOutcomeMetrics,
@@ -10,14 +10,14 @@ import {
 import { VALIDATED_WORKFLOW_IDS } from "@/lib/mock-data/operations/schemas";
 
 describe("Issue #182: WORKFLOW_OUTCOME_SUCCESS_CRITERIA", () => {
-  it.each(VALIDATED_WORKFLOW_IDS)("defines ADR-026 Appendix B criteria for %s", (workflowId) => {
+  it.each(VALIDATED_WORKFLOW_IDS)("defines ADR-013 Appendix B criteria for %s", (workflowId) => {
     const criteria = WORKFLOW_OUTCOME_SUCCESS_CRITERIA[workflowId];
     expect(criteria.metric).toBeTruthy();
     expect(criteria.period).toBeTruthy();
     expect(criteria.threshold).toBeTruthy();
   });
 
-  it("matches ADR-026 Appendix B table exactly", () => {
+  it("matches ADR-013 Appendix B table exactly", () => {
     expect(WORKFLOW_OUTCOME_SUCCESS_CRITERIA.npl).toEqual({
       metric: "SPS change",
       period: "7d post-publish",

@@ -5,47 +5,47 @@
 * **home-new-seller-default-desktop.png**
   * Purpose: Trang chủ — Copilot Người Bán Mới — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: new; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: new; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-new-seller-default-tablet.png**
   * Purpose: Trang chủ — Copilot Người Bán Mới — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: new; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: new; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-new-seller-default-mobile.png**
   * Purpose: Trang chủ — Copilot Người Bán Mới — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: new; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: new; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-leakage-default-desktop.png**
   * Purpose: Trang chủ — Phát Hiện Rò Rỉ Doanh Thu — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: leakage; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: leakage; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-leakage-default-tablet.png**
   * Purpose: Trang chủ — Phát Hiện Rò Rỉ Doanh Thu — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: leakage; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: leakage; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-leakage-default-mobile.png**
   * Purpose: Trang chủ — Phát Hiện Rò Rỉ Doanh Thu — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: leakage; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: leakage; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-growth-default-desktop.png**
   * Purpose: Trang chủ — Copilot Tăng Trưởng — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: growth; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: growth; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-growth-default-tablet.png**
   * Purpose: Trang chủ — Copilot Tăng Trưởng — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: growth; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: growth; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-growth-default-mobile.png**
   * Purpose: Trang chủ — Copilot Tăng Trưởng — Xem trạng thái shop, báo cáo hôm nay và sức khỏe cửa hàng (read-only, chart-first)
   * Primary Action: Gợi ý từ Juli trên metric tile → /decisions?highlight=…
-  * Notes: Persona demo: growth; ADR-028 white canvas; 3-band layout; no preview/Tiến độ on Home
+  * Notes: Persona demo: growth; ADR-014 white canvas; 3-band layout; no preview/Tiến độ on Home
 
 * **home-affiliate-out-of-scope-default-desktop.png**
   * Purpose: Trang chủ — Affiliate (ngoài phạm vi MVP) — Thông báo tính năng chưa khả dụng cho Affiliate

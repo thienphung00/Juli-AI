@@ -23,7 +23,7 @@ Decisions approval flow, and Juli AI chat.
 - `/decisions` — Decisions tab: Recommended / In Progress / Workflow Templates; approval gate; **"Xem trên Trang chủ →"** after Anticipation returns to Home (#195, #215)
 - `/decisions/[decisionId]` — Guided 5-step decision detail flow (why → analytics → inputs → preview → approve) (#196)
 - `/ai-chat` — Juli AI chat tab (mode-aware suggested prompts, mock replies in UI-only)
-- Legacy routes (`/creators`, `/recommendations`, `/orders`, etc.) — 301 to canonical routes per ADR-028
+- Legacy routes (`/creators`, `/recommendations`, `/orders`, etc.) — 301 to canonical routes per ADR-014
 
 ## Home information architecture (Phase 1.8)
 
@@ -64,9 +64,9 @@ Cross-screen **Reward → Reason → Action → Anticipation** loop between Home
 - **Recharts** — Home metric sparklines / interactive charts
 - Vietnamese locale (VND ₫ formatting, diacritics, ICT timezone)
 
-## Decision object (ADR-028, #192)
+## Decision object (ADR-014, #192)
 
-Primary seller-facing UI object — one envelope per validated `workflow_id` (ADR-026 six-workflow catalog).
+Primary seller-facing UI object — one envelope per validated `workflow_id` (ADR-013 six-workflow catalog).
 
 | Field | Source |
 |-------|--------|
@@ -80,15 +80,15 @@ Primary seller-facing UI object — one envelope per validated `workflow_id` (AD
 
 Mapping lives in `lib/decisions/`. **Decisions Recommended** shows the full ranked list; Home does not preview top N.
 
-## White canvas invariant (ADR-028, #191)
+## White canvas invariant (ADR-014, #191)
 
 Seller workspace (`html` without `.dark`):
 
 - `--background`, `--header-background`, `--muted` → `#FFFFFF` (not pink tint `#FEF5F6`)
 - Brand pink `#F86BA5` is accent-only (health bars, primary CTAs, Juli tab highlight)
-- Affiliate workspace keeps dark canvas per ADR-027
+- Affiliate workspace keeps dark canvas per ADR-015
 
-## Bottom navigation (ADR-028, #191)
+## Bottom navigation (ADR-014, #191)
 Seller workspace exposes exactly **3** fixed tabs via `BOTTOM_NAV_TABS` in `lib/nav-config.ts`:
 
 | Tab | Route | Label |
@@ -100,7 +100,7 @@ Seller workspace exposes exactly **3** fixed tabs via `BOTTOM_NAV_TABS` in `lib/
 Touch targets: minimum 44×44px per `NavBar`. Active state via `isNavTabActive(pathname, href)`.
 
 ## Invariants
-- Workspace mode (`seller` | `affiliate`) is persisted in `localStorage` (`juli_workspace_mode`) and drives the `dark` class on `<html>` (Seller=light white canvas, Affiliate=dark; ADR-027/#191)
+- Workspace mode (`seller` | `affiliate`) is persisted in `localStorage` (`juli_workspace_mode`) and drives the `dark` class on `<html>` (Seller=light white canvas, Affiliate=dark; ADR-015/#191)
 - Phase 1: Affiliate mode shows a Vietnamese out-of-scope state on every authenticated route via `AuthenticatedShell`; Seller mode renders chart dashboard Home
 - Auth MUST go through the API layer — no direct Supabase client calls from the browser
 - All UI text in Vietnamese with proper diacritics

@@ -1,5 +1,5 @@
 /**
- * Issue #193 — Home read-only shell: shop info, health, report, progress (ADR-028 P1.8-9)
+ * Issue #193 — Home read-only shell: shop info, health, report, progress (ADR-014 P1.8-9)
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { HomePage } from "@/components/HomePage";

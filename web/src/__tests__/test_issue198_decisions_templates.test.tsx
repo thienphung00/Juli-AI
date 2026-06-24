@@ -1,5 +1,5 @@
 /**
- * Issue #198 — Decisions Workflow Templates sub-tab (ADR-028 P1.8-9)
+ * Issue #198 — Decisions Workflow Templates sub-tab (ADR-014 P1.8-9)
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

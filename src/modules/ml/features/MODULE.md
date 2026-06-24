@@ -5,7 +5,7 @@
 Phase 1.5 shared feature engineering: transform backtest parquet (from `ml/dataset`)
 into per-model feature matrices with column names matching
 [`docs/data-models/feature-store-schema.md`](../../../docs/data-models/feature-store-schema.md).
-Runner-agnostic plain Python — no scheduler coupling ([ADR-013](../../../docs/decisions/013-phase-15-ml-module-tree.md)).
+Runner-agnostic plain Python — no scheduler coupling ([ADR-010](../../../docs/decisions/010-ml-module-tree-and-trainers.md)).
 
 ## Public Interface
 

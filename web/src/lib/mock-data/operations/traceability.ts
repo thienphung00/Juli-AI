@@ -13,7 +13,7 @@ const MID_LARGE_WORKFLOWS: ValidatedWorkflowId[] = [
 ];
 
 /**
- * Datum→workflow traceability map (ADR-026 constraint #4).
+ * Datum→workflow traceability map (ADR-013 constraint #4).
  * Every collected field must map to ≥1 validated workflow_id.
  */
 export const DATUM_TRACEABILITY_MAP: Record<string, ValidatedWorkflowId[]> = {

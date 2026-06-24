@@ -20,7 +20,7 @@ Deep details for Phase 1.5 ML work and Phase 2 MLOps. Load on demand — not req
 | ADR | Topic |
 |-----|-------|
 | [011](../../../docs/decisions/011-buyer-behavior-anomaly-scope.md) | Anomaly classes; no affiliate scope |
-| [013](../../../docs/decisions/013-phase-15-ml-module-tree.md) | `src/modules/ml/` module tree |
+| [010](../../../docs/decisions/010-ml-module-tree-and-trainers.md) | `src/modules/ml/` module tree |
 
 ## Phase 1.5 pipeline (offline)
 

@@ -1,5 +1,5 @@
 /**
- * Issue #200 — P1.8-9 exit-gate verification (ADR-028)
+ * Issue #200 — P1.8-9 exit-gate verification (ADR-014)
  *
  * Cross-cutting integration contract for Decision Copilot IA:
  * Home read-only, Decisions approve paths, detail flow, legacy redirects.

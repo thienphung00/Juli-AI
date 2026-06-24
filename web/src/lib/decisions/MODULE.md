@@ -1,6 +1,6 @@
 # Decision view-model (P1.8-9)
 
-Seller-facing **Decision** envelopes mapped from ADR-026 `workflow_recommendations`.
+Seller-facing **Decision** envelopes mapped from ADR-013 `workflow_recommendations`.
 Pure functions only — no HTTP, no React. UI layers (#193, #195, #199) consume
 this module; execution remains keyed by `workflow_id`.
 
@@ -14,7 +14,7 @@ this module; execution remains keyed by `workflow_id`.
 | `takeTopDecisions(decisions, n)` | Top *n* after impact sort (Home preview uses `n=3`) |
 | `resolveDecisionStatus(options)` | Derive `DecisionStatus` from approval + executor mock state |
 | `applyDecisionLifecycle(decision, options)` | Merge lifecycle into a `Decision` copy |
-| `isValidatedWorkflowId(id)` | ADR-026 catalog guard (six workflows only) |
+| `isValidatedWorkflowId(id)` | ADR-013 catalog guard (six workflows only) |
 | `getRequiredInputsForWorkflow(workflowId)` | Static required-input catalog per workflow (mock P1.8-9) |
 | `DECISION_DETAIL_STEPS`, `getNextStep`, `getPreviousStep` | Step graph for detail flow (#196) |
 | `buildDecisionAnalytics`, `getDecisionPreviewRisks` | Mock analytics + risks for detail steps 2 & 4 |

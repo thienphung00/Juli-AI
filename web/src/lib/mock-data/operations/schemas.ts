@@ -1,6 +1,6 @@
 import type { PersonaId } from "@/lib/mock-data/seller-personas/schemas";
 
-/** ADR-026 Appendix A — exactly six validated workflows. */
+/** ADR-013 Appendix A — exactly six validated workflows. */
 export const VALIDATED_WORKFLOW_IDS = [
   "npl",
   "minimize_violations",
@@ -114,7 +114,7 @@ export interface ReturnsRefundsData {
 
 /**
  * Stable P1.8 input envelope for the operations pipeline.
- * P2 swaps loaders; schema shape remains stable per ADR-026.
+ * P2 swaps loaders; schema shape remains stable per ADR-013.
  */
 export interface UnifiedOperationalDataModel {
   shop_metadata: ShopMetadata;

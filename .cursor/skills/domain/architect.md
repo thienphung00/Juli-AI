@@ -147,7 +147,7 @@ Every datum must trace to ≥1 validated workflow ([ADR-013](../../../../docs/de
 
 | Anti-pattern | Why it hurts MVP |
 |--------------|------------------|
-| Seventh workflow or new copilot surface | Violates ADR-026 catalog; scope creep |
+| Seventh workflow or new copilot surface | Violates ADR-013 catalog; scope creep |
 | Live API in Phase 1 UI work | Wastes rate limits; blocks UX gate |
 | Celery / Kafka / event bus now | EXECUTION.md defers to Phase 3+ |
 | `src/` folder reshuffle | Forbidden until Phase 2.5 |
