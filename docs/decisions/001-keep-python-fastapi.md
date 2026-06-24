@@ -18,7 +18,7 @@ repository already shipped a working Python backend:
 | `src/shared/utils/data` | SQLAlchemy async models, shop-scoped repos, Alembic migrations |
 | `src/modules/identity/infrastructure/auth` | Supabase phone-OTP, JWT verification, TikTok OAuth lifecycle |
 | `src/apps/api_gateway/api` | Versioned FastAPI REST API, shop-scoped routes |
-| `src/modules/catalog/domain/intelligence/scoring` | Post-stream scoring, Vietnamese sentiment (legacy signal; folding into `matching/` per ADR-006) |
+| `src/modules/catalog/domain/intelligence/scoring` | Post-stream scoring, Vietnamese sentiment (legacy signal; superseded creator-matching scope) |
 
 Rewriting to NestJS would discard tested integration code and delay the
 execution plan ([`EXECUTION.md`](../../EXECUTION.md)).

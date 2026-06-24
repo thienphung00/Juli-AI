@@ -14,7 +14,7 @@ import {
 } from "@/lib/operations";
 
 describe("operations/journey-loop registry", () => {
-  it("defines a non-empty journey link for every ADR-026 workflow_id", () => {
+  it("defines a non-empty journey link for every ADR-013 workflow_id", () => {
     for (const workflowId of VALIDATED_WORKFLOW_IDS) {
       const link = getJourneyLink(workflowId);
 

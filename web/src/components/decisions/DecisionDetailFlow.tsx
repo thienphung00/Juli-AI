@@ -27,6 +27,10 @@ import { useOperationsApproval } from "@/lib/operations/use-operations-approval"
 import { buildWorkflowReasoning } from "@/lib/operations/reasoning";
 import type { HealthCheckResults } from "@/lib/operations/health-check";
 import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
+import {
+  buildHomeHighlightLink,
+  resolveHomeHighlight,
+} from "@/lib/operations/journey-loop";
 
 import { DecisionDetailStepIndicator } from "./DecisionDetailStepIndicator";
 
@@ -49,6 +53,11 @@ function DecisionDetailStepContent({
   const analytics = buildDecisionAnalytics(recommendation, health);
   const risks = getDecisionPreviewRisks(recommendation.workflow_id);
   const { expected_impact: impact } = recommendation;
+  const workflowId = recommendation.workflow_id;
+  const homeHighlightAnchor = resolveHomeHighlight(workflowId);
+  const homeHighlightLink = homeHighlightAnchor
+    ? buildHomeHighlightLink(homeHighlightAnchor)
+    : null;
 
   switch (step) {
     case "why":
@@ -126,6 +135,15 @@ function DecisionDetailStepContent({
               <p className="mt-1 text-sm">
                 {impact.metric}: {formatNumber(impact.value)} điểm
               </p>
+              {homeHighlightLink && (
+                <Link
+                  href={homeHighlightLink}
+                  className="link-secondary mt-2 inline-block"
+                  data-testid={`decision-detail-home-link-${workflowId}`}
+                >
+                  Xem trên Trang chủ →
+                </Link>
+              )}
             </div>
             <div
               className="rounded-xl border p-3"
@@ -171,15 +189,17 @@ export function DecisionDetailFlow({
   persona,
   personaId,
   requiredInputs,
+  initialStep = "why",
 }: {
   recommendation: WorkflowRecommendation;
   health: HealthCheckResults;
   persona: SellerPersona;
   personaId: PersonaId;
   requiredInputs: RequiredInput[];
+  initialStep?: DecisionDetailStep;
 }) {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<DecisionDetailStep>("why");
+  const [currentStep, setCurrentStep] = useState<DecisionDetailStep>(initialStep);
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
 
   const approval = useOperationsApproval({
@@ -199,6 +219,7 @@ export function DecisionDetailFlow({
     clearFeedback,
     executor,
     getDisposition,
+    recordInputsCollected,
   } = approval;
 
   const disposition = getDisposition(recommendation.workflow_id);
@@ -208,12 +229,29 @@ export function DecisionDetailFlow({
     setInputValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const canProceedFromInputs = useMemo(() => {
+    return requiredInputs
+      .filter((input) => input.required)
+      .every((input) => (inputValues[input.key] ?? "").trim().length > 0);
+  }, [inputValues, requiredInputs]);
+
   const handleNext = useCallback(() => {
     const next = getNextStep(currentStep);
-    if (next) {
-      setCurrentStep(next);
+    if (!next) {
+      return;
     }
-  }, [currentStep]);
+
+    if (currentStep === "inputs" && canProceedFromInputs) {
+      recordInputsCollected(recommendation.workflow_id);
+    }
+
+    setCurrentStep(next);
+  }, [
+    canProceedFromInputs,
+    currentStep,
+    recommendation.workflow_id,
+    recordInputsCollected,
+  ]);
 
   const handleBack = useCallback(() => {
     const previous = getPreviousStep(currentStep);
@@ -229,12 +267,6 @@ export function DecisionDetailFlow({
   const handleBackToList = useCallback(() => {
     router.push("/decisions");
   }, [router]);
-
-  const canProceedFromInputs = useMemo(() => {
-    return requiredInputs
-      .filter((input) => input.required)
-      .every((input) => (inputValues[input.key] ?? "").trim().length > 0);
-  }, [inputValues, requiredInputs]);
 
   const nextDisabled =
     currentStep === "inputs" && !canProceedFromInputs
@@ -274,7 +306,7 @@ export function DecisionDetailFlow({
         data-testid="decision-ask-juli"
         onClick={() => saveActiveDecisionForChat(recommendation.workflow_id)}
       >
-        Hỏi Juli về quyết định này
+        Hỏi Juli về đề xuất này
       </Link>
 
       <div

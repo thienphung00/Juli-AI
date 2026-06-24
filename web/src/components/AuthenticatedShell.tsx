@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { ShopMetadata } from "@/lib/mock-data/operations/schemas";
 import { useWorkspaceModeOptional } from "@/lib/mode-context";
 import { AffiliateOutOfScope } from "./AffiliateOutOfScope";
 import { NavBar } from "./NavBar";
@@ -9,6 +10,7 @@ import { PageHeader } from "./PageHeader";
 interface AuthenticatedShellProps {
   title: string;
   subtitle?: string;
+  shopMetadata?: ShopMetadata;
   children: ReactNode;
   /** Pin chat input above bottom nav on AI chat route */
   stickyFooter?: ReactNode;
@@ -17,6 +19,7 @@ interface AuthenticatedShellProps {
 export function AuthenticatedShell({
   title,
   subtitle,
+  shopMetadata,
   children,
   stickyFooter,
 }: AuthenticatedShellProps) {
@@ -25,7 +28,7 @@ export function AuthenticatedShell({
 
   return (
     <div className="min-h-screen pb-24" style={{ background: "var(--background)" }}>
-      <PageHeader title={title} subtitle={subtitle} />
+      <PageHeader title={title} subtitle={subtitle} shopMetadata={shopMetadata} />
       <main className="app-container pt-4">
         {isAffiliateOutOfScope ? <AffiliateOutOfScope /> : children}
       </main>

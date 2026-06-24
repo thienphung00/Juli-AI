@@ -106,7 +106,6 @@ export async function sendMockMessage(
       role: "assistant",
       content: buildDecisionAwareMockReply(options.decisionContext, trimmed),
       timestamp: new Date().toISOString(),
-      confidence: 0.86,
       data_sources: ["src/lib/decisions", "src/lib/operations/health-check"],
     };
   }

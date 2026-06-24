@@ -40,7 +40,7 @@ uses mock fixtures only.
 └──────────┬───────────────────────────────────────────────┘
            ▼
 ┌──────────────────────────────────────────────────────────┐
-│ Daily inference (P2, 08:00 UTC) + Ollama copy layer      │
+│ Daily inference (P2, 08:00 UTC) + Haiku copy layer      │
 │ web/ — three seller-money workflows                      │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -115,7 +115,7 @@ Phase 3+ Redis pub/sub for UI refresh is **Later** — not P2.
 | Phase | TikTok integration |
 |-------|-------------------|
 | P1 | `TikTokClient` must not be called from production UI paths — mock only |
-| P1.5 | Offline parquet only |
+| Phase 2 MVP Milestone A | Offline parquet only |
 | P2 | Enable polling + daily inference |
 
 CI should fail if real API calls are introduced before Phase 2 gate passes.

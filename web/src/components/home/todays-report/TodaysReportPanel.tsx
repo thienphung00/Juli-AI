@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import type { ShopProfileType } from "@/lib/mock-data/operations/schemas";
@@ -13,19 +13,32 @@ import {
 } from "@/lib/operations/todays-report";
 
 import { TodaysReportDomainCard } from "./TodaysReportDomainCard";
+import type { WorkflowRecommendation } from "@/lib/operations/recommendations";
 
 export function TodaysReportPanel({
   model,
   profile,
+  recommendations = [],
+  highlightDomain = null,
+  highlightedMetricKey = null,
 }: {
   model: UnifiedOperationalDataModel;
   profile: ShopProfileType;
+  recommendations?: WorkflowRecommendation[];
+  highlightDomain?: ReportDomainId | null;
+  highlightedMetricKey?: string | null;
 }) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const summaries = useMemo(() => buildAllDomainReportSummaries(model), [model]);
   const [activeDomain, setActiveDomain] = useState<ReportDomainId>(() =>
-    resolveDefaultReportDomain(profile),
+    highlightDomain ?? resolveDefaultReportDomain(profile),
   );
+
+  useEffect(() => {
+    if (highlightDomain && highlightDomain !== activeDomain) {
+      setActiveDomain(highlightDomain);
+    }
+  }, [activeDomain, highlightDomain]);
 
   const activeSummary = summaries.find((summary) => summary.domainId === activeDomain)!;
 
@@ -70,6 +83,10 @@ export function TodaysReportPanel({
           key={activeDomain}
           summary={activeSummary}
           animate={!prefersReducedMotion}
+          recommendations={recommendations}
+          highlightedMetricKey={
+            activeDomain === highlightDomain ? highlightedMetricKey : null
+          }
         />
       </div>
     </section>

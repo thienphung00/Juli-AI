@@ -1,5 +1,5 @@
 /**
- * Issue #174 — Design token foundation (ADR-027): theme swap, semantic palette,
+ * Issue #174 — Design token foundation (ADR-015): theme swap, semantic palette,
  * state/elevation utilities (P1.8-8 slice 1).
  */
 import fs from "fs";
@@ -41,7 +41,7 @@ describe("Design token foundation (#174)", () => {
   });
 
   describe("semantic palette tokens in globals.css", () => {
-    it("defines ADR-027 semantic hex values", () => {
+    it("defines ADR-015 semantic hex values", () => {
       expect(globalsCss).toMatch(/--success:\s*#16a34a/i);
       expect(globalsCss).toMatch(/--destructive:\s*#e5484d/i);
       expect(globalsCss).toMatch(/--warning:\s*#f59e0b/i);

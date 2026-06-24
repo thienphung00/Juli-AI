@@ -219,7 +219,7 @@ describe("Issue #178: HEALTH_INDICATOR_TRACEABILITY_MAP", () => {
     );
   });
 
-  it("never references workflow IDs outside ADR-026 stable IDs", () => {
+  it("never references workflow IDs outside ADR-013 stable IDs", () => {
     const referenced = new Set(
       Object.values(HEALTH_INDICATOR_TRACEABILITY_MAP).flat(),
     );

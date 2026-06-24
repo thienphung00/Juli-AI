@@ -10,7 +10,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
     load_review_artifact,
-    merge_override_active,
     ml_gates_satisfied,
     ml_modules_touched,
     parse_args,

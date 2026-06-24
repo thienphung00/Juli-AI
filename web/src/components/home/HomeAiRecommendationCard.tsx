@@ -3,13 +3,11 @@ import type { HomeAiRecommendation } from "@/lib/mock-data/home";
 
 export function HomeAiRecommendationCard({
   recommendation,
-  title = "Gợi ý AI",
+  title = "Đề xuất",
 }: {
   recommendation: HomeAiRecommendation;
   title?: string;
 }) {
-  const confidencePct = Math.round(recommendation.confidence * 100);
-
   return (
     <div className="card p-4" data-testid="home-ai-recommendation">
       <div className="flex items-start justify-between gap-2">
@@ -17,18 +15,6 @@ export function HomeAiRecommendationCard({
           <Sparkles size={16} aria-hidden className="shrink-0" />
           {title}
         </h2>
-        {recommendation.confidence > 0 && (
-          <span
-            className="badge text-xs"
-            style={{
-              background: confidencePct >= 70 ? "color-mix(in srgb, var(--success) 12%, transparent)" : "color-mix(in srgb, var(--warning) 12%, transparent)",
-              color: confidencePct >= 70 ? "var(--success)" : "var(--warning)",
-            }}
-            aria-label="Độ tin cậy"
-          >
-            {confidencePct}%
-          </span>
-        )}
       </div>
       <p className="mt-2 text-sm font-medium" data-testid="home-ai-recommendation-headline">
         {recommendation.headline}

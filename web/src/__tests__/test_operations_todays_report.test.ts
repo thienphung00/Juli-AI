@@ -10,15 +10,15 @@ import {
 } from "@/lib/operations/todays-report";
 
 describe("operations/todays-report", () => {
-  it("builds all five domain summaries from unified operational fixtures", () => {
+  it("builds all three domain summaries from unified operational fixtures", () => {
     for (const model of loadAllOperationalFixtures()) {
       const summaries = buildAllDomainReportSummaries(model);
-      expect(summaries).toHaveLength(5);
+      expect(summaries).toHaveLength(3);
       expect(summaries.map((summary) => summary.domainId)).toEqual([...REPORT_DOMAIN_IDS]);
     }
   });
 
-  it("includes status, trend, and at least one metric for non-empty domains", () => {
+  it("includes Real/Estimated values for non-empty domains", () => {
     const leakageModel = loadOperationalModelForPersona("leakage");
 
     for (const domainId of REPORT_DOMAIN_IDS) {
@@ -31,17 +31,18 @@ describe("operations/todays-report", () => {
         for (const metric of summary.metrics) {
           expect(metric.label.length).toBeGreaterThan(0);
           expect(metric.value.length).toBeGreaterThan(0);
+          expect(metric.realValue).toBeGreaterThanOrEqual(0);
+          expect(metric.estimatedValue).toBeGreaterThanOrEqual(0);
+          expect(metric.scaleMax).toBeGreaterThan(0);
         }
       }
     }
   });
 
-  it("marks advertising empty for NEW_SHOP fixture with no campaigns", () => {
-    const newShopModel = loadOperationalModelForPersona("new");
-    const advertising = buildDomainReportSummary("advertising", newShopModel);
-
-    expect(advertising.isEmpty).toBe(true);
-    expect(advertising.statusLabel).toMatch(/Chưa có dữ liệu/);
+  it("includes ROAS on growth tab when campaigns exist", () => {
+    const leakageModel = loadOperationalModelForPersona("leakage");
+    const growth = buildDomainReportSummary("revenue_growth", leakageModel);
+    expect(growth.metrics.some((metric) => metric.metricKey === "roas")).toBe(true);
   });
 
   it("defaults NEW_SHOP to product listings and MID_LARGE to revenue growth", () => {

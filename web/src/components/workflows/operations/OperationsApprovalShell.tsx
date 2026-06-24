@@ -6,6 +6,7 @@ import { TaskDismissModal } from "@/components/tasks/TaskDismissModal";
 import { TaskExecutorModals } from "@/components/tasks/TaskExecutorModals";
 import { TaskFeedbackBanner } from "@/components/tasks/TaskFeedbackBanner";
 import type { PersonaId, SellerPersona } from "@/lib/mock-data/seller-personas/schemas";
+import { useJourneyHighlight } from "@/lib/operations/use-journey-highlight";
 import { useOperationsApproval } from "@/lib/operations/use-operations-approval";
 import { useOperationsPipeline } from "@/lib/operations/use-operations-pipeline";
 
@@ -29,6 +30,11 @@ export function OperationsApprovalShell({
 
   const pipeline = useOperationsPipeline({ personaId });
   const { healthResults, workflowRecommendations } = pipeline;
+  const highlightedWorkflowId = useJourneyHighlight(
+    workflowRecommendations.recommended_workflows.map(
+      (recommendation) => recommendation.workflow_id,
+    ),
+  );
 
   const approval = useOperationsApproval({
     persona,
@@ -87,6 +93,7 @@ export function OperationsApprovalShell({
             personaId={personaId}
             getDisposition={getDisposition}
             selectedIds={selectedIds}
+            highlightedWorkflowId={highlightedWorkflowId}
             onToggleSelect={toggleSelection}
             onApprove={approveWorkflow}
             onReject={requestRejectWorkflow}

@@ -4,7 +4,7 @@
 
 Phase 1.8 mock fixtures for the operations-system pipeline input envelope:
 `unified_operational_data_model` per shop profile (`NEW_SHOP`, `MID_LARGE_SHOP`),
-plus a datum→workflow traceability map enforcing ADR-026 constraint #4.
+plus a datum→workflow traceability map enforcing ADR-013 constraint #4.
 
 ## Public Interface
 
@@ -17,7 +17,7 @@ plus a datum→workflow traceability map enforcing ADR-026 constraint #4.
 - `DATUM_TRACEABILITY_MAP` / `exportTraceabilityArtifact()` — datum→workflow_id map
 - `checkTraceability(model)` — assert every present datum maps to ≥1 validated workflow
 - `assertNoDatumsOutsideSignalRequirements(model)` — no orphan fields outside the six-workflow signal set
-- `VALIDATED_WORKFLOW_IDS` — ADR-026 Appendix A catalog (`npl`, `minimize_violations`, …)
+- `VALIDATED_WORKFLOW_IDS` — ADR-013 Appendix A catalog (`npl`, `minimize_violations`, …)
 
 ## Dependencies
 

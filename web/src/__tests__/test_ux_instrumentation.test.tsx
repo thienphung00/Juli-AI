@@ -197,20 +197,12 @@ describe("Issue #122: task UX analytics", () => {
   });
 });
 
-describe("Issue #122: engagement threshold", () => {
-  it("documents engagement threshold for Phase 1 exit gate", () => {
-    const prdPath = path.join(
-      process.cwd(),
-      "..",
-      "docs",
-      "features",
-      "mvp_1.0",
-      "PRD.md",
-    );
-    const prd = readFileSync(prdPath, "utf-8");
+describe("Issue #122: engagement instrumentation", () => {
+  it("defines task_approved UX event for engagement tracking", () => {
+    const typesPath = path.join(process.cwd(), "src/lib/ux-analytics/types.ts");
+    const types = readFileSync(typesPath, "utf-8");
 
-    expect(prd).toContain("Phase 1 engagement threshold");
-    expect(prd).toContain("task_approved");
-    expect(prd).toMatch(/60%/);
+    expect(types).toContain("task_approved");
+    expect(types).toContain("task_dismissed");
   });
 });

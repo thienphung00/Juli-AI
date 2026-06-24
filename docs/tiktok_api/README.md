@@ -26,8 +26,8 @@ seller-money rescope ([`EXECUTION.md`](../../EXECUTION.md)).
 
 | Phase | TikTok API usage | See |
 |-------|------------------|-----|
-| **P1** | Mock JSON only — no network | [`EXECUTION.md`](../../EXECUTION.md) Phase 1 |
-| **P1.5** | Backtest parquet — no live API | `data-sources.md` |
+| **P1** | Mock JSON only — no network | [`EXECUTION.md`](../../EXECUTION.md) pre-MVP |
+| **Phase 2 MVP Milestone A** | Backtest parquet — no live API | `data-sources.md` |
 | **P2** | Live polling: Orders, Products, Affiliate, Ads | `EXECUTION.md` P2-1 |
 
 Forbidden permanently: Seller Center scraping (#9), in-stream unofficial websockets (#8),
@@ -45,7 +45,6 @@ buyer PII (#17). See [`data-sources.md`](../architecture/data-sources.md).
 | [multi-tenant.md](multi-tenant.md) | Per-shop credentials, `shop_cipher`, isolation |
 | [risks.md](risks.md) | API gaps, policy risk, version drift |
 | [tech-stack.md](tech-stack.md) | Client boundaries, env vars, persistence touchpoints |
-| [phase-roadmap.md](phase-roadmap.md) | P2 rollout aligned with `EXECUTION.md` |
 | [context-plan.md](context-plan.md) | `focus` skill load list per task type |
 | [integration-audit-2026-06.md](integration-audit-2026-06.md) | Full Partner API integration audit + remediation status |
 | [samples/README.md](samples/README.md) | Live API response capture workflow |

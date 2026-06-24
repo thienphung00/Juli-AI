@@ -1,7 +1,7 @@
 import type { ValidatedWorkflowId } from "@/lib/mock-data/operations/schemas";
 import { VALIDATED_WORKFLOW_IDS } from "@/lib/mock-data/operations/schemas";
 
-/** ADR-026 Appendix B — outcome tracking cadence slices. */
+/** ADR-013 Appendix B — outcome tracking cadence slices. */
 export const OUTCOME_CADENCE_IDS = [
   "realtime",
   "daily",
@@ -38,7 +38,7 @@ export interface OutcomeCadenceSlice {
 }
 
 /**
- * Stable P1.8 output envelope for outcome tracking (ADR-026 pipeline stage).
+ * Stable P1.8 output envelope for outcome tracking (ADR-013 pipeline stage).
  * P2 swaps loaders; schema shape remains stable.
  */
 export interface WorkflowOutcomeMetrics {
@@ -49,7 +49,7 @@ export interface WorkflowOutcomeMetrics {
   cadences: OutcomeCadenceSlice[];
 }
 
-/** ADR-026 Appendix B — canonical success criteria per validated workflow. */
+/** ADR-013 Appendix B — canonical success criteria per validated workflow. */
 export const WORKFLOW_OUTCOME_SUCCESS_CRITERIA: Record<
   ValidatedWorkflowId,
   WorkflowOutcomeSuccessCriteria

@@ -119,7 +119,7 @@ describe("Issue #177: WORKFLOW_CATALOG", () => {
     }
   });
 
-  it("never references workflow IDs outside ADR-026 stable IDs", () => {
+  it("never references workflow IDs outside ADR-013 stable IDs", () => {
     const allCatalogIds = [
       ...WORKFLOW_CATALOG.NEW_SHOP,
       ...WORKFLOW_CATALOG.MID_LARGE_SHOP,

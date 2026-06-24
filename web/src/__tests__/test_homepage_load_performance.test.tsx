@@ -40,43 +40,48 @@ beforeEach(() => {
 });
 
 describe("AC2: Seller home shell modules", () => {
-  it("renders read-only home summary shell with health hero and decision preview", async () => {
+  it("renders chart-first home summary shell without task preview cards", async () => {
     renderSellerHome();
 
     await waitFor(() => {
       expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("shop-info-card")).toBeInTheDocument();
-    expect(screen.getByTestId("recent-progress-card")).toBeInTheDocument();
+    expect(within(screen.getByRole("banner")).getByTestId("shop-info-card")).toBeInTheDocument();
+    expect(screen.getByTestId("todays-report-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("recent-progress-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("recommended-decisions-preview")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-gate-toolbar")).not.toBeInTheDocument();
   });
 
-  it("displays shop name in health hero", async () => {
+  it("displays shop name in header", async () => {
     const persona = loadPersona("new");
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getByTestId("shop-info-card")).toHaveTextContent(
+      expect(within(screen.getByRole("banner")).getByTestId("shop-info-card")).toHaveTextContent(
         persona.profile.shop_name,
       );
     });
   });
 
-  it("shows recent progress items for default persona", async () => {
+  it("does not show recent progress items on Home (moved to Decisions)", async () => {
     renderSellerHome();
 
     await waitFor(() => {
-      expect(screen.getAllByTestId("recent-progress-item").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByTestId("home-summary-shell")).toBeInTheDocument();
     });
+
+    expect(screen.queryByTestId("recent-progress-item")).not.toBeInTheDocument();
   });
 
-  it("shows active workflow label in header subtitle", async () => {
+  it("shows shop status in header instead of workflow copilot subtitle", async () => {
     renderSellerHome();
 
     await waitFor(() => {
       const header = screen.getByRole("banner");
-      expect(within(header).getByText("Copilot Người Bán Mới")).toBeInTheDocument();
+      expect(within(header).getByTestId("shop-info-status")).toHaveTextContent("Đang thử nghiệm");
+      expect(within(header).queryByText(/Copilot/i)).not.toBeInTheDocument();
     });
   });
 });

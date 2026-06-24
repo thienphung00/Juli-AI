@@ -10,7 +10,7 @@ import { getWorkflowsForProfile } from "./workflow-catalog";
 
 /**
  * Product-owned MID_LARGE_SHOP impact filter (VND). Null until recorded in EXECUTION.md.
- * Mock P1.8 ranks all eligible workflows when unset (ADR-026).
+ * Mock P1.8 ranks all eligible workflows when unset (ADR-013).
  */
 export const MID_LARGE_IMPACT_THRESHOLD_VND: number | null = null;
 
@@ -34,7 +34,7 @@ export interface WorkflowRecommendation {
 
 /**
  * Stable P1.8 output envelope for the operations pipeline ranking stage.
- * P2 swaps scoring; schema shape remains stable per ADR-026.
+ * P2 swaps scoring; schema shape remains stable per ADR-013.
  */
 export interface WorkflowRecommendations {
   shop_profile: ShopProfileType;

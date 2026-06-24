@@ -1,6 +1,6 @@
 # Decision view-model (P1.8-9)
 
-Seller-facing **Decision** envelopes mapped from ADR-026 `workflow_recommendations`.
+Seller-facing **Decision** envelopes mapped from ADR-013 `workflow_recommendations`.
 Pure functions only — no HTTP, no React. UI layers (#193, #195, #199) consume
 this module; execution remains keyed by `workflow_id`.
 
@@ -14,10 +14,12 @@ this module; execution remains keyed by `workflow_id`.
 | `takeTopDecisions(decisions, n)` | Top *n* after impact sort (Home preview uses `n=3`) |
 | `resolveDecisionStatus(options)` | Derive `DecisionStatus` from approval + executor mock state |
 | `applyDecisionLifecycle(decision, options)` | Merge lifecycle into a `Decision` copy |
-| `isValidatedWorkflowId(id)` | ADR-026 catalog guard (six workflows only) |
+| `isValidatedWorkflowId(id)` | ADR-013 catalog guard (six workflows only) |
 | `getRequiredInputsForWorkflow(workflowId)` | Static required-input catalog per workflow (mock P1.8-9) |
 | `DECISION_DETAIL_STEPS`, `getNextStep`, `getPreviousStep` | Step graph for detail flow (#196) |
 | `buildDecisionAnalytics`, `getDecisionPreviewRisks` | Mock analytics + risks for detail steps 2 & 4 |
+| `buildInProgressDecisions`, `IN_PROGRESS_STATUS_LABELS` | Approved decisions with lifecycle status (#197) |
+| `loadDecisionLifecycleSession`, `markDecisionExecutor*` | Session persistence for inputs + executor phase |
 | `buildDecisionChatContext`, `buildContextualSuggestedPrompts`, `buildDecisionAwareMockReply` | Juli Chat decision context (#199) |
 | `saveActiveDecisionForChat`, `readActiveDecisionForChat` | Session + URL `?decision=` handoff to `/ai-chat` |
 
@@ -59,6 +61,6 @@ P2 swaps session/executor sources; status enum and mapping stay stable.
 - `HomeSummaryShell` — `takeTopDecisions(_, 3)` (#193) ✅
 - `DecisionsPage` Recommended sub-tab — full ranked list + approval gate (#195) ✅
 - `DecisionDetailFlow` on `/decisions/[decisionId]` — 5-step guided approve (#196) ✅
-- `DecisionsPage` In Progress (#197)
+- `DecisionsPage` In Progress — `DecisionsInProgressShell` (#197) ✅
 - `DecisionsPage` Workflow Templates — `DecisionsWorkflowTemplatesShell` (#198) ✅
 - Juli Chat decision context (#199) ✅

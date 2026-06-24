@@ -1,7 +1,7 @@
 # Phase 1 Completed (Historical Summary)
 
 > **Status:** Complete — exit gate passed 2026-06-19.  
-> **Authority:** Historical reference only. Active work begins at [Phase 2 Pipeline Validation](phase-2-mvp.md).
+> **Authority:** Historical reference only. Active work begins at [Phase 2 MVP](phase-2-mvp.md).
 
 Phases 1.0 through 1.8 validated seller UX and workflow taxonomy on **mock data only** —
 no TikTok API, no Postgres workflow persistence, no cloud LLM, no production ML inference.
@@ -57,4 +57,4 @@ The following are **historical only** and must not appear in active docs:
 
 - **3 Copilot surfaces** (New Seller / Growth / Revenue Leakage) — replaced by the layered Visual / ML / Execution model ([ADR-011](../decisions/011-display-grade-analytics-layer.md))
 - **Closed "six validated workflows" catalog** — replaced by [`execution_layer.md`](../execution_layer.md) taxonomy
-- **Phase 1.5 / 2.0 / 2.5 numbering** — collapsed into [Phase 2 Pipeline Validation](phase-2-mvp.md)
+- **Phase 1.5 / 2.0 / 2.5 numbering** — collapsed into [Phase 2 MVP](phase-2-mvp.md)

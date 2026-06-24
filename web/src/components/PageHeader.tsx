@@ -1,15 +1,18 @@
 "use client";
 
-import { DemoControlsDrawer } from "./DemoControlsDrawer";
+import type { ShopMetadata } from "@/lib/mock-data/operations/schemas";
+
 import { ModeSwitcher } from "./ModeSwitcher";
 import { AlertBell } from "./AlertBell";
+import { ShopInfoHeader } from "./workflows/operations/ShopInfoHeader";
 
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
+  shopMetadata?: ShopMetadata;
 }
 
-export function PageHeader({ title, subtitle }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, shopMetadata }: PageHeaderProps) {
   return (
     <header
       role="banner"
@@ -24,17 +27,20 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
           >
             {title}
           </h1>
-          {subtitle && (
+          {shopMetadata ? (
+            <div className="seller-home-header-shop-info">
+              <ShopInfoHeader metadata={shopMetadata} />
+            </div>
+          ) : subtitle ? (
             <p
               className="mt-0.5 line-clamp-2 text-xs"
               style={{ color: "var(--muted-foreground)" }}
             >
               {subtitle}
             </p>
-          )}
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <DemoControlsDrawer />
           <ModeSwitcher />
           <AlertBell />
         </div>

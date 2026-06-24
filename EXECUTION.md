@@ -5,25 +5,15 @@
 > Start every task here, then open **one** component doc from the routing table below.  
 > Full index: [`docs/README.md`](docs/README.md)
 
-**Owner:** Product lead · **Last reset:** Phase 2 Pipeline Validation (pre-MVP exit gate passed 2026-06-19)
+**Owner:** Product lead · **Last reset:** Phase 2 MVP (pre-MVP exit gate passed 2026-06-19)
 
 ---
 
 ## North star (summary)
 
-**Juli is an execution platform, not an analytics product with recommendations.**
-
-The moat is increasingly automated execution. The critical architecture evolution is not
-Dashboard → Analytics → Forecast, but:
-
-```
-Data → Decision → Approval → Execution → Outcome
-```
-
 **Seller money, not creator matching.** Juli AI is a **Decision Copilot** for TikTok Shop
-sellers — ingest shop data, generate signals and recommendations, collect explicit
-approval, execute via tools, and measure outcomes. Creator ↔ shop matching is deferred
-beyond early user-testing phases.
+sellers — analyze shop data, recommend workflows with impact estimates, collect explicit
+approval, then execute. Creator ↔ shop matching is **Phase 3+**.
 
 **Product shape:** Visual layer (Home KPIs) → ML layer (T1–T8 advisory) → Execution layer
 (workflow taxonomy). Pipeline spine: classify → health → rank → reason → approve → execute → track.
@@ -43,7 +33,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **1a** | Subsystem envelopes, ML thresholds, pipeline stages | [`system-design.md`](docs/system-design.md) |
 | **1b** | Which data sources are allowed in which phase | [`data-sources.md`](docs/architecture/data-sources.md) |
 | **1c** | Which modules/paths exist in the repo | [`map.md`](docs/architecture/map.md) |
-| **1d** | Phase 2 stack diagram, daily UTC schedule, deployment | [`phase-2-mvp.md`](docs/phases/phase-2-mvp.md) |
+| **1d** | MVP stack diagram, daily UTC schedule, deployment | [`phase-2-mvp.md`](docs/phases/phase-2-mvp.md) |
 | **1e** | Entity schemas, feature definitions | [`data-models/`](docs/data-models/README.md) |
 | **1f** | TikTok API ingestion field maps | [`tiktok_api/endpoints.md`](docs/tiktok_api/endpoints.md) |
 | **2** | Why a constraint exists | One ADR from [`decisions/`](docs/decisions/README.md) |
@@ -54,47 +44,25 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 
 ## Phase overview
 
-| Phase | Theme | Shops | Exit gate |
-|-------|-------|-------|-----------|
-| **Phase 2 — Pipeline Validation** | End-to-end machine: data → signal → recommendation → execution → outcome | 0 (internal) | Pipeline reliable; execution >95%; outcome tracking works |
-| **Phase 3 — First User Testing** | User behavior: trust, approval, execution rate | 10 | Sellers connect, open reports, approve, and execute |
+| Phase | Theme | Exit gate |
+|-------|-------|-----------|
+| **Phase 2 MVP** | Live TikTok data + daily inference + Haiku copy + approved execution | 50 live sellers, zero critical bugs, 2 weeks stable |
+| **Phase 3.0** | Real-time, LIVE API, polyglot data plane | TBD |
 
-**Phase 2 architecture (diagram + schedule):** [`phase-2-mvp.md`](docs/phases/phase-2-mvp.md)  
-**Phase 3 user-testing scope:** [`phase-3-vision.md`](docs/phases/phase-3-vision.md)
-
-### Architecture evolution (by phase)
-
-| Phase | Stack additions |
-|-------|-----------------|
-| **2** | FastAPI · Postgres · Redis · **Celery** · Scheduler · **rules-based copy** |
-| **3** | + Web app · PostHog · rules-based copy (carried forward) |
-
-Celery is introduced in Phase 2 because execution is core — tool calls must never block
-`POST /execute`. Cloud LLM (Haiku) is deferred until beta (see forward phase docs under
-`docs/phases/`). Webhooks and WebSockets are deferred likewise.
+**MVP architecture (diagram + schedule):** [`phase-2-mvp.md`](docs/phases/phase-2-mvp.md)
 
 ---
 
-## Phase 2 — Pipeline Validation (active)
+## Phase 2 MVP — Active
 
-**Goal:** Validate the entire machine end-to-end with no external users.
-
-```
-TikTok Data → Feature Store → Signal Engine → Recommendation → Execution → Outcome Tracking
-```
-
-Success means this loop works reliably:
-
-```
-Input Data → Generated Action → Executed Action → Outcome Measured
-```
+**Goal:** TikTok API polling → ETL → daily batch inference → Haiku copy → live executors.
 
 ### Milestones
 
 | Milestone | Focus | Status |
 |-----------|-------|--------|
 | **A — Display-grade analytics** | T1–T8 backtest, artifact promotion, feature specs | In progress |
-| **B — Live data + execution** | Live poll → inference → rules copy → Celery executors | Pending API approval |
+| **B — Live data + execution** | Live poll → inference → Haiku → executors | Pending API approval |
 
 ### Milestone A slices
 
@@ -108,11 +76,11 @@ Input Data → Generated Action → Executed Action → Outcome Measured
 ### Milestone B slices
 
 - [ ] **P2-B1** TikTok API polling live — VP/AHR dual-read gate.
-- [ ] **P2-B2** Daily batch inference pipeline (feature build → signals → recommendations).
-- [ ] **P2-B3** Rules-based copy layer — deterministic templates from ML signals (no cloud LLM).
+- [ ] **P2-B2** Daily batch inference (08:00 UTC).
+- [ ] **P2-B3** Haiku copy layer + rules fallback.
 - [ ] **P2-B4** Swap mock → real inferences + policy alerts.
-- [ ] **P2-B5** Celery-backed task execution behind approval (never inline in HTTP handler).
-- [ ] **P2-B6** Outcome tracking instrumentation.
+- [ ] **P2-B5** Live task execution behind approval.
+- [ ] **P2-B6** Revenue-impact instrumentation.
 - [ ] **P2-B7** Listing approval queue + Products API publish.
 - [ ] **P2-B8** Leakage live executors.
 - [ ] **P2-B9** Live operations pipeline wiring.
@@ -121,49 +89,27 @@ Input Data → Generated Action → Executed Action → Outcome Measured
 
 ### Exit gate → Phase 3
 
-Must prove:
-
-- [ ] **Data** — TikTok → Postgres reliable
-- [ ] **ML** — Signal generation stable
-- [ ] **Execution** — Tool execution succeeds >95%
-- [ ] **Tracking** — Outcome measurement works
+- [ ] 50 live sellers · zero critical bugs · 2 weeks stable · Haiku + verified rules fallback
 
 ---
 
-## Phase 3 — First User Testing (brief)
+## Phase 3.0 — Brief
 
-**Goal:** Validate user behavior — do sellers trust and execute recommendations?
-
-Not "can we generate recommendations?" (solved in Phase 2). Instead: activation,
-engagement, trust, and **execution rate** as the core product metric.
-
-Architecture: Web app · REST · Postgres · Redis · Celery · PostHog · rules-based copy.
-Still no WebSockets, no Kafka, no cloud LLM. Recommendations refresh 1×/day. Detail:
-[`phase-3-vision.md`](docs/phases/phase-3-vision.md).
-
-### Exit gate
-
-- [ ] 10 connected shops
-- [ ] Daily report opened (engagement)
-- [ ] Recommendations approved (trust)
-- [ ] Actions executed (core metric — if viewed but not executed, product failed)
+Deferred until Phase 2 exit gate: real-time (SSE/Realtime), TikTok LIVE API, polyglot
+(ClickHouse/S3/SQS/Kafka), sentiment/CSAT, Celery workers. Detail: [`phase-3-vision.md`](docs/phases/phase-3-vision.md).
 
 ---
 
-## In scope (Phase 2)
+## In scope (Phase 2 MVP)
 
-TikTok polling · daily batch pipeline (sync → features → recommendations) · rules-based
-summarization and recommendation copy from ML outputs · Celery workers for tool execution ·
-operations pipeline on live data · outcome tracking · Railway/VPS (app + worker + scheduler) ·
-Postgres · Redis.
+TikTok polling · 08:00 UTC inference · Haiku copy · operations pipeline on live data ·
+3-tab IA · scoped inventory signals · Railway + Supabase single store.
 
-Public frontend is **not required** in Phase 2 — internal validation only.
+## Explicitly out
 
-## Explicitly out (Phase 2)
-
-Kafka · WebSockets · Webhook ingestion · Cloud LLM (Haiku / Claude) · Creator matching ·
-ClickHouse/S3/SQS · vendor scrapers · Seller Center scraping · buyer PII · unofficial
-livestream websockets · inventory/finance **management** (signals only for Stockout Prevention).
+Celery/Kafka · Creator matching · ClickHouse/S3/SQS · Realtime/SSE · vendor scrapers ·
+Seller Center scraping · buyer PII · unofficial livestream websockets · inventory/finance
+**management** (signals only for Stockout Prevention).
 
 ---
 

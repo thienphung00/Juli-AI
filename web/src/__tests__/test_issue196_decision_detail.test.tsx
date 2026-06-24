@@ -1,5 +1,5 @@
 /**
- * Issue #196 — Decision detail flow UI + approve from step 5 (ADR-028 P1.8-9)
+ * Issue #196 — Decision detail flow UI + approve from step 5 (ADR-014 P1.8-9)
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -33,6 +33,7 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: jest.fn(), push: mockPush, back: mockBack }),
   usePathname: () => mockPathname,
   useParams: () => ({ decisionId: mockDecisionId }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderDecisionsPage() {

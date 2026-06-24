@@ -501,9 +501,6 @@ function RootCauseStep({ rootCause }: { rootCause: LeakageRootCause }) {
       <p className="text-sm" data-testid="leakage-root-cause-summary">
         {rootCause.summary_vi}
       </p>
-      <p className="text-muted text-xs">
-        Độ tin cậy: {(rootCause.confidence * 100).toFixed(0)}%
-      </p>
       {rootCause.possible_causes.length > 0 && (
         <ul className="list-disc space-y-1 pl-5 text-sm">
           {rootCause.possible_causes.map((cause) => (

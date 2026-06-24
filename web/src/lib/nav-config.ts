@@ -9,7 +9,7 @@ export interface NavTab {
   live?: boolean;
 }
 
-/** Bottom navigation — Home, Decisions, Juli AI (ADR-028 #191). */
+/** Bottom navigation — Home, Decisions, Juli AI (ADR-014 #191). */
 export const BOTTOM_NAV_TABS: NavTab[] = [
   { href: "/", label: "Trang chủ", Icon: Home, color: "var(--primary)" },
   { href: "/decisions", label: "Quyết định", Icon: ListChecks, color: "var(--primary)" },

@@ -9,7 +9,7 @@ Deep details for algorithm vetting and evaluation. Load on demand — not requir
 | [`docs/ml_layer.md`](../../../docs/ml_layer.md) | T1–T8 catalog + per-KPI mapping |
 | [`docs/decisions/011-display-grade-analytics-layer.md`](../../../docs/decisions/011-display-grade-analytics-layer.md) | Display vs decision; rejected Prophet/per-KPI models |
 | [`docs/decisions/011-buyer-behavior-anomaly-scope.md`](../../../docs/decisions/011-buyer-behavior-anomaly-scope.md) | Anomaly label scope |
-| [`docs/decisions/013-phase-15-ml-module-tree.md`](../../../docs/decisions/013-phase-15-ml-module-tree.md) | Python feature-build authority |
+| [`docs/decisions/010-ml-module-tree-and-trainers.md`](../../../docs/decisions/010-ml-module-tree-and-trainers.md) | Python feature-build authority |
 | [`docs/system-design.md`](../../../docs/system-design.md) § 3 | Promotion targets, backtest reference run |
 | [`docs/data-models/feature-store-schema.md`](../../../docs/data-models/feature-store-schema.md) | Feature groups A–D, inference signatures |
 | [`docs/data-models/mock-data-generator.md`](../../../docs/data-models/mock-data-generator.md) | Synthetic parquet rules |

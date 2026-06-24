@@ -1,10 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tw-animate-css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design Tokens (ADR-027, issue #174) ─────────────────── */
+/* ── Design Tokens (ADR-015, issue #174) ─────────────────── */
 :root {
   --pink-main: #f86ba5;
   --pink-background: #fef5f6;
@@ -24,9 +25,12 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
   --focus-ring-width: 3px;
   --focus-ring-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  --ring: var(--focus-ring-color);
+  --accent-foreground: var(--secondary-foreground);
+  --destructive-foreground: #ffffff;
 }
 
-/* Seller (light): white canvas with charcoal text (ADR-028 #191) */
+/* Seller (light): white canvas with charcoal text (ADR-014 #191) */
 html:not(.dark) {
   --background: #ffffff;
   --foreground: #0a0a0a;
@@ -107,11 +111,13 @@ html.dark {
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    @apply font-sans;
   }
 
   body {
     background-color: var(--background);
     color: var(--foreground);
+    @apply bg-background text-foreground;
   }
 
   h1, h2, h3, h4 {
@@ -125,6 +131,9 @@ html.dark {
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  * {
+    @apply border-border;
   }
 }
 
@@ -156,6 +165,28 @@ html.dark {
   .card-interactive:focus-visible {
     outline: none;
     box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  }
+
+  [data-testid="clarity-card"][data-highlighted="true"] {
+    box-shadow: 0 0 0 3px var(--primary);
+    transition: box-shadow 0.2s ease;
+  }
+
+  [data-testid^="report-metric-chart-"][data-highlighted="true"],
+  [data-testid^="shop-health-"][data-highlighted="true"] {
+    box-shadow: 0 0 0 3px var(--primary);
+    transition: box-shadow 0.2s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-testid^="report-metric-chart-"][data-highlighted="true"],
+    [data-testid^="shop-health-"][data-highlighted="true"] {
+      transition: none;
+    }
+  }
+
+  .estimated-segment-glow {
+    animation: estimated-segment-glow 2.5s ease-in-out infinite;
   }
 
   .glass {
@@ -359,14 +390,54 @@ html.dark {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    min-width: 0;
   }
 
-  @media (min-width: 768px) {
+  .seller-home-sidebar {
+    display: none;
+    min-width: 0;
+  }
+
+  .seller-home-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .seller-home-header-shop-info {
+    display: block;
+  }
+
+  @media (min-width: 1024px) {
     .seller-home-grid {
       display: grid;
       grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
       gap: 1.25rem;
       align-items: start;
+    }
+
+    .seller-home-sidebar {
+      display: block;
+    }
+
+    .seller-home-header-shop-info {
+      display: none;
+    }
+  }
+
+  .todays-report-metrics-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  @media (min-width: 768px) {
+    .todays-report-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
     }
   }
 
@@ -415,7 +486,8 @@ html.dark {
   .badge-live::before,
   .spinner,
   .skeleton,
-  .btn-primary.btn-loading::after {
+  .btn-primary.btn-loading::after,
+  .estimated-segment-glow {
     animation: none;
   }
 
@@ -424,6 +496,10 @@ html.dark {
   .card-interactive,
   .todays-report-card-animate {
     transition: none;
+    animation: none;
+  }
+
+  .report-metric-chart-animate {
     animation: none;
   }
 }
@@ -435,6 +511,15 @@ html.dark {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.6; transform: scale(1.3); }
 }
+
+@keyframes estimated-segment-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px 1px color-mix(in srgb, var(--brand-primary) 20%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 10px 3px color-mix(in srgb, var(--brand-primary) 40%, transparent);
+  }
+}
 @keyframes skeleton-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -442,6 +527,21 @@ html.dark {
 
 .todays-report-card-animate {
   animation: todays-report-fade-in 300ms ease-out;
+}
+
+.report-metric-chart-animate {
+  animation: report-metric-chart-fade-in 280ms ease-out;
+}
+
+@keyframes report-metric-chart-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes todays-report-fade-in {
