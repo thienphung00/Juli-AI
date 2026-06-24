@@ -5,7 +5,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design Tokens (ADR-027, issue #174) ─────────────────── */
+/* ── Design Tokens (ADR-015, issue #174) ─────────────────── */
 :root {
   --pink-main: #f86ba5;
   --pink-background: #fef5f6;
@@ -30,7 +30,7 @@
   --destructive-foreground: #ffffff;
 }
 
-/* Seller (light): white canvas with charcoal text (ADR-028 #191) */
+/* Seller (light): white canvas with charcoal text (ADR-014 #191) */
 html:not(.dark) {
   --background: #ffffff;
   --foreground: #0a0a0a;
