@@ -60,7 +60,7 @@ Load plugin skills when Focus selects them: `nextjs`, `react-best-practices`; `s
 Juli has an established identity — **extend it, don't replace it**:
 
 - Pink accent (`--primary` / `#F86BA5`), background `#FEF5F6`, Inter, glass + gradient wordmark
-- **Theme ([ADR-015](../../../../docs/decisions/015-design-system-token-foundation.md), P1.8-8 target): Seller = light; Affiliate = dark** — inverts the prior mapping; use semantic tokens so both modes work
+- **Theme ([ADR-027](../../../../docs/decisions/027-design-system-token-foundation.md), P1.8-8 target): Seller = light; Affiliate = dark** — inverts the prior mapping; use semantic tokens so both modes work
 - One typeface (Inter), single **≤6-size** type scale (hierarchy from size + weight)
 - Semantic palette: Growth `#16A34A`, Loss `#E5484D`, Warning `#F59E0B`, New/Info `#2563EB` (+ background tints); 60/30/10 distribution
 - 3-step elevation (`sm`/`md`/`lg`); motion gated by `prefers-reduced-motion`

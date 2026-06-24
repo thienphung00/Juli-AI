@@ -1,6 +1,6 @@
 ---
-description: Git branches, commits, PRs, CI/CD — load during ship step or any branch/commit/PR task
-alwaysApply: false
+description: Git baseline — branches, commits, PRs, CI/CD (always on)
+alwaysApply: true
 ---
 
 # Git Baseline
@@ -38,4 +38,4 @@ alwaysApply: false
 
 ## Parallel issues
 
-When running multiple issues: load [`.cursor/rules/issue-workflow.mdc`](issue-workflow.mdc) and the active slice in [`EXECUTION.md`](../EXECUTION.md).
+When running multiple issues: load [`.cursor/rules/issue-workflow.mdc`](issue-workflow.mdc) and `docs/handoffs/parallel-status.md`.

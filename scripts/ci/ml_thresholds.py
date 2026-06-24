@@ -152,7 +152,7 @@ def verify_ml_gates_threshold_values(
             )
     if mismatches:
         problems.append(
-            f"mlGates.thresholds mismatch with source: "
+            "mlGates.thresholds mismatch with source: "
             + ", ".join(m["constant"] for m in mismatches)
         )
     details["mismatches"] = mismatches

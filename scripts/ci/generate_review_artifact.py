@@ -9,7 +9,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
-    REVIEWS_DIR,
     build_review_artifact,
     load_json,
     load_review_artifact,

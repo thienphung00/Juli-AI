@@ -1,0 +1,48 @@
+{
+  "id": "validation-issue-36",
+  "issue": 36,
+  "timestamp": "2026-05-27T12:05:00Z",
+  "validatedBy": "validate skill",
+  "status": "PASS",
+  "passedChecks": 7,
+  "failedChecks": 0,
+  "checks": [
+    {
+      "name": "review_artifact_present",
+      "status": "PASS",
+      "description": "Review artifact present and structurally valid"
+    },
+    {
+      "name": "acceptance_criteria_mapped",
+      "status": "PASS",
+      "description": "All acceptance criteria mapped to tests"
+    },
+    {
+      "name": "module_boundaries",
+      "status": "PASS",
+      "description": "Module boundaries respected"
+    },
+    {
+      "name": "module_md_sync",
+      "status": "PASS",
+      "description": "MODULE.md in sync for touched modules"
+    },
+    {
+      "name": "handoff_structure",
+      "status": "PASS",
+      "description": "No handoff on branch (skipped)"
+    },
+    {
+      "name": "adr_requirement",
+      "status": "PASS",
+      "description": "ADR-004 documents new alerts module"
+    },
+    {
+      "name": "done_md_completion",
+      "status": "PASS",
+      "description": "done.md required checklist complete"
+    }
+  ],
+  "overallSummary": "All validation checks passed.",
+  "readyForMerge": true
+}

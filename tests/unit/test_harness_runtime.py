@@ -8,8 +8,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "ci"))
 
-from build_runtime import build_runtime, load_simple_yaml
-from harness_optimizer import (
+from build_runtime import build_runtime, load_simple_yaml  # noqa: E402
+from harness_optimizer import (  # noqa: E402
     apply_fix,
     build_optimization_artifact,
     collect_metrics,

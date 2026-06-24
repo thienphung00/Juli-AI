@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:docs/templates/handoffs/grill-with-docs-to-prd.md
-# Handoff: grill-with-docs → to-prd
-========
 # Handoff: planning → to-prd
->>>>>>>> dc6affc (feat: introduce agent runtime harness with CI artifact pipeline):docs/templates/handoffs/planning-to-prd.md
 
 ## Feature summary
 [One paragraph: what, why, for whom]
@@ -26,11 +22,7 @@
 - [Budget, timeline, compliance, platform limits]
 
 ## Edge cases & failure modes
-<<<<<<<< HEAD:docs/templates/handoffs/grill-with-docs-to-prd.md
-- [From grilling + risks.md + platform policy]
-========
 - [From planning + risks.md + platform policy]
->>>>>>>> dc6affc (feat: introduce agent runtime harness with CI artifact pipeline):docs/templates/handoffs/planning-to-prd.md
 
 ## Implementation decisions
 - [Key architectural choices from Research & Reuse]
