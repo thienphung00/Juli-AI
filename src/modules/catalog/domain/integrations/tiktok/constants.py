@@ -4,6 +4,7 @@ from __future__ import annotations
 
 ORDER_API_VERSION = "202309"
 PRODUCT_API_VERSION = "202502"
+PRODUCT_INVENTORY_API_VERSION = "202309"
 RETURN_REFUND_API_VERSION = "202309"
 AUTHORIZATION_API_VERSION = "202309"
 AFFILIATE_SELLER_API_VERSION = "202406"
@@ -14,6 +15,7 @@ ORDER_SEARCH_PATH = f"/order/{ORDER_API_VERSION}/orders/search"
 ORDER_DETAIL_PATH = f"/order/{ORDER_API_VERSION}/orders"
 
 PRODUCT_SEARCH_PATH = f"/product/{PRODUCT_API_VERSION}/products/search"
+INVENTORY_SEARCH_PATH = f"/product/{PRODUCT_INVENTORY_API_VERSION}/inventory/search"
 
 RETURN_SEARCH_PATH = f"/return_refund/{RETURN_REFUND_API_VERSION}/returns/search"
 CANCELLATION_SEARCH_PATH = (
@@ -33,6 +35,13 @@ FINANCE_STATEMENTS_PATH = f"/finance/{FINANCE_API_VERSION}/statements"
 
 def product_detail_path(product_id: str) -> str:
     return f"/product/{PRODUCT_API_VERSION}/products/{product_id}"
+
+
+def product_inventory_update_path(product_id: str) -> str:
+    return (
+        f"/product/{PRODUCT_INVENTORY_API_VERSION}/products/"
+        f"{product_id}/inventory/update"
+    )
 
 
 def marketplace_creator_path(creator_user_id: str) -> str:

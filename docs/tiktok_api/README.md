@@ -20,6 +20,7 @@ seller-money rescope ([`EXECUTION.md`](../../EXECUTION.md)).
 | Rate limits | Per (app_key × shop) — exact quotas **not publicly documented** |
 | Regions | US, UK, SEA (TH, VN, MY, PH, SG, ID) — confirm per shop `region` field |
 | Partner portal | [partner.tiktokshop.com](https://partner.tiktokshop.com) |
+| API documentation | [Partner Center Documents](https://partner.tiktokshop.com/docv2/page/) |
 | Developer guide | [tts-developer-guide](https://partner.tiktokshop.com/docv2/page/tts-developer-guide) |
 
 ## Juli phase alignment
@@ -53,7 +54,11 @@ buyer PII (#17). See [`data-sources.md`](../architecture/data-sources.md).
 
 | Resource | URL |
 |----------|-----|
+| API documentation (index) | https://partner.tiktokshop.com/docv2/page/ |
 | Developer guide | https://partner.tiktokshop.com/docv2/page/tts-developer-guide |
+| Products API overview | https://partner.tiktokshop.com/docv2/page/products-api-overview |
+| Search inventory | https://partner.tiktokshop.com/docv2/page/search-inventory-202309 |
+| Update inventory | https://partner.tiktokshop.com/docv2/page/update-inventory-202309 |
 | Get authorized shops | https://partner.tiktokshop.com/docv2/page/call-get-authorized-shops |
 | Sign API requests | https://partner.tiktokshop.com/docv2/page/sign-your-api-request |
 | API entity tags | https://partner.tiktokshop.com/docv2/page/api-entity-tags |

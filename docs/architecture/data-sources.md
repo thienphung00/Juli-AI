@@ -22,15 +22,14 @@ This is the **only** file that assigns a phase to a data source.
 | Source | P2-A | P2 | P3 | Powers | Notes |
 |--------|------|----|----|--------|-------|
 | **TikTok Orders** | Backtest | Live polling | — | Loss-prevention workflows | ~90d history; [`endpoints.md`](../tiktok_api/endpoints.md) |
-| **TikTok Products** | Backtest | Live polling | — | NPL, Product Scaling | [`endpoints.md`](../tiktok_api/endpoints.md) |
+| **TikTok Products (incl. inventory)** | Backtest | Live polling | — | NPL, Product Scaling, Stockout signals | Product API — inventory via `/product/202309/inventory/*`; see [`endpoints.md`](../tiktok_api/endpoints.md) |
 | **TikTok Affiliate** | Backtest | Live polling | — | Policy alerts (not T6 ML) | ADR-008 |
-| **TikTok Ads** | Backtest | Live polling | — | T2 ads regressor | Daily signals |
+| **TikTok Ads** | Backtest | Live polling | — | T2 ads regressor · Increase/Reduce Ad Spend workflows | Marketing API v1.3 (`business-api.tiktok.com`) — separate OAuth from Shop Partner API; see [`endpoints.md`](../tiktok_api/endpoints.md) |
 | **TikTok Shop Account** | Backtest | Live polling | — | T8 router, T3 policy | `health_data_source` gate (P2-B1) |
 | **Supabase Postgres** | — | Live | Live | OLTP + OLAP | ADR-002 |
 | **Redis** | — | Live | Live | Action cards, view cache, sessions | [`phase-2-mvp.md`](../phases/phase-2-mvp.md) |
 | **Claude Haiku 3.5** | — | Live | Live | Copy layer | ADR-012 |
 | **Kalodata / Shoplus** | Optional | — | Optional | Validation only | Never user-facing |
-| **TikTok Inventory (scoped)** | — | Live | — | Stockout Prevention | Signals only — ADR-013 |
 | **ClickHouse / S3 / SQS** | — | — | Live | Polyglot plane | Phase 3 — ADR-012 |
 
 ## Operational rules

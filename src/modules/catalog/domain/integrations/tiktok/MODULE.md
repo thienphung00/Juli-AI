@@ -37,7 +37,7 @@ API plus OAuth lifecycle management.
 ### Resources (`resources/`)
 - `OrdersResource(client)` — search / search_all / get_details
 - `ProductsResource(client)` — search / search_all / get_details
-- `InventoryResource(client)` — search / update
+- `InventoryResource(client)` — Product API inventory search / update
 - `CreatorsResource(client)` — list / list_all / get (Affiliate API, requires
   per-seller scope approval)
 - `LivestreamsResource(client)` — list / list_all / get (post-stream summaries

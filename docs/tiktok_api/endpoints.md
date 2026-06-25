@@ -21,7 +21,7 @@ the current Python client — reconcile during P2-1 if paths diverge.
 | Affiliate Creator | `Creator` | Scope-gated; P2 affiliate polling |
 | Livestream session | Post-stream summary | **Not** realtime telemetry (forbidden #8) |
 | Settlement | Finance signal | `pending` 7–14d; out of P2 core UI |
-| Ad performance | Ads signal | P2 Growth Copilot — client **not yet implemented** |
+| Ad performance | Ads signal (Marketing API reporting) | P2 Growth Copilot — `MarketingApiResource` **not yet implemented** |
 | Buyer | Masked `buyer_id` only | No PII (#17) |
 
 ---
@@ -137,6 +137,24 @@ Rotate refresh token. See [authentication.md](authentication.md).
 
 **ETL:** `normalize_product` maps `id` → `product_id`, `audit.status` → `status`.
 
+### Product API — inventory operations (`InventoryResource`)
+
+**Status:** **VERIFIED** in Partner Center under the Product API — **not** a separate
+Inventory API family.
+
+**Source:** [Products API overview](https://partner.tiktokshop.com/docv2/page/products-api-overview),
+[Search inventory](https://partner.tiktokshop.com/docv2/page/search-inventory-202309),
+[Update inventory](https://partner.tiktokshop.com/docv2/page/update-inventory-202309).
+
+| Method | Path | Client method |
+|--------|------|---------------|
+| POST | `/product/202309/inventory/search` | `InventoryResource.search` |
+| POST | `/product/202309/products/{product_id}/inventory/update` | `InventoryResource.update` |
+
+**Update body:** `skus[]` with `id`, `inventory[]` (`warehouse_id`, `quantity`).
+
+**Phase:** Out of P2 core — `sync_inventory` slated for removal per `map.md` (signals-only ADR-013).
+
 ---
 
 ## Orders
@@ -177,6 +195,33 @@ Rotate refresh token. See [authentication.md](authentication.md).
 
 ---
 
+## Fulfillment
+
+**Status:** **VERIFIED** in Partner Center (Fulfillment API `202309`); **not implemented**
+in Juli client — add `FulfillmentResource` in P2-1.
+
+**Source:** [Fulfillment API overview](https://partner.tiktokshop.com/docv2/page/ship-package-202309),
+[Get Package Shipping Document](https://partner.tiktokshop.com/docv2/page/get-package-shipping-document-202309),
+[Create Packages](https://partner.tiktokshop.com/docv2/page/create-packages-202512).
+
+**Scope:** `seller.fulfillment.package.read` / `seller.fulfillment.package.write` (confirm per app).
+
+| Juli action (execution layer) | Official operation | Notes |
+|-------------------------------|-------------------|-------|
+| Validate order (pre-ship) | Order API `GET /order/202309/orders` | Implemented via `OrdersResource` |
+| Generate picking list | `Get Package Shipping Document` | `document_type=PICK_LIST` (2) |
+| Generate shipping labels | `Get Package Shipping Document` | `document_type=SHIPPING_LABEL` (1) |
+| Process order fulfillment | `Create Packages` → `Ship Package` | `POST /fulfillment/202309/packages/{package_id}/ship` |
+| Confirm shipment | `Ship Package` or `Mark Package As Shipped` | Package-level state transition |
+| Monitor shipment status | `Get Package Shipping Info` | Tracking timeline on package |
+
+> Legacy `/api/fulfillment/*` paths appear in third-party SDKs (testing-tool aliases).
+> Use versioned `/fulfillment/202309/*` in production client — same migration pattern as Orders.
+
+**Phase:** P2 (Accelerate Order Fulfillment workflow).
+
+---
+
 ## Returns / Refunds
 
 ### Implemented (`ReturnsResource`)
@@ -193,6 +238,27 @@ Rotate refresh token. See [authentication.md](authentication.md).
 derived from `return_condition` / API `return_type`.
 
 **Sync:** `sync_returns` in `src/apps/cron_jobs/services/polling/sync.py`.
+
+---
+
+## Customer Service (Messaging)
+
+**Status:** **VERIFIED** in Partner Center (Customer Service API `202309`); **not implemented**
+in Juli client — Phase 3 execution slice.
+
+**Source:** [Customer Service API overview](https://partner.tiktokshop.com/docv2/page/customer-service-api-overview),
+[Create conversation](https://partner.tiktokshop.com/docv2/page/create-conversation-202309).
+
+| Juli action (execution layer) | Official operation | Phase |
+|-------------------------------|-------------------|-------|
+| Contact customers | `create_conversation`, `send_message` | Phase 3 |
+| Send product guidance | `send_message` | Phase 3 |
+| Answer customer questions | `read_message`, `send_message` | Phase 3 |
+
+> Buyer chat is **Forbidden** for ML training in MVP (`data-sources.md` #17). Execution
+> messaging in Phase 3 is operator-initiated seller replies only — not model input.
+
+**Phase:** Phase 3 (Customer Service workflow execution deferred).
 
 ---
 
@@ -244,19 +310,6 @@ Returns `shops[]` with `id` (tiktok shop id) and `cipher` (`shop_cipher`).
 
 ---
 
-## Inventory
-
-### Implemented (`InventoryResource`)
-
-| Method | Path | Client method |
-|--------|------|---------------|
-| POST | `/api/inventory/search` | `search` |
-| POST | `/api/inventory/update` | `update` |
-
-**Phase:** Out of P2 scope — `sync_inventory` slated for removal per `map.md`.
-
----
-
 ## Finance — Statements (settlements)
 
 ### Implemented (`SettlementsResource`)
@@ -274,17 +327,49 @@ Returns `shops[]` with `id` (tiktok shop id) and `cipher` (`shop_cipher`).
 
 ---
 
-## Ads
+## Ads / Shop Ads (Marketing API)
 
-**P2 requirement** per [`EXECUTION.md`](../../EXECUTION.md) (Growth Copilot).
+**Status:** **VERIFIED** on TikTok **Marketing API v1.3** (`business-api.tiktok.com`) — **not**
+on Shop Partner Open API host. Separate OAuth (`advertiser_id`, Marketing API access token).
 
-| Status | Notes |
-|--------|-------|
-| **UNKNOWN** | No `AdsResource` in `src/modules/catalog/domain/integrations/tiktok/` |
+**Source:** [TikTok Marketing API docs](https://business-api.tiktok.com/portal/docs),
+[GMV Max campaign update](https://business-api.tiktok.com/portal/docs?id=1822001009002497),
+[campaign/adgroup CRUD SDK mirror](https://github.com/tiktok/tiktok-business-api-sdk).
 
-Confirm official Ads API paths and scopes in Partner Center before implementing P2-1.
-Do not use TikTok for Business API (`business-api.tiktok.com`) unless Partner Center
-documents it as the Shop Ads surface — **UNVERIFIED** until cited.
+| Juli action (execution layer) | Official operation | Notes |
+|-------------------------------|-------------------|-------|
+| Increase campaign budget | `POST /open_api/v1.3/campaign/update/` or `campaign/gmv_max/update/` | GMV Max preferred for Shop sellers |
+| Increase daily spend limit | `POST /open_api/v1.3/adgroup/update/` or `gmv_max/session/update/` | Budget at ad group or GMV Max session |
+| Activate campaign | `POST /open_api/v1.3/campaign/status/update/` (`ENABLE`) | Or GMV Max create |
+| Pause campaign | `POST /open_api/v1.3/campaign/status/update/` (`DISABLE`) | Or ad group status update |
+| Reduce bid | `POST /open_api/v1.3/adgroup/update/` | Manual/custom shop ads only |
+| Reallocate budget | `POST /open_api/v1.3/adgroup/budget/update/` | Cross ad group budget moves |
+| T2 ads polling (read) | `GET /open_api/v1.3/report/integrated/get/` | Daily ROAS/CAC signals — not execution |
+
+> Do **not** route Shop Ads writes through `open-api.tiktokglobalshop.com`. Product API
+> may expose shop-ads linkage fields for listings; campaign management is Marketing API only.
+
+**Phase:** P2 (T2 polling + Increase/Reduce Ad Spend workflows). `MarketingApiResource` not yet in Juli client.
+
+---
+
+## Promotion
+
+**Status:** **VERIFIED** in Partner Center (Promotion API `202309`); **not implemented**
+in Juli client — P2-1 slice.
+
+**Source:** [Promotion API overview](https://partner.tiktokshop.com/docv2/page/promotion-api-overview),
+[Deactivate activity](https://partner.tiktokshop.com/docv2/page/deactivate-activity-202309),
+[EcomPHP Promotion resource](https://github.com/EcomPHP/tiktokshop-php) (`activities/*` paths).
+
+| Juli action (execution layer) | Official operation | Notes |
+|-------------------------------|-------------------|-------|
+| Create promotion | `POST …/activities` (`createActivity`) | Types: `FIXED_PRICE`, `PERCENTAGE_OFF`, `DIRECT_DISCOUNT`, BMSM, etc. |
+| Publish bundle (promo) | `updateActivityProduct` | Attach product/SKU prices; schedule via `begin_time` / `end_time` |
+| Pause promotion | `POST …/activities/{id}/deactivate` | `deactivateActivity` |
+| Search promotions | `POST …/activities/search` | Status filter `ONGOING`, `DRAFT`, etc. |
+
+**Phase:** P2 (Create Product Bundle · Clear Excess Inventory workflows).
 
 ---
 

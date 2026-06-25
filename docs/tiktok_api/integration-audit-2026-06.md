@@ -57,7 +57,7 @@ require login and could not be scraped here. Field-level claims are tagged by co
 | Cancellations search | `POST /return_refund/202309/cancellations/search` | Same | **MIGRATED** | High | Done 2026-06-09 |
 | Creators list | `/affiliate_seller/202406/marketplace_creators/search` | Same | **MIGRATED** | High | Done 2026-06-09 |
 | Livestreams | `/affiliate_seller/202412/open_collaborations/creator_content_details` | Same | **MIGRATED** | Med | Replaces legacy alias |
-| Inventory | `/api/inventory/*` | `/product/{v}/inventory/*` | VERSION_MISMATCH | High | Migrate (P2) |
+| Inventory (Product API) | ~~`/api/inventory/*`~~ → `/product/202309/inventory/*`, `/product/202309/products/{id}/inventory/update` | **MIGRATED** | High | Done 2026-06-25 — under Product API, not separate Inventory API |
 | Settlements | `GET /finance/202309/statements` | Same | **MIGRATED** | High | Done 2026-06-09 |
 
 **Wrapper assessment:** `/api/*` paths appear to be API Testing Tool aliases, not production
@@ -196,7 +196,7 @@ UNVERIFIED in 202502 body.
 - [ ] Affiliate creators → `affiliate_seller/202406/*`
 - [ ] Livestreams — block until Partner Center confirms path
 - [ ] Finance statements replace settlements search
-- [ ] Inventory under product resource
+- [x] Inventory under Product API (`/product/202309/inventory/*`)
 
 ---
 

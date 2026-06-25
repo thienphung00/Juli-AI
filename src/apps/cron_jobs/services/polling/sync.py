@@ -21,6 +21,7 @@ from src.modules.ordering.api.ingestion.handoff import HandoffFn, PublishFn
 from src.modules.catalog.domain.integrations.tiktok.constants import (
     CREATOR_CONTENT_DETAILS_PATH,
     FINANCE_STATEMENTS_PATH,
+    INVENTORY_SEARCH_PATH,
     MARKETPLACE_CREATORS_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
@@ -186,7 +187,7 @@ async def sync_inventory(
 ) -> None:
     """Fetch current inventory levels and hand off to ETL."""
     handoff = _resolve_handoff(handoff_fn, publish_fn)
-    if not rate_limiter.acquire(app_id, shop_id, "/api/inventory/search", max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "inventory"})
         return
 

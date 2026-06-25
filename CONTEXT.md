@@ -68,3 +68,40 @@ The seller-facing primary object — a ranked recommendation envelope wrapping o
 validated workflow plus reasoning, required inputs, status, and impact estimate
 (ADR-007). What sellers review and approve on the Decisions tab.
 _Avoid_: AI Action Card, action card, recommendation card (UI renderings of a Decision, not a separate concept)
+
+## Inventory
+
+**Supplier-sourced replenishment**:
+Restocking inventory by creating and tracking a purchase order through an external
+supplier integration (`Replenish via Supplier` workflow). Terminal step always
+syncs available quantity to TikTok via Product API (`update inventory` operation).
+_Avoid_: Supplier Sourcing (informal — use workflow name or this term), dropship
+(when meaning ERP/self-managed stock)
+
+**ERP-sourced replenishment**:
+Restocking inventory by recording a purchase request and inbound receipt in the
+seller's ERP (`Replenish via ERP` workflow). Juli does not operate a warehouse
+system; ERP is the seller's stock ledger. Terminal step syncs to TikTok via Product API
+(`update inventory` operation).
+_Avoid_: ERP-sourced replenishment (when meaning supplier path), Warehouse System, Inventory System (phantom executors)
+
+**Customer Service execution**:
+Approval-gated workflow actions for Resolve Recurring Customer Complaints and
+Prevent Product Returns. **Deferred to Phase 3** — Phase 2 is advisory-only
+(KPI signals + workflow links). Phase 3 target uses Customer Service API
+(Partner Center messaging), Return/Refund API, and split corrective actions via
+Fulfillment API and Product API.
+_Avoid_: Workflow Engine, Monitoring Engine, Messaging API (use Customer Service API in execution tables)
+
+## Execution
+
+**Action executor**:
+The `System` column in an execution action table — must name a real integration
+surface: TikTok Partner API family (Product, Order, Fulfillment, Promotion, etc.),
+Third-Party connector (Supplier API, ERP API), Juli AI LLM, or User-provided input.
+Phantom labels (Validation Engine, Warehouse System, Workflow Engine,
+Monitoring Engine, Logistics API as a separate executor) are forbidden.
+Fulfillment ship/label/tracking actions use **Fulfillment API**; order reads use **Order API**.
+**Promotion API** (`open-api.tiktokglobalshop.com`) for seller promotions; **Marketing API**
+(`business-api.tiktok.com`) for Shop Ads campaign/budget/bid writes — not interchangeable.
+_Avoid_: "Ads API" on Shop Partner host (no campaign writes); Internal engine names with no implemented client or ADR
