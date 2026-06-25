@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 247,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-06-24T1200Z",
+  "startedAt": "2026-06-24T12:00:00Z",
+  "completedAt": "2026-06-24T12:45:00Z",
+  "executionDurationMs": 2700000,
+  "tokenUsage": {
+    "input": 42000,
+    "output": 8500,
+    "total": 50500
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 18,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 4,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 14,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 42,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/validate/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/domain/data-platform/SKILL.md",
+    ".cursor/skills/domain/machine-learning/SKILL.md",
+    "agent-runtime.config.yml",
+    "scripts/ci/common.py",
+    "scripts/ci/generate_validation_artifact.py",
+    "scripts/validate/check_implementation_artifact.py",
+    "docs/schemas/agent-runtime/implementation-artifact.schema.json"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "scripts/ci/common.py",
+    "scripts/ci/generate_implementation_artifact.py",
+    ".cursor/skills/standalone/validate/SKILL.md",
+    ".cursor/skills/standalone/validate/checks.md",
+    "docs/ci/implementation-guide.md",
+    "tests/unit/test_implementation_artifact.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_implementation_artifact.py::test_build_implementation_artifact_includes_required_runtime_fields",
+    "tests/unit/test_implementation_artifact.py::test_build_implementation_artifact_merges_overrides_without_clobbering_domain",
+    "tests/unit/test_implementation_artifact.py::test_implementation_artifact_gate_passes_when_present",
+    "tests/unit/test_implementation_artifact.py::test_implementation_artifact_gate_fails_when_missing",
+    "tests/unit/test_implementation_artifact.py::test_generate_implementation_artifact_cli"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_build_implementation_artifact_merges_overrides_without_clobbering_domain — tokenUsage.total stayed 0 after partial override merge",
+      "passingTestEvidence": "Recompute tokenUsage.total from input+output when declared total is stale",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_implementation_artifact.py -q",
+          "exitCode": 0,
+          "outputSummary": "5 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added generate_implementation_artifact.py CLI and build helpers in common.py; documented implementation_artifact_present as gate #2 in validate skill/checks.md; added unit tests for generator and validate gate.",
+  "assumptions": [
+    "Executor domain skills and agent-runtime.config.yml already referenced implementation artifacts from prior harness loop work",
+    "check_implementation_artifact.py gate was already wired into generate_validation_artifact.py"
+  ],
+  "risks": [
+    "Open issues without implementation artifacts will fail validate until executors emit the artifact"
+  ]
+}

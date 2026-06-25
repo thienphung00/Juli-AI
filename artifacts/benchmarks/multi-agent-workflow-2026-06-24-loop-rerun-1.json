@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "1.0.0",
+  "benchmarkRunId": "multi-agent-workflow-2026-06-24-loop-rerun-1",
+  "taskType": "multi-agent-workflow",
+  "taskSpec": "docs/benchmarks/agent-runtime/task-type-d-multi-agent-workflow.md",
+  "issueId": 123,
+  "phaseRunId": "2026-06-24T1200Z",
+  "timestamp": "2026-06-24T12:00:00Z",
+  "baselineRun": false,
+  "rerunOf": "multi-agent-workflow-2026-06-24-loop",
+  "loopSummary": {
+    "issuesProcessed": 34,
+    "rootCauseDistribution": {
+      "none": 32,
+      "wrong_executor_domain": 1,
+      "validation_failure": 1
+    },
+    "implementationArtifactsMissing": 0,
+    "validationPassRate": 0.9706,
+    "reviewPassRate": 1.0,
+    "autoApplyEligibleCount": 1,
+    "measuredOptimization": {
+      "issueId": 123,
+      "configTarget": "routing.ui_threshold",
+      "beforeValue": 0.7,
+      "afterValue": 0.65,
+      "evaluateStatus": "unchanged",
+      "appliedStatus": "measured"
+    }
+  },
+  "scores": {
+    "planning": null,
+    "implementation": 85,
+    "review": 100,
+    "validation": 97,
+    "optimization": 90,
+    "overall": 93
+  },
+  "baselineMetrics": {
+    "executionTimeMs": 198585.2941,
+    "tokenUsageTotal": 49441.1765,
+    "testPassRate": 1.0,
+    "coveragePercentage": 97.0588,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0294,
+    "retryCount": 0.0,
+    "toolInvocationCount": 25.6471
+  },
+  "artifactPaths": {
+    "runtimeEffective": "artifacts/benchmarks/runtime-effective-2026-06-24-rerun.json",
+    "harnessOptimizationPattern": "artifacts/optimization/harness-issue-{n}-2026-06-24T1200Z.json",
+    "measuredRerun": "artifacts/optimization/harness-issue-123-2026-06-24T1200Z-rerun1.json"
+  },
+  "deterministicChecks": [
+    {
+      "id": "harness_artifact_present",
+      "passed": true
+    },
+    {
+      "id": "impl_artifact_present",
+      "passed": true
+    },
+    {
+      "id": "validation_pass",
+      "passed": true
+    },
+    {
+      "id": "root_cause_identified",
+      "passed": true
+    },
+    {
+      "id": "auto_apply_measured",
+      "passed": true
+    }
+  ],
+  "notes": "Phase 6 measured rerun. Implementation artifacts emitted for 34 issues. autoApplyEligible routing.ui_threshold applied on issue #123 fixture; appliedStatus measured."
+}

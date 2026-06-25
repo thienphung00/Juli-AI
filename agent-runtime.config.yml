@@ -1,5 +1,4 @@
 version: 1
-
 prompt:
   system_prompt: default
   verbosity: medium
@@ -8,7 +7,6 @@ prompt:
   additional_instructions:
     - Preserve product code, ADRs, PRDs, and architecture documents during harness optimization.
     - Prefer measurable changes to context budget, routing, skill loading, model choice, tools, and benchmark thresholds.
-
 model:
   primary: claude-sonnet
   fallback: claude-haiku
@@ -17,18 +15,16 @@ model:
     - claude-haiku
     - gpt-5
     - gpt-5-mini
-
 context:
   budget_tokens: 50000
   max_files: 25
-  retrieval_depth: 2
-  reserved_reasoning_ratio: 0.10
-
+  retrieval_depth: 3
+  reserved_reasoning_ratio: 0.1
 routing:
-  backend_threshold: 0.70
-  ui_threshold: 0.70
-  data_threshold: 0.70
-  ml_threshold: 0.70
+  backend_threshold: 0.7
+  ui_threshold: 0.6
+  data_threshold: 0.7
+  ml_threshold: 0.7
   domain_mappings:
     backend:
       - src/api
@@ -43,8 +39,40 @@ routing:
     machine-learning:
       - src/modules/ml
       - src/intelligence
-  hints: []
-
+  cross_layer_hints:
+    backend:
+      related_paths:
+        - src/apps/api_gateway/api
+        - src/shared/utils/data
+        - docs/architecture/map.md
+      note: API and persistence context often required beyond src/services
+    ui-ux:
+      related_paths:
+        - web
+        - ios
+        - src/apps/api_gateway/api
+        - docs/architecture/map.md
+      note: UI tasks frequently depend on API contracts one layer beyond web/
+    data-platform:
+      related_paths:
+        - src/shared/utils/data
+        - src/modules/ordering/use_cases/etl
+        - migrations
+        - docs/architecture/data-sources.md
+      note: Schema and ingestion paths span ordering and shared data layers
+    machine-learning:
+      related_paths:
+        - src/modules/ml
+        - src/shared/utils/data
+        - docs/data-models
+      note: Feature pipelines depend on canonical data models outside ml/
+  hints:
+    - domain: machine-learning
+      signal: synthetic_dataset_small
+      action: require_golden_fixture_min_100
+    - domain: ui-ux
+      signal: external_api_call
+      action: load_reliability_and_observability_rules
 executors:
   enabled:
     - backend
@@ -52,7 +80,6 @@ executors:
     - data-platform
     - machine-learning
   default: backend
-
 skills:
   backend:
     - backend
@@ -67,7 +94,6 @@ skills:
     - postgres-patterns
   machine-learning:
     - machine-learning
-
 tools:
   enabled:
     - ReadFile
@@ -77,13 +103,83 @@ tools:
     - Shell
   disabled: []
   max_invocations_per_run: 80
-
+agents:
+  architect:
+    phase: planning
+    sequence: "[focus, to-prd, to-issues]"
+    owns: "[prds, adrs, issues, architecture-docs, backlog]"
+    must_not: "[implement, route-executors, validate, ship]"
+  meta:
+    phase: "[implementation-routing, harness-optimization]"
+    built_on: focus
+    owns: "[context-routing, skill-routing, executor-assignment, harness-optimization, product-dev-optimization]"
+    consumes_artifacts: "[implementation-artifact, review-artifact, validation-artifact]"
+    emits_artifacts: "[harness-optimization-artifact, product-development-optimization-artifact]"
+    must_not: "[implement-features, bypass-review-agent, auto-edit-skills-rules-adrs]"
+  executor:
+    phase: implementation
+    tdd: red-green-refactor
+    domain_skills: "[ui-ux, backend, data-platform, machine-learning]"
+    emits_artifacts: "[implementation-artifact]"
+    must_not: "[ship, validate, optimize-harness]"
+  review:
+    phase: review-and-testing
+    sequence: "[review, validate, ship-ready]"
+    emits_artifacts: "[review-artifact, validation-artifact]"
+    must_not: "[route-context, assign-executors, ship-before-validation]"
 agent_structure:
   mode: single_executor
-
+baseline_metrics:
+  execution_time:
+    unit: ms
+    source: implementation-artifact.executionDurationMs
+  token_usage:
+    unit: tokens
+    source: implementation-artifact.tokenUsage.total
+  test_pass_rate:
+    unit: ratio
+    source: validation-artifact.testsPassed / validation-artifact.testsExecuted
+  test_coverage:
+    unit: percent
+    source: validation-artifact.coveragePercentage
+  review_failure_rate:
+    unit: ratio
+    source: review-artifact.reviewFailures / 1
+  validation_failure_rate:
+    unit: ratio
+    source: validation-artifact.validationFailures / 1
+  retry_count:
+    unit: count
+    source: validation-artifact.retryCount
+  tool_invocation_count:
+    unit: count
+    source: implementation-artifact.toolInvocationCount
+optimization:
+  artifact_paths:
+    implementation: artifacts/implementations/implementation-issue-{n}.json
+    review: artifacts/reviews/review-issue-{n}.json
+    validation: artifacts/validation/validation-issue-{n}.json
+    harness_output: artifacts/optimization/harness-issue-{n}-{phaseRunId}.json
+    product_dev_output: artifacts/optimization/product-development-{id}.json
+  editable_schema: harness-editable.yml
+  safelist: harness-safelist.yml
+  config_tool: scripts/harness_config.py
+  dry_run_default: true
+  root_cause_categories:
+    - context_underloaded
+    - context_overloaded
+    - wrong_executor_domain
+    - insufficient_tdd_evidence
+    - review_gap
+    - validation_failure
+    - tool_overuse
+    - phase_loop
+    - artifact_incomplete
+    - architecture_unclear
+  schemas_dir: docs/schemas/agent-runtime/
 benchmark:
   enabled: true
   thresholds:
-    execution_time_regression_ratio: 0.10
-    token_usage_regression_ratio: 0.10
+    execution_time_regression_ratio: 0.1
+    token_usage_regression_ratio: 0.1
     failure_regression_count: 0

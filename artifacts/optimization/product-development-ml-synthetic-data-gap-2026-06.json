@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "product_development_optimization",
+  "id": "product-development-ml-synthetic-data-gap-2026-06",
+  "sourceIssueIds": [138, 140],
+  "detectedPattern": "Machine-learning executor issues 138 and 140 both received PASS_WITH_WARNINGS due to synthetic test datasets being too small for stable model evaluation. Issue 138: 'Tiny synthetic datasets may yield single-class eval splits; stratified fallback used.' Issue 140: 'Golden fixture augmentation required for stable scale/cut predictions on small synthetic datasets.' The same root cause (insufficient golden fixture size) triggered warnings in two consecutive ML issues.",
+  "rootCauseCategory": "insufficient_tdd_evidence",
+  "planningSignal": "ML issues do not specify a minimum training/evaluation dataset size in their acceptance criteria. The machine-learning executor skill has no gate enforcing golden fixture minimums before an implementation is considered complete.",
+  "architectureSignal": "The machine-learning executor domain (src/intelligence, src/modules/ml) relies on synthetic fixtures generated at test time. When those fixtures have fewer than ~100 samples, stratified splits become unstable and single-class warnings surface during review. This boundary is undocumented in any MODULE.md or executor skill.",
+  "decompositionSignal": "Issues 138 and 140 acceptance criteria did not include a fixture size requirement. The to-issues decomposition template for ML issues does not prompt for minimum dataset size, allowing underspecified ML work to reach review without adequate test data.",
+  "reviewSignal": "Both issues received PASS_WITH_WARNINGS rather than FAIL. The review skill flagged the fixture size concern but still passed the issue. This allows the gap to propagate to future ML issues without a forcing function to fix it upstream.",
+  "recommendedBacklogItem": {
+    "title": "Add golden fixture minimum size gate to machine-learning executor and issue template",
+    "description": "1. Update the machine-learning executor skill to require golden fixtures with ≥100 samples before implementation is considered complete. 2. Add a validation check in the validate skill: if the executor domain is machine-learning, verify at least one fixture file has ≥100 rows. 3. Update the to-issues issue template for ML tasks to include an AC: 'Golden fixture contains ≥100 samples for stable stratified split.' 4. Add routing hint in agent-runtime.config.yml: {domain: machine-learning, signal: synthetic_dataset_small, action: require_golden_fixture_min_100}.",
+    "suggestedLabels": ["harness", "machine-learning", "tdd", "chore"],
+    "affectedModules": [
+      ".cursor/skills/domain/machine-learning/SKILL.md",
+      ".cursor/skills/standalone/validate/SKILL.md",
+      ".cursor/skills/standalone/to-issues/SKILL.md",
+      "agent-runtime.config.yml"
+    ]
+  },
+  "requiresADR": false,
+  "requiresPRDUpdate": false,
+  "requiresIssueTemplateUpdate": true,
+  "priority": "medium",
+  "evidenceArtifacts": [
+    "artifacts/reviews/review-issue-138.json",
+    "artifacts/reviews/review-issue-140.json",
+    "artifacts/optimization/harness-issue-138-2026-06-24T1147Z.json",
+    "artifacts/optimization/harness-issue-140-2026-06-24T1147Z.json"
+  ],
+  "acceptedByArchitect": "pending",
+  "createdAt": "2026-06-24T04:47:00Z"
+}

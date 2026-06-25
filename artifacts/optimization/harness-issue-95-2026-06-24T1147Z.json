@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 95,
+  "phaseRunId": "2026-06-24T1147Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "ui-ux",
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "executionDurationMs": 0,
+  "reviewFailures": 1,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 0,
+  "baselineMetrics": {
+    "executionTimeMs": 0,
+    "tokenUsageTotal": 0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 100.0,
+    "reviewFailureRate": 1.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 0
+  },
+  "rootCauseCategory": "review_gap",
+  "proposedOptimization": {
+    "summary": "Add observability checklist to ui-ux focus routing when API calls detected \u2014 issue #95 shows .catch() swallowing errors without structured logs.",
+    "changeType": "focus_table",
+    "details": "Update focus skill routing table: when ui-ux domain + external API call detected, load reliability.mdc and observability.mdc."
+  },
+  "configTarget": "routing.ui_threshold",
+  "expectedMetricImpact": [
+    {
+      "metric": "reviewFailureRate",
+      "direction": "decrease",
+      "magnitude": "medium"
+    },
+    {
+      "metric": "validationFailureRate",
+      "direction": "neutral"
+    }
+  ],
+  "expectedImpact": "Reduces ui-ux review gaps for API error observability by loading reliability rules when API calls detected.",
+  "harnessConfigTargets": [
+    "focus_routing"
+  ],
+  "autoApplyEligible": false,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "review": "artifacts/reviews/review-issue-95.json",
+    "validation": "artifacts/validation/validation-issue-95.json"
+  },
+  "notes": "tokenUsage, toolInvocationCount, executionDurationMs, retryCount are 0 because implementation-artifact.json was not emitted for this issue."
+}

@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 123,
+  "phaseRunId": "2026-06-24T1200Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "backend",
+  "contextFilesLoaded": [
+    "web/src/app/layout.tsx",
+    "web/src/components/BottomNav.tsx",
+    "docs/handoffs/review-issue-123.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "ui-ux",
+    "ui-ux-design"
+  ],
+  "tokenUsage": {
+    "input": 85000,
+    "output": 12000,
+    "total": 97000
+  },
+  "executionDurationMs": 420000,
+  "reviewFailures": 0,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 47,
+  "baselineMetrics": {
+    "executionTimeMs": 420000,
+    "tokenUsageTotal": 97000,
+    "testPassRate": 1.0,
+    "coveragePercentage": 100.0,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 47
+  },
+  "rootCauseCategory": "wrong_executor_domain",
+  "rootCause": "wrong_executor_domain",
+  "proposedOptimization": {
+    "summary": "Lower ui-ux routing threshold to make executor assignment less brittle.",
+    "changeType": "routing_hint",
+    "details": "Assigned backend but review signals point to ui-ux."
+  },
+  "configTarget": "routing.ui_threshold",
+  "expectedMetricImpact": [
+    {
+      "metric": "retryCount",
+      "direction": "decrease",
+      "magnitude": "medium"
+    },
+    {
+      "metric": "reviewFailureRate",
+      "direction": "decrease",
+      "magnitude": "low"
+    }
+  ],
+  "predictedImpact": {
+    "summary": "Expected to reduce wrong executor assignments and retries.",
+    "metrics": [
+      {
+        "metric": "retryCount",
+        "direction": "decrease",
+        "magnitude": "medium"
+      },
+      {
+        "metric": "reviewFailureRate",
+        "direction": "decrease",
+        "magnitude": "low"
+      }
+    ]
+  },
+  "expectedImpact": "Expected to reduce wrong executor assignments and retries.",
+  "harnessConfigTargets": [
+    "agent_runtime_config",
+    "executor_domain_hints"
+  ],
+  "autoApplyEligible": true,
+  "dryRun": false,
+  "humanApprovalRequired": false,
+  "appliedStatus": "applied",
+  "sourceArtifacts": {
+    "implementation": "artifacts/implementations/implementation-issue-123.json",
+    "review": "artifacts/reviews/review-issue-123.json",
+    "validation": "artifacts/validation/validation-issue-123.json"
+  },
+  "notes": "Meta Agent optimization is limited to declarative harness configuration.",
+  "configDiff": {
+    "targetFile": "agent-runtime.config.yml",
+    "field": "routing.ui_threshold",
+    "targetId": "agent_runtime_routing",
+    "before": 0.6,
+    "after": 0.55,
+    "validation": ">= 0.5 and <= 1",
+    "autoApplyEligible": true,
+    "humanApprovalRequired": true,
+    "unifiedDiff": "--- a/agent-runtime.config.yml\n+++ b/agent-runtime.config.yml\n@@ -22,7 +22,7 @@\n   reserved_reasoning_ratio: 0.1\n routing:\n   backend_threshold: 0.7\n-  ui_threshold: 0.6\n+  ui_threshold: 0.55\n   data_threshold: 0.7\n   ml_threshold: 0.7\n   domain_mappings:\n",
+    "applied": true,
+    "appliedStatus": "applied",
+    "message": "Applied routing.ui_threshold=0.55 to agent-runtime.config.yml"
+  }
+}

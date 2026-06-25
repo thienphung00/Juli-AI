@@ -1,0 +1,66 @@
+version: 1
+description: Machine-readable allowlist for Meta Agent harness optimization. Use scripts/harness_config.py for reads/writes.
+
+eligible_targets:
+  - id: agent_runtime_context
+    file: agent-runtime.config.yml
+    description: Context budget and retrieval settings
+    fields:
+      - path: context.budget_tokens
+        type: integer
+        validation: ">= 25000"
+      - path: context.max_files
+        type: integer
+        validation: ">= 5 and <= 50"
+      - path: context.retrieval_depth
+        type: integer
+        validation: ">= 1 and <= 5"
+
+  - id: agent_runtime_routing
+    file: agent-runtime.config.yml
+    description: Executor domain routing thresholds
+    fields:
+      - path: routing.backend_threshold
+        type: float
+        validation: ">= 0.5 and <= 1"
+      - path: routing.ui_threshold
+        type: float
+        validation: ">= 0.5 and <= 1"
+      - path: routing.data_threshold
+        type: float
+        validation: ">= 0.5 and <= 1"
+      - path: routing.ml_threshold
+        type: float
+        validation: ">= 0.5 and <= 1"
+
+  - id: agent_runtime_benchmark_thresholds
+    file: agent-runtime.config.yml
+    section: benchmark.thresholds
+    description: Benchmark no-regression thresholds consumed by harness_optimizer.py
+    fields:
+      - path: benchmark.thresholds.execution_time_regression_ratio
+        type: float
+        validation: ">= 0 and <= 0.5"
+      - path: benchmark.thresholds.token_usage_regression_ratio
+        type: float
+        validation: ">= 0 and <= 0.5"
+      - path: benchmark.thresholds.failure_regression_count
+        type: integer
+        validation: ">= 0 and <= 5"
+
+  - id: context_plan_template
+    file: docs/handoffs/context-plan-template.md
+    description: Context plan template — budget and routing hint rows only
+    mode: markdown_section
+    sections:
+      - "## Context Budget"
+      - "## MCPs (read schemas only when listed)"
+    auto_apply: false
+
+  - id: agent_runtime_benchmarks_doc
+    file: docs/architecture/agent-runtime-benchmarks.md
+    description: Benchmark threshold documentation table only
+    mode: markdown_section
+    sections:
+      - "## No-regression thresholds"
+    auto_apply: false

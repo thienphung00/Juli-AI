@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate an implementation artifact template for an issue."""
+"""Generate or refresh an implementation artifact for an issue."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import (
-    IMPLEMENTATIONS_DIR,
-    RUNTIME_SCHEMA_VERSION,
-    deep_merge_under,
+from common import (  # noqa: E402
+    EXECUTOR_DOMAINS,
+    build_implementation_artifact,
+    implementation_artifact_path,
+    load_implementation_artifact,
     load_json,
     resolve_issue_number,
-    utc_now_iso,
     write_json,
 )
 
@@ -24,19 +24,23 @@ def main() -> int:
     parser.add_argument("--issue", type=int, required=False)
     parser.add_argument(
         "--executor-domain",
-        choices=["ui-ux", "backend", "data-platform", "machine-learning"],
-        default="backend",
+        required=True,
+        choices=sorted(EXECUTOR_DOMAINS),
+        help="Executor domain assigned by Meta Agent routing",
     )
-    parser.add_argument("--phase-run-id", type=str, default="")
+    parser.add_argument(
+        "--phase-run-id",
+        help="Correlates implementation, review, and validation artifacts for one run",
+    )
     parser.add_argument(
         "--input-json",
         type=Path,
-        help="Optional JSON file to merge into the generated artifact",
+        help="Optional JSON file to merge into the artifact (deep merge)",
     )
     parser.add_argument(
         "--fresh",
         action="store_true",
-        help="Ignore existing implementation artifact on disk",
+        help="Ignore existing artifact on disk; start from template + --input-json only",
     )
     args = parser.parse_args()
     issue = resolve_issue_number(args.issue)
@@ -47,49 +51,21 @@ def main() -> int:
         )
         return 1
 
-    now = utc_now_iso()
-    phase_run_id = args.phase_run_id or f"{issue}-{now[:10]}-draft"
+    existing = None if args.fresh else load_implementation_artifact(issue)
+    overrides = load_json(args.input_json) if args.input_json and args.input_json.exists() else None
 
-    artifact = {
-        "schemaVersion": RUNTIME_SCHEMA_VERSION,
-        "artifactType": "implementation",
-        "issueId": issue,
-        "executorDomain": args.executor_domain,
-        "phaseRunId": phase_run_id,
-        "startedAt": now,
-        "completedAt": now,
-        "executionDurationMs": 0,
-        "tokenUsage": {"input": 0, "output": 0, "total": 0},
-        "toolsUsed": [],
-        "toolInvocationCount": 0,
-        "contextFilesLoaded": [],
-        "skillsLoaded": [],
-        "filesModified": [],
-        "testsAdded": [],
-        "testsUpdated": [],
-        "redGreenRefactorEvidence": [],
-        "implementationSummary": "",
-        "assumptions": [],
-        "risks": [],
-    }
+    artifact = build_implementation_artifact(
+        issue,
+        args.executor_domain,
+        existing=existing,
+        overrides=overrides,
+        fresh=args.fresh,
+        phase_run_id=args.phase_run_id,
+    )
 
-    out = IMPLEMENTATIONS_DIR / f"implementation-issue-{issue}.json"
-    if not args.fresh and out.exists():
-        artifact = deep_merge_under(artifact, load_json(out))
-    if args.input_json and args.input_json.exists():
-        artifact = deep_merge_under(artifact, load_json(args.input_json))
-
-    artifact["schemaVersion"] = RUNTIME_SCHEMA_VERSION
-    artifact["artifactType"] = "implementation"
-    artifact["issueId"] = issue
-    if args.executor_domain:
-        artifact["executorDomain"] = args.executor_domain
-    if args.phase_run_id:
-        artifact["phaseRunId"] = args.phase_run_id
-    artifact["completedAt"] = now
-
+    out = implementation_artifact_path(issue)
     write_json(out, artifact)
-    print(f"wrote {out}")
+    print(f"wrote {out} domain={artifact.get('executorDomain')}")
     return 0
 
 

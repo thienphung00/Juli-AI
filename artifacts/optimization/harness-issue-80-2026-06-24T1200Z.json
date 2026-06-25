@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 80,
+  "phaseRunId": "2026-06-24T1200Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "ui-ux",
+  "contextFilesLoaded": [
+    "docs/handoffs/context-plan-template.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "ui-ux"
+  ],
+  "tokenUsage": {
+    "input": 40000,
+    "output": 8000,
+    "total": 48000
+  },
+  "executionDurationMs": 188000,
+  "reviewFailures": 0,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 25,
+  "baselineMetrics": {
+    "executionTimeMs": 188000,
+    "tokenUsageTotal": 48000,
+    "testPassRate": 1.0,
+    "coveragePercentage": 100.0,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 25
+  },
+  "rootCauseCategory": "none",
+  "rootCause": "none",
+  "proposedOptimization": {
+    "summary": "No harness change proposed; current artifact metrics are within configured thresholds.",
+    "changeType": "other",
+    "details": "Meta did not detect a deterministic optimization opportunity."
+  },
+  "configTarget": "agent-runtime.config.yml",
+  "expectedMetricImpact": [
+    {
+      "metric": "executionTimeMs",
+      "direction": "neutral",
+      "magnitude": "low"
+    }
+  ],
+  "expectedImpact": "No expected metric change.",
+  "harnessConfigTargets": [
+    "agent_runtime_config"
+  ],
+  "autoApplyEligible": false,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "implementation": "artifacts/implementations/implementation-issue-80.json",
+    "review": "artifacts/reviews/review-issue-80.json",
+    "validation": "artifacts/validation/validation-issue-80.json"
+  },
+  "notes": "Meta Agent optimization is limited to declarative harness configuration."
+}

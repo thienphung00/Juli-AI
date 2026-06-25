@@ -272,6 +272,52 @@
       "type": "string",
       "enum": ["proposed", "accepted", "rejected", "applied", "measured"]
     },
+    "dryRun": {
+      "type": "boolean",
+      "description": "True when the proposal was emitted without writing harness files."
+    },
+    "humanApprovalRequired": {
+      "type": "boolean",
+      "description": "True when autoApplyEligible and appliedStatus is proposed."
+    },
+    "configDiff": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetFile": { "type": "string" },
+        "field": { "type": "string" },
+        "targetId": { "type": "string" },
+        "before": {},
+        "after": {},
+        "validation": { "type": "string" },
+        "autoApplyEligible": { "type": "boolean" },
+        "humanApprovalRequired": { "type": "boolean" },
+        "unifiedDiff": { "type": "string" },
+        "applied": { "type": "boolean" },
+        "appliedStatus": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "predictedImpact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string" },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["metric", "direction"],
+            "properties": {
+              "metric": { "type": "string" },
+              "direction": { "type": "string" },
+              "magnitude": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "sourceArtifacts": {
       "type": "object",
       "additionalProperties": false,

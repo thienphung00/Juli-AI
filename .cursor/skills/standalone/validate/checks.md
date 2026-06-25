@@ -28,7 +28,24 @@ listed below, in this order.
 - Structural validity only — blocking CRITICAL findings and `FAIL` status are
   enforced by `critical_findings_resolved`.
 
-## 2. `acceptance_criteria_mapped`
+## 2. `implementation_artifact_present`
+
+**Script:** [`scripts/validate/check_implementation_artifact.py`](../../../scripts/validate/check_implementation_artifact.py)
+
+**Reads:** `artifacts/implementations/implementation-issue-<n>.json`
+
+**Passes if:**
+- File exists at the canonical path.
+- JSON is parseable.
+- Required fields present: `issueId`, `executorDomain`, `phaseRunId`,
+  `executionDurationMs`, `toolInvocationCount`, `tokenUsage`,
+  `contextFilesLoaded`, `skillsLoaded`.
+- `issueId` matches the issue under validation.
+- `executorDomain` is one of `ui-ux`, `backend`, `data-platform`, `machine-learning`.
+
+**Fails if:** artifact missing — blocks Meta Agent baseline metrics and harness optimization.
+
+## 3. `acceptance_criteria_mapped`
 
 **Script:** [`scripts/validate/check_acceptance_mapping.py`](../../../scripts/validate/check_acceptance_mapping.py)
 
@@ -42,7 +59,7 @@ listed below, in this order.
 - The criterion text overlaps the test name (case-insensitive substring match
   after normalizing underscores and spaces).
 
-## 3. `module_boundaries`
+## 4. `module_boundaries`
 
 **Script:** [`scripts/validate/check_module_boundaries.py`](../../../scripts/validate/check_module_boundaries.py)
 
@@ -60,7 +77,7 @@ listed below, in this order.
 - More than 3 modules touched in the diff. Defers to
   [`.cursor/rules/issue-workflow.mdc`](../../../.cursor/rules/issue-workflow.mdc).
 
-## 4. `module_md_sync`
+## 5. `module_md_sync`
 
 **Script:** [`scripts/validate/check_module_drift.py`](../../../scripts/validate/check_module_drift.py)
 
@@ -74,7 +91,7 @@ listed below, in this order.
 - The module is Tier 3 utility (no `MODULE.md` per
   [`docs/architecture/map.md`](../../../docs/architecture/map.md)).
 
-## 5. `handoff_structure`
+## 6. `handoff_structure`
 
 **Script:** [`scripts/validate/check_handoff.py`](../../../scripts/validate/check_handoff.py)
 
@@ -92,7 +109,7 @@ listed below, in this order.
 **Skipped if:**
 - No handoff is present (the normal case) — track continuity in `EXECUTION.md` instead.
 
-## 6. `adr_requirement`
+## 7. `adr_requirement`
 
 **Script:** [`scripts/validate/check_adr.py`](../../../scripts/validate/check_adr.py)
 
@@ -112,7 +129,7 @@ plus `docs/decisions/`.
 **Filename convention:** `NNN-slug.md` — three-digit zero-padded number,
 hyphen-separated lowercase slug. The `adr-NNN.md` form is rejected.
 
-## 7. `done_md_completion`
+## 8. `done_md_completion`
 
 **Script:** [`scripts/validate/check_done_md.py`](../../../scripts/validate/check_done_md.py)
 
@@ -126,7 +143,7 @@ hyphen-separated lowercase slug. The `adr-NNN.md` form is rejected.
 checked only when their precondition is true (see [`done.md`](../../../done.md)
 for the conditional table).
 
-## 8. `critical_findings_resolved`
+## 9. `critical_findings_resolved`
 
 **Script:** [`scripts/validate/check_critical_findings_resolved.py`](../../../scripts/validate/check_critical_findings_resolved.py)
 
@@ -148,7 +165,7 @@ for the conditional table).
 `incidentLink`. Clears overridable mandatory fails only; CRITICAL security and
 production data exposure are never cleared.
 
-## 9. `findings_acknowledged`
+## 10. `findings_acknowledged`
 
 **Script:** [`scripts/validate/check_findings_acknowledged.py`](../../../scripts/validate/check_findings_acknowledged.py)
 
@@ -171,7 +188,7 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 
 **Skipped when:** review is `PASS` (no gating warnings).
 
-## 10. `reviewer_signoff_present`
+## 11. `reviewer_signoff_present`
 
 **Script:** [`scripts/validate/check_reviewer_signoff.py`](../../../scripts/validate/check_reviewer_signoff.py)
 
@@ -179,7 +196,7 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 - `reviewerSignoff.statement`, `reviewerSignoff.timestamp`, and
   `reviewerSignoff.acceptedRisks: true` are present.
 
-## 11. `owner_signoff_present`
+## 12. `owner_signoff_present`
 
 **Script:** [`scripts/validate/check_owner_signoff.py`](../../../scripts/validate/check_owner_signoff.py)
 
@@ -187,7 +204,7 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 - `ownerSignoff.statement`, `ownerSignoff.timestamp`, and
   `ownerSignoff.acknowledged: true` are present.
 
-## 12. `ml_gates_enforced`
+## 13. `ml_gates_enforced`
 
 **Script:** [`scripts/validate/check_ml_gates.py`](../../../scripts/validate/check_ml_gates.py)
 
@@ -206,7 +223,7 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 
 | Review status | Blocks merge? |
 |---------------|---------------|
-| `PASS` | No (when all 12 checks pass) |
+| `PASS` | No (when all 13 checks pass) |
 | `PASS_WITH_WARNINGS` | Yes until **every** WARNING has per-finding ack + global signoffs |
 | `FAIL` | Yes — unless valid `overriddenMerge` clears overridable mandatory fails |
 

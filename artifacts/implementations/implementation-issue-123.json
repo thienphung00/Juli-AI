@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 123,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-06-24T1200Z",
+  "startedAt": "2026-06-24T05:06:09Z",
+  "completedAt": "2026-06-24T05:06:09Z",
+  "executionDurationMs": 420000,
+  "tokenUsage": {
+    "input": 85000,
+    "output": 12000,
+    "total": 97000
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 47,
+  "contextFilesLoaded": [
+    "web/src/app/layout.tsx",
+    "web/src/components/BottomNav.tsx",
+    "docs/handoffs/review-issue-123.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "ui-ux",
+    "ui-ux-design"
+  ],
+  "filesModified": [
+    "web/src/components/BottomNav.tsx"
+  ],
+  "testsAdded": [
+    "web/src/components/BottomNav.test.tsx"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "phase": "red",
+      "test": "BottomNav.test.tsx"
+    }
+  ],
+  "implementationSummary": "Retired legacy creator-matching routes; bottom nav reduced to Trang ch\u1ee7 + Juli.",
+  "assumptions": [],
+  "risks": []
+}

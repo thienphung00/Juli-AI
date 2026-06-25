@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "benchmarkRunId": "multi-agent-workflow-2026-06-24-loop",
+  "taskType": "multi-agent-workflow",
+  "taskSpec": "docs/benchmarks/agent-runtime/task-type-d-multi-agent-workflow.md",
+  "issueId": null,
+  "phaseRunId": "2026-06-24T0515Z",
+  "timestamp": "2026-06-24T05:03:12Z",
+  "baselineRun": true,
+  "rerunOf": null,
+  "loopSummary": {
+    "issuesProcessed": 34,
+    "rootCauseDistribution": {
+      "artifact_incomplete": 34
+    },
+    "implementationArtifactsMissing": 34,
+    "validationPassRate": 0.9705882352941176,
+    "reviewPassRate": 1.0,
+    "autoApplyEligibleCount": 0
+  },
+  "scores": {
+    "planning": null,
+    "implementation": 20,
+    "review": 100,
+    "validation": 70,
+    "optimization": 75,
+    "overall": 74
+  },
+  "baselineMetrics": {
+    "executionTimeMs": 0.0,
+    "tokenUsageTotal": 0.0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 97.0588,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0294,
+    "retryCount": 0.0,
+    "toolInvocationCount": 0.0
+  },
+  "artifactPaths": {
+    "runtimeEffective": "artifacts/benchmarks/runtime-effective-2026-06-24.json",
+    "harnessOptimizationPattern": "artifacts/optimization/harness-issue-{n}-2026-06-24T0515Z.json"
+  },
+  "deterministicChecks": [
+    {
+      "id": "harness_artifact_present",
+      "passed": true
+    },
+    {
+      "id": "impl_artifact_present",
+      "passed": false
+    },
+    {
+      "id": "validation_pass",
+      "passed": false
+    },
+    {
+      "id": "root_cause_identified",
+      "passed": true
+    }
+  ],
+  "notes": "Phase 6 baseline harness optimization loop. All 34 paired review+validation issues processed via harness_optimizer.py propose. Implementation artifacts absent \u2014 artifact_incomplete dominates. No auto-apply executed (Architect approval required)."
+}

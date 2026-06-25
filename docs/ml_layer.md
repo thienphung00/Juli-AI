@@ -1,6 +1,6 @@
 # ML Layer
 
-> **Tier 1 — T1–T8 technique catalog.** Read [`EXECUTION.md`](../EXECUTION.md) first.  
+> **Tier 1 — T1–T10 technique catalog.** Read [`EXECUTION.md`](../EXECUTION.md) first.  
 > **Owns:** per-KPI technique mapping, phasing status, promotion gates.  
 > **Does not own:** promotion threshold numbers (`system-design.md` §3), schemas (`data-models/`), ADR rationale.
 
@@ -8,7 +8,7 @@ Governed by ADR-011. Promotion thresholds: [`system-design.md`](system-design.md
 
 ## MVP model selection (locked)
 
-**Verdict: Adopt** the T1–T8 catalog below for MVP. Evaluated against phase gates
+**Verdict: Adopt** the T1–T10 catalog below for MVP. Evaluated against phase gates
 ([`EXECUTION.md`](../EXECUTION.md)), data availability
 ([`architecture/data-sources.md`](architecture/data-sources.md)), and promotion
 baselines in [`src/modules/ml/artifacts/thresholds.py`](../src/modules/ml/artifacts/thresholds.py).
@@ -22,8 +22,10 @@ baselines in [`src/modules/ml/artifacts/thresholds.py`](../src/modules/ml/artifa
 | Isolation Forest / autoencoder (T4) | **Reject** | EWMA/z-score adequate for display-grade advisory |
 | Sentiment / CSAT model | **Defer Phase 3** | No legal buyer text source (`data-sources.md` #17) |
 | sklearn for T1 Home KPI forecasts | **Reject** | T1 is statsmodels ETS — shared across KPI series, not per-KPI RF |
+| ML dynamic pricing model | **Defer** | T9 is deterministic rule engine for MVP; ML pricing requires price-elasticity data at scale |
+| ML demand-based reorder quantity | **Defer** | T10 is deterministic ROP/EOQ for MVP; T1 ETS covers the display-grade demand signal |
 
-**Simplest adequate stack:** rules (T3, T5) → EWMA/z-score (T4) → ETS (T1) →
+**Simplest adequate stack:** rules (T3, T5, T9, T10) → EWMA/z-score (T4) → ETS (T1) →
 deterministic rank (T7) → three recycled `RandomForest*` suites (T2, T6, T8) only
 where tabular labels exist.
 
@@ -36,7 +38,7 @@ gates before Phase 2 MVP Milestone B inference load (Product sign-off #142).
 
 | Tier | Meaning | Techniques |
 |------|---------|------------|
-| **Display-only** | No serialized model; auditable math/rules | T1, T3, T4, T5, T7 |
+| **Display-only** | No serialized model; auditable math/rules | T1, T3, T4, T5, T7, T9, T10 |
 | **Display + promoted artifact** | Trained model; gate in `thresholds.py` | T2, T6, T8 |
 
 ## Technique catalog
@@ -53,6 +55,13 @@ Every KPI is powered by one of these shared building blocks.
 | T6 | **Return-fraud detector** | `RandomForestClassifier(class_weight="balanced")` — `item_swap` / `empty_return` only (ADR-008) | Labeled returns + buyer aggregate features (Group A) | Per-class precision & recall ≥ **0.50** on `item_swap` + `empty_return` | `src/modules/ml/anomaly/` |
 | T7 | **Ranker** | Deterministic weighted score-sort; weights in config; **no training** | Normalized KPI signals per entity | None | Config + rank helper *(planned under `src/modules/ml/ranker/`)* |
 | T8 | **Router classifier** | `RandomForestClassifier(class_weight="balanced")` → `NEW_SHOP` \| `MID_LARGE_SHOP` + fixed rule set | Shop lifecycle features (Group B) | Precision ≥ **0.50** AND macro recall ≥ **0.50** | `src/modules/ml/seller_stage/` |
+| T9 | **Pricing Engine** | Deterministic rule engine — inputs: Revenue by SKU delta, Conversion Rate by Category delta, competitor price signal (optional), configured margin floor. Rule set: (1) if conversion rate drops > threshold while session traffic is stable AND margin > floor → recommend price reduction (direction + Δ%); (2) if conversion rate + revenue rising → recommend price hold or marginal increase. No training. | SKU-level conversion rate trend (≥7d); revenue delta (≥7d); configured margin floor; competitor price signal (optional) | Never ML | `src/modules/ml/pricing/` *(planned)* |
+| T10 | **Inventory Reorder Engine** | Deterministic reorder rule — Reorder Point (ROP) = (average daily sales × lead time days) + safety stock; recommended order quantity = EOQ or configured multiple. No training. | Average daily sales velocity (≥14d); configured lead time (days); configured safety stock; current inventory level | Never ML | `src/modules/ml/inventory_reorder/` *(planned)* |
+
+> **Workflow-scoped techniques (T9, T10):** Unlike T1–T8, which power Home KPI
+> tiles, T9 and T10 generate advisory output *inside* an execution workflow
+> (pre-execution recommendation step). They do not appear in the per-KPI mapping
+> table and do not render a Home chart.
 
 **Outputs (common):**
 
@@ -66,6 +75,8 @@ Every KPI is powered by one of these shared building blocks.
 | T6 | Fraud-type label feeding return signals |
 | T7 | Ordered list (SKU / Category / Product / Campaign) |
 | T8 | Profile + rule set for copilot routing |
+| T9 | Price recommendation (direction + Δ%) → pre-execution advisory inside Update Product Listing and Create New Product Listing workflows |
+| T10 | Reorder point signal + recommended order quantity → pre-execution advisory inside Replenish via Supplier and Replenish via ERP workflows |
 
 Compare all trained techniques to **rules baselines** before promotion:
 `seller_stage/rules.py`, `ad_performance/rules.py`. If rules meet the workflow need,
@@ -126,7 +137,7 @@ traceability.
 | **Completed (pre-MVP)** | UI rendered mock/fixture forecasts, rankings, and risk flags | Mock JSON only |
 | **Phase 2 MVP Milestone A** | Implement T1–T8 on backtest / synthetic parquet ([ADR-010](decisions/010-ml-module-tree-and-trainers.md)) | Parquet manifest; no live API |
 | **Phase 2 MVP Milestone B** | Serve live at the **08:00 UTC** daily batch, **after API approval** | TikTok polling → feature build → inference |
-| **Phase 3** | Sentiment / CSAT modeling; polyglot store ([ADR-012](decisions/012-architecture-reconciliation-mvp-vs-target.md)) | Legal text sources TBD |
+| **Phase 3** | Sentiment / CSAT modeling; **Customer Service workflow execution** (Customer Service API + Return/Refund API); complaint text pattern mining; root-cause classification; buyer risk scoring; advanced return segmentation; ML dynamic pricing (upgrade T9 rules → elasticity model); ML demand-based reorder (upgrade T10 deterministic → ML forecast); polyglot store ([ADR-012](decisions/012-architecture-reconciliation-mvp-vs-target.md)) | Legal text sources TBD; CS API scopes TBD |
 
 ### Milestone A implementation status
 
@@ -142,6 +153,8 @@ traceability.
 | T4 EWMA / z-score serving | 🔲 Not started | *Add slice before Milestone B* |
 | T7 Deterministic ranker config | 🔲 Not started | *Add slice before Milestone B* |
 | T3 / T5 rules wiring to Home KPIs | 🔲 Partial (orchestration mocks shipped pre-MVP) | pre-MVP |
+| T9 Pricing Engine (deterministic rules) | 🔲 Not started | *Add slice before Milestone B* |
+| T10 Inventory Reorder Engine (deterministic rules) | 🔲 Not started | *Add slice before Milestone B* |
 
 **Backtest reference (seed 142, synthetic):** router 1.00/1.00 ✓; ads ROAS MAPE 0.54% ✓;
 `empty_return` 0.00/0.00 ✗ (sparse labels — report per-class support, do not hide behind

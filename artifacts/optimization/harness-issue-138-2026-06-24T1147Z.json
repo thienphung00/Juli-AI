@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 138,
+  "phaseRunId": "2026-06-24T1147Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "machine-learning",
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "executionDurationMs": 0,
+  "reviewFailures": 1,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 0,
+  "baselineMetrics": {
+    "executionTimeMs": 0,
+    "tokenUsageTotal": 0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 100.0,
+    "reviewFailureRate": 1.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 0
+  },
+  "rootCauseCategory": "insufficient_tdd_evidence",
+  "proposedOptimization": {
+    "summary": "Add ML golden fixture size gate to machine-learning executor routing hint \u2014 synthetic datasets <100 samples trigger stratified-split warnings.",
+    "changeType": "routing_hint",
+    "details": "Add routing.hints entry: {domain: 'machine-learning', signal: 'synthetic_dataset', action: 'require_golden_fixture_min_100'} in agent-runtime.config.yml."
+  },
+  "configTarget": "routing.hints",
+  "expectedMetricImpact": [
+    {
+      "metric": "reviewFailureRate",
+      "direction": "decrease",
+      "magnitude": "high"
+    },
+    {
+      "metric": "testPassRate",
+      "direction": "increase",
+      "magnitude": "medium"
+    }
+  ],
+  "expectedImpact": "Reduces ML review warnings by enforcing golden fixture minimum size before executor completes.",
+  "harnessConfigTargets": [
+    "agent_runtime_config",
+    "executor_domain_hints"
+  ],
+  "autoApplyEligible": false,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "review": "artifacts/reviews/review-issue-138.json",
+    "validation": "artifacts/validation/validation-issue-138.json"
+  },
+  "notes": "tokenUsage, toolInvocationCount, executionDurationMs, retryCount are 0 because implementation-artifact.json was not emitted for this issue."
+}

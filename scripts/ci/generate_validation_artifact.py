@@ -25,6 +25,7 @@ VALIDATE_DIR = REPO_ROOT / "scripts" / "validate"
 
 CHECKS: list[tuple[str, str]] = [
     ("review_artifact_present", "check_review_artifact.py"),
+    ("implementation_artifact_present", "check_implementation_artifact.py"),
     ("acceptance_criteria_mapped", "check_acceptance_mapping.py"),
     ("module_boundaries", "check_module_boundaries.py"),
     ("module_md_sync", "check_module_drift.py"),

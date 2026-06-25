@@ -292,6 +292,7 @@ a single file, stdlib-only, with `--help`. Summary:
 | [`scripts/ci/audit_cycles.py`](../../scripts/ci/audit_cycles.py) | `docs/architecture/map.md`, AST imports | Writes `artifacts/validation/audit-cycles-<date>.json` |
 | [`scripts/ci/audit_module_size.py`](../../scripts/ci/audit_module_size.py) | LOC per module | Writes `artifacts/validation/audit-size-<date>.json` |
 | [`scripts/validate/check_review_artifact.py`](../../scripts/validate/check_review_artifact.py) | `--issue` | Exit 0 if PASS, 1 otherwise |
+| [`scripts/validate/check_implementation_artifact.py`](../../scripts/validate/check_implementation_artifact.py) | `--issue` | Exit 0 if PASS, 1 otherwise |
 | [`scripts/validate/check_acceptance_mapping.py`](../../scripts/validate/check_acceptance_mapping.py) | review artifact | Exit 0/1 |
 | [`scripts/validate/check_module_boundaries.py`](../../scripts/validate/check_module_boundaries.py) | git diff + AST + map.md | Exit 0/1 |
 | [`scripts/validate/check_module_drift.py`](../../scripts/validate/check_module_drift.py) | `MODULE.md` vs AST | Exit 0/1 |

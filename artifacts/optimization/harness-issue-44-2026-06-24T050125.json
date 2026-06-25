@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 44,
+  "phaseRunId": "unknown",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "none",
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "executionDurationMs": 0,
+  "reviewFailures": 0,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 0,
+  "baselineMetrics": {
+    "executionTimeMs": 0,
+    "tokenUsageTotal": 0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 100.0,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 0
+  },
+  "rootCauseCategory": "artifact_incomplete",
+  "rootCause": "artifact_incomplete",
+  "proposedOptimization": {
+    "summary": "Complete runtime artifact emission before optimizing harness behavior.",
+    "changeType": "other",
+    "details": "Missing or incomplete artifact evidence: implementation."
+  },
+  "configTarget": "artifacts",
+  "expectedMetricImpact": [
+    {
+      "metric": "validationFailureRate",
+      "direction": "neutral",
+      "magnitude": "low"
+    }
+  ],
+  "expectedImpact": "Improves optimization reliability by restoring deterministic evidence.",
+  "harnessConfigTargets": [
+    "agent_runtime_config"
+  ],
+  "autoApplyEligible": false,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "review": "artifacts/reviews/review-issue-44.json",
+    "validation": "artifacts/validation/validation-issue-44.json"
+  },
+  "notes": "Meta Agent optimization is limited to declarative harness configuration."
+}

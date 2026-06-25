@@ -1,0 +1,42 @@
+{
+  "status": "unchanged",
+  "improvedMetrics": 0,
+  "regressedMetrics": 0,
+  "comparisons": {
+    "executionTimeMs": {
+      "label": "execution time",
+      "before": 0.0,
+      "after": 0.0,
+      "delta": 0.0,
+      "status": "unchanged"
+    },
+    "tokenUsageTotal": {
+      "label": "token usage",
+      "before": 0.0,
+      "after": 0.0,
+      "delta": 0.0,
+      "status": "unchanged"
+    },
+    "reviewFailureRate": {
+      "label": "review failures",
+      "before": 0.0,
+      "after": 0.0,
+      "delta": 0.0,
+      "status": "unchanged"
+    },
+    "validationFailureRate": {
+      "label": "validation failures",
+      "before": 0.0,
+      "after": 0.0,
+      "delta": 0.0,
+      "status": "unchanged"
+    },
+    "retryCount": {
+      "label": "retry count",
+      "before": 0.0,
+      "after": 0.0,
+      "delta": 0.0,
+      "status": "unchanged"
+    }
+  }
+}

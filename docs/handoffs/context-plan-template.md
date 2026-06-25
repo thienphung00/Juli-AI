@@ -31,8 +31,8 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 - [ ] `.cursor/rules/issue-workflow.mdc`
 
 ### Skills
-- [ ] `to-prd` / `to-issues` (Architect planning; `discover` deprecated Phase 2)
-- [ ] `review` / `validate` / `ship` / `qa` (Executor uses built-in TDD; standalone `tdd` deprecated Phase 2)
+- [ ] `to-prd` / `to-issues` (Architect planning; `discover` removed)
+- [ ] `review` / `validate` / `ship` / `qa` (Executor uses built-in TDD; standalone `tdd` removed)
 - [ ] `api-docs` / `platform-docs`
 - [ ] Domain: `python-patterns` / `python-testing` / `postgres-patterns` / `swift-patterns`
 - [ ] Plugin: _______________

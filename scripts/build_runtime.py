@@ -55,8 +55,8 @@ def _next_container(lines: list[tuple[int, str]], index: int, indent: int) -> An
 def load_simple_yaml(path: Path) -> dict[str, Any]:
     """Parse the small YAML subset used by agent-runtime.config.yml.
 
-    Supported syntax: nested mappings, string/number/bool scalars, and lists of
-    scalars. This keeps runtime generation stdlib-only and reviewable.
+    Supported syntax: nested mappings, string/number/bool scalars, lists of scalars,
+    and lists of inline mappings (`- key: value` with optional sibling keys).
     """
 
     logical_lines: list[tuple[int, str]] = []
@@ -76,7 +76,22 @@ def load_simple_yaml(path: Path) -> dict[str, Any]:
         if text.startswith("- "):
             if not isinstance(parent, list):
                 raise ConfigError(f"list item without list parent at line: {text}")
-            parent.append(parse_scalar(text[2:]))
+            item_text = text[2:].strip()
+            if ":" in item_text:
+                key, raw_value = item_text.split(":", 1)
+                key = key.strip()
+                raw_value = raw_value.strip()
+                new_item: dict[str, Any] = {}
+                parent.append(new_item)
+                stack.append((indent, new_item))
+                if raw_value:
+                    new_item[key] = parse_scalar(raw_value)
+                else:
+                    container = _next_container(logical_lines, index, indent)
+                    new_item[key] = container
+                    stack.append((indent, container))
+            else:
+                parent.append(parse_scalar(item_text))
             continue
 
         if ":" not in text:
@@ -162,6 +177,81 @@ def normalize_executor_name(name: str) -> str:
     return EXECUTOR_ALIASES.get(name, name)
 
 
+def nested_get(config: dict[str, Any], dotted_path: str, default: Any = None) -> Any:
+    cursor: Any = config
+    for part in dotted_path.split("."):
+        if not isinstance(cursor, dict) or part not in cursor:
+            return default
+        cursor = cursor[part]
+    return cursor
+
+
+def nested_set(config: dict[str, Any], dotted_path: str, value: Any) -> None:
+    cursor: Any = config
+    parts = dotted_path.split(".")
+    for part in parts[:-1]:
+        cursor = cursor.setdefault(part, {})
+    cursor[parts[-1]] = value
+
+
+def format_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    text = str(value)
+    if not text or text.strip() != text or text in {"true", "false", "[]"} or text.startswith(("{", "[")):
+        return json.dumps(text)
+    return text
+
+
+def dump_simple_yaml(value: Any, indent: int = 0) -> list[str]:
+    spaces = " " * indent
+    if isinstance(value, dict):
+        lines: list[str] = []
+        for key, item in value.items():
+            if isinstance(item, list) and not item:
+                lines.append(f"{spaces}{key}: []")
+                continue
+            if isinstance(item, (dict, list)):
+                lines.append(f"{spaces}{key}:")
+                lines.extend(dump_simple_yaml(item, indent + 2))
+            else:
+                lines.append(f"{spaces}{key}: {format_scalar(item)}")
+        return lines
+    if isinstance(value, list):
+        if not value:
+            return [f"{spaces}[]"]
+        lines: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                if not item:
+                    lines.append(f"{spaces}- {{}}")
+                    continue
+                entries = list(item.items())
+                first_key, first_val = entries[0]
+                if isinstance(first_val, (dict, list)):
+                    lines.append(f"{spaces}- {first_key}:")
+                    lines.extend(dump_simple_yaml(first_val, indent + 4))
+                else:
+                    lines.append(f"{spaces}- {first_key}: {format_scalar(first_val)}")
+                key_indent = indent + 2
+                key_spaces = " " * key_indent
+                for key, nested in entries[1:]:
+                    if isinstance(nested, (dict, list)):
+                        lines.append(f"{key_spaces}{key}:")
+                        lines.extend(dump_simple_yaml(nested, key_indent + 2))
+                    else:
+                        lines.append(f"{key_spaces}{key}: {format_scalar(nested)}")
+            elif isinstance(item, list):
+                lines.append(f"{spaces}-")
+                lines.extend(dump_simple_yaml(item, indent + 2))
+            else:
+                lines.append(f"{spaces}- {format_scalar(item)}")
+        return lines
+    return [f"{spaces}{format_scalar(value)}"]
+
+
 def build_effective_prompt(prompt_config: dict[str, Any]) -> str:
     selector = str(prompt_config["system_prompt"])
     variants = prompt_config.get("variants") or {}
@@ -199,18 +289,22 @@ def build_runtime(config: dict[str, Any]) -> dict[str, Any]:
         "backend": {
             "threshold": float(routing["backend_threshold"]),
             "paths": routing.get("domain_mappings", {}).get("backend", []),
+            "crossLayer": routing.get("cross_layer_hints", {}).get("backend", {}),
         },
         "ui-ux": {
             "threshold": float(routing["ui_threshold"]),
             "paths": routing.get("domain_mappings", {}).get("ui-ux", []),
+            "crossLayer": routing.get("cross_layer_hints", {}).get("ui-ux", {}),
         },
         "data-platform": {
             "threshold": float(routing["data_threshold"]),
             "paths": routing.get("domain_mappings", {}).get("data-platform", []),
+            "crossLayer": routing.get("cross_layer_hints", {}).get("data-platform", {}),
         },
         "machine-learning": {
             "threshold": float(routing["ml_threshold"]),
             "paths": routing.get("domain_mappings", {}).get("machine-learning", []),
+            "crossLayer": routing.get("cross_layer_hints", {}).get("machine-learning", {}),
         },
     }
 

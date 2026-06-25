@@ -201,10 +201,10 @@ RULE_TRIGGERS = {
     "automation_change": [".cursor/rules/hooks.mdc"],
     "parallel_issues": [".cursor/rules/issue-workflow.mdc"],
     # Domain skills (prefer over broad docs)
-    "python_impl": [".cursor/skills/domain/python-patterns.md"],
-    "python_tests": [".cursor/skills/domain/python-testing.md"],
-    "postgres_impl": [".cursor/skills/domain/postgres-patterns.md"],
-    "swiftui_impl": [".cursor/skills/domain/swift-patterns.md"],
+    "python_impl": [".cursor/skills/domain/testing-patterns/python-patterns.md"],
+    "python_tests": [".cursor/skills/domain/testing-patterns/python-testing.md"],
+    "postgres_impl": [".cursor/skills/domain/testing-patterns/postgres-patterns.md"],
+    "swiftui_impl": [".cursor/skills/domain/testing-patterns/swift-patterns.md"],
 }
 ```
 

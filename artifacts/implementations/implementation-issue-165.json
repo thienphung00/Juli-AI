@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 165,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-06-24T1200Z",
+  "startedAt": "2026-06-24T05:06:09Z",
+  "completedAt": "2026-06-24T05:06:09Z",
+  "executionDurationMs": 196500,
+  "tokenUsage": {
+    "input": 40000,
+    "output": 8000,
+    "total": 48000
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 25,
+  "contextFilesLoaded": [
+    "docs/handoffs/context-plan-template.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [],
+  "testsAdded": [],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [],
+  "implementationSummary": "",
+  "assumptions": [],
+  "risks": []
+}

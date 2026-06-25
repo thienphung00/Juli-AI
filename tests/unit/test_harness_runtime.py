@@ -96,7 +96,7 @@ def test_apply_fix_updates_only_config_file(tmp_path: Path) -> None:
     metrics = collect_metrics(implementation, {"issue": 123}, {"issue": 123}, config)
     _, fix = detect_root_cause(metrics)
 
-    assert apply_fix(config_path, fix) is True
+    assert apply_fix(config_path, fix, confirm=True)[0] is True
     updated = load_simple_yaml(config_path)
     assert updated["context"]["max_files"] == 5
 

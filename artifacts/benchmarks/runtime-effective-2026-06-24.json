@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "effectivePrompt": "Meta Agent routes context, assigns one executor domain, and optimizes only declarative harness configuration from runtime artifacts.\n\n- Preserve product code, ADRs, PRDs, and architecture documents during harness optimization.\n- Prefer measurable changes to context budget, routing, skill loading, model choice, tools, and benchmark thresholds.",
+  "activeTools": [
+    "ReadFile",
+    "rg",
+    "Glob",
+    "ApplyPatch",
+    "Shell"
+  ],
+  "activeSkills": {
+    "backend": [
+      "backend",
+      "python-patterns",
+      "patterns"
+    ],
+    "ui-ux": [
+      "ui-ux",
+      "ui-ux-design",
+      "nextjs"
+    ],
+    "data-platform": [
+      "data-platform",
+      "postgres-patterns"
+    ],
+    "machine-learning": [
+      "machine-learning"
+    ]
+  },
+  "executorRoutingTable": {
+    "backend": {
+      "threshold": 0.7,
+      "paths": [
+        "src/api",
+        "src/auth",
+        "src/services"
+      ]
+    },
+    "ui-ux": {
+      "threshold": 0.7,
+      "paths": [
+        "web",
+        "ios"
+      ]
+    },
+    "data-platform": {
+      "threshold": 0.7,
+      "paths": [
+        "src/data",
+        "migrations"
+      ]
+    },
+    "machine-learning": {
+      "threshold": 0.7,
+      "paths": [
+        "src/modules/ml",
+        "src/intelligence"
+      ]
+    }
+  },
+  "modelConfiguration": {
+    "primary": "claude-sonnet",
+    "fallback": "claude-haiku",
+    "allowed": [
+      "claude-sonnet",
+      "claude-haiku",
+      "gpt-5",
+      "gpt-5-mini"
+    ]
+  },
+  "agentStructure": {
+    "mode": "single_executor"
+  },
+  "context": {
+    "budget_tokens": 50000,
+    "max_files": 25,
+    "retrieval_depth": 2,
+    "reserved_reasoning_ratio": 0.1
+  },
+  "benchmark": {
+    "enabled": true,
+    "thresholds": {
+      "execution_time_regression_ratio": 0.1,
+      "token_usage_regression_ratio": 0.1,
+      "failure_regression_count": 0
+    }
+  }
+}

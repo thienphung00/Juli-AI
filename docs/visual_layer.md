@@ -23,7 +23,7 @@ Platform health category. SPS/AHR/VP are **deterministic policy rules** (T3), no
 
 | KPI | Graph type | ML feed | Signal example | Maps to |
 |-----|-----------|---------|----------------|---------|
-| **SPS** (main) | Horizontal health bar | T3 policy rule | SPS ↓ 4.6→4.4 · risk: performance deteriorating · investigate fulfillment/cancellation/CS | Accelerate Order Fulfillment · Prevent Order Cancellations · Resolve Recurring Complaints |
+| **SPS** (main) | Horizontal health bar | T3 policy rule | SPS ↓ 4.6→4.4 · risk: performance deteriorating · investigate fulfillment/cancellation/CS | Accelerate Order Fulfillment · Prevent Order Cancellations · Resolve Recurring Customer Complaints |
 | AHR | Horizontal health bar | T3 policy rule | AHR ↓ 96%→92% · risk: account health weakening | (same) |
 | Violation Points | Trend line | T3 policy rule | VP ↑ 2→5 · risk: penalties / reduced visibility | (same) |
 
@@ -34,10 +34,10 @@ Business growth and revenue quality.
 | KPI | Graph type | ML feed | Signal example | Maps to |
 |-----|-----------|---------|----------------|---------|
 | **Net Revenue** (main) | Forecast line (Actual vs Forecast + interval) | T1 forecaster | Net Revenue ↑ 15% / 30d · opportunity: growth accelerating | All growth workflows |
-| AOV | Trend line + forecast overlay | T1 forecaster | AOV $18→$24 · opportunity: higher spend/order | Create New Product Listing |
-| Revenue by SKU | SKU ranking bar | T1 + T7 ranker | Product A +35% · opportunity: scale winners | Update Product Listing · Create New Product Listing |
+| AOV | Trend line + forecast overlay | T1 forecaster | AOV $18→$24 · opportunity: higher spend/order | Create New Product Listing · Create Product Bundle |
+| Revenue by SKU | SKU ranking bar | T1 + T7 ranker | Product A +35% · opportunity: scale winners | Update Product Listing · Create New Product Listing · Create Product Bundle |
 | Conversion Rate by Category | Category ranking | T1 + T7 ranker | category listing effectiveness | Update Product Listing |
-| Repeat Purchase Rate | Product cohort chart | T1 + T7 ranker | retention / hero products | Create New Product Listing |
+| Repeat Purchase Rate | Product cohort chart | T1 + T7 ranker | retention / hero products | Create New Product Listing · Create Product Bundle |
 
 ## 3. Ads
 
@@ -56,9 +56,9 @@ Inventory efficiency and cash-flow health.
 
 | KPI | Graph type | ML feed | Signal example | Maps to |
 |-----|-----------|---------|----------------|---------|
-| **Inventory Turnover** (main) | Trend line + forecast | T1 forecaster | turnover 5.4x→3.1x · risk: cash trapped | Replenish Inventory · Clear Excess Inventory |
+| **Inventory Turnover** (main) | Trend line + forecast | T1 forecaster | turnover 5.4x→3.1x · risk: cash trapped | Replenish via Supplier · Replenish via ERP · Clear Excess Inventory |
 | DSI | Inventory age trend + forecast | T1 forecaster | DSI 42→71 days · risk: aging | Clear Excess Inventory |
-| Stockout Rate | Stockout risk forecast (Actual vs Forecast) | T1 forecaster | stockout 2%→8% · risk: lost sales | Replenish Inventory |
+| Stockout Rate | Stockout risk forecast (Actual vs Forecast) | T1 forecaster | stockout 2%→8% · risk: lost sales | Replenish via Supplier · Replenish via ERP |
 
 ## 5. Operations
 
@@ -72,11 +72,13 @@ Fulfillment quality and execution efficiency.
 
 ## 6. Customer Service
 
-Customer satisfaction and post-purchase experience.
+Customer satisfaction and post-purchase experience. **Execution deferred to Phase 3**
+— Phase 2 shows KPI signals and workflow links for advisory routing only; see
+[`execution_layer.md`](execution_layer.md) Customer Service section.
 
 | KPI | Graph type | ML feed | Signal example | Maps to |
 |-----|-----------|---------|----------------|---------|
-| **CSAT** (main) | Gauge | Deferred → proxy / "unavailable" (no text source in MVP) | shown as proxy or unavailable | Resolve Recurring Complaints · Prevent Product Returns |
+| **CSAT** (main) | Gauge | Deferred → proxy / "unavailable" (no text source in MVP) | shown as proxy or unavailable | Resolve Recurring Customer Complaints · Prevent Product Returns |
 | After-Sales Handling Time | Trend line | T4 anomaly | 8h→21h · risk: dissatisfaction | Prevent Product Returns |
 | Return Request Rate by SKU/Category | SKU/Category ranking | T7 ranker + T6 fraud | category X returns +28% | Prevent Product Returns |
 
@@ -85,12 +87,15 @@ Customer satisfaction and post-purchase experience.
 | Component | KPI | Workflow |
 |-----------|-----|----------|
 | Revenue | Revenue by SKU | Update Product Listing · Create New Product Listing |
+| Revenue | Revenue by SKU | Create Product Bundle |
 | Revenue | Conversion Rate by Category | Update Product Listing |
 | Revenue | Repeat Purchase Rate | Create New Product Listing |
+| Revenue | Repeat Purchase Rate | Create Product Bundle |
+| Revenue | AOV | Create Product Bundle |
 | Ads | ROAS | Increase Ad Budget · Reduce Ad Spend |
 | Ads | CAC | Reduce Ad Spend |
 | Ads | CTR | Increase Ad Budget |
-| Inventory | Stockout Rate | Replenish Inventory |
+| Inventory | Stockout Rate | Replenish via Supplier · Replenish via ERP |
 | Inventory | DSI | Clear Excess Inventory |
 | Operations | Orders at SLA Risk | Accelerate Order Fulfillment |
 | Operations | Seller-Fault Cancellation Rate | Prevent Order Cancellations |

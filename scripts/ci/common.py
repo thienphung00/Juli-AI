@@ -348,6 +348,97 @@ def load_review_artifact(issue: int) -> dict[str, Any] | None:
     return load_json(path)
 
 
+def load_implementation_artifact(issue: int) -> dict[str, Any] | None:
+    path = implementation_artifact_path(issue)
+    if not path.exists():
+        return None
+    return load_json(path)
+
+
+EXECUTOR_DOMAINS = frozenset({"ui-ux", "backend", "data-platform", "machine-learning"})
+
+
+def default_phase_run_id() -> str:
+    env = os.environ.get("PHASE_RUN_ID")
+    if env:
+        return env
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H%MZ")
+
+
+def implementation_artifact_template(
+    issue: int,
+    executor_domain: str,
+    *,
+    phase_run_id: str | None = None,
+) -> dict[str, Any]:
+    """Executor Agent implementation artifact skeleton with empty placeholders."""
+    if executor_domain not in EXECUTOR_DOMAINS:
+        raise ValueError(f"invalid executorDomain: {executor_domain!r}")
+    now = utc_now_iso()
+    return {
+        "schemaVersion": RUNTIME_SCHEMA_VERSION,
+        "artifactType": "implementation",
+        "issueId": issue,
+        "executorDomain": executor_domain,
+        "phaseRunId": phase_run_id or default_phase_run_id(),
+        "startedAt": now,
+        "completedAt": now,
+        "executionDurationMs": 0,
+        "tokenUsage": {"input": 0, "output": 0, "total": 0},
+        "toolsUsed": [],
+        "toolInvocationCount": 0,
+        "contextFilesLoaded": [],
+        "skillsLoaded": [],
+        "filesModified": [],
+        "testsAdded": [],
+        "testsUpdated": [],
+        "redGreenRefactorEvidence": [],
+        "implementationSummary": "",
+        "assumptions": [],
+        "risks": [],
+    }
+
+
+def build_implementation_artifact(
+    issue: int,
+    executor_domain: str,
+    *,
+    existing: dict[str, Any] | None = None,
+    overrides: dict[str, Any] | None = None,
+    fresh: bool = False,
+    phase_run_id: str | None = None,
+) -> dict[str, Any]:
+    """Assemble an implementation artifact without clobbering existing session evidence."""
+    artifact = implementation_artifact_template(
+        issue,
+        executor_domain,
+        phase_run_id=phase_run_id,
+    )
+    if existing and not fresh:
+        artifact = deep_merge_under(artifact, existing)
+    if overrides:
+        artifact = deep_merge_under(artifact, overrides)
+    artifact["issueId"] = issue
+    artifact["executorDomain"] = executor_domain
+    if phase_run_id:
+        artifact["phaseRunId"] = phase_run_id
+    elif existing and existing.get("phaseRunId"):
+        artifact["phaseRunId"] = existing["phaseRunId"]
+    artifact.setdefault("schemaVersion", RUNTIME_SCHEMA_VERSION)
+    artifact.setdefault("artifactType", "implementation")
+    token_usage = artifact.get("tokenUsage") or {}
+    if isinstance(token_usage, dict):
+        input_tokens = int(token_usage.get("input", 0))
+        output_tokens = int(token_usage.get("output", 0))
+        computed_total = input_tokens + output_tokens
+        declared_total = token_usage.get("total")
+        if declared_total is None or (computed_total > 0 and int(declared_total) < computed_total):
+            token_usage["total"] = computed_total
+        artifact["tokenUsage"] = token_usage
+    return artifact
+
+
 _LEGACY_WARNING_DOMAIN_TYPES = {
     "observability": "other",
     "reliability": "other",

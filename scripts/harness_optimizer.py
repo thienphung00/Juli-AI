@@ -13,7 +13,8 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "ci"))
 
-from build_runtime import ConfigError, load_simple_yaml, validate_config
+from build_runtime import ConfigError, dump_simple_yaml, load_simple_yaml, nested_get, nested_set, validate_config
+from harness_config import allowed_auto_apply_fields, apply_change, preview_change
 from common import (
     IMPLEMENTATIONS_DIR,
     OPTIMIZATION_DIR,
@@ -38,18 +39,7 @@ ROOT_CAUSE_ORDER = [
     "tool_overuse",
     "phase_loop",
 ]
-ALLOWED_AUTO_APPLY_TARGETS = {
-    "context.budget_tokens",
-    "context.max_files",
-    "context.retrieval_depth",
-    "routing.backend_threshold",
-    "routing.ui_threshold",
-    "routing.data_threshold",
-    "routing.ml_threshold",
-    "benchmark.thresholds.execution_time_regression_ratio",
-    "benchmark.thresholds.token_usage_regression_ratio",
-    "benchmark.thresholds.failure_regression_count",
-}
+ALLOWED_AUTO_APPLY_TARGETS = allowed_auto_apply_fields()
 
 
 @dataclass(frozen=True)
@@ -473,70 +463,16 @@ def detect_root_cause(metrics: dict[str, Any]) -> tuple[str, ProposedFix]:
     )
 
 
-def nested_get(config: dict[str, Any], dotted_path: str, default: Any = None) -> Any:
-    cursor: Any = config
-    for part in dotted_path.split("."):
-        if not isinstance(cursor, dict) or part not in cursor:
-            return default
-        cursor = cursor[part]
-    return cursor
-
-
-def nested_set(config: dict[str, Any], dotted_path: str, value: Any) -> None:
-    cursor: Any = config
-    parts = dotted_path.split(".")
-    for part in parts[:-1]:
-        cursor = cursor.setdefault(part, {})
-    cursor[parts[-1]] = value
-
-
-def dump_simple_yaml(value: Any, indent: int = 0) -> list[str]:
-    spaces = " " * indent
-    if isinstance(value, dict):
-        lines: list[str] = []
-        for key, item in value.items():
-            if isinstance(item, list) and not item:
-                lines.append(f"{spaces}{key}: []")
-                continue
-            if isinstance(item, (dict, list)):
-                lines.append(f"{spaces}{key}:")
-                lines.extend(dump_simple_yaml(item, indent + 2))
-            else:
-                lines.append(f"{spaces}{key}: {format_scalar(item)}")
-        return lines
-    if isinstance(value, list):
-        if not value:
-            return [f"{spaces}[]"]
-        lines = []
-        for item in value:
-            if isinstance(item, (dict, list)):
-                lines.append(f"{spaces}-")
-                lines.extend(dump_simple_yaml(item, indent + 2))
-            else:
-                lines.append(f"{spaces}- {format_scalar(item)}")
-        return lines
-    return [f"{spaces}{format_scalar(value)}"]
-
-
-def format_scalar(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, (int, float)):
-        return str(value)
-    text = str(value)
-    if not text or text.strip() != text or text in {"true", "false", "[]"} or text.startswith(("{", "[")):
-        return json.dumps(text)
-    return text
-
-
-def apply_fix(config_path: Path, fix: ProposedFix) -> bool:
+def apply_fix(config_path: Path, fix: ProposedFix, *, confirm: bool = False) -> tuple[bool, dict[str, Any] | None]:
     if not fix.auto_apply_eligible or fix.config_target not in ALLOWED_AUTO_APPLY_TARGETS:
-        return False
-    config = load_simple_yaml(config_path)
-    validate_config(config)
-    nested_set(config, fix.config_target, fix.value)
-    config_path.write_text("\n".join(dump_simple_yaml(config)) + "\n", encoding="utf-8")
-    return True
+        return False, None
+    if fix.value is None:
+        return False, None
+    try:
+        result = apply_change(fix.config_target, fix.value, config_path=config_path, confirm=confirm)
+    except Exception:
+        return False, None
+    return bool(result.get("applied")), result
 
 
 def build_optimization_artifact(
@@ -546,9 +482,17 @@ def build_optimization_artifact(
     *,
     source_paths: dict[str, Path],
     applied: bool = False,
+    dry_run: bool = True,
+    config_diff: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     auto_apply = fix.auto_apply_eligible and fix.config_target in ALLOWED_AUTO_APPLY_TARGETS
-    return {
+    if applied:
+        applied_status = "applied"
+    elif dry_run:
+        applied_status = "proposed"
+    else:
+        applied_status = "proposed"
+    artifact: dict[str, Any] = {
         "schemaVersion": RUNTIME_SCHEMA_VERSION,
         "artifactType": "harness_optimization",
         "issueId": metrics["issueId"],
@@ -574,10 +518,16 @@ def build_optimization_artifact(
         },
         "configTarget": fix.config_target,
         "expectedMetricImpact": fix.metric_impacts,
+        "predictedImpact": {
+            "summary": fix.expected_impact,
+            "metrics": fix.metric_impacts,
+        },
         "expectedImpact": fix.expected_impact,
         "harnessConfigTargets": fix.harness_config_targets,
         "autoApplyEligible": auto_apply,
-        "appliedStatus": "applied" if applied else "proposed",
+        "dryRun": dry_run and not applied,
+        "humanApprovalRequired": auto_apply and not applied,
+        "appliedStatus": applied_status,
         "sourceArtifacts": {
             name: artifact_path(path)
             for name, path in source_paths.items()
@@ -585,6 +535,9 @@ def build_optimization_artifact(
         },
         "notes": "Meta Agent optimization is limited to declarative harness configuration.",
     }
+    if config_diff is not None:
+        artifact["configDiff"] = config_diff
+    return artifact
 
 
 def evaluate_before_after(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
@@ -647,13 +600,31 @@ def propose(args: argparse.Namespace) -> int:
 
     metrics = collect_metrics(implementation, review, validation, config)
     root_cause, fix = detect_root_cause(metrics)
-    applied = apply_fix(args.config, fix) if args.apply else False
+
+    dry_run = not args.apply
+    config_diff: dict[str, Any] | None = None
+    applied = False
+    if (
+        fix.auto_apply_eligible
+        and fix.config_target in ALLOWED_AUTO_APPLY_TARGETS
+        and fix.value is not None
+    ):
+        try:
+            if args.apply:
+                applied, config_diff = apply_fix(args.config, fix, confirm=True)
+            else:
+                config_diff = preview_change(fix.config_target, fix.value, config_path=args.config)
+        except Exception:
+            applied = False
+
     artifact = build_optimization_artifact(
         metrics,
         root_cause,
         fix,
         source_paths=source_paths,
         applied=applied,
+        dry_run=dry_run,
+        config_diff=config_diff,
     )
     phase_run_id = metrics["phaseRunId"] if metrics["phaseRunId"] != "unknown" else utc_now_iso()
     safe_phase_run_id = str(phase_run_id).replace(":", "").replace("+", "").replace("Z", "")
@@ -688,7 +659,11 @@ def build_parser() -> argparse.ArgumentParser:
     propose_parser.add_argument("--review", type=Path)
     propose_parser.add_argument("--validation", type=Path)
     propose_parser.add_argument("--output", type=Path)
-    propose_parser.add_argument("--apply", action="store_true", help="apply safe config-only changes")
+    propose_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="apply eligible change via harness_config.py (default is dry-run preview only)",
+    )
     propose_parser.set_defaults(func=propose)
 
     evaluate_parser = subparsers.add_parser("evaluate", help="compare before/after optimization artifacts")

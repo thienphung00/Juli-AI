@@ -28,6 +28,7 @@ artifact — not the chat output — is the system of record.
 - Issue number (`<n>`).
 - Branch under review (current `HEAD`).
 - Existing review artifact at `artifacts/reviews/review-issue-<n>.json`.
+- Implementation artifact at `artifacts/implementations/implementation-issue-<n>.json` (required; validate **FAIL** if missing).
 
 ## Outputs
 
@@ -47,7 +48,7 @@ The generator enriches the artifact with `schemaVersion`, `validationFailures`,
 review artifact -> validate skill -> validation artifact -> ship skill / CI
 ```
 
-The validate skill itself orchestrates twelve gate scripts. Each gate
+The validate skill itself orchestrates thirteen gate scripts. Each gate
 is a single-purpose Python file under `scripts/validate/`. Per-check semantics
 are documented in [checks.md](checks.md).
 
@@ -105,7 +106,7 @@ when `status` is `FAIL` or `readyForMerge` is `false`.
 ### Validation Artifact
 - File: artifacts/validation/validation-issue-<n>.json
 - Status: PASS
-- Checks: 12/12 passed
+- Checks: 13/13 passed
 
 ### Notes
 - [Any gate that emitted warnings, even at PASS]

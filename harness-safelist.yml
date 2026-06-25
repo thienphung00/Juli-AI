@@ -1,0 +1,52 @@
+version: 1
+description: Forbidden modification targets for harness optimization. Parse before any write; deny wins over harness-editable.yml.
+
+forbidden:
+  categories:
+    - skills
+    - rules
+    - architecture docs
+    - prds
+    - adrs
+    - product scope
+    - product code
+
+  path_patterns:
+    - pattern: ".cursor/skills/**"
+      reason: skills governance — never auto-edit
+    - pattern: ".cursor/rules/**"
+      reason: rules governance — never auto-edit
+    - pattern: "docs/decisions/**"
+      reason: ADRs require Architect approval
+    - pattern: "docs/architecture/**"
+      reason: architecture docs except agent-runtime-benchmarks threshold section
+      except:
+        - "docs/architecture/agent-runtime-benchmarks.md"
+    - pattern: "src/**"
+      reason: product code — executor domain only
+    - pattern: "web/**"
+      reason: product code — executor domain only
+    - pattern: "ios/**"
+      reason: product code — executor domain only
+    - pattern: "tests/**"
+      reason: product tests — executor domain only
+    - pattern: "**/*prd*"
+      reason: PRDs are planning inputs
+    - pattern: "EXECUTION.md"
+      reason: execution scope document
+
+  field_patterns:
+    - pattern: "skills.*"
+      reason: skill routing is not auto-editable
+    - pattern: "agents.*"
+      reason: agent role definitions require Architect approval
+    - pattern: "tools.*"
+      reason: tool availability is not auto-editable
+    - pattern: "executors.*"
+      reason: executor enablement is not auto-editable
+
+  operations:
+    - id: raw_file_patch
+      reason: use harness_config.py apply instead of ApplyPatch on harness targets
+    - id: auto_edit_without_dry_run
+      reason: emit harness-optimization-artifact with configDiff before apply

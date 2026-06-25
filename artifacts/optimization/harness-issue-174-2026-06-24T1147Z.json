@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 174,
+  "phaseRunId": "2026-06-24T1147Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "ui-ux",
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "executionDurationMs": 0,
+  "reviewFailures": 1,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 0,
+  "baselineMetrics": {
+    "executionTimeMs": 0,
+    "tokenUsageTotal": 0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 100.0,
+    "reviewFailureRate": 1.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 0
+  },
+  "rootCauseCategory": "artifact_incomplete",
+  "proposedOptimization": {
+    "summary": "Add deferred-work tracking gate to acceptance criteria template \u2014 flagged deferral in #174 was not captured in ACs, causing review warning.",
+    "changeType": "focus_table",
+    "details": "Update context-plan-template.md to require deferred-work items be listed as follow-up AC entries before review passes."
+  },
+  "configTarget": "context_plan_template",
+  "expectedMetricImpact": [
+    {
+      "metric": "reviewFailureRate",
+      "direction": "decrease",
+      "magnitude": "medium"
+    },
+    {
+      "metric": "validationFailureRate",
+      "direction": "neutral"
+    }
+  ],
+  "expectedImpact": "Enables end-to-end baseline metrics collection; unblocks token usage and tool invocation benchmarking.",
+  "harnessConfigTargets": [
+    "context_plan_template"
+  ],
+  "autoApplyEligible": false,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "review": "artifacts/reviews/review-issue-174.json",
+    "validation": "artifacts/validation/validation-issue-174.json"
+  },
+  "notes": "tokenUsage, toolInvocationCount, executionDurationMs, retryCount are 0 because implementation-artifact.json was not emitted for this issue."
+}
