@@ -36,14 +36,15 @@ def map_text() -> str:
 def test_phase_2_mvp_exists_with_pipeline(phase_2_mvp_text: str):
     """End-to-end Phase 2 pipeline documented with schedule or flow."""
     assert "Phase 2" in phase_2_mvp_text
-    for stage in ("poll", "inference", "copy", "Haiku"):
+    for stage in ("poll", "rules-based", "copy"):
         assert stage.lower() in phase_2_mvp_text.lower(), f"missing pipeline stage: {stage}"
 
 
 def test_phase_2_mvp_references_schedule_and_models(phase_2_mvp_text: str):
-    """References batch schedule and model artifact paths."""
+    """References batch schedule; trained ML deferred to Phase 4."""
     assert "08:00" in phase_2_mvp_text
-    assert "models/" in phase_2_mvp_text
+    assert "no trained ml" in phase_2_mvp_text.lower()
+    assert "phase 4" in phase_2_mvp_text.lower()
 
 
 def test_cross_links_point_to_phase_2_mvp(

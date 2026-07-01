@@ -14,18 +14,29 @@ Read **one tier at a time.** Do not load peer files unless the routing table bel
 |---------------------|------|----------------------|
 | Subsystem behavior, pipeline stage envelopes, ML promotion thresholds | [`system-design.md`](system-design.md) | How components interact; JSON envelopes; subsystem phase matrix |
 | External data availability by phase | [`architecture/data-sources.md`](architecture/data-sources.md) | Source matrix; phase gating; forbidden sources |
-| Deployed modules, paths, endpoints | [`architecture/map.md`](architecture/map.md) | As-built module registry |
-| Agent harness phases, agent ownership, executor domains, optimization loop | [`architecture/agent-runtime.md`](architecture/agent-runtime.md) | Agent-oriented runtime model; supersedes workflow-chain language in skills |
-| Runtime artifact schemas, persistence, ADR-003 field mapping | [`architecture/agent-runtime-artifacts.md`](architecture/agent-runtime-artifacts.md) | Execution feedback JSON; producer/consumer routing; commit policy |
-| Agent runtime benchmarks, task types A–D, scoring protocol | [`architecture/agent-runtime-benchmarks.md`](architecture/agent-runtime-benchmarks.md) | Unified benchmark framework; repeated-run protocol for optimization |
-| Phase 2 pipeline validation — stack, schedule, Celery | [`phases/phase-2-mvp.md`](phases/phase-2-mvp.md) | Target stack; daily batch schedule; Celery execution |
+| Deployed modules, paths, endpoints | [`architecture/map.md`](architecture/map.md) | As-built module registry + target layout |
+| Repo restructure, path mapping, migration sequence | [`architecture/migration-plan.md`](architecture/migration-plan.md) | Current → target path mapping; migration PR sequence |
+| Phase 2 pipeline validation — stack, schedule | [`phases/phase-2-mvp.md`](phases/phase-2-mvp.md) | Backend pipeline; daily batch; rules copy; no production deploy |
+| Phase 2.5 deployment architecture | [`phases/phase-2.5-deployment.md`](phases/phase-2.5-deployment.md) | Monorepo layout, domains, package boundaries |
+| Phase 3 Landing + Interactive Demo | [`phases/phase-3-landing-demo.md`](phases/phase-3-landing-demo.md) | Mock demo IA (Home + Actions); no login |
+| Phase 4.5 real-time infrastructure | [`phases/phase-4.5-realtime.md`](phases/phase-4.5-realtime.md) | Webhooks, polyglot, event-driven (when justified) |
 | KPI charts, T1–T8 techniques | [`ml_layer.md`](ml_layer.md) | Per-KPI technique mapping |
 | Home rendering, advisory signals | [`visual_layer.md`](visual_layer.md) | Chart + signal spec |
 | Workflow → action taxonomy | [`execution_layer.md`](execution_layer.md) | Workflow IDs and routing |
 | Entity schemas, features, synthetic data | [`data-models/`](data-models/README.md) | Canonical schemas only |
+| Marketing / SEO / AEO keywords (Vietnamese) | [`marketing/keywords.md`](marketing/keywords.md) | Brand, feature, intent keywords; core ~40 set |
+| Locale policy (VI user / EN dev) | [`marketing/locale-policy.md`](marketing/locale-policy.md) | Which language per surface |
 | TikTok API field maps | [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md) | Ingestion layer only |
-| Phase 3 first user testing (10 shops) | [`phases/phase-3-vision.md`](phases/phase-3-vision.md) | User behavior validation; PostHog; execution rate |
+| TikTok API family names | [`tiktok_api/api-families.md`](tiktok_api/api-families.md) | Seller, Products, Promotion, … |
 | Pre-MVP history | [`phases/phase-1-completed.md`](phases/phase-1-completed.md) | Historical summary only |
+
+### Historical phase docs (not authoritative)
+
+| File | Status |
+|------|--------|
+| [`phases/phase-3-vision.md`](phases/phase-3-vision.md) | Superseded by `phase-3-landing-demo.md` + `phase-4.5-realtime.md` |
+| [`phases/phase-4-beta-launch.md`](phases/phase-4-beta-launch.md) | Superseded by `EXECUTION.md` Phase 4 |
+| [`phases/phase-5-public-launch.md`](phases/phase-5-public-launch.md) | Superseded by `EXECUTION.md` Phase 5 |
 
 ## Tier 2 — Decisions (read when you need the *why*)
 
@@ -42,5 +53,5 @@ ADRs do not repeat Tier 1 envelopes or EXECUTION slices. Tier 1 files link to AD
 Code  >  EXECUTION.md  >  Tier 1 (component doc for your domain)  >  Tier 2 (ADR)
 ```
 
-`map.md` describes deployed reality; `agent-runtime.md` describes harness routing and agent phases.
+`map.md` describes deployed reality and target layout. `migration-plan.md` owns the path mapping.
 When code and EXECUTION disagree, update EXECUTION in the same PR.
