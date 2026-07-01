@@ -1,0 +1,26 @@
+# App Review backend service — FastAPI (uvicorn) on 127.0.0.1:8000
+#
+# Independent of juli-web: restart with `sudo systemctl restart juli-api`.
+# Install to /etc/systemd/system/juli-api.service on the review VPS.
+#
+# App Review envelope: single web process only. Deferred background services are
+# out of scope for review — see infra/deploy/app-review-runbook.md.
+[Unit]
+Description=Juli App Review backend (FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=juli
+WorkingDirectory=/opt/juli/api
+# Env file lives on the VPS only — see infra/deploy/env/api.env.example.
+EnvironmentFile=/opt/juli/api/.env
+# Single worker is sufficient for review; no HA/multi-worker tuning in Phase 2.5.
+ExecStart=/opt/juli/api/.venv/bin/uvicorn src.apps.api_gateway.api.main:app \
+    --host 127.0.0.1 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

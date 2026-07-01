@@ -128,6 +128,37 @@ fake `@juli/*` imports.
 
 ---
 
+## Deploy configuration (2.5-d)
+
+Frontend and backend deploy configs are split under [`infra/deploy/`](../../infra/deploy/)
+so each service is independently restartable on the single review VPS:
+
+| Concern | Frontend (`app-juli.com`) | Backend (`api.app-juli.com`) |
+|---------|---------------------------|------------------------------|
+| Service | `systemd/juli-web.service` (Next.js) | `systemd/juli-api.service` (FastAPI) |
+| Upstream | `127.0.0.1:3000` | `127.0.0.1:8000` |
+| Nginx vhost | `nginx/app-juli.com.conf` | `nginx/api.app-juli.com.conf` |
+| Env template | `env/web.env.example` | `env/api.env.example` |
+
+Restart independently:
+
+```bash
+sudo systemctl restart juli-web   # frontend only
+sudo systemctl restart juli-api   # backend only
+```
+
+The [`app-review-runbook.md`](../../infra/deploy/app-review-runbook.md) documents
+the VPS/Nginx/HTTPS topology, required env vars (secrets stay outside git),
+install steps, and validation. Validate the deploy config contracts with
+`python -m pytest tests/unit/test_phase_2_5_deploy_config.py`; live DNS/TLS wiring
+stays HITL on the VPS (issue #256). The [`smoke-test.sh`](../../infra/deploy/smoke-test.sh)
+checklist covers DNS, TLS, frontend load, `/health`, and the OAuth callback route.
+
+Out of scope for the review deploy: Redis, cron, workers, ML batch, polling,
+webhook service, and HA/multi-worker tuning.
+
+---
+
 ## App Review deployment envelope (2.5-review)
 
 Keep these components in Phase 2.5:
@@ -180,7 +211,7 @@ and [`../features/app_review_deployment/issues.md`](../features/app_review_deplo
 - [ ] Public App Review domain routes to the frontend over HTTPS _(2.5-review)_
 - [ ] Backend health and OAuth callback routes respond over HTTPS _(2.5-review)_
 - [ ] Reviewer login works without production users or production traffic _(2.5-review)_
-- [ ] CI/deploy notes capture the temporary VPS/Nginx topology _(2.5-d)_
+- [x] CI/deploy notes capture the temporary VPS/Nginx topology _(2.5-d)_
 
 ---
 
