@@ -1,0 +1,22 @@
+# App Review frontend service — Next.js (legacy web/) on 127.0.0.1:3000
+#
+# Independent of juli-api: restart with `sudo systemctl restart juli-web`.
+# Install to /etc/systemd/system/juli-web.service on the review VPS.
+[Unit]
+Description=Juli App Review frontend (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=juli
+WorkingDirectory=/opt/juli/web
+# Env file lives on the VPS only — see infra/deploy/env/web.env.example.
+EnvironmentFile=/opt/juli/web/.env.production
+# Production Next.js server bound to the loopback upstream Nginx proxies to.
+ExecStart=/usr/bin/npm run start -- --port 3000 --hostname 127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

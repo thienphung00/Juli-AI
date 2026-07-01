@@ -1,0 +1,71 @@
+{
+  "status": "PASS",
+  "summary": "Phase 2.5-d App Review deploy config: split frontend/backend under infra/deploy/ with independent juli-web/juli-api systemd units, Nginx vhosts (HTTPS, /health, OAuth callback proxy), placeholder-only env templates, executable smoke-test.sh, and app-review-runbook.md. All six acceptance criteria mapped to 15 contract tests; 410 unit tests pass. Review fixed broken PRD link (doc not on main) and corrected domain label in infra/deploy/README.md.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "infra/deploy/",
+    "docs/phases/phase-2.5-deployment.md",
+    "tests/unit/test_phase_2_5_deploy_config.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "App Review deploy topology is documented under infra/deploy/ (VPS, Nginx, HTTPS, upstream ports).",
+          "test": "tests/unit/test_phase_2_5_deploy_config.py::test_runbook_documents_review_topology"
+        },
+        {
+          "criterion": "Frontend (web/) and backend (FastAPI) deploy steps are separated and independently restartable.",
+          "test": "tests/unit/test_phase_2_5_deploy_config.py::test_frontend_backend_deploy_steps_separated_and_independently_restartable"
+        },
+        {
+          "criterion": "Deploy runbook documents required env vars without committing secrets.",
+          "test": "tests/unit/test_phase_2_5_deploy_config.py::test_runbook_directs_secrets_outside_source_control"
+        },
+        {
+          "criterion": "Smoke-test commands cover DNS, TLS, frontend load, /health, and OAuth callback route.",
+          "test": "tests/unit/test_phase_2_5_deploy_config.py::test_smoke_test_covers_required_surface"
+        },
+        {
+          "criterion": "CI documents validation commands; full domain wiring may remain HITL on the VPS.",
+          "test": "tests/unit/test_phase_2_5_deploy_config.py::test_runbook_documents_ci_validation_and_hitl_boundary"
+        },
+        {
+          "criterion": "Out of scope for App Review: Redis, webhook service, cron, workers, Alembic, HA/multi-worker tuning.",
+          "test": "tests/unit/test_phase_2_5_deploy_config.py::test_deploy_config_excludes_out_of_scope_services"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 410,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Wire tests/unit/test_phase_2_5_deploy_config.py into .github/workflows/pr.yml (runbook documents the command; CI does not execute it yet).",
+    "OAuth callback handler (/v1/auth/tiktok/callback) is proxied by Nginx but returns 404 until issue #259 — expected; smoke test asserts non-5xx only.",
+    "Pre-existing security follow-up: root .env.example contains real-looking TIKTOK_APP_SECRET — not introduced by #253; track separately.",
+    "Add docs/features/app_review_deployment/ PRD when planning slice lands on main; runbook now points to phase-2.5-deployment.md only."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-253.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": []
+}
