@@ -12,7 +12,7 @@ Shared libraries consumed by `apps/*`. No app-specific routing or pages.
 | [`types/`](types/) | Shared TypeScript types | Scaffold only |
 | [`utils/`](utils/) | Formatting, date, currency helpers | Scaffold only |
 
-Workspace tooling (`pnpm` workspaces or Turborepo) will be introduced in a follow-up PR.
-Until then, shared code remains in `web/src/lib/`.
+Workspace tooling (`pnpm` workspaces + Turborepo) is in place (Phase 2.5-b).
+Shared code remains in `web/src/lib/` until package extraction in a later slice.
 
 See [`docs/phases/phase-2.5-deployment.md`](../docs/phases/phase-2.5-deployment.md).
