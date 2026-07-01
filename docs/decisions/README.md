@@ -21,3 +21,4 @@
 | [014](014-decision-copilot-app-structure-and-journey.md) | 3-tab IA + RRAA user journey | Accepted |
 | [015](015-design-system-token-foundation.md) | Design system and token foundation | Accepted |
 | [016](016-listing-workflow-implementation.md) | Listing workflow implementation | Accepted |
+| [017](017-product-monorepo-deployment-architecture.md) | Product monorepo deployment architecture (Phase 2.5) | Accepted |

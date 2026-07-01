@@ -92,3 +92,9 @@ def test_canonical_docs_agree_on_migration_sequence(
     assert "2.5-a" in migration_plan_text
     assert "Phase 2.5" in execution_text
     assert "Deployment Architecture" in execution_text
+
+
+def test_no_runtime_code_moved_in_2_5_a_slice(migration_plan_text: str):
+    """PR 2.5-a gate documents no runtime code movement."""
+    assert "2.5-a" in migration_plan_text
+    assert "No runtime changes" in migration_plan_text

@@ -47,6 +47,12 @@ def test_phase_2_mvp_references_schedule_and_models(phase_2_mvp_text: str):
     assert "phase 4" in phase_2_mvp_text.lower()
 
 
+def test_phase_2_mvp_docs_not_weakened(phase_2_mvp_text: str):
+    """Phase 2 MVP doc contract remains intact after Phase 2.5 doc alignment."""
+    assert "rules-based" in phase_2_mvp_text.lower()
+    assert "phase-2.5-deployment.md" in phase_2_mvp_text
+
+
 def test_cross_links_point_to_phase_2_mvp(
     execution_text: str, system_design_text: str, map_text: str
 ):

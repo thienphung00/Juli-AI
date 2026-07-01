@@ -207,6 +207,9 @@ Focus: authentication · connected shops · real backend integration · responsi
 complete product functionality. Replaces the demo while preserving the overall product
 experience (`dashboard.app-juli.com`).
 
+Legacy `web/` dashboard retains **3-tab Decision Copilot IA** ([ADR-014](docs/decisions/014-decision-copilot-app-structure-and-journey.md))
+until migration to `apps/dashboard`.
+
 ---
 
 ## Phase 4 — ML Pipeline + LLM + Cross-Platform Tracking (brief)

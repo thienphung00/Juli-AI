@@ -13,7 +13,7 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "ci"))
 
-from build_runtime import ConfigError, dump_simple_yaml, load_simple_yaml, nested_get, nested_set, validate_config
+from build_runtime import ConfigError, load_simple_yaml, nested_get, validate_config
 from harness_config import allowed_auto_apply_fields, apply_change, preview_change
 from common import (
     IMPLEMENTATIONS_DIR,
