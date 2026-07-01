@@ -18,4 +18,6 @@ Runtime code currently lives in legacy paths:
 | `web/` | `apps/dashboard` |
 | `ios/` | `apps/mobile` |
 
-See [`docs/architecture/migration-plan.md`](../docs/architecture/migration-plan.md).
+**Status:** Phase 2.5-b — `pnpm` workspace + Turborepo skeleton (scaffold members are private placeholders).
+
+See [`docs/phases/phase-2.5-deployment.md`](../docs/phases/phase-2.5-deployment.md).

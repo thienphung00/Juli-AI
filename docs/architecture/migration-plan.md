@@ -4,7 +4,8 @@
 > **Owns:** current → target path mapping, migration PR sequence, naming collision notes.  
 > **Does not own:** as-built module registry (`map.md`), deploy domain details (`phase-2.5-deployment.md`).
 
-**Status:** Phase 2.5-a — docs + ownership scaffold complete; runtime code not moved.
+**Status:** Phase 2.5 App Review — workspace tooling is in place; runtime code is not moved.
+The review deploy may run legacy `web/` and `src/` paths before the full migration sequence.
 
 ---
 
@@ -101,13 +102,19 @@ Each PR must pass the full test suite before and after. No opportunistic refacto
 
 | PR | Scope | Gate |
 |----|-------|------|
-| **2.5-a** (this PR) | Docs + scaffold READMEs | No runtime changes |
-| **2.5-b** | Introduce `pnpm` workspace + Turborepo skeleton | `web/` still builds |
+| **2.5-a** | Docs + scaffold READMEs | No runtime changes |
+| **2.5-b** | Introduce `pnpm` workspace + Turborepo skeleton | `web/` still builds; `pnpm run workspace:baseline` |
+| **2.5-review** | VPS/Nginx/HTTPS deploy of legacy frontend/API for TikTok App Review | Public frontend loads; backend health and OAuth callback respond |
 | **2.5-c** | Move `src/` → `backend/` with import rewrites | `pytest` green |
-| **2.5-d** | Split deploy config into `infra/` | CI green |
+| **2.5-d** | Split deploy config into `infra/` | CI green; review runbook retained |
 | **3-a** | Scaffold `apps/landing` + `apps/demo` | New apps build independently |
 | **3.5-a** | Extract `packages/ui`, `packages/theme` from `web/` | `web/` + new apps consume packages |
 | **3.5-b** | Move `web/` → `apps/dashboard` | Dashboard deploys to `dashboard.app-juli.com` |
+
+`2.5-review` is allowed to deploy from legacy paths because TikTok review only needs public access,
+not the final monorepo runtime layout. It must not introduce production-only dependencies such as
+Redis, cron, background workers, ML batch jobs, polling services, webhooks, or HA scaling unless the
+review login/OAuth path cannot start without them.
 
 ---
 

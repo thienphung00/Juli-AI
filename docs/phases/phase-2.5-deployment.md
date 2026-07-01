@@ -1,13 +1,21 @@
-# Phase 2.5 — Deployment Architecture
+# Phase 2.5 — App Review Deployment
 
 > **Tier 1 — restructure & deploy scope.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
 > **Owns:** product monorepo layout, domain routing, package boundaries, deploy targets.  
 > **Does not own:** pipeline mechanics (`phase-2-mvp.md`), subsystem envelopes (`system-design.md`).
 
-**Goal:** Prepare production deployment architecture before exposing Juli publicly.
+**Goal:** Provide a public, HTTPS-accessible Juli deployment for TikTok App Review without
+launching production functionality.
 
 **Active scope (first migration):** documentation alignment + folder scaffold only.  
 Runtime code stays in legacy paths until a follow-up PR moves it.
+
+**Active App Review slice:** deploy the existing `web/` Next.js frontend and FastAPI API from
+legacy paths on a VPS-backed domain so TikTok reviewers can load the UI, reach the backend,
+exercise reviewer login, and verify the TikTok OAuth callback.
+
+**Non-goals:** no real users, no production traffic, and no persistent business data beyond the
+minimum auth/session state needed for reviewer access.
 
 ---
 
@@ -44,13 +52,22 @@ juli-ai-v2/
 
 | Domain | Product | Phase |
 |--------|---------|-------|
-| `app-juli.com` | Landing Page (marketing) | 3 |
+| `app-juli.com` | App Review frontend (temporary legacy `web/` deploy) | 2.5 |
 | `demo.app-juli.com` | Interactive Demo (mock storytelling) | 3 |
 | `dashboard.app-juli.com` | Full web dashboard | 3.5 |
-| `api.app-juli.com` | Backend API | 2.5 (deployable) / 3.5 (production traffic) |
+| `api.app-juli.com` | Backend API + TikTok OAuth callback | 2.5 (review) / 3.5 (production traffic) |
 
-The Landing Page is a marketing website. The Demo is a product experience. The Dashboard
-eventually replaces the Demo without affecting the Landing Page.
+For App Review, `app-juli.com` can temporarily serve the legacy `web/` app. Phase 3 may replace
+that surface with the marketing landing page and move demo/dashboard concerns to their intended
+subdomains. `api.app-juli.com` must expose health and OAuth callback routes, but it must not be
+treated as production traffic infrastructure yet.
+
+TikTok Partner Center review URLs:
+
+| Setting | Value |
+|---------|-------|
+| OAuth redirect URL | `https://api.app-juli.com/v1/auth/tiktok/callback` |
+| Reviewer entry URL | `https://app-juli.com/` |
 
 ---
 
@@ -82,8 +99,76 @@ Full migration sequence: [`architecture/migration-plan.md`](../architecture/migr
 | `packages/types` | Shared TypeScript types | Runtime validation |
 | `packages/utils` | Formatting, date, currency helpers | UI components |
 
-No shared packages are published until workspace tooling (`pnpm` workspaces or Turborepo)
-is introduced in a follow-up PR.
+No shared packages are published until workspace tooling is in place. Phase 2.5-b adds
+`pnpm` workspaces and a Turborepo skeleton; scaffold `apps/*` and `packages/*` members
+are private placeholders with no exports or cross-imports. Shared code remains in
+`web/src/lib/` until package extraction in a later slice.
+
+---
+
+## Workspace tooling (2.5-b)
+
+`pnpm-workspace.yaml` registers `web/`, `apps/*`, and `packages/*`. Legacy `web/` is
+unchanged on disk; its existing `npm` workflow still works from `web/`:
+
+```bash
+cd web && npm ci && npm run lint && npm run type-check && npm run test
+```
+
+Validate the monorepo workspace baseline from the repository root:
+
+```bash
+pnpm install
+pnpm run workspace:baseline
+```
+
+`workspace:baseline` runs `build` first, then `lint`, `type-check`, and `test` for `juli-web` only.
+Scaffold apps and packages are private workspace members without publish surfaces or
+fake `@juli/*` imports.
+
+---
+
+## App Review deployment envelope (2.5-review)
+
+Keep these components in Phase 2.5:
+
+| Component | Requirement |
+|-----------|-------------|
+| VPS | Single host is sufficient for review traffic. |
+| Nginx | Terminate HTTPS and route frontend/API upstreams. |
+| HTTPS | Public TLS for `app-juli.com` and `api.app-juli.com`. |
+| Next.js | Serve the existing `web/` app; UI-only/reviewer-safe behavior is acceptable. |
+| FastAPI | Serve `/health`, auth endpoints required by reviewer login, and TikTok OAuth callback. |
+| Supabase free tier | Auth/project configuration only; no production business dataset. |
+| TikTok OAuth | Callback route exists and returns controlled success/error behavior. |
+| CORS | Allow the public frontend origin to call the API. |
+
+Skip until Phase 3 or later unless startup requires it:
+
+| Component | Phase 2.5 stance |
+|-----------|------------------|
+| Redis | Do not run unless imported startup code requires it. |
+| Alembic migrations | Skip unless reviewer login or OAuth persistence requires schema state. |
+| Cron jobs | Out of scope. |
+| Background workers | Out of scope. |
+| ML batch jobs | Out of scope. |
+| Polling services | Out of scope. |
+| Webhook service | Out of scope unless TikTok OAuth review explicitly requires it. |
+| HA tuning / scaling | Out of scope; single-process/single-host is acceptable for review. |
+
+### Reviewer acceptance checklist
+
+- [ ] `https://app-juli.com/` resolves and loads the frontend.
+- [ ] `https://api.app-juli.com/health` returns a 2xx JSON response.
+- [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles missing/invalid
+      OAuth params with a controlled response, not a server crash.
+- [ ] Reviewer credentials or UI-only reviewer login path are documented outside source control.
+- [ ] CORS allows `https://app-juli.com`.
+- [ ] No production user traffic is invited or routed to this deployment.
+- [ ] No persistent business data is required to complete App Review.
+
+Implementation planning lives in [`../features/app_review_deployment/PRD.md`](../features/app_review_deployment/PRD.md)
+and [`../features/app_review_deployment/issues.md`](../features/app_review_deployment/issues.md).
 
 ---
 
@@ -91,12 +176,17 @@ is introduced in a follow-up PR.
 
 - [x] Target folders scaffolded with ownership READMEs _(2.5-a)_
 - [x] Canonical docs aligned (`EXECUTION.md`, `map.md`, phase docs) _(2.5-a)_
-- [ ] CI/CD can deploy frontend and backend independently _(2.5-d)_
-- [ ] Intended domains route to correct deploy targets (staging minimum) _(2.5-e)_
+- [x] Workspace tooling (`pnpm` + Turborepo) without moving runtime apps _(2.5-b)_
+- [ ] Public App Review domain routes to the frontend over HTTPS _(2.5-review)_
+- [ ] Backend health and OAuth callback routes respond over HTTPS _(2.5-review)_
+- [ ] Reviewer login works without production users or production traffic _(2.5-review)_
+- [ ] CI/deploy notes capture the temporary VPS/Nginx topology _(2.5-d)_
 
 ---
 
 ## Explicitly out (Phase 2.5)
 
-Landing Page implementation · Demo UI implementation · auth flows · TikTok connection ·
-shared package extraction with live imports · mobile app scaffold beyond README.
+Real users · production traffic · persistent business data · Landing Page implementation ·
+Demo UI implementation · shared package extraction with live imports · mobile app scaffold beyond
+README · Redis/Cron/workers/ML/polling/webhooks/HA unless required by the review login or OAuth
+callback path.

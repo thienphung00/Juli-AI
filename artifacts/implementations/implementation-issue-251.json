@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 251,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "2026-07-01T0130Z",
+  "startedAt": "2026-07-01T01:39:46Z",
+  "completedAt": "2026-07-01T01:39:46Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime.config.yml",
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/architecture/migration-plan.md",
+    "web/package.json",
+    "package.json"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "ui-ux"
+  ],
+  "filesModified": [
+    "pnpm-workspace.yaml",
+    "turbo.json",
+    ".npmrc",
+    "package.json",
+    "pnpm-lock.yaml",
+    "apps/landing/package.json",
+    "apps/demo/package.json",
+    "apps/dashboard/package.json",
+    "apps/mobile/package.json",
+    "packages/ui/package.json",
+    "packages/theme/package.json",
+    "packages/icons/package.json",
+    "packages/illustrations/package.json",
+    "packages/api-client/package.json",
+    "packages/types/package.json",
+    "packages/utils/package.json",
+    "apps/README.md",
+    "packages/README.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/architecture/migration-plan.md",
+    "tests/unit/test_phase_2_5_workspace_tooling.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_pnpm_workspace_recognizes_apps_and_packages",
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_pnpm_workspace_includes_legacy_web",
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_turbo_json_defines_baseline_tasks",
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_scaffold_workspace_members_are_private_placeholders",
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_scaffold_packages_have_no_workspace_dependencies",
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_workspace_baseline_command_documented",
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_migration_plan_records_2_5_b_workspace_gate",
+    "tests/unit/test_phase_2_5_workspace_tooling.py::test_root_package_exposes_workspace_baseline_script"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_pnpm_workspace_recognizes_apps_and_packages \u2014 pnpm-workspace.yaml missing",
+      "passingTestEvidence": "Added pnpm-workspace.yaml, turbo.json, private scaffold package.json files, and docs; 8 workspace contract tests pass",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_phase_2_5_workspace_tooling.py -q",
+          "exitCode": 0,
+          "outputSummary": "8 passed"
+        },
+        {
+          "command": "cd web && npm ci && npm run lint && npm run type-check && npm run test -- --ci",
+          "exitCode": 0,
+          "outputSummary": "577 passed"
+        },
+        {
+          "command": "pnpm install && pnpm run workspace:baseline",
+          "exitCode": 0,
+          "outputSummary": "4 turbo tasks successful (build, lint, type-check, test)"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Phase 2.5-b workspace tooling: pnpm workspaces for web/, apps/*, packages/*; Turborepo skeleton; private placeholder package.json for scaffold members; workspace:baseline script; canonical docs updated; legacy web/ npm workflow unchanged.",
+  "assumptions": [
+    "Executor domain ui-ux per web build gate and monorepo JS tooling surface",
+    "pnpm-lock.yaml committed so CI can adopt workspace install in a follow-up slice",
+    "workspace:baseline runs build before type-check/test to satisfy Next.js .next/types"
+  ],
+  "risks": [
+    "Root pnpm install hoists dependencies; web/ npm ci remains the CI path until infra slice updates pr.yml"
+  ]
+}
