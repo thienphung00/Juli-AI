@@ -1,8 +1,14 @@
-# Phase 2 — MVP Architecture
+# Phase 2 — Pipeline Validation
 
-> **Tier 1 — target stack & schedule.** Read [`EXECUTION.md`](../../EXECUTION.md) first for slices.  
-> **Owns:** architecture diagram, daily UTC schedule, deployment stack, cache roles, account-health contract.  
-> **Does not own:** subsystem envelopes (`system-design.md`), module paths (`map.md`), data phase matrix (`data-sources.md`), ADR rationale (`decisions/`).
+> **Tier 1 — backend pipeline scope.** Read [`EXECUTION.md`](../../EXECUTION.md) first for slices.  
+> **Owns:** pipeline architecture diagram, daily UTC schedule, data/cache roles, account-health contract.  
+> **Does not own:** deployment (`phase-2.5-deployment.md`), subsystem envelopes (`system-design.md`), module paths (`map.md`).
+
+**Goal:** Validate the backend pipeline end-to-end with **no public users**, **no landing page**,
+**no production deployment**, and **no trained ML**.
+
+**Signal layer:** Rules-based only. Policy rules, thresholds, and heuristics replace trained
+models in Phase 2. Trained ML (T1–T8) begins in Phase 4.
 
 ---
 
@@ -10,61 +16,57 @@
 
 ```mermaid
 flowchart TB
-    subgraph client [ClientLayer]
-        iOS[iOS SwiftUI]
-        Web[Web Next.js]
-    end
-
-    subgraph gateway [EdgeGateway]
-        OAuth[MultiTenantOAuth Supabase JWT]
-        APIGw[APIGateway REST JSON]
-        RateLimit[RateLimiter QuotaGuard]
+    subgraph internal [InternalValidationOnly]
+        CLI[InternalCLIAndTests]
+        Scripts[PipelineScripts]
     end
 
     subgraph app [ApplicationServer FastAPI]
         BizLogic[BusinessLogic MultiTenant]
-        LLMOrch[LLMOrchestrator DSPy deferred]
         ToolCall[ToolCalling ReadWrite]
+        RulesEngine[RulesBasedSignalEngine]
+        RulesCopy[RulesBasedCopyLayer]
     end
 
     subgraph storage [StorageLayer]
-        Redis[(Redis Cache ActionCards Views Sessions)]
+        Redis[(Redis Cache Sessions)]
         subgraph pg [Supabase PostgreSQL]
-            OLTP[OLTP Accounts Subscriptions Transactions]
-            OLAP[OLAP MaterializedViews KPIs Features ML]
+            OLTP[OLTP Accounts Transactions]
+            OLAP[OLAP KPIs FeatureAggregates]
         end
     end
 
-    subgraph ml [MLAIProcessing ScheduledBatch]
-        FeatEng[FeatureEngineering KPIs Signals]
-        MLBatch[MLBatchJobs LightGBM Prophet LightFM]
-        ActionGen[ActionCardGenerator LLM Summarize]
+    subgraph batch [ScheduledBatch]
+        FeatAgg[FeatureAggregates SQLPython]
+        RulesBatch[RulesBasedScoring]
+        ActionGen[ActionCardGenerator RulesTemplates]
     end
 
     subgraph side [SideComponents]
-        PostHog[PostHog Observability]
-        Haiku[Claude Haiku 3.5 CopyLayer]
         TikTok[TikTokShopAPI Ingestion ETL]
+        Celery[Celery Workers Execution]
     end
 
-    iOS --> gateway
-    Web --> gateway
-    gateway --> app
+    CLI --> app
+    Scripts --> app
     app --> Redis
     app --> pg
     TikTok --> pg
-    pg --> FeatEng
-    FeatEng --> MLBatch
-    MLBatch --> ActionGen
+    pg --> FeatAgg
+    FeatAgg --> RulesBatch
+    RulesBatch --> ActionGen
     ActionGen --> Redis
     ActionGen --> OLTP
-    app --> Haiku
-    app --> PostHog
-    Web --> PostHog
+    app --> RulesEngine
+    app --> RulesCopy
+    app --> Celery
 ```
 
 **Transactional path:** Business logic → OLTP.  
-**Analytics + AI path:** OLAP → batch ML → action cards → Redis + OLTP.
+**Analytics + rules path:** OLAP → feature aggregates → rules-based signals → action cards → Redis + OLTP.
+
+Public web clients (`web/`, `ios/`) exist for internal dogfooding but are **not required**
+for Phase 2 exit. Production deployment moves to Phase 2.5.
 
 ---
 
@@ -72,11 +74,11 @@ flowchart TB
 
 | Time | Job | Notes |
 |------|-----|-------|
-| Overnight | TikTok API poll | Orders, Products, Affiliate, Ads |
-| 06:00–07:00 | Feature build | Postgres → feature matrices |
-| 08:00 | Batch inference | Loads promoted artifacts from `models/` |
-| After inference | Haiku copy layer | Rules fallback on failure |
-| Business hours | UI + executor | Serves latest inference; fires on approval |
+| Overnight | TikTok API poll | Orders, Products, Affiliate, Promotion API |
+| 06:00–07:00 | Feature aggregates | Postgres → KPI aggregates (not ML training features) |
+| 08:00 | Rules-based scoring | Deterministic rules → signals → recommendations |
+| After scoring | Rules-based copy layer | Deterministic templates from rule signals |
+| On approval | Celery executor | Tool calls never block HTTP handler |
 
 ---
 
@@ -84,23 +86,42 @@ flowchart TB
 
 | Store | Role |
 |-------|------|
-| **Postgres OLTP** | Accounts, subscriptions, transactions, action-card writes |
-| **Postgres OLAP** | Materialized views, KPI aggregates, feature tables, ML datasets |
+| **Postgres OLTP** | Accounts, transactions, action-card writes |
+| **Postgres OLAP** | Materialized views, KPI aggregates, feature aggregate tables |
 | **Redis** | Action cards (≤6/seller), SQL view cache, session tokens |
 
-ML features stay in Python (ADR-010); plain SQL views serve charts only.
+Feature aggregates stay in Python/SQL (ADR-010); no trained model artifacts loaded in Phase 2.
+
+---
+
+## Signal layer (rules-based)
+
+| Technique type | Phase 2 implementation | Phase 4 (ML) |
+|----------------|------------------------|--------------|
+| Shop profile routing | Deterministic rules (`NEW_SHOP` / `MID_LARGE_SHOP`) | T8 router classifier |
+| Policy / VP / AHR | Platform policy rules (ADR-005–010) | Same + ML enrichment |
+| Anomaly detection | Threshold / EWMA rules | T4 / T6 trained detectors |
+| Ads ranking | ROAS threshold rules | T2 ads regressor |
+| Forecasting | Naive / moving-average display | T1 ETS forecaster |
+
+See [`ml_layer.md`](../ml_layer.md) for the full T1–T8 catalog — **Phase 4 only**.
 
 ---
 
 ## Copy layer
 
-Claude Haiku 3.5 (≤6 calls/seller/day) + rules fallback. No raw financial PII to LLM (ADR-012).
+**Rules-based only** in Phase 2 — deterministic templates from rule signals. No cloud LLM.
+
+Cloud LLM (Claude Haiku) is deferred to Phase 4 per [`EXECUTION.md`](../../EXECUTION.md).
 
 ---
 
 ## Deployment
 
-Railway (FastAPI + cron) · Supabase (DB/Auth) · PostHog (observability).
+**Not in scope for Phase 2.** Local and CI validation only.
+
+Production deployment architecture is Phase 2.5:
+[`phase-2.5-deployment.md`](phase-2.5-deployment.md).
 
 ---
 
@@ -110,10 +131,11 @@ Railway (FastAPI + cron) · Supabase (DB/Auth) · PostHog (observability).
 health_data_source: api | proxy | unavailable
 ```
 
-Partner API field exposure gated at P2-B1. Dual-read VP/AHR May–July 2026 (ADR-005, ADR-006).
+Partner API field exposure gated at P2-A1. Dual-read VP/AHR May–July 2026 (ADR-005, ADR-006).
 
 ---
 
-## Anomaly ML scope
+## Anomaly scope (Phase 2)
 
-Buyer-behavior only: `item_swap`, `empty_return` (ADR-008). Affiliate fraud = policy rules.
+Buyer-behavior signals use **policy rules and thresholds** only — not trained anomaly models.
+Trained `item_swap` / `empty_return` detectors deferred to Phase 4 (ADR-008).

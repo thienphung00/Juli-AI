@@ -7,13 +7,30 @@ Update this file when you add, rename, remove, or restructure a module.
 
 **Authority:** `EXECUTION.md` > `system-design.md` > this file.
 
-## Code layout (actual)
+## Code layout
 
-The backend is a modular monolith under `src/`. No folder reshaping until Phase 3 — `src/apps` + `src/modules` stays as-is.
+### Target layout (Phase 2.5+)
+
+Product-oriented monorepo — scaffolded, not yet populated with runtime code:
+
+```
+apps/          # Product deployables (landing, demo, dashboard, mobile)
+packages/      # Shared UI, types, api-client, utils
+backend/       # API, workers, AI, integrations, database
+infra/         # CI/CD, deploy config, env templates
+docs/
+```
+
+See [`migration-plan.md`](migration-plan.md) for full path mapping and migration sequence.
+
+### Current layout (as-built)
+
+The backend is a modular monolith under `src/`. Frontends live in `web/` and `ios/`.
+**`src/apps/` is backend entrypoint composition — not the same as top-level `apps/`.**
 
 ```
 src/
-├── apps/                         # Deployable entrypoints (composition only)
+├── apps/                         # Backend deployable entrypoints (composition only)
 │   ├── api_gateway/
 │   │   ├── api/                  # FastAPI /v1 routers + app factory
 │   │   └── services/webhook/     # TikTok webhook receiver (HMAC → ETL)
@@ -27,7 +44,12 @@ src/
 └── shared/utils/data/            # SQLAlchemy models, repos, DB session
 ```
 
-Frontends live in `web/` (Next.js) and `ios/` (SwiftUI).
+Frontends (legacy, pre-ecosystem):
+
+| Path | Product role | Future target |
+|------|--------------|---------------|
+| `web/` | Seller dashboard (3-tab IA, ADR-014) | `apps/dashboard` (Phase 3.5) |
+| `ios/` | SwiftUI mobile app | `apps/mobile` (Phase 4) |
 
 ## Module tier policy
 
@@ -126,8 +148,8 @@ PR) to avoid breaking imports/tests:
   [`docs/tiktok_platform/`](../tiktok_platform/README.md). Implementation hooks
   (`seller/implementation-hooks.md`, `creator/implementation-hooks.md`) define alerts,
   gates, and ETL behavior for Phase 2 workflows.
-- **Runtime evolution:** simple daily scheduler in Phase 2; **no** Celery/Kafka
-  (Phase 3+, see [`../../EXECUTION.md`](../../EXECUTION.md) → Explicitly out).
+- **Runtime evolution:** simple daily scheduler in Phase 2; Celery for execution in Phase 2
+  (see [`../../EXECUTION.md`](../../EXECUTION.md)); Kafka/streams deferred to Phase 4.5.
 
 > **Platform policy (Phase 2):** [ADR-008](../decisions/008-alert-vp-ahr-milestones.md)
 > (milestone alerts), [ADR-009](../decisions/009-dual-read-vp-ahr-transition.md)
