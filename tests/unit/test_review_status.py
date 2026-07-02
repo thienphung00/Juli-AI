@@ -504,7 +504,7 @@ def test_ml_gates_required_for_ml_modules(
         "issue": 140,
         "status": "PASS_WITH_WARNINGS",
         "criticalFindings": [{"severity": "WARNING", "description": "fixture note"}],
-        "modulesTouched": ["src/modules/ml/ad_performance"],
+        "modulesTouched": ["backend/ai/ad_performance"],
         "testCoverage": {
             "acceptance": {"total": 1, "mapped": 1, "mappings": []},
         },
@@ -649,7 +649,7 @@ def test_overridden_merge_allows_ml_gate_fail(
         "issue": 301,
         "status": "FAIL",
         "criticalFindings": [],
-        "modulesTouched": ["src/modules/ml/ad_performance"],
+        "modulesTouched": ["backend/ai/ad_performance"],
         "testCoverage": {
             "acceptance": {"total": 1, "mapped": 1, "unmapped": [], "mappings": []},
             "unit": {"passed": 1, "failed": 0},
@@ -702,7 +702,7 @@ def test_overridden_merge_requires_all_fields() -> None:
 
 def test_ml_gates_scan_source_thresholds() -> None:
     review = {
-        "modulesTouched": ["src/modules/ml/ad_performance"],
+        "modulesTouched": ["backend/ai/ad_performance"],
         "mlGates": {
             "coldStartThresholdDocumented": True,
             "promotionGateDocumented": True,
@@ -715,7 +715,7 @@ def test_ml_gates_scan_source_thresholds() -> None:
 
 def test_ml_gates_fail_when_source_constants_missing() -> None:
     review = {
-        "modulesTouched": ["src/modules/ml/ad_performance"],
+        "modulesTouched": ["backend/ai/ad_performance"],
         "mlGates": {
             "coldStartThresholdDocumented": True,
             "promotionGateDocumented": True,

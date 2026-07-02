@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from src.modules.catalog.domain.integrations.tiktok.mapping import (
+from backend.integrations.catalog.domain.integrations.tiktok.mapping import (
     expand_order_line_items,
     normalize_creator,
     normalize_livestream,
@@ -11,7 +11,7 @@ from src.modules.catalog.domain.integrations.tiktok.mapping import (
     normalize_return,
     normalize_statement,
 )
-from src.modules.ordering.use_cases.etl.transform import transform_for_channel
+from backend.integrations.ordering.use_cases.etl.transform import transform_for_channel
 
 
 class TestNormalizeOrder:

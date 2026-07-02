@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.apps.runtime import async_database_url, cors_allow_origins, require_env
+from backend.runtime import async_database_url, cors_allow_origins, require_env
 
 
 def test_async_database_url_converts_postgresql_scheme():

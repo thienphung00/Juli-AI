@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ML_ROOT = REPO_ROOT / "src" / "modules" / "ml"
+ML_ROOT = REPO_ROOT / "backend" / "ai"
 
 # Inference/training modules that must define cold-start constants in thresholds.py.
 COLD_START_CONSTANTS: dict[str, tuple[str, ...]] = {
@@ -32,9 +32,9 @@ TRAINER_MODULE_LEAVES = frozenset({"ad_performance", "anomaly", "seller_stage", 
 
 def module_leaf(module_path: str) -> str:
     normalized = module_path.replace("\\", "/").rstrip("/")
-    if normalized.startswith("src/modules/ml/"):
-        return normalized.removeprefix("src/modules/ml/").split("/")[0]
-    if normalized == "src/modules/ml":
+    if normalized.startswith("backend/ai/"):
+        return normalized.removeprefix("backend/ai/").split("/")[0]
+    if normalized == "backend/ai":
         return ""
     return normalized.split("/")[-1]
 

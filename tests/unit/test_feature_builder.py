@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.modules.ml.dataset import assemble_backtest_dataset
-from src.modules.ml.features import (
+from backend.ai.dataset import assemble_backtest_dataset
+from backend.ai.features import (
     AD_FEATURE_COLUMNS,
     ANOMALY_FEATURE_COLUMNS,
     SELLER_STAGE_FEATURE_COLUMNS,

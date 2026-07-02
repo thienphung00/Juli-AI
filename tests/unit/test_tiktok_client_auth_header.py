@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.modules.catalog.domain.integrations.tiktok.client import (
+from backend.integrations.catalog.domain.integrations.tiktok.client import (
     TikTokClient,
     uses_header_auth,
 )
-from src.modules.catalog.domain.integrations.tiktok.constants import (
+from backend.integrations.catalog.domain.integrations.tiktok.constants import (
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
 )

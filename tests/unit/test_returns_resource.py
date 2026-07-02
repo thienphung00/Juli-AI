@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.modules.catalog.domain.integrations.tiktok.constants import (
+from backend.integrations.catalog.domain.integrations.tiktok.constants import (
     CANCELLATION_SEARCH_PATH,
     RETURN_SEARCH_PATH,
 )
-from src.modules.catalog.domain.integrations.tiktok.resources.returns import ReturnsResource
+from backend.integrations.catalog.domain.integrations.tiktok.resources.returns import ReturnsResource
 
 
 @pytest.fixture

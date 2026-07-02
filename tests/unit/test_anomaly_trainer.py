@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from src.modules.ml.dataset import assemble_backtest_dataset
-from src.modules.ml.features.schema import (
+from backend.ai.dataset import assemble_backtest_dataset
+from backend.ai.features.schema import (
     FORBIDDEN_ANOMALY_INPUT_COLUMNS,
     FORBIDDEN_ANOMALY_INPUT_PREFIXES,
 )
@@ -16,7 +16,7 @@ from src.modules.ml.features.schema import (
 
 @pytest.fixture
 def trained_anomaly_model(tmp_path: Path):
-    from src.modules.ml.anomaly import train_anomaly
+    from backend.ai.anomaly import train_anomaly
 
     dataset_dir = tmp_path / "backtest"
     assemble_backtest_dataset(
@@ -35,7 +35,7 @@ def trained_anomaly_model(tmp_path: Path):
 
 def test_golden_item_swap_scores_as_anomaly(trained_anomaly_model):
     """Golden item_swap row scores as anomaly with class item_swap."""
-    from src.modules.ml.anomaly import GOLDEN_ANOMALY_FIXTURES, predict_anomaly
+    from backend.ai.anomaly import GOLDEN_ANOMALY_FIXTURES, predict_anomaly
 
     model, _manifest = trained_anomaly_model
     fixture = next(item for item in GOLDEN_ANOMALY_FIXTURES if item["id"] == "item_swap")
@@ -50,7 +50,7 @@ def test_golden_item_swap_scores_as_anomaly(trained_anomaly_model):
 
 def test_golden_empty_return_scores_as_anomaly(trained_anomaly_model):
     """Golden empty_return row scores as anomaly with class empty_return."""
-    from src.modules.ml.anomaly import GOLDEN_ANOMALY_FIXTURES, predict_anomaly
+    from backend.ai.anomaly import GOLDEN_ANOMALY_FIXTURES, predict_anomaly
 
     model, _manifest = trained_anomaly_model
     fixture = next(item for item in GOLDEN_ANOMALY_FIXTURES if item["id"] == "empty_return")
@@ -64,7 +64,7 @@ def test_golden_empty_return_scores_as_anomaly(trained_anomaly_model):
 
 def test_golden_other_scores_non_anomaly(trained_anomaly_model):
     """Golden other (legitimate return) scores below threshold or as non-anomaly."""
-    from src.modules.ml.anomaly import GOLDEN_ANOMALY_FIXTURES, predict_anomaly
+    from backend.ai.anomaly import GOLDEN_ANOMALY_FIXTURES, predict_anomaly
 
     model, _manifest = trained_anomaly_model
     fixture = next(item for item in GOLDEN_ANOMALY_FIXTURES if item["id"] == "other")
@@ -76,7 +76,7 @@ def test_golden_other_scores_non_anomaly(trained_anomaly_model):
 
 def test_training_frame_has_no_affiliate_creator_columns(tmp_path: Path):
     """Feature matrix for anomaly training contains no affiliate/creator column names."""
-    from src.modules.ml.anomaly.train import build_anomaly_training_frame
+    from backend.ai.anomaly.train import build_anomaly_training_frame
 
     dataset_dir = tmp_path / "backtest"
     assemble_backtest_dataset(dataset_dir, seed=139, n_shops=4, orders_per_shop=30, return_rate=0.12)
@@ -90,7 +90,7 @@ def test_training_frame_has_no_affiliate_creator_columns(tmp_path: Path):
 
 def test_train_writes_per_class_metrics_json(tmp_path: Path):
     """Train writes metrics JSON with per-class precision/recall for item_swap and empty_return."""
-    from src.modules.ml.anomaly import CLASS_IMBALANCE_STRATEGY, train_anomaly
+    from backend.ai.anomaly import CLASS_IMBALANCE_STRATEGY, train_anomaly
 
     dataset_dir = tmp_path / "backtest"
     assemble_backtest_dataset(dataset_dir, seed=139, n_shops=8, orders_per_shop=40, return_rate=0.14)
@@ -114,7 +114,7 @@ def test_train_writes_per_class_metrics_json(tmp_path: Path):
 
 def test_inference_output_schema_documented():
     """Inference output schema includes anomaly_class, confidence, feature_summary."""
-    from src.modules.ml.anomaly.types import InferenceResult
+    from backend.ai.anomaly.types import InferenceResult
 
     result = InferenceResult(
         anomaly_class="item_swap",
@@ -128,7 +128,7 @@ def test_inference_output_schema_documented():
 
 def test_anomaly_trainer_has_no_tiktok_api_calls():
     """No TikTok API calls in anomaly trainer module."""
-    import src.modules.ml.anomaly.train as train_module
+    import backend.ai.anomaly.train as train_module
 
     source = Path(train_module.__file__).read_text(encoding="utf-8")
     forbidden = ("TikTokClient", "tiktokglobalshop", "open-api.tiktok")

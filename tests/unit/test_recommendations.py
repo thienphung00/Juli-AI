@@ -17,15 +17,15 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.utils.data.models import Creator, InventoryItem, Livestream, Order, Product, Shop, User
-from src.shared.utils.data.repos import GraphRepo
-from src.modules.catalog.domain.recommendations import (
+from backend.database.models import Creator, InventoryItem, Livestream, Order, Product, Shop, User
+from backend.database.repos import GraphRepo
+from backend.integrations.catalog.domain.recommendations import (
     get_host_product_matching,
     get_product_push_suggestions,
     get_stream_optimization,
 )
-from src.modules.catalog.domain.recommendations.engine import HostProductMatch, ProductPushSuggestion
-from src.modules.catalog.domain.recommendations.prediction import (
+from backend.integrations.catalog.domain.recommendations.engine import HostProductMatch, ProductPushSuggestion
+from backend.integrations.catalog.domain.recommendations.prediction import (
     ACTION_CONTACT_CREATOR,
     PredictedOutcome,
 )
@@ -319,7 +319,7 @@ class TestRuleBasedNoLlmDependency:
 
     @pytest.mark.asyncio
     async def test_rule_based_no_llm_dependency(self, session: AsyncSession):
-        engine = importlib.import_module("src.modules.catalog.domain.recommendations.engine")
+        engine = importlib.import_module("backend.integrations.catalog.domain.recommendations.engine")
         source = inspect.getsource(engine)
         forbidden = ("openai", "litellm", "anthropic", "langchain")
         for name in forbidden:

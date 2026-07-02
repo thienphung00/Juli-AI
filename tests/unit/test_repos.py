@@ -6,7 +6,7 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.utils.data import User, Shop, UsersRepo, ShopsRepo, NotFound
+from backend.database import User, Shop, UsersRepo, ShopsRepo, NotFound
 
 
 pytestmark = pytest.mark.asyncio

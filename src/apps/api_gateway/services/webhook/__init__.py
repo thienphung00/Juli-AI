@@ -1,4 +1,2 @@
-from src.modules.ordering.api.ingestion.handoff import HandoffFn, PublishFn
-from src.apps.api_gateway.services.webhook.app import EVENT_CATEGORY_ROUTES, create_app
-
-__all__ = ["create_app", "HandoffFn", "PublishFn", "EVENT_CATEGORY_ROUTES"]
+"""Compatibility shim — runtime moved to `backend.api.services` (issue #252)."""
+from backend.api.services.webhook import *  # noqa: F403
