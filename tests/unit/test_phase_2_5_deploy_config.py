@@ -111,9 +111,11 @@ def test_env_examples_exist_and_are_placeholders_only():
     # Backend startup requires DATABASE_URL and CORS; document them.
     assert "DATABASE_URL=" in api_env
     assert "CORS_ALLOW_ORIGINS=" in api_env
+    assert "PHONE_OTP_ENABLED=false" in api_env
 
     web_env = _read(ENV_FRONTEND_PATH)
     assert "NEXT_PUBLIC_API_URL=" in web_env
+    assert "NEXT_PUBLIC_UI_ONLY=1" in web_env
 
 
 def test_env_examples_do_not_contain_real_secrets():

@@ -53,6 +53,23 @@ def normalize_vn_phone(phone: str) -> str:
     )
 
 
+def _phone_otp_enabled() -> bool:
+    """App Review sets PHONE_OTP_ENABLED=false; production defaults to enabled."""
+    return os.environ.get("PHONE_OTP_ENABLED", "true").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def _require_phone_otp_enabled() -> None:
+    if not _phone_otp_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Phone OTP login is disabled",
+        )
+
+
 def _supabase_auth() -> SupabaseAuth:
     url = os.environ.get("SUPABASE_URL", "").strip()
     anon_key = os.environ.get("SUPABASE_ANON_KEY", "").strip()
@@ -67,6 +84,7 @@ def _supabase_auth() -> SupabaseAuth:
 @router.post("/otp/send", response_model=OtpSendResponse)
 async def send_otp(body: OtpSendRequest) -> OtpSendResponse:
     """Send phone OTP via Supabase Auth."""
+    _require_phone_otp_enabled()
     phone = normalize_vn_phone(body.phone)
     auth = _supabase_auth()
     try:
@@ -88,6 +106,7 @@ async def verify_otp(
     session: AsyncSession = Depends(get_session),
 ) -> SessionResponse:
     """Verify OTP and ensure a Juli user row exists for the Supabase subject."""
+    _require_phone_otp_enabled()
     phone = normalize_vn_phone(body.phone)
     auth = _supabase_auth()
     try:

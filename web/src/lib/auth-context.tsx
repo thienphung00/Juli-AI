@@ -26,6 +26,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
+  loginAsReviewer: () => Promise<void>;
   logout: () => void;
 }
 
@@ -89,6 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const loginAsReviewer = useCallback(async () => {
+    if (!isUiOnly) {
+      throw new Error("Reviewer login is only available in UI-only mode");
+    }
+    await verifyOtp(UI_ONLY_DEMO_USER.phone, "000000");
+  }, [verifyOtp]);
+
   const logout = useCallback(() => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("user");
@@ -102,7 +110,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, sendOtp, verifyOtp, logout }}>
+    <AuthContext.Provider
+      value={{ ...state, sendOtp, verifyOtp, loginAsReviewer, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

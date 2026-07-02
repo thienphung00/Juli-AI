@@ -8,8 +8,20 @@
 #
 # Usage:
 #   ./infra/deploy/smoke-test.sh
+#   ./infra/deploy/smoke-test.sh --dns-tls-only   # Issue #256 — no upstream apps required
 #   APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 set -euo pipefail
+
+DNS_TLS_ONLY=false
+for arg in "$@"; do
+    case "${arg}" in
+        --dns-tls-only) DNS_TLS_ONLY=true ;;
+        -h|--help)
+            echo "Usage: $0 [--dns-tls-only]"
+            exit 0
+            ;;
+    esac
+done
 
 APP_DOMAIN="${APP_DOMAIN:-app-juli.com}"
 API_DOMAIN="${API_DOMAIN:-api.app-juli.com}"
@@ -22,6 +34,9 @@ ok()   { echo "PASS: $1"; pass=$((pass + 1)); }
 bad()  { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 echo "== Juli App Review smoke test =="
+if [ "${DNS_TLS_ONLY}" = true ]; then
+    echo "mode: DNS + TLS only (issue #256 — upstream apps may be down)"
+fi
 echo "frontend: https://${APP_DOMAIN}  backend: https://${API_DOMAIN}"
 echo
 
@@ -44,27 +59,31 @@ for domain in "${APP_DOMAIN}" "${API_DOMAIN}"; do
     fi
 done
 
-# 3. Frontend loads over HTTPS.
-if curl -sSf -o /dev/null "https://${APP_DOMAIN}/"; then
-    ok "frontend loads at https://${APP_DOMAIN}/"
+if [ "${DNS_TLS_ONLY}" = true ]; then
+    echo "Skipping upstream checks (deploy apps in #257/#258, then run without --dns-tls-only)."
 else
-    bad "frontend did not load at https://${APP_DOMAIN}/"
-fi
+    # 3. Frontend loads over HTTPS.
+    if curl -sSf -o /dev/null "https://${APP_DOMAIN}/"; then
+        ok "frontend loads at https://${APP_DOMAIN}/"
+    else
+        bad "frontend did not load at https://${APP_DOMAIN}/"
+    fi
 
-# 4. Backend health returns 2xx.
-health_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${API_DOMAIN}/health")"
-if [ "${health_code}" -ge 200 ] && [ "${health_code}" -lt 300 ]; then
-    ok "/health returned ${health_code}"
-else
-    bad "/health returned ${health_code}"
-fi
+    # 4. Backend health returns 2xx.
+    health_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${API_DOMAIN}/health")"
+    if [ "${health_code}" -ge 200 ] && [ "${health_code}" -lt 300 ]; then
+        ok "/health returned ${health_code}"
+    else
+        bad "/health returned ${health_code}"
+    fi
 
-# 5. OAuth callback route exists and does not 5xx on missing params.
-cb_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${API_DOMAIN}${CALLBACK_PATH}")"
-if [ "${cb_code}" -lt 500 ]; then
-    ok "OAuth callback ${CALLBACK_PATH} returned ${cb_code} (no 5xx)"
-else
-    bad "OAuth callback ${CALLBACK_PATH} returned ${cb_code}"
+    # 5. OAuth callback route exists and does not 5xx on missing params.
+    cb_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${API_DOMAIN}${CALLBACK_PATH}")"
+    if [ "${cb_code}" -lt 500 ]; then
+        ok "OAuth callback ${CALLBACK_PATH} returned ${cb_code} (no 5xx)"
+    else
+        bad "OAuth callback ${CALLBACK_PATH} returned ${cb_code}"
+    fi
 fi
 
 echo
