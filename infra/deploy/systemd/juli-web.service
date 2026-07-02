@@ -2,6 +2,8 @@
 #
 # Independent of juli-api: restart with `sudo systemctl restart juli-web`.
 # Install to /etc/systemd/system/juli-web.service on the review VPS.
+#
+# VPS layout: single repo checkout at /root/Juli-AI-v2 (frontend in web/).
 [Unit]
 Description=Juli App Review frontend (Next.js)
 After=network-online.target
@@ -9,10 +11,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=juli
-WorkingDirectory=/opt/juli/web
+User=root
+WorkingDirectory=/root/Juli-AI-v2/web
 # Env file lives on the VPS only — see infra/deploy/env/web.env.example.
-EnvironmentFile=/opt/juli/web/.env.production
+EnvironmentFile=/root/Juli-AI-v2/web/.env.production
 # Production Next.js server bound to the loopback upstream Nginx proxies to.
 ExecStart=/usr/bin/npm run start -- --port 3000 --hostname 127.0.0.1
 Restart=on-failure

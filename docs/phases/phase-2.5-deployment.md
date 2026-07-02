@@ -172,6 +172,9 @@ certificates. Repo deliverables:
 | [`provision-nginx.sh`](../../infra/deploy/provision-nginx.sh) | Copy vhosts + reload Nginx on VPS |
 | `smoke-test.sh --dns-tls-only` | Validate DNS + TLS before apps are deployed |
 
+**VPS layout:** one checkout at `~/Juli-AI-v2` — backend `.env` at repo root, frontend
+`web/.env.production`, both services restarted independently from the same repo.
+
 Issue index: [`docs/features/app_review_deployment/issues.md`](../features/app_review_deployment/issues.md).
 
 ---

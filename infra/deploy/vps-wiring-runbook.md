@@ -20,7 +20,7 @@ subdomains, production traffic.
 | Review VPS | Ubuntu 22.04+ or Debian 12+ with a **static public IPv4** |
 | SSH access | `sudo` for package install and Nginx reload |
 | DNS registrar | Ability to create **A records** for `app-juli.com` and `api.app-juli.com` |
-| Repo checkout | `/opt/juli` (or any path — scripts use `$REPO_ROOT`) |
+| Repo checkout | `~/Juli-AI-v2` (single monorepo — backend at repo root, frontend in `web/`) |
 | Firewall | Inbound **80/tcp** and **443/tcp** open to the VPS |
 
 Record the VPS public IP as `VPS_IP` for the steps below. **Do not commit** the IP or
@@ -68,7 +68,7 @@ Ensure ports 80 and 443 are reachable (cloud security group + `ufw` if enabled).
 From the repo checkout on the VPS:
 
 ```bash
-cd /opt/juli   # adjust if your checkout lives elsewhere
+cd ~/Juli-AI-v2
 sudo ./infra/deploy/provision-nginx.sh
 ```
 
@@ -111,9 +111,10 @@ The `certbot` package installs a systemd timer for renewal — no extra cron req
 
 ## Step 5 — Validate DNS + TLS (#256 acceptance)
 
-Run the **DNS/TLS-only** smoke subset (no upstream apps required):
+Run the **DNS/TLS-only** smoke subset (no upstream apps required) from the repo root:
 
 ```bash
+cd ~/Juli-AI-v2
 ./infra/deploy/smoke-test.sh --dns-tls-only
 ```
 

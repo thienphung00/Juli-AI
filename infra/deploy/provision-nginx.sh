@@ -6,7 +6,7 @@
 #
 # Usage (on VPS):
 #   sudo ./infra/deploy/provision-nginx.sh
-#   REPO_ROOT=/opt/juli sudo ./infra/deploy/provision-nginx.sh
+#   REPO_ROOT=~/Juli-AI-v2 sudo ./infra/deploy/provision-nginx.sh
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"

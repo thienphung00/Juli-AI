@@ -34,19 +34,21 @@ Implemented **#256** with VPS wiring runbook, Nginx provision script, smoke-test
 
 ## VPS redeploy after merge
 
-Frontend (`~/juli-frontend/web`):
+Single repo checkout at `~/Juli-AI-v2`:
 
 ```bash
-# .env.production must include NEXT_PUBLIC_UI_ONLY=1
-npm run build
-npm run start -- --port 3000 --hostname 0.0.0.0
-```
+cd ~/Juli-AI-v2
+git pull
 
-Backend (`~/Juli-AI-v2`):
-
-```bash
-# .env must include PHONE_OTP_ENABLED=false
+# Backend — ~/Juli-AI-v2/.env (PHONE_OTP_ENABLED=false)
+source .venv/bin/activate
+set -a && source .env && set +a
 uvicorn src.apps.api_gateway.api.main:app --host 0.0.0.0 --port 8000
+
+# Frontend — ~/Juli-AI-v2/web/.env.production (NEXT_PUBLIC_UI_ONLY=1)
+cd web
+npm ci && npm run build
+npm run start -- --port 3000 --hostname 0.0.0.0
 ```
 
 ## Next

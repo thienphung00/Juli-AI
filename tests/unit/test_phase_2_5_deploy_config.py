@@ -57,7 +57,9 @@ def test_runbook_documents_review_topology(runbook_text: str):
         assert term in lowered, f"runbook must document: {term}"
 
 
-def test_runbook_documents_upstream_ports(runbook_text: str):
+def test_runbook_documents_single_monorepo_vps_layout(runbook_text: str):
+    assert "Juli-AI-v2" in runbook_text
+    assert "web/.env.production" in runbook_text
     assert FRONTEND_PORT in runbook_text, "frontend upstream port must be documented"
     assert BACKEND_PORT in runbook_text, "backend upstream port must be documented"
 
@@ -79,6 +81,16 @@ def test_nginx_api_config_exposes_health_and_oauth_callback():
     assert "/v1/auth/tiktok/callback" in api_conf, (
         "API nginx config must reference the TikTok OAuth callback path"
     )
+
+
+def test_systemd_units_use_single_monorepo_checkout():
+    """Backend and frontend systemd units share one Juli-AI-v2 repo on the VPS."""
+    api_unit = _read(SYSTEMD_BACKEND_PATH)
+    web_unit = _read(SYSTEMD_FRONTEND_PATH)
+    assert "Juli-AI-v2" in api_unit
+    assert "Juli-AI-v2/web" in web_unit
+    assert "/root/Juli-AI-v2/.env" in api_unit
+    assert "/root/Juli-AI-v2/web/.env.production" in web_unit
 
 
 # AC2: Frontend and backend deploy steps separated and independently restartable.
@@ -116,6 +128,8 @@ def test_env_examples_exist_and_are_placeholders_only():
     web_env = _read(ENV_FRONTEND_PATH)
     assert "NEXT_PUBLIC_API_URL=" in web_env
     assert "NEXT_PUBLIC_UI_ONLY=1" in web_env
+    assert "Juli-AI-v2" in api_env
+    assert "Juli-AI-v2/web" in web_env
 
 
 def test_env_examples_do_not_contain_real_secrets():

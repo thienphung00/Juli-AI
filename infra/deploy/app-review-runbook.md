@@ -41,6 +41,7 @@ and config samples that make that wiring repeatable.
 | Backend domain | `api.app-juli.com` |
 | OAuth callback | `https://api.app-juli.com/v1/auth/tiktok/callback` |
 | TLS | Let's Encrypt via certbot (renewable) |
+| VPS checkout | `~/Juli-AI-v2` — single monorepo (`web/` = frontend, repo root = backend) |
 
 ### Config files in this directory
 
@@ -60,8 +61,8 @@ and config samples that make that wiring repeatable.
 
 ## Environment variables (no secrets in git)
 
-Real values are set **only on the VPS** env files (`/opt/juli/api/.env`,
-`/opt/juli/web/.env.production`) or a secret manager. **Do not commit** real
+Real values are set **only on the VPS** env files (`~/Juli-AI-v2/.env`,
+`~/Juli-AI-v2/web/.env.production`) or a secret manager. **Do not commit** real
 credentials — the templates in `env/` hold placeholders **outside** any
 functional value.
 
@@ -98,8 +99,9 @@ never restarts the backend and vice versa.
 ### Frontend (`juli-web`)
 
 ```bash
-cd /opt/juli/web
+cd ~/Juli-AI-v2
 git pull
+cd web
 npm ci
 npm run build
 sudo systemctl restart juli-web
@@ -109,7 +111,7 @@ sudo systemctl status juli-web --no-pager
 ### Backend (`juli-api`)
 
 ```bash
-cd /opt/juli/api
+cd ~/Juli-AI-v2
 git pull
 .venv/bin/pip install -r requirements.txt
 sudo systemctl restart juli-api
@@ -119,6 +121,8 @@ sudo systemctl status juli-api --no-pager
 ### One-time install
 
 ```bash
+cd ~/Juli-AI-v2
+
 # systemd units
 sudo cp infra/deploy/systemd/juli-web.service /etc/systemd/system/
 sudo cp infra/deploy/systemd/juli-api.service /etc/systemd/system/
@@ -155,9 +159,10 @@ env templates, and smoke-test coverage stay in sync with this runbook.
 ### Live smoke test (HITL, after DNS + TLS are wired on the VPS)
 
 Full domain wiring (DNS records, TLS issuance) stays **HITL / manual** on the VPS
-per issue #256. Once wired, run the checklist:
+per issue #256. Once wired, run the checklist from the repo root:
 
 ```bash
+cd ~/Juli-AI-v2
 ./infra/deploy/smoke-test.sh
 # or point at other hostnames:
 APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
