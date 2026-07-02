@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 252,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-02T1030Z",
+  "startedAt": "2026-07-02T10:00:00Z",
+  "completedAt": "2026-07-02T10:45:00Z",
+  "executionDurationMs": 2700000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 45,
+  "contextFilesLoaded": [
+    "docs/architecture/migration-plan.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "backend/README.md",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/",
+    "src/COMPAT.md",
+    "tests/",
+    "alembic.ini",
+    "docs/architecture/map.md",
+    "docs/architecture/migration-plan.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/decisions/018-backend-runtime-migration.md",
+    "scripts/ci/common.py",
+    "scripts/ci/ml_thresholds.py",
+    "agent-runtime.config.yml",
+    ".github/workflows/pr.yml"
+  ],
+  "testsAdded": [
+    "tests/unit/test_phase_2_5_backend_migration.py::test_backend_entrypoints_workers_integrations_database_ownership_align",
+    "tests/unit/test_phase_2_5_backend_migration.py::test_python_imports_rewritten_no_product_app_imports_in_backend",
+    "tests/unit/test_phase_2_5_backend_migration.py::test_api_factory_auth_polling_etl_tiktok_repository_tests_pass",
+    "tests/unit/test_phase_2_5_backend_migration.py::test_temporary_compatibility_shims_documented_in_src_compat",
+    "tests/unit/test_phase_2_5_backend_migration.py::test_no_frontend_shared_package_or_deploy_domain_work_included"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_phase_2_5_deployment_docs.py",
+    "tests/unit/test_backtest_dataset.py",
+    "tests/unit/test_review_status.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "416 backend tests initially failed on import paths after file moves",
+      "passingTestEvidence": "Import rewrites to backend.* and src/ shims restored deploy entrypoint; 416 pytest tests pass",
+      "commands": [
+        {
+          "command": "python -m pytest tests/ -q",
+          "exitCode": 0,
+          "outputSummary": "416 passed"
+        },
+        {
+          "command": "ruff check backend/ src/ tests/",
+          "exitCode": 0,
+          "outputSummary": "All checks passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Phase 2.5-c (#252): moved Python runtime from src/ to backend/ per migration plan; rewrote imports; relocated Alembic to backend/database/migrations; added documented src/ compatibility shims for live App Review deploy entrypoint.",
+  "assumptions": [
+    "App Review VPS (#256) may keep uvicorn src.apps.api_gateway.api.main:app until deploy config slice",
+    "No frontend, shared package, or infra/deploy entrypoint changes in this slice"
+  ],
+  "risks": [
+    "Stale src/ shims must be removed after systemd switches to backend.api.api.main:app",
+    "MODULE.md headers still reference legacy src/ paths in some ai/ modules"
+  ]
+}

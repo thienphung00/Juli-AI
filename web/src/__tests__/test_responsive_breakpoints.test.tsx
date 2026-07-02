@@ -41,7 +41,7 @@ describe("AC5: Mobile-responsive layout", () => {
     expect(wrapper).toBeInTheDocument();
   });
 
-  it("OTP button has adequate touch target (py-3 = 12px padding)", () => {
+  it("demo continue button has adequate touch target (py-3 = 12px padding)", () => {
     render(
       <AuthProvider>
         <ModeProvider>
@@ -50,12 +50,12 @@ describe("AC5: Mobile-responsive layout", () => {
       </AuthProvider>
     );
 
-    const button = screen.getByRole("button", { name: "Nhận mã OTP" });
+    const button = screen.getByRole("button", { name: "Tiếp tục vào ứng dụng" });
     expect(button.className).toContain("py-3");
     expect(button.className).toContain("w-full");
   });
 
-  it("phone input has large text (text-lg) for easy reading", () => {
+  it("demo login copy is readable on mobile", () => {
     render(
       <AuthProvider>
         <ModeProvider>
@@ -64,21 +64,7 @@ describe("AC5: Mobile-responsive layout", () => {
       </AuthProvider>
     );
 
-    const input = screen.getByLabelText("Số điện thoại");
-    expect(input.className).toContain("text-lg");
-  });
-
-  it("phone input uses numeric keyboard on mobile", () => {
-    render(
-      <AuthProvider>
-        <ModeProvider>
-          <LoginForm />
-        </ModeProvider>
-      </AuthProvider>
-    );
-
-    const input = screen.getByLabelText("Số điện thoại");
-    expect(input).toHaveAttribute("inputMode", "numeric");
-    expect(input).toHaveAttribute("type", "tel");
+    expect(screen.getByText(/không cần mã xác thực/i)).toBeInTheDocument();
+    expect(screen.getByText(/dữ liệu demo/i)).toBeInTheDocument();
   });
 });
