@@ -15,7 +15,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from src.shared.utils.data.models import Creator, Livestream, Settlement, Shop, User
+from backend.database.models import Creator, Livestream, Settlement, Shop, User
 
 pytestmark = pytest.mark.asyncio
 
@@ -27,8 +27,8 @@ pytestmark = pytest.mark.asyncio
 
 @pytest_asyncio.fixture
 async def app(engine, session):
-    from src.apps.api_gateway.api.app import create_app
-    from src.shared.utils.data import get_session
+    from backend.api.api.app import create_app
+    from backend.database import get_session
 
     application = create_app()
 
@@ -125,7 +125,7 @@ async def settlement(session, shop):
 
 @pytest_asyncio.fixture
 async def auth_client(app, shop):
-    from src.apps.api_gateway.api.dependencies import get_active_shop
+    from backend.api.api.dependencies import get_active_shop
 
     app.dependency_overrides[get_active_shop] = lambda: shop
 

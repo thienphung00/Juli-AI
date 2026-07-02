@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.modules.catalog.domain.integrations.tiktok.client import TikTokClient
-from src.modules.catalog.domain.integrations.tiktok.constants import FINANCE_STATEMENTS_PATH
+from backend.integrations.catalog.domain.integrations.tiktok.client import TikTokClient
+from backend.integrations.catalog.domain.integrations.tiktok.constants import FINANCE_STATEMENTS_PATH
 
 
 @pytest.fixture

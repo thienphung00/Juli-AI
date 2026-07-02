@@ -13,7 +13,7 @@ from httpx import ASGITransport, AsyncClient
 @pytest.fixture
 def api_main_module(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-    module_name = "src.apps.api_gateway.api.main"
+    module_name = "backend.api.api.main"
     sys.modules.pop(module_name, None)
     module = importlib.import_module(module_name)
     yield module
@@ -42,7 +42,7 @@ async def test_api_main_exposes_openapi_docs(api_client):
 
 @pytest.mark.asyncio
 async def test_api_main_configures_session_factory(api_main_module):
-    from src.shared.utils.data import get_session
+    from backend.database import get_session
 
     async with api_main_module.app.router.lifespan_context(api_main_module.app):
         session_gen = get_session()

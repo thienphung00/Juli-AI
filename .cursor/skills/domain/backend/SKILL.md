@@ -3,7 +3,7 @@ name: backend-executor
 description: >-
   Executor Agent domain skill for Python/FastAPI backend work. Use when
   implementing API endpoints, services, auth, background jobs, or domain logic
-  under src/.
+  under backend/.
 ---
 
 # Backend Executor
@@ -24,7 +24,7 @@ built-in TDD** (Red → Green → Refactor). Canonical requirements:
 
 ## Required context
 
-- `MODULE.md` for each affected module under `src/`
+- `MODULE.md` for each affected module under `backend/`
 - API contracts from issue / `system-design.md`
 - Relevant ADRs for architectural constraints
 

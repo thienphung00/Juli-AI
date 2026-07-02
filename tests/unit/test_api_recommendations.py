@@ -9,7 +9,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.utils.data.models import (
+from backend.database.models import (
     Creator,
     InventoryItem,
     Livestream,
@@ -18,15 +18,15 @@ from src.shared.utils.data.models import (
     Shop,
     User,
 )
-from src.shared.utils.data.repos import GraphRepo
+from backend.database.repos import GraphRepo
 
 pytestmark = pytest.mark.asyncio
 
 
 @pytest_asyncio.fixture
 async def app(engine, session):
-    from src.apps.api_gateway.api.app import create_app
-    from src.shared.utils.data import get_session
+    from backend.api.api.app import create_app
+    from backend.database import get_session
 
     application = create_app()
 
@@ -61,8 +61,8 @@ async def shop(session, authenticated_user):
 
 @pytest_asyncio.fixture
 async def auth_client(app, authenticated_user, shop):
-    from src.apps.api_gateway.api.dependencies import get_active_shop
-    from src.modules.identity.infrastructure.auth import get_current_user
+    from backend.api.api.dependencies import get_active_shop
+    from backend.integrations.identity.infrastructure.auth import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop

@@ -7,8 +7,8 @@
 **Goal:** Provide a public, HTTPS-accessible Juli deployment for TikTok App Review without
 launching production functionality.
 
-**Active scope (first migration):** documentation alignment + folder scaffold only.  
-Runtime code stays in legacy paths until a follow-up PR moves it.
+**Active scope (2.5-c):** backend runtime boundary moved to `backend/` with `src/`
+compatibility shims; deploy configs may still reference legacy entrypoints until updated.
 
 **Active App Review slice:** deploy the existing `web/` Next.js frontend and FastAPI API from
 legacy paths on a VPS-backed domain so TikTok reviewers can load the UI, reach the backend,
@@ -75,8 +75,8 @@ TikTok Partner Center review URLs:
 
 | Current path | Target path | Status |
 |--------------|-------------|--------|
-| `src/` | `backend/` | Legacy — not moved yet |
-| `src/apps/` | `backend/api/`, `backend/workers/` | **Naming collision:** `src/apps` = backend entrypoints, not product apps |
+| `src/` | `backend/` | **Migrated (2.5-c)** — `src/` shims re-export `backend.*` |
+| `src/apps/` | `backend/api/`, `backend/workers/` | **Migrated (2.5-c)** |
 | `web/` | `apps/dashboard/` (Phase 3.5) or reference for `apps/demo/` (Phase 3) | Legacy — not moved yet |
 | `ios/` | `apps/mobile/` | Legacy — not moved yet |
 | `web/src/lib/` | `packages/*` (extracted incrementally) | Planned |
@@ -231,6 +231,7 @@ and [`../features/app_review_deployment/issues.md`](../features/app_review_deplo
 - [ ] Public App Review domain routes to the frontend over HTTPS _(2.5-review)_
 - [ ] Backend health and OAuth callback routes respond over HTTPS _(2.5-review)_
 - [ ] Reviewer login works without production users or production traffic _(2.5-review)_
+- [x] Backend runtime boundary moved to `backend/` with `src/` compatibility shims _(2.5-c)_
 - [x] CI/deploy notes capture the temporary VPS/Nginx topology _(2.5-d)_
 
 ---

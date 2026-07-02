@@ -18,10 +18,10 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
-from src.shared.utils.data.models import ProcessedEvent, Shop, User
-from src.shared.utils.data.repos import OrdersRepo
-from src.modules.ordering.use_cases.etl.consumer import EtlConsumer, ProcessOutcome
-from src.modules.ordering.use_cases.etl.record import IngestRecord
+from backend.database.models import ProcessedEvent, Shop, User
+from backend.database.repos import OrdersRepo
+from backend.integrations.ordering.use_cases.etl.consumer import EtlConsumer, ProcessOutcome
+from backend.integrations.ordering.use_cases.etl.record import IngestRecord
 
 pytestmark = pytest.mark.asyncio
 
@@ -82,7 +82,7 @@ def _order_record(
 
 
 async def test_make_etl_handoff_wires_producer_to_consumer(session, shop, publish_dlq):
-    from src.modules.ordering.api.ingestion.handoff import make_etl_handoff
+    from backend.integrations.ordering.api.ingestion.handoff import make_etl_handoff
 
     consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
     handoff = make_etl_handoff(consumer)
@@ -143,7 +143,7 @@ async def test_etl_persists_order_item_after_parent_order(session, shop, publish
     ) == ProcessOutcome.PROCESSED
     await session.commit()
 
-    from src.shared.utils.data.models import OrderItem
+    from backend.database.models import OrderItem
     from sqlalchemy import select
 
     result = await session.execute(
@@ -194,7 +194,7 @@ async def test_etl_persists_return_record(session, shop, publish_dlq):
     assert outcome == ProcessOutcome.PROCESSED
     await session.commit()
 
-    from src.shared.utils.data.models import Return
+    from backend.database.models import Return
     from sqlalchemy import select
 
     result = await session.execute(

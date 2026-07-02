@@ -14,11 +14,11 @@ import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.modules.catalog.domain.integrations.tiktok.exceptions import (
+from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
     PermissionDeniedError,
     TikTokSystemError,
 )
-from src.apps.cron_jobs.services.polling.sync import (
+from backend.workers.services.polling.sync import (
     BACKFILL_WINDOW_SECONDS,
     backfill_shop,
     sync_creators,
@@ -707,7 +707,7 @@ class TestBackfillShop:
     ):
         fake_now = 1700000000
 
-        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
+        with patch("backend.workers.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = fake_now
 
             await backfill_shop(
@@ -731,7 +731,7 @@ class TestBackfillShop:
     ):
         fake_now = 1700000000
 
-        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
+        with patch("backend.workers.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = fake_now
 
             await backfill_shop(
@@ -753,7 +753,7 @@ class TestBackfillShop:
         self, mock_creators_resource, mock_livestreams_resource,
         mock_settlements_resource, mock_rate_limiter, publish_fn, handoff_calls,
     ):
-        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
+        with patch("backend.workers.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = 1700000000
 
             await backfill_shop(
@@ -776,7 +776,7 @@ class TestBackfillShop:
         self, mock_creators_resource, mock_livestreams_resource,
         mock_settlements_resource, mock_rate_limiter, publish_fn,
     ):
-        with patch("src.apps.cron_jobs.services.polling.sync.time") as mock_time:
+        with patch("backend.workers.services.polling.sync.time") as mock_time:
             mock_time.time.return_value = 1700000000
 
             result = await backfill_shop(

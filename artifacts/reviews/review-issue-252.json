@@ -1,0 +1,75 @@
+{
+  "id": "review-issue-252",
+  "issue": 252,
+  "timestamp": "2026-07-02T10:50:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 2.5-c (#252): backend runtime moved to backend/ with import rewrites, Alembic under backend/database/migrations, and documented src/ compatibility shims. API, auth, polling, ETL, TikTok, and repository test suites pass. No frontend or deploy-config scope included.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/api",
+    "backend/workers",
+    "backend/integrations",
+    "backend/database",
+    "src/",
+    "docs/architecture/map.md"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Backend entrypoints, workers, integrations, and database ownership align with the documented target boundary.",
+          "test": "tests/unit/test_phase_2_5_backend_migration.py::test_backend_entrypoints_workers_integrations_database_ownership_align"
+        },
+        {
+          "criterion": "Python imports are rewritten consistently; no product app imports are introduced into backend code.",
+          "test": "tests/unit/test_phase_2_5_backend_migration.py::test_python_imports_rewritten_no_product_app_imports_in_backend"
+        },
+        {
+          "criterion": "API factory, auth, polling, ETL, TikTok integration, and data repository tests pass after the migration.",
+          "test": "tests/unit/test_phase_2_5_backend_migration.py::test_api_factory_auth_polling_etl_tiktok_repository_tests_pass"
+        },
+        {
+          "criterion": "Any temporary compatibility shims are explicitly documented and removed if unnecessary.",
+          "test": "tests/unit/test_phase_2_5_backend_migration.py::test_temporary_compatibility_shims_documented_in_src_compat"
+        },
+        {
+          "criterion": "No frontend product implementation, shared package extraction, or deploy-domain work is included.",
+          "test": "tests/unit/test_phase_2_5_backend_migration.py::test_no_frontend_shared_package_or_deploy_domain_work_included"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 421,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Follow-up slice should point systemd juli-api.service at backend.api.api.main:app and remove src/ shims.",
+    "Update MODULE.md headers under backend/ai/ to reference backend paths instead of legacy src/modules/ml."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-252.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": []
+}

@@ -1,2 +1,2 @@
-class NotFound(Exception):
-    """Raised when a requested entity does not exist."""
+"""Compatibility shim — runtime moved to `backend.database` (issue #252)."""
+from backend.database.exceptions import *  # noqa: F403

@@ -37,6 +37,11 @@ PUBLIC_SECTION_RE = re.compile(
 HANDOFF_FILE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*-\d{2}\.md$", re.IGNORECASE)
 ADR_FILE_RE = re.compile(r"^(\d{3})-([a-z0-9-]+)\.md$")
 REQUIRED_ADR_SECTIONS = ("## Context", "## Decision", "## Rationale", "## Consequences")
+BACKEND_MODULE_PREFIXES = ("backend/", "src/")
+
+
+def _is_backend_module_path(module_path: str) -> bool:
+    return any(module_path.startswith(prefix) for prefix in BACKEND_MODULE_PREFIXES)
 
 
 @dataclass(frozen=True)
@@ -201,18 +206,19 @@ def parse_architecture_map(path: Path | None = None) -> dict[str, ModuleInfo]:
             continue
         module_path, _, tier_str = match.groups()
         module_path = module_path.strip().rstrip("/")
-        if not module_path.startswith("src/"):
+        if not _is_backend_module_path(module_path):
             continue
-        short = module_path.removeprefix("src/").split("/")[0]
-        if "/" in module_path.removeprefix("src/"):
-            short = module_path.removeprefix("src/")
+        short = module_path.removeprefix("backend/").removeprefix("src/").split("/")[0]
+        rel = module_path.removeprefix("backend/").removeprefix("src/")
+        if "/" in rel:
+            short = rel
         modules[module_path] = ModuleInfo(path=module_path, tier=int(tier_str), name=short)
     return modules
 
 
 def module_for_file(file_path: str, modules: dict[str, ModuleInfo]) -> str | None:
     normalized = file_path.replace("\\", "/")
-    if not normalized.startswith("src/"):
+    if not _is_backend_module_path(normalized):
         return None
     candidates = sorted(modules.keys(), key=len, reverse=True)
     for module_path in candidates:
@@ -500,15 +506,15 @@ def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
-ML_MODULE_PREFIX = "src/modules/ml/"
+ML_MODULE_PREFIX = "backend/ai/"
 
 
 def ml_modules_touched(modules: Iterable[str]) -> list[str]:
-    """Return module paths under ``src/modules/ml/`` touched by the change."""
+    """Return module paths under ``backend/ai/`` touched by the change."""
     touched: list[str] = []
     for module in modules:
         normalized = str(module).replace("\\", "/")
-        if normalized == "src/modules/ml" or normalized.startswith(ML_MODULE_PREFIX):
+        if normalized == "backend/ai" or normalized.startswith(ML_MODULE_PREFIX):
             touched.append(normalized)
     return touched
 

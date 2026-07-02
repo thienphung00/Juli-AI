@@ -4,8 +4,9 @@
 > **Owns:** current → target path mapping, migration PR sequence, naming collision notes.  
 > **Does not own:** as-built module registry (`map.md`), deploy domain details (`phase-2.5-deployment.md`).
 
-**Status:** Phase 2.5 App Review — workspace tooling is in place; runtime code is not moved.
-The review deploy may run legacy `web/` and `src/` paths before the full migration sequence.
+**Status:** Phase 2.5-c complete — runtime code lives under `backend/`; `src/` retains
+documented compatibility shims (issue #252). App Review deploy may still reference
+legacy `src.apps.*` entrypoints until a later deploy-config slice.
 
 ---
 

@@ -59,9 +59,9 @@ def map_text() -> str:
 
 
 def test_phase_2_5_deployment_doc_exists_with_scaffold_gate(phase_25_text: str):
-    """Phase 2.5 doc declares docs + scaffold scope and marks 2.5-a exit items."""
+    """Phase 2.5 doc declares scaffold + backend migration scope and marks 2.5-a exit items."""
     assert "Phase 2.5" in phase_25_text
-    assert "documentation alignment + folder scaffold only" in phase_25_text
+    assert "backend runtime boundary moved to `backend/`" in phase_25_text
     assert "Target folders scaffolded with ownership READMEs" in phase_25_text
     assert "[x]" in phase_25_text
 
@@ -75,9 +75,9 @@ def test_scaffold_ownership_readmes_exist():
 def test_naming_collision_documented(
     migration_plan_text: str, map_text: str, execution_text: str
 ):
-    """src/apps vs top-level apps collision is explicit in canonical docs."""
+    """backend/api vs top-level apps collision is explicit in canonical docs."""
     for doc_text in (migration_plan_text, map_text, execution_text):
-        assert "src/apps" in doc_text
+        assert "apps/" in doc_text or "backend/api" in doc_text
     assert "Naming collision" in migration_plan_text
     apps_readme = (REPO_ROOT / "apps/README.md").read_text(encoding="utf-8")
     assert "Not to be confused with `src/apps/`" in apps_readme

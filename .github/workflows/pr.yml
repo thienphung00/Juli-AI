@@ -38,7 +38,7 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: Mypy
-        run: mypy src/ --ignore-missing-imports --disable-error-code=valid-type
+        run: mypy backend/ --ignore-missing-imports --disable-error-code=valid-type
 
   test:
     runs-on: ubuntu-latest

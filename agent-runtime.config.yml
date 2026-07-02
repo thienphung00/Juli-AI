@@ -27,45 +27,44 @@ routing:
   ml_threshold: 0.7
   domain_mappings:
     backend:
-      - src/api
-      - src/auth
-      - src/services
+      - backend/api
+      - backend/integrations/identity
+      - backend/workers
     ui-ux:
       - web
       - ios
     data-platform:
-      - src/data
-      - migrations
+      - backend/database
+      - backend/database/migrations
     machine-learning:
-      - src/modules/ml
-      - src/intelligence
+      - backend/ai
   cross_layer_hints:
     backend:
       related_paths:
-        - src/apps/api_gateway/api
-        - src/shared/utils/data
+        - backend/api
+        - backend/database
         - docs/architecture/map.md
-      note: API and persistence context often required beyond src/services
+      note: API and persistence context often required beyond backend/api
     ui-ux:
       related_paths:
         - web
         - ios
-        - src/apps/api_gateway/api
+        - backend/api
         - docs/architecture/map.md
       note: UI tasks frequently depend on API contracts one layer beyond web/
     data-platform:
       related_paths:
-        - src/shared/utils/data
-        - src/modules/ordering/use_cases/etl
-        - migrations
+        - backend/database
+        - backend/integrations/ordering/use_cases/etl
+        - backend/database/migrations
         - docs/architecture/data-sources.md
-      note: Schema and ingestion paths span ordering and shared data layers
+      note: Schema and ingestion paths span ordering and database layers
     machine-learning:
       related_paths:
-        - src/modules/ml
-        - src/shared/utils/data
+        - backend/ai
+        - backend/database
         - docs/data-models
-      note: Feature pipelines depend on canonical data models outside ml/
+      note: Feature pipelines depend on canonical data models outside ai/
   hints:
     - domain: machine-learning
       signal: synthetic_dataset_small

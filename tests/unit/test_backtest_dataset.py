@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.modules.ml.dataset import (
+from backend.ai.dataset import (
     ADS_COLUMNS,
     LABELS_COLUMNS,
     ORDER_ITEMS_COLUMNS,
@@ -18,7 +18,7 @@ from src.modules.ml.dataset import (
     assemble_backtest_dataset,
     validate_backtest_dataset,
 )
-from src.modules.ml.dataset.schema import REQUIRED_PARQUET_FILES
+from backend.ai.dataset.schema import REQUIRED_PARQUET_FILES
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def output_dir(tmp_path: Path) -> Path:
 
 def test_ml_module_public_interface_and_pinned_dependencies():
     """ML module directory exists with MODULE.md; dependencies pinned in requirements."""
-    module_md = Path("src/modules/ml/dataset/MODULE.md")
+    module_md = Path("backend/ai/dataset/MODULE.md")
     assert module_md.exists()
     requirements = Path("requirements.txt").read_text(encoding="utf-8")
     for package in ("scikit-learn", "xgboost", "pandas", "pyarrow"):
@@ -180,8 +180,8 @@ def test_schema_validation_fails_fast_on_missing_columns(output_dir: Path):
 
 def test_assembler_has_no_tiktok_api_calls():
     """No TikTok API calls in dataset assembly module."""
-    import src.modules.ml.dataset.assembler as assembler_module
-    import src.modules.ml.dataset.synthetic as synthetic_module
+    import backend.ai.dataset.assembler as assembler_module
+    import backend.ai.dataset.synthetic as synthetic_module
 
     assembler_source = Path(assembler_module.__file__).read_text(encoding="utf-8")
     synthetic_source = Path(synthetic_module.__file__).read_text(encoding="utf-8")
@@ -193,7 +193,7 @@ def test_assembler_has_no_tiktok_api_calls():
 
 def test_assembler_has_no_postgres_writes():
     """No Postgres writes in dataset assembly module."""
-    import src.modules.ml.dataset.assembler as assembler_module
+    import backend.ai.dataset.assembler as assembler_module
 
     source = Path(assembler_module.__file__).read_text(encoding="utf-8")
     forbidden = ("get_session", "asyncpg", "sqlalchemy", "alembic")

@@ -10,7 +10,7 @@ Python backend services for Juli AI.
 | [`integrations/`](integrations/) | TikTok API client, webhooks, ETL | `src/modules/catalog/`, `src/modules/ordering/` |
 | [`database/`](database/) | SQLAlchemy models, repos, Alembic migrations | `src/shared/utils/data/`, `alembic/` |
 
-**Status:** Scaffold only — runtime code currently in `src/`.
+**Status:** Runtime code lives here; `src/` retains documented compatibility shims (issue #252).
 
 **Not to be confused with `src/apps/`** — that is the legacy backend entrypoint path.
 

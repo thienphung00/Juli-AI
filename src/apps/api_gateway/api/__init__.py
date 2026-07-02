@@ -1,3 +1,2 @@
-from src.apps.api_gateway.api.app import create_app
-
-__all__ = ["create_app"]
+"""Compatibility shim — runtime moved to `backend.api` (issue #252)."""
+from backend.api.api import *  # noqa: F403

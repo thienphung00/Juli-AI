@@ -11,7 +11,8 @@ Update this file when you add, rename, remove, or restructure a module.
 
 ### Target layout (Phase 2.5+)
 
-Product-oriented monorepo — scaffolded, not yet populated with runtime code:
+Product-oriented monorepo — `backend/` holds runtime Python services; `src/` retains
+compatibility shims (issue #252).
 
 ```
 apps/          # Product deployables (landing, demo, dashboard, mobile)
@@ -25,23 +26,24 @@ See [`migration-plan.md`](migration-plan.md) for full path mapping and migration
 
 ### Current layout (as-built)
 
-The backend is a modular monolith under `src/`. Frontends live in `web/` and `ios/`.
-**`src/apps/` is backend entrypoint composition — not the same as top-level `apps/`.**
+The backend is a modular monolith under `backend/`. Legacy `src/` paths re-export
+`backend.*` for deploy entrypoints. Frontends live in `web/` and `ios/`.
+**`backend/api/` and `backend/workers/` are backend entrypoints — not top-level `apps/`.**
 
 ```
-src/
-├── apps/                         # Backend deployable entrypoints (composition only)
-│   ├── api_gateway/
-│   │   ├── api/                  # FastAPI /v1 routers + app factory
-│   │   └── services/webhook/     # TikTok webhook receiver (HMAC → ETL)
-│   └── cron_jobs/services/polling/   # Scheduled sync workers
-├── modules/                      # Domain modules (business logic)
-│   ├── identity/                 # Auth: JWT verification, TikTok OAuth
+backend/
+├── api/                          # FastAPI /v1 routers + app factory + webhook service
+│   ├── api/
+│   └── services/webhook/
+├── workers/services/polling/       # Scheduled sync workers
+├── integrations/                 # Domain modules (business logic)
+│   ├── identity/infrastructure/auth/   # JWT verification, TikTok OAuth
 │   ├── catalog/domain/
 │   │   ├── integrations/tiktok/  # TikTok Shop Partner API client
 │   │   └── recommendations/      # Decision/recommendation generation
 │   └── ordering/                 # Ingestion handoff + ETL (data accumulation)
-└── shared/utils/data/            # SQLAlchemy models, repos, DB session
+├── ai/                           # ML trainers, features, artifacts
+└── database/                     # SQLAlchemy models, repos, Alembic migrations
 ```
 
 Frontends (legacy, pre-ecosystem):
@@ -63,23 +65,23 @@ Frontends (legacy, pre-ecosystem):
 
 | Module | Tier | Responsibility | Public Surface | Owners |
 |--------|------|----------------|----------------|--------|
-| [`src/modules/catalog/domain/integrations/tiktok`](../../src/modules/catalog/domain/integrations/tiktok/MODULE.md) | 1 | TikTok Shop Partner API client (auth, signing, rate limiting, resources) | `TikTokClient`, `TikTokAuth`, `RateLimiter`, `CreatorsResource`, `ProductsResource`, `OrdersResource`, `InventoryResource`, `LivestreamsResource`, `SettlementsResource`, `TikTokAPIError` hierarchy | domain: integrations |
-| [`src/modules/ordering/api/ingestion`](../../src/modules/ordering/api/ingestion/MODULE.md) | 1 | Ingest handoff contracts and `make_etl_handoff` wiring | `HandoffFn`, `make_etl_handoff` | domain: data |
-| [`src/apps/api_gateway/services/webhook`](../../src/apps/api_gateway/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
-| [`src/apps/cron_jobs/services/polling`](../../src/apps/cron_jobs/services/polling/MODULE.md) | 2 | Background polling sync workers (seller signal collection) | `sync_creators`, `sync_products`, `sync_orders`, `backfill_shop` | domain: integrations |
-| [`src/shared/utils/data`](../../src/shared/utils/data/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `Creator`, `Product`, `Recommendation`, … repos, `Base`, `NotFound`, `get_session` | domain: data |
-| [`src/modules/identity/infrastructure/auth`](../../src/modules/identity/infrastructure/auth/MODULE.md) | 1 | JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
-| [`src/apps/api_gateway/api`](../../src/apps/api_gateway/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, creators, products, recommendations | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/creators`, `GET /v1/products`, `GET /v1/recommendations` | domain: api |
-| [`src/modules/catalog/domain/recommendations`](../../src/modules/catalog/domain/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
-| [`src/modules/ordering/use_cases/etl`](../../src/modules/ordering/use_cases/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
+| [`backend/integrations/catalog/domain/integrations/tiktok`](../../backend/integrations/catalog/domain/integrations/tiktok/MODULE.md) | 1 | TikTok Shop Partner API client (auth, signing, rate limiting, resources) | `TikTokClient`, `TikTokAuth`, `RateLimiter`, `CreatorsResource`, `ProductsResource`, `OrdersResource`, `InventoryResource`, `LivestreamsResource`, `SettlementsResource`, `TikTokAPIError` hierarchy | domain: integrations |
+| [`backend/integrations/ordering/api/ingestion`](../../backend/integrations/ordering/api/ingestion/MODULE.md) | 1 | Ingest handoff contracts and `make_etl_handoff` wiring | `HandoffFn`, `make_etl_handoff` | domain: data |
+| [`backend/api/services/webhook`](../../backend/api/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
+| [`backend/workers/services/polling`](../../backend/workers/services/polling/MODULE.md) | 2 | Background polling sync workers (seller signal collection) | `sync_creators`, `sync_products`, `sync_orders`, `backfill_shop` | domain: integrations |
+| [`backend/database`](../../backend/database/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `Creator`, `Product`, `Recommendation`, … repos, `Base`, `NotFound`, `get_session` | domain: data |
+| [`backend/integrations/identity/infrastructure/auth`](../../backend/integrations/identity/infrastructure/auth/MODULE.md) | 1 | JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
+| [`backend/api/api`](../../backend/api/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, creators, products, recommendations | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/creators`, `GET /v1/products`, `GET /v1/recommendations` | domain: api |
+| [`backend/integrations/catalog/domain/recommendations`](../../backend/integrations/catalog/domain/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
+| [`backend/integrations/ordering/use_cases/etl`](../../backend/integrations/ordering/use_cases/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: demo auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
-| [`src/modules/ml/dataset`](../../src/modules/ml/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
-| [`src/modules/ml/features`](../../src/modules/ml/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | domain: ml |
-| [`src/modules/ml/seller_stage`](../../src/modules/ml/seller_stage/MODULE.md) | 2 | Phase 1.5 seller lifecycle classifier: rules baseline, train, rules-vs-ML compare | `classify_seller_stage`, `train_seller_stage`, `predict_seller_stage`, `compare_to_rules_baseline` | domain: ml |
-| [`src/modules/ml/anomaly`](../../src/modules/ml/anomaly/MODULE.md) | 2 | Phase 1.5 buyer-behavior anomaly detector: item_swap / empty_return training + inference | `train_anomaly`, `predict_anomaly`, `build_anomaly_training_frame` | domain: ml |
-| [`src/modules/ml/ad_performance`](../../src/modules/ml/ad_performance/MODULE.md) | 2 | Phase 1.5 ad performance analyzer: ROAS prediction + scale/cut/hold ranking | `train_ad_performance`, `predict_ad_action`, `build_ad_training_frame` | domain: ml |
-| [`src/modules/ml/artifacts`](../../src/modules/ml/artifacts/MODULE.md) | 2 | Phase 1.5 model artifact publisher: joblib serialization, metadata, promotion gate, smoke tests | `publish_model`, `load_model`, `run_smoke_test`, `evaluate_promotion_status` | domain: ml |
+| [`backend/ai/dataset`](../../backend/ai/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
+| [`backend/ai/features`](../../backend/ai/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | domain: ml |
+| [`backend/ai/seller_stage`](../../backend/ai/seller_stage/MODULE.md) | 2 | Phase 1.5 seller lifecycle classifier: rules baseline, train, rules-vs-ML compare | `classify_seller_stage`, `train_seller_stage`, `predict_seller_stage`, `compare_to_rules_baseline` | domain: ml |
+| [`backend/ai/anomaly`](../../backend/ai/anomaly/MODULE.md) | 2 | Phase 1.5 buyer-behavior anomaly detector: item_swap / empty_return training + inference | `train_anomaly`, `predict_anomaly`, `build_anomaly_training_frame` | domain: ml |
+| [`backend/ai/ad_performance`](../../backend/ai/ad_performance/MODULE.md) | 2 | Phase 1.5 ad performance analyzer: ROAS prediction + scale/cut/hold ranking | `train_ad_performance`, `predict_ad_action`, `build_ad_training_frame` | domain: ml |
+| [`backend/ai/artifacts`](../../backend/ai/artifacts/MODULE.md) | 2 | Phase 1.5 model artifact publisher: joblib serialization, metadata, promotion gate, smoke tests | `publish_model`, `load_model`, `run_smoke_test`, `evaluate_promotion_status` | domain: ml |
 
 ## Phase 1.6 modules (deployed — listing workflow)
 

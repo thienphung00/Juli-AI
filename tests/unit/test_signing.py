@@ -12,7 +12,7 @@ import hashlib
 
 import pytest
 
-from src.modules.catalog.domain.integrations.tiktok.signing import sign_request
+from backend.integrations.catalog.domain.integrations.tiktok.signing import sign_request
 
 
 @pytest.fixture

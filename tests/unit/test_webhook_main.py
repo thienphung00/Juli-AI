@@ -15,7 +15,7 @@ def webhook_main_module(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("TIKTOK_APP_KEY", "test_app_key")
     monkeypatch.setenv("TIKTOK_APP_SECRET", "test_app_secret")
-    module_name = "src.apps.api_gateway.services.webhook.main"
+    module_name = "backend.api.services.webhook.main"
     sys.modules.pop(module_name, None)
     module = importlib.import_module(module_name)
     yield module

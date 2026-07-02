@@ -96,12 +96,41 @@ else
             bad "login chunk ${login_page_chunk} returned ${login_chunk_code} (stale build — run ./infra/deploy/build-frontend-review.sh && sudo systemctl restart juli-web)"
         else
             login_chunk_body="$(curl -sS "https://${APP_DOMAIN}${login_page_chunk}")"
-            if printf '%s' "${login_chunk_body}" | grep -qE 'Đăng nhập demo|Tiếp tục vào ứng dụng'; then
+            if printf '%s' "${login_chunk_body}" | grep -qE 'loginAsReviewer|Đăng nhập demo|Tiếp tục'; then
                 ok "login serves demo entry"
             else
                 bad "login chunk missing demo markers (rebuild with ./infra/deploy/build-frontend-review.sh)"
             fi
         fi
+    fi
+
+    # 7. Home route chunks load (stale partial builds serve login but blank / after auth).
+    home_html="$(curl -sS "https://${APP_DOMAIN}/")"
+    home_page_chunk="$(printf '%s' "${home_html}" | grep -oE '/_next/static/chunks/app/page-[^"]+\.js' | head -1 || true)"
+    if [ -z "${home_page_chunk}" ]; then
+        bad "home HTML did not reference app/page chunk"
+    else
+        home_chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${home_page_chunk}")"
+        if [ "${home_chunk_code}" != "200" ]; then
+            bad "home chunk ${home_page_chunk} returned ${home_chunk_code} (stale build — run ./infra/deploy/build-frontend-review.sh && sudo systemctl restart juli-web)"
+        else
+            ok "home route chunk loads"
+        fi
+    fi
+
+    stale_chunk=""
+    while IFS= read -r chunk_path; do
+        [ -n "${chunk_path}" ] || continue
+        chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${chunk_path}")"
+        if [ "${chunk_code}" != "200" ]; then
+            stale_chunk="${chunk_path} (${chunk_code})"
+            break
+        fi
+    done < <(printf '%s' "${home_html}" | grep -oE '/_next/static/chunks/[^"]+\.js' | sort -u)
+    if [ -n "${stale_chunk}" ]; then
+        bad "home HTML references stale chunk ${stale_chunk} (rebuild with ./infra/deploy/build-frontend-review.sh)"
+    else
+        ok "all home JS chunks return 200"
     fi
 fi
 
