@@ -16,7 +16,7 @@ repository already shipped a working Python backend:
 | `src/apps/api_gateway/services/webhook` | FastAPI webhook receiver → ETL handoff |
 | `src/apps/cron_jobs/services/polling` | Background sync (`sync_creators`, `sync_products`, `sync_livestreams`, …) |
 | `src/shared/utils/data` | SQLAlchemy async models, shop-scoped repos, Alembic migrations |
-| `src/modules/identity/infrastructure/auth` | Supabase phone-OTP, JWT verification, TikTok OAuth lifecycle |
+| `src/modules/identity/infrastructure/auth` | JWT verification, TikTok OAuth lifecycle |
 | `src/apps/api_gateway/api` | Versioned FastAPI REST API, shop-scoped routes |
 | `src/modules/catalog/domain/intelligence/scoring` | Post-stream scoring, Vietnamese sentiment (legacy signal; superseded creator-matching scope) |
 

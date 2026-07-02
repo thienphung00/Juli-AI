@@ -1,5 +1,5 @@
 /**
- * UI-only mode: reviewer login without phone OTP or backend.
+ * Demo login — one-click reviewer entry without backend auth.
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -8,7 +8,6 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ModeProvider } from "@/lib/mode-context";
 
 jest.mock("@/lib/ui-only", () => ({
-  isUiOnly: true,
   UI_ONLY_DEMO_USER: {
     id: "00000000-0000-4000-8000-000000000001",
     phone: "+84900000000",
@@ -28,29 +27,13 @@ jest.mock("next/navigation", () => ({
   usePathname: () => "/login",
 }));
 
-jest.mock("@/lib/api-client", () => ({
-  api: {
-    auth: {
-      sendOtp: jest.fn().mockRejectedValue(new Error("should not call API")),
-      verifyOtp: jest.fn().mockRejectedValue(new Error("should not call API")),
-    },
-  },
-  ApiError: class ApiError extends Error {
-    status: number;
-    constructor(status: number, msg: string) {
-      super(msg);
-      this.status = status;
-    }
-  },
-}));
-
 beforeEach(() => {
   localStorage.clear();
   document.documentElement.className = "";
 });
 
-describe("UI-only login", () => {
-  it("enters the app with one click and no phone OTP", async () => {
+describe("Demo login", () => {
+  it("enters the app with one click", async () => {
     const user = userEvent.setup();
     render(
       <AuthProvider>
@@ -60,8 +43,7 @@ describe("UI-only login", () => {
       </AuthProvider>
     );
 
-    expect(screen.queryByLabelText("Số điện thoại")).not.toBeInTheDocument();
-    expect(screen.getByText(/không cần mã OTP/i)).toBeInTheDocument();
+    expect(screen.getByText(/không cần mã xác thực/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Tiếp tục vào ứng dụng" }));
 

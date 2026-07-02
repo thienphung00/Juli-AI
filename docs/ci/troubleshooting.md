@@ -62,8 +62,8 @@ Total: 5  Mapped: 3  Unmapped: ["Invalid OTP shows error", "OTP expires after 5 
 3. Update the review artifact's `testCoverage.acceptance.mappings[]`:
    ```json
    {
-     "criterion": "Invalid OTP shows error",
-     "test": "tests/unit/test_auth_login.py::test_invalid_otp_shows_error"
+     "criterion": "Login shows error on failure",
+     "test": "web/src/__tests__/test_ui_only_login.test.tsx"
    }
    ```
 4. Re-run locally: `python scripts/ci/generate_validation_artifact.py --issue 123`.

@@ -1,7 +1,7 @@
 # Juli AI — iOS App
 
-Native SwiftUI app for TikTok Shop sellers. Provides phone-OTP authentication
-via Supabase and a daily value loop navigation shell.
+Native SwiftUI app for TikTok Shop sellers. Provides demo authentication
+and a daily value loop navigation shell.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ ios/
 │   ├── JuliAIApp.swift        # @main entry point
 │   ├── ContentView.swift      # Auth state routing
 │   └── Views/                 # SwiftUI views
-│       ├── Auth/              # Login + OTP verification
+│       ├── Auth/              # Login
 │       ├── Home/              # Homepage + shop picker
 │       └── DailyLoop/         # 5-tab daily loop shell
 └── MODULE.md                  # Module contract
@@ -59,15 +59,14 @@ Set these environment variables (or use an `.xcconfig` file):
 
 ## Architecture
 
-- **Auth**: Direct Supabase REST API calls via URLSession (no heavy SDK)
-- **Storage**: JWT stored in Keychain (never UserDefaults)
+- **Auth**: Demo session with JWT stored in Keychain (never UserDefaults)
 - **API**: URLSession with automatic Bearer token injection
 - **Offline**: File-based cache with 5-minute staleness threshold
 - **Navigation**: TabView-based daily loop (morning → pre-stream → live → post-stream → evening)
 
 ## What's Included (Issue #42)
 
-- [x] Phone-OTP login with Vietnamese UI
+- [x] Demo login UI
 - [x] JWT Keychain storage + session restore
 - [x] Shop selection homepage
 - [x] Daily value loop shell with 5 tabs

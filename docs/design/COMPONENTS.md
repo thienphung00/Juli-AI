@@ -19,7 +19,7 @@
 
 | Component | Path | Role |
 |-----------|------|------|
-| `LoginForm` | `LoginForm.tsx` | Phone-OTP login with validation and error states |
+| `LoginForm` | `LoginForm.tsx` | One-click demo login |
 
 ## Seller Home
 

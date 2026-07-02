@@ -2,7 +2,7 @@
 
 ## Responsibility
 Next.js web dashboard for the Juli platform. Provides Vietnamese-language UI
-for TikTok Shop sellers: phone-OTP login, **interactive chart-first Home dashboard**,
+for TikTok Shop sellers: **one-click demo login**, **interactive chart-first Home dashboard**,
 Decisions approval flow, and Juli AI chat.
 
 ## Public Interface
@@ -16,7 +16,7 @@ Decisions approval flow, and Juli AI chat.
 - `LeakageWorkflowPanel`, `EvidenceDrawer`, `resolveEvidence` — leakage workflow modal + masked evidence drill-down (`components/workflows/leakage/`, `lib/workflows/leakage/`)
 - `useTaskExecutor`, `filterActiveTasks`, `TaskDismissModal`, `TaskExecutorModals` — client-only task queue state + skip-with-reason (`lib/task-executor/`, `components/tasks/`)
 - `trackTaskClicked`, `trackTaskApproved`, `trackTaskDismissed`, `getUxSessionId` — Phase 1 UX instrumentation sink (`lib/ux-analytics/`)
-- `/login` — Phone-OTP login screen (Vietnamese phone format)
+- `/login` — Demo login screen (one-click entry)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — **Chart-first Home** (shop info + Báo cáo hôm nay + Shop Health); canonical seller entry (#118, #123, #215 RRAA loop)
 - `toDecision`, `takeTopDecisions`, `applyDecisionLifecycle` — Decision view-model mapping `workflow_recommendations` → seller-facing Decision envelopes (`lib/decisions/`, #192)
@@ -55,7 +55,7 @@ Cross-screen **Reward → Reason → Action → Anticipation** loop between Home
 
 ## Dependencies
 - `api` (read-only) — consumes `GET /v1/shops`, `GET /v1/shops/me`, orders endpoints
-- `auth` (read-only) — login uses Supabase phone-OTP flow via API endpoints (not direct Supabase client calls from browser)
+- `auth` (read-only) — demo login stores a local session token (no backend auth call)
 
 ## Stack
 - Next.js 14 (App Router)

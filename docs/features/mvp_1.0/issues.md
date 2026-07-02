@@ -180,7 +180,7 @@ Seller-mode home shell that routes to the correct workflow based on rules-based 
 - Vietnamese copy, VND formatting, responsive mobile layout
 - Integration test: switching persona changes visible workflow/stage
 - Integration test: new/leakage/growth personas route to expected workflow entry
-- Phone-OTP auth flow unchanged
+- Demo login flow unchanged
 
 ## Blocked by
 
@@ -319,7 +319,7 @@ Remove or redirect legacy creator-matching surfaces (`/recommendations`, `/creat
 - Existing auth and mode-select flows still work
 - Integration test: `/recommendations` and `/creators` redirect without breaking session
 - Integration test: seller home loads after redirect
-- No removal of phone-OTP login
+- Demo login preserved
 
 ## Blocked by
 

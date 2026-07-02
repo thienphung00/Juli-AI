@@ -130,7 +130,7 @@ validate only the fields documented here.
       "mapped": 5,
       "unmapped": [],
       "mappings": [
-        {"criterion": "User can log in via phone OTP", "test": "tests/unit/test_auth_login.py::test_user_can_log_in_via_phone_otp"}
+        {"criterion": "User can log in via demo entry", "test": "web/src/__tests__/test_ui_only_login.test.tsx"}
       ]
     },
     "unit": {"passed": 42, "failed": 0}
@@ -235,7 +235,7 @@ Optional `mlGates.thresholds` cross-checks declared values against `thresholds.p
   "deployedBy": "release.yml",
   "environment": "production",
   "featuresShipped": [
-    {"id": 123, "title": "Phone-OTP login", "modules": ["src/auth"], "breaking": false}
+    {"id": 123, "title": "Demo login", "modules": ["web"], "breaking": false}
   ],
   "bugsFixed": [{"id": 130, "title": "Order webhook duplicate detection"}],
   "adrsAdded": [{"number": "003", "title": "AI-Native CI/CD Policy", "file": "docs/decisions/003-ai-native-cicd-policy.md"}],
@@ -320,8 +320,8 @@ recorded in the review artifact's
 Example mapping:
 
 ```json
-{"criterion": "User can log in via phone OTP",
- "test": "tests/unit/test_auth_login.py::test_user_can_log_in_via_phone_otp"}
+{"criterion": "User can log in via demo entry",
+ "test": "web/src/__tests__/test_ui_only_login.test.tsx"}
 ```
 
 ## Handoff Validation

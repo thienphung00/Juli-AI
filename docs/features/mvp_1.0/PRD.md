@@ -99,7 +99,7 @@ The experience mirrors the Phase 2 end-to-end shape (data → decision tree → 
 
 ### Cross-cutting UX
 
-48. As a **seller**, I want to log in via phone-OTP (existing auth flow), so that I access the mock workflows securely.
+48. As a **seller**, I want to log in via one-click demo entry, so that I access the mock workflows for review.
 49. As a **seller**, I want fast page loads (target ≤2s), so that the mockup feels production-quality.
 50. As a **seller**, I want responsive layouts from mobile to desktop, so that I can test on any device.
 51. As a **seller returning after dismissing tasks**, I want my dismissals persisted for the session (local state), so that the feed does not reset annoyingly.
@@ -137,7 +137,7 @@ The experience mirrors the Phase 2 end-to-end shape (data → decision tree → 
 - **Phase 2 shape preserved:** Data → stage router → workflow selection → ranked tasks → copy → approve/dismiss. Phase 2 swaps mock for API + inference + Ollama; executor becomes real.
 - **Rules baseline for ML:** Seller-stage thresholds are explicit constants with tests. Phase 1.5 ML classifier will be compared against this rules output on backtest data.
 - **Copy layer:** Hardcoded Vietnamese strings in fixtures. No LLM in Phase 1.
-- **Auth unchanged:** Reuse existing Supabase phone-OTP via API gateway. Mock personas can be selected post-login for demo/testing.
+- **Auth:** One-click demo login on the frontend. Mock personas can be selected post-login for demo/testing.
 - **Legacy retirement:** Creator-matching routes (`/recommendations`, `/creators`, etc.) redirect or are removed from primary nav per EXECUTION.md cleanup; seller-money workflows become the home experience.
 - **Locale:** Vietnamese diacritics, VND ₫ formatting, ICT timezone — consistent with existing `web` conventions.
 - **No iOS parity in Phase 1:** Web-only for the 100-seller UX test.

@@ -1,6 +1,6 @@
 # ADR-002: Use Supabase as Backend-as-a-Service
 
-**Status:** Accepted  
+**Status:** Accepted (phone-OTP login removed 2026-07; Supabase retained for Postgres + JWT validation)  
 **Date:** 2026-05-26  
 **Deciders:** Product owner
 
@@ -9,7 +9,7 @@
 The product requires:
 
 - PostgreSQL for multi-shop commerce and analytics data
-- Phone-OTP authentication (Vietnamese sellers)
+- JWT validation for protected API routes
 - Realtime updates for dashboard / cockpit UX
 - File storage (product images, exports — as needed)
 - Strong tenant isolation per shop
@@ -24,8 +24,9 @@ Realtime, and Storage.
 
 - **Database:** Supabase-hosted Postgres; application access via SQLAlchemy async
   + asyncpg in `src/shared/utils/data` (Alembic migrations).
-- **Auth:** Supabase Auth for phone-OTP; `src/modules/identity/infrastructure/auth`
-  verifies JWTs on every protected FastAPI request (`verify_supabase_jwt`, `get_current_user`).
+- **Auth:** JWT validation via `SUPABASE_JWT_SECRET`; `src/modules/identity/infrastructure/auth`
+  verifies tokens on protected FastAPI requests (`verify_supabase_jwt`, `get_current_user`).
+  Frontend uses one-click demo login (`NEXT_PUBLIC_UI_ONLY=1`) for App Review.
 - **TikTok OAuth:** Application-owned in `src/modules/identity/infrastructure/auth`
   (`TikTokOAuthService`) with tokens stored in `TikTokCredential` — not delegated to Supabase.
 - **Redis (v2.0) is unchanged** — Supabase does not replace caching, rate
@@ -35,8 +36,8 @@ Realtime, and Storage.
 
 | Factor | Supabase |
 |--------|----------|
-| Time to market | Auth + managed Postgres without custom infra sprint |
-| Phone-OTP | Native flow — matches Vietnam mobile-first ICP |
+| Time to market | Managed Postgres without custom infra sprint |
+| JWT validation | Standard Supabase-issued JWTs for protected routes |
 | Portability | Standard Postgres; schemas owned by the app via Alembic |
 | Realtime | Postgres Changes for live dashboard updates (reduces custom WebSocket code) |
 | Multi-tenancy | RLS available; app also enforces `shop_id` scoping in repos |
@@ -49,8 +50,8 @@ Realtime, and Storage.
 │  iOS App    │     │  Next.js (web/)  │     │  Actions (v1.5)  │
 │  (SwiftUI)  │     │  Matching UI     │     │  (Zalo/FCM)      │
 └──────┬──────┘     └────────┬─────────┘     └──────┬───────────┘
-       │    Supabase OTP      │    Supabase OTP       │
-       │    + FastAPI JWT     │    + FastAPI JWT      │
+       │    demo login         │    demo login         │
+       │    + FastAPI JWT      │    + FastAPI JWT      │
        └─────────────────────┼───────────────────────┘
                              │
                     ┌────────▼─────────────┐
@@ -75,14 +76,13 @@ Realtime, and Storage.
 
 | Concern | Location | Notes |
 |---------|----------|-------|
-| Phone OTP | `src/modules/identity/infrastructure/auth` (`SupabaseAuth`) | Direct Supabase Auth REST via httpx |
 | JWT validation | `src/modules/identity/infrastructure/auth` (`verify_supabase_jwt`, dependencies) | `pyjwt`; FastAPI `get_current_user` |
 | TikTok tokens | `src/shared/utils/data` (`TikTokCredential`) | Encrypted per shop; refresh in `TikTokOAuthService` |
 | Persistence | `src/shared/utils/data` | Models + `ShopScopedRepo`; see MODULE.md |
 | Migrations | Alembic under `src/shared/utils/data` | App-owned schema evolution |
 
-Clients (`web/`, `ios/`) may call Supabase Auth directly for OTP; business APIs
-go through FastAPI with the issued JWT.
+Clients (`web/`, `ios/`) use demo login for App Review; business APIs
+go through FastAPI with the issued JWT when backend auth is enabled.
 
 ## Consequences
 

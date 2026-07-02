@@ -50,15 +50,6 @@ async function request<T>(
   return res.json();
 }
 
-export interface OtpResponse {
-  message: string;
-}
-
-export interface SessionResponse {
-  access_token: string;
-  user: { id: string; phone: string };
-}
-
 export interface Shop {
   id: string;
   name: string;
@@ -215,21 +206,6 @@ type RecommendationsApiPayload = {
 };
 
 export const api = {
-  auth: {
-    sendOtp(phone: string): Promise<OtpResponse> {
-      return request("/v1/auth/otp/send", {
-        method: "POST",
-        body: JSON.stringify({ phone }),
-      });
-    },
-    verifyOtp(phone: string, token: string): Promise<SessionResponse> {
-      return request("/v1/auth/otp/verify", {
-        method: "POST",
-        body: JSON.stringify({ phone, token }),
-      });
-    },
-  },
-
   shops: {
     list(): Promise<Shop[]> {
       return request("/v1/shops");

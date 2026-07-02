@@ -13,7 +13,7 @@
 - Existing auth and mode-select flows still work
 - Integration test: `/recommendations` and `/creators` redirect without breaking session
 - Integration test: seller home loads after redirect
-- No removal of phone-OTP login
+- Demo login flow unchanged
 
 ## Context loaded
 
@@ -47,6 +47,6 @@
 ## DO NOT touch
 
 - `web/src/components/CreatorsPage.tsx`, `RecommendationsPage.tsx` — keep for component-level tests; routes redirect away
-- Phone-OTP login (`/login`, `LoginForm`, auth-context)
+- Demo login (`/login`, `LoginForm`, auth-context)
 - Workflow panels (#119–#121)
 - Backend `src/` Python modules

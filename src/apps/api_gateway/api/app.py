@@ -4,7 +4,6 @@ from fastapi import APIRouter, FastAPI
 
 from src.apps.api_gateway.api.routers.alerts import router as alerts_router
 from src.apps.api_gateway.api.routers.analytics import router as analytics_router
-from src.apps.api_gateway.api.routers.auth import router as auth_router
 from src.apps.api_gateway.api.routers.creators import router as creators_router
 from src.apps.api_gateway.api.routers.inventory import router as inventory_router
 from src.apps.api_gateway.api.routers.livestreams import router as livestreams_router
@@ -27,7 +26,6 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     )
 
     v1_router = APIRouter(prefix="/v1")
-    v1_router.include_router(auth_router)
     v1_router.include_router(shops_router)
     v1_router.include_router(orders_router)
     v1_router.include_router(products_router)

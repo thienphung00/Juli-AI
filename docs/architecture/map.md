@@ -36,7 +36,7 @@ src/
 │   │   └── services/webhook/     # TikTok webhook receiver (HMAC → ETL)
 │   └── cron_jobs/services/polling/   # Scheduled sync workers
 ├── modules/                      # Domain modules (business logic)
-│   ├── identity/                 # Auth: Supabase phone-OTP, JWT, TikTok OAuth
+│   ├── identity/                 # Auth: JWT verification, TikTok OAuth
 │   ├── catalog/domain/
 │   │   ├── integrations/tiktok/  # TikTok Shop Partner API client
 │   │   └── recommendations/      # Decision/recommendation generation
@@ -68,12 +68,12 @@ Frontends (legacy, pre-ecosystem):
 | [`src/apps/api_gateway/services/webhook`](../../src/apps/api_gateway/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
 | [`src/apps/cron_jobs/services/polling`](../../src/apps/cron_jobs/services/polling/MODULE.md) | 2 | Background polling sync workers (seller signal collection) | `sync_creators`, `sync_products`, `sync_orders`, `backfill_shop` | domain: integrations |
 | [`src/shared/utils/data`](../../src/shared/utils/data/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `Creator`, `Product`, `Recommendation`, … repos, `Base`, `NotFound`, `get_session` | domain: data |
-| [`src/modules/identity/infrastructure/auth`](../../src/modules/identity/infrastructure/auth/MODULE.md) | 1 | Supabase phone-OTP login, JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `SupabaseAuth`, `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
+| [`src/modules/identity/infrastructure/auth`](../../src/modules/identity/infrastructure/auth/MODULE.md) | 1 | JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
 | [`src/apps/api_gateway/api`](../../src/apps/api_gateway/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, creators, products, recommendations | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/creators`, `GET /v1/products`, `GET /v1/recommendations` | domain: api |
 | [`src/modules/catalog/domain/recommendations`](../../src/modules/catalog/domain/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
 | [`src/modules/ordering/use_cases/etl`](../../src/modules/ordering/use_cases/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
-| [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: Supabase phone-OTP auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
+| [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: demo auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
 | [`src/modules/ml/dataset`](../../src/modules/ml/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
 | [`src/modules/ml/features`](../../src/modules/ml/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | domain: ml |
 | [`src/modules/ml/seller_stage`](../../src/modules/ml/seller_stage/MODULE.md) | 2 | Phase 1.5 seller lifecycle classifier: rules baseline, train, rules-vs-ML compare | `classify_seller_stage`, `train_seller_stage`, `predict_seller_stage`, `compare_to_rules_baseline` | domain: ml |
@@ -137,7 +137,7 @@ PR) to avoid breaking imports/tests:
 
 - **Backend:** Python / FastAPI only ([ADR-001](../decisions/001-keep-python-fastapi.md))
 - **Database:** Supabase (managed Postgres + Auth) — source of truth ([ADR-002](../decisions/002-supabase-backend-service.md))
-- **Auth:** Supabase Auth (phone-OTP, JWT) — FastAPI validates tokens
+- **Auth:** Demo login on frontend; JWT validation on protected FastAPI routes
 - **Data sources:** TikTok Shop Official API only. Unofficial livestream websockets,
   Seller Center scraping, and buyer PII storage are **permanently forbidden**. See
   [`data-sources.md`](data-sources.md).

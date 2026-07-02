@@ -37,10 +37,9 @@ Active state: `isNavTabActive(pathname, href)`. Minimum touch target 44×44px.
 | Attribute | Detail |
 |-----------|--------|
 | Component | `LoginForm` |
-| Purpose | Phone-OTP authentication (Vietnamese phone format) |
+| Purpose | One-click demo login |
 | Layout | Centered form, brand wordmark |
-| States | Phone entry → OTP entry → error ("Mã OTP không đúng…") → loading |
-| Test IDs | `login-phone-input`, `login-submit` |
+| States | Continue → loading → error |
 
 ### `/mode-select`
 

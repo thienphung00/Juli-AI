@@ -213,7 +213,7 @@ Skip until Phase 3 or later unless startup requires it:
 - [ ] `https://api.app-juli.com/health` returns a 2xx JSON response.
 - [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles missing/invalid
       OAuth params with a controlled response, not a server crash.
-- [ ] Reviewer login uses UI-only entry (no phone OTP / Supabase SMS).
+- [ ] Reviewer login uses UI-only demo entry.
 - [ ] CORS allows `https://app-juli.com`.
 - [ ] No production user traffic is invited or routed to this deployment.
 - [ ] No persistent business data is required to complete App Review.

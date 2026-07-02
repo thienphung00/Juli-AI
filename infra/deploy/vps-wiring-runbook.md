@@ -145,7 +145,7 @@ yet — acceptable for #256.
 - [x] No Redis, webhook, or HA tuning in Nginx config
 - [x] Single-process deployment (appropriate for App Review MVP)
 - [x] `./infra/deploy/smoke-test.sh --dns-tls-only` passes (or full smoke after app deploy)
-- [x] Phone OTP disabled — reviewers use UI-only login (`PHONE_OTP_ENABLED=false`, `NEXT_PUBLIC_UI_ONLY=1`)
+- [x] Reviewers use UI-only demo login (`NEXT_PUBLIC_UI_ONLY=1`)
 
 Document provider-specific DNS steps and any non-git secrets in your ops notes — **not**
 in this repository.

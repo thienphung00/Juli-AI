@@ -113,9 +113,9 @@ EOF
     else
         login_chunk_body="$(curl -sS "https://${APP_DOMAIN}${login_page_chunk}")"
         if printf '%s' "${login_chunk_body}" | grep -qE 'App Review|Tiếp tục vào ứng dụng'; then
-            ok "login serves UI-only reviewer entry (no phone OTP)"
+            ok "login serves demo reviewer entry"
         else
-            bad "login chunk missing UI-only reviewer markers (rebuild with NEXT_PUBLIC_UI_ONLY=1)"
+            bad "login chunk missing demo reviewer markers (rebuild with NEXT_PUBLIC_UI_ONLY=1)"
         fi
     fi
 fi

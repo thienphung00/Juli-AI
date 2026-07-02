@@ -6,7 +6,7 @@
 ## Summary
 
 Implemented **#256** with VPS wiring runbook, Nginx provision script, smoke-test
-`--dns-tls-only` mode, and **phone OTP disabled** for App Review (UI-only reviewer login).
+`--dns-tls-only` mode, and **UI-only demo login** for App Review.
 
 ## HITL sign-off (operator)
 
@@ -28,8 +28,7 @@ Implemented **#256** with VPS wiring runbook, Nginx provision script, smoke-test
 | `infra/deploy/provision-nginx.sh` | Install split vhosts on VPS |
 | `infra/deploy/smoke-test.sh --dns-tls-only` | DNS/TLS validation |
 | `infra/deploy/env/web.env.example` | `NEXT_PUBLIC_UI_ONLY=1` |
-| `infra/deploy/env/api.env.example` | `PHONE_OTP_ENABLED=false` |
-| `web/src/components/LoginForm.tsx` | One-click reviewer login (UI-only) |
+| `web/src/components/LoginForm.tsx` | One-click demo login |
 | `docs/features/app_review_deployment/issues.md` | Slice index |
 
 ## VPS redeploy after merge
@@ -40,7 +39,7 @@ Single repo checkout at `~/Juli-AI-v2`:
 cd ~/Juli-AI-v2
 git pull
 
-# Backend — ~/Juli-AI-v2/.env (PHONE_OTP_ENABLED=false)
+# Backend — ~/Juli-AI-v2/.env
 source .venv/bin/activate
 set -a && source .env && set +a
 uvicorn src.apps.api_gateway.api.main:app --host 0.0.0.0 --port 8000

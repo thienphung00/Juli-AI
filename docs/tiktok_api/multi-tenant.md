@@ -8,7 +8,7 @@ isolated credentials, rate-limit buckets, and data scope.
 ## Identity model
 
 ```
-User (Supabase phone-OTP)
+User (demo login session)
   └── Shop (1..N per user)
         ├── tiktok_shop_id   ← TikTok `shops[].id`
         ├── shop_cipher      ← TikTok `shops[].cipher`

@@ -8,12 +8,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, type SessionResponse } from "./api-client";
 import {
   UI_ONLY_DEMO_SHOP,
   UI_ONLY_DEMO_TOKEN,
   UI_ONLY_DEMO_USER,
-  isUiOnly,
 } from "./ui-only";
 
 interface AuthState {
@@ -24,8 +22,6 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  sendOtp: (phone: string) => Promise<void>;
-  verifyOtp: (phone: string, code: string) => Promise<void>;
   loginAsReviewer: () => Promise<void>;
   logout: () => void;
 }
@@ -57,45 +53,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const sendOtp = useCallback(async (phone: string) => {
-    if (isUiOnly) {
-      if (!phone.trim()) {
-        throw new Error("Phone required");
-      }
-      return;
-    }
-    await api.auth.sendOtp(phone);
-  }, []);
-
-  const verifyOtp = useCallback(async (phone: string, code: string) => {
-    const session: SessionResponse = isUiOnly
-      ? {
-          access_token: UI_ONLY_DEMO_TOKEN,
-          user: {
-            ...UI_ONLY_DEMO_USER,
-            phone: phone.trim() || UI_ONLY_DEMO_USER.phone,
-          },
-        }
-      : await api.auth.verifyOtp(phone, code);
-    localStorage.setItem("access_token", session.access_token);
-    localStorage.setItem("user", JSON.stringify(session.user));
-    if (isUiOnly) {
-      localStorage.setItem("active_shop_id", UI_ONLY_DEMO_SHOP.id);
-    }
+  const loginAsReviewer = useCallback(async () => {
+    localStorage.setItem("access_token", UI_ONLY_DEMO_TOKEN);
+    localStorage.setItem("user", JSON.stringify(UI_ONLY_DEMO_USER));
+    localStorage.setItem("active_shop_id", UI_ONLY_DEMO_SHOP.id);
     setState({
       isAuthenticated: true,
       isLoading: false,
-      user: session.user,
-      token: session.access_token,
+      user: UI_ONLY_DEMO_USER,
+      token: UI_ONLY_DEMO_TOKEN,
     });
   }, []);
-
-  const loginAsReviewer = useCallback(async () => {
-    if (!isUiOnly) {
-      throw new Error("Reviewer login is only available in UI-only mode");
-    }
-    await verifyOtp(UI_ONLY_DEMO_USER.phone, "000000");
-  }, [verifyOtp]);
 
   const logout = useCallback(() => {
     localStorage.removeItem("access_token");
@@ -110,9 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{ ...state, sendOtp, verifyOtp, loginAsReviewer, logout }}
-    >
+    <AuthContext.Provider value={{ ...state, loginAsReviewer, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -13,7 +13,7 @@
 - [x] Vietnamese copy, VND formatting, responsive mobile layout
 - [x] Integration test: switching persona changes visible workflow/stage
 - [x] Integration test: new/leakage/growth personas route to expected workflow entry
-- [x] Phone-OTP auth flow unchanged
+- [x] Demo login flow unchanged
 
 ## Context loaded
 

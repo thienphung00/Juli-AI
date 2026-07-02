@@ -71,10 +71,7 @@ functional value.
 | Var | Required | Notes |
 |-----|----------|-------|
 | `DATABASE_URL` | Yes | Opened at startup (FastAPI lifespan). Supabase Postgres for review. |
-| `SUPABASE_URL` | Reviewer login | Supabase free-tier project (optional when `PHONE_OTP_ENABLED=false`). |
-| `SUPABASE_ANON_KEY` | Reviewer login | Secret — VPS only (optional when OTP disabled). |
-| `SUPABASE_JWT_SECRET` | Reviewer login | Secret — VPS only (optional when OTP disabled). |
-| `PHONE_OTP_ENABLED` | App Review | Set to `false` — reviewers use UI-only login (`NEXT_PUBLIC_UI_ONLY=1`). |
+| `SUPABASE_JWT_SECRET` | Protected routes | Secret — VPS only (optional when frontend uses UI-only demo login). |
 | `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | OAuth | Partner Center review app. Secret — VPS only. |
 | `CORS_ALLOW_ORIGINS` | Yes | Set to `https://app-juli.com`. |
 
@@ -83,7 +80,7 @@ functional value.
 | Var | Required | Notes |
 |-----|----------|-------|
 | `NEXT_PUBLIC_API_URL` | Yes | `https://api.app-juli.com` (baked at build time). |
-| `NEXT_PUBLIC_UI_ONLY` | App Review | Set to `1` — one-click reviewer login, no phone OTP. |
+| `NEXT_PUBLIC_UI_ONLY` | App Review | Set to `1` — one-click demo login and mock data. |
 
 App Review **skips** `REDIS_URL`, cron, workers, ML batch, polling, and webhook
 services. If a required startup path forces one of these, stop and split it into a
@@ -99,7 +96,7 @@ never restarts the backend and vice versa.
 ### Frontend (`juli-web`)
 
 `NEXT_PUBLIC_UI_ONLY` is **baked at build time**. Restarting `juli-web` without
-rebuilding cannot switch login from phone OTP to reviewer entry.
+rebuilding cannot switch login behavior.
 
 ```bash
 cd ~/Juli-AI-v2
@@ -190,7 +187,7 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 - [ ] `https://api.app-juli.com/health` returns a 2xx JSON response.
 - [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles
       missing/invalid OAuth params without a 5xx crash.
-- [ ] Reviewer login uses UI-only entry (`NEXT_PUBLIC_UI_ONLY=1`, no phone OTP).
+- [ ] Reviewer login uses one-click demo entry (`NEXT_PUBLIC_UI_ONLY=1`).
 - [ ] CORS allows `https://app-juli.com`.
 - [ ] No production users, production traffic, or persistent business data are
       required to complete App Review.
