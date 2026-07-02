@@ -174,6 +174,10 @@ def test_smoke_test_covers_required_surface():
     assert "/v1/auth/tiktok/callback" in script, (
         "smoke test must probe the OAuth callback route"
     )
+    assert "/login" in script, "smoke test must probe reviewer login"
+    assert "UI-only" in script or "UI_ONLY" in script, (
+        "smoke test must assert UI-only reviewer login"
+    )
 
 
 def test_smoke_test_confirms_no_production_data_required():

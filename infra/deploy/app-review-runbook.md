@@ -98,14 +98,25 @@ never restarts the backend and vice versa.
 
 ### Frontend (`juli-web`)
 
+`NEXT_PUBLIC_UI_ONLY` is **baked at build time**. Restarting `juli-web` without
+rebuilding cannot switch login from phone OTP to reviewer entry.
+
 ```bash
 cd ~/Juli-AI-v2
 git pull
-cd web
-npm ci
-npm run build
+
+# Ensure env exists (copy once from infra/deploy/env/web.env.example)
+grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
+
+# Clean build with UI-only login enforced
+chmod +x infra/deploy/build-frontend-review.sh
+./infra/deploy/build-frontend-review.sh
+
 sudo systemctl restart juli-web
 sudo systemctl status juli-web --no-pager
+
+# Must show UI-only login checks (not just 7 DNS/TLS/health checks)
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 ```
 
 ### Backend (`juli-api`)
