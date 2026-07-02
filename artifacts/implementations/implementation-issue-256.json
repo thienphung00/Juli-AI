@@ -7,6 +7,11 @@
   "startedAt": "2026-07-01T12:00:00Z",
   "completedAt": "2026-07-01T12:15:00Z",
   "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
   "toolsUsed": [
     "Read",
     "Grep",

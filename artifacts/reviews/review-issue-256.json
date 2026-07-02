@@ -1,0 +1,74 @@
+{
+  "id": "review-issue-256",
+  "issue": 256,
+  "timestamp": "2026-07-02T02:06:43Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 2.5-review-a (#256) VPS wiring: HITL runbook for DNS A records, Nginx vhost install, and Certbot auto-renew; executable provision-nginx.sh; smoke-test.sh --dns-tls-only mode for DNS/TLS validation before #257/#258 deploy apps. All five acceptance criteria mapped to contract tests; 424 unit tests pass. Live DNS/TLS on the VPS remains HITL for the operator.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "infra/deploy/",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/features/app_review_deployment/issues.md",
+    "tests/unit/test_phase_2_5_vps_wiring.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "DNS A records point to the VPS (documented in VPS runbook).",
+          "test": "tests/unit/test_phase_2_5_vps_wiring.py::test_vps_runbook_documents_dns_a_records"
+        },
+        {
+          "criterion": "Nginx routes frontend and API upstreams separately (split vhosts).",
+          "test": "tests/unit/test_phase_2_5_vps_wiring.py::test_provision_script_installs_split_nginx_vhosts"
+        },
+        {
+          "criterion": "HTTPS certificates are installed and auto-renew (Certbot documented).",
+          "test": "tests/unit/test_phase_2_5_vps_wiring.py::test_vps_runbook_documents_certbot_and_auto_renew"
+        },
+        {
+          "criterion": "VPS runbook excludes out of scope services (no HA/scaling/multi-worker).",
+          "test": "tests/unit/test_phase_2_5_vps_wiring.py::test_vps_runbook_excludes_out_of_scope_services"
+        },
+        {
+          "criterion": "Provision script does not reference forbidden services (no Redis/webhook upstream).",
+          "test": "tests/unit/test_phase_2_5_vps_wiring.py::test_provision_script_does_not_reference_forbidden_services"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 424,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Operator must complete HITL DNS A records and Certbot steps on the VPS before #257/#258 deploy slices.",
+    "Full smoke-test.sh (frontend/health/OAuth) requires upstream apps from #257 and #258.",
+    "provision-nginx.sh must be run on the VPS with sudo \u2014 local macOS test showed install path errors (expected outside Linux VPS)."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-256.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": []
+}
