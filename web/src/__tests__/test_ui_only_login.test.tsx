@@ -1,5 +1,5 @@
 /**
- * UI-only mode: OTP flow works without backend.
+ * UI-only mode: reviewer login without phone OTP or backend.
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 describe("UI-only login", () => {
-  it("accepts any phone and 6-digit OTP without API", async () => {
+  it("enters the app with one click and no phone OTP", async () => {
     const user = userEvent.setup();
     render(
       <AuthProvider>
@@ -60,18 +60,10 @@ describe("UI-only login", () => {
       </AuthProvider>
     );
 
-    await user.type(screen.getByLabelText("Số điện thoại"), "+84901234567");
-    await user.click(screen.getByRole("button", { name: "Nhận mã OTP" }));
+    expect(screen.queryByLabelText("Số điện thoại")).not.toBeInTheDocument();
+    expect(screen.getByText(/không cần mã OTP/i)).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByRole("group", { name: "Nhập mã OTP" })).toBeInTheDocument();
-    });
-
-    const otpInputs = screen.getAllByRole("textbox", { name: /Chữ số OTP/i });
-    for (let i = 0; i < 6; i++) {
-      await user.type(otpInputs[i]!, String(i + 1));
-    }
-    await user.click(screen.getByRole("button", { name: "Xác nhận" }));
+    await user.click(screen.getByRole("button", { name: "Tiếp tục vào ứng dụng" }));
 
     await waitFor(() => {
       expect(localStorage.getItem("access_token")).toBe("ui-only-demo-token");

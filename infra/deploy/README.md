@@ -11,9 +11,14 @@ Per-product deploy manifests and environment templates for the App Review deploy
 topology, env vars (no secrets in git), independent frontend/backend restart, and
 validation.
 
+**VPS layout:** single checkout at `~/Juli-AI-v2` — backend `.env` at repo root,
+frontend `.env.production` in `web/`.
+
 | Path | Purpose |
 |------|---------|
 | [`app-review-runbook.md`](app-review-runbook.md) | Deploy runbook + reviewer checklist |
+| [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | HITL VPS DNS + Nginx + HTTPS (#256) |
+| [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
 | [`nginx/`](nginx/) | Frontend/backend Nginx vhosts |
 | [`systemd/`](systemd/) | `juli-web` / `juli-api` service units |
 | [`env/`](env/) | Env templates (placeholders only) |

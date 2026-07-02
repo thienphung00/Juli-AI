@@ -151,11 +151,31 @@ The [`app-review-runbook.md`](../../infra/deploy/app-review-runbook.md) document
 the VPS/Nginx/HTTPS topology, required env vars (secrets stay outside git),
 install steps, and validation. Validate the deploy config contracts with
 `python -m pytest tests/unit/test_phase_2_5_deploy_config.py`; live DNS/TLS wiring
-stays HITL on the VPS (issue #256). The [`smoke-test.sh`](../../infra/deploy/smoke-test.sh)
-checklist covers DNS, TLS, frontend load, `/health`, and the OAuth callback route.
+stays HITL on the VPS (issue #256) — see
+[`vps-wiring-runbook.md`](../../infra/deploy/vps-wiring-runbook.md). The
+[`smoke-test.sh`](../../infra/deploy/smoke-test.sh) checklist covers DNS, TLS,
+frontend load, `/health`, and the OAuth callback route (`--dns-tls-only` for #256).
 
 Out of scope for the review deploy: Redis, cron, workers, ML batch, polling,
 webhook service, and HA/multi-worker tuning.
+
+---
+
+## VPS wiring (2.5-review-a, issue #256)
+
+HITL slice: point DNS at the review VPS, install Nginx vhosts, and issue HTTPS
+certificates. Repo deliverables:
+
+| Path | Purpose |
+|------|---------|
+| [`vps-wiring-runbook.md`](../../infra/deploy/vps-wiring-runbook.md) | Step-by-step DNS, Certbot, sign-off |
+| [`provision-nginx.sh`](../../infra/deploy/provision-nginx.sh) | Copy vhosts + reload Nginx on VPS |
+| `smoke-test.sh --dns-tls-only` | Validate DNS + TLS before apps are deployed |
+
+**VPS layout:** one checkout at `~/Juli-AI-v2` — backend `.env` at repo root, frontend
+`web/.env.production`, both services restarted independently from the same repo.
+
+Issue index: [`docs/features/app_review_deployment/issues.md`](../features/app_review_deployment/issues.md).
 
 ---
 
@@ -193,7 +213,7 @@ Skip until Phase 3 or later unless startup requires it:
 - [ ] `https://api.app-juli.com/health` returns a 2xx JSON response.
 - [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles missing/invalid
       OAuth params with a controlled response, not a server crash.
-- [ ] Reviewer credentials or UI-only reviewer login path are documented outside source control.
+- [ ] Reviewer login uses UI-only entry (no phone OTP / Supabase SMS).
 - [ ] CORS allows `https://app-juli.com`.
 - [ ] No production user traffic is invited or routed to this deployment.
 - [ ] No persistent business data is required to complete App Review.

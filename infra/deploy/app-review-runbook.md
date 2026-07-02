@@ -7,8 +7,9 @@
 
 This runbook splits the **frontend** and **backend** deploy paths so each is
 independently restartable on a single review **VPS** fronted by **Nginx** with
-**HTTPS**. Live DNS/TLS/VPS wiring is **HITL** (issue #256); this slice ships the
-documentation and config samples that make that wiring repeatable.
+**HTTPS**. Live DNS/TLS/VPS wiring is **HITL** (issue #256) — follow
+[`vps-wiring-runbook.md`](vps-wiring-runbook.md). This slice ships the documentation
+and config samples that make that wiring repeatable.
 
 ---
 
@@ -40,6 +41,7 @@ documentation and config samples that make that wiring repeatable.
 | Backend domain | `api.app-juli.com` |
 | OAuth callback | `https://api.app-juli.com/v1/auth/tiktok/callback` |
 | TLS | Let's Encrypt via certbot (renewable) |
+| VPS checkout | `~/Juli-AI-v2` — single monorepo (`web/` = frontend, repo root = backend) |
 
 ### Config files in this directory
 
@@ -51,14 +53,16 @@ documentation and config samples that make that wiring repeatable.
 | [`systemd/juli-api.service`](systemd/juli-api.service) | Backend service unit |
 | [`env/web.env.example`](env/web.env.example) | Frontend env template (placeholders) |
 | [`env/api.env.example`](env/api.env.example) | Backend env template (placeholders) |
+| [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | HITL DNS + Nginx + Certbot (#256) |
+| [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
 | [`smoke-test.sh`](smoke-test.sh) | DNS/TLS/frontend/health/OAuth checklist |
 
 ---
 
 ## Environment variables (no secrets in git)
 
-Real values are set **only on the VPS** env files (`/opt/juli/api/.env`,
-`/opt/juli/web/.env.production`) or a secret manager. **Do not commit** real
+Real values are set **only on the VPS** env files (`~/Juli-AI-v2/.env`,
+`~/Juli-AI-v2/web/.env.production`) or a secret manager. **Do not commit** real
 credentials — the templates in `env/` hold placeholders **outside** any
 functional value.
 
@@ -67,9 +71,10 @@ functional value.
 | Var | Required | Notes |
 |-----|----------|-------|
 | `DATABASE_URL` | Yes | Opened at startup (FastAPI lifespan). Supabase Postgres for review. |
-| `SUPABASE_URL` | Reviewer login | Supabase free-tier project. |
-| `SUPABASE_ANON_KEY` | Reviewer login | Secret — VPS only. |
-| `SUPABASE_JWT_SECRET` | Reviewer login | Secret — VPS only. |
+| `SUPABASE_URL` | Reviewer login | Supabase free-tier project (optional when `PHONE_OTP_ENABLED=false`). |
+| `SUPABASE_ANON_KEY` | Reviewer login | Secret — VPS only (optional when OTP disabled). |
+| `SUPABASE_JWT_SECRET` | Reviewer login | Secret — VPS only (optional when OTP disabled). |
+| `PHONE_OTP_ENABLED` | App Review | Set to `false` — reviewers use UI-only login (`NEXT_PUBLIC_UI_ONLY=1`). |
 | `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | OAuth | Partner Center review app. Secret — VPS only. |
 | `CORS_ALLOW_ORIGINS` | Yes | Set to `https://app-juli.com`. |
 
@@ -78,6 +83,7 @@ functional value.
 | Var | Required | Notes |
 |-----|----------|-------|
 | `NEXT_PUBLIC_API_URL` | Yes | `https://api.app-juli.com` (baked at build time). |
+| `NEXT_PUBLIC_UI_ONLY` | App Review | Set to `1` — one-click reviewer login, no phone OTP. |
 
 App Review **skips** `REDIS_URL`, cron, workers, ML batch, polling, and webhook
 services. If a required startup path forces one of these, stop and split it into a
@@ -93,8 +99,9 @@ never restarts the backend and vice versa.
 ### Frontend (`juli-web`)
 
 ```bash
-cd /opt/juli/web
+cd ~/Juli-AI-v2
 git pull
+cd web
 npm ci
 npm run build
 sudo systemctl restart juli-web
@@ -104,7 +111,7 @@ sudo systemctl status juli-web --no-pager
 ### Backend (`juli-api`)
 
 ```bash
-cd /opt/juli/api
+cd ~/Juli-AI-v2
 git pull
 .venv/bin/pip install -r requirements.txt
 sudo systemctl restart juli-api
@@ -114,6 +121,8 @@ sudo systemctl status juli-api --no-pager
 ### One-time install
 
 ```bash
+cd ~/Juli-AI-v2
+
 # systemd units
 sudo cp infra/deploy/systemd/juli-web.service /etc/systemd/system/
 sudo cp infra/deploy/systemd/juli-api.service /etc/systemd/system/
@@ -150,9 +159,10 @@ env templates, and smoke-test coverage stay in sync with this runbook.
 ### Live smoke test (HITL, after DNS + TLS are wired on the VPS)
 
 Full domain wiring (DNS records, TLS issuance) stays **HITL / manual** on the VPS
-per issue #256. Once wired, run the checklist:
+per issue #256. Once wired, run the checklist from the repo root:
 
 ```bash
+cd ~/Juli-AI-v2
 ./infra/deploy/smoke-test.sh
 # or point at other hostnames:
 APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
@@ -169,7 +179,7 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 - [ ] `https://api.app-juli.com/health` returns a 2xx JSON response.
 - [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles
       missing/invalid OAuth params without a 5xx crash.
-- [ ] Reviewer login path (Supabase OTP) or a reviewer-safe UI path works.
+- [ ] Reviewer login uses UI-only entry (`NEXT_PUBLIC_UI_ONLY=1`, no phone OTP).
 - [ ] CORS allows `https://app-juli.com`.
 - [ ] No production users, production traffic, or persistent business data are
       required to complete App Review.

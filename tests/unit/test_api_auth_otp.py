@@ -104,3 +104,29 @@ async def test_send_otp_requires_supabase_config(client):
             json={"phone": "+84901234567"},
         )
     assert resp.status_code == 503
+
+
+async def test_send_otp_disabled_when_phone_otp_flag_false(client):
+    with patch.dict(
+        "os.environ",
+        {"PHONE_OTP_ENABLED": "false", "SUPABASE_URL": "https://x.supabase.co", "SUPABASE_ANON_KEY": "key"},
+    ):
+        resp = await client.post(
+            "/v1/auth/otp/send",
+            json={"phone": "+84901234567"},
+        )
+    assert resp.status_code == 503
+    assert "disabled" in resp.json()["detail"].lower()
+
+
+async def test_verify_otp_disabled_when_phone_otp_flag_false(client):
+    with patch.dict(
+        "os.environ",
+        {"PHONE_OTP_ENABLED": "false", "SUPABASE_URL": "https://x.supabase.co", "SUPABASE_ANON_KEY": "key"},
+    ):
+        resp = await client.post(
+            "/v1/auth/otp/verify",
+            json={"phone": "+84901234567", "token": "123456"},
+        )
+    assert resp.status_code == 503
+    assert "disabled" in resp.json()["detail"].lower()

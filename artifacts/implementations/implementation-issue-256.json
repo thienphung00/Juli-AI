@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 256,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-01T1200Z",
+  "startedAt": "2026-07-01T12:00:00Z",
+  "completedAt": "2026-07-01T12:15:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 28,
+  "contextFilesLoaded": [
+    "agent-runtime.config.yml",
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "infra/deploy/app-review-runbook.md",
+    "infra/deploy/nginx/app-juli.com.conf",
+    "infra/deploy/nginx/api.app-juli.com.conf",
+    "infra/deploy/smoke-test.sh",
+    "tests/unit/test_phase_2_5_deploy_config.py",
+    "artifacts/implementations/implementation-issue-253.json"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "infra/deploy/vps-wiring-runbook.md",
+    "infra/deploy/provision-nginx.sh",
+    "infra/deploy/smoke-test.sh",
+    "infra/deploy/app-review-runbook.md",
+    "infra/deploy/README.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/features/app_review_deployment/issues.md",
+    "tests/unit/test_phase_2_5_vps_wiring.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_vps_runbook_documents_dns_a_records",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_provision_script_installs_split_nginx_vhosts",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_vps_runbook_documents_separate_upstream_ports",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_vps_runbook_documents_certbot_and_auto_renew",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_vps_runbook_excludes_out_of_scope_services",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_provision_script_is_executable_and_has_shebang",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_provision_script_does_not_reference_forbidden_services",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_smoke_test_supports_dns_tls_only_mode",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_smoke_test_dns_tls_mode_skips_upstream_checks",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_issues_index_records_p2_5_ar_1_slice",
+    "tests/unit/test_phase_2_5_vps_wiring.py::test_phase_doc_records_2_5_review_a_vps_wiring_slice"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_phase_2_5_vps_wiring.py did not exist — no contract tests for #256 VPS wiring deliverables",
+      "passingTestEvidence": "Added vps-wiring-runbook.md, provision-nginx.sh, smoke-test --dns-tls-only flag, issues index, and 11 VPS wiring contract tests; all pass",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_vps_wiring.py -q",
+          "exitCode": 0,
+          "outputSummary": "11 passed"
+        },
+        {
+          "command": "bash -n infra/deploy/provision-nginx.sh && bash -n infra/deploy/smoke-test.sh",
+          "exitCode": 0,
+          "outputSummary": "bash syntax OK"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_deploy_config.py -q",
+          "exitCode": 0,
+          "outputSummary": "15 passed (no regressions)"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Phase 2.5-review-a (#256) VPS wiring slice: HITL runbook for DNS A records, Nginx vhost install, and Certbot auto-renew; executable provision-nginx.sh to copy split frontend/backend vhosts on the VPS; smoke-test.sh --dns-tls-only mode to validate DNS/TLS before #257/#258 deploy apps; app_review_deployment issues index; 11 CI contract tests. Live DNS/TLS on the VPS remains HITL for the operator.",
+  "assumptions": [
+    "Chose #256 over #254 — #256 is the prerequisite infra slice; #254 is E2E verification after #257–#260",
+    "Executor domain backend per infra/deploy + Nginx/systemd envelope; no runtime code changes",
+    "#253 deploy config on main satisfies the blocked-by dependency for repo-side work",
+    "502 from Nginx during #256 validation is acceptable when upstreams are not yet deployed"
+  ],
+  "risks": [
+    "Issue cannot be fully closed until operator completes HITL DNS + Certbot steps on the VPS",
+    "Full smoke-test.sh (frontend/health/OAuth) still fails until #257/#258 deploy juli-web and juli-api",
+    "Certbot requires port 80 reachable during ACME HTTP-01 — firewall misconfiguration is a common HITL blocker"
+  ]
+}
