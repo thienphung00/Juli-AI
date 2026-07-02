@@ -2,7 +2,7 @@
 # Build the App Review frontend with UI-only login baked in.
 #
 # NEXT_PUBLIC_* values are embedded at build time — restarting juli-web alone
-# cannot flip OTP vs reviewer login. Always run this before restart.
+# cannot pick up a new build. Always run this before restart.
 #
 # Usage (on the VPS):
 #   cd ~/Juli-AI-v2
@@ -41,10 +41,10 @@ if [ -z "${login_chunk}" ]; then
     exit 1
 fi
 
-if ! grep -q 'App Review\|Tiếp tục vào ứng dụng' "${login_chunk}"; then
-    echo "FAIL: login chunk missing UI-only reviewer markers" >&2
+if ! grep -q 'Đăng nhập demo\|Tiếp tục vào ứng dụng' "${login_chunk}"; then
+    echo "FAIL: login chunk missing demo login markers" >&2
     echo "Check ${ENV_FILE} and rebuild." >&2
     exit 1
 fi
 
-echo "PASS: login chunk has UI-only reviewer entry ($(basename "${login_chunk}"))"
+echo "PASS: login chunk has demo login entry ($(basename "${login_chunk}"))"

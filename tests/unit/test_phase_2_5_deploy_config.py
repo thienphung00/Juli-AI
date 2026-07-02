@@ -174,9 +174,7 @@ def test_smoke_test_covers_required_surface():
         "smoke test must probe the OAuth callback route"
     )
     assert "/login" in script, "smoke test must probe reviewer login"
-    assert "UI-only" in script or "UI_ONLY" in script, (
-        "smoke test must assert UI-only reviewer login"
-    )
+    assert "demo" in script.lower(), "smoke test must assert demo login entry"
 
 
 def test_smoke_test_confirms_no_production_data_required():

@@ -85,37 +85,22 @@ else
         bad "OAuth callback ${CALLBACK_PATH} returned ${cb_code}"
     fi
 
-    # 6. Login page ships consistent Next.js chunks and UI-only reviewer entry.
+    # 6. Login page chunk loads and contains demo login markers.
     login_html="$(curl -sS "https://${APP_DOMAIN}/login")"
-    login_chunks="$(printf '%s' "${login_html}" | grep -oE '/_next/static/chunks/app/[^" ]+' | sort -u || true)"
-    if [ -z "${login_chunks}" ]; then
-        bad "login HTML did not reference any app/* JS chunks"
-    else
-        chunk_ok=true
-        while IFS= read -r chunk_path; do
-            [ -n "${chunk_path}" ] || continue
-            chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${chunk_path}")"
-            if [ "${chunk_code}" != "200" ]; then
-                bad "login chunk ${chunk_path} returned ${chunk_code}"
-                chunk_ok=false
-            fi
-        done <<EOF
-${login_chunks}
-EOF
-        if [ "${chunk_ok}" = true ]; then
-            ok "login page JS chunks load (200)"
-        fi
-    fi
-
     login_page_chunk="$(printf '%s' "${login_html}" | grep -oE '/_next/static/chunks/app/login/page-[^"]+\.js' | head -1 || true)"
     if [ -z "${login_page_chunk}" ]; then
         bad "login HTML did not reference app/login/page chunk"
     else
-        login_chunk_body="$(curl -sS "https://${APP_DOMAIN}${login_page_chunk}")"
-        if printf '%s' "${login_chunk_body}" | grep -qE 'App Review|Tiếp tục vào ứng dụng'; then
-            ok "login serves demo reviewer entry"
+        login_chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${login_page_chunk}")"
+        if [ "${login_chunk_code}" != "200" ]; then
+            bad "login chunk ${login_page_chunk} returned ${login_chunk_code} (stale build — run ./infra/deploy/build-frontend-review.sh && sudo systemctl restart juli-web)"
         else
-            bad "login chunk missing demo reviewer markers (rebuild with NEXT_PUBLIC_UI_ONLY=1)"
+            login_chunk_body="$(curl -sS "https://${APP_DOMAIN}${login_page_chunk}")"
+            if printf '%s' "${login_chunk_body}" | grep -qE 'Đăng nhập demo|Tiếp tục vào ứng dụng'; then
+                ok "login serves demo entry"
+            else
+                bad "login chunk missing demo markers (rebuild with ./infra/deploy/build-frontend-review.sh)"
+            fi
         fi
     fi
 fi

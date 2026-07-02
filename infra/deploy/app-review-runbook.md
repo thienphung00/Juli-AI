@@ -194,6 +194,27 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 
 ---
 
+## Troubleshooting
+
+### Smoke test: login chunk returned 400
+
+Next.js returns **400** (not 404) when `/login` HTML references JS chunk hashes that
+the running `juli-web` process cannot serve. This means the frontend was **not**
+rebuilt and restarted together after `git pull`.
+
+```bash
+cd ~/Juli-AI-v2
+git pull
+./infra/deploy/build-frontend-review.sh   # rm -rf .next && npm run build
+sudo systemctl restart juli-web
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+```
+
+Confirm `juli-web` runs `npm run start` (production), not `npm run dev`. The tmux
+`web` session must not override systemd with a dev server on port 3000.
+
+---
+
 ## Rollback / stop condition
 
 If the review path starts requiring production-only services (Redis, workers,
