@@ -196,6 +196,22 @@ require `juli-web` running; backend checks wait for [#258](https://github.com/th
 
 ---
 
+## Backend deploy (2.5-review-c, issue #258)
+
+AFK/HITL slice: install and serve the existing FastAPI app on `juli-api`
+(`127.0.0.1:8000`) behind `https://api.app-juli.com/`. Only `/health`, auth
+surface, and (after #259) TikTok OAuth callback are in scope.
+
+| Path | Purpose |
+|------|---------|
+| [`backend-deploy-runbook.md`](../../infra/deploy/backend-deploy-runbook.md) | Env, systemd, Alembic skip policy, sign-off |
+| [`provision-backend.sh`](../../infra/deploy/provision-backend.sh) | Install `juli-api` + `pip install` on VPS |
+
+Prerequisite: [#256](vps-wiring-runbook.md) DNS/TLS. Full smoke test backend checks
+require `juli-api` running with `DATABASE_URL` and `CORS_ALLOW_ORIGINS` set on the VPS.
+
+---
+
 ## App Review deployment envelope (2.5-review)
 
 Keep these components in Phase 2.5:

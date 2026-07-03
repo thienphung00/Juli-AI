@@ -20,3 +20,5 @@ HITL slices require manual VPS/DNS/provider steps.
 **#256 runbook:** [`infra/deploy/vps-wiring-runbook.md`](../../../infra/deploy/vps-wiring-runbook.md)
 
 **#257 runbook:** [`infra/deploy/frontend-deploy-runbook.md`](../../../infra/deploy/frontend-deploy-runbook.md)
+
+**#258 runbook:** [`infra/deploy/backend-deploy-runbook.md`](../../../infra/deploy/backend-deploy-runbook.md)

@@ -55,8 +55,10 @@ and config samples that make that wiring repeatable.
 | [`env/api.env.example`](env/api.env.example) | Backend env template (placeholders) |
 | [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | HITL DNS + Nginx + Certbot (#256) |
 | [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) | Deploy Next.js frontend on VPS (#257) |
+| [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | Deploy FastAPI backend on VPS (#258) |
 | [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
 | [`provision-frontend.sh`](provision-frontend.sh) | Install `juli-web` + production build (#257) |
+| [`provision-backend.sh`](provision-backend.sh) | Install `juli-api` + pip deps (#258) |
 | [`build-frontend-review.sh`](build-frontend-review.sh) | `npm ci && npm run build` with UI-only login |
 | [`smoke-test.sh`](smoke-test.sh) | DNS/TLS/frontend/health/OAuth checklist |
 
@@ -121,12 +123,22 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 
 ### Backend (`juli-api`)
 
+See [`backend-deploy-runbook.md`](backend-deploy-runbook.md) (#258) for the full
+sign-off checklist. Quick redeploy:
+
 ```bash
 cd ~/Juli-AI-v2
 git pull
 .venv/bin/pip install -r requirements.txt
 sudo systemctl restart juli-api
 sudo systemctl status juli-api --no-pager
+```
+
+One-time install on the VPS:
+
+```bash
+chmod +x infra/deploy/provision-backend.sh
+sudo ./infra/deploy/provision-backend.sh
 ```
 
 ### One-time install
