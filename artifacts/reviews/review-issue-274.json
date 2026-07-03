@@ -1,0 +1,60 @@
+{
+  "id": "review-issue-274",
+  "issue": 274,
+  "timestamp": "2026-07-03T04:08:11Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Incremental OAuth triage logging for issue #274: request_id on exchange failures, missing app secret 503 regression test, and .worktrees gitignore. No blocking findings.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/api/services/tiktok",
+    "tests/unit/test_tiktok_auth_callback.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "tiktok auth callback exchange failure logging",
+          "test": "tests/unit/test_tiktok_auth_callback.py"
+        },
+        {
+          "criterion": "tiktok auth callback missing secret configuration",
+          "test": "tests/unit/test_tiktok_auth_callback.py"
+        },
+        {
+          "criterion": "tiktok auth token exchange contract",
+          "test": "tests/unit/test_tiktok_auth_token.py"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 28,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewFailures": 0,
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "none",
+  "suggestedRemediation": [],
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-274.json"
+}

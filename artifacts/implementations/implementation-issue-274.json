@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 274,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-03T1105Z",
+  "startedAt": "2026-07-03T11:00:00Z",
+  "completedAt": "2026-07-03T11:05:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "filesModified": [
+    ".gitignore",
+    "backend/api/services/tiktok/oauth.py",
+    "tests/unit/test_tiktok_auth_callback.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_auth_callback.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "OAuth callback logs request_id on token exchange failure",
+      "redCommand": "pytest tests/unit/test_tiktok_auth_callback.py -q",
+      "redResult": "PASS baseline on main",
+      "greenCommand": "pytest tests/unit/test_tiktok_auth_callback.py -q",
+      "greenResult": "PASS after request_id logging"
+    },
+    {
+      "cycle": 2,
+      "behavior": "Missing TIKTOK_APP_SECRET returns sanitized 503",
+      "redCommand": "pytest tests/unit/test_tiktok_auth_callback.py -q",
+      "redResult": "FAIL without missing secret test",
+      "greenCommand": "pytest tests/unit/test_tiktok_auth_callback.py -q",
+      "greenResult": "PASS with test_callback_missing_app_secret_returns_503"
+    }
+  ],
+  "implementationSummary": "Adds TikTok request_id to oauth exchange failure logs, covers missing TIKTOK_APP_SECRET 503 path, and gitignores local .worktrees/ to prevent accidental staging.",
+  "assumptions": [
+    "Core token exchange behavior remains on main from #270/#273",
+    "This slice only closes observability and test gaps for issue #274"
+  ],
+  "risks": [
+    "Live 502 triage still depends on valid VPS credentials and fresh auth codes"
+  ],
+  "acceptanceCriteria": [
+    "Token exchange failures log non-secret triage metadata including request_id",
+    "Missing TIKTOK_APP_SECRET returns sanitized 503",
+    "Regression tests pass for TikTok OAuth callback paths"
+  ]
+}
