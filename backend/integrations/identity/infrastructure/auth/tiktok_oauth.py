@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.integrations.identity.infrastructure.auth.exceptions import Unauthorized
 from backend.database.models import Shop, TikTokCredential
 from backend.database.repos import ShopsRepo, TikTokCredentialRepo
+from backend.api.services.tiktok.token_expiry import access_token_expires_at
 from backend.integrations.catalog.domain.integrations.tiktok.auth import TikTokAuth
 
 logger = logging.getLogger(__name__)
@@ -99,8 +100,8 @@ class TikTokOAuthService:
                 tiktok_shop_id=tiktok_shop_id,
             )
 
-        expires_at = _utc_now() + timedelta(
-            seconds=token_data.get("access_token_expire_in", 0)
+        expires_at = access_token_expires_at(
+            token_data.get("access_token_expire_in")
         )
 
         await cred_repo.create(
@@ -130,8 +131,8 @@ class TikTokOAuthService:
             self._tiktok_auth.refresh_access_token, credential.refresh_token
         )
 
-        new_expires_at = _utc_now() + timedelta(
-            seconds=token_data.get("access_token_expire_in", 0)
+        new_expires_at = access_token_expires_at(
+            token_data.get("access_token_expire_in")
         )
 
         updated = await cred_repo.update_tokens(

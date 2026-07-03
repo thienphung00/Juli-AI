@@ -70,7 +70,7 @@ class TikTokOAuthInfrastructureService:
         app_key: str | None = None,
         locale: str | None = None,
         shop_region: str | None = None,
-    ) -> TikTokOAuthCallbackResult:
+    ) -> tuple[TikTokOAuthCallbackResult, dict, uuid.UUID | None]:
         """Validate callback parameters, verify state when present, exchange code."""
         user_id: uuid.UUID | None = None
         if state:
@@ -109,9 +109,13 @@ class TikTokOAuthInfrastructureService:
                 "access_token_expires_in": expires_in,
             },
         )
-        return TikTokOAuthCallbackResult(
-            status="ok",
-            message="OAuth callback accepted; token exchange completed",
-            open_id_present=bool(open_id),
-            access_token_expires_in=expires_in,
+        return (
+            TikTokOAuthCallbackResult(
+                status="ok",
+                message="OAuth callback accepted; token exchange completed",
+                open_id_present=bool(open_id),
+                access_token_expires_in=expires_in,
+            ),
+            token_data,
+            user_id,
         )

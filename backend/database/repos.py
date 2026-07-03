@@ -122,6 +122,19 @@ class TikTokCredentialRepo:
             raise NotFound(f"No credentials found for shop {shop_id}")
         return credential
 
+    async def get_latest(self) -> TikTokCredential:
+        """Return the most recently created credential. Raises NotFound if none."""
+        stmt = (
+            select(TikTokCredential)
+            .order_by(TikTokCredential.created_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        credential = result.scalar_one_or_none()
+        if credential is None:
+            raise NotFound("No TikTok credentials found")
+        return credential
+
     async def update_tokens(
         self,
         credential_id: uuid.UUID,

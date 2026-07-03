@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI
 
 from backend.api.api.routers.auth_tiktok import router as auth_tiktok_router
+from backend.api.api.routers.debug_tiktok import router as debug_tiktok_router
 from backend.api.api.routers.alerts import router as alerts_router
 from backend.api.api.routers.analytics import router as analytics_router
 from backend.api.api.routers.creators import router as creators_router
@@ -40,5 +41,6 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(creators_router)
     v1_router.include_router(settlements_router)
     app.include_router(v1_router)
+    app.include_router(debug_tiktok_router)
 
     return app

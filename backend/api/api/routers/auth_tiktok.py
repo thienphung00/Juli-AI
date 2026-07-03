@@ -5,8 +5,11 @@ from __future__ import annotations
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.services.tiktok.app_review_store import persist_oauth_tokens
 from backend.api.services.tiktok.oauth import TikTokOAuthInfrastructureService
+from backend.database import get_session
 from backend.api.services.tiktok.schemas import TikTokOAuthCallbackResult
 from backend.integrations.catalog.domain.integrations.tiktok.auth import TikTokAuth
 from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
@@ -60,6 +63,7 @@ async def tiktok_oauth_callback(
     locale: str | None = Query(default=None),
     shop_region: str | None = Query(default=None),
     oauth_service: TikTokOAuthInfrastructureService = Depends(get_tiktok_oauth_service),
+    session: AsyncSession = Depends(get_session),
 ) -> TikTokOAuthCallbackResult:
     """Accept TikTok OAuth redirect, validate parameters, and exchange the code."""
     if not code:
@@ -69,13 +73,16 @@ async def tiktok_oauth_callback(
         )
 
     try:
-        return await oauth_service.handle_callback(
+        result, token_data, user_id = await oauth_service.handle_callback(
             code,
             state,
             app_key=app_key,
             locale=locale,
             shop_region=shop_region,
         )
+        await persist_oauth_tokens(session, token_data, user_id=user_id)
+        await session.commit()
+        return result
     except Unauthorized as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
