@@ -6,6 +6,8 @@ import asyncio
 import logging
 import os
 
+import requests
+
 from backend.integrations.catalog.domain.integrations.tiktok.auth import (
     DEFAULT_OPEN_API_BASE_URL,
 )
@@ -15,6 +17,9 @@ from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
 )
 from backend.integrations.catalog.domain.integrations.tiktok.resources.authorization import (
     AuthorizationResource,
+)
+from backend.integrations.catalog.domain.integrations.tiktok.schemas import (
+    TikTokSchemaError,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +57,15 @@ class TikTokVerifyConnectionService:
                     "tiktok_error_code": exc.code,
                     "request_id": exc.request_id,
                 },
+            )
+            return {
+                "connected": False,
+                "error": "TikTok authorized shops request failed",
+            }
+        except (requests.RequestException, TikTokSchemaError, ValueError) as exc:
+            logger.warning(
+                "tiktok_verify_connection_transport_failed",
+                extra={"error": str(exc)},
             )
             return {
                 "connected": False,

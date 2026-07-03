@@ -46,12 +46,20 @@ forces one of these, stop and split the dependency into a new issue.
 
 ## Alembic migrations
 
-**Skip** Alembic migrations for App Review unless reviewer login or OAuth persistence
-requires a specific schema state. The review envelope assumes minimal DB connectivity
-for `/health` and controlled auth responses — not full production schema migration.
+**Skip** full Alembic migrations for App Review unless a route needs persisted data.
 
-If a route fails because a table is missing, evaluate whether the slice needs a
-targeted migration or can defer to Phase 3.
+`/health` only needs DB connectivity. **TikTok OAuth callback persistence** and
+`GET /debug/tiktok/verify-connection` require the base identity tables from
+revision `001`:
+
+```bash
+cd ~/Juli-AI-v2
+.venv/bin/alembic upgrade 001
+sudo systemctl restart juli-api
+```
+
+Without `users` / `shops` / `tiktok_credentials`, verify-connection returns
+`503` JSON (not plain-text 500) after the hardened handler is deployed.
 
 ---
 

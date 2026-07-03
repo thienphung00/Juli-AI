@@ -7,6 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.services.tiktok.verify_connection import (
@@ -65,21 +66,32 @@ async def verify_tiktok_connection(
     verify_service: TikTokVerifyConnectionService = Depends(get_verify_connection_service),
 ) -> TikTokVerifyConnectionResponse:
     """Verify a stored TikTok token by calling Get Authorized Shops."""
-    access_token = os.environ.get("TIKTOK_DEBUG_ACCESS_TOKEN", "").strip()
-    if not access_token:
-        cred_repo = TikTokCredentialRepo(session)
-        try:
-            credential = (
-                await cred_repo.get_by_shop(shop_id)
-                if shop_id is not None
-                else await cred_repo.get_latest()
-            )
-        except NotFound as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No stored TikTok credentials found",
-            ) from exc
-        access_token = credential.access_token
+    try:
+        access_token = os.environ.get("TIKTOK_DEBUG_ACCESS_TOKEN", "").strip()
+        if not access_token:
+            cred_repo = TikTokCredentialRepo(session)
+            try:
+                credential = (
+                    await cred_repo.get_by_shop(shop_id)
+                    if shop_id is not None
+                    else await cred_repo.get_latest()
+                )
+            except NotFound as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No stored TikTok credentials found",
+                ) from exc
+            access_token = credential.access_token
 
-    result = await verify_service.verify(access_token)
-    return TikTokVerifyConnectionResponse(**result)
+        result = await verify_service.verify(access_token)
+        return TikTokVerifyConnectionResponse(**result)
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Database unavailable for credential lookup — run "
+                "`alembic upgrade head` on the VPS"
+            ),
+        ) from exc
