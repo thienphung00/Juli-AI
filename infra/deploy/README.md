@@ -21,6 +21,7 @@ frontend `.env.production` in `web/`.
 | [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) | Deploy Next.js frontend on VPS (#257) |
 | [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | Deploy FastAPI backend on VPS (#258) |
 | [`reviewer-login-runbook.md`](reviewer-login-runbook.md) | Reviewer demo login + optional Supabase OTP (#260) |
+| [`smoke-checklist-runbook.md`](smoke-checklist-runbook.md) | App Review smoke sign-off + CORS (#261) |
 | [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
 | [`provision-frontend.sh`](provision-frontend.sh) | Install juli-web + build on the VPS (#257) |
 | [`provision-backend.sh`](provision-backend.sh) | Install juli-api + pip deps on the VPS (#258) |

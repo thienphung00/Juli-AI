@@ -1,0 +1,70 @@
+{
+  "id": "review-issue-261",
+  "issue": 261,
+  "timestamp": "2026-07-03T08:42:30Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 2.5-review-f (#261) smoke checklist: PRD.md and summary.md document smoke commands; smoke-checklist-runbook.md provides HITL sign-off covering DNS, TLS, frontend, /health, OAuth callback, reviewer login, CORS, and review-only confirmation; smoke-test.sh extended with CORS preflight probe; 14 new contract tests pass with 69 phase-2.5 deploy tests green.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "docs/features/app_review_deployment/",
+    "infra/deploy/",
+    "docs/phases/phase-2.5-deployment.md",
+    "tests/unit/test_phase_2_5_smoke_checklist.py",
+    "tests/unit/test_phase_2_5_deploy_config.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "CORS_ALLOW_ORIGINS includes https://app-juli.com.",
+          "test": "tests/unit/test_phase_2_5_smoke_checklist.py::test_cors_allow_origins_includes_review_frontend"
+        },
+        {
+          "criterion": "Checklist covers DNS, TLS, frontend load, /health, OAuth callback, reviewer login.",
+          "test": "tests/unit/test_phase_2_5_smoke_checklist.py::test_smoke_checklist_covers_required_surface"
+        },
+        {
+          "criterion": "Checklist explicitly confirms no production users, traffic, or persistent business data.",
+          "test": "tests/unit/test_phase_2_5_smoke_checklist.py::test_smoke_checklist_confirms_review_only_scope"
+        },
+        {
+          "criterion": "Commands documented in PRD.md and summary.md.",
+          "test": "tests/unit/test_phase_2_5_smoke_checklist.py::test_prd_documents_smoke_commands"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 69,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Operator must run APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh on live VPS before closing #261.",
+    "Copy operator sign-off record from smoke-checklist-runbook.md to ops notes."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-261.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": []
+}

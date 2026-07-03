@@ -228,6 +228,26 @@ backend deploy. Smoke test login checks require `juli-web` built with the review
 
 ---
 
+## Smoke checklist & sign-off (2.5-review-f, issue #261)
+
+AFK/HITL slice: finalize the repeatable smoke-test checklist proving App Review
+readiness — CORS, DNS, TLS, frontend, `/health`, OAuth callback, reviewer login, and
+explicit review-only confirmation (no production users, traffic, or persistent
+business data).
+
+| Path | Purpose |
+|------|---------|
+| [`smoke-checklist-runbook.md`](../../infra/deploy/smoke-checklist-runbook.md) | HITL sign-off checklist + CORS verification |
+| [`smoke-test.sh`](../../infra/deploy/smoke-test.sh) | Automated DNS/TLS/frontend/health/OAuth/login/CORS probes |
+| [`PRD.md`](../features/app_review_deployment/PRD.md) | Canonical smoke commands and acceptance criteria |
+| [`summary.md`](../features/app_review_deployment/summary.md) | Operator quick reference |
+
+Prerequisites: [#254](../features/app_review_deployment/issues.md) E2E domain wiring
+and deploy slices #256–#260. Set `CORS_ALLOW_ORIGINS=https://app-juli.com` on the VPS
+before full sign-off.
+
+---
+
 ## App Review deployment envelope (2.5-review)
 
 Keep these components in Phase 2.5:

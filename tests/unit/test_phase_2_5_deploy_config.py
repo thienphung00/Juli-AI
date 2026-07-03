@@ -177,6 +177,9 @@ def test_smoke_test_covers_required_surface():
     assert "/login" in script, "smoke test must probe reviewer login"
     assert "demo" in script.lower(), "smoke test must assert demo login entry"
     assert "app/page" in script, "smoke test must probe home route chunks"
+    assert "access-control-allow-origin" in script.lower(), (
+        "smoke test must probe CORS preflight"
+    )
 
 
 def test_smoke_test_confirms_no_production_data_required():

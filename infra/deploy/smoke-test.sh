@@ -132,6 +132,15 @@ else
     else
         ok "all home JS chunks return 200"
     fi
+
+    # 8. CORS allows the review frontend origin (issue #261).
+    cors_header="$(curl -sSI -H "Origin: https://${APP_DOMAIN}" "https://${API_DOMAIN}/health" \
+        | grep -i '^access-control-allow-origin:' || true)"
+    if printf '%s' "${cors_header}" | grep -qi "https://${APP_DOMAIN}"; then
+        ok "CORS allows https://${APP_DOMAIN}"
+    else
+        bad "CORS does not allow https://${APP_DOMAIN} (set CORS_ALLOW_ORIGINS on VPS and restart juli-api)"
+    fi
 fi
 
 echo
