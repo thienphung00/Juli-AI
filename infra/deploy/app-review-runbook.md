@@ -54,7 +54,10 @@ and config samples that make that wiring repeatable.
 | [`env/web.env.example`](env/web.env.example) | Frontend env template (placeholders) |
 | [`env/api.env.example`](env/api.env.example) | Backend env template (placeholders) |
 | [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | HITL DNS + Nginx + Certbot (#256) |
+| [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) | Deploy Next.js frontend on VPS (#257) |
 | [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
+| [`provision-frontend.sh`](provision-frontend.sh) | Install `juli-web` + production build (#257) |
+| [`build-frontend-review.sh`](build-frontend-review.sh) | `npm ci && npm run build` with UI-only login |
 | [`smoke-test.sh`](smoke-test.sh) | DNS/TLS/frontend/health/OAuth checklist |
 
 ---
@@ -196,11 +199,11 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 
 ## Troubleshooting
 
-### Smoke test: login chunk returned 400
+### Blank homepage after login (or smoke test: home chunk returned 400)
 
-Next.js returns **400** (not 404) when `/login` HTML references JS chunk hashes that
-the running `juli-web` process cannot serve. This means the frontend was **not**
-rebuilt and restarted together after `git pull`.
+Next.js returns **400** (not 404) when HTML references JS chunk hashes that the
+running `juli-web` process cannot serve. A **partial** rebuild can leave `/login`
+working while `/` (Home) chunks 400 — the app shows a blank page after demo login.
 
 ```bash
 cd ~/Juli-AI-v2
@@ -210,8 +213,30 @@ sudo systemctl restart juli-web
 APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 ```
 
+Quick check on the VPS:
+
+```bash
+home_chunk="$(curl -sS https://app-juli.com/ | grep -oE '/_next/static/chunks/app/page-[^"]+\.js' | head -1)"
+curl -s -o /dev/null -w '%{http_code}\n' "https://app-juli.com${home_chunk}"
+# Expect 200 — 400 means stale build.
+```
+
 Confirm `juli-web` runs `npm run start` (production), not `npm run dev`. The tmux
 `web` session must not override systemd with a dev server on port 3000.
+
+### Smoke test: login chunk missing demo markers
+
+`NEXT_PUBLIC_UI_ONLY` is baked at build time. If the smoke test fails on demo
+markers, the running build predates the one-click reviewer login or was built
+without `./infra/deploy/build-frontend-review.sh` (which forces `NEXT_PUBLIC_UI_ONLY=1`).
+
+```bash
+grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
+./infra/deploy/build-frontend-review.sh
+sudo systemctl restart juli-web
+```
+
+Frontend deploy steps: [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) (#257).
 
 ---
 

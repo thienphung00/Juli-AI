@@ -41,10 +41,17 @@ if [ -z "${login_chunk}" ]; then
     exit 1
 fi
 
-if ! grep -q 'Đăng nhập demo\|Tiếp tục vào ứng dụng' "${login_chunk}"; then
+if ! grep -qE 'loginAsReviewer|Đăng nhập demo|Tiếp tục' "${login_chunk}"; then
     echo "FAIL: login chunk missing demo login markers" >&2
     echo "Check ${ENV_FILE} and rebuild." >&2
     exit 1
 fi
 
+home_chunk="$(find .next/static/chunks/app -maxdepth 1 -name 'page-*.js' -print -quit || true)"
+if [ -z "${home_chunk}" ]; then
+    echo "FAIL: no home page chunk under .next/static/chunks/app/" >&2
+    exit 1
+fi
+
 echo "PASS: login chunk has demo login entry ($(basename "${login_chunk}"))"
+echo "PASS: home chunk built ($(basename "${home_chunk}"))"

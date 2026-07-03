@@ -18,3 +18,5 @@ HITL slices require manual VPS/DNS/provider steps.
 | P2.5-AR-5 | [#261](https://github.com/thienphung00/Juli-AI/issues/261) | Smoke checklist / sign-off | HITL | #254 |
 
 **#256 runbook:** [`infra/deploy/vps-wiring-runbook.md`](../../../infra/deploy/vps-wiring-runbook.md)
+
+**#257 runbook:** [`infra/deploy/frontend-deploy-runbook.md`](../../../infra/deploy/frontend-deploy-runbook.md)

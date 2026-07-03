@@ -179,6 +179,23 @@ Issue index: [`docs/features/app_review_deployment/issues.md`](../features/app_r
 
 ---
 
+## Frontend deploy (2.5-review-b, issue #257)
+
+AFK/HITL slice: build and serve the existing `web/` Next.js app on `juli-web`
+(`127.0.0.1:3000`) behind `https://app-juli.com/`. Landing page and demo app
+remain deferred to Phase 3.
+
+| Path | Purpose |
+|------|---------|
+| [`frontend-deploy-runbook.md`](../../infra/deploy/frontend-deploy-runbook.md) | Build, systemd, UI-only fallback, sign-off |
+| [`provision-frontend.sh`](../../infra/deploy/provision-frontend.sh) | Install `juli-web` + `npm ci && npm run build` on VPS |
+| [`build-frontend-review.sh`](../../infra/deploy/build-frontend-review.sh) | Review build with `NEXT_PUBLIC_API_URL` + UI-only login |
+
+Prerequisite: [#256](vps-wiring-runbook.md) DNS/TLS. Full smoke test frontend checks
+require `juli-web` running; backend checks wait for [#258](https://github.com/thienphung00/Juli-AI/issues/258).
+
+---
+
 ## App Review deployment envelope (2.5-review)
 
 Keep these components in Phase 2.5:
