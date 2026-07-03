@@ -8,6 +8,7 @@ __pycache__/
 dist/
 build/
 .env
+.env.*
 .DS_Store
 
 # Agent runtime state (local resumption only — not source control)
@@ -19,3 +20,12 @@ artifacts/runtime/logs/
 
 # Serialized ML model artifacts (runtime output — not source control)
 models/
+
+# Python virtual environment
+.venv/
+
+# Next.js build output
+.next/
+
+# Local SQLite test databases
+*.db
