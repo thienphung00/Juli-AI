@@ -1,0 +1,53 @@
+{
+  "status": "PASS",
+  "summary": "Phase 2.5-review-b (#257) frontend deploy: HITL/AFK runbook and provision-frontend.sh for juli-web on 127.0.0.1:3000; build-frontend-review.sh enforces NEXT_PUBLIC_API_URL and UI-only login with login/home chunk validation. All five acceptance criteria mapped to contract tests. Operator HITL smoke test passed 10/10 on app-juli.com (DNS, TLS, frontend, /login demo entry, home chunks, /health 200).",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "infra/deploy/",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/features/app_review_deployment/issues.md",
+    "tests/unit/test_phase_2_5_frontend_deploy.py"
+  ],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "npm ci && npm run build documented with NEXT_PUBLIC_API_URL=https://api.app-juli.com.",
+          "test": "tests/unit/test_phase_2_5_frontend_deploy.py::test_frontend_runbook_documents_build_with_api_url"
+        },
+        {
+          "criterion": "juli-web systemd unit binds frontend to loopback port 3000.",
+          "test": "tests/unit/test_phase_2_5_frontend_deploy.py::test_systemd_unit_binds_frontend_to_loopback_port"
+        },
+        {
+          "criterion": "frontend runbook documents public urls and smoke test for /login.",
+          "test": "tests/unit/test_phase_2_5_frontend_deploy.py::test_frontend_runbook_documents_public_urls_and_smoke"
+        },
+        {
+          "criterion": "UI-only reviewer path (NEXT_PUBLIC_UI_ONLY=1) documented as fallback.",
+          "test": "tests/unit/test_phase_2_5_frontend_deploy.py::test_frontend_runbook_documents_ui_only_fallback"
+        },
+        {
+          "criterion": "Landing/demo app work remains deferred (Phase 3).",
+          "test": "tests/unit/test_phase_2_5_frontend_deploy.py::test_frontend_runbook_defers_landing_and_demo"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 434,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "HITL smoke test passed on VPS 2026-07-03 — frontend and login verified live.",
+    "Backend /health returned 200 during smoke; juli-api may already be running from a prior deploy.",
+    "Removed accidental test.db from commit; added *.db to .gitignore."
+  ],
+  "approvalReady": true,
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-257.json"
+}
