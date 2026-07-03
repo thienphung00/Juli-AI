@@ -1,4 +1,4 @@
-"""TikTok OAuth callback infrastructure — state validation and token exchange stub.
+"""TikTok OAuth callback infrastructure — state validation and token exchange.
 
 Business logic (shop provisioning, credential persistence) is intentionally
 out of scope; see ``TikTokOAuthService`` in identity/infrastructure/auth.
@@ -6,6 +6,7 @@ out of scope; see ``TikTokOAuthService`` in identity/infrastructure/auth.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -14,16 +15,21 @@ import logging
 import uuid
 
 from backend.api.services.tiktok.schemas import TikTokOAuthCallbackResult
+from backend.integrations.catalog.domain.integrations.tiktok.auth import TikTokAuth
+from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
+    AuthenticationError,
+)
 from backend.integrations.identity.infrastructure.auth.exceptions import Unauthorized
 
 logger = logging.getLogger(__name__)
 
 
 class TikTokOAuthInfrastructureService:
-    """Validates OAuth callback parameters and stubs token exchange."""
+    """Validates OAuth callback parameters and exchanges authorization codes."""
 
-    def __init__(self, *, app_secret: str) -> None:
+    def __init__(self, *, app_secret: str, tiktok_auth: TikTokAuth) -> None:
         self._app_secret = app_secret
+        self._tiktok_auth = tiktok_auth
 
     def verify_state(self, state: str) -> uuid.UUID:
         """Verify HMAC-signed state and return the embedded user id."""
@@ -46,11 +52,7 @@ class TikTokOAuthInfrastructureService:
             raise Unauthorized(f"Malformed OAuth state: {exc}")
 
     async def exchange_code(self, code: str, *, user_id: uuid.UUID | None = None) -> dict:
-        """Placeholder for TikTok authorization-code → access-token exchange.
-
-        TODO: Call ``TikTokAuth.exchange_code`` and persist credentials via
-        ``TikTokOAuthService.handle_callback`` once merchant onboarding ships.
-        """
+        """Exchange TikTok authorization code for access + refresh tokens."""
         logger.info(
             "tiktok_oauth_code_received",
             extra={
@@ -58,7 +60,7 @@ class TikTokOAuthInfrastructureService:
                 "code_len": len(code),
             },
         )
-        return {"status": "pending", "user_id": str(user_id) if user_id else None}
+        return await asyncio.to_thread(self._tiktok_auth.exchange_code, code)
 
     async def handle_callback(
         self,
@@ -69,7 +71,7 @@ class TikTokOAuthInfrastructureService:
         locale: str | None = None,
         shop_region: str | None = None,
     ) -> TikTokOAuthCallbackResult:
-        """Validate callback parameters, verify state when present, stub token exchange."""
+        """Validate callback parameters, verify state when present, exchange code."""
         user_id: uuid.UUID | None = None
         if state:
             user_id = self.verify_state(state)
@@ -83,12 +85,32 @@ class TikTokOAuthInfrastructureService:
                 },
             )
 
-        await self.exchange_code(code, user_id=user_id)
+        try:
+            token_data = await self.exchange_code(code, user_id=user_id)
+        except AuthenticationError as exc:
+            logger.warning(
+                "tiktok_oauth_token_exchange_failed",
+                extra={
+                    "user_id": str(user_id) if user_id else None,
+                    "tiktok_error_code": exc.code,
+                },
+            )
+            raise
+
+        open_id = token_data.get("open_id")
+        expires_in = token_data.get("access_token_expire_in")
+
         logger.info(
-            "tiktok_oauth_callback_accepted",
-            extra={"user_id": str(user_id) if user_id else None},
+            "tiktok_oauth_token_exchange_completed",
+            extra={
+                "user_id": str(user_id) if user_id else None,
+                "open_id_present": bool(open_id),
+                "access_token_expires_in": expires_in,
+            },
         )
         return TikTokOAuthCallbackResult(
             status="ok",
-            message="OAuth callback accepted; token exchange pending implementation",
+            message="OAuth callback accepted; token exchange completed",
+            open_id_present=bool(open_id),
+            access_token_expires_in=expires_in,
         )

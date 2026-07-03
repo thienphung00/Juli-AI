@@ -6,13 +6,27 @@ import hmac
 import json
 import secrets
 import uuid
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
+    AuthenticationError,
+)
+
+APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
 CALLBACK_PATH = "/v1/auth/tiktok/callback"
+
+TOKEN_FIXTURE = {
+    "access_token": "ROW_secret_access",
+    "refresh_token": "ROW_secret_refresh",
+    "access_token_expire_in": 604800,
+    "open_id": "seller_123",
+    "seller_name": "Test Shop",
+}
 
 
 def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
@@ -27,8 +41,19 @@ def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
 
 
 @pytest.fixture(autouse=True)
-def tiktok_app_secret(monkeypatch):
+def tiktok_oauth_env(monkeypatch):
     monkeypatch.setenv("TIKTOK_APP_SECRET", APP_SECRET)
+    monkeypatch.setenv("TIKTOK_APP_KEY", APP_KEY)
+
+
+@pytest.fixture(autouse=True)
+def mock_token_exchange(monkeypatch):
+    mock = MagicMock(return_value=dict(TOKEN_FIXTURE))
+    monkeypatch.setattr(
+        "backend.integrations.catalog.domain.integrations.tiktok.auth.TikTokAuth.exchange_code",
+        mock,
+    )
+    return mock
 
 
 @pytest_asyncio.fixture
@@ -60,7 +85,9 @@ class TestOAuthCallbackRoute:
         assert "code" in resp.json()["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_callback_accepts_code_without_state(self, client):
+    async def test_callback_accepts_code_without_state(
+        self, client, mock_token_exchange
+    ):
         """Partner Center redirects with code but no state (App Review flow)."""
         resp = await client.get(
             CALLBACK_PATH,
@@ -72,18 +99,25 @@ class TestOAuthCallbackRoute:
             },
         )
         assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert "completed" in body["message"].lower()
+        assert body["open_id_present"] is True
+        mock_token_exchange.assert_called_once_with("ROW_test_auth_code")
 
     @pytest.mark.asyncio
-    async def test_callback_rejects_invalid_state(self, client):
+    async def test_callback_rejects_invalid_state(self, client, mock_token_exchange):
         resp = await client.get(
             CALLBACK_PATH,
             params={"code": "auth_code", "state": "tampered.state"},
         )
         assert resp.status_code == 401
+        mock_token_exchange.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_callback_accepts_valid_params(self, client, user_id):
+    async def test_callback_exchanges_code_and_returns_sanitized_response(
+        self, client, user_id, mock_token_exchange
+    ):
         state = _build_state(user_id)
         resp = await client.get(
             CALLBACK_PATH,
@@ -93,7 +127,36 @@ class TestOAuthCallbackRoute:
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ok"
-        assert "pending" in body["message"].lower()
+        assert "completed" in body["message"].lower()
+        assert body["open_id_present"] is True
+        assert body["access_token_expires_in"] == 604800
+        mock_token_exchange.assert_called_once_with("auth_code_123")
+
+        raw = resp.text
+        assert TOKEN_FIXTURE["access_token"] not in raw
+        assert TOKEN_FIXTURE["refresh_token"] not in raw
+
+    @pytest.mark.asyncio
+    async def test_callback_token_exchange_failure_returns_502(
+        self, client, mock_token_exchange
+    ):
+        mock_token_exchange.side_effect = AuthenticationError(
+            code=100002, message="Invalid auth code"
+        )
+        resp = await client.get(
+            CALLBACK_PATH,
+            params={"code": "bad_code"},
+        )
+        assert resp.status_code == 502
+        assert resp.json()["detail"] == "TikTok token exchange failed"
+        assert TOKEN_FIXTURE["access_token"] not in resp.text
+
+    @pytest.mark.asyncio
+    async def test_callback_missing_app_key_returns_503(self, client, monkeypatch):
+        monkeypatch.delenv("TIKTOK_APP_KEY", raising=False)
+        resp = await client.get(CALLBACK_PATH, params={"code": "auth_code"})
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "TikTok OAuth is not configured"
 
     @pytest.mark.asyncio
     async def test_callback_does_not_require_jwt(self, client):

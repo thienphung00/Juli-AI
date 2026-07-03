@@ -44,3 +44,5 @@ class TikTokOAuthCallbackResult(BaseModel):
 
     status: str
     message: str
+    open_id_present: bool | None = None
+    access_token_expires_in: int | None = None

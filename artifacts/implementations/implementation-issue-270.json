@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 270,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-03T0945Z",
+  "startedAt": "2026-07-03T09:44:00Z",
+  "completedAt": "2026-07-03T09:50:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "filesModified": [
+    "backend/api/api/routers/auth_tiktok.py",
+    "backend/api/services/tiktok/oauth.py",
+    "backend/api/services/tiktok/schemas.py",
+    "tests/unit/test_tiktok_auth_callback.py",
+    "tests/unit/test_tiktok_infrastructure_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_token_exchange_failure_returns_502",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_app_key_returns_503"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_accepts_code_without_state",
+    "tests/unit/test_tiktok_infrastructure_contract.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "Callback exchanges code and returns sanitized completed response",
+      "redCommand": "pytest tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response -q",
+      "redResult": "FAIL \u2014 message still contained pending",
+      "greenCommand": "pytest tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response -q",
+      "greenResult": "PASS"
+    },
+    {
+      "cycle": 2,
+      "behavior": "Missing TIKTOK_APP_KEY returns 503",
+      "redCommand": "pytest tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_app_key_returns_503 -q",
+      "redResult": "FAIL \u2014 TikTokOAuthConfigError escaped dependency injection",
+      "greenCommand": "pytest tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_app_key_returns_503 -q",
+      "greenResult": "PASS after raising HTTPException in get_tiktok_oauth_service"
+    }
+  ],
+  "implementationSummary": "Replaced OAuth callback token-exchange stub with real TikTokAuth.exchange_code via asyncio.to_thread; extended callback response with sanitized metadata (open_id_present, access_token_expires_in); mapped config and auth failures to 503/502.",
+  "assumptions": [
+    "App Review slice verifies exchange only \u2014 credential persistence remains in TikTokOAuthService",
+    "TIKTOK_BASE_URL defaults to https://open-api.tiktokglobalshop.com when unset"
+  ],
+  "risks": [
+    "Live Partner Center exchange still requires valid review app credentials on VPS"
+  ],
+  "acceptanceCriteria": [
+    "Callback with valid code calls TikTokAuth.exchange_code",
+    "Success response proves exchange completed without leaking tokens",
+    "Code-only redirects still work",
+    "Invalid state returns 401; missing code returns 400",
+    "Missing env returns safe configuration error",
+    "TikTok auth failures map to sanitized API error",
+    "Tests cover success, failure, redaction, and config-missing paths"
+  ]
+}
