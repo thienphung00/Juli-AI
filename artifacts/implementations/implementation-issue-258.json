@@ -46,15 +46,15 @@
     "tests/unit/test_phase_2_5_backend_deploy.py"
   ],
   "testsAdded": [
-    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_public_health_endpoint",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_health_returns_2xx_json",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_smoke_test_covers_backend_health",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_required_env_vars",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_env_example_sets_review_cors_and_database",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_systemd_unit_binds_backend_to_loopback_single_worker",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_provision_script_installs_juli_api_and_pip_deps",
-    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_excludes_forbidden_services",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_excludes_redis_cron_workers_webhooks_not_required",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_provision_script_does_not_reference_forbidden_services",
-    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_alembic_skip_policy",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_alembic_migrations_skipped_unless_oauth",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_provision_script_is_executable_and_has_shebang",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_provision_and_smoke",
     "tests/unit/test_phase_2_5_backend_deploy.py::test_issues_index_records_p2_5_ar_2b_slice",

@@ -39,7 +39,7 @@ def backend_runbook_text() -> str:
 
 
 # AC1: https://api.app-juli.com/health returns 2xx JSON (runbook + smoke).
-def test_backend_runbook_documents_public_health_endpoint(backend_runbook_text: str):
+def test_backend_runbook_documents_health_returns_2xx_json(backend_runbook_text: str):
     assert BACKEND_RUNBOOK_PATH.is_file()
     assert f"https://{API_DOMAIN}/health" in backend_runbook_text
     assert "/health" in backend_runbook_text
@@ -86,7 +86,7 @@ def test_provision_script_installs_juli_api_and_pip_deps():
 
 
 # AC4: Redis, cron, workers, ML, polling, webhooks not required.
-def test_backend_runbook_excludes_forbidden_services(backend_runbook_text: str):
+def test_backend_runbook_excludes_redis_cron_workers_webhooks_not_required(backend_runbook_text: str):
     lowered = backend_runbook_text.lower()
     for term in ("redis", "cron", "worker", "ml", "polling", "webhook"):
         assert term in lowered, f"runbook must document {term} as out of scope"
@@ -106,7 +106,7 @@ def test_provision_script_does_not_reference_forbidden_services():
 
 
 # AC5: Alembic migrations skipped unless OAuth/login persistence requires schema.
-def test_backend_runbook_documents_alembic_skip_policy(backend_runbook_text: str):
+def test_backend_runbook_documents_alembic_migrations_skipped_unless_oauth(backend_runbook_text: str):
     assert "Alembic" in backend_runbook_text or "alembic" in backend_runbook_text
     lowered = backend_runbook_text.lower()
     assert "skip" in lowered

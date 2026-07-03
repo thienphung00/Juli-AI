@@ -16,7 +16,7 @@
       "mappings": [
         {
           "criterion": "https://api.app-juli.com/health returns 2xx JSON.",
-          "test": "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_public_health_endpoint"
+          "test": "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_health_returns_2xx_json"
         },
         {
           "criterion": "API starts with required env vars only (DATABASE_URL, CORS_ALLOW_ORIGINS).",
@@ -28,11 +28,11 @@
         },
         {
           "criterion": "Redis, cron, workers, ML jobs, polling, and webhook services not required.",
-          "test": "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_excludes_forbidden_services"
+          "test": "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_excludes_redis_cron_workers_webhooks_not_required"
         },
         {
           "criterion": "Alembic migrations skipped unless OAuth/login persistence requires schema.",
-          "test": "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_alembic_skip_policy"
+          "test": "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_alembic_migrations_skipped_unless_oauth"
         }
       ]
     },
