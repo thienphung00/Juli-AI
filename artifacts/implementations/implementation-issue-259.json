@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 259,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-03T0915Z",
+  "startedAt": "2026-07-03T09:02:00Z",
+  "completedAt": "2026-07-03T09:15:00Z",
+  "executionDurationMs": 780000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "Write", "StrReplace", "Shell"],
+  "toolInvocationCount": 35,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "backend/integrations/identity/infrastructure/auth/MODULE.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "infra/deploy/app-review-runbook.md"
+  ],
+  "skillsLoaded": ["focus", "backend"],
+  "filesModified": [
+    "backend/api/api/app.py",
+    "backend/api/api/routers/auth_tiktok.py",
+    "backend/api/services/tiktok/__init__.py",
+    "backend/api/services/tiktok/schemas.py",
+    "backend/api/services/tiktok/oauth.py",
+    "backend/api/services/tiktok/signature.py",
+    "backend/api/services/tiktok/dispatcher.py",
+    "backend/api/services/tiktok/webhook.py",
+    "backend/api/services/webhook/app.py",
+    "backend/api/services/webhook/__init__.py",
+    "tests/unit/test_tiktok_auth_callback.py",
+    "tests/unit/test_tiktok_webhook_services.py",
+    "tests/unit/test_tiktok_infrastructure_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_params_returns_400",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_state_returns_400",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_rejects_invalid_state",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_accepts_valid_params",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_does_not_require_jwt",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_route_is_listed_in_openapi",
+    "tests/unit/test_tiktok_webhook_services.py::TestWebhookDispatcher::test_dispatches_to_expected_handler",
+    "tests/unit/test_tiktok_webhook_services.py::TestWebhookSignatureVerifier::test_verify_matches_hmac_helper",
+    "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_endpoint_exists_and_is_reachable",
+    "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_validates_required_parameters",
+    "tests/unit/test_tiktok_infrastructure_contract.py::test_webhook_accepts_json_payload_with_valid_signature",
+    "tests/unit/test_tiktok_infrastructure_contract.py::test_webhook_dispatcher_routes_order_created_event",
+    "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_returns_proper_http_responses"
+  ],
+  "acceptanceCriteria": [
+    "OAuth callback endpoint exists and is reachable at GET /v1/auth/tiktok/callback",
+    "Webhook endpoint exists at POST /webhooks/tiktok with signature verification and dispatcher",
+    "OAuth callback validates required parameters and verifies state",
+    "Webhook accepts JSON payloads and returns appropriate HTTP status",
+    "Logging added; existing webhook and OAuth service tests pass"
+  ],
+  "notes": [
+    "Infrastructure-only OAuth: token exchange stubbed; full persistence remains in TikTokOAuthService",
+    "Webhook refactor preserves ETL handoff contract; dispatcher handlers are TODO stubs"
+  ]
+}

@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI
 
+from backend.api.api.routers.auth_tiktok import router as auth_tiktok_router
 from backend.api.api.routers.alerts import router as alerts_router
 from backend.api.api.routers.analytics import router as analytics_router
 from backend.api.api.routers.creators import router as creators_router
@@ -26,6 +27,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     )
 
     v1_router = APIRouter(prefix="/v1")
+    v1_router.include_router(auth_tiktok_router)
     v1_router.include_router(shops_router)
     v1_router.include_router(orders_router)
     v1_router.include_router(products_router)
