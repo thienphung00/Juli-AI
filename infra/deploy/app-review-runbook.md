@@ -56,6 +56,7 @@ and config samples that make that wiring repeatable.
 | [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | HITL DNS + Nginx + Certbot (#256) |
 | [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) | Deploy Next.js frontend on VPS (#257) |
 | [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | Deploy FastAPI backend on VPS (#258) |
+| [`reviewer-login-runbook.md`](reviewer-login-runbook.md) | Reviewer demo login path (#260) |
 | [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
 | [`provision-frontend.sh`](provision-frontend.sh) | Install `juli-web` + production build (#257) |
 | [`provision-backend.sh`](provision-backend.sh) | Install `juli-api` + pip deps (#258) |
@@ -204,6 +205,7 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 - [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles
       missing/invalid OAuth params without a 5xx crash.
 - [ ] Reviewer login uses one-click demo entry (`NEXT_PUBLIC_UI_ONLY=1`).
+      See [`reviewer-login-runbook.md`](reviewer-login-runbook.md) (#260).
 - [ ] CORS allows `https://app-juli.com`.
 - [ ] No production users, production traffic, or persistent business data are
       required to complete App Review.

@@ -212,6 +212,22 @@ require `juli-api` running with `DATABASE_URL` and `CORS_ALLOW_ORIGINS` set on t
 
 ---
 
+## Reviewer login (2.5-review-d, issue #260)
+
+AFK/HITL slice: TikTok reviewers log in via **one-click demo entry**
+(`NEXT_PUBLIC_UI_ONLY=1`) without becoming production users or loading real seller
+data. Optional Supabase OTP path documented only when TikTok explicitly requires it.
+
+| Path | Purpose |
+|------|---------|
+| [`reviewer-login-runbook.md`](../../infra/deploy/reviewer-login-runbook.md) | UI-only default, optional Supabase OTP, credentials outside git |
+| [`build-frontend-review.sh`](../../infra/deploy/build-frontend-review.sh) | Forces `NEXT_PUBLIC_UI_ONLY=1` at build time |
+
+Prerequisites: [#257](frontend-deploy-runbook.md) frontend deploy, [#258](backend-deploy-runbook.md)
+backend deploy. Smoke test login checks require `juli-web` built with the review script.
+
+---
+
 ## App Review deployment envelope (2.5-review)
 
 Keep these components in Phase 2.5:

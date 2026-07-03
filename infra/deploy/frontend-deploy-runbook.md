@@ -97,6 +97,8 @@ sudo systemctl restart juli-web
 Backend deploy ([#258](https://github.com/thienphung00/Juli-AI/issues/258)) is
 independent; the frontend can ship first with UI-only mode.
 
+Full reviewer login sign-off: [`reviewer-login-runbook.md`](reviewer-login-runbook.md) (#260).
+
 ---
 
 ## Redeploy (code or env change)
