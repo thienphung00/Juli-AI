@@ -159,6 +159,13 @@ class TestOAuthCallbackRoute:
         assert resp.json()["detail"] == "TikTok OAuth is not configured"
 
     @pytest.mark.asyncio
+    async def test_callback_missing_app_secret_returns_503(self, client, monkeypatch):
+        monkeypatch.delenv("TIKTOK_APP_SECRET", raising=False)
+        resp = await client.get(CALLBACK_PATH, params={"code": "auth_code"})
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "TikTok OAuth is not configured"
+
+    @pytest.mark.asyncio
     async def test_callback_does_not_require_jwt(self, client):
         """Public OAuth redirect must not require Supabase JWT."""
         resp = await client.get(CALLBACK_PATH)
