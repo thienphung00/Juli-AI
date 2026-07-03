@@ -159,7 +159,7 @@ in this repository.
 | [#257](https://github.com/thienphung00/Juli-AI/issues/257) | Deploy Next.js frontend (`juli-web`) |
 | [#258](https://github.com/thienphung00/Juli-AI/issues/258) | Deploy FastAPI backend (`juli-api`) |
 | [#259](https://github.com/thienphung00/Juli-AI/issues/259) | TikTok OAuth callback handler |
-| [#260](https://github.com/thienphung00/Juli-AI/issues/260) | Reviewer login path |
+| [#260](https://github.com/thienphung00/Juli-AI/issues/260) | Reviewer login path — [`reviewer-login-runbook.md`](reviewer-login-runbook.md) |
 | [#254](https://github.com/thienphung00/Juli-AI/issues/254) | End-to-end App Review verification |
 
 Full deploy steps (systemd units, env files, independent restarts):

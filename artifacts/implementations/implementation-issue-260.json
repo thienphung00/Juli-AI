@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 260,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-03T1519Z",
+  "startedAt": "2026-07-03T08:10:00Z",
+  "completedAt": "2026-07-03T08:23:00Z",
+  "executionDurationMs": 780000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 28,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/features/app_review_deployment/issues.md",
+    "docs/decisions/002-supabase-backend-service.md",
+    "infra/deploy/app-review-runbook.md",
+    "infra/deploy/frontend-deploy-runbook.md",
+    "infra/deploy/build-frontend-review.sh",
+    "web/src/components/LoginForm.tsx",
+    "web/src/lib/auth-context.tsx",
+    "GitHub issue #260"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "infra/deploy/reviewer-login-runbook.md",
+    "infra/deploy/app-review-runbook.md",
+    "infra/deploy/frontend-deploy-runbook.md",
+    "infra/deploy/vps-wiring-runbook.md",
+    "infra/deploy/README.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/features/app_review_deployment/issues.md",
+    "tests/unit/test_phase_2_5_reviewer_login.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_documents_supabase_free_tier_for_otp",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_documents_supabase_site_and_redirect_urls",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_directs_credentials_outside_source_control",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_documents_ui_only_as_default",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_build_script_and_env_enforce_ui_only_for_review",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_login_form_implements_one_click_reviewer_entry",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_smoke_test_probes_demo_login_markers",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_documents_no_real_seller_data",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_links_prerequisite_deploy_slices",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_documents_smoke_verification",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_issues_index_records_p2_5_ar_4_reviewer_login_slice",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_phase_doc_records_2_5_review_d_reviewer_login_slice",
+    "tests/unit/test_phase_2_5_reviewer_login.py::test_reviewer_runbook_does_not_embed_functional_secrets"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_phase_2_5_reviewer_login.py did not exist — no contract tests for #260 reviewer login deliverables",
+      "passingTestEvidence": "Added reviewer-login-runbook.md and 13 contract tests mapping all five acceptance criteria; all pass with 55 phase-2.5 deploy tests green",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_reviewer_login.py -q",
+          "exitCode": 0,
+          "outputSummary": "13 passed"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_deploy_config.py tests/unit/test_phase_2_5_frontend_deploy.py tests/unit/test_phase_2_5_backend_deploy.py tests/unit/test_phase_2_5_reviewer_login.py -q",
+          "exitCode": 0,
+          "outputSummary": "55 passed"
+        },
+        {
+          "command": "cd web && npm run test -- --testPathPattern=test_ui_only_login",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Phase 2.5-review-d (#260) reviewer login slice: dedicated runbook documenting UI-only demo login as the default App Review path (NEXT_PUBLIC_UI_ONLY=1), optional Supabase free-tier OTP configuration with Site URL and redirect URLs, credentials outside source control, and no real seller data; 13 CI contract tests; cross-links in deploy docs and phase index.",
+  "assumptions": [
+    "#257 frontend and #258 backend deploy prerequisites are satisfied on the review VPS",
+    "UI-only one-click login (existing LoginForm + loginAsReviewer) satisfies TikTok App Review without Supabase OTP",
+    "Supabase free tier is used for DATABASE_URL only in the default path; OTP auth section is HITL fallback",
+    "Live VPS sign-off and smoke-test.sh remain HITL for the operator"
+  ],
+  "risks": [
+    "Issue cannot be fully closed until operator verifies https://app-juli.com/login shows demo entry on the live VPS",
+    "Switching to Supabase OTP would require rebuilding without NEXT_PUBLIC_UI_ONLY=1 — out of default scope",
+    "Reviewer handoff template in runbook must be copied to ops notes with operator contact filled in"
+  ]
+}
