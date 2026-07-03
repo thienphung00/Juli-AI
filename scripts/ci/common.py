@@ -333,9 +333,17 @@ def pytest_node_exists(node_id: str) -> bool:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except SyntaxError:
         return False
+
+    def _matches(node: ast.AST) -> bool:
+        return isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == test_name
+
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == test_name:
+        if _matches(node):
             return True
+        if isinstance(node, ast.ClassDef):
+            for item in node.body:
+                if _matches(item):
+                    return True
     return False
 
 

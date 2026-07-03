@@ -11,7 +11,9 @@ from unittest.mock import MagicMock
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
+from backend.database.models import TikTokCredential
 from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
     AuthenticationError,
 )
@@ -116,7 +118,7 @@ class TestOAuthCallbackRoute:
 
     @pytest.mark.asyncio
     async def test_callback_exchanges_code_and_returns_sanitized_response(
-        self, client, user_id, mock_token_exchange
+        self, client, session, user_id, mock_token_exchange
     ):
         state = _build_state(user_id)
         resp = await client.get(
@@ -135,6 +137,13 @@ class TestOAuthCallbackRoute:
         raw = resp.text
         assert TOKEN_FIXTURE["access_token"] not in raw
         assert TOKEN_FIXTURE["refresh_token"] not in raw
+
+        stored = await session.execute(
+            select(TikTokCredential.access_token, TikTokCredential.refresh_token)
+        )
+        stored_access_token, stored_refresh_token = stored.one()
+        assert stored_access_token != TOKEN_FIXTURE["access_token"]
+        assert stored_refresh_token != TOKEN_FIXTURE["refresh_token"]
 
     @pytest.mark.asyncio
     async def test_callback_token_exchange_failure_returns_502(

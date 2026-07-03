@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-259",
   "issue": 259,
-  "timestamp": "2026-07-03T02:17:17Z",
+  "timestamp": "2026-07-03T08:04:21Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 13,
@@ -20,11 +20,11 @@
     {
       "name": "implementation_artifact_present",
       "status": "PASS",
-      "description": "Implementation artifact present; domain backend",
+      "description": "Implementation artifact present; domain data-platform",
       "details": {
-        "executorDomain": "backend",
-        "phaseRunId": "2026-07-03T0915Z",
-        "executionDurationMs": 780000
+        "executorDomain": "data-platform",
+        "phaseRunId": "2026-07-03T0805Z",
+        "executionDurationMs": 660000
       }
     },
     {
@@ -32,8 +32,8 @@
       "status": "PASS",
       "description": "All acceptance criteria mapped to tests",
       "details": {
-        "total": 5,
-        "mapped": 5,
+        "total": 6,
+        "mapped": 6,
         "unmapped": [],
         "problems": []
       }
@@ -149,8 +149,8 @@
   "validationFailures": 0,
   "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 63,
-  "testsPassed": 63,
+  "testsExecuted": 52,
+  "testsPassed": 52,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",

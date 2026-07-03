@@ -178,4 +178,5 @@ Affiliate `PermissionDeniedError` (100003) should surface re-consent UX, not sil
 
 `TikTokAuth` does **not** persist tokens — storage is the identity/persistence layer.
 
-**Env vars:** `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET`, `TIKTOK_REDIRECT_URI`, `TIKTOK_BASE_URL` (optional override).
+**Env vars:** `TIKTOK_APP_KEY`, `TIKTOK_APP_SECRET`, `TIKTOK_TOKEN_ENCRYPTION_KEY`,
+`TIKTOK_REDIRECT_URI`, `TIKTOK_BASE_URL` (optional override).

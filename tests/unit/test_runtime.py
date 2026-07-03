@@ -43,6 +43,13 @@ def test_sync_database_url_leaves_local_postgres_unchanged():
     assert sync_database_url(raw) == raw
 
 
+def test_sync_database_url_rejects_ipv6_only_direct_supabase_host(monkeypatch):
+    monkeypatch.setattr("backend.runtime._supabase_ipv4_hostaddr", lambda hostname, port: None)
+    raw = "postgresql://postgres:pass@db.project.supabase.co:5432/postgres"
+    with pytest.raises(RuntimeError, match="Session pooler"):
+        sync_database_url(raw)
+
+
 def test_cors_allow_origins_splits_csv(monkeypatch):
     monkeypatch.setenv(
         "CORS_ALLOW_ORIGINS",

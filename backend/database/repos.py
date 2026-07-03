@@ -6,6 +6,7 @@ from typing import Any, Generic, TypeVar
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from backend.database.exceptions import NotFound
 from backend.database.models import (
@@ -27,6 +28,7 @@ from backend.database.models import (
     TikTokCredential,
     User,
 )
+from backend.database.token_crypto import decrypt_token, encrypt_token
 
 T = TypeVar("T")
 
@@ -99,13 +101,14 @@ class TikTokCredentialRepo:
         credential = TikTokCredential(
             id=uuid.uuid4(),
             shop_id=shop_id,
-            access_token=access_token,
-            refresh_token=refresh_token,
+            access_token=encrypt_token(access_token),
+            refresh_token=encrypt_token(refresh_token),
             token_expires_at=token_expires_at,
             scopes=scopes,
         )
         self._session.add(credential)
         await self._session.flush()
+        _hydrate_decrypted_tokens(credential)
         return credential
 
     async def get_by_shop(self, shop_id: uuid.UUID) -> TikTokCredential:
@@ -120,6 +123,7 @@ class TikTokCredentialRepo:
         credential = result.scalar_one_or_none()
         if credential is None:
             raise NotFound(f"No credentials found for shop {shop_id}")
+        _hydrate_decrypted_tokens(credential)
         return credential
 
     async def get_latest(self) -> TikTokCredential:
@@ -133,6 +137,7 @@ class TikTokCredentialRepo:
         credential = result.scalar_one_or_none()
         if credential is None:
             raise NotFound("No TikTok credentials found")
+        _hydrate_decrypted_tokens(credential)
         return credential
 
     async def update_tokens(
@@ -145,11 +150,22 @@ class TikTokCredentialRepo:
         credential = await self._session.get(TikTokCredential, credential_id)
         if credential is None:
             raise NotFound(f"Credential {credential_id} not found")
-        credential.access_token = access_token
-        credential.refresh_token = refresh_token
+        credential.access_token = encrypt_token(access_token)
+        credential.refresh_token = encrypt_token(refresh_token)
         credential.token_expires_at = token_expires_at
         await self._session.flush()
+        _hydrate_decrypted_tokens(credential)
         return credential
+
+
+def _hydrate_decrypted_tokens(credential: TikTokCredential) -> None:
+    """Expose plaintext tokens to callers without marking DB columns dirty."""
+    set_committed_value(
+        credential, "access_token", decrypt_token(credential.access_token)
+    )
+    set_committed_value(
+        credential, "refresh_token", decrypt_token(credential.refresh_token)
+    )
 
 
 # ---------------------------------------------------------------------------

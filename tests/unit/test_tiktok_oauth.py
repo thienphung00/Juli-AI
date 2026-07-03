@@ -13,10 +13,11 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 
 from backend.integrations.identity.infrastructure.auth.exceptions import Unauthorized
 from backend.integrations.identity.infrastructure.auth.tiktok_oauth import TikTokOAuthService
-from backend.database.models import User
+from backend.database.models import TikTokCredential, User
 from backend.database.repos import ShopsRepo, TikTokCredentialRepo
 from backend.integrations.catalog.domain.integrations.tiktok.auth import TikTokAuth
 
@@ -127,6 +128,14 @@ class TestOAuthCallback:
         assert cred.token_expires_at > datetime.now(timezone.utc).replace(
             tzinfo=None
         )
+
+        raw = await session.execute(
+            select(TikTokCredential.access_token, TikTokCredential.refresh_token)
+            .where(TikTokCredential.id == cred.id)
+        )
+        stored_access_token, stored_refresh_token = raw.one()
+        assert stored_access_token != "ROW_access_abc"
+        assert stored_refresh_token != "ROW_refresh_xyz"
 
     @pytest.mark.asyncio
     async def test_oauth_callback_rejects_tampered_state(

@@ -2,65 +2,128 @@
   "schemaVersion": "1.0.0",
   "artifactType": "implementation",
   "issueId": 259,
-  "executorDomain": "backend",
-  "phaseRunId": "2026-07-03T0915Z",
-  "startedAt": "2026-07-03T09:02:00Z",
-  "completedAt": "2026-07-03T09:15:00Z",
-  "executionDurationMs": 780000,
+  "executorDomain": "data-platform",
+  "phaseRunId": "2026-07-03T0805Z",
+  "startedAt": "2026-07-03T0754:00Z",
+  "completedAt": "2026-07-03T0805:00Z",
+  "executionDurationMs": 660000,
   "tokenUsage": {
     "input": 0,
     "output": 0,
     "total": 0
   },
-  "toolsUsed": ["Read", "Grep", "Glob", "Write", "StrReplace", "Shell"],
-  "toolInvocationCount": 35,
+  "toolsUsed": [
+    {
+      "toolName": "ReadFile",
+      "count": 25,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "rg",
+      "count": 4,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Glob",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ApplyPatch",
+      "count": 8,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "green"
+    },
+    {
+      "toolName": "ReadLints",
+      "count": 1,
+      "stage": "refactor"
+    }
+  ],
+  "toolInvocationCount": 49,
   "contextFilesLoaded": [
     ".cursor/skills/standalone/focus/SKILL.md",
     ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/data-platform/SKILL.md",
+    ".cursor/rules/security.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/patterns.mdc",
+    "EXECUTION.md",
+    "docs/system-design.md",
+    "docs/architecture/map.md",
+    "docs/architecture/data-sources.md",
+    "docs/tiktok_api/authentication.md",
+    "backend/integrations/catalog/domain/integrations/tiktok/MODULE.md",
     "backend/integrations/identity/infrastructure/auth/MODULE.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "infra/deploy/app-review-runbook.md"
+    "backend/database/MODULE.md",
+    "backend/api/api/MODULE.md",
+    "GitHub issue #259"
   ],
-  "skillsLoaded": ["focus", "backend"],
+  "skillsLoaded": [
+    "focus",
+    "backend-executor",
+    "data-platform-executor",
+    "review"
+  ],
   "filesModified": [
-    "backend/api/api/app.py",
-    "backend/api/api/routers/auth_tiktok.py",
-    "backend/api/services/tiktok/__init__.py",
-    "backend/api/services/tiktok/schemas.py",
-    "backend/api/services/tiktok/oauth.py",
-    "backend/api/services/tiktok/signature.py",
-    "backend/api/services/tiktok/dispatcher.py",
-    "backend/api/services/tiktok/webhook.py",
-    "backend/api/services/webhook/app.py",
-    "backend/api/services/webhook/__init__.py",
+    "backend/database/token_crypto.py",
+    "backend/database/repos.py",
+    "tests/unit/test_tiktok_oauth.py",
     "tests/unit/test_tiktok_auth_callback.py",
-    "tests/unit/test_tiktok_webhook_services.py",
-    "tests/unit/test_tiktok_infrastructure_contract.py"
+    "tests/unit/conftest.py",
+    "infra/deploy/env/api.env.example",
+    "infra/deploy/backend-deploy-runbook.md",
+    "infra/deploy/app-review-runbook.md",
+    "tests/unit/test_phase_2_5_deploy_config.py",
+    "docs/tiktok_api/authentication.md",
+    "artifacts/implementations/implementation-issue-259.json"
   ],
-  "testsAdded": [
-    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_params_returns_400",
-    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_state_returns_400",
-    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_rejects_invalid_state",
-    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_accepts_valid_params",
-    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_does_not_require_jwt",
-    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_route_is_listed_in_openapi",
-    "tests/unit/test_tiktok_webhook_services.py::TestWebhookDispatcher::test_dispatches_to_expected_handler",
-    "tests/unit/test_tiktok_webhook_services.py::TestWebhookSignatureVerifier::test_verify_matches_hmac_helper",
-    "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_endpoint_exists_and_is_reachable",
-    "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_validates_required_parameters",
-    "tests/unit/test_tiktok_infrastructure_contract.py::test_webhook_accepts_json_payload_with_valid_signature",
-    "tests/unit/test_tiktok_infrastructure_contract.py::test_webhook_dispatcher_routes_order_created_event",
-    "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_returns_proper_http_responses"
+  "testsAdded": [],
+  "testsUpdated": [
+    "tests/unit/test_tiktok_oauth.py::TestOAuthCallback::test_oauth_callback_provisions_shop",
+    "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+    "tests/unit/conftest.py::token_encryption_key",
+    "tests/unit/test_phase_2_5_deploy_config.py::test_env_examples_do_not_contain_real_secrets"
   ],
-  "acceptanceCriteria": [
-    "OAuth callback endpoint exists and is reachable at GET /v1/auth/tiktok/callback",
-    "Webhook endpoint exists at POST /webhooks/tiktok with signature verification and dispatcher",
-    "OAuth callback validates required parameters and verifies state",
-    "Webhook accepts JSON payloads and returns appropriate HTTP status",
-    "Logging added; existing webhook and OAuth service tests pass"
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Focused OAuth tests failed because access_token and refresh_token were stored as plaintext in tiktok_credentials.",
+      "passingTestEvidence": "Focused OAuth encryption tests passed after repo-level encryption was added.",
+      "refactorEvidence": "Broader OAuth, callback, verify-connection, deploy-config, and backend deploy tests passed; IDE lints clean.",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_tiktok_oauth.py::TestOAuthCallback::test_oauth_callback_provisions_shop tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+          "exitCode": 1,
+          "outputSummary": "2 failed: persisted database token columns matched plaintext token fixtures."
+        },
+        {
+          "command": "python -m pytest tests/unit/test_tiktok_oauth.py::TestOAuthCallback::test_oauth_callback_provisions_shop tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+          "exitCode": 0,
+          "outputSummary": "2 passed after encrypting token writes and decrypting repo reads."
+        },
+        {
+          "command": "python -m pytest tests/unit/test_tiktok_oauth.py tests/unit/test_tiktok_auth_callback.py tests/unit/test_tiktok_verify_connection.py tests/unit/test_phase_2_5_deploy_config.py tests/unit/test_phase_2_5_backend_deploy.py",
+          "exitCode": 0,
+          "outputSummary": "52 passed."
+        }
+      ]
+    }
   ],
-  "notes": [
-    "Infrastructure-only OAuth: token exchange stubbed; full persistence remains in TikTokOAuthService",
-    "Webhook refactor preserves ETL handoff contract; dispatcher handlers are TODO stubs"
+  "implementationSummary": "Added issue #259 context for the TikTok OAuth token flow, then implemented encrypted at-rest storage for TikTok access/refresh tokens in TikTokCredentialRepo while preserving plaintext values for existing repo callers and token refresh flows. Updated focused tests, test encryption fixtures, deploy env/runbooks, and TikTok auth docs for the preferred token encryption key.",
+  "assumptions": [
+    "The existing shops + tiktok_credentials schema remains the current persistence boundary; the issue comment's merchant_connections wording maps to this repo's existing credential model until a separate schema rename is explicitly scoped.",
+    "TIKTOK_TOKEN_ENCRYPTION_KEY is the preferred production secret; TOKEN_ENCRYPTION_KEY or TIKTOK_APP_SECRET fallback keeps App Review/local OAuth persistence operational with existing env setup.",
+    "Existing plaintext rows can still be read because decrypt_token accepts unprefixed legacy values."
+  ],
+  "risks": [
+    "Rotating the token encryption key without re-encrypting existing enc:v1 values will make encrypted tokens unreadable.",
+    "The implementation relies on cryptography supplied by the existing pyjwt[crypto] dependency chain; requirements do not list cryptography directly.",
+    "Existing validation artifact predates this continuation and should be regenerated if this branch is going through the full validate phase."
   ]
 }

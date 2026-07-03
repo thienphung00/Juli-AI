@@ -36,6 +36,7 @@ VPS only — never commit real values.
 | `DATABASE_URL` | Yes | Supabase Postgres for review |
 | `CORS_ALLOW_ORIGINS` | Yes | `https://app-juli.com` |
 | `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | OAuth (#259) | Partner Center review app |
+| `TIKTOK_TOKEN_ENCRYPTION_KEY` | OAuth persistence (#259) | Dedicated secret for encrypted token storage |
 | `SUPABASE_JWT_SECRET` | Protected routes | Optional when frontend uses UI-only demo login |
 
 See [`env/api.env.example`](env/api.env.example). App Review **does not** require
@@ -140,26 +141,29 @@ sudo systemctl status juli-api --no-pager
 sudo journalctl -u juli-api -n 50 --no-pager
 ```
 
-### Startup fails on DATABASE_URL
+### Startup fails on DATABASE_URL / Alembic "Connection refused"
 
-FastAPI lifespan requires a reachable Postgres URL. Confirm Supabase credentials on
-the VPS and that the review project allows connections from the VPS IP.
+Supabase **direct** hosts (`db.<project-ref>.supabase.co`) are **IPv6-only**.
+Most VPS hosts are IPv4-only — `getent ahostsv4 db....supabase.co` returns
+nothing, and connections to `2600:...` fail with `Connection refused`.
 
-Alembic uses the same `DATABASE_URL` with `sslmode=require` and IPv4 `hostaddr`
-for `*.supabase.co` hosts. If you still see `Connection refused` to an IPv6
-address (`2600:...`), pull latest code and retry:
+**Fix:** set `DATABASE_URL` in `.env` to the **Session pooler** URI (IPv4):
+
+1. Supabase Dashboard → **Connect** → **Session mode** (port `5432`)
+2. Copy the URI — host looks like `aws-0-<region>.pooler.supabase.com`
+3. User is `postgres.<project-ref>` (not plain `postgres`)
 
 ```bash
-cd ~/Juli-AI-v2
-git pull
-.venv/bin/pip install -r requirements.txt
+# Confirm direct host has no IPv4 (expected on free/paid without IPv4 add-on)
+getent ahostsv4 db.YOUR_PROJECT_REF.supabase.co   # empty = use pooler
+
+# After updating .env
 set -a && source .env && set +a
 .venv/bin/alembic upgrade 001
+sudo systemctl restart juli-api
 ```
 
-If it still fails, replace `DATABASE_URL` in `.env` with the **Session pooler**
-URI from Supabase Dashboard → Project Settings → Database (host
-`*.pooler.supabase.com`, port `5432`), then rerun Alembic.
+Use the **same pooler `DATABASE_URL`** for both Alembic and `juli-api`.
 
 ### /health returns non-2xx over HTTPS but works locally
 

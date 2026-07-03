@@ -23,6 +23,10 @@ def _append_query_params(url: str, params: dict[str, str]) -> str:
     return urlunparse(parsed._replace(query=urlencode(query)))
 
 
+def _is_direct_supabase_host(hostname: str | None) -> bool:
+    return bool(hostname and hostname.startswith("db.") and hostname.endswith(".supabase.co"))
+
+
 def _supabase_ipv4_hostaddr(hostname: str, port: int | None) -> str | None:
     """Resolve Supabase host to IPv4 for VPSes without working IPv6 egress."""
     try:
@@ -54,6 +58,17 @@ def sync_database_url(raw_url: str) -> str:
     parsed = urlparse(url)
     if not parsed.hostname:
         return url
+
+    if _is_direct_supabase_host(parsed.hostname):
+        hostaddr = _supabase_ipv4_hostaddr(parsed.hostname, parsed.port)
+        if hostaddr is None:
+            raise RuntimeError(
+                "DATABASE_URL uses Supabase direct host db.*.supabase.co, which is "
+                "IPv6-only. On IPv4-only networks (most VPS hosts), use the Session "
+                "pooler URI from Supabase Dashboard → Connect → Session mode "
+                "(aws-0-<region>.pooler.supabase.com:5432, user postgres.<project-ref>)."
+            )
+        return _append_query_params(url, {"hostaddr": hostaddr})
 
     hostaddr = _supabase_ipv4_hostaddr(parsed.hostname, parsed.port)
     if hostaddr is None:
