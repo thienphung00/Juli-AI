@@ -45,7 +45,7 @@ class TikTokOAuthInfrastructureService:
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             raise Unauthorized(f"Malformed OAuth state: {exc}")
 
-    async def exchange_code(self, code: str, *, user_id: uuid.UUID) -> dict:
+    async def exchange_code(self, code: str, *, user_id: uuid.UUID | None = None) -> dict:
         """Placeholder for TikTok authorization-code → access-token exchange.
 
         TODO: Call ``TikTokAuth.exchange_code`` and persist credentials via
@@ -53,15 +53,41 @@ class TikTokOAuthInfrastructureService:
         """
         logger.info(
             "tiktok_oauth_code_received",
-            extra={"user_id": str(user_id), "code_len": len(code)},
+            extra={
+                "user_id": str(user_id) if user_id else None,
+                "code_len": len(code),
+            },
         )
-        return {"status": "pending", "user_id": str(user_id)}
+        return {"status": "pending", "user_id": str(user_id) if user_id else None}
 
-    async def handle_callback(self, code: str, state: str) -> TikTokOAuthCallbackResult:
-        """Validate callback parameters, verify state, and stub token exchange."""
-        user_id = self.verify_state(state)
+    async def handle_callback(
+        self,
+        code: str,
+        state: str | None = None,
+        *,
+        app_key: str | None = None,
+        locale: str | None = None,
+        shop_region: str | None = None,
+    ) -> TikTokOAuthCallbackResult:
+        """Validate callback parameters, verify state when present, stub token exchange."""
+        user_id: uuid.UUID | None = None
+        if state:
+            user_id = self.verify_state(state)
+        else:
+            logger.warning(
+                "tiktok_oauth_callback_missing_state",
+                extra={
+                    "app_key": app_key,
+                    "locale": locale,
+                    "shop_region": shop_region,
+                },
+            )
+
         await self.exchange_code(code, user_id=user_id)
-        logger.info("tiktok_oauth_callback_accepted", extra={"user_id": str(user_id)})
+        logger.info(
+            "tiktok_oauth_callback_accepted",
+            extra={"user_id": str(user_id) if user_id else None},
+        )
         return TikTokOAuthCallbackResult(
             status="ok",
             message="OAuth callback accepted; token exchange pending implementation",
