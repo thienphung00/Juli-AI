@@ -8,10 +8,17 @@ from pydantic import BaseModel, Field
 
 
 class TikTokOAuthCallbackParams(BaseModel):
-    """Query parameters TikTok sends to the OAuth redirect URL."""
+    """Query parameters TikTok sends to the OAuth redirect URL.
+
+    Partner Center may redirect with ``code`` only (no ``state``) when the seller
+    authorizes from the TikTok console rather than via a Juli-initiated auth URL.
+    """
 
     code: str = Field(min_length=1)
-    state: str = Field(min_length=1)
+    state: str | None = None
+    app_key: str | None = None
+    locale: str | None = None
+    shop_region: str | None = None
 
 
 class TikTokWebhookPayload(BaseModel):

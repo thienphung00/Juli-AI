@@ -60,9 +60,19 @@ class TestOAuthCallbackRoute:
         assert "code" in resp.json()["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_callback_missing_state_returns_400(self, client):
-        resp = await client.get(CALLBACK_PATH, params={"code": "abc"})
-        assert resp.status_code == 400
+    async def test_callback_accepts_code_without_state(self, client):
+        """Partner Center redirects with code but no state (App Review flow)."""
+        resp = await client.get(
+            CALLBACK_PATH,
+            params={
+                "app_key": "6kdu4f07vvlv9",
+                "code": "ROW_test_auth_code",
+                "locale": "vi-VN",
+                "shop_region": "VN",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
 
     @pytest.mark.asyncio
     async def test_callback_rejects_invalid_state(self, client):
