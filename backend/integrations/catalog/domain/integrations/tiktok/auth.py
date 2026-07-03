@@ -17,15 +17,25 @@ from backend.integrations.catalog.domain.integrations.tiktok.exceptions import A
 logger = logging.getLogger(__name__)
 
 PARTNER_AUTH_URL = "https://services.tiktokshop.com/open/authorize"
+DEFAULT_OPEN_API_BASE_URL = "https://open-api.tiktokglobalshop.com"
+DEFAULT_AUTH_BASE_URL = "https://auth.tiktok-shops.com"
 
 
 class TikTokAuth:
     """Manages the OAuth 2.0 lifecycle for a TikTok Shop Partner app."""
 
-    def __init__(self, app_key: str, app_secret: str, base_url: str) -> None:
+    def __init__(
+        self,
+        app_key: str,
+        app_secret: str,
+        base_url: str | None = None,
+        *,
+        auth_base_url: str | None = None,
+    ) -> None:
         self._app_key = app_key
         self._app_secret = app_secret
-        self._base_url = base_url.rstrip("/")
+        self._base_url = (base_url or DEFAULT_OPEN_API_BASE_URL).rstrip("/")
+        self._auth_base_url = (auth_base_url or DEFAULT_AUTH_BASE_URL).rstrip("/")
 
     def generate_auth_url(self, redirect_uri: str, state: str) -> str:
         """Build the URL a seller is redirected to for OAuth consent."""
@@ -63,9 +73,18 @@ class TikTokAuth:
         return self._token_request("/api/v2/token/refresh", payload)
 
     def _token_request(self, path: str, payload: dict) -> dict:
-        url = f"{self._base_url}{path}"
-        resp = requests.post(url, json=payload, timeout=10)
-        resp.raise_for_status()
+        url = f"{self._auth_base_url}{path}"
+        try:
+            resp = requests.get(url, params=payload, timeout=10)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            logger.warning(
+                "tiktok_token_request_failed",
+                extra={"path": path, "error": str(exc)},
+            )
+            raise AuthenticationError(
+                code=0, message="TikTok token request failed"
+            ) from exc
 
         data = resp.json()
         err = error_from_response(data)

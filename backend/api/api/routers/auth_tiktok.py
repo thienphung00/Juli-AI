@@ -18,6 +18,7 @@ from backend.runtime import require_env
 router = APIRouter(prefix="/auth/tiktok", tags=["auth"])
 
 DEFAULT_TIKTOK_BASE_URL = "https://open-api.tiktokglobalshop.com"
+DEFAULT_TIKTOK_AUTH_BASE_URL = "https://auth.tiktok-shops.com"
 
 
 def get_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
@@ -34,8 +35,17 @@ def get_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
     if not base_url:
         base_url = DEFAULT_TIKTOK_BASE_URL
 
+    auth_base_url = os.environ.get(
+        "TIKTOK_AUTH_BASE_URL", DEFAULT_TIKTOK_AUTH_BASE_URL
+    ).strip()
+    if not auth_base_url:
+        auth_base_url = DEFAULT_TIKTOK_AUTH_BASE_URL
+
     tiktok_auth = TikTokAuth(
-        app_key=app_key, app_secret=app_secret, base_url=base_url
+        app_key=app_key,
+        app_secret=app_secret,
+        base_url=base_url,
+        auth_base_url=auth_base_url,
     )
     return TikTokOAuthInfrastructureService(
         app_secret=app_secret, tiktok_auth=tiktok_auth
