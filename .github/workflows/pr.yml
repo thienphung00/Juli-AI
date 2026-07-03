@@ -92,7 +92,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: pip install -r requirements.txt psycopg2-binary
+        run: pip install -r requirements.txt
       - name: Alembic upgrade head
         run: alembic upgrade head
       - name: Alembic downgrade one

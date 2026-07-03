@@ -69,6 +69,7 @@ database session management, and Alembic migrations for the Juli-AI platform.
 ## Dependencies
 - `sqlalchemy[asyncio]` — async ORM
 - `asyncpg` — PostgreSQL async driver (production)
+- `psycopg2-binary` — PostgreSQL sync driver for Alembic migrations
 - `aiosqlite` — SQLite async driver (testing)
 - `alembic` — schema migrations
 
