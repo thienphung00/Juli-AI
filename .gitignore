@@ -14,6 +14,9 @@ build/
 # Agent runtime state (local resumption only — not source control)
 .agent-state/
 
+# Local git worktrees (parallel issue isolation — not source control)
+.worktrees/
+
 # Large runtime telemetry (small JSON artifacts under artifacts/ are committed per ADR-003)
 artifacts/runtime/raw/
 artifacts/runtime/logs/

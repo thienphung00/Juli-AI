@@ -93,6 +93,7 @@ class TikTokOAuthInfrastructureService:
                 extra={
                     "user_id": str(user_id) if user_id else None,
                     "tiktok_error_code": exc.code,
+                    "request_id": exc.request_id,
                 },
             )
             raise
