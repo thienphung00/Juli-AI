@@ -78,6 +78,7 @@ functional value.
 | `DATABASE_URL` | Yes | Opened at startup (FastAPI lifespan). Supabase Postgres for review. |
 | `SUPABASE_JWT_SECRET` | Protected routes | Secret — VPS only (optional when frontend uses UI-only demo login). |
 | `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | OAuth | Partner Center review app. Secret — VPS only. |
+| `TIKTOK_TOKEN_ENCRYPTION_KEY` | OAuth persistence | Secret — encrypts stored TikTok access/refresh tokens. |
 | `CORS_ALLOW_ORIGINS` | Yes | Set to `https://app-juli.com`. |
 
 **Frontend (`app-juli.com`)** — see [`env/web.env.example`](env/web.env.example):

@@ -7,7 +7,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.database.models import Shop, TikTokCredential, User
+from backend.database.models import Shop, User
 from backend.database.repos import TikTokCredentialRepo
 
 APP_KEY = "test_app_key"

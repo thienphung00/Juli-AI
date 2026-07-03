@@ -1,58 +1,82 @@
 {
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
   "id": "review-issue-259",
   "issue": 259,
-  "timestamp": "2026-07-03T02:17:17Z",
+  "timestamp": "2026-07-03T08:06:00Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "TikTok Shop OAuth callback route (#259) and webhook infrastructure refactor: GET /v1/auth/tiktok/callback with state validation and stub token exchange; webhook service layer with signature verifier, event dispatcher (stub handlers), and preserved ETL handoff. No CRITICAL findings; targeted tests pass.",
+  "summary": "Review Agent pass for issue #259 continuation: GitHub issue context was updated with the TikTok OAuth token persistence flow, and TikTokCredentialRepo now encrypts access/refresh tokens before database persistence while keeping existing repo callers on plaintext token values. No blocking security, reliability, architecture, or maintainability findings; targeted tests and lints pass.",
   "criticalFindings": [],
   "modulesTouched": [
-    "backend/api/api/",
-    "backend/api/services/tiktok/",
-    "backend/api/services/webhook/",
+    "backend/database/",
+    "tests/unit/test_tiktok_oauth.py",
     "tests/unit/test_tiktok_auth_callback.py",
-    "tests/unit/test_tiktok_webhook_services.py",
-    "tests/unit/test_tiktok_infrastructure_contract.py"
+    "tests/unit/conftest.py",
+    "infra/deploy/env/api.env.example",
+    "infra/deploy/backend-deploy-runbook.md",
+    "infra/deploy/app-review-runbook.md",
+    "docs/tiktok_api/authentication.md",
+    "artifacts/implementations/implementation-issue-259.json"
   ],
-  "interfaceChanges": [],
+  "interfaceChanges": [
+    {
+      "module": "backend/database",
+      "interface": "TikTokCredentialRepo",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Repository create/update now writes encrypted token values; get_by_shop/get_latest/update_tokens continue returning plaintext token attributes for existing callers."
+    },
+    {
+      "module": "backend/database",
+      "interface": "backend.database.token_crypto",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds token encryption/decryption helpers with enc:v1 prefix and legacy plaintext read compatibility."
+    }
+  ],
   "moduleDrift": false,
   "driftDetails": [],
   "testCoverage": {
     "acceptance": {
-      "total": 5,
-      "mapped": 5,
+      "total": 6,
+      "mapped": 6,
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "OAuth callback endpoint exists and is reachable",
-          "test": "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_endpoint_exists_and_is_reachable"
+          "criterion": "Callback URL exists at /v1/auth/tiktok/callback and handles review callback safely",
+          "test": "tests/unit/test_tiktok_auth_callback.py"
         },
         {
-          "criterion": "OAuth callback validates required parameters",
-          "test": "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_validates_required_parameters"
+          "criterion": "Missing or invalid code/state returns controlled response, not 5xx",
+          "test": "tests/unit/test_tiktok_auth_callback.py::test_callback_missing_params_returns_400"
         },
         {
-          "criterion": "Webhook accepts JSON payloads and verifies signature",
-          "test": "tests/unit/test_tiktok_infrastructure_contract.py::test_webhook_accepts_json_payload_with_valid_signature"
+          "criterion": "Server does not expose access/refresh tokens in callback response",
+          "test": "tests/unit/test_tiktok_auth_callback.py::test_callback_exchanges_code_and_returns_sanitized_response"
         },
         {
-          "criterion": "Event dispatcher routes by event type",
-          "test": "tests/unit/test_tiktok_infrastructure_contract.py::test_webhook_dispatcher_routes_order_created_event"
+          "criterion": "OAuth callback provisions shop and encrypted credentials",
+          "test": "tests/unit/test_tiktok_oauth.py::test_oauth_callback_provisions_shop"
         },
         {
-          "criterion": "Proper HTTP responses returned for OAuth callback",
-          "test": "tests/unit/test_tiktok_infrastructure_contract.py::test_oauth_callback_returns_proper_http_responses"
+          "criterion": "OAuth callback persists credentials for verify connection",
+          "test": "tests/unit/test_tiktok_verify_connection.py::test_oauth_callback_persists_credentials_for_verify"
+        },
+        {
+          "criterion": "Env examples do not contain real secrets",
+          "test": "tests/unit/test_phase_2_5_deploy_config.py::test_env_examples_do_not_contain_real_secrets"
         }
       ]
     },
     "unit": {
-      "passed": 63,
+      "passed": 52,
       "failed": 0
     }
   },
   "recommendations": [
-    "Wire full token exchange via TikTokOAuthService in a follow-up issue when merchant persistence is in scope.",
-    "Register webhook URL in Partner Center when webhook service is deployed (out of scope for App Review)."
+    "Before production key rotation, add a migration/re-encryption runbook for existing enc:v1 credential rows.",
+    "If merchant_connections becomes the canonical table name, scope a dedicated schema migration instead of aliasing it in this App Review fix."
   ],
   "approvalReady": true,
   "reviewerSignoff": null,
@@ -62,8 +86,6 @@
   "staticAnalysisExecuted": true,
   "dynamicTestsExecuted": true,
   "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-259.json",
-  "schemaVersion": "1.0.0",
-  "artifactType": "review",
   "reviewStatus": "PASS",
   "reviewFailures": 0,
   "findings": [],
@@ -71,5 +93,6 @@
   "securityFindings": [],
   "architectureFindings": [],
   "maintainabilityFindings": [],
-  "suggestedRemediation": []
+  "suggestedRemediation": [],
+  "reviewDurationMs": 180000
 }

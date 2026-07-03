@@ -12,6 +12,11 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def token_encryption_key(monkeypatch):
+    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key")
+
+
 @pytest_asyncio.fixture
 async def engine():
     eng = create_async_engine("sqlite+aiosqlite:///:memory:")
