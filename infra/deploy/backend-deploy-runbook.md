@@ -145,6 +145,22 @@ sudo journalctl -u juli-api -n 50 --no-pager
 FastAPI lifespan requires a reachable Postgres URL. Confirm Supabase credentials on
 the VPS and that the review project allows connections from the VPS IP.
 
+Alembic uses the same `DATABASE_URL` with `sslmode=require` and IPv4 `hostaddr`
+for `*.supabase.co` hosts. If you still see `Connection refused` to an IPv6
+address (`2600:...`), pull latest code and retry:
+
+```bash
+cd ~/Juli-AI-v2
+git pull
+.venv/bin/pip install -r requirements.txt
+set -a && source .env && set +a
+.venv/bin/alembic upgrade 001
+```
+
+If it still fails, replace `DATABASE_URL` in `.env` with the **Session pooler**
+URI from Supabase Dashboard → Project Settings → Database (host
+`*.pooler.supabase.com`, port `5432`), then rerun Alembic.
+
 ### /health returns non-2xx over HTTPS but works locally
 
 Nginx upstream or TLS may be misconfigured — re-run [#256](vps-wiring-runbook.md)

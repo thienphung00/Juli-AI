@@ -7,12 +7,13 @@ from alembic import context
 
 from backend.database.database import Base
 from backend.database.models import User, Shop, TikTokCredential  # noqa: F401 — register models
+from backend.runtime import sync_database_url
 
 config = context.config
 
 config.set_main_option(
     "sqlalchemy.url",
-    os.environ.get("DATABASE_URL", "postgresql://localhost/juli"),
+    sync_database_url(os.environ.get("DATABASE_URL", "postgresql://localhost/juli")),
 )
 
 if config.config_file_name is not None:
