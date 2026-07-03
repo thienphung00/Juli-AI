@@ -40,7 +40,7 @@ def _supabase_ipv4_hostaddr(hostname: str, port: int | None) -> str | None:
         return None
     if not infos:
         return None
-    return infos[0][4][0]
+    return str(infos[0][4][0])
 
 
 def sync_database_url(raw_url: str) -> str:
