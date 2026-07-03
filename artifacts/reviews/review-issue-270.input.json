@@ -1,0 +1,38 @@
+{
+  "status": "PASS",
+  "criticalFindings": [],
+  "modulesTouched": ["backend/api", "backend/integrations/catalog/domain/integrations/tiktok"],
+  "testCoverage": {
+    "acceptance": {
+      "mappings": [
+        {
+          "criterion": "Callback exchanges authorization code via TikTokAuth",
+          "tests": [
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_accepts_code_without_state"
+          ]
+        },
+        {
+          "criterion": "No tokens in response or logs",
+          "tests": [
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_token_exchange_failure_returns_502"
+          ]
+        },
+        {
+          "criterion": "Error paths sanitized",
+          "tests": [
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_token_exchange_failure_returns_502",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_app_key_returns_503",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_rejects_invalid_state"
+          ]
+        }
+      ]
+    }
+  },
+  "reviewFailures": 0,
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": []
+}

@@ -17,6 +17,7 @@ from backend.api.services.tiktok.dispatcher import TikTokWebhookDispatcher
 from backend.api.services.tiktok.schemas import TikTokWebhookPayload
 
 APP_SECRET = "test_app_secret"
+APP_KEY = "test_app_key"
 CALLBACK_PATH = "/v1/auth/tiktok/callback"
 
 pytestmark = pytest.mark.asyncio
@@ -36,6 +37,26 @@ def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
 @pytest.fixture(autouse=True)
 def tiktok_app_secret(monkeypatch):
     monkeypatch.setenv("TIKTOK_APP_SECRET", APP_SECRET)
+    monkeypatch.setenv("TIKTOK_APP_KEY", APP_KEY)
+
+
+@pytest.fixture(autouse=True)
+def mock_token_exchange(monkeypatch):
+    from unittest.mock import MagicMock
+
+    mock = MagicMock(
+        return_value={
+            "access_token": "secret",
+            "refresh_token": "secret",
+            "access_token_expire_in": 604800,
+            "open_id": "seller_1",
+        }
+    )
+    monkeypatch.setattr(
+        "backend.integrations.catalog.domain.integrations.tiktok.auth.TikTokAuth.exchange_code",
+        mock,
+    )
+    return mock
 
 
 @pytest_asyncio.fixture

@@ -1,0 +1,70 @@
+{
+  "id": "review-issue-270",
+  "issue": 270,
+  "timestamp": "2026-07-03T02:46:17Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/api",
+    "backend/integrations/catalog/domain/integrations/tiktok"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 0,
+      "mapped": 0,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Callback exchanges authorization code via TikTokAuth",
+          "tests": [
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_accepts_code_without_state"
+          ]
+        },
+        {
+          "criterion": "No tokens in response or logs",
+          "tests": [
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_exchanges_code_and_returns_sanitized_response",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_token_exchange_failure_returns_502"
+          ]
+        },
+        {
+          "criterion": "Error paths sanitized",
+          "tests": [
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_token_exchange_failure_returns_502",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_missing_app_key_returns_503",
+            "tests/unit/test_tiktok_auth_callback.py::TestOAuthCallbackRoute::test_callback_rejects_invalid_state"
+          ]
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewFailures": 0,
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "none",
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-270.json"
+}
