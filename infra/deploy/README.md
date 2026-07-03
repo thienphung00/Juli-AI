@@ -19,8 +19,10 @@ frontend `.env.production` in `web/`.
 | [`app-review-runbook.md`](app-review-runbook.md) | Deploy runbook + reviewer checklist |
 | [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | HITL VPS DNS + Nginx + HTTPS (#256) |
 | [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) | Deploy Next.js frontend on VPS (#257) |
+| [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | Deploy FastAPI backend on VPS (#258) |
 | [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
 | [`provision-frontend.sh`](provision-frontend.sh) | Install juli-web + build on the VPS (#257) |
+| [`provision-backend.sh`](provision-backend.sh) | Install juli-api + pip deps on the VPS (#258) |
 | [`build-frontend-review.sh`](build-frontend-review.sh) | `npm ci && npm run build` with UI-only login |
 | [`nginx/`](nginx/) | Frontend/backend Nginx vhosts |
 | [`systemd/`](systemd/) | `juli-web` / `juli-api` service units |

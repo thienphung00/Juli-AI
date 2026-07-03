@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 258,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-03T0855Z",
+  "startedAt": "2026-07-03T08:55:00Z",
+  "completedAt": "2026-07-03T09:10:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 28,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/features/app_review_deployment/issues.md",
+    "infra/deploy/app-review-runbook.md",
+    "infra/deploy/systemd/juli-api.service",
+    "infra/deploy/env/api.env.example",
+    "artifacts/implementations/implementation-issue-257.json"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "infra/deploy/backend-deploy-runbook.md",
+    "infra/deploy/provision-backend.sh",
+    "infra/deploy/app-review-runbook.md",
+    "infra/deploy/README.md",
+    "infra/deploy/frontend-deploy-runbook.md",
+    "docs/phases/phase-2.5-deployment.md",
+    "docs/features/app_review_deployment/issues.md",
+    "tests/unit/test_phase_2_5_backend_deploy.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_public_health_endpoint",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_smoke_test_covers_backend_health",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_required_env_vars",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_env_example_sets_review_cors_and_database",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_systemd_unit_binds_backend_to_loopback_single_worker",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_provision_script_installs_juli_api_and_pip_deps",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_excludes_forbidden_services",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_provision_script_does_not_reference_forbidden_services",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_alembic_skip_policy",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_provision_script_is_executable_and_has_shebang",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_backend_runbook_documents_provision_and_smoke",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_issues_index_records_p2_5_ar_2b_slice",
+    "tests/unit/test_phase_2_5_backend_deploy.py::test_phase_doc_records_2_5_review_c_backend_deploy_slice"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_phase_2_5_backend_deploy.py did not exist — no contract tests for #258 backend deploy deliverables",
+      "passingTestEvidence": "Added backend-deploy-runbook.md, provision-backend.sh, and 13 backend deploy contract tests; all pass",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_backend_deploy.py -q",
+          "exitCode": 0,
+          "outputSummary": "13 passed"
+        },
+        {
+          "command": "bash -n infra/deploy/provision-backend.sh",
+          "exitCode": 0,
+          "outputSummary": "bash syntax OK"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_deploy_config.py tests/unit/test_phase_2_5_frontend_deploy.py tests/unit/test_phase_2_5_vps_wiring.py -q",
+          "exitCode": 0,
+          "outputSummary": "no regressions"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Phase 2.5-review-c (#258) backend deploy slice: HITL/AFK runbook for installing and serving FastAPI on juli-api (127.0.0.1:8000); executable provision-backend.sh installs systemd unit and pip deps; documents required env vars, Alembic skip policy, and out-of-scope background services; 13 CI contract tests.",
+  "assumptions": [
+    "#256 VPS wiring is complete on the review host (blocker closed)",
+    "Executor domain backend per infra/deploy envelope; no new API routes in this slice",
+    "OAuth callback route (#259) and reviewer login (#260) are downstream slices",
+    "Live VPS deploy and sign-off remain HITL for the operator"
+  ],
+  "risks": [
+    "Issue cannot be fully closed until operator runs provision-backend.sh on the VPS",
+    "DATABASE_URL must reach Supabase Postgres from the VPS for juli-api startup",
+    "Alembic skip may block routes that require missing schema — evaluate per #259/#260"
+  ]
+}

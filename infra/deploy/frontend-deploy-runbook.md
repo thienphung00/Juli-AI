@@ -2,7 +2,7 @@
 
 > **Parent:** [#249](https://github.com/thienphung00/Juli-AI/issues/249) · **Issue:** [#257](https://github.com/thienphung00/Juli-AI/issues/257)  
 > **Prerequisite:** [#256](https://github.com/thienphung00/Juli-AI/issues/256) — DNS, Nginx, and HTTPS wired  
-> **Next:** [#258](https://github.com/thienphung00/Juli-AI/issues/258) (backend) → [#254](https://github.com/thienphung00/Juli-AI/issues/254) (E2E)
+> **Next:** [#258](backend-deploy-runbook.md) (backend) → [#254](https://github.com/thienphung00/Juli-AI/issues/254) (E2E)
 
 Deploy the existing `web/` Next.js app behind `https://app-juli.com/` for TikTok
 reviewers. Landing page and demo app work remain **deferred to Phase 3** — this
