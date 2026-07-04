@@ -5,17 +5,17 @@ Infrastructure, CI/CD, and deployment configuration.
 | Path | Purpose | Status |
 |------|---------|--------|
 | [`ci/`](ci/) | CI pipeline config split from `.github/workflows/` | Scaffold only |
-| [`deploy/`](deploy/) | Per-product deploy manifests (Vercel, Railway) | Scaffold only |
+| [`deploy/`](deploy/) | App Review deploy runbooks, Nginx, systemd, smoke tests | **Live** (sign-off 2026-07-03) |
 
 **Current CI:** [`.github/workflows/`](../.github/workflows/)
 
-**Target domains:**
+**Domains (App Review — live):**
 
-| Domain | Product |
-|--------|---------|
-| `app-juli.com` | Landing |
-| `demo.app-juli.com` | Demo |
-| `dashboard.app-juli.com` | Dashboard |
-| `api.app-juli.com` | Backend API |
+| Domain | Product (current) | Product (Phase 3+ target) |
+|--------|-------------------|---------------------------|
+| `app-juli.com` | Legacy `web/` dashboard (App Review) | `apps/landing` |
+| `api.app-juli.com` | Backend API (`backend/`) | Backend API |
+| `demo.app-juli.com` | — | `apps/demo` |
+| `dashboard.app-juli.com` | — | `apps/dashboard` |
 
 See [`docs/phases/phase-2.5-deployment.md`](../docs/phases/phase-2.5-deployment.md).

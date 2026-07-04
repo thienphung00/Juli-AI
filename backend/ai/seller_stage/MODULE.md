@@ -1,4 +1,4 @@
-# src/modules/ml/seller_stage
+# backend/ai/seller_stage
 
 ## Purpose
 
@@ -18,7 +18,7 @@ no TikTok API calls, no UI changes.
 
 ## Dependencies
 
-- `src/modules/ml/features` — `build_seller_stage_features`, `SELLER_STAGE_FEATURE_COLUMNS`
+- `backend/ai/features` — `build_seller_stage_features`, `SELLER_STAGE_FEATURE_COLUMNS`
 - `scikit-learn` — `RandomForestClassifier`
 - `web/src/lib/seller-stage-router/thresholds.ts` — authoritative Phase 1 constant source (mirrored in Python)
 

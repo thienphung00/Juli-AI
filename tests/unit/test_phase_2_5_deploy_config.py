@@ -104,7 +104,7 @@ def test_systemd_units_are_separate_and_restartable():
     assert "Restart=" in frontend
     assert "Restart=" in backend
     # Backend runs the FastAPI ASGI app; frontend runs the Next.js server.
-    assert "api_gateway.api.main:app" in backend
+    assert "backend.api.api.main:app" in backend
     assert "next" in frontend.lower() or "npm" in frontend.lower()
 
 

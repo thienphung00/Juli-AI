@@ -33,7 +33,7 @@ Cheat sheet for [ADR-003](../decisions/003-ai-native-cicd-policy.md). Pair with
 | Check | Failure Condition |
 |-------|-------------------|
 | Lint | `ruff check .` errors |
-| Type check | `mypy src/` errors |
+| Type check | `mypy backend/` errors |
 | Tests | `pytest` failure |
 | Frontend | `npm run lint`, `npm run type-check`, or `npm run test` failure in `web/` |
 | Migration | `alembic upgrade head` -> `alembic downgrade -1` -> `alembic upgrade head` failure |
@@ -74,7 +74,7 @@ Bug filing:     qa -> focus -> Executor -> review -> validate -> ship
 ```bash
 # 1. Backend gates
 ruff check .
-mypy src/
+mypy backend/
 pytest tests/
 
 # 2. Migration roundtrip
@@ -109,7 +109,7 @@ git push origin HEAD
 - What must always be true
 
 ## Dependencies
-**Internal:** `src/auth`
+**Internal:** `backend/integrations/identity`
 **External:** `httpx`
 ```
 

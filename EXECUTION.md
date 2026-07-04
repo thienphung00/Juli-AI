@@ -5,7 +5,7 @@
 > Start every task here, then open **one** component doc from the routing table below.  
 > Full index: [`docs/README.md`](docs/README.md)
 
-**Owner:** Product lead · **Last reset:** Phase 2.5 Deployment Architecture (2026-06-29)
+**Owner:** Product lead · **Last reset:** Phase 2.5 complete → Phase 2 active (2026-07-04)
 
 ---
 
@@ -67,7 +67,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **4.5 — Real-Time Infrastructure** | Latency reduction at scale | Growing base | Real-time updates justified by product scale |
 | **5 — Full Launch** | Production-grade platform | Public | Security, billing, monitoring, operational excellence |
 
-**Active phase:** Phase 2.5 — Deployment Architecture (docs + scaffold; runtime code moves deferred).
+**Active phase:** Phase 2 — Pipeline Validation (App Review deploy live on `app-juli.com`; backend runtime in `backend/`).
 
 ### Architecture evolution (by phase)
 
@@ -103,8 +103,12 @@ produce signals and recommendations. Trained ML (T1–T8) begins in Phase 4.
 
 | Milestone | Focus | Status |
 |-----------|-------|--------|
-| **A — Live data pipeline** | TikTok poll → ETL → Postgres → feature aggregates | Pending API approval |
-| **B — Rules engine + execution** | Rules-based signals → recommendations → rules copy → Celery executors | Pending API approval |
+| **A — Live data pipeline** | TikTok poll → ETL → Postgres → feature aggregates | In progress |
+| **B — Rules engine + execution** | Rules-based signals → recommendations → rules copy → Celery executors | Pending Milestone A |
+
+**Pre-A1 progress (App Review, 2.5-review):** TikTok OAuth exchange, encrypted credential
+persistence (`TikTokCredential` in Postgres), and live API connectivity probe are done.
+Scheduled polling, business-entity ETL, and feature aggregates remain pending.
 
 ### Milestone A slices
 
@@ -147,25 +151,26 @@ Detail: [`phase-2-mvp.md`](docs/phases/phase-2-mvp.md)
 
 ---
 
-## Phase 2.5 — Deployment Architecture (active)
+## Phase 2.5 — Deployment Architecture (complete)
 
 **Goal:** Prepare production deployment architecture before exposing Juli publicly.
 
 Focus: repository restructuring · frontend/backend separation · monorepo organization ·
 deployment pipelines · shared packages · real domains · CI/CD · production environment setup.
 
-**Scope of current work:** docs + scaffold only. Runtime code remains in `src/`, `web/`,
-and `ios/` until a later migration PR.
+**Completed (2026-07-03):** App Review deploy live at `app-juli.com` + `api.app-juli.com`;
+backend runtime in `backend/`; legacy `web/` serves review frontend until Phase 3.
+Sign-off: [`infra/deploy/smoke-checklist-runbook.md`](infra/deploy/smoke-checklist-runbook.md).
 
-**Naming collision:** `src/apps/` is backend entrypoint composition (legacy Python layout).
-Top-level `apps/` holds product deployables (landing, demo, dashboard, mobile). See
-[`architecture/migration-plan.md`](docs/architecture/migration-plan.md).
+**Naming collision:** Top-level `apps/` holds product deployables (landing, demo, dashboard,
+mobile). Backend entrypoints live under `backend/api/` and `backend/workers/` — not top-level
+`apps/`. See [`architecture/migration-plan.md`](docs/architecture/migration-plan.md).
 
 ### Exit gate → Phase 3
 
 - [x] Target folder structure scaffolded (`apps/`, `packages/`, `backend/`, `infra/`) _(2.5-a)_
 - [x] Canonical docs aligned to ecosystem roadmap _(2.5-a)_
-- [ ] Frontend and backend independently deployable on intended domains _(2.5-d / 2.5-e)_
+- [x] Frontend and backend independently deployable on intended domains _(2.5-review, sign-off 2026-07-03)_
 - [x] Shared package boundaries documented _(2.5-a)_
 
 Detail: [`phase-2.5-deployment.md`](docs/phases/phase-2.5-deployment.md) ·

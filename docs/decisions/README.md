@@ -22,3 +22,5 @@
 | [015](015-design-system-token-foundation.md) | Design system and token foundation | Accepted |
 | [016](016-listing-workflow-implementation.md) | Listing workflow implementation | Accepted |
 | [017](017-product-monorepo-deployment-architecture.md) | Product monorepo deployment architecture (Phase 2.5) | Accepted |
+| [018](018-backend-runtime-migration.md) | Backend runtime migration to `backend/` (Phase 2.5-c) | Accepted |
+| [019](019-src-shim-removal.md) | Remove `src/` compatibility shims after deploy entrypoint switch | Accepted |

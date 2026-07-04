@@ -2,8 +2,8 @@
 
 External API clients, ETL, webhook handling.
 
-**Legacy source:**
+**Key paths:**
 
-- `src/modules/catalog/domain/integrations/tiktok/`
-- `src/modules/ordering/`
-- `src/modules/identity/`
+- `backend/integrations/catalog/domain/integrations/tiktok/`
+- `backend/integrations/ordering/`
+- `backend/integrations/identity/`

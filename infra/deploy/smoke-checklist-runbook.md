@@ -90,29 +90,29 @@ Operator completes after `smoke-test.sh` passes with zero failures:
 
 ### Infrastructure
 
-- [ ] DNS: `app-juli.com` A record → review VPS
-- [ ] DNS: `api.app-juli.com` A record → review VPS
-- [ ] TLS: Let's Encrypt certificates valid on both domains
-- [ ] Nginx: `juli-web` and `juli-api` upstreams reachable
+- [x] DNS: `app-juli.com` A record → review VPS (`5.223.68.27`)
+- [x] DNS: `api.app-juli.com` A record → review VPS (`5.223.68.27`)
+- [x] TLS: Let's Encrypt certificates valid on both domains
+- [x] Nginx: `juli-web` and `juli-api` upstreams reachable
 
 ### Application surface
 
-- [ ] Frontend: `https://app-juli.com/` loads over HTTPS
-- [ ] Health: `https://api.app-juli.com/health` returns 2xx JSON
-- [ ] OAuth: `https://api.app-juli.com/v1/auth/tiktok/callback` handles missing
-      params without a 5xx crash
-- [ ] Reviewer login: `https://app-juli.com/login` shows one-click demo entry
+- [x] Frontend: `https://app-juli.com/` loads over HTTPS (200)
+- [x] Health: `https://api.app-juli.com/health` returns 2xx JSON (200)
+- [x] OAuth: `https://api.app-juli.com/v1/auth/tiktok/callback` handles missing
+      params without a 5xx crash (400)
+- [x] Reviewer login: `https://app-juli.com/login` shows one-click demo entry
       (see [`reviewer-login-runbook.md`](reviewer-login-runbook.md))
-- [ ] CORS: `CORS_ALLOW_ORIGINS=https://app-juli.com` on VPS; preflight allows
+- [x] CORS: `CORS_ALLOW_ORIGINS=https://app-juli.com` on VPS; preflight allows
       the frontend origin
 
 ### Review-only confirmation
 
 Explicitly confirm before closing #261:
 
-- [ ] **No production users** are onboarded or invited to this deployment
-- [ ] **No production traffic** is routed to this deployment
-- [ ] **No persistent business data** (seller orders, returns, ads, payouts) is
+- [x] **No production users** are onboarded or invited to this deployment
+- [x] **No production traffic** is routed to this deployment
+- [x] **No persistent business data** (seller orders, returns, ads, payouts) is
       required to complete App Review — mock/UI-only data is sufficient
 
 ---
@@ -151,14 +151,24 @@ See also [`app-review-runbook.md`](app-review-runbook.md) troubleshooting sectio
 
 ## Operator sign-off record
 
-Copy to ops notes when closing #261:
+Completed sign-off (#261 closed 2026-07-03):
 
 ```
 App Review smoke sign-off (#261)
-Date:
-Operator:
-VPS:
-smoke-test.sh result: ___ passed, ___ failed
-CORS_ALLOW_ORIGINS verified: yes / no
-Review-only confirmed (no prod users/traffic/data): yes / no
+Date: 2026-07-03
+Operator: root@juli-product-testing
+VPS: juli-product-testing (5.223.68.27)
+smoke-test.sh result: 11 passed, 0 failed
+CORS_ALLOW_ORIGINS verified: yes
+Review-only confirmed (no prod users/traffic/data): yes
+```
+
+VPS transcript:
+
+```
+grep CORS_ALLOW_ORIGINS=https://app-juli.com ~/Juli-AI-v2/.env
+→ CORS_ALLOW_ORIGINS=https://app-juli.com
+
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+→ 11 passed, 0 failed (DNS, TLS, frontend, /health, OAuth callback, reviewer login, home chunks, CORS)
 ```

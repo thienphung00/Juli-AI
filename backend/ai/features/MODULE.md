@@ -1,4 +1,4 @@
-# src/modules/ml/features
+# backend/ai/features
 
 ## Purpose
 
@@ -21,7 +21,7 @@ Runner-agnostic plain Python — no scheduler coupling ([ADR-010](../../../docs/
 
 ## Dependencies
 
-- `src/modules/ml/dataset` — manifest + parquet contract (`dataset_dir`, entity columns)
+- `backend/ai/dataset` — manifest + parquet contract (`dataset_dir`, entity columns)
 - `pandas`, `pyarrow` — parquet I/O and vectorized feature math
 - `docs/data-models/feature-store-schema.md` — authoritative feature names
 

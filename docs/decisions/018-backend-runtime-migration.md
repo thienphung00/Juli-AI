@@ -18,12 +18,12 @@ reviewer-visible behavior or requiring an immediate deploy-config change.
 - **Runtime ownership:** `backend/api`, `backend/workers`, `backend/ai`,
   `backend/integrations`, and `backend/database` own the moved Python modules per
   [`migration-plan.md`](../architecture/migration-plan.md).
-- **Imports:** New code and tests import `backend.*`; legacy `src/` paths are thin
-  re-export shims documented in [`src/COMPAT.md`](../../src/COMPAT.md).
+- **Imports:** New code and tests import `backend.*` only. Legacy `src/` shims were
+  removed in pre-Phase 2 cleanup ([ADR 019](019-src-shim-removal.md)).
 - **Alembic:** Migration scripts live under `backend/database/migrations/`; root
   `alembic.ini` `script_location` points there.
-- **Deploy entrypoints:** Unchanged on the VPS (`uvicorn src.apps.api_gateway.api.main:app`)
-  until a later deploy slice updates systemd.
+- **Deploy entrypoints:** `backend.api.api.main:app` (see [ADR 019](019-src-shim-removal.md);
+  `src/` shims removed 2026-07-04).
 
 ## Rationale
 

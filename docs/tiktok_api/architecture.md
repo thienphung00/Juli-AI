@@ -1,6 +1,6 @@
 # Integration Architecture
 
-How TikTok Shop Open API data flows into Juli-AI, mapped to deployed `src/` modules.
+How TikTok Shop Open API data flows into Juli-AI, mapped to deployed `backend/` modules.
 
 **Authority:** [`EXECUTION.md`](../../EXECUTION.md) Phase 2 for live wiring; Phase 1
 uses mock fixtures only.
@@ -16,13 +16,13 @@ uses mock fixtures only.
            │ OAuth + signed REST
            ▼
 ┌──────────────────────────────────────────────────────────┐
-│ src/modules/catalog/domain/integrations/tiktok/          │
+│ backend/integrations/catalog/domain/integrations/tiktok/ │
 │   TikTokAuth, TikTokClient, RateLimiter, *Resource       │
 └──────────┬─────────────────────────────┬─────────────────┘
            │ polling                     │ webhooks (optional)
            ▼                             ▼
 ┌──────────────────────────┐   ┌─────────────────────────────┐
-│ cron_jobs/services/      │   │ api_gateway/services/       │
+│ backend/workers/services/│   │ backend/api/services/       │
 │   polling/               │   │   webhook/                  │
 │   sync_orders,           │   │   POST /webhooks/tiktok     │
 │   sync_products,         │   └──────────────┬──────────────┘
@@ -31,16 +31,16 @@ uses mock fixtures only.
            │ handoff_fn(channel, shop_id, bytes)
            ▼
 ┌──────────────────────────────────────────────────────────┐
-│ src/modules/ordering/use_cases/etl/                      │
+│ backend/integrations/ordering/use_cases/etl/             │
 │   EtlConsumer.ingest — dedup, transform, DLQ             │
 └──────────┬───────────────────────────────────────────────┘
            ▼
 ┌──────────────────────────────────────────────────────────┐
-│ src/shared/utils/data/ — Shop-scoped repos               │
+│ backend/database/ — Shop-scoped repos                    │
 └──────────┬───────────────────────────────────────────────┘
            ▼
 ┌──────────────────────────────────────────────────────────┐
-│ Daily inference (P2, 08:00 UTC) + Haiku copy layer      │
+│ Daily rules pipeline (P2, 08:00 UTC) + rules copy      │
 │ web/ — three seller-money workflows                      │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -51,14 +51,14 @@ uses mock fixtures only.
 
 | Concern | Path | Responsibility |
 |---------|------|----------------|
-| API client | `src/modules/catalog/domain/integrations/tiktok/` | Auth, signing, rate limit, resources |
-| OAuth persistence | `src/modules/identity/infrastructure/auth/tiktok_oauth.py` | Token encrypt/store/refresh |
-| Webhook receiver | `src/apps/api_gateway/services/webhook/` | HMAC verify, ACK, handoff |
-| Polling workers | `src/apps/cron_jobs/services/polling/` | Scheduled sync per shop |
-| Ingest handoff | `src/modules/ordering/api/ingestion/handoff.py` | `make_etl_handoff` wiring |
-| ETL consumer | `src/modules/ordering/use_cases/etl/` | Dedup, persist, DLQ |
-| Persistence | `src/shared/utils/data/` | `Shop`, `Product`, `Order`, `Creator` repos |
-| REST API | `src/apps/api_gateway/api/` | `/v1/*` seller-facing reads |
+| API client | `backend/integrations/catalog/domain/integrations/tiktok/` | Auth, signing, rate limit, resources |
+| OAuth persistence | `backend/integrations/identity/infrastructure/auth/tiktok_oauth.py` | Token encrypt/store/refresh |
+| Webhook receiver | `backend/api/services/webhook/` | HMAC verify, ACK, handoff |
+| Polling workers | `backend/workers/services/polling/` | Scheduled sync per shop |
+| Ingest handoff | `backend/integrations/ordering/api/ingestion/handoff.py` | `make_etl_handoff` wiring |
+| ETL consumer | `backend/integrations/ordering/use_cases/etl/` | Dedup, persist, DLQ |
+| Persistence | `backend/database/` | `Shop`, `Product`, `Order`, `Creator` repos |
+| REST API | `backend/api/api/` | `/v1/*` seller-facing reads |
 
 ---
 

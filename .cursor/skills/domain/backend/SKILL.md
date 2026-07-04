@@ -79,7 +79,7 @@ consistency per `patterns.mdc`.
 
 ## Validation
 
-`pytest`, `ruff check .`, `mypy src/`; migration up/down when schema changes.
+`pytest`, `ruff check .`, `mypy backend/`; migration up/down when schema changes.
 
 ## Implementation artifact (required handoff)
 

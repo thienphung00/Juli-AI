@@ -80,7 +80,7 @@ def test_naming_collision_documented(
         assert "apps/" in doc_text or "backend/api" in doc_text
     assert "Naming collision" in migration_plan_text
     apps_readme = (REPO_ROOT / "apps/README.md").read_text(encoding="utf-8")
-    assert "Not to be confused with `src/apps/`" in apps_readme
+    assert "Not to be confused with `backend/api/`" in apps_readme
 
 
 def test_canonical_docs_agree_on_migration_sequence(

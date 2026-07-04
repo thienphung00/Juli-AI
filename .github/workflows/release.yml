@@ -18,7 +18,7 @@ jobs:
         run: |
           pip install -r requirements.txt ruff mypy types-requests
           ruff check .
-          mypy src/ --ignore-missing-imports --disable-error-code=valid-type
+          mypy backend/ --ignore-missing-imports --disable-error-code=valid-type
           pytest tests/ -q
 
   deploy-staging:

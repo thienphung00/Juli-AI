@@ -4,9 +4,9 @@
 > **Owns:** current → target path mapping, migration PR sequence, naming collision notes.  
 > **Does not own:** as-built module registry (`map.md`), deploy domain details (`phase-2.5-deployment.md`).
 
-**Status:** Phase 2.5-c complete — runtime code lives under `backend/`; `src/` retains
-documented compatibility shims (issue #252). App Review deploy may still reference
-legacy `src.apps.*` entrypoints until a later deploy-config slice.
+**Status:** Phase 2.5 complete (App Review sign-off 2026-07-03). Runtime code lives under
+`backend/`; deploy entrypoint is `backend.api.api.main:app`. Legacy frontends remain in
+`web/` and `ios/` until Phase 3 / 3.5 migration.
 
 ---
 
@@ -16,20 +16,20 @@ legacy `src.apps.*` entrypoints until a later deploy-config slice.
 
 ```text
 juli-ai-v2/
-├── src/                  # Python backend modular monolith (runtime)
-│   ├── apps/             # Backend entrypoints (NOT product apps)
-│   ├── modules/
-│   └── shared/
-├── web/                  # Next.js seller dashboard (legacy pre-ecosystem)
+├── backend/              # Python backend modular monolith (runtime)
+│   ├── api/              # FastAPI REST + app factory
+│   ├── workers/          # Polling / scheduled jobs
+│   ├── integrations/     # Domain modules
+│   ├── ai/               # ML trainers, features, artifacts
+│   └── database/         # SQLAlchemy, repos, Alembic migrations
+├── web/                  # Next.js seller dashboard (legacy; live at app-juli.com for App Review)
 ├── ios/                  # SwiftUI mobile app (legacy)
-├── apps/                 # Product deployables (scaffold only — Phase 2.5-a)
-├── packages/             # Shared libraries (scaffold only)
-├── backend/              # Backend target layout (scaffold only)
-├── infra/                # CI/CD + deploy config (scaffold only)
+├── apps/                 # Product deployables (scaffold — Phase 2.5-a)
+├── packages/             # Shared libraries (scaffold — Phase 2.5-b)
+├── infra/                # CI/CD + deploy config (live App Review runbooks)
 ├── docs/
 ├── scripts/
 ├── tests/
-├── alembic/
 └── requirements.txt
 ```
 
@@ -85,15 +85,15 @@ juli-ai-v2/
 
 ---
 
-## Naming collision: `src/apps` vs `apps/`
+## Naming collision: `backend/api` vs top-level `apps/`
 
 | Path | Meaning |
 |------|---------|
-| **`src/apps/`** | Backend composition layer — FastAPI entrypoints, cron workers. Python import path. |
+| **`backend/api/`**, **`backend/workers/`** | Backend composition layer — FastAPI entrypoints, cron workers. Python import path. |
 | **`apps/`** (top-level) | Product deployables — landing, demo, dashboard, mobile. Frontend/mobile apps. |
 
 Do **not** import from top-level `apps/` in Python backend code. Do **not** confuse
-`src.apps.api_gateway` with `apps/demo`.
+`backend.api` with `apps/demo`.
 
 ---
 
@@ -105,7 +105,7 @@ Each PR must pass the full test suite before and after. No opportunistic refacto
 |----|-------|------|
 | **2.5-a** | Docs + scaffold READMEs | No runtime changes |
 | **2.5-b** | Introduce `pnpm` workspace + Turborepo skeleton | `web/` still builds; `pnpm run workspace:baseline` |
-| **2.5-review** | VPS/Nginx/HTTPS deploy of legacy frontend/API for TikTok App Review | Public frontend loads; backend health and OAuth callback respond |
+| **2.5-review** | VPS/Nginx/HTTPS deploy of legacy frontend/API for TikTok App Review | **Complete** — sign-off 2026-07-03 |
 | **2.5-c** | Move `src/` → `backend/` with import rewrites | `pytest` green |
 | **2.5-d** | Split deploy config into `infra/` | CI green; review runbook retained |
 | **3-a** | Scaffold `apps/landing` + `apps/demo` | New apps build independently |

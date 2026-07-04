@@ -1,4 +1,4 @@
-# src/modules/ml/dataset
+# backend/ai/dataset
 
 ## Purpose
 

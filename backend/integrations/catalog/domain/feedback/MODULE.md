@@ -9,4 +9,4 @@ Ingests realized campaign outcomes into the commerce graph (Campaign nodes and
 - `compute_calibration_weight(predicted_gmv, realized_gmv) -> Decimal` — edge weight in [0, 1]
 
 ## API
-- `POST /v1/outcomes` — `src/apps/api_gateway/api/routers/outcomes.py`
+- `POST /v1/outcomes` — `backend/api/api/routers/outcomes.py`

@@ -883,7 +883,7 @@ def tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
 
 def collect_import_graph(modules: dict[str, ModuleInfo]) -> dict[str, set[str]]:
     graph: dict[str, set[str]] = {m: set() for m in modules}
-    for py_file in (REPO_ROOT / "src").rglob("*.py"):
+    for py_file in (REPO_ROOT / "backend").rglob("*.py"):
         rel = py_file.relative_to(REPO_ROOT).as_posix()
         owner = module_for_file(rel, modules)
         if not owner:

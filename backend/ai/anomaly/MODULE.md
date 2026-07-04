@@ -1,4 +1,4 @@
-# src/modules/ml/anomaly
+# backend/ai/anomaly
 
 ## Purpose
 
@@ -34,7 +34,7 @@ Offline only; no TikTok API calls, no UI changes.
 
 ## Dependencies
 
-- `src/modules/ml/features` — `build_anomaly_features`, `ANOMALY_FEATURE_COLUMNS`
+- `backend/ai/features` — `build_anomaly_features`, `ANOMALY_FEATURE_COLUMNS`
 - `labels.parquet` — `return_id`, `ground_truth_anomaly`, `return_type`
 - `scikit-learn` — `RandomForestClassifier`
 

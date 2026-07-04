@@ -1,4 +1,4 @@
-# Model Artifacts (`src/modules/ml/artifacts`)
+# Model Artifacts (`backend/ai/artifacts`)
 
 Serialize trained Phase 1.5 model suites to versioned on-disk joblib artifacts with lineage metadata and CI smoke tests.
 

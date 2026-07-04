@@ -46,20 +46,17 @@ def test_api_factory_auth_polling_etl_tiktok_repository_tests_pass():
     assert ShopScopedRepo is not None
 
 
-def test_temporary_compatibility_shims_documented_in_src_compat():
-    """src/ shims are explicit and documented for deploy entrypoints."""
-    compat = REPO_ROOT / "src/COMPAT.md"
-    assert compat.is_file()
-    text = compat.read_text(encoding="utf-8")
-    assert "compatibility shims" in text.lower()
-    assert "backend" in text
-    shim = REPO_ROOT / "src/apps/api_gateway/api/main.py"
-    assert "Compatibility shim" in shim.read_text(encoding="utf-8")
+def test_src_python_runtime_shims_removed():
+    """Legacy src/ Python shim tree removed after deploy entrypoint switch."""
+    src_root = REPO_ROOT / "src"
+    if src_root.is_dir():
+        py_files = list(src_root.rglob("*.py"))
+        assert not py_files, f"unexpected Python files under src/: {py_files[:5]}"
+    assert not (REPO_ROOT / "src/COMPAT.md").is_file()
 
 
-def test_no_frontend_shared_package_or_deploy_domain_work_included():
-    """Slice excludes product frontend, package extraction, and deploy config edits."""
-    # Deploy systemd still references legacy entrypoint by design; no new deploy files.
+def test_deploy_entrypoint_uses_backend_api_main():
+    """Deploy systemd uses canonical backend.api.api.main:app entrypoint."""
     service = (REPO_ROOT / "infra/deploy/systemd/juli-api.service").read_text(encoding="utf-8")
-    assert "src.apps.api_gateway.api.main:app" in service
-    assert not (REPO_ROOT / "packages/ui/src").exists()
+    assert "backend.api.api.main:app" in service
+    assert "src.apps.api_gateway" not in service

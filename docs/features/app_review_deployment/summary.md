@@ -75,14 +75,16 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://api.app-juli.com/v1/auth/tikto
 Full HITL checklist:
 [`infra/deploy/smoke-checklist-runbook.md`](../../../infra/deploy/smoke-checklist-runbook.md).
 
-- [ ] DNS: `app-juli.com` and `api.app-juli.com` resolve to the review VPS
-- [ ] TLS: HTTPS handshake succeeds on both domains
-- [ ] Frontend: `https://app-juli.com/` loads
-- [ ] Health: `https://api.app-juli.com/health` returns 2xx JSON
-- [ ] OAuth: callback route does not 5xx on missing params
-- [ ] Reviewer login: `https://app-juli.com/login` shows one-click demo entry
-- [ ] CORS: `CORS_ALLOW_ORIGINS=https://app-juli.com` on VPS; preflight allows frontend origin
-- [ ] Review-only: no production users, traffic, or persistent business data
+- [x] DNS: `app-juli.com` and `api.app-juli.com` resolve to the review VPS
+- [x] TLS: HTTPS handshake succeeds on both domains
+- [x] Frontend: `https://app-juli.com/` loads
+- [x] Health: `https://api.app-juli.com/health` returns 2xx JSON
+- [x] OAuth: callback route does not 5xx on missing params
+- [x] Reviewer login: `https://app-juli.com/login` shows one-click demo entry
+- [x] CORS: `CORS_ALLOW_ORIGINS=https://app-juli.com` on VPS; preflight allows frontend origin
+- [x] Review-only: no production users, traffic, or persistent business data
+
+**Sign-off:** 2026-07-03 — see [`smoke-checklist-runbook.md`](../../../infra/deploy/smoke-checklist-runbook.md).
 
 ---
 

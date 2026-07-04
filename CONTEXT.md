@@ -1,6 +1,6 @@
 # Juli AI — ubiquitous language
 
-Shared domain language for seller-money workflows across `ios/`, `web/`, and `src/`.
+Shared domain language for seller-money workflows across `ios/`, `web/`, and `backend/`.
 
 > Maintained by `grill-with-docs` and `domain-modeling`. Do not edit manually unless correcting an error.
 > Architectural decisions live in `docs/decisions/`.

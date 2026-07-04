@@ -39,7 +39,7 @@ def violations_in_files(py_files: list[Path], modules: dict) -> list[dict]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom) or not node.module:
                 continue
-            if not node.module.startswith("src."):
+            if not node.module.startswith("backend."):
                 continue
             target = resolve_import_to_module(node.module, modules)
             if not target or target == owner:
@@ -67,7 +67,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
     py_files = [
         REPO_ROOT / path
         for path in changed
-        if path.endswith(".py") and path.startswith("src/")
+        if path.endswith(".py") and path.startswith("backend/")
     ]
     touched_modules = {module_for_file(p.relative_to(REPO_ROOT).as_posix(), modules) for p in py_files}
     touched_modules.discard(None)

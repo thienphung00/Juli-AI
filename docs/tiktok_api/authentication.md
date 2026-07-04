@@ -7,7 +7,7 @@ every Open API call.
 - [TikTok Shop Developer Guide](https://partner.tiktokshop.com/docv2/page/tts-developer-guide)
 - [Call Get Authorized Shops](https://partner.tiktokshop.com/docv2/page/call-get-authorized-shops)
 - [Sign your API request](https://partner.tiktokshop.com/docv2/page/sign-your-api-request)
-- Implementation: `src/modules/catalog/domain/integrations/tiktok/auth.py`, `signing.py`
+- Implementation: `backend/integrations/catalog/domain/integrations/tiktok/auth.py`, `signing.py`
 
 ---
 
@@ -77,7 +77,7 @@ Implemented in `TikTokAuth.generate_auth_url()`.
 | `grant_type` | string | Yes — `"refresh_token"` |
 
 Refresh returns a new access + refresh pair. `TikTokOAuthService.refresh_tokens()`
-in `src/modules/identity/infrastructure/auth/tiktok_oauth.py` persists encrypted
+in `backend/integrations/identity/infrastructure/auth/tiktok_oauth.py` persists encrypted
 credentials via `TikTokCredentialRepo`.
 
 **Operational rule:** refresh proactively before expiry (tests refresh when within

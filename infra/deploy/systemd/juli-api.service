@@ -18,7 +18,7 @@ WorkingDirectory=/root/Juli-AI-v2
 # Env file lives on the VPS only — see infra/deploy/env/api.env.example.
 EnvironmentFile=/root/Juli-AI-v2/.env
 # Single worker is sufficient for review; no HA/multi-worker tuning in Phase 2.5.
-ExecStart=/root/Juli-AI-v2/.venv/bin/uvicorn src.apps.api_gateway.api.main:app \
+ExecStart=/root/Juli-AI-v2/.venv/bin/uvicorn backend.api.api.main:app \
     --host 127.0.0.1 --port 8000 --workers 1
 Restart=on-failure
 RestartSec=5

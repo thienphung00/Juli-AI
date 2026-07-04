@@ -2,8 +2,4 @@
 
 Persistence layer: SQLAlchemy models, repositories, Alembic migrations.
 
-**Legacy source:**
-
-- `src/shared/utils/data/`
-- `alembic/` (repo root)
-- `alembic.ini`
+**Migrations:** `backend/database/migrations/` (see repo-root `alembic.ini`).

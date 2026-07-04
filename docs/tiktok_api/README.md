@@ -3,7 +3,7 @@
 Implementation-ready reference for the **TikTok Shop Open API** (ISV / developer
 integration). Extracted from the official [TikTok Shop Developer Guide](https://partner.tiktokshop.com/docv2/page/tts-developer-guide)
 and cross-checked against the deployed client in
-`src/modules/catalog/domain/integrations/tiktok/`.
+`backend/integrations/catalog/domain/integrations/tiktok/`.
 
 **Status:** Net-new docs (2026-06-05). **Refresh** of prior `docs/tiktok_api/` after
 seller-money rescope ([`EXECUTION.md`](../../EXECUTION.md)).
@@ -42,7 +42,7 @@ buyer PII (#17). See [`data-sources.md`](../architecture/data-sources.md).
 | [endpoints.md](endpoints.md) | Endpoint inventory, schemas, vendor → Juli mapping |
 | [webhooks.md](webhooks.md) | Event delivery, verification, ACK window |
 | [rate-limits.md](rate-limits.md) | Throttling model, backoff, per-shop buckets |
-| [architecture.md](architecture.md) | Data flow mapped to `src/` modules |
+| [architecture.md](architecture.md) | Data flow mapped to `backend/` modules |
 | [multi-tenant.md](multi-tenant.md) | Per-shop credentials, `shop_cipher`, isolation |
 | [risks.md](risks.md) | API gaps, policy risk, version drift |
 | [tech-stack.md](tech-stack.md) | Client boundaries, env vars, persistence touchpoints |

@@ -1,4 +1,4 @@
-# src/modules/ml/ad_performance
+# backend/ai/ad_performance
 
 ## Purpose
 
@@ -31,7 +31,7 @@ Offline only; no TikTok API calls, no UI changes.
 
 ## Dependencies
 
-- `src/modules/ml/features` — `build_ad_features`, `AD_FEATURE_COLUMNS` (includes account baselines)
+- `backend/ai/features` — `build_ad_features`, `AD_FEATURE_COLUMNS` (includes account baselines)
 - `ads.parquet` — campaign/day spend, ROAS, CPC, conversions, impressions, clicks
 - `scikit-learn` — `RandomForestRegressor`, `RandomForestClassifier`
 

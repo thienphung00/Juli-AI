@@ -21,7 +21,7 @@ https://api.app-juli.com  →  Nginx  →  juli-api (127.0.0.1:8000)  →  FastA
 | Service | `juli-api` (systemd) |
 | Upstream | `127.0.0.1:8000` |
 | Env file | `~/Juli-AI-v2/.env` (from `infra/deploy/env/api.env.example`) |
-| ASGI entry | `backend.api.api.main:app` (shim: `src.apps.api_gateway.api.main:app`) |
+| ASGI entry | `backend.api.api.main:app` |
 | Provision script | `sudo ./infra/deploy/provision-backend.sh` |
 
 ---

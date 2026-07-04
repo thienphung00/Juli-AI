@@ -33,4 +33,4 @@ analytics, and threshold alerting). See `docs/decisions/006-matching-pivot.md`.
 
 ## Owners
 - domain: api
-- code: src/apps/api_gateway/api/
+- code: backend/api/api/

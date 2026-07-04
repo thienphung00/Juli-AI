@@ -2,6 +2,6 @@
 
 FastAPI REST API — `api.app-juli.com`.
 
-**Legacy source:** `src/apps/api_gateway/api/`
+**Entrypoint:** `backend.api.api.main:app`
 
 **Public surface:** `/v1/*`, `/health`

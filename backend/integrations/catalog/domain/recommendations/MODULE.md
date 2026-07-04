@@ -41,11 +41,11 @@ quota-aware fallback to deterministic rules.
   `build_decision_message`
 
 ## Dependencies
-- `src.shared.utils.data.repos.GraphRepo` — commerce graph edges for ranking
-- `src.shared.utils.data.models` — `Creator`, `Product`, `Livestream`, `InventoryItem` (read-only)
-- `src.modules.catalog.domain.intelligence.forecasting` — `get_velocity_changes`, `get_low_stock_risks` (legacy signal)
-- `src.modules.catalog.domain.intelligence.scoring` — `score_livestream` (legacy signal)
-- `src.shared.utils.data.models.Recommendation` — read-only daily quota counter for LLM usage
+- `backend.database.repos.GraphRepo` — commerce graph edges for ranking
+- `backend.database.models` — `Creator`, `Product`, `Livestream`, `InventoryItem` (read-only)
+- `backend.integrations.catalog.domain.intelligence.forecasting` — `get_velocity_changes`, `get_low_stock_risks` (legacy signal)
+- `backend.integrations.catalog.domain.intelligence.scoring` — `score_livestream` (legacy signal)
+- `backend.database.models.Recommendation` — read-only daily quota counter for LLM usage
 
 ## Invariants
 - Read-only against `data`; persistence via `RecommendationsRepo` is reserved for API slice (#43)
@@ -55,4 +55,4 @@ quota-aware fallback to deterministic rules.
 
 ## Owners
 - domain: recommendations
-- code: src/modules/catalog/domain/recommendations/
+- code: backend/integrations/catalog/domain/recommendations/

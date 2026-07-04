@@ -7,12 +7,12 @@
 **Goal:** Provide a public, HTTPS-accessible Juli deployment for TikTok App Review without
 launching production functionality.
 
-**Active scope (2.5-c):** backend runtime boundary moved to `backend/` with `src/`
-compatibility shims; deploy configs may still reference legacy entrypoints until updated.
+**Status:** Complete (App Review sign-off 2026-07-03). Backend runtime lives in `backend/`;
+legacy `web/` serves `app-juli.com` until Phase 3 landing replaces it.
 
-**Active App Review slice:** deploy the existing `web/` Next.js frontend and FastAPI API from
-legacy paths on a VPS-backed domain so TikTok reviewers can load the UI, reach the backend,
-exercise reviewer login, and verify the TikTok OAuth callback.
+**Completed App Review slice:** `web/` Next.js frontend and FastAPI API deployed on a
+VPS-backed domain so TikTok reviewers can load the UI, reach the backend, exercise reviewer
+login, and verify the TikTok OAuth callback.
 
 **Non-goals:** no real users, no production traffic, and no persistent business data beyond the
 minimum auth/session state needed for reviewer access.
@@ -278,14 +278,14 @@ Skip until Phase 3 or later unless startup requires it:
 
 ### Reviewer acceptance checklist
 
-- [ ] `https://app-juli.com/` resolves and loads the frontend.
-- [ ] `https://api.app-juli.com/health` returns a 2xx JSON response.
-- [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles missing/invalid
+- [x] `https://app-juli.com/` resolves and loads the frontend.
+- [x] `https://api.app-juli.com/health` returns a 2xx JSON response.
+- [x] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles missing/invalid
       OAuth params with a controlled response, not a server crash.
-- [ ] Reviewer login uses UI-only demo entry.
-- [ ] CORS allows `https://app-juli.com`.
-- [ ] No production user traffic is invited or routed to this deployment.
-- [ ] No persistent business data is required to complete App Review.
+- [x] Reviewer login uses UI-only demo entry.
+- [x] CORS allows `https://app-juli.com`.
+- [x] No production user traffic is invited or routed to this deployment.
+- [x] No persistent business data is required to complete App Review.
 
 Implementation planning lives in [`../features/app_review_deployment/PRD.md`](../features/app_review_deployment/PRD.md)
 and [`../features/app_review_deployment/issues.md`](../features/app_review_deployment/issues.md).
@@ -297,10 +297,10 @@ and [`../features/app_review_deployment/issues.md`](../features/app_review_deplo
 - [x] Target folders scaffolded with ownership READMEs _(2.5-a)_
 - [x] Canonical docs aligned (`EXECUTION.md`, `map.md`, phase docs) _(2.5-a)_
 - [x] Workspace tooling (`pnpm` + Turborepo) without moving runtime apps _(2.5-b)_
-- [ ] Public App Review domain routes to the frontend over HTTPS _(2.5-review)_
-- [ ] Backend health and OAuth callback routes respond over HTTPS _(2.5-review)_
-- [ ] Reviewer login works without production users or production traffic _(2.5-review)_
-- [x] Backend runtime boundary moved to `backend/` with `src/` compatibility shims _(2.5-c)_
+- [x] Public App Review domain routes to the frontend over HTTPS _(2.5-review, 2026-07-03)_
+- [x] Backend health and OAuth callback routes respond over HTTPS _(2.5-review, 2026-07-03)_
+- [x] Reviewer login works without production users or production traffic _(2.5-review, 2026-07-03)_
+- [x] backend runtime boundary moved to `backend/` _(2.5-c; `src/` shims removed in pre-Phase 2 cleanup)_
 - [x] CI/deploy notes capture the temporary VPS/Nginx topology _(2.5-d)_
 
 ---
