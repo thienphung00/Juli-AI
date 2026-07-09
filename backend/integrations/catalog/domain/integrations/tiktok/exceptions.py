@@ -45,6 +45,23 @@ class TikTokSystemError(TikTokAPIError):
     """Transient server-side failure — safe to retry (100006)."""
 
 
+class TransportGuardError(Exception):
+    """Raised when a capability transport guard rejects a request before signing."""
+
+    def __init__(
+        self,
+        *,
+        capability: str,
+        method: str,
+        path: str,
+        message: str,
+    ) -> None:
+        self.capability = capability
+        self.method = method
+        self.path = path
+        super().__init__(message)
+
+
 _CODE_MAP: dict[int, type[TikTokAPIError]] = {
     100002: AuthenticationError,
     100003: PermissionDeniedError,
