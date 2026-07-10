@@ -28,7 +28,8 @@ routing:
   domain_mappings:
     backend:
       - backend/src/juli_backend/api
-      - backend/src/juli_backend/integrations/identity
+      - backend/src/juli_backend/core
+      - backend/src/juli_backend/services
       - backend/src/juli_backend/workers
     ui-ux:
       - web

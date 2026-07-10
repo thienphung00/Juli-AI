@@ -1,4 +1,4 @@
-# backend/workers/services/polling
+# backend/src/juli_backend/workers/services/polling
 
 ## Purpose
 
@@ -19,8 +19,8 @@ Out-of-scope workers removed (Phase 2 cleanup): `sync_inventory`, `sync_livestre
 
 ## Dependencies
 
-- `backend/integrations/catalog/domain/integrations/tiktok` — resource modules, `RateLimiter`, exceptions
-- `backend/integrations/ordering/api/ingestion/handoff` — `HandoffFn` type
+- `juli_backend.integrations.tiktok` — resource modules, `RateLimiter`, exceptions
+- `juli_backend.services.ingestion` — `HandoffFn` type
 
 ## Key Behaviors
 
@@ -35,5 +35,5 @@ Out-of-scope workers removed (Phase 2 cleanup): `sync_inventory`, `sync_livestre
 
 ## Wiring
 
-Use `make_etl_handoff(etl_consumer)` from `backend/integrations/ordering/api/ingestion/handoff`
+Use `make_etl_handoff(etl_consumer)` from `juli_backend.services.ingestion`
 the same way as the webhook receiver.
