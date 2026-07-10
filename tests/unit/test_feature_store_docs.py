@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from backend.ai.artifacts.schema import feature_schema_hash
-from backend.ai.dataset.schema import ADS_COLUMNS
-from backend.ai.features.schema import (
+from juli_backend.ai.artifacts.schema import feature_schema_hash
+from juli_backend.ai.dataset.schema import ADS_COLUMNS
+from juli_backend.ai.features.schema import (
     AD_FEATURE_COLUMNS,
     ANOMALY_FEATURE_COLUMNS,
     SELLER_STAGE_FEATURE_COLUMNS,

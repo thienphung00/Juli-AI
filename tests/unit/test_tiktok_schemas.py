@@ -2,7 +2,7 @@
 
 import pytest
 
-from backend.integrations.catalog.domain.integrations.tiktok.schemas import (
+from juli_backend.integrations.tiktok.schemas import (
     CreatorContentDetail,
     FinanceStatement,
     MarketplaceCreator,

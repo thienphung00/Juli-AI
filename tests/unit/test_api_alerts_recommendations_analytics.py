@@ -1,10 +1,7 @@
-"""Tests for Issue #43: Alerts + recommendations + daily analytics API.
+"""Tests for Issue #43: Recommendations API.
 
 Test mapping from acceptance criteria:
-- AC1 → test_alert_history_endpoint
-- AC2 → test_alert_config_crud
 - AC3 → test_recommendations_endpoint
-- AC4 → test_daily_analytics_profit
 """
 
 import json
@@ -16,9 +13,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.database.models import (
-    AlertConfig,
-    AlertHistory,
+from juli_backend.models.models import (
     InventoryItem,
     Order,
     Product,
@@ -32,8 +27,8 @@ pytestmark = pytest.mark.asyncio
 
 @pytest_asyncio.fixture
 async def app(engine, session):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
 
     application = create_app()
 
@@ -68,8 +63,8 @@ async def shop(session, authenticated_user):
 
 @pytest_asyncio.fixture
 async def auth_client(app, authenticated_user, shop):
-    from backend.api.api.dependencies import get_active_shop
-    from backend.integrations.identity.infrastructure.auth import get_current_user
+    from juli_backend.api.dependencies import get_active_shop
+    from juli_backend.core.security import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
@@ -78,36 +73,6 @@ async def auth_client(app, authenticated_user, shop):
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
         yield c
-
-
-@pytest_asyncio.fixture
-async def seed_alert_history(session, shop):
-    config = AlertConfig(
-        id=uuid.uuid4(),
-        shop_id=shop.id,
-        alert_type="low_stock",
-        channel="fcm",
-        threshold_json=json.dumps({"min_quantity": 5}),
-        is_active=True,
-    )
-    session.add(config)
-    await session.flush()
-
-    now = datetime.now(timezone.utc)
-    entries = []
-    for i in range(3):
-        entry = AlertHistory(
-            id=uuid.uuid4(),
-            shop_id=shop.id,
-            alert_config_id=config.id,
-            triggered_at=now - timedelta(hours=i),
-            payload=json.dumps({"sku_id": f"sku_{i}"}),
-            status="delivered",
-        )
-        entries.append(entry)
-    session.add_all(entries)
-    await session.flush()
-    return config, entries
 
 
 @pytest_asyncio.fixture
@@ -134,7 +99,7 @@ async def seed_recommendations(session, shop):
 
 @pytest_asyncio.fixture
 async def seed_daily_analytics(session, shop):
-    """Orders from yesterday and products/inventory for SKU profit breakdown."""
+    """Products/inventory for recommendation engine refresh."""
     now = datetime.now(timezone.utc)
     yesterday = now - timedelta(days=1)
 
@@ -149,24 +114,12 @@ async def seed_daily_analytics(session, shop):
             update_time=yesterday.replace(hour=10),
             created_at=yesterday.replace(hour=10),
         ),
-        Order(
-            id=uuid.uuid4(),
-            shop_id=shop.id,
-            tiktok_order_id="ord_y2",
-            status="COMPLETED",
-            total_amount=Decimal("500.00"),
-            currency="VND",
-            update_time=yesterday.replace(hour=14),
-            created_at=yesterday.replace(hour=14),
-        ),
     ]
     session.add_all(orders)
 
     products = []
     inventory = []
-    for i, (revenue, units, qty) in enumerate(
-        [(800, 8, 3), (400, 4, 50)]
-    ):
+    for i, (revenue, units, qty) in enumerate([(800, 8, 3), (400, 4, 50)]):
         pid = f"tt_prod_{i}"
         p = Product(
             id=uuid.uuid4(),
@@ -197,64 +150,6 @@ async def seed_daily_analytics(session, shop):
     return orders, products, inventory
 
 
-async def test_alert_history_endpoint(auth_client, seed_alert_history):
-    """AC1: GET /v1/alerts/history returns paginated alert history."""
-    resp = await auth_client.get("/v1/alerts/history", params={"limit": 2})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "items" in data
-    assert len(data["items"]) <= 2
-    assert "next_cursor" in data
-    item = data["items"][0]
-    assert item["alert_type"] == "low_stock"
-    assert item["status"] == "delivered"
-    assert "triggered_at" in item
-
-
-async def test_alert_config_crud(auth_client, shop, session):
-    """AC2: PUT /v1/alerts/config creates/updates alert rules per shop."""
-    body = {
-        "rules": [
-            {
-                "alert_type": "revenue_milestone",
-                "channel": "fcm",
-                "is_active": True,
-                "threshold": {"min_revenue": 1_000_000},
-                "cooldown_seconds": 1800,
-            }
-        ]
-    }
-    resp = await auth_client.put("/v1/alerts/config", json=body)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data["rules"]) == 1
-    assert data["rules"][0]["alert_type"] == "revenue_milestone"
-    assert data["rules"][0]["is_active"] is True
-
-    resp2 = await auth_client.put(
-        "/v1/alerts/config",
-        json={
-            "rules": [
-                {
-                    "alert_type": "revenue_milestone",
-                    "channel": "fcm",
-                    "is_active": False,
-                    "threshold": {"min_revenue": 2_000_000},
-                }
-            ]
-        },
-    )
-    assert resp2.status_code == 200
-    assert resp2.json()["rules"][0]["is_active"] is False
-
-    from backend.database.repos import AlertConfigsRepo
-
-    repo = AlertConfigsRepo(session)
-    stored = await repo.get_by_type(shop.id, "revenue_milestone")
-    assert stored is not None
-    assert stored.is_active is False
-
-
 async def test_recommendations_endpoint(
     auth_client, seed_recommendations, seed_daily_analytics
 ):
@@ -270,22 +165,3 @@ async def test_recommendations_endpoint(
     assert "message" in item
     assert "cta" in item
     assert item["cta"]
-
-
-async def test_daily_analytics_profit(auth_client, seed_daily_analytics):
-    """AC4: GET /v1/analytics/daily returns yesterday profit by SKU + prep checklist."""
-    expected_date = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
-
-    resp = await auth_client.get("/v1/analytics/daily")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["date"] == expected_date
-    assert "total_profit" in data
-    assert Decimal(data["total_profit"]) > 0
-    assert "sku_breakdown" in data
-    assert len(data["sku_breakdown"]) >= 1
-    sku = data["sku_breakdown"][0]
-    assert "sku_id" in sku
-    assert "profit" in sku
-    assert "prep_checklist" in data
-    assert isinstance(data["prep_checklist"], list)

@@ -10,12 +10,12 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.integrations.catalog.domain.feedback import (
+from juli_backend.services.feedback import (
     compute_calibration_weight,
     ingest_campaign_outcome,
 )
-from backend.database.models import Creator, Shop, User
-from backend.database.repos import GraphRepo
+from juli_backend.models.models import Creator, Shop, User
+from juli_backend.repositories.repos import GraphRepo
 
 
 def _user(uid: uuid.UUID) -> User:

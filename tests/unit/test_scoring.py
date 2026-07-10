@@ -14,11 +14,11 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database.models import Creator, Livestream, Order, Shop, User
-from backend.integrations.catalog.domain.intelligence.scoring.scorer import LivestreamScore, score_livestream
-from backend.integrations.catalog.domain.intelligence.scoring.anomaly import Anomaly, detect_anomalies
-from backend.integrations.catalog.domain.intelligence.scoring.retention import RetentionPoint, get_stream_retention
-from backend.integrations.catalog.domain.intelligence.scoring.sentiment import SentimentResult, analyze_comments
+from juli_backend.models.models import Creator, Livestream, Order, Shop, User
+from juli_backend.ai.ranking.scorer import LivestreamScore, score_livestream
+from juli_backend.ai.ranking.anomaly import Anomaly, detect_anomalies
+from juli_backend.ai.ranking.retention import RetentionPoint, get_stream_retention
+from juli_backend.ai.ranking.sentiment import SentimentResult, analyze_comments
 
 
 # ---------------------------------------------------------------------------

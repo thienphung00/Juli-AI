@@ -1,10 +1,8 @@
-"""Tests for Issue #38: Livestream + Creator + Settlement API endpoints.
+"""Tests for Issue #38: Creator API endpoints.
 
 Test mapping:
-- AC1 → test_livestreams_endpoint_session_metrics
 - AC2 → test_creators_endpoint_attribution
 - AC3 → test_creator_content_funnel
-- AC4 → test_settlements_net_revenue
 """
 
 import uuid
@@ -15,20 +13,15 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.database.models import Creator, Livestream, Settlement, Shop, User
+from juli_backend.models.models import Creator, Livestream, Shop, User
 
 pytestmark = pytest.mark.asyncio
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest_asyncio.fixture
 async def app(engine, session):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
 
     application = create_app()
 
@@ -103,29 +96,8 @@ async def livestream(session, shop, creator):
 
 
 @pytest_asyncio.fixture
-async def settlement(session, shop):
-    now = datetime.now(timezone.utc)
-    s = Settlement(
-        id=uuid.uuid4(),
-        shop_id=shop.id,
-        tiktok_settlement_id="settle_001",
-        amount=Decimal("1000000.00"),
-        currency="VND",
-        status="confirmed",
-        platform_commission=Decimal("50000.00"),
-        affiliate_commission=Decimal("30000.00"),
-        shipping_fee=Decimal("20000.00"),
-        settlement_time=now,
-        update_time=now,
-    )
-    session.add(s)
-    await session.flush()
-    return s
-
-
-@pytest_asyncio.fixture
 async def auth_client(app, shop):
-    from backend.api.api.dependencies import get_active_shop
+    from juli_backend.api.dependencies import get_active_shop
 
     app.dependency_overrides[get_active_shop] = lambda: shop
 
@@ -133,37 +105,6 @@ async def auth_client(app, shop):
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
         yield c
-
-
-# ---------------------------------------------------------------------------
-# AC1 — GET /v1/livestreams returns session metrics
-# ---------------------------------------------------------------------------
-
-
-async def test_livestreams_endpoint_session_metrics(
-    auth_client, creator, livestream
-):
-    """AC1: Returns per-session metrics: duration, viewers, peak concurrent, orders placed."""
-    resp = await auth_client.get("/v1/livestreams")
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "items" in data
-    assert len(data["items"]) == 1
-
-    item = data["items"][0]
-    assert item["tiktok_livestream_id"] == "live_001"
-    assert item["title"] == "Flash Sale Stream"
-    assert "duration_seconds" in item
-    assert item["duration_seconds"] == 3600
-    assert item["viewer_count"] == 1000
-    assert item["peak_concurrent_viewers"] == 800
-    assert item["order_count"] == 50
-
-
-# ---------------------------------------------------------------------------
-# AC2 — GET /v1/creators returns GMV attribution and commission efficiency
-# ---------------------------------------------------------------------------
 
 
 async def test_creators_endpoint_attribution(auth_client, creator, livestream):
@@ -181,13 +122,7 @@ async def test_creators_endpoint_attribution(auth_client, creator, livestream):
     assert "total_gmv" in item
     assert Decimal(item["total_gmv"]) == Decimal("5000000.00")
     assert "commission_efficiency" in item
-    # commission_efficiency = total_gmv * commission_rate
     assert Decimal(item["commission_efficiency"]) == Decimal("250000.0000")
-
-
-# ---------------------------------------------------------------------------
-# AC3 — GET /v1/creators/{id}/content returns conversion funnel
-# ---------------------------------------------------------------------------
 
 
 async def test_creator_content_funnel(auth_client, creator, livestream):
@@ -211,38 +146,3 @@ async def test_creator_content_funnel_404(auth_client):
     resp = await auth_client.get(f"/v1/creators/{uuid.uuid4()}/content")
 
     assert resp.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# AC4 — GET /v1/settlements returns net revenue after deductions
-# ---------------------------------------------------------------------------
-
-
-async def test_settlements_net_revenue(auth_client, settlement):
-    """AC4: Returns net revenue after platform commission, affiliate commission, shipping fees."""
-    resp = await auth_client.get("/v1/settlements")
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "items" in data
-    assert len(data["items"]) == 1
-
-    item = data["items"][0]
-    assert item["tiktok_settlement_id"] == "settle_001"
-    assert item["status"] == "confirmed"
-    assert "gross_amount" in item
-    assert "platform_commission" in item
-    assert "affiliate_commission" in item
-    assert "shipping_fee" in item
-    assert "net_revenue" in item
-
-    # net_revenue = amount - platform_commission - affiliate_commission - shipping_fee
-    gross = Decimal(item["gross_amount"])
-    net = Decimal(item["net_revenue"])
-    deductions = (
-        Decimal(item["platform_commission"])
-        + Decimal(item["affiliate_commission"])
-        + Decimal(item["shipping_fee"])
-    )
-    assert gross - deductions == net
-    assert net == Decimal("900000.00")

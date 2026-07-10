@@ -14,8 +14,8 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database.models import Campaign, Creator, GraphEdge, Shop, User
-from backend.database.repos import GraphRepo
+from juli_backend.models.models import Campaign, Creator, GraphEdge, Shop, User
+from juli_backend.repositories.repos import GraphRepo
 
 
 def _user(uid: uuid.UUID) -> User:

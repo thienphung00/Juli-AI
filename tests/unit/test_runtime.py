@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from backend.runtime import (
+from juli_backend.core.config.runtime import (
     async_database_url,
     cors_allow_origins,
     require_env,
@@ -28,7 +28,7 @@ def test_async_database_url_adds_supabase_ssl():
 
 def test_sync_database_url_adds_supabase_sslmode(monkeypatch):
     monkeypatch.setattr(
-        "backend.runtime._supabase_ipv4_hostaddr",
+        "juli_backend.core.config.runtime._supabase_ipv4_hostaddr",
         lambda hostname, port: "203.0.113.10",
     )
     raw = "postgresql://user:pass@db.project.supabase.co:5432/postgres"
@@ -44,7 +44,7 @@ def test_sync_database_url_leaves_local_postgres_unchanged():
 
 
 def test_sync_database_url_rejects_ipv6_only_direct_supabase_host(monkeypatch):
-    monkeypatch.setattr("backend.runtime._supabase_ipv4_hostaddr", lambda hostname, port: None)
+    monkeypatch.setattr("juli_backend.core.config.runtime._supabase_ipv4_hostaddr", lambda hostname, port: None)
     raw = "postgresql://postgres:pass@db.project.supabase.co:5432/postgres"
     with pytest.raises(RuntimeError, match="Session pooler"):
         sync_database_url(raw)

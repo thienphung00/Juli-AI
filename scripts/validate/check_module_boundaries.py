@@ -11,6 +11,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from common import (  # noqa: E402
     REPO_ROOT,
+    backend_module_root,
     collect_import_graph,
     git_changed_files,
     module_for_file,
@@ -31,7 +32,7 @@ def violations_in_files(py_files: list[Path], modules: dict) -> list[dict]:
         owner = module_for_file(rel, modules)
         if not owner:
             continue
-        allowed = parse_module_md_public_symbols(REPO_ROOT / owner / "MODULE.md")
+        allowed = parse_module_md_public_symbols(backend_module_root(owner) / "MODULE.md")
         try:
             tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
         except SyntaxError:
@@ -39,12 +40,14 @@ def violations_in_files(py_files: list[Path], modules: dict) -> list[dict]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom) or not node.module:
                 continue
-            if not node.module.startswith("backend."):
+            if not node.module.startswith("juli_backend."):
                 continue
             target = resolve_import_to_module(node.module, modules)
             if not target or target == owner:
                 continue
-            importee_allowed = parse_module_md_public_symbols(REPO_ROOT / target / "MODULE.md")
+            importee_allowed = parse_module_md_public_symbols(
+                backend_module_root(target) / "MODULE.md"
+            )
             for alias in node.names:
                 name = alias.name
                 if name == "*":
@@ -67,7 +70,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:  # noqa: ARG001
     py_files = [
         REPO_ROOT / path
         for path in changed
-        if path.endswith(".py") and path.startswith("backend/")
+        if path.endswith(".py") and path.startswith("backend/src/juli_backend/")
     ]
     touched_modules = {module_for_file(p.relative_to(REPO_ROOT).as_posix(), modules) for p in py_files}
     touched_modules.discard(None)

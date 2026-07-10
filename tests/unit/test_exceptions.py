@@ -8,7 +8,7 @@ Behaviors under test:
 """
 import pytest
 
-from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
+from juli_backend.integrations.tiktok.exceptions import (
     TikTokAPIError,
     AuthenticationError,
     PermissionDeniedError,

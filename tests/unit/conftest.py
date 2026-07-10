@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from backend.database.database import Base
+from juli_backend.database.database import Base
 
 
 @pytest.fixture(scope="session")
@@ -14,7 +14,9 @@ def anyio_backend():
 
 @pytest.fixture(autouse=True)
 def token_encryption_key(monkeypatch):
-    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key")
+    monkeypatch.setenv(
+        "TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key"
+    )
 
 
 @pytest_asyncio.fixture

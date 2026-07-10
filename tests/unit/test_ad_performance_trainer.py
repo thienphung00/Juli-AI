@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from backend.ai.dataset import assemble_backtest_dataset
-from backend.ai.features.schema import AD_FEATURE_COLUMNS
+from juli_backend.ai.dataset import assemble_backtest_dataset
+from juli_backend.ai.features.schema import AD_FEATURE_COLUMNS
 
 
 @pytest.fixture
 def trained_ad_model(tmp_path: Path):
-    from backend.ai.ad_performance import train_ad_performance
+    from juli_backend.ai.ad_performance import train_ad_performance
 
     dataset_dir = tmp_path / "backtest"
     assemble_backtest_dataset(
@@ -32,7 +32,7 @@ def trained_ad_model(tmp_path: Path):
 
 def test_golden_scale_candidate_returns_scale_with_high_confidence(trained_ad_model):
     """Golden scale candidate campaign → scale action with confidence above hold threshold."""
-    from backend.ai.ad_performance import GOLDEN_AD_FIXTURES, HOLD_CONFIDENCE_THRESHOLD, predict_ad_action
+    from juli_backend.ai.ad_performance import GOLDEN_AD_FIXTURES, HOLD_CONFIDENCE_THRESHOLD, predict_ad_action
 
     model, _manifest = trained_ad_model
     fixture = next(item for item in GOLDEN_AD_FIXTURES if item["id"] == "scale")
@@ -45,7 +45,7 @@ def test_golden_scale_candidate_returns_scale_with_high_confidence(trained_ad_mo
 
 def test_golden_cut_candidate_returns_cut(trained_ad_model):
     """Golden cut candidate campaign → cut action."""
-    from backend.ai.ad_performance import GOLDEN_AD_FIXTURES, predict_ad_action
+    from juli_backend.ai.ad_performance import GOLDEN_AD_FIXTURES, predict_ad_action
 
     model, _manifest = trained_ad_model
     fixture = next(item for item in GOLDEN_AD_FIXTURES if item["id"] == "cut")
@@ -57,7 +57,7 @@ def test_golden_cut_candidate_returns_cut(trained_ad_model):
 
 def test_sparse_history_campaign_returns_hold_low_confidence(trained_ad_model):
     """Sparse-history campaign → hold with low confidence (does not raise)."""
-    from backend.ai.ad_performance import GOLDEN_AD_FIXTURES, HOLD_CONFIDENCE_THRESHOLD, predict_ad_action
+    from juli_backend.ai.ad_performance import GOLDEN_AD_FIXTURES, HOLD_CONFIDENCE_THRESHOLD, predict_ad_action
 
     model, _manifest = trained_ad_model
     fixture = next(item for item in GOLDEN_AD_FIXTURES if item["id"] == "sparse")
@@ -69,7 +69,7 @@ def test_sparse_history_campaign_returns_hold_low_confidence(trained_ad_model):
 
 def test_train_writes_roas_mape_metrics_json(tmp_path: Path):
     """CLI train path writes metrics JSON including ROAS MAPE on held-out window."""
-    from backend.ai.ad_performance import CLASS_IMBALANCE_STRATEGY, train_ad_performance
+    from juli_backend.ai.ad_performance import CLASS_IMBALANCE_STRATEGY, train_ad_performance
 
     dataset_dir = tmp_path / "backtest"
     assemble_backtest_dataset(dataset_dir, seed=140, n_shops=8, orders_per_shop=40, ads_days=20)
@@ -91,7 +91,7 @@ def test_train_writes_roas_mape_metrics_json(tmp_path: Path):
 
 def test_training_frame_includes_account_baseline_features(tmp_path: Path):
     """Account-level baseline features included in ad training frame."""
-    from backend.ai.ad_performance.train import build_ad_training_frame
+    from juli_backend.ai.ad_performance.train import build_ad_training_frame
 
     dataset_dir = tmp_path / "backtest"
     assemble_backtest_dataset(dataset_dir, seed=140, n_shops=4, orders_per_shop=30, ads_days=15)
@@ -105,7 +105,7 @@ def test_training_frame_includes_account_baseline_features(tmp_path: Path):
 
 def test_inference_output_schema_documented():
     """Inference output schema includes action, confidence, predicted_roas."""
-    from backend.ai.ad_performance.types import InferenceResult
+    from juli_backend.ai.ad_performance.types import InferenceResult
 
     result = InferenceResult(action="scale", confidence=0.82, predicted_roas=4.5)
     payload = result.to_dict()
@@ -114,7 +114,7 @@ def test_inference_output_schema_documented():
 
 def test_ad_performance_trainer_has_no_tiktok_api_calls():
     """No TikTok API calls in ad performance trainer module."""
-    import backend.ai.ad_performance.train as train_module
+    import juli_backend.ai.ad_performance.train as train_module
 
     source = Path(train_module.__file__).read_text(encoding="utf-8")
     forbidden = ("TikTokClient", "tiktokglobalshop", "open-api.tiktok")

@@ -5,15 +5,15 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from backend.database.models import Shop, User
+from juli_backend.models.models import Shop, User
 
 pytestmark = pytest.mark.asyncio
 
 
 @pytest_asyncio.fixture
 async def app(engine):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     application = create_app()
@@ -45,7 +45,7 @@ async def authenticated_user(session, user_id):
 
 @pytest_asyncio.fixture
 async def auth_client(app, authenticated_user):
-    from backend.integrations.identity.infrastructure.auth import get_current_user
+    from juli_backend.core.security import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
 

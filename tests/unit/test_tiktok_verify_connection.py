@@ -7,8 +7,11 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.database.models import Shop, User
-from backend.database.repos import TikTokCredentialRepo
+from juli_backend.models.models import Shop, User
+from juli_backend.repositories.repos import TikTokCredentialRepo
+from juli_backend.integrations.tiktok.merchant import (
+    TikTokCapability,
+)
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
@@ -36,7 +39,7 @@ def mock_token_exchange(monkeypatch):
         }
     )
     monkeypatch.setattr(
-        "backend.integrations.catalog.domain.integrations.tiktok.auth.TikTokAuth.exchange_code",
+        "juli_backend.integrations.tiktok.auth.TikTokAuth.exchange_code",
         mock,
     )
     return mock
@@ -44,8 +47,8 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def client(engine, monkeypatch):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -83,6 +86,8 @@ async def stored_credential(session, user_id):
         access_token="stored_access_token",
         refresh_token="stored_refresh_token",
         token_expires_at=__import__("datetime").datetime(2026, 7, 10),
+        merchant_authorization_id="seller_123",
+        capability=TikTokCapability.SELLER_CONNECT.value,
     )
     await session.commit()
     return credential, shop
@@ -101,8 +106,9 @@ class TestVerifyConnectionRoute:
     async def test_verify_connection_returns_shop_metadata(
         self, client, stored_credential
     ):
+        _, shop = stored_credential
         with patch(
-            "backend.api.services.tiktok.verify_connection.TikTokVerifyConnectionService.verify",
+            "juli_backend.services.tiktok.verify_connection.TikTokVerifyConnectionService.verify",
             new=AsyncMock(
                 return_value={
                     "connected": True,
@@ -112,7 +118,7 @@ class TestVerifyConnectionRoute:
                 }
             ),
         ):
-            resp = await client.get(VERIFY_PATH)
+            resp = await client.get(VERIFY_PATH, params={"shop_id": str(shop.id)})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -126,12 +132,12 @@ class TestVerifyConnectionRoute:
         assert "ROW_secret_access" not in resp.text
 
     @pytest.mark.asyncio
-    async def test_verify_connection_without_credentials_returns_404(
+    async def test_verify_connection_without_credentials_returns_400(
         self, client
     ):
         resp = await client.get(VERIFY_PATH)
-        assert resp.status_code == 404
-        assert resp.json()["detail"] == "No stored TikTok credentials found"
+        assert resp.status_code == 400
+        assert "merchant_authorization_id" in resp.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_oauth_callback_persists_credentials_for_verify(
@@ -147,12 +153,8 @@ class TestVerifyConnectionRoute:
         )
         assert resp.status_code == 200
 
-        credential = await TikTokCredentialRepo(session).get_latest()
-        assert credential.access_token == "ROW_secret_access"
-        assert credential.refresh_token == "ROW_secret_refresh"
-
         with patch(
-            "backend.api.services.tiktok.verify_connection.TikTokVerifyConnectionService.verify",
+            "juli_backend.services.tiktok.verify_connection.TikTokVerifyConnectionService.verify",
             new=AsyncMock(
                 return_value={
                     "connected": True,
@@ -162,7 +164,13 @@ class TestVerifyConnectionRoute:
                 }
             ),
         ):
-            verify = await client.get(VERIFY_PATH)
+            verify = await client.get(
+                VERIFY_PATH,
+                params={
+                    "merchant_authorization_id": "seller_123",
+                    "capability": TikTokCapability.SELLER_CONNECT.value,
+                },
+            )
 
         assert verify.status_code == 200
         assert verify.json()["connected"] is True

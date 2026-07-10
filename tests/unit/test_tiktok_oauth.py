@@ -15,11 +15,11 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
-from backend.integrations.identity.infrastructure.auth.exceptions import Unauthorized
-from backend.integrations.identity.infrastructure.auth.tiktok_oauth import TikTokOAuthService
-from backend.database.models import TikTokCredential, User
-from backend.database.repos import ShopsRepo, TikTokCredentialRepo
-from backend.integrations.catalog.domain.integrations.tiktok.auth import TikTokAuth
+from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
+from juli_backend.models.models import TikTokCredential, User
+from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
+from juli_backend.integrations.tiktok.auth import TikTokAuth
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"

@@ -15,8 +15,8 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.integrations.catalog.domain.recommendations.engine import get_host_product_matching
-from backend.database.models import (
+from juli_backend.ai.recommendations.engine import get_host_product_matching
+from juli_backend.models.models import (
     Creator,
     InventoryItem,
     Livestream,
@@ -30,8 +30,8 @@ pytestmark = pytest.mark.asyncio
 
 @pytest_asyncio.fixture
 async def app(engine, session):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
 
     application = create_app()
 
@@ -66,8 +66,8 @@ async def shop(session, authenticated_user):
 
 @pytest_asyncio.fixture
 async def auth_client(app, authenticated_user, shop):
-    from backend.api.api.dependencies import get_active_shop
-    from backend.integrations.identity.infrastructure.auth import get_current_user
+    from juli_backend.api.dependencies import get_active_shop
+    from juli_backend.core.security import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
@@ -202,7 +202,7 @@ async def test_ac5_ingest_outcome_then_matching_score_reflects_update(
         if m.creator_id == str(creator.id) and m.tiktok_product_id == product.tiktok_product_id
     )
 
-    from backend.integrations.catalog.domain.feedback import ingest_campaign_outcome
+    from juli_backend.services.feedback import ingest_campaign_outcome
 
     await ingest_campaign_outcome(
         session,

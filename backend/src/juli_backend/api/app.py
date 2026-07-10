@@ -1,0 +1,36 @@
+from typing import Any
+
+from fastapi import APIRouter, FastAPI
+
+from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
+from juli_backend.api.routes.debug_tiktok import router as debug_tiktok_router
+from juli_backend.api.routes.creators import router as creators_router
+from juli_backend.api.routes.orders import router as orders_router
+from juli_backend.api.routes.outcomes import router as outcomes_router
+from juli_backend.api.routes.products import router as products_router
+from juli_backend.api.routes.recommendations import router as recommendations_router
+from juli_backend.api.routes.shops import router as shops_router
+
+
+def create_app(*, lifespan: Any | None = None) -> FastAPI:
+    """Build and return the Juli API application."""
+    app = FastAPI(
+        title="Juli API",
+        version="0.1.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=lifespan,
+    )
+
+    v1_router = APIRouter(prefix="/v1")
+    v1_router.include_router(auth_tiktok_router)
+    v1_router.include_router(shops_router)
+    v1_router.include_router(orders_router)
+    v1_router.include_router(products_router)
+    v1_router.include_router(recommendations_router)
+    v1_router.include_router(outcomes_router)
+    v1_router.include_router(creators_router)
+    app.include_router(v1_router)
+    app.include_router(debug_tiktok_router)
+
+    return app

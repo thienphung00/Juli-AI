@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from backend.ai.dataset import assemble_backtest_dataset
-from backend.ai.seller_stage import (
+from juli_backend.ai.dataset import assemble_backtest_dataset
+from juli_backend.ai.seller_stage import (
     AD_SPEND_GROWTH_MIN_VND,
     CLASS_IMBALANCE_STRATEGY,
     ORDER_COUNT_GROWTH_MIN,
@@ -116,7 +116,7 @@ def test_train_writes_metrics_json(tmp_path: Path):
 
 def test_seller_stage_has_no_tiktok_api_calls():
     """No TikTok API calls in seller stage trainer module."""
-    import backend.ai.seller_stage.train as train_module
+    import juli_backend.ai.seller_stage.train as train_module
 
     source = Path(train_module.__file__).read_text(encoding="utf-8")
     forbidden = ("TikTokClient", "tiktokglobalshop", "open-api.tiktok")
@@ -128,7 +128,7 @@ def test_seller_stage_has_no_ui_changes():
     """Seller stage trainer does not import web UI modules."""
     import ast
 
-    import backend.ai.seller_stage as seller_stage_pkg
+    import juli_backend.ai.seller_stage as seller_stage_pkg
 
     package_dir = Path(seller_stage_pkg.__file__).parent
     for path in package_dir.glob("*.py"):

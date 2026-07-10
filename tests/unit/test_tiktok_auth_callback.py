@@ -13,8 +13,8 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from backend.database.models import TikTokCredential
-from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
+from juli_backend.models.models import TikTokCredential
+from juli_backend.integrations.tiktok.exceptions import (
     AuthenticationError,
 )
 
@@ -52,7 +52,7 @@ def tiktok_oauth_env(monkeypatch):
 def mock_token_exchange(monkeypatch):
     mock = MagicMock(return_value=dict(TOKEN_FIXTURE))
     monkeypatch.setattr(
-        "backend.integrations.catalog.domain.integrations.tiktok.auth.TikTokAuth.exchange_code",
+        "juli_backend.integrations.tiktok.auth.TikTokAuth.exchange_code",
         mock,
     )
     return mock
@@ -60,8 +60,8 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def client(engine, monkeypatch):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)

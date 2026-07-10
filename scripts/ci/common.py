@@ -37,7 +37,24 @@ PUBLIC_SECTION_RE = re.compile(
 HANDOFF_FILE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*-\d{2}\.md$", re.IGNORECASE)
 ADR_FILE_RE = re.compile(r"^(\d{3})-([a-z0-9-]+)\.md$")
 REQUIRED_ADR_SECTIONS = ("## Context", "## Decision", "## Rationale", "## Consequences")
-BACKEND_MODULE_PREFIXES = ("backend/", "src/")
+BACKEND_SRC_PREFIX = "backend/src/juli_backend/"
+BACKEND_MODULE_PREFIXES = (BACKEND_SRC_PREFIX, "backend/", "src/")
+
+
+def normalize_backend_module_path(file_path: str) -> str:
+    """Map on-disk src layout paths to logical ``backend/…`` module paths."""
+    normalized = file_path.replace("\\", "/")
+    if normalized.startswith(BACKEND_SRC_PREFIX):
+        return "backend/" + normalized[len(BACKEND_SRC_PREFIX) :]
+    return normalized
+
+
+def backend_module_root(module_path: str) -> Path:
+    """Resolve a logical ``backend/…`` module path to its directory on disk."""
+    normalized = module_path.replace("\\", "/")
+    if normalized.startswith("backend/"):
+        return REPO_ROOT / BACKEND_SRC_PREFIX.rstrip("/") / normalized.removeprefix("backend/")
+    return REPO_ROOT / normalized
 
 
 def _is_backend_module_path(module_path: str) -> bool:
@@ -217,7 +234,7 @@ def parse_architecture_map(path: Path | None = None) -> dict[str, ModuleInfo]:
 
 
 def module_for_file(file_path: str, modules: dict[str, ModuleInfo]) -> str | None:
-    normalized = file_path.replace("\\", "/")
+    normalized = normalize_backend_module_path(file_path.replace("\\", "/"))
     if not _is_backend_module_path(normalized):
         return None
     candidates = sorted(modules.keys(), key=len, reverse=True)
@@ -514,7 +531,7 @@ def normalize_review_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
-ML_MODULE_PREFIX = "backend/ai/"
+ML_MODULE_PREFIXES = ("backend/src/juli_backend/ai/", "backend/ai/")
 
 
 def ml_modules_touched(modules: Iterable[str]) -> list[str]:
@@ -522,7 +539,10 @@ def ml_modules_touched(modules: Iterable[str]) -> list[str]:
     touched: list[str] = []
     for module in modules:
         normalized = str(module).replace("\\", "/")
-        if normalized == "backend/ai" or normalized.startswith(ML_MODULE_PREFIX):
+        if normalized in {"backend/ai", "backend/src/juli_backend/ai"}:
+            touched.append(normalized)
+            continue
+        if any(normalized.startswith(prefix) for prefix in ML_MODULE_PREFIXES):
             touched.append(normalized)
     return touched
 
@@ -901,11 +921,16 @@ def collect_import_graph(modules: dict[str, ModuleInfo]) -> dict[str, set[str]]:
 
 
 def resolve_import_to_module(module_name: str, modules: dict[str, ModuleInfo]) -> str | None:
-    dotted = module_name.replace(".", "/")
+    logical_name = module_name
+    if module_name.startswith("juli_backend."):
+        logical_name = "backend." + module_name.removeprefix("juli_backend.")
+    dotted = logical_name.replace(".", "/")
     candidates = sorted(modules.keys(), key=len, reverse=True)
     for module_path in candidates:
         pkg = path_to_package(module_path)
         if module_name == pkg or module_name.startswith(pkg + "."):
+            return module_path
+        if logical_name == pkg or logical_name.startswith(pkg + "."):
             return module_path
         if dotted.startswith(module_path):
             return module_path
