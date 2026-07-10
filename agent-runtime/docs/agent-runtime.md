@@ -331,7 +331,7 @@ Full rollout details: [`agent-runtime-migration.md`](agent-runtime-migration.md)
 | [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md) | Runtime artifact schemas, paths, persistence |
 | [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md) | Unified benchmark protocol, scoring, task types |
 | [`agent-runtime-migration.md`](agent-runtime-migration.md) | Phase rollout and rollback |
-| [`docs/benchmarks/agent-runtime/`](../benchmarks/agent-runtime/) | Task fixture specs (types A–D) |
-| [`docs/schemas/agent-runtime/`](../schemas/agent-runtime/) | JSON Schema definitions |
+| [`benchmarks/`](benchmarks/) | Task fixture specs (types A–D) |
+| [`schemas/`](schemas/) | JSON Schema definitions |
 | [`.cursor/skills/standalone/focus/SKILL.md`](../../.cursor/skills/standalone/focus/SKILL.md) | Context Plan router |
 | [`docs/handoffs/context-plan-template.md`](../handoffs/context-plan-template.md) | Context Plan output template |

@@ -49,7 +49,7 @@ User message
 
 | Task signal | Agent phase | Load |
 |-------------|-------------|------|
-| New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../docs/architecture/agent-runtime.md) Planning section; canonical docs; `to-prd` path |
+| New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) Planning section; canonical docs; `to-prd` path |
 | Spec from conversation | Planning | `to-prd` → `to-issues` |
 | GitHub issue implementation | Implementation | Meta routing; domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
 | Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
@@ -302,28 +302,28 @@ and emits optimization output. This is a **Focus-routed** step — not a separat
 |---------|--------|
 | Validation artifact written | Read all three execution artifacts; emit harness optimization |
 | Repeated failure pattern (2+ issues) | Consider product-development optimization |
-| Benchmark rerun (Phase 6) | Compare `baselineMetrics` per [`agent-runtime-benchmarks.md`](../../../docs/architecture/agent-runtime-benchmarks.md) |
+| Benchmark rerun (Phase 6) | Compare `baselineMetrics` per [`agent-runtime-benchmarks.md`](../../../agent-runtime/docs/agent-runtime-benchmarks.md) |
 
 ### Inputs (required)
 
 | Artifact | Path |
 |----------|------|
-| Implementation | `artifacts/implementations/implementation-issue-<n>.json` |
-| Review | `artifacts/reviews/review-issue-<n>.json` |
-| Validation | `artifacts/validation/validation-issue-<n>.json` |
+| Implementation | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` |
+| Review | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
+| Validation | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
 
 ### Harness optimization output (every run)
 
-Write `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json`:
+Write `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json`:
 
 1. Copy signals from source artifacts (`tokenUsage`, `toolInvocationCount`, `reviewFailures`, `validationFailures`, `retryCount`, `contextFilesLoaded`, `skillsLoaded`).
-2. Populate `baselineMetrics` with all eight metrics (see [`agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)).
+2. Populate `baselineMetrics` with all eight metrics (see [`agent-runtime-artifacts.md`](../../../agent-runtime/docs/agent-runtime-artifacts.md)).
 3. Set `rootCauseCategory` from the initial enum set (`context_overloaded`, `wrong_executor_domain`, etc.).
 4. Propose one concrete `proposedOptimization` with `expectedMetricImpact`.
 5. Set `autoApplyEligible: true` only for safe harness-config changes (context budget, routing hints) — never for skills, rules, or product scope.
 6. Set `appliedStatus: "proposed"` until Architect approves and a benchmark rerun marks `"measured"`.
 
-Schema: [`docs/schemas/agent-runtime/harness-optimization-artifact.schema.json`](../../../docs/schemas/agent-runtime/harness-optimization-artifact.schema.json)
+Schema: [`agent-runtime/docs/schemas/harness-optimization-artifact.schema.json`](../../../agent-runtime/docs/schemas/harness-optimization-artifact.schema.json)
 
 ### Product-development optimization (occasional)
 
@@ -331,13 +331,13 @@ Emit only when repeated evidence indicates planning or architecture process fail
 (e.g. same module fails review 3+ times, recurring executor domain mismatch, missing
 acceptance criteria across issues).
 
-Write `artifacts/optimization/product-development-<id>.json` with `acceptedByArchitect: "pending"`.
+Write `agent-runtime/artifacts/optimization/product-development-<id>.json` with `acceptedByArchitect: "pending"`.
 
-Schema: [`docs/schemas/agent-runtime/product-development-optimization-artifact.schema.json`](../../../docs/schemas/agent-runtime/product-development-optimization-artifact.schema.json)
+Schema: [`agent-runtime/docs/schemas/product-development-optimization-artifact.schema.json`](../../../agent-runtime/docs/schemas/product-development-optimization-artifact.schema.json)
 
 Handoff template: [`docs/templates/handoffs/validation-meta.md`](../../../docs/templates/handoffs/validation-meta.md)
 
-Benchmark protocol: [`docs/architecture/agent-runtime-benchmarks.md`](../../../docs/architecture/agent-runtime-benchmarks.md)
+Benchmark protocol: [`agent-runtime/docs/agent-runtime-benchmarks.md`](../../../agent-runtime/docs/agent-runtime-benchmarks.md)
 
 ### Must not (Meta Agent)
 
@@ -361,6 +361,6 @@ Not loading planning handoff edge cases, issue acceptance criteria, or system-de
 
 ## Additional Resources
 
-- Agent runtime architecture: [`docs/architecture/agent-runtime.md`](../../../docs/architecture/agent-runtime.md)
-- Runtime artifacts: [`docs/architecture/agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)
+- Agent runtime architecture: [`agent-runtime/docs/agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md)
+- Runtime artifacts: [`agent-runtime/docs/agent-runtime-artifacts.md`](../../../agent-runtime/docs/agent-runtime-artifacts.md)
 - For context routing rules, see [routing-rules.md](routing-rules.md)

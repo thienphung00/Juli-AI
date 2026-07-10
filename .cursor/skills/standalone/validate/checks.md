@@ -1,15 +1,15 @@
 # Validate Skill: Per-Check Reference
 
 Each gate is a single Python script under
-[`scripts/validate/`](../../../scripts/validate/) that exits 0 on PASS and 1
+[`agent-runtime/scripts/validate/`](../../../agent-runtime/scripts/validate/) that exits 0 on PASS and 1
 on FAIL. The validation artifact's `checks[]` array has one entry per gate
 listed below, in this order.
 
 ## 1. `review_artifact_present`
 
-**Script:** [`scripts/validate/check_review_artifact.py`](../../../scripts/validate/check_review_artifact.py)
+**Script:** [`agent-runtime/scripts/validate/check_review_artifact.py`](../../../agent-runtime/scripts/validate/check_review_artifact.py)
 
-**Reads:** `artifacts/reviews/review-issue-<n>.json`
+**Reads:** `agent-runtime/artifacts/reviews/review-issue-<n>.json`
 
 **Passes if:**
 - File exists at the canonical path.
@@ -24,15 +24,15 @@ listed below, in this order.
   `warnings[]`), `status` must be `PASS_WITH_WARNINGS`, not `PASS`.
 - Legacy top-level `warnings[]` entries must be migrated into `criticalFindings`;
   non-empty `warnings[]` fails this check (regenerate via
-  `scripts/ci/generate_review_artifact.py` or `normalize_review_artifacts.py`).
+  `agent-runtime/scripts/ci/generate_review_artifact.py` or `normalize_review_artifacts.py`).
 - Structural validity only — blocking CRITICAL findings and `FAIL` status are
   enforced by `critical_findings_resolved`.
 
 ## 2. `implementation_artifact_present`
 
-**Script:** [`scripts/validate/check_implementation_artifact.py`](../../../scripts/validate/check_implementation_artifact.py)
+**Script:** [`agent-runtime/scripts/validate/check_implementation_artifact.py`](../../../agent-runtime/scripts/validate/check_implementation_artifact.py)
 
-**Reads:** `artifacts/implementations/implementation-issue-<n>.json`
+**Reads:** `agent-runtime/artifacts/implementations/implementation-issue-<n>.json`
 
 **Passes if:**
 - File exists at the canonical path.
@@ -47,7 +47,7 @@ listed below, in this order.
 
 ## 3. `acceptance_criteria_mapped`
 
-**Script:** [`scripts/validate/check_acceptance_mapping.py`](../../../scripts/validate/check_acceptance_mapping.py)
+**Script:** [`agent-runtime/scripts/validate/check_acceptance_mapping.py`](../../../agent-runtime/scripts/validate/check_acceptance_mapping.py)
 
 **Reads:** review artifact's `testCoverage.acceptance`.
 
@@ -61,7 +61,7 @@ listed below, in this order.
 
 ## 4. `module_boundaries`
 
-**Script:** [`scripts/validate/check_module_boundaries.py`](../../../scripts/validate/check_module_boundaries.py)
+**Script:** [`agent-runtime/scripts/validate/check_module_boundaries.py`](../../../agent-runtime/scripts/validate/check_module_boundaries.py)
 
 **Reads:**
 - [`docs/architecture/map.md`](../../../docs/architecture/map.md) (authoritative module list)
@@ -79,7 +79,7 @@ listed below, in this order.
 
 ## 5. `module_md_sync`
 
-**Script:** [`scripts/validate/check_module_drift.py`](../../../scripts/validate/check_module_drift.py)
+**Script:** [`agent-runtime/scripts/validate/check_module_drift.py`](../../../agent-runtime/scripts/validate/check_module_drift.py)
 
 **Reads:** Each touched module's `MODULE.md` vs Python AST of public symbols.
 
@@ -93,7 +93,7 @@ listed below, in this order.
 
 ## 6. `handoff_structure`
 
-**Script:** [`scripts/validate/check_handoff.py`](../../../scripts/validate/check_handoff.py)
+**Script:** [`agent-runtime/scripts/validate/check_handoff.py`](../../../agent-runtime/scripts/validate/check_handoff.py)
 
 **Reads:** Any legacy `docs/handoffs/<topic>-NN.md` referenced by the PR or branch.
 
@@ -111,7 +111,7 @@ listed below, in this order.
 
 ## 7. `adr_requirement`
 
-**Script:** [`scripts/validate/check_adr.py`](../../../scripts/validate/check_adr.py)
+**Script:** [`agent-runtime/scripts/validate/check_adr.py`](../../../agent-runtime/scripts/validate/check_adr.py)
 
 **Reads:** review artifact's `criticalFindings[]` and `interfaceChanges[]`,
 plus `docs/adr/`.
@@ -131,7 +131,7 @@ hyphen-separated lowercase slug. The `adr-NNN.md` form is rejected.
 
 ## 8. `done_md_completion`
 
-**Script:** [`scripts/validate/check_done_md.py`](../../../scripts/validate/check_done_md.py)
+**Script:** [`agent-runtime/scripts/validate/check_done_md.py`](../../../agent-runtime/scripts/validate/check_done_md.py)
 
 **Reads:** Root [`done.md`](../../../done.md).
 
@@ -145,7 +145,7 @@ for the conditional table).
 
 ## 9. `critical_findings_resolved`
 
-**Script:** [`scripts/validate/check_critical_findings_resolved.py`](../../../scripts/validate/check_critical_findings_resolved.py)
+**Script:** [`agent-runtime/scripts/validate/check_critical_findings_resolved.py`](../../../agent-runtime/scripts/validate/check_critical_findings_resolved.py)
 
 **Reads:** review artifact `status`, `criticalFindings`, `testCoverage`, `mlGates`,
 `priorReviewBlockers`.
@@ -167,7 +167,7 @@ production data exposure are never cleared.
 
 ## 10. `findings_acknowledged`
 
-**Script:** [`scripts/validate/check_findings_acknowledged.py`](../../../scripts/validate/check_findings_acknowledged.py)
+**Script:** [`agent-runtime/scripts/validate/check_findings_acknowledged.py`](../../../agent-runtime/scripts/validate/check_findings_acknowledged.py)
 
 **Passes if (when `status == "PASS_WITH_WARNINGS"`):**
 - **Every** WARNING finding has `acceptanceByReviewer: true`, `ownerAck: true`, and
@@ -190,7 +190,7 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 
 ## 11. `reviewer_signoff_present`
 
-**Script:** [`scripts/validate/check_reviewer_signoff.py`](../../../scripts/validate/check_reviewer_signoff.py)
+**Script:** [`agent-runtime/scripts/validate/check_reviewer_signoff.py`](../../../agent-runtime/scripts/validate/check_reviewer_signoff.py)
 
 **Passes if (when `status == "PASS_WITH_WARNINGS"`):**
 - `reviewerSignoff.statement`, `reviewerSignoff.timestamp`, and
@@ -198,7 +198,7 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 
 ## 12. `owner_signoff_present`
 
-**Script:** [`scripts/validate/check_owner_signoff.py`](../../../scripts/validate/check_owner_signoff.py)
+**Script:** [`agent-runtime/scripts/validate/check_owner_signoff.py`](../../../agent-runtime/scripts/validate/check_owner_signoff.py)
 
 **Passes if (when `status == "PASS_WITH_WARNINGS"`):**
 - `ownerSignoff.statement`, `ownerSignoff.timestamp`, and
@@ -206,7 +206,7 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 
 ## 13. `ml_gates_enforced`
 
-**Script:** [`scripts/validate/check_ml_gates.py`](../../../scripts/validate/check_ml_gates.py)
+**Script:** [`agent-runtime/scripts/validate/check_ml_gates.py`](../../../agent-runtime/scripts/validate/check_ml_gates.py)
 
 **Passes if (when any `modulesTouched` path is under `src/modules/ml/`):**
 - `mlGates.coldStartThresholdDocumented: true`

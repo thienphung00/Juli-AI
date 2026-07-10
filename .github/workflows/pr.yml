@@ -175,12 +175,12 @@ jobs:
         run: |
           issue="${ISSUE_NUMBER}"
           failed=0
-          for script in scripts/validate/check_*.py; do
+          for script in agent-runtime/scripts/validate/check_*.py; do
             echo "==> $script"
             python "$script" --issue "$issue" || failed=1
           done
-          echo "==> scripts/ci/normalize_review_artifacts.py --check"
-          python scripts/ci/normalize_review_artifacts.py --issue "$issue" --check || failed=1
+          echo "==> agent-runtime/scripts/ci/normalize_review_artifacts.py --check"
+          python agent-runtime/scripts/ci/normalize_review_artifacts.py --issue "$issue" --check || failed=1
           exit "$failed"
 
   generate-validation-artifact:
@@ -199,12 +199,12 @@ jobs:
         with:
           python-version: "3.12"
       - name: Generate validation artifact
-        run: python scripts/ci/generate_validation_artifact.py --issue "${{ needs.resolve-issue.outputs.issue_number }}"
+        run: python agent-runtime/scripts/ci/generate_validation_artifact.py --issue "${{ needs.resolve-issue.outputs.issue_number }}"
       - name: Upload validation artifact
         uses: actions/upload-artifact@v4
         with:
           name: validation-issue-${{ needs.resolve-issue.outputs.issue_number }}
-          path: artifacts/validation/validation-issue-${{ needs.resolve-issue.outputs.issue_number }}.json
+          path: agent-runtime/artifacts/validation/validation-issue-${{ needs.resolve-issue.outputs.issue_number }}.json
 
   status-check:
     runs-on: ubuntu-latest

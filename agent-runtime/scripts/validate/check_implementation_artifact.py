@@ -32,7 +32,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     path = implementation_artifact_path(issue)
     if not path.exists():
         return False, "Implementation artifact missing", {
-            "path": f"artifacts/implementations/implementation-issue-{issue}.json"
+            "path": f"agent-runtime/artifacts/implementations/implementation-issue-{issue}.json"
         }
 
     artifact = load_json(path)

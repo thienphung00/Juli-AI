@@ -21,7 +21,7 @@ forbidden:
     - pattern: "docs/architecture/**"
       reason: architecture docs except agent-runtime-benchmarks threshold section
       except:
-        - "docs/architecture/agent-runtime-benchmarks.md"
+        - "agent-runtime/docs/agent-runtime-benchmarks.md"
     - pattern: "src/**"
       reason: product code — executor domain only
     - pattern: "apps/dashboard/**"

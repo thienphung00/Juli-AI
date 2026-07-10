@@ -1,7 +1,7 @@
 # CI/CD and Agent Runtime Artifacts
 
 Machine-readable outputs for the AI-native harness ([ADR-003](../docs/adr/003-ai-native-cicd-policy.md))
-and Agent Runtime ([`docs/architecture/agent-runtime-artifacts.md`](../docs/architecture/agent-runtime-artifacts.md)).
+and Agent Runtime ([`agent-runtime/docs/agent-runtime-artifacts.md`](../agent-runtime/docs/agent-runtime-artifacts.md)).
 
 ## Directory layout
 
@@ -32,8 +32,8 @@ and Agent Runtime ([`docs/architecture/agent-runtime-artifacts.md`](../docs/arch
 ## Schemas
 
 - **ADR-003 CI gates:** [`docs/deployment/implementation-guide.md`](../docs/deployment/implementation-guide.md) (review, validation, release)
-- **Agent Runtime (JSON Schema):** [`docs/schemas/agent-runtime/`](../docs/schemas/agent-runtime/)
-- **Benchmark protocol:** [`docs/architecture/agent-runtime-benchmarks.md`](../docs/architecture/agent-runtime-benchmarks.md)
+- **Agent Runtime (JSON Schema):** [`agent-runtime/docs/schemas/`](../agent-runtime/docs/schemas/)
+- **Benchmark protocol:** [`agent-runtime/docs/agent-runtime-benchmarks.md`](../agent-runtime/docs/agent-runtime-benchmarks.md)
 
 ## Commit policy
 

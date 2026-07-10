@@ -1,9 +1,9 @@
 version: 1
-description: Machine-readable allowlist for Meta Agent harness optimization. Use scripts/harness_config.py for reads/writes.
+description: Machine-readable allowlist for Meta Agent harness optimization. Use agent-runtime/scripts/harness_config.py for reads/writes.
 
 eligible_targets:
   - id: agent_runtime_context
-    file: agent-runtime.config.yml
+    file: agent-runtime/config/agent-runtime.config.yml
     description: Context budget and retrieval settings
     fields:
       - path: context.budget_tokens
@@ -17,7 +17,7 @@ eligible_targets:
         validation: ">= 1 and <= 5"
 
   - id: agent_runtime_routing
-    file: agent-runtime.config.yml
+    file: agent-runtime/config/agent-runtime.config.yml
     description: Executor domain routing thresholds
     fields:
       - path: routing.backend_threshold
@@ -34,7 +34,7 @@ eligible_targets:
         validation: ">= 0.5 and <= 1"
 
   - id: agent_runtime_benchmark_thresholds
-    file: agent-runtime.config.yml
+    file: agent-runtime/config/agent-runtime.config.yml
     section: benchmark.thresholds
     description: Benchmark no-regression thresholds consumed by harness_optimizer.py
     fields:
@@ -49,7 +49,7 @@ eligible_targets:
         validation: ">= 0 and <= 5"
 
   - id: context_plan_template
-    file: docs/handoffs/context-plan-template.md
+    file: agent-runtime/templates/context-plan-template.md
     description: Context plan template — budget and routing hint rows only
     mode: markdown_section
     sections:
@@ -58,7 +58,7 @@ eligible_targets:
     auto_apply: false
 
   - id: agent_runtime_benchmarks_doc
-    file: docs/architecture/agent-runtime-benchmarks.md
+    file: agent-runtime/docs/agent-runtime-benchmarks.md
     description: Benchmark threshold documentation table only
     mode: markdown_section
     sections:

@@ -78,7 +78,7 @@ jobs:
           echo "value=$ver" >> "$GITHUB_OUTPUT"
       - name: Generate release artifact
         run: |
-          python scripts/ci/generate_release_artifact.py \
+          python agent-runtime/scripts/ci/generate_release_artifact.py \
             --version "${{ steps.version.outputs.value }}" \
             --commit "${{ github.sha }}" \
             --branch main \

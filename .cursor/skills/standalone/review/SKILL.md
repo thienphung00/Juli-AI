@@ -13,8 +13,8 @@ description: >-
 Review Agent skill: validates code quality after Executor implementation. Owns the
 `review` step in `review → validate → ship-ready`. Does not substitute for Validate.
 
-Emits `artifacts/reviews/review-issue-<n>.json` (ADR-003 CI gate + Meta fields per
-[`docs/architecture/agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)).
+Emits `agent-runtime/artifacts/reviews/review-issue-<n>.json` (ADR-003 CI gate + Meta fields per
+[`agent-runtime/docs/agent-runtime-artifacts.md`](../../../agent-runtime/docs/agent-runtime-artifacts.md)).
 
 A validator, reviewer, checklist provider, and patch suggester. This skill does NOT generate features — it enforces quality on existing or proposed code.
 
@@ -30,7 +30,7 @@ After review completes, write or update the review artifact before handing off t
 
 ### Workflow
 
-1. Read `artifacts/implementations/implementation-issue-<n>.json` when present (Executor handoff).
+1. Read `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` when present (Executor handoff).
 2. Run review checks (below) and populate `criticalFindings`.
 3. Map acceptance criteria to tests in `testCoverage.acceptance.mappings`.
 4. Set `status`: `FAIL` if any `criticalFindings[*].severity == "CRITICAL"` or
@@ -40,7 +40,7 @@ After review completes, write or update the review artifact before handing off t
 5. Write artifact:
 
 ```bash
-python scripts/ci/generate_review_artifact.py --issue <n> --input-json /tmp/review-fields.json
+python agent-runtime/agent-runtime/scripts/ci/generate_review_artifact.py --issue <n> --input-json /tmp/review-fields.json
 ```
 
 Merge handoff fields via `--input-json`. Existing artifact content on disk is
@@ -105,7 +105,7 @@ When ML modules are touched, document gates:
 ```
 
 Missing ML gates is a mandatory `FAIL` trigger. CI also scans `thresholds.py` in
-source for required constants (see `scripts/ci/ml_thresholds.py`).
+source for required constants (see `agent-runtime/scripts/ci/ml_thresholds.py`).
 
 ### Hotfix override (`overriddenMerge`)
 
@@ -140,16 +140,16 @@ After ship, link incidents to accepted findings (use `criticalFindings[].id`):
 
 ### Inputs
 
-- Implementation artifact: `artifacts/implementations/implementation-issue-<n>.json`
+- Implementation artifact: `agent-runtime/artifacts/implementations/implementation-issue-<n>.json`
 - GitHub issue acceptance criteria
 - Changed files on branch
 
 ### Outputs
 
-- `artifacts/reviews/review-issue-<n>.json`
+- `agent-runtime/artifacts/reviews/review-issue-<n>.json`
 - Human-readable findings (markdown below) for the handoff template
 
-Schema: [`docs/schemas/agent-runtime/review-artifact.schema.json`](../../../docs/schemas/agent-runtime/review-artifact.schema.json)
+Schema: [`agent-runtime/docs/schemas/review-artifact.schema.json`](../../../agent-runtime/docs/schemas/review-artifact.schema.json)
 
 ## Role
 

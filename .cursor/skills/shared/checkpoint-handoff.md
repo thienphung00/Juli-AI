@@ -111,11 +111,11 @@ review_phase:
     pytest: "✓ passed" | "✗ failed"
     ruff: "✓ passed" | "skipped"
     mypy: "✓ passed" | "skipped"
-    review_artifact: "artifacts/reviews/review-issue-{N}.json"
+    review_artifact: "agent-runtime/artifacts/reviews/review-issue-{N}.json"
 
 validate_phase:
   status: "✓" | "⏳" | "✗"
-  artifact: "artifacts/validation/validation-issue-{N}.json"
+  artifact: "agent-runtime/artifacts/validation/validation-issue-{N}.json"
   checks_passed: "{N}/{total}"
 
 ship_phase:
@@ -223,8 +223,8 @@ Templates live in `docs/templates/handoffs/` — load the specific file only whe
 
 ## Integration
 
-- **Agent runtime:** [`docs/architecture/agent-runtime.md`](../../../docs/architecture/agent-runtime.md) — phase model and ownership
+- **Agent runtime:** [`agent-runtime/docs/agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) — phase model and ownership
 - **Standalone skills** (`to-prd`, `to-issues`, `focus`, `review`, `validate`, `ship`, `qa`): each links here for persistence rules
-- **Validate gate:** `scripts/validate/check_handoff.py` skips when no legacy handoff on branch;
+- **Validate gate:** `agent-runtime/scripts/validate/check_handoff.py` skips when no legacy handoff on branch;
   `docs/handoffs/issue-*-{phase}.md` files are the continuity source alongside `EXECUTION.md`
 - **Parallel agents:** `docs/handoffs/_bootstrap.md` — each window reads its issue checkpoint first

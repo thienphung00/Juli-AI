@@ -156,14 +156,14 @@ baseline_metrics:
     source: implementation-artifact.toolInvocationCount
 optimization:
   artifact_paths:
-    implementation: artifacts/implementations/implementation-issue-{n}.json
-    review: artifacts/reviews/review-issue-{n}.json
-    validation: artifacts/validation/validation-issue-{n}.json
-    harness_output: artifacts/optimization/harness-issue-{n}-{phaseRunId}.json
-    product_dev_output: artifacts/optimization/product-development-{id}.json
-  editable_schema: harness-editable.yml
-  safelist: harness-safelist.yml
-  config_tool: scripts/harness_config.py
+    implementation: agent-runtime/artifacts/implementations/implementation-issue-{n}.json
+    review: agent-runtime/artifacts/reviews/review-issue-{n}.json
+    validation: agent-runtime/artifacts/validation/validation-issue-{n}.json
+    harness_output: agent-runtime/artifacts/optimization/harness-issue-{n}-{phaseRunId}.json
+    product_dev_output: agent-runtime/artifacts/optimization/product-development-{id}.json
+  editable_schema: agent-runtime/config/harness-editable.yml
+  safelist: agent-runtime/config/harness-safelist.yml
+  config_tool: agent-runtime/scripts/harness_config.py
   dry_run_default: true
   root_cause_categories:
     - context_underloaded
@@ -176,7 +176,7 @@ optimization:
     - phase_loop
     - artifact_incomplete
     - architecture_unclear
-  schemas_dir: docs/schemas/agent-runtime/
+  schemas_dir: agent-runtime/docs/schemas/
 benchmark:
   enabled: true
   thresholds:

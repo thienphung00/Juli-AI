@@ -16,7 +16,7 @@ validation artifact exists. Never ship before validation.
 
 Before merge or release preparation:
 
-1. Confirm `artifacts/validation/validation-issue-<n>.json` exists on the branch.
+1. Confirm `agent-runtime/artifacts/validation/validation-issue-<n>.json` exists on the branch.
 2. Assert `status == "PASS"` and `readyForMerge == true`.
 3. If `readyForShip` is present, it must also be `true` (mirrors `readyForMerge`).
 4. On failure, return to `validate` or `review` — do not proceed.
@@ -24,12 +24,12 @@ Before merge or release preparation:
 ```bash
 python -c "
 import json, sys
-v = json.load(open('artifacts/validation/validation-issue-<n>.json'))
+v = json.load(open('agent-runtime/artifacts/validation/validation-issue-<n>.json'))
 sys.exit(0 if v.get('status')=='PASS' and v.get('readyForMerge') else 1)
 "
 ```
 
-Schema: [`docs/schemas/agent-runtime/validation-artifact.schema.json`](../../../docs/schemas/agent-runtime/validation-artifact.schema.json)
+Schema: [`agent-runtime/docs/schemas/validation-artifact.schema.json`](../../../agent-runtime/docs/schemas/validation-artifact.schema.json)
 
 Everything related to shipping safely. This skill prepares deployment artifacts, validates readiness, and generates rollout plans. It NEVER directly deploys.
 
@@ -235,7 +235,7 @@ Detect (Sentry/Grafana alert)
 
 | Skill | Relationship |
 |-------|-------------|
-| `validate` | **Requires** `artifacts/validation/validation-issue-<n>.json` with `readyForMerge: true` |
+| `validate` | **Requires** `agent-runtime/artifacts/validation/validation-issue-<n>.json` with `readyForMerge: true` |
 | `review` | Pre-merge checklist follows review; ship gates on validation artifact, not review prose |
 | `focus` | Meta Agent runs harness optimization after validation; ship does not consume optimization artifacts |
 

@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "ci"))
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "validate"))
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "validate"))
 
 from common import (  # noqa: E402
     build_review_artifact,
@@ -29,7 +29,6 @@ from common import (  # noqa: E402
 )
 from check_review_artifact import run_check as run_review_check  # noqa: E402
 
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "validate"))
 from check_critical_findings_resolved import run_check as run_critical_check  # noqa: E402
 from check_findings_acknowledged import run_check as run_ack_check  # noqa: E402
 from check_ml_gates import run_check as run_ml_gates_check  # noqa: E402

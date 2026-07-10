@@ -21,9 +21,9 @@ build/
 # Local git worktrees (parallel issue isolation — not source control)
 .worktrees/
 
-# Large runtime telemetry (small JSON artifacts under artifacts/ are committed per ADR-003)
-artifacts/runtime/raw/
-artifacts/runtime/logs/
+# Large runtime telemetry (small JSON artifacts under agent-runtime/artifacts/ are committed per ADR-003)
+agent-runtime/artifacts/runtime/raw/
+agent-runtime/artifacts/runtime/logs/
 
 # Serialized ML model artifacts (runtime output — not source control)
 /models/

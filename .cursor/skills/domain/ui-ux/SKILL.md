@@ -10,7 +10,7 @@ description: >-
 
 Executor Agent domain skill for interface work. Implements issues with built-in
 TDD (Red → Green → Refactor). Canonical requirements:
-[`docs/architecture/agent-runtime.md`](../../../docs/architecture/agent-runtime.md).
+[`agent-runtime/docs/agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md).
 
 ## When to load
 
@@ -46,17 +46,17 @@ Map each acceptance criterion to a named test where practical.
 
 ## Implementation artifact (required handoff)
 
-Before Review Agent, write `artifacts/implementations/implementation-issue-<n>.json`.
+Before Review Agent, write `agent-runtime/artifacts/implementations/implementation-issue-<n>.json`.
 
 ```bash
-python scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain ui-ux
+python agent-runtime/agent-runtime/scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain ui-ux
 ```
 
 Document TDD cycles in `redGreenRefactorEvidence`, list UI files in `filesModified`,
 and map `testsAdded` to acceptance criteria. Use the same `phaseRunId` across
 implementation, review, and validation artifacts.
 
-Schema: [`docs/schemas/agent-runtime/implementation-artifact.schema.json`](../../../docs/schemas/agent-runtime/implementation-artifact.schema.json)
+Schema: [`agent-runtime/docs/schemas/implementation-artifact.schema.json`](../../../agent-runtime/docs/schemas/implementation-artifact.schema.json)
 
 ## Must not
 

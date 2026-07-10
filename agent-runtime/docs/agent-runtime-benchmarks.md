@@ -1,7 +1,7 @@
 # Agent Runtime Benchmarks
 
 **Status:** Published (Agent Runtime Phase 5)  
-**Authority:** [`agent-runtime.md`](agent-runtime.md) > this file > task specs under [`docs/benchmarks/agent-runtime/`](../benchmarks/agent-runtime/)  
+**Authority:** [`agent-runtime.md`](agent-runtime.md) > this file > task specs under [`benchmarks/`](benchmarks/)  
 **Artifacts:** [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md)
 
 One **unified** benchmark framework for the complete agent-phase harness. There are no
@@ -36,11 +36,11 @@ A benchmark run produces or references these artifacts (when applicable):
 
 | Artifact | Path pattern |
 |----------|--------------|
-| Implementation | `artifacts/implementations/implementation-issue-<n>.json` |
-| Review | `artifacts/reviews/review-issue-<n>.json` |
-| Validation | `artifacts/validation/validation-issue-<n>.json` |
-| Harness optimization | `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
-| Product-development optimization | `artifacts/optimization/product-development-<id>.json` |
+| Implementation | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` |
+| Review | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
+| Validation | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
+| Harness optimization | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
+| Product-development optimization | `agent-runtime/artifacts/optimization/product-development-<id>.json` |
 
 Source documents (issue body, PRD, handoff markdown) inform **Planning Score** checks
 only. Execution scores are derived from artifacts wherever deterministic evidence exists.
@@ -50,14 +50,14 @@ only. Execution scores are derived from artifacts wherever deterministic evidenc
 ## Task types
 
 Four task types cover harness scenarios. Each has a fixture spec under
-[`docs/benchmarks/agent-runtime/`](../benchmarks/agent-runtime/).
+[`benchmarks/`](benchmarks/).
 
 | Type | ID | Measures | Fixture |
 |------|-----|----------|---------|
-| **A** | `new-feature` | Feature delivery through artifacts | [`task-type-a-new-feature.md`](../benchmarks/agent-runtime/task-type-a-new-feature.md) |
-| **B** | `bug-fix` | Root cause accuracy, regression tests, TDD evidence | [`task-type-b-bug-fix.md`](../benchmarks/agent-runtime/task-type-b-bug-fix.md) |
-| **C** | `architecture-refactor` | Boundaries, drift, ADR compliance, test preservation | [`task-type-c-architecture-refactor.md`](../benchmarks/agent-runtime/task-type-c-architecture-refactor.md) |
-| **D** | `multi-agent-workflow` | Handoffs, context quality, phase routing | [`task-type-d-multi-agent-workflow.md`](../benchmarks/agent-runtime/task-type-d-multi-agent-workflow.md) |
+| **A** | `new-feature` | Feature delivery through artifacts | [`task-type-a-new-feature.md`](benchmarks/task-type-a-new-feature.md) |
+| **B** | `bug-fix` | Root cause accuracy, regression tests, TDD evidence | [`task-type-b-bug-fix.md`](benchmarks/task-type-b-bug-fix.md) |
+| **C** | `architecture-refactor` | Boundaries, drift, ADR compliance, test preservation | [`task-type-c-architecture-refactor.md`](benchmarks/task-type-c-architecture-refactor.md) |
+| **D** | `multi-agent-workflow` | Handoffs, context quality, phase routing | [`task-type-d-multi-agent-workflow.md`](benchmarks/task-type-d-multi-agent-workflow.md) |
 
 Pick **one task type** per benchmark run. Do not mix scoring rules across types in a
 single report.
@@ -239,7 +239,7 @@ Write `artifacts/benchmarks/<benchmarkRunId>.json`:
   "schemaVersion": "1.0.0",
   "benchmarkRunId": "bug-fix-2026-06-23-a1b2",
   "taskType": "bug-fix",
-  "taskSpec": "docs/benchmarks/agent-runtime/task-type-b-bug-fix.md",
+  "taskSpec": "benchmarks/task-type-b-bug-fix.md",
   "issueId": 42,
   "phaseRunId": "42-2026-06-23-a1b2c3",
   "timestamp": "2026-06-23T10:00:00Z",
@@ -264,10 +264,10 @@ Write `artifacts/benchmarks/<benchmarkRunId>.json`:
     "toolInvocationCount": 85
   },
   "artifactPaths": {
-    "implementation": "artifacts/implementations/implementation-issue-42.json",
-    "review": "artifacts/reviews/review-issue-42.json",
-    "validation": "artifacts/validation/validation-issue-42.json",
-    "harnessOptimization": "artifacts/optimization/harness-issue-42-42-2026-06-23-a1b2c3.json"
+    "implementation": "agent-runtime/artifacts/implementations/implementation-issue-42.json",
+    "review": "agent-runtime/artifacts/reviews/review-issue-42.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-42.json",
+    "harnessOptimization": "agent-runtime/artifacts/optimization/harness-issue-42-42-2026-06-23-a1b2c3.json"
   },
   "deterministicChecks": [
     {"id": "tdd_red_green", "passed": true},
@@ -318,4 +318,4 @@ not drive automated harness changes until reflected in artifact fields.
 | [`agent-runtime.md`](agent-runtime.md) | Agent phases, ownership |
 | [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md) | Artifact paths and schemas |
 | [`agent-runtime-migration.md`](agent-runtime-migration.md) | Phase rollout and rollback |
-| [`docs/benchmarks/agent-runtime/README.md`](../benchmarks/agent-runtime/README.md) | Task fixture index |
+| [`benchmarks/README.md`](benchmarks/README.md) | Task fixture index |

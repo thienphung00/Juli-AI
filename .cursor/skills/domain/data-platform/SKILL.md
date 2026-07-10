@@ -10,7 +10,7 @@ description: >-
 
 Executor Agent domain skill for data and persistence. Implements with built-in
 TDD (Red → Green → Refactor). Canonical requirements:
-[`docs/architecture/agent-runtime.md`](../../../docs/architecture/agent-runtime.md).
+[`agent-runtime/docs/agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md).
 
 ## When to load
 
@@ -48,16 +48,16 @@ module drift checks, data-source policy where scripted.
 
 ## Implementation artifact (required handoff)
 
-Before Review Agent, write `artifacts/implementations/implementation-issue-<n>.json`.
+Before Review Agent, write `agent-runtime/artifacts/implementations/implementation-issue-<n>.json`.
 
 ```bash
-python scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain data-platform
+python agent-runtime/agent-runtime/scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain data-platform
 ```
 
 Include migration paths in `filesModified`, migration/repo tests in `testsAdded`, and
 data risks in `risks`. Note applicable `data-sources.md` rows in `assumptions`.
 
-Schema: [`docs/schemas/agent-runtime/implementation-artifact.schema.json`](../../../docs/schemas/agent-runtime/implementation-artifact.schema.json)
+Schema: [`agent-runtime/docs/schemas/implementation-artifact.schema.json`](../../../agent-runtime/docs/schemas/implementation-artifact.schema.json)
 
 ## Must not
 

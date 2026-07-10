@@ -2,7 +2,7 @@
 name: validate
 description: >-
   Deterministically validates an issue's implementation before ship by running every
-  scripts/validate/*.py gate and emitting artifacts/validation/validation-issue-<n>.json.
+  agent-runtime/scripts/validate/*.py gate and emitting agent-runtime/artifacts/validation/validation-issue-<n>.json.
   Use when the review handoff is complete and the next step would be ship, when CI fails
   on artifact gates, or when an agent needs a machine-verifiable PASS before merging.
 ---
@@ -18,7 +18,7 @@ artifact — not the chat output — is the system of record.
 
 ## When to invoke
 
-- After `review` has emitted `artifacts/reviews/review-issue-<n>.json` and
+- After `review` has emitted `agent-runtime/artifacts/reviews/review-issue-<n>.json` and
   before `ship` runs.
 - After fixing a CI failure surfaced by `pr.yml`.
 - Before opening a PR locally to catch failures early.
@@ -27,15 +27,15 @@ artifact — not the chat output — is the system of record.
 
 - Issue number (`<n>`).
 - Branch under review (current `HEAD`).
-- Existing review artifact at `artifacts/reviews/review-issue-<n>.json`.
-- Implementation artifact at `artifacts/implementations/implementation-issue-<n>.json` (required; validate **FAIL** if missing).
+- Existing review artifact at `agent-runtime/artifacts/reviews/review-issue-<n>.json`.
+- Implementation artifact at `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` (required; validate **FAIL** if missing).
 
 ## Outputs
 
-- `artifacts/validation/validation-issue-<n>.json`
+- `agent-runtime/artifacts/validation/validation-issue-<n>.json`
   - ADR-003 CI fields: [`docs/deployment/implementation-guide.md`](../../../docs/deployment/implementation-guide.md)
-  - Meta fields: [`docs/architecture/agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)
-  - Schema: [`docs/schemas/agent-runtime/validation-artifact.schema.json`](../../../docs/schemas/agent-runtime/validation-artifact.schema.json)
+  - Meta fields: [`agent-runtime/docs/agent-runtime-artifacts.md`](../../../agent-runtime/docs/agent-runtime-artifacts.md)
+  - Schema: [`agent-runtime/docs/schemas/validation-artifact.schema.json`](../../../agent-runtime/docs/schemas/validation-artifact.schema.json)
 - Process exit code: `0` if every check passes, `1` otherwise.
 - Concise console summary (one line per check).
 
@@ -49,7 +49,7 @@ review artifact -> validate skill -> validation artifact -> ship skill / CI
 ```
 
 The validate skill itself orchestrates thirteen gate scripts. Each gate
-is a single-purpose Python file under `scripts/validate/`. Per-check semantics
+is a single-purpose Python file under `agent-runtime/scripts/validate/`. Per-check semantics
 are documented in [checks.md](checks.md).
 
 ## Run
@@ -58,14 +58,14 @@ The canonical entry point is the artifact generator. It runs every gate,
 collects their results, and writes the validation artifact.
 
 ```bash
-python scripts/ci/generate_validation_artifact.py --issue <n>
+python agent-runtime/agent-runtime/scripts/ci/generate_validation_artifact.py --issue <n>
 ```
 
 For a single gate while debugging:
 
 ```bash
-python scripts/validate/check_module_boundaries.py
-python scripts/validate/check_module_drift.py
+python agent-runtime/scripts/validate/check_module_boundaries.py
+python agent-runtime/scripts/validate/check_module_drift.py
 # ... etc.
 ```
 
@@ -73,7 +73,7 @@ python scripts/validate/check_module_drift.py
 
 1. Read the review artifact. If missing or malformed, fail with check
    `review_artifact_present: FAIL` — do **not** synthesize a review.
-2. Run every gate script in `scripts/validate/` regardless of earlier
+2. Run every gate script in `agent-runtime/scripts/validate/` regardless of earlier
    failures (so the JSON artifact lists every problem in one pass).
 3. Aggregate results into the validation artifact schema.
 4. Write the artifact, print a one-line summary per check, exit 0/1.
@@ -104,7 +104,7 @@ when `status` is `FAIL` or `readyForMerge` is `false`.
 - #<n> -- <title>
 
 ### Validation Artifact
-- File: artifacts/validation/validation-issue-<n>.json
+- File: agent-runtime/artifacts/validation/validation-issue-<n>.json
 - Status: PASS
 - Checks: 13/13 passed
 
