@@ -24,7 +24,7 @@ artifacts/runtime/raw/
 artifacts/runtime/logs/
 
 # Serialized ML model artifacts (runtime output — not source control)
-models/
+/models/
 
 # Python virtual environment
 .venv/
