@@ -52,9 +52,9 @@ require login and could not be scraped here. Field-level claims are tagged by co
 | Products search | `/product/202502/products/search` | Same | **MIGRATED** | High | Done 2026-06-09 |
 | Products details | `GET /product/202502/products/{id}` | Same | **MIGRATED** | High | Done 2026-06-09 |
 | Orders search | ~~`/api/orders/search`~~ → `/order/202309/orders/search` | `POST /order/202309/orders/search` | **MIGRATED** | High | Done 2026-06-09 |
-| Orders detail | ~~`POST /api/orders/detail/query`~~ → `GET /order/202309/orders` | `GET /order/202309/orders?ids=` | **MIGRATED** | High | Done 2026-06-09 |
-| Returns search | `POST /return_refund/202309/returns/search` | Same | **MIGRATED** | High | Done 2026-06-09 |
-| Cancellations search | `POST /return_refund/202309/cancellations/search` | Same | **MIGRATED** | High | Done 2026-06-09 |
+| Orders detail | ~~`POST /api/orders/detail/query`~~ → `GET /order/202507/orders` | `GET /order/202507/orders?ids=` | **MIGRATED** | High | Updated from live contract capture 2026-07-06 |
+| Returns search | `POST /return_refund/202602/returns/search` | Same | **MIGRATED** | High | Updated from live contract capture 2026-07-06 |
+| Cancellations search | `POST /return_refund/202602/cancellations/search` | Same | **MIGRATED** | High | Updated from live contract capture 2026-07-06 |
 | Creators list | `/affiliate_seller/202406/marketplace_creators/search` | Same | **MIGRATED** | High | Done 2026-06-09 |
 | Livestreams | `/affiliate_seller/202412/open_collaborations/creator_content_details` | Same | **MIGRATED** | Med | Replaces legacy alias |
 | Inventory (Product API) | ~~`/api/inventory/*`~~ → `/product/202309/inventory/*`, `/product/202309/products/{id}/inventory/update` | **MIGRATED** | High | Done 2026-06-25 — under Product API, not separate Inventory API |

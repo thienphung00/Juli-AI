@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-09",
+    "region": "VN",
+    "merchant": "Fujiwa",
+    "endpoint": "POST /product/202309/inventory/search",
+    "api_version": "202309",
+    "contract_section": "§10",
+    "contract_collection": "docs/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "data": {
+      "inventory": [
+        {
+          "product_id": "1729700293904403063",
+          "skus": [
+            {
+              "id": "1729700293904534135",
+              "seller_sku": "FUJIWA02-450",
+              "total_available_inventory_distribution": {
+                "in_shop_inventory": {
+                  "quantity": 995
+                }
+              },
+              "total_available_quantity": 995,
+              "total_committed_quantity": 0,
+              "warehouse_inventory": [
+                {
+                  "available_quantity": 995,
+                  "committed_quantity": 0,
+                  "warehouse_id": "7272949914115966726"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "message": "Success",
+    "request_id": "{request_id}"
+  }
+}

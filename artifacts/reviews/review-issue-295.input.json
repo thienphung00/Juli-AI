@@ -1,0 +1,80 @@
+{
+  "status": "PASS",
+  "summary": "P2-A1 capability-separated TikTok clients: ProductionReadClientFactory (Fujiwa) and SandboxWriteClientFactory (SANDBOX_VN) wrap GuardedTikTokClient with ReadOnlyTransportGuard and SandboxOnlyWriteGuard. Production transport rejects write paths before signing; sandbox factory enforces SANDBOX_VN auth ID; outbound audit logs redact shop cipher and exclude tokens. All four acceptance criteria mapped to 16 unit tests; 96 TikTok + deploy contract tests pass.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/integrations/catalog/domain/integrations/tiktok/capabilities.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/guards.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/guarded_client.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/factories.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/exceptions.py",
+    "tests/unit/test_tiktok_capability_factories.py"
+  ],
+  "interfaceChanges": [
+    {
+      "type": "added",
+      "symbol": "ProductionReadClientFactory",
+      "module": "backend.integrations.catalog.domain.integrations.tiktok.factories"
+    },
+    {
+      "type": "added",
+      "symbol": "SandboxWriteClientFactory",
+      "module": "backend.integrations.catalog.domain.integrations.tiktok.factories"
+    },
+    {
+      "type": "added",
+      "symbol": "TransportGuardError",
+      "module": "backend.integrations.catalog.domain.integrations.tiktok.exceptions"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Production factory rejects non-allowlisted methods/paths before signing",
+          "test": "tests/unit/test_tiktok_capability_factories.py::test_rejects_write_path_before_signing"
+        },
+        {
+          "criterion": "Sandbox factory rejects Fujiwa merchant auth ID",
+          "test": "tests/unit/test_tiktok_capability_factories.py::test_rejects_fujiwa_merchant_auth_id"
+        },
+        {
+          "criterion": "Fujiwa cannot reach write endpoints blocked",
+          "test": "tests/unit/test_tiktok_capability_factories.py::test_fujiwa_inventory_resource_update_blocked"
+        },
+        {
+          "criterion": "Outbound metadata logged: capability, merchant auth ID, method, redacted shop ID — no tokens/secrets",
+          "test": "tests/unit/test_tiktok_capability_factories.py::test_logs_outbound_metadata_without_secrets"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 96,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Wire factories into polling workers in a follow-up issue once credential lookup by merchant auth ID lands.",
+    "Sandbox allowlist will expand as Layer 2 write contracts are verified in contract-collection.md."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-295.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": []
+}

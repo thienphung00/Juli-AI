@@ -1,0 +1,25 @@
+{
+  "filesModified": [
+    "backend/integrations/catalog/domain/integrations/tiktok/capabilities.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/guards.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/guarded_client.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/factories.py",
+    "backend/integrations/catalog/domain/integrations/tiktok/exceptions.py",
+    "tests/unit/test_tiktok_capability_factories.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_capability_factories.py::test_rejects_non_fujiwa_merchant_auth_id",
+    "tests/unit/test_tiktok_capability_factories.py::test_rejects_write_path_before_signing",
+    "tests/unit/test_tiktok_capability_factories.py::test_fujiwa_inventory_resource_update_blocked",
+    "tests/unit/test_tiktok_capability_factories.py::test_rejects_fujiwa_merchant_auth_id",
+    "tests/unit/test_tiktok_capability_factories.py::test_production_post_allowlist_has_no_write_markers"
+  ],
+  "implementationSummary": "ProductionReadClientFactory and SandboxWriteClientFactory wrap TikTokClient with transport guards that reject disallowed HTTP methods/paths before request signing. Fujiwa is read-only; SANDBOX_VN is write-validation only.",
+  "assumptions": [
+    "Layer 1 read POST allowlist matches verified contract-collection.md search endpoints.",
+    "Sandbox write allowlist will grow as Layer 2 contracts are verified."
+  ],
+  "risks": [
+    "New TikTok endpoints must be added to allowlists explicitly — no implicit pass-through."
+  ]
+}

@@ -23,13 +23,42 @@ seller-money rescope ([`EXECUTION.md`](../../EXECUTION.md)).
 | API documentation | [Partner Center Documents](https://partner.tiktokshop.com/docv2/page/) |
 | Developer guide | [tts-developer-guide](https://partner.tiktokshop.com/docv2/page/tts-developer-guide) |
 
+## API Reference categories
+
+Use the official [Partner Center Documents](https://partner.tiktokshop.com/docv2/page/)
+page, then open **API Reference** and select the category below. The category tree is
+rendered in Partner Center and may require login for full endpoint details.
+
+| API Reference category | Official location |
+|------------------------|-------------------|
+| Products | Partner Center Documents → API Reference → Products |
+| Promotion | Partner Center Documents → API Reference → Promotion |
+| Orders | Partner Center Documents → API Reference → Orders |
+| Fulfillment | Partner Center Documents → API Reference → Fulfillment |
+| Fulfilled by TikTok (FBT) | Partner Center Documents → API Reference → Fulfilled by TikTok (FBT) |
+| Logistics | Partner Center Documents → API Reference → Logistics |
+| Return and Refund | Partner Center Documents → API Reference → Return and Refund |
+| Finance | Partner Center Documents → API Reference → Finance |
+| Analytics | Partner Center Documents → API Reference → Analytics |
+| Customer Service | Partner Center Documents → API Reference → Customer Service |
+| Customer Engagement | Partner Center Documents → API Reference → Customer Engagement |
+| Affiliate Creator | Partner Center Documents → API Reference → Affiliate Creator |
+| Affiliate Partner | Partner Center Documents → API Reference → Affiliate Partner |
+| Affiliate Seller | Partner Center Documents → API Reference → Affiliate Seller |
+| Supply Chain | Partner Center Documents → API Reference → Supply Chain |
+| Tools | Partner Center Documents → API Reference → Tools |
+
 ## Juli phase alignment
 
 | Phase | TikTok API usage | See |
 |-------|------------------|-----|
 | **P1** | Mock JSON only — no network | [`EXECUTION.md`](../../EXECUTION.md) pre-MVP |
-| **Phase 2 MVP Milestone A** | Backtest parquet — no live API | `data-sources.md` |
-| **P2** | Live polling: Orders, Products, Affiliate, Ads | `EXECUTION.md` P2-1 |
+| **P2-A1 (contract gate)** | API Testing Tool cURL + response status per endpoint | [`contract-collection.md`](contract-collection.md) |
+| **P2** | Live polling (Fujiwa read) + sandbox write validation (SANDBOX_VN) | [`EXECUTION.md`](../../EXECUTION.md) P2-A1 |
+
+**Merchant separation:** Production merchant **Fujiwa** (`7658073774813611784`) is read-only.
+Sandbox merchant **SANDBOX_VN** (`7658096633384781588`) is write-validation only.
+See [`contract-collection.md`](contract-collection.md).
 
 Forbidden permanently: Seller Center scraping (#9), in-stream unofficial websockets (#8),
 buyer PII (#17). See [`data-sources.md`](../architecture/data-sources.md).
@@ -38,6 +67,7 @@ buyer PII (#17). See [`data-sources.md`](../architecture/data-sources.md).
 
 | Document | Description |
 |----------|-------------|
+| [contract-collection.md](contract-collection.md) | **Fill-in template** — API Testing Tool cURL + response status per endpoint |
 | [authentication.md](authentication.md) | OAuth flow, token lifecycle, HMAC signing, scopes |
 | [endpoints.md](endpoints.md) | Endpoint inventory, schemas, vendor → Juli mapping |
 | [webhooks.md](webhooks.md) | Event delivery, verification, ACK window |
@@ -64,6 +94,7 @@ buyer PII (#17). See [`data-sources.md`](../architecture/data-sources.md).
 | API entity tags | https://partner.tiktokshop.com/docv2/page/api-entity-tags |
 | Java SDK integration | https://partner.tiktokshop.com/docv2/page/integrate-java-sdk |
 | Node.js SDK integration | https://partner.tiktokshop.com/docv2/page/integrate-node-js-sdk |
+| API Reference categories | Partner Center Documents → API Reference (see category table above) |
 | API Testing Tool | Partner Center → Documents → API Testing Tool |
 
 ## Prerequisites (ISV onboarding)

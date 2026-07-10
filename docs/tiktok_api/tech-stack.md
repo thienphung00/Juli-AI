@@ -9,6 +9,8 @@ Recommended boundaries for TikTok integration in Juli-AI.
 | Component | Module | Notes |
 |-----------|--------|-------|
 | HTTP transport | `requests` (sync) | `TikTokClient` — consider `httpx` async in future |
+| Capability factories | `TikTokClient` wrappers (P2-A1) | `ProductionReadClientFactory`, `SandboxWriteClientFactory` |
+| Runtime guards | Transport middleware (P2-A1) | `ReadOnlyTransportGuard`, `SandboxOnlyWriteGuard` |
 | Signing | `signing.sign_request` | HMAC-SHA256 per official algorithm |
 | OAuth | `TikTokAuth` | No persistence in client module |
 | Rate limiting | `RateLimiter` + Redis | Required for P2 multi-shop |
@@ -24,6 +26,8 @@ Recommended boundaries for TikTok integration in Juli-AI.
 | `TIKTOK_APP_SECRET` | P2 | App Secret (signing + webhook verify) |
 | `TIKTOK_REDIRECT_URI` | P2 | OAuth callback URL |
 | `TIKTOK_BASE_URL` | Optional | Default `https://open-api.tiktokglobalshop.com` |
+| `TIKTOK_PRODUCTION_AUTH_ID` | P2 | Fujiwa merchant authorization ID (`7658073774813611784`) |
+| `TIKTOK_SANDBOX_AUTH_ID` | P2 | SANDBOX_VN authorization ID (`7658096633384781588`) |
 | `REDIS_URL` | P2 | Rate limiter buckets |
 
 Secrets via env / secrets manager — never commit.
@@ -80,4 +84,9 @@ Do not add Java/Node SDKs to production runtime — Python client is canonical.
 | Signing | `tests/unit/test_tiktok_signing.py` (if present) |
 | Integration | Mock TikTok responses — no live API in CI |
 
-Phase 2 adds contract tests against recorded fixtures from API Testing Tool.
+Phase 2 adds contract tests against recorded fixtures from API Testing Tool
+([`contract-collection.md`](contract-collection.md)). CI validation:
+
+- Production-read factory cannot instantiate write resources.
+- Write endpoints absent from production allowlist.
+- Fujiwa auth ID absent from sandbox fixtures.

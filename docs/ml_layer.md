@@ -75,8 +75,8 @@ Every KPI is powered by one of these shared building blocks.
 | T6 | Fraud-type label feeding return signals |
 | T7 | Ordered list (SKU / Category / Product / Campaign) |
 | T8 | Profile + rule set for copilot routing |
-| T9 | Price recommendation (direction + Δ%) → pre-execution advisory inside Update Product Listing and Create New Product Listing workflows |
-| T10 | Reorder point signal + recommended order quantity → pre-execution advisory inside Replenish via Supplier and Replenish via ERP workflows |
+| T9 | Price recommendation (direction + Δ%) → pre-execution advisory inside Optimize Product and Create Hero Product workflows (formerly Update Product Listing / Create New Product Listing) |
+| T10 | Reorder point signal + recommended order quantity → pre-execution advisory inside the Replenish Inventory workflow (Supplier / ERP path — formerly two separate workflows) |
 
 Compare all trained techniques to **rules baselines** before promotion:
 `seller_stage/rules.py`, `ad_performance/rules.py`. If rules meet the workflow need,

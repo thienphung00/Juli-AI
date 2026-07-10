@@ -7,6 +7,31 @@ uses mock fixtures only.
 
 ---
 
+## Capability separation (P2-A1)
+
+```
+Fujiwa (production read)          SANDBOX_VN (sandbox write)
+        │                                    │
+        ▼                                    ▼
+ProductionReadClientFactory      SandboxWriteClientFactory
+        │                                    │
+        ▼                                    ▼
+ReadOnlyTransportGuard           SandboxOnlyWriteGuard
+        │                                    │
+        ▼                                    ▼
+Read resources (GET + allowlisted    Write-validation resources
+read-only POST search)               (inventory, product, promo, fulfillment)
+```
+
+- Production sync, polling, and ETL receive **only** the read client interface.
+- Sandbox tools receive **only** the write-validation client.
+- CI fails if production factory can instantiate write resources or Fujiwa auth ID
+  appears in sandbox fixtures.
+
+Detail: [`tech-stack.md`](tech-stack.md), [`multi-tenant.md`](multi-tenant.md).
+
+---
+
 ## Data flow
 
 ```
@@ -64,15 +89,22 @@ uses mock fixtures only.
 
 ## P2 polling scope (EXECUTION.md)
 
+**Production read (Fujiwa only):**
+
 | Worker | Resource | Phase | Workflow |
 |--------|----------|-------|----------|
 | `sync_orders` | `OrdersResource` | P2 | Revenue Leakage Detection |
 | `sync_products` | `ProductsResource` | P2 | Growth Copilot / catalog context |
-| `sync_creators` | `CreatorsResource` | P2 | Affiliate fraud signals |
-| Ads polling | **TBD** | P2 | Growth Copilot — not implemented |
+| `sync_returns` | `ReturnsResource` | P2 | Revenue Leakage Detection |
+| `sync_creators` | `CreatorsResource` | P2 (optional) | Affiliate fraud signals |
+| SPS / health | TBD | P2 (if verified) | Probation / health indicators |
 
-**Out of P2 / pending removal** (`map.md`): `sync_inventory`, `sync_settlements`,
-`sync_livestreams`.
+**Sandbox write validation (SANDBOX_VN only):** inventory update, product publish/edit,
+promotion lifecycle, fulfillment ship — technical validation only; business failures from
+sparse sandbox data are acceptable.
+
+**Out of P2 / pending removal** (`map.md`): `sync_inventory` (production), `sync_settlements`,
+`sync_livestreams`, Ads polling until Partner API contract verified.
 
 ---
 

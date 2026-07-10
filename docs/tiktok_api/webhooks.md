@@ -75,6 +75,9 @@ Invalid or missing signature → HTTP 401, no handoff.
 | Seller deauthorization | Stop polling, notify seller to re-auth |
 | Authorization expiration warning | Proactive token refresh |
 | Product update | Catalog sync |
+| `INVENTORY_UPDATE` | Feeds Post-sales / Inventory workflows in `execution_layer.md` |
+| Cancellation Status Change | Prevent Cancellation (8a) step 5 — distinct from `INVENTORY_UPDATE`; **UNKNOWN** exact event type name, needs Partner Center webhook catalog confirmation |
+| Return Status Change | Prevent Return (8b) step 9 — **UNKNOWN** exact event type name, needs Partner Center webhook catalog confirmation |
 
 Mark undocumented event names `UNKNOWN` until confirmed in Partner Center webhook docs.
 

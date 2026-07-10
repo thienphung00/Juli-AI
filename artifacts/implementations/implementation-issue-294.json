@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 294,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-09T0926Z",
+  "startedAt": "2026-07-09T09:18:00Z",
+  "completedAt": "2026-07-09T09:26:00Z",
+  "executionDurationMs": 480000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 24,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "docs/tiktok_api/contract-collection.md",
+    "docs/tiktok_api/endpoints.md",
+    "docs/tiktok_api/samples/README.md",
+    "docs/handoffs/phase-2-tiktok-implementation.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "scripts/extract_tiktok_fixtures.py",
+    "tests/unit/test_tiktok_api_samples.py",
+    "docs/tiktok_api/samples/authorized-shops-response.json",
+    "docs/tiktok_api/samples/products-search-response.json",
+    "docs/tiktok_api/samples/products-detail-response.json",
+    "docs/tiktok_api/samples/orders-search-response.json",
+    "docs/tiktok_api/samples/orders-detail-response.json",
+    "docs/tiktok_api/samples/returns-search-response.json",
+    "docs/tiktok_api/samples/cancellations-search-response.json",
+    "docs/tiktok_api/samples/inventory-search-response.json",
+    "docs/tiktok_api/samples/README.md",
+    "docs/tiktok_api/endpoints.md",
+    "docs/handoffs/phase-2-tiktok-implementation.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_api_samples.py::test_layer1_fixture_envelope",
+    "tests/unit/test_tiktok_api_samples.py::test_layer1_fixture_contains_no_secrets"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "No fixture contract tests existed under docs/tiktok_api/samples/",
+      "passingTestEvidence": "Added extract_tiktok_fixtures.py, 8 sanitized fixtures, 16 parametrized tests",
+      "commands": [
+        {
+          "command": "python scripts/extract_tiktok_fixtures.py",
+          "exitCode": 0,
+          "outputSummary": "Wrote 8 fixtures"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_tiktok_api_samples.py -q",
+          "exitCode": 0,
+          "outputSummary": "16 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #294: extracted Layer 1 minimum-read fixtures from contract-collection.md with PII/token redaction; updated endpoints.md and samples README; cleared handoff stop condition for P2-A1 Step 2.",
+  "assumptions": [
+    "Layer 0 contract rows in contract-collection.md are complete (issues #279-#293 closed)",
+    "Fixtures source raw **Response** blocks when optional sanitized blocks are empty",
+    "Product client migration 202502→202309 deferred to #297"
+  ],
+  "risks": [
+    "contract-collection.md working copy still contains live ROW_* tokens in cURL blocks — must not ship in same PR without redaction",
+    "Full unit suite has unrelated failure in test_feature_store_docs (pre-existing / other doc edits)"
+  ]
+}

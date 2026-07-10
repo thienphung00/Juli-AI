@@ -116,12 +116,26 @@ Cloud LLM (Claude Haiku) is deferred to Phase 4 per [`EXECUTION.md`](../../EXECU
 
 ---
 
+## Testing layers (Phase 2)
+
+| Layer | Purpose | Merchant | Gate |
+|-------|---------|----------|------|
+| **0 — Contract discovery** | API Testing Tool cURL + response status per endpoint | Fujiwa (read) / SANDBOX_VN (write) | Required before implementation |
+| **1 — Production read validation** | Verified read sync, ETL, Postgres upserts | Fujiwa only | P2-A1 |
+| **2 — Sandbox write validation** | Signing, payload shape, auth, response parsing | SANDBOX_VN only | P2-A1 (technical validation) |
+| **3 — Local mock integration** | Retries, idempotency, webhook handoff, sync state | Fixtures from Layer 0/1/2 | Post-A1 |
+
+Fill contracts: [`docs/tiktok_api/contract-collection.md`](../tiktok_api/contract-collection.md).
+
+---
+
 ## Deployment
 
-**Not in scope for Phase 2.** Local and CI validation only.
+**Phase 2.5 complete (2026-07-03):** App Review deploy live at `app-juli.com` +
+`api.app-juli.com`; backend runtime in `backend/`. Phase 2 continues pipeline validation
+on that stack — internal only, no public users.
 
-Production deployment architecture is Phase 2.5:
-[`phase-2.5-deployment.md`](phase-2.5-deployment.md).
+Detail: [`phase-2.5-deployment.md`](phase-2.5-deployment.md).
 
 ---
 
@@ -131,7 +145,10 @@ Production deployment architecture is Phase 2.5:
 health_data_source: api | proxy | unavailable
 ```
 
-Partner API field exposure gated at P2-A1. Dual-read VP/AHR May–July 2026 (ADR-005, ADR-006).
+**Phase 2 scope:** SPS (Shop Performance Score) / shop health via Partner API if a verified
+contract exists. VP/AHR dual-read is **not** a P2 exit gate — deferred to optional/future
+work when official API fields are confirmed. Proxy signals may be computed from Orders,
+Products, and Returns polling when raw health fields are unavailable.
 
 ---
 
