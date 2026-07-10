@@ -9,7 +9,7 @@ jobs:
   audit-drift:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -17,7 +17,7 @@ jobs:
         id: drift
         run: python agent-runtime/scripts/ci/audit_module_drift.py
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-drift
@@ -26,7 +26,7 @@ jobs:
   audit-cycles:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -34,7 +34,7 @@ jobs:
         id: cycles
         run: python agent-runtime/scripts/ci/audit_cycles.py
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-cycles
@@ -43,13 +43,13 @@ jobs:
   audit-size:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Audit module size
         run: python agent-runtime/scripts/ci/audit_module_size.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-size
@@ -58,14 +58,14 @@ jobs:
   audit-pipeline-coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Audit review/validation coverage and status semantics
         run: python agent-runtime/scripts/ci/audit_pipeline_coverage.py --json
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-pipeline-coverage
@@ -88,7 +88,7 @@ jobs:
     needs: [audit-drift, audit-cycles, audit-size, audit-pipeline-coverage]
     if: failure() && github.event_name == 'schedule'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Open architecture debt issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

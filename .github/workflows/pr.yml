@@ -31,7 +31,7 @@ jobs:
   lint-and-typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -47,7 +47,7 @@ jobs:
   bandit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -59,11 +59,11 @@ jobs:
   gitleaks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -91,7 +91,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
       REDIS_URL: redis://localhost:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -117,7 +117,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/migration_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -141,7 +141,7 @@ jobs:
       NEXT_PUBLIC_API_URL: https://api.app-juli.com
       NEXT_PUBLIC_UI_ONLY: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -165,7 +165,7 @@ jobs:
       GITHUB_BASE_REF: ${{ github.base_ref }}
       GITHUB_HEAD_REF: ${{ github.head_ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -192,7 +192,7 @@ jobs:
       GITHUB_BASE_REF: ${{ github.base_ref }}
       GITHUB_HEAD_REF: ${{ github.head_ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -201,7 +201,7 @@ jobs:
       - name: Generate validation artifact
         run: python agent-runtime/scripts/ci/generate_validation_artifact.py --issue "${{ needs.resolve-issue.outputs.issue_number }}"
       - name: Upload validation artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: validation-issue-${{ needs.resolve-issue.outputs.issue_number }}
           path: agent-runtime/artifacts/validation/validation-issue-${{ needs.resolve-issue.outputs.issue_number }}.json
