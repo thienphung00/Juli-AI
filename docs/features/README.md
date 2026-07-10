@@ -4,4 +4,4 @@ Per-feature folders under `docs/features/<feature-name>/` are optional — not u
 
 **Documentation hierarchy:** [`docs/README.md`](../README.md) · slices: [`EXECUTION.md`](../../EXECUTION.md)
 
-Legacy `mvp_1.*` folders were removed. Pre-MVP traceability: [`phase-1-completed.md`](../phases/phase-1-completed.md).
+Legacy `mvp_1.*` folders are archived at [`docs/handoffs/archive/features/`](../handoffs/archive/features/). Pre-MVP traceability: [`phase-1-completed.md`](../phases/phase-1-completed.md).

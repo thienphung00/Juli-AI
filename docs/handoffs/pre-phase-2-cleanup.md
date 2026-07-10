@@ -46,7 +46,7 @@ Do **not** pull shim-deletion commits until the systemd unit above is installed,
 
 ### Phase 2 — active (Pipeline Validation)
 
-**Next slice: P2-A1** — TikTok API polling live (VP/AHR dual-read gate)
+**Next slice: P2-A1** — Contract-first TikTok read sync, SPS discovery, production read-only guards (see [`docs/tiktok_api/contract-collection.md`](../tiktok_api/contract-collection.md))
 
 | Already done (pre-A1) | Still pending |
 |----------------------|---------------|
