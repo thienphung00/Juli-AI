@@ -16,7 +16,7 @@ Infrastructure, CI/CD, and deployment configuration.
 
 | Domain | Product |
 |--------|---------|
-| `app-juli.com` | App Review frontend (`web/`) |
+| `app-juli.com` | App Review frontend (`apps/dashboard/`) |
 | `api.app-juli.com` | Backend API (`backend/`) |
 
 See [`docs/phases/phase-2.5-deployment.md`](../docs/phases/phase-2.5-deployment.md).

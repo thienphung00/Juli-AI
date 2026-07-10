@@ -1,175 +1,62 @@
-"""Doc and config contract tests for Phase 2.5-b workspace tooling (Issue #251)."""
+"""Doc and config contract tests for Phase 3 frontend consolidation.
+
+Phase 3 moves the legacy ``web/`` Next.js app to ``apps/dashboard/`` and
+decommissions the unused pnpm/Turborepo workspace scaffolding from Phase 2.5-b.
+"""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-import pytest
-import yaml
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
-MIGRATION_PLAN_PATH = REPO_ROOT / "docs/architecture/migration-plan.md"
-PNPM_WORKSPACE_PATH = REPO_ROOT / "pnpm-workspace.yaml"
-TURBO_PATH = REPO_ROOT / "turbo.json"
+DASHBOARD_PKG = REPO_ROOT / "apps/dashboard/package.json"
 ROOT_PACKAGE_PATH = REPO_ROOT / "package.json"
-
-APP_SCOPES = ("landing", "demo", "dashboard", "mobile")
-PACKAGE_SCOPES = (
-    "ui",
-    "theme",
-    "icons",
-    "illustrations",
-    "api-client",
-    "types",
-    "utils",
-)
 
 
 def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _read_yaml(path: Path) -> dict:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+def test_pnpm_workspace_removed():
+    """pnpm workspace config is decommissioned in favor of npm in apps/dashboard."""
+    assert not (REPO_ROOT / "pnpm-workspace.yaml").is_file()
+    assert not (REPO_ROOT / "pnpm-lock.yaml").is_file()
 
 
-@pytest.fixture
-def phase_25_text() -> str:
-    return PHASE_25_PATH.read_text(encoding="utf-8")
+def test_turbo_json_removed():
+    """Turborepo skeleton is removed — no turbo.json at repo root."""
+    assert not (REPO_ROOT / "turbo.json").is_file()
 
 
-@pytest.fixture
-def migration_plan_text() -> str:
-    return MIGRATION_PLAN_PATH.read_text(encoding="utf-8")
+def test_dashboard_app_has_runtime_package():
+    """The real Next.js dashboard lives at apps/dashboard with build/test scripts."""
+    assert DASHBOARD_PKG.is_file(), "apps/dashboard/package.json is required"
+    scripts = _read_json(DASHBOARD_PKG).get("scripts") or {}
+    for task in ("build", "test", "lint", "type-check"):
+        assert task in scripts, f"missing npm script: {task}"
 
 
-def test_pnpm_workspace_recognizes_apps_and_packages():
-    """Workspace config includes top-level apps/* and packages/* globs."""
-    assert PNPM_WORKSPACE_PATH.is_file(), "pnpm-workspace.yaml is required"
-    workspace = _read_yaml(PNPM_WORKSPACE_PATH)
-    packages = workspace.get("packages") or []
-    assert "apps/*" in packages
-    assert "packages/*" in packages
+def test_removed_scaffold_apps_have_no_package_manifests():
+    """demo, landing, and mobile scaffolds are removed."""
+    for app in ("demo", "landing", "mobile"):
+        assert not (REPO_ROOT / "apps" / app).exists(), f"apps/{app} should be removed"
 
 
-def test_pnpm_workspace_includes_legacy_web():
-    """Legacy web/ remains a workspace member without moving runtime code."""
-    workspace = _read_yaml(PNPM_WORKSPACE_PATH)
-    packages = workspace.get("packages") or []
-    assert "web" in packages
+def test_removed_package_scaffolds_have_no_manifests():
+    """Empty packages/* workspace members are removed."""
+    packages_dir = REPO_ROOT / "packages"
+    if packages_dir.exists():
+        manifests = list(packages_dir.rglob("package.json"))
+        assert not manifests, f"unexpected package scaffolds: {manifests}"
 
 
-def test_turbo_json_defines_baseline_tasks():
-    """Turborepo skeleton exposes lint, type-check, test, and build tasks."""
-    assert TURBO_PATH.is_file(), "turbo.json is required"
-    turbo = _read_json(TURBO_PATH)
-    tasks = turbo.get("tasks") or {}
-    for task in ("lint", "type-check", "test", "build"):
-        assert task in tasks, f"missing turbo task: {task}"
-
-
-def test_scaffold_workspace_members_are_private_placeholders():
-    """README-only apps/packages register as private workspace members without publish surface."""
-    problems: list[str] = []
-    for app in APP_SCOPES:
-        pkg_path = REPO_ROOT / "apps" / app / "package.json"
-        if not pkg_path.is_file():
-            problems.append(f"missing apps/{app}/package.json")
-            continue
-        manifest = _read_json(pkg_path)
-        if manifest.get("private") is not True:
-            problems.append(f"apps/{app}/package.json must set private: true")
-        if manifest.get("publishConfig"):
-            problems.append(f"apps/{app}/package.json must not define publishConfig")
-        for field in ("main", "module", "exports", "types"):
-            if field in manifest:
-                problems.append(f"apps/{app}/package.json must not define {field}")
-
-    for pkg in PACKAGE_SCOPES:
-        pkg_path = REPO_ROOT / "packages" / pkg / "package.json"
-        if not pkg_path.is_file():
-            problems.append(f"missing packages/{pkg}/package.json")
-            continue
-        manifest = _read_json(pkg_path)
-        if manifest.get("private") is not True:
-            problems.append(f"packages/{pkg}/package.json must set private: true")
-        if manifest.get("publishConfig"):
-            problems.append(f"packages/{pkg}/package.json must not define publishConfig")
-        for field in ("main", "module", "exports", "types"):
-            if field in manifest:
-                problems.append(f"packages/{pkg}/package.json must not define {field}")
-
-    assert not problems, "; ".join(problems)
-
-
-def test_legacy_web_npm_workflow_documented(phase_25_text: str):
-    """Existing web/ build/test workflow still passes from its current location."""
-    web_pkg = REPO_ROOT / "web" / "package.json"
-    assert web_pkg.is_file()
-    scripts = _read_json(web_pkg).get("scripts") or {}
-    assert "build" in scripts
-    assert "test" in scripts
-    assert "npm ci" in phase_25_text
-    assert "web/" in phase_25_text
-
-
-def test_no_landing_demo_implementation_in_workspace_slice():
-    """No shared package extraction or landing/demo implementation is included."""
-    forbidden_suffixes = (".tsx", ".ts", ".jsx", ".js", ".vue", ".svelte")
-    for app in APP_SCOPES:
-        app_dir = REPO_ROOT / "apps" / app
-        runtime_files = [
-            path
-            for path in app_dir.rglob("*")
-            if path.is_file()
-            and path.name != "package.json"
-            and path.suffix in forbidden_suffixes
-        ]
-        assert not runtime_files, f"unexpected runtime files in apps/{app}: {runtime_files}"
-
-
-def test_scaffold_readme_only_members_do_not_publish():
-    """README-only product/package folders do not publish packages."""
-    problems: list[str] = []
-    for rel in [*(f"apps/{a}/package.json" for a in APP_SCOPES), *(f"packages/{p}/package.json" for p in PACKAGE_SCOPES)]:
-        manifest = _read_json(REPO_ROOT / rel)
-        if manifest.get("private") is not True:
-            problems.append(f"{rel} must be private")
-        if manifest.get("publishConfig"):
-            problems.append(f"{rel} must not publish")
-    assert not problems, "; ".join(problems)
-
-
-def test_scaffold_packages_have_no_workspace_dependencies():
-    """Scaffold members do not declare fake imports to sibling apps or packages."""
-    problems: list[str] = []
-    for rel in [*(f"apps/{a}/package.json" for a in APP_SCOPES), *(f"packages/{p}/package.json" for p in PACKAGE_SCOPES)]:
-        manifest = _read_json(REPO_ROOT / rel)
-        deps = manifest.get("dependencies") or {}
-        dev_deps = manifest.get("devDependencies") or {}
-        for dep in {**deps, **dev_deps}:
-            if dep.startswith("@juli/"):
-                problems.append(f"{rel} must not depend on {dep}")
-    assert not problems, "; ".join(problems)
-
-
-def test_workspace_baseline_command_documented(phase_25_text: str):
-    """Developers can find the command that validates the workspace baseline."""
-    assert "workspace:baseline" in phase_25_text
-    assert "pnpm" in phase_25_text
-
-
-def test_migration_plan_records_2_5_b_workspace_gate(migration_plan_text: str):
-    """Migration plan names the 2.5-b workspace tooling slice."""
-    assert "2.5-b" in migration_plan_text
-    assert "pnpm" in migration_plan_text.lower() or "workspace" in migration_plan_text.lower()
-
-
-def test_root_package_exposes_workspace_baseline_script():
-    """Root package.json wires the documented workspace baseline script."""
+def test_root_package_uses_npm_for_tooling_only():
+    """Root package.json keeps playwright/screenshots scripts without pnpm or turbo."""
     root = _read_json(ROOT_PACKAGE_PATH)
+    assert "packageManager" not in root
     scripts = root.get("scripts") or {}
-    assert "workspace:baseline" in scripts
-    assert "turbo" in scripts["workspace:baseline"]
+    assert "workspace:baseline" not in scripts
+    assert "screenshots" in scripts
+    dev_deps = root.get("devDependencies") or {}
+    assert "turbo" not in dev_deps

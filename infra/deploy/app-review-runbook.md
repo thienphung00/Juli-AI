@@ -105,7 +105,7 @@ flowchart LR
 
 ```text
 ~/Juli-AI-v2/                 Canonical clone — infra scripts, git worktree source
-~/releases/<short-sha>/         One worktree per release (.venv + web/node_modules)
+~/releases/<short-sha>/         One worktree per release (.venv + apps/dashboard/node_modules)
 ~/releases/current              Symlink to active release — systemd WorkingDirectory
 ~/releases/deploy-history.log   Append-only deploy/rollback audit trail
 /etc/juli/api.env               Backend runtime env (root:root, 600)
@@ -513,7 +513,7 @@ Each deploy:
 1. Runs `fetch-secrets.sh` to refresh `/etc/juli/api.env` and `/etc/juli/web.env`.
 2. Creates (or re-checks-out) a release worktree at `~/releases/<short-sha>/`.
 3. Backend: creates `.venv`, `pip install`, `alembic upgrade head`.
-4. Frontend: copies `/etc/juli/web.env` → `web/.env.production`, runs `build-frontend-review.sh`.
+4. Frontend: copies `/etc/juli/web.env` → `apps/dashboard/.env.production`, runs `build-frontend-review.sh`.
 5. Atomically flips `~/releases/current` symlink.
 6. Restarts `juli-api` and `juli-web`.
 7. Health-checks `http://127.0.0.1:8000/health` and `http://127.0.0.1:3000/` (60s timeout).
@@ -538,7 +538,7 @@ ExecStart=/root/releases/current/.venv/bin/uvicorn backend.api.api.main:app \
 [Service]
 ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
 EnvironmentFile=/etc/juli/web.env
-WorkingDirectory=/root/releases/current/web
+WorkingDirectory=/root/releases/current/apps/dashboard
 ExecStart=/usr/bin/npm run start -- --port 3000 --hostname 127.0.0.1
 ```
 

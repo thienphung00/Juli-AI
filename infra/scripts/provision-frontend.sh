@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install and start the App Review frontend on the review VPS (Issue #257).
 #
-# Copies juli-web.service, ensures web/.env.production exists, runs the review
+# Copies juli-web.service, ensures apps/dashboard/.env.production exists, runs the review
 # build (npm ci && npm run build with NEXT_PUBLIC_API_URL), and enables systemd.
 #
 # Usage (on VPS):
@@ -12,7 +12,7 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 SYSTEMD_SRC="${REPO_ROOT}/infra/systemd/juli-web.service"
 ENV_EXAMPLE="${REPO_ROOT}/infra/scripts/env/web.env.example"
-ENV_FILE="${REPO_ROOT}/web/.env.production"
+ENV_FILE="${REPO_ROOT}/apps/dashboard/.env.production"
 BUILD_SCRIPT="${REPO_ROOT}/infra/scripts/build-frontend-review.sh"
 
 if [ "$(id -u)" -ne 0 ]; then

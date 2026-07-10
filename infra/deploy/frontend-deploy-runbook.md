@@ -4,7 +4,7 @@
 > **Prerequisite:** [#256](https://github.com/thienphung00/Juli-AI/issues/256) — DNS, Nginx, and HTTPS wired  
 > **Next:** [#258](backend-deploy-runbook.md) (backend) → [#254](https://github.com/thienphung00/Juli-AI/issues/254) (E2E)
 
-Deploy the existing `web/` Next.js app behind `https://app-juli.com/` for TikTok
+Deploy the existing `apps/dashboard/` Next.js app behind `https://app-juli.com/` for TikTok
 reviewers. Landing page and demo app work remain **deferred** — this
 slice serves only the App Review seller dashboard UI.
 
@@ -20,7 +20,7 @@ https://app-juli.com  →  Nginx  →  juli-web (127.0.0.1:3000)  →  Next.js p
 |------|-------|
 | Service | `juli-web` (systemd) |
 | Upstream | `127.0.0.1:3000` |
-| Build env | `~/Juli-AI-v2/web/.env.production` |
+| Build env | `~/Juli-AI-v2/apps/dashboard/.env.production` |
 | Build script | `./infra/scripts/build-frontend-review.sh` |
 | Provision script | `sudo ./infra/scripts/provision-frontend.sh` |
 
@@ -35,8 +35,8 @@ cd ~/Juli-AI-v2
 git pull
 
 # 1. Frontend env (placeholders only in git — real file stays on VPS)
-cp -n infra/scripts/env/web.env.example web/.env.production
-grep NEXT_PUBLIC_API_URL=https://api.app-juli.com web/.env.production
+cp -n infra/scripts/env/web.env.example apps/dashboard/.env.production
+grep NEXT_PUBLIC_API_URL=https://api.app-juli.com apps/dashboard/.env.production
 
 # 2. Install systemd unit, build, and start juli-web
 chmod +x infra/scripts/provision-frontend.sh infra/scripts/build-frontend-review.sh
@@ -60,7 +60,7 @@ service on `127.0.0.1:3000`.
 ```bash
 cd ~/Juli-AI-v2
 
-# Required in web/.env.production:
+# Required in apps/dashboard/.env.production:
 #   NEXT_PUBLIC_API_URL=https://api.app-juli.com
 #   NEXT_PUBLIC_UI_ONLY=1   (reviewer demo login — see fallback below)
 
@@ -71,7 +71,7 @@ sudo systemctl restart juli-web
 Manual equivalent (same contract):
 
 ```bash
-cd ~/Juli-AI-v2/web
+cd ~/Juli-AI-v2/apps/dashboard
 set -a && source .env.production && set +a
 export NEXT_PUBLIC_UI_ONLY=1
 npm ci && rm -rf .next && npm run build
@@ -89,7 +89,7 @@ build time even if `.env.production` omits it.
 If login shows phone OTP instead of demo entry:
 
 ```bash
-grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
+grep NEXT_PUBLIC_UI_ONLY=1 apps/dashboard/.env.production
 ./infra/scripts/build-frontend-review.sh
 sudo systemctl restart juli-web
 ```
@@ -118,7 +118,7 @@ from `juli-web` (`npm run start -- --port 3000 --hostname 127.0.0.1`).
 
 ## Sign-off checklist
 
-- [ ] `web/.env.production` sets `NEXT_PUBLIC_API_URL=https://api.app-juli.com`
+- [ ] `apps/dashboard/.env.production` sets `NEXT_PUBLIC_API_URL=https://api.app-juli.com`
 - [ ] `juli-web` is active (`systemctl is-active juli-web`)
 - [ ] `curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/` returns 2xx
 - [ ] `https://app-juli.com/` loads over HTTPS (no local setup required)

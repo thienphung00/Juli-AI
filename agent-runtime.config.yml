@@ -32,7 +32,7 @@ routing:
       - backend/src/juli_backend/services
       - backend/src/juli_backend/workers
     ui-ux:
-      - web
+      - apps/dashboard
       - ios
     data-platform:
       - backend/src/juli_backend/database
@@ -48,11 +48,11 @@ routing:
       note: API and persistence context often required beyond backend/src/juli_backend/api
     ui-ux:
       related_paths:
-        - web
+        - apps/dashboard
         - ios
         - backend/src/juli_backend/api
         - docs/architecture/map.md
-      note: UI tasks frequently depend on API contracts one layer beyond web/
+      note: UI tasks frequently depend on API contracts one layer beyond apps/dashboard/
     data-platform:
       related_paths:
         - backend/src/juli_backend/database

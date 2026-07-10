@@ -2,14 +2,11 @@
   "name": "juli-ai-monorepo",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "screenshots": "node scripts/capture-ui-screenshots.mjs",
-    "screenshots:install": "playwright install chromium",
-    "workspace:baseline": "turbo run build --filter=juli-web && turbo run lint type-check test --filter=juli-web"
+    "screenshots:install": "playwright install chromium"
   },
   "devDependencies": {
-    "playwright": "^1.52.0",
-    "turbo": "^2.5.4"
+    "playwright": "^1.52.0"
   }
 }

@@ -302,7 +302,7 @@ describe("Issue #156: listing export execute step", () => {
 
 describe("Issue #155: architecture docs", () => {
   it("map.md documents deployed listing workflow UI module row", () => {
-    const mapPath = path.join(process.cwd(), "..", "docs/architecture/map.md");
+    const mapPath = path.join(process.cwd(), "..", "..", "docs/architecture/map.md");
     const content = fs.readFileSync(mapPath, "utf-8");
     expect(content).toContain("workflows/new-seller/listing");
     expect(content).toContain("ListingWorkflowPanel");

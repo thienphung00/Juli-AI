@@ -211,7 +211,7 @@ describe("Issue #221: RRAA loop E2E — growth persona", () => {
 
 describe("Issue #221: screenshot baselines", () => {
   it("commits chart-first growth Home and Decisions screenshot baselines", () => {
-    const repoRoot = path.join(__dirname, "../../..");
+    const repoRoot = path.join(__dirname, "../../../..");
     const required = [
       "screenshots/dashboard/home-growth-default-desktop.png",
       "screenshots/dashboard/home-growth-default-mobile.png",

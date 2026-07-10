@@ -113,4 +113,4 @@ Touch targets: minimum 44×44px per `NavBar`. Active state via `isNavTabActive(p
 
 ## Owners
 - domain: web
-- code: web/
+- code: apps/dashboard/

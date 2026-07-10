@@ -24,7 +24,7 @@ forbidden:
         - "docs/architecture/agent-runtime-benchmarks.md"
     - pattern: "src/**"
       reason: product code — executor domain only
-    - pattern: "web/**"
+    - pattern: "apps/dashboard/**"
       reason: product code — executor domain only
     - pattern: "ios/**"
       reason: product code — executor domain only
