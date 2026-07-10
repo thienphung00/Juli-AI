@@ -1,0 +1,77 @@
+{
+  "id": "review-issue-343",
+  "issue": 343,
+  "timestamp": "2026-07-10T07:32:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Coordinated Next.js 16 + React 19 stack upgrade for apps/dashboard; eslint flat config; 549 Jest suites and production build pass; supersedes six blocked Dependabot PRs.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/dashboard/package.json",
+    "apps/dashboard/package-lock.json",
+    "apps/dashboard/eslint.config.mjs",
+    "apps/dashboard/next.config.js",
+    "apps/dashboard/MODULE.md",
+    "docs/handoffs/nextjs-16-coordinated-upgrade.md",
+    "tests/unit/test_issue_343_nextjs_16_upgrade.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Single PR bumps all coupled packages atomically",
+          "test": "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_coupled_packages_bumped_atomically"
+        },
+        {
+          "criterion": "npm ci && npm run lint && npm run type-check && npm run test && npm run build pass in apps/dashboard",
+          "test": "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_dashboard_npm_ci_script_chain_for_lint_type_check_test_build"
+        },
+        {
+          "criterion": "PR CI frontend + status-check green",
+          "test": "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_pr_ci_includes_frontend_and_status_check_jobs"
+        },
+        {
+          "criterion": "Superseded Dependabot PRs closed with link to this issue",
+          "test": "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_handoff_documents_superseded_dependabot_prs"
+        },
+        {
+          "criterion": "apps/dashboard/MODULE.md stack section updated (Next 16, React 19)",
+          "test": "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_module_md_documents_next_16_react_19_stack"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 549,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Close Dependabot PRs #322, #325, #327, #332, #338, #339 after merge.",
+    "Follow up on react-hooks/set-state-in-effect violations in a dedicated issue."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-343.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "phaseRunId": "2026-07-10T0730Z",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "suggestedRemediation": []
+}

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 343,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "2026-07-10T0730Z",
+  "startedAt": "2026-07-10T07:00:00Z",
+  "completedAt": "2026-07-10T07:30:00Z",
+  "executionDurationMs": 1800000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "apps/dashboard/MODULE.md",
+    "apps/dashboard/package.json",
+    "apps/dashboard/eslint.config.mjs",
+    "apps/dashboard/next.config.js",
+    "docs/handoffs/nextjs-16-coordinated-upgrade.md",
+    ".github/workflows/pr.yml"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "ui-ux",
+    "nextjs"
+  ],
+  "filesModified": [
+    "apps/dashboard/package.json",
+    "apps/dashboard/package-lock.json",
+    "apps/dashboard/eslint.config.mjs",
+    "apps/dashboard/next.config.js",
+    "apps/dashboard/src/app/globals.css",
+    "apps/dashboard/src/__tests__/test_issue199_chat_decision_context.test.tsx",
+    "apps/dashboard/MODULE.md",
+    "apps/dashboard/tsconfig.json",
+    "apps/dashboard/next-env.d.ts",
+    "docs/handoffs/nextjs-16-coordinated-upgrade.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_coupled_packages_bumped_atomically",
+    "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_dashboard_npm_ci_script_chain_for_lint_type_check_test_build",
+    "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_pr_ci_includes_frontend_and_status_check_jobs",
+    "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_handoff_documents_superseded_dependabot_prs",
+    "tests/unit/test_issue_343_nextjs_16_upgrade.py::test_issue_343_module_md_documents_next_16_react_19_stack"
+  ],
+  "testsUpdated": [
+    "apps/dashboard/src/__tests__/test_issue199_chat_decision_context.test.tsx"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "npm ci ERESOLVE / jest 30 skew / next lint removed in Next 16",
+      "passingTestEvidence": "Atomic Next 16 + React 19 bump; eslint flat config; 549 Jest suites + production build pass",
+      "commands": [
+        {
+          "command": "cd apps/dashboard && npm ci && npm run lint && npm run type-check && npm run test && NEXT_PUBLIC_UI_ONLY=1 npm run build",
+          "exitCode": 0,
+          "outputSummary": "lint 0 errors; 549 tests passed; build succeeded"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Coordinated apps/dashboard upgrade to Next.js 16.2, React 19, Jest 30, and ESLint 9 flat config; supersedes blocked Dependabot PRs #322, #325, #327, #332, #338, #339.",
+  "assumptions": [
+    "ESLint 9 used instead of Dependabot eslint 10 due to eslint-plugin-react incompatibility",
+    "tw-animate-css imported via relative path for Turbopack resolution"
+  ],
+  "risks": [
+    "react-hooks/set-state-in-effect disabled pending follow-up cleanup",
+    "VPS juli-web must rebuild after merge on Node 20+"
+  ]
+}
