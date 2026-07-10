@@ -84,7 +84,7 @@ jobs:
             --branch main \
             --environment production
       - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ steps.version.outputs.value }}
           path: artifacts/releases/release-${{ steps.version.outputs.value }}.json
