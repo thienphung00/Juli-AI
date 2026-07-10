@@ -7,8 +7,8 @@
 
 ## What shipped
 
-- `docs/data-models/feature-store-schema.md` — Group D (seller stage), Group E (ad), schema hash table, three inference signatures
-- `docs/system-design.md` — ML promotion targets filled, backtest reference metrics, inference signature cross-links
+- `docs/api/data-models/feature-store-schema.md` — Group D (seller stage), Group E (ad), schema hash table, three inference signatures
+- `docs/architecture/system-design.md` — ML promotion targets filled, backtest reference metrics, inference signature cross-links
 - `tests/unit/test_feature_store_docs.py` — 8 AC-mapped doc contract tests
 - Handoffs: focus, tdd, review
 

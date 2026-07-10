@@ -27,8 +27,8 @@ Policy Centers — and convert them into a normalized knowledge base under
 **api-docs** owns *how to integrate* (schemas, endpoints, webhooks); **platform-docs**
 owns *what the platform offers and enforces* (features, limits, health, eligibility, compliance).
 
-**Canonical pairing:** [`docs/tiktok_api/`](../../../../docs/tiktok_api/) (technical) +
-[`docs/tiktok_platform/`](../../../../docs/tiktok_platform/) (operational + feature).
+**Canonical pairing:** [`docs/integrations/tiktok_api/`](../../../../docs/integrations/tiktok_api/) (technical) +
+[`docs/integrations/tiktok_platform/`](../../../../docs/integrations/tiktok_platform/) (operational + feature).
 
 ## Identity × Content matrix
 

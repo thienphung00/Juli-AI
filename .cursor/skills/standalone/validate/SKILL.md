@@ -33,7 +33,7 @@ artifact — not the chat output — is the system of record.
 ## Outputs
 
 - `artifacts/validation/validation-issue-<n>.json`
-  - ADR-003 CI fields: [`docs/ci/implementation-guide.md`](../../../docs/ci/implementation-guide.md)
+  - ADR-003 CI fields: [`docs/deployment/implementation-guide.md`](../../../docs/deployment/implementation-guide.md)
   - Meta fields: [`docs/architecture/agent-runtime-artifacts.md`](../../../docs/architecture/agent-runtime-artifacts.md)
   - Schema: [`docs/schemas/agent-runtime/validation-artifact.schema.json`](../../../docs/schemas/agent-runtime/validation-artifact.schema.json)
 - Process exit code: `0` if every check passes, `1` otherwise.

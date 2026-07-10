@@ -20,7 +20,7 @@ SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 NGINX_DIR = REPO_ROOT / "infra/nginx"
 SYSTEMD_DIR = REPO_ROOT / "infra/systemd"
 
-RUNBOOK_PATH = DEPLOY_DIR / "app-review-runbook.md"
+RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/app-review-runbook.md"
 NGINX_APP_PATH = NGINX_DIR / "app-juli.com.conf"
 NGINX_API_PATH = NGINX_DIR / "api.app-juli.com.conf"
 SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-web.service"
@@ -28,7 +28,7 @@ SYSTEMD_BACKEND_PATH = SYSTEMD_DIR / "juli-api.service"
 ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/web.env.example"
 ENV_BACKEND_PATH = SCRIPTS_DIR / "env/api.env.example"
 SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
-PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
+PHASE_25_PATH = REPO_ROOT / "docs/product/phases/phase-2.5-deployment.md"
 
 # App Review upstream ports (frontend Next.js / backend FastAPI on the single VPS).
 FRONTEND_PORT = "3000"
@@ -55,7 +55,7 @@ def runbook_text() -> str:
 
 # AC1: Deploy topology documented under infra/deploy/ (VPS, Nginx, HTTPS, ports).
 def test_runbook_documents_review_topology(runbook_text: str):
-    assert RUNBOOK_PATH.is_file(), "infra/deploy/app-review-runbook.md is required"
+    assert RUNBOOK_PATH.is_file(), "docs/runbooks/app-review-runbook.md is required"
     lowered = runbook_text.lower()
     for term in ("vps", "nginx", "https", "app-juli.com", "api.app-juli.com"):
         assert term in lowered, f"runbook must document: {term}"

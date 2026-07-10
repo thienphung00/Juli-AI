@@ -23,8 +23,8 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.6-2), `docs/system-design.md` §7, `docs/architecture/map.md` |
-| Decisions | `docs/decisions/020-new-seller-listing-workflow-scope.md` |
+| Architecture | `EXECUTION.md` (P1.6-2), `docs/architecture/system-design.md` §7, `docs/architecture/map.md` |
+| Decisions | `docs/adr/020-new-seller-listing-workflow-scope.md` |
 | Fixtures | `web/src/lib/mock-data/listing-workflow/` (#153) |
 | Rules engine | `web/src/lib/workflows/new-seller/listing/` (#154) — `generateProductDraft` |
 | Task executor | `web/src/lib/task-executor/use-task-executor.ts`, `TaskQueue.tsx` |

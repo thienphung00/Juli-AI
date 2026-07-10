@@ -1,0 +1,91 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-09",
+    "region": "VN",
+    "merchant": "Fujiwa",
+    "endpoint": "POST /return_refund/202602/returns/search",
+    "api_version": "202602",
+    "contract_section": "§8",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "data": {
+      "next_page_token": "{page_token}",
+      "return_orders": [
+        {
+          "combined_return_id": "0",
+          "create_time": 1724558837,
+          "discount_amount": [
+            {
+              "currency": "VND",
+              "product_platform_discount": "0",
+              "product_seller_discount": "288000",
+              "shipping_fee_platform_discount": "166100",
+              "shipping_fee_seller_discount": "0"
+            }
+          ],
+          "handover_method": "DROP_OFF",
+          "is_combined_return": false,
+          "order_id": "579238058323577347",
+          "refund_amount": {
+            "currency": "VND",
+            "refund_shipping_fee": "0",
+            "refund_subtotal": "864000",
+            "refund_tax": "0",
+            "refund_total": "864000"
+          },
+          "return_id": "4035463945335048707",
+          "return_line_items": [
+            {
+              "order_line_item_id": "579238050604288515",
+              "product_image": {
+                "height": 200,
+                "url": "{signed_image_url}",
+                "width": 200
+              },
+              "product_name": "Thùng 24 Lon Nước Uống Giàu Hydrogen Cao Cấp Fujiwa Đóng Lon 330ml - Hỗ trợ tiêu hoá, Cải thiện đường ruột, Giải độc gan",
+              "refund_amount": {
+                "currency": "VND",
+                "refund_shipping_fee": "0",
+                "refund_subtotal": "432000",
+                "refund_tax": "0",
+                "refund_total": "432000"
+              },
+              "return_line_item_id": "4035463945335114243",
+              "seller_sku": "FUJIWA04-24",
+              "sku_id": "1730420785344318071",
+              "sku_name": "Mặc định, Mặc định"
+            }
+          ],
+          "return_method": "PLATFORM_SHIPPED",
+          "return_provider_id": "6841743441349706241",
+          "return_provider_name": "J&T Express",
+          "return_reason": "ecom_order_delivered_refund_and_return_reason_damaged",
+          "return_reason_text": "Package or product is damaged",
+          "return_status": "RETURN_OR_REFUND_REQUEST_COMPLETE",
+          "return_tracking_number": "854205793213",
+          "return_type": "RETURN_AND_REFUND",
+          "return_warehouse_address": {
+            "full_address": "[REDACTED]"
+          },
+          "role": "BUYER",
+          "shipment_type": "PLATFORM",
+          "shipping_fee_amount": [
+            {
+              "buyer_paid_return_shipping_fee": "0",
+              "currency": "VND",
+              "platform_paid_return_shipping_fee": "0",
+              "seller_paid_return_shipping_fee": "166100"
+            }
+          ],
+          "update_time": 1724833101
+        }
+      ],
+      "total_count": 71
+    },
+    "message": "Success",
+    "request_id": "{request_id}"
+  }
+}

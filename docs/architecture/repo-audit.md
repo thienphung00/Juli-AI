@@ -234,7 +234,7 @@ Canonical architecture: `docs/architecture/agent-runtime.md`. Policy: ADR-003.
 | **`docs/schemas/agent-runtime/`** | 6 JSON Schema files | Artifact + config schemas |
 | **`docs/handoffs/context-plan-template.md`** | 1 | Harness-editable target (context budget section) |
 | **`tests/unit/`** | `test_harness_config.py`, `test_harness_runtime.py`, `test_implementation_artifact.py` | Unit tests for harness tooling |
-| **Consumers (stay outside)** | `.cursor/skills/{focus,validate,ship}/`, `.github/workflows/{pr,release,architecture-audit}.yml`, `docs/ci/implementation-guide.md`, ADR-003 | Reference artifact paths; updated in consolidation phase |
+| **Consumers (stay outside)** | `.cursor/skills/{focus,validate,ship}/`, `.github/workflows/{pr,release,architecture-audit}.yml`, `docs/deployment/implementation-guide.md`, ADR-003 | Reference artifact paths; updated in consolidation phase |
 
 **Total loop-adjacent tracked files:** ~390 (338 artifacts + ~52 config/scripts/docs/tests).
 
@@ -287,8 +287,8 @@ agent-runtime/
 |------|--------|
 | `.cursor/skills/` | Skills governance — referenced by loop, not part of it |
 | `.github/workflows/` | CI/CD entry points — update paths, don't move |
-| `docs/decisions/003-*.md` | ADR stays in `adr/` after Phase 5 |
-| `docs/ci/implementation-guide.md` | General CI docs — update cross-links |
+| `docs/adr/003-*.md` | ADR stays in `adr/` after Phase 5 |
+| `docs/deployment/implementation-guide.md` | General CI docs — update cross-links |
 | `done.md` | Ephemeral per-issue working file at repo root during active work |
 | `backend/ai/artifacts/` | ML model artifacts — different domain |
 
@@ -304,7 +304,7 @@ agent-runtime/
 - [ ] All 338 committed artifact JSON files — **only if** paths are embedded inside JSON (grep `artifacts/` in JSON values)
 - [ ] `.cursor/skills/standalone/focus/SKILL.md` — artifact path table
 - [ ] `.cursor/skills/standalone/validate/`, `ship/` — artifact paths
-- [ ] `docs/ci/implementation-guide.md`, `docs/architecture/map.md` cross-links
+- [ ] `docs/deployment/implementation-guide.md`, `docs/architecture/map.md` cross-links
 - [ ] `tests/unit/test_harness_*.py`, `test_implementation_artifact.py`
 - [ ] `agent-runtime.config.yml` — `routing.domain_mappings` paths (currently `web`, `backend/...`)
 
@@ -328,7 +328,7 @@ simultaneous path rewrites is too much for one maintainer.
 | 2 | Delete `apps/mobile` scaffold (duplicates `ios/`)? | Phase 3 | **Delete** (locked) |
 | 3 | Move `done.md` into `agent-runtime/templates/` or keep at root? | Phase 7 | **Recommend: keep at root** — ephemeral per-issue working file; validate gate reads it there today |
 | 4 | Leave stub cross-links at old `artifacts/` path during Phase 7, or big-bang move? | Phase 7 | **Recommend: big-bang** — solo maintainer; one grep sweep beats maintaining stubs |
-| 5 | `docs/ci/` — general CI docs vs fold agent-runtime sections into `agent-runtime/docs/`? | Phase 5 / 7 |
+| 5 | `docs/deployment/` — general CI docs vs fold agent-runtime sections into `agent-runtime/docs/`? | Phase 5 / 7 |
 
 ---
 

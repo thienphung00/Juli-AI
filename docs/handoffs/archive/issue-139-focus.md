@@ -22,11 +22,11 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.5-3), `docs/system-design.md` § ML models + Return schema, `docs/architecture/map.md` |
+| Architecture | `EXECUTION.md` (P1.5-3), `docs/architecture/system-design.md` § ML models + Return schema, `docs/architecture/map.md` |
 | Feature builder | `src/modules/ml/features/anomaly.py`, `schema.py`, `MODULE.md` |
 | Dataset contract | `src/modules/ml/dataset/assembler.py`, `labels.parquet` schema |
 | Prior art | `src/modules/ml/seller_stage/*`, `tests/unit/test_seller_stage_trainer.py`, `docs/handoffs/issue-137-ship.md` |
-| Decisions | `docs/decisions/011-buyer-behavior-anomaly-scope.md`, `013-phase-15-ml-module-tree.md` |
+| Decisions | `docs/adr/011-buyer-behavior-anomaly-scope.md`, `013-phase-15-ml-module-tree.md` |
 
 ## Standards applied
 
@@ -56,7 +56,7 @@
 | `src/modules/ml/anomaly/cli.py` | `train-anomaly` CLI |
 | `src/modules/ml/anomaly/MODULE.md` | Public interface + inference schema |
 | `tests/unit/test_anomaly_trainer.py` | AC-mapped integration tests |
-| `docs/decisions/016-phase-15-anomaly-trainer.md` | ADR for new module |
+| `docs/adr/016-phase-15-anomaly-trainer.md` | ADR for new module |
 
 ### Modified files
 

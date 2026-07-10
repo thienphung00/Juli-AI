@@ -24,9 +24,9 @@
   "contextFilesLoaded": [
     ".cursor/skills/standalone/focus/SKILL.md",
     ".cursor/skills/domain/backend/SKILL.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/features/app_review_deployment/issues.md",
-    "infra/deploy/app-review-runbook.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/product/features/app_review_deployment/issues.md",
+    "docs/runbooks/app-review-runbook.md",
     "infra/deploy/build-frontend-review.sh",
     "infra/deploy/systemd/juli-web.service",
     "artifacts/implementations/implementation-issue-256.json"
@@ -36,13 +36,13 @@
     "backend"
   ],
   "filesModified": [
-    "infra/deploy/frontend-deploy-runbook.md",
+    "docs/runbooks/frontend-deploy-runbook.md",
     "infra/deploy/provision-frontend.sh",
     "infra/deploy/build-frontend-review.sh",
-    "infra/deploy/app-review-runbook.md",
+    "docs/runbooks/app-review-runbook.md",
     "infra/deploy/README.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/features/app_review_deployment/issues.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/product/features/app_review_deployment/issues.md",
     "tests/unit/test_phase_2_5_frontend_deploy.py"
   ],
   "testsAdded": [

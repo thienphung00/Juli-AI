@@ -13,7 +13,7 @@
 - No TikTok API; Published-stub is mock only
 
 ## Context loaded
-- `docs/features/mvp_1.6/PRD.md` (P1.6-5 stories)
+- `docs/product/features/mvp_1.6/PRD.md` (P1.6-5 stories)
 - `web/src/lib/workflows/new-seller/listing/` (#155–#156)
 - `web/src/components/workflows/new-seller/` (copilot home)
 - `docs/architecture/map.md`

@@ -20,8 +20,8 @@
 
 ### Load (Required)
 - `EXECUTION.md` slice P1.8-5
-- `docs/system-design.md` § LLM reasoning (copy layer)
-- `docs/decisions/026-operations-system-orchestration.md`
+- `docs/architecture/system-design.md` § LLM reasoning (copy layer)
+- `docs/adr/026-operations-system-orchestration.md`
 - `web/src/lib/operations/` (classification, health-check, recommendations from #177–#179)
 - `web/src/lib/format.ts` (VND/number formatters)
 - GitHub issue #180

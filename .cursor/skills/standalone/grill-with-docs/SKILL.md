@@ -2,7 +2,7 @@
 name: grill-with-docs
 description: >-
   Aligns on a plan or design by asking one question at a time with a recommended
-  answer, while building CONTEXT.md and docs/decisions/ ADRs inline. Use when the
+  answer, while building CONTEXT.md and docs/adr/ ADRs inline. Use when the
   user says "grill me", "grill with docs", "start grilling", "align before building",
   or when invoked at the start of Planning or refactor work.
 ---
@@ -11,7 +11,7 @@ description: >-
 
 Align on a plan or design by asking one question at a time,
 with a recommended answer for each. Simultaneously builds and updates `CONTEXT.md` and
-`docs/decisions/` ADRs inline as decisions crystallise.
+`docs/adr/` ADRs inline as decisions crystallise.
 
 Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-modeling/SKILL.md`](../domain-modeling/SKILL.md) — summarised below.
 
@@ -24,7 +24,7 @@ Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-mod
 | Backend | Python / FastAPI modular monolith, `src/` |
 | Data | Supabase (Postgres), SQLAlchemy, Alembic |
 | Issue tracker | GitHub Issues — `gh issue create/view/close` |
-| ADR location | `docs/decisions/` (not `docs/adr/`) |
+| ADR location | `docs/adr/` (not `docs/adr/`) |
 | ADR numbering | `NNN-slug.md` — scan folder, increment (currently 029+) |
 | Handoff location | `docs/handoffs/` |
 | Domain glossary | `CONTEXT.md` at repo root (single context) |
@@ -32,7 +32,7 @@ Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-mod
 ## Before grilling
 
 1. Check if `CONTEXT.md` exists. If it does, read it. Use glossary terms and `_Avoid_` aliases when decoding user language.
-2. Read any ADRs in `docs/decisions/` relevant to the topic.
+2. Read any ADRs in `docs/adr/` relevant to the topic.
    Summarise what is already decided. Do not re-ask questions that ADRs have settled.
 3. If the topic involves the ML/LLM pipeline, read [`.cursor/skills/standalone/domain/mle-agent.md`](../domain/mle-agent.md).
    If the topic involves UI, read `ui-ux-design.mdc`.
@@ -54,10 +54,10 @@ Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-mod
 - When a vague or overloaded term appears, propose a precise canonical term and list rejected words under `_Avoid_`.
 - Update `CONTEXT.md` inline as each term is settled. Do not batch updates.
 
-## ADR creation (`docs/decisions/`)
+## ADR creation (`docs/adr/`)
 
-- Scan `docs/decisions/` for the next sequence number (`029-…` after current highest).
-- Update `docs/decisions/README.md` when adding an ADR.
+- Scan `docs/adr/` for the next sequence number (`029-…` after current highest).
+- Update `docs/adr/README.md` when adding an ADR.
 - Only offer an ADR when **all three** are true:
   1. Hard to reverse — changing it later has meaningful cost.
   2. Surprising without context — a future reader would wonder "why?"
@@ -70,4 +70,4 @@ Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-mod
 
 - A conversation summary in the format expected by `to-prd`.
 - An updated `CONTEXT.md` (if terms were resolved).
-- Zero or more new `docs/decisions/*.md` files (+ README index row).
+- Zero or more new `docs/adr/*.md` files (+ README index row).

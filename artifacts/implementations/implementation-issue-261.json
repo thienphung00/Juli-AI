@@ -24,9 +24,9 @@
   "contextFilesLoaded": [
     ".cursor/skills/standalone/focus/SKILL.md",
     ".cursor/skills/domain/backend/SKILL.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/features/app_review_deployment/issues.md",
-    "infra/deploy/app-review-runbook.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/product/features/app_review_deployment/issues.md",
+    "docs/runbooks/app-review-runbook.md",
     "infra/deploy/smoke-test.sh",
     "infra/deploy/env/api.env.example",
     "GitHub issue #261"
@@ -36,14 +36,14 @@
     "backend"
   ],
   "filesModified": [
-    "docs/features/app_review_deployment/PRD.md",
-    "docs/features/app_review_deployment/summary.md",
-    "infra/deploy/smoke-checklist-runbook.md",
+    "docs/product/features/app_review_deployment/PRD.md",
+    "docs/product/features/app_review_deployment/summary.md",
+    "docs/runbooks/smoke-checklist-runbook.md",
     "infra/deploy/smoke-test.sh",
-    "infra/deploy/app-review-runbook.md",
+    "docs/runbooks/app-review-runbook.md",
     "infra/deploy/README.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/features/app_review_deployment/issues.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/product/features/app_review_deployment/issues.md",
     "tests/unit/test_phase_2_5_smoke_checklist.py",
     "tests/unit/test_phase_2_5_deploy_config.py"
   ],

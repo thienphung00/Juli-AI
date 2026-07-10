@@ -100,7 +100,7 @@ jobs:
       - name: Pytest with coverage
         # Floor set 5 points below the measured juli_backend baseline (85%, 2026-07-09)
         # so this gate lands as a regression guard, not an immediate blocker.
-        # Re-baseline (docs/ci/troubleshooting.md) as coverage improves.
+        # Re-baseline (docs/deployment/troubleshooting.md) as coverage improves.
         run: pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing --cov-fail-under=80
 
   migration-check:

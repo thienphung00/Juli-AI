@@ -75,7 +75,7 @@
         "architecturalChange": false,
         "adrPresent": true,
         "adrs": [
-          "docs/decisions/016-listing-workflow-implementation.md"
+          "docs/adr/016-listing-workflow-implementation.md"
         ],
         "adrProblems": {}
       }

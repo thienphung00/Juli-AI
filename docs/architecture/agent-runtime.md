@@ -2,7 +2,7 @@
 
 **Status:** Published (Agent Runtime Phase 5)  
 **Authority:** [`EXECUTION.md`](../../EXECUTION.md) > this file > skills and rules  
-**CI gates:** [ADR-003](../decisions/003-ai-native-cicd-policy.md) for review → validate → ship; runtime schemas in [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md).
+**CI gates:** [ADR-003](../adr/003-ai-native-cicd-policy.md) for review → validate → ship; runtime schemas in [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md).
 
 This document is the canonical harness architecture for Juli AI development. It describes
 an **agent-phase model** over the existing skills-first harness — not a new orchestration
@@ -85,8 +85,8 @@ inputs. They are **not** execution feedback artifacts. First-class runtime artif
 - Ask clarifying questions to eliminate TBDs before planning artifacts are produced.
 - Perform **Research & Reuse** before proposing net-new design (search repo, prior art,
   primary vendor docs).
-- Update `EXECUTION.md`, `docs/system-design.md`, `docs/architecture/`, and
-  `docs/decisions/` when scope or architecture changes.
+- Update `EXECUTION.md`, `docs/architecture/system-design.md`, `docs/architecture/`, and
+  `docs/adr/` when scope or architecture changes.
 - Produce PRDs, ADRs, GitHub issues, architecture docs, and backlog items.
 
 **Must not**
@@ -186,7 +186,7 @@ Executor Agent specializes by domain. Skills live under `.cursor/skills/domain/`
 | **Data Platform** | `src/shared/utils/data/`, migrations, ETL | [`data-platform`](../../.cursor/skills/domain/data-platform/SKILL.md), `postgres-patterns`; Supabase when DB work involved | Migration up/down, repo integration, ETL idempotency | Data-source legality, PII, schema reversibility, indexing | Migration checks, module drift, data-source policy |
 | **Machine Learning** | `src/modules/ml/` | [`machine-learning`](../../.cursor/skills/domain/machine-learning/SKILL.md), ML module docs, feature specs, model artifact thresholds | Golden dataset, metric threshold, artifact schema tests | Leakage, reproducibility, metric validity, promotion rules | pytest, artifact smoke tests, benchmark status |
 
-**Context baseline for all domains:** `EXECUTION.md` slice, `docs/system-design.md`,
+**Context baseline for all domains:** `EXECUTION.md` slice, `docs/architecture/system-design.md`,
 `docs/architecture/map.md`, `docs/architecture/data-sources.md`, and `MODULE.md` for
 each affected module.
 
@@ -222,7 +222,7 @@ Architect Agent owns canonical doc governance formerly in the removed `discover`
 | PRD synthesis | `to-prd` |
 | Issue decomposition | `to-issues` |
 
-Architect Agent **must not** generate docs under `docs/features/<feature>/`, extract
+Architect Agent **must not** generate docs under `docs/product/features/<feature>/`, extract
 vendor API material (`api-docs`, `platform-docs`), or start implementation.
 
 ---
@@ -291,7 +291,7 @@ in domain executor and review/validate skills; harness automation lands in Phase
 | `.cursor/skills/workflow/` folder | Retired — use agent phases |
 
 ADR-003 gate ordering (`review → validate → ship`) is unchanged. Harness routing is
-documented in this file; CI artifact schemas remain in ADR-003 and `docs/ci/`.
+documented in this file; CI artifact schemas remain in ADR-003 and `docs/deployment/`.
 
 ---
 
@@ -327,7 +327,7 @@ Full rollout details: [`agent-runtime-migration.md`](agent-runtime-migration.md)
 | [`EXECUTION.md`](../../EXECUTION.md) | Product phases, slices, exit gates |
 | [`map.md`](map.md) | As-built module registry |
 | [`data-sources.md`](data-sources.md) | External data availability by phase |
-| [ADR-003](../decisions/003-ai-native-cicd-policy.md) | Artifact-driven CI/CD gates |
+| [ADR-003](../adr/003-ai-native-cicd-policy.md) | Artifact-driven CI/CD gates |
 | [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md) | Runtime artifact schemas, paths, persistence |
 | [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md) | Unified benchmark protocol, scoring, task types |
 | [`agent-runtime-migration.md`](agent-runtime-migration.md) | Phase rollout and rollback |

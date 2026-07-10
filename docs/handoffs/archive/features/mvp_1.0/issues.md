@@ -40,7 +40,7 @@ After **#118** lands, **#119**, **#120**, and **#121** are disjoint (separate wo
 
 Parent tracking issue for Phase 1 (Weeks 1–6): mock-data-driven UI for all three seller-money workflows (New Seller Copilot, Revenue Leakage Detection, Growth Copilot), rules-based routing, no-op executor, and UX instrumentation. No real TikTok APIs, no ML.
 
-Full PRD: `docs/features/mvp_1.0/PRD.md`
+Full PRD: `docs/product/features/mvp_1.0/PRD.md`
 
 ## Acceptance criteria
 
@@ -346,7 +346,7 @@ Blocked by #118, #119, #120, #121
 
 ### Parent PRD
 
-- Local: `docs/features/mvp_1.0/PRD.md`
+- Local: `docs/product/features/mvp_1.0/PRD.md`
 - GitHub: #113
 
 ### Implementation Order

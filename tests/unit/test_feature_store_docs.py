@@ -16,8 +16,8 @@ from juli_backend.ai.features.schema import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FEATURE_STORE_PATH = REPO_ROOT / "docs/data-models/feature-store-schema.md"
-SYSTEM_DESIGN_PATH = REPO_ROOT / "docs/system-design.md"
+FEATURE_STORE_PATH = REPO_ROOT / "docs/api/data-models/feature-store-schema.md"
+SYSTEM_DESIGN_PATH = REPO_ROOT / "docs/architecture/system-design.md"
 
 
 @pytest.fixture

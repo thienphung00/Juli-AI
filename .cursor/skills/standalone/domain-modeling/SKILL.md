@@ -18,8 +18,8 @@ Can be invoked mid-workflow — does not require a dedicated session.
 | Artifact | Location | Notes |
 |----------|----------|-------|
 | Domain glossary | `CONTEXT.md` at repo root | Single context — no `CONTEXT-MAP.md` unless the repo splits into multiple bounded contexts |
-| ADRs | `docs/decisions/` | **Not** `docs/adr/` — 28+ ADRs already live here |
-| ADR index | `docs/decisions/README.md` | Update when adding an ADR |
+| ADRs | `docs/adr/` | **Not** `docs/adr/` — 28+ ADRs already live here |
+| ADR index | `docs/adr/README.md` | Update when adding an ADR |
 
 ---
 
@@ -90,13 +90,13 @@ _Avoid_: ad score
 
 ---
 
-## ADR format (`docs/decisions/`)
+## ADR format (`docs/adr/`)
 
 ### Location and numbering
 
-- Path: `docs/decisions/NNN-slug.md` (3-digit prefix, hyphen slug — e.g. `029-my-decision.md`).
-- Scan `docs/decisions/` for the highest existing number and increment by one.
-- **Always** add a row to `docs/decisions/README.md`.
+- Path: `docs/adr/NNN-slug.md` (3-digit prefix, hyphen slug — e.g. `029-my-decision.md`).
+- Scan `docs/adr/` for the highest existing number and increment by one.
+- **Always** add a row to `docs/adr/README.md`.
 
 ### Default template (match existing ADRs)
 
@@ -161,7 +161,7 @@ If easy to reverse → skip (just change it). If not surprising → skip. If no 
 
 ### After creating an ADR
 
-- Update `docs/decisions/README.md` with number, title, and status.
+- Update `docs/adr/README.md` with number, title, and status.
 - Link from the relevant `CONTEXT.md` domain section if the decision defines a term.
 
 ---

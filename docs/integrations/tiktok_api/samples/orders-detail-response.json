@@ -1,0 +1,102 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-09",
+    "region": "VN",
+    "merchant": "Fujiwa",
+    "endpoint": "GET /order/202507/orders",
+    "api_version": "202507",
+    "contract_section": "§7",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "data": {
+      "orders": [
+        {
+          "buyer_email": "[REDACTED]",
+          "buyer_message": "",
+          "cancel_order_sla_time": 1696438799,
+          "cancel_reason": "Không thể giao hàng đến địa chỉ khách hàng",
+          "cancel_time": 1696306119,
+          "cancellation_initiator": "SELLER",
+          "commerce_platform": "TIKTOK_SHOP",
+          "create_time": 1695873653,
+          "delivery_option_id": "7057025213938009858",
+          "delivery_option_name": "Standard shipping",
+          "delivery_type": "HOME_DELIVERY",
+          "fulfillment_type": "FULFILLMENT_BY_SELLER",
+          "has_updated_recipient_address": false,
+          "id": "577958834469439754",
+          "is_cod": true,
+          "is_on_hold_order": false,
+          "is_replacement_order": false,
+          "is_sample_order": false,
+          "line_items": [
+            {
+              "cancel_reason": "Không thể giao hàng đến địa chỉ khách hàng",
+              "cancel_user": "SELLER",
+              "currency": "VND",
+              "display_status": "CANCELLED",
+              "gift_retail_price": "0",
+              "id": "577958834469570826",
+              "is_gift": false,
+              "original_price": "168000",
+              "package_id": "1153486604836964618",
+              "package_status": "CANCELLED",
+              "platform_discount": "0",
+              "product_id": "1729700293904403063",
+              "product_name": "Nước Uống Ion Kiềm Cao Cấp Đóng Chai Fujiwa Vietnam",
+              "rts_time": 1695969425,
+              "sale_price": "168000",
+              "seller_discount": "0",
+              "seller_sku": "FUJIWA02-450",
+              "shipping_provider_id": "7099654067386844933",
+              "shipping_provider_name": "GHTK",
+              "sku_id": "1729700293904534135",
+              "sku_image": "https://p19-oec-general.tiktokcdn.com/tos-maliva-i-o3syd03w52-us/cd87288197f84f3192c50fa57cfe98de~tplv-o3syd03w52-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=54477afb&shcp=3c3d9ffb&idc=my&from=1413970683",
+              "sku_name": "Thùng 24 Chai-450ml",
+              "sku_type": "NORMAL",
+              "tracking_number": "3220279504"
+            }
+          ],
+          "order_type": "NORMAL",
+          "packages": [
+            {
+              "id": "1153486604836964618"
+            }
+          ],
+          "payment": {
+            "currency": "VND",
+            "original_shipping_fee": "153000",
+            "original_total_product_price": "504000",
+            "platform_discount": "0",
+            "seller_discount": "0",
+            "shipping_fee": "153000",
+            "shipping_fee_cofunded_discount": "0",
+            "shipping_fee_platform_discount": "0",
+            "shipping_fee_seller_discount": "0",
+            "sub_total": "504000",
+            "tax": "0",
+            "total_amount": "657000"
+          },
+          "payment_method_name": "Cash on delivery",
+          "recipient_address": "[REDACTED]",
+          "rts_sla_time": 1696006799,
+          "rts_time": 1695969425,
+          "shipping_provider": "GHTK",
+          "shipping_provider_id": "7099654067386844933",
+          "shipping_type": "TIKTOK",
+          "status": "CANCELLED",
+          "tracking_number": "3220279504",
+          "tts_sla_time": 1696093199,
+          "update_time": 1696306119,
+          "user_id": "[REDACTED]",
+          "warehouse_id": "7272949914115966726"
+        }
+      ]
+    },
+    "message": "Success",
+    "request_id": "{request_id}"
+  }
+}

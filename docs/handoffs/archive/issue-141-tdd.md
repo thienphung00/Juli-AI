@@ -12,7 +12,7 @@
 
 - New: `src/modules/ml/artifacts/*` (types, schema, thresholds, promotion, publish, load, smoke, MODULE.md)
 - New: `tests/unit/test_model_artifacts.py`
-- New: `docs/decisions/018-phase-15-model-artifacts.md`
+- New: `docs/adr/018-phase-15-model-artifacts.md`
 - New: `docs/handoffs/issue-141-focus.md`
 - Modified: `docs/architecture/map.md`
 - Modified: `.gitignore` (ignore `models/`)

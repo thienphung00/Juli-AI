@@ -4,15 +4,15 @@
 
 Phase 1.5 shared feature engineering: transform backtest parquet (from `ml/dataset`)
 into per-model feature matrices with column names matching
-[`docs/data-models/feature-store-schema.md`](../../../docs/data-models/feature-store-schema.md).
-Runner-agnostic plain Python — no scheduler coupling ([ADR-010](../../../docs/decisions/010-ml-module-tree-and-trainers.md)).
+[`docs/api/data-models/feature-store-schema.md`](../../../docs/api/data-models/feature-store-schema.md).
+Runner-agnostic plain Python — no scheduler coupling ([ADR-010](../../../docs/adr/010-ml-module-tree-and-trainers.md)).
 
 ## Public Interface
 
 - `build_seller_stage_features(manifest) -> FeatureMatrix` — shop-level columns:
   `shop_age_days`, `order_count_30d`, `return_rate_30d`, `ad_spend_30d_vnd`, `gmv_30d_vnd`
 - `build_anomaly_features(manifest) -> FeatureMatrix` — Group A buyer-behavior features only;
-  rejects affiliate/creator columns ([ADR-011](../../../docs/decisions/011-buyer-behavior-anomaly-scope.md))
+  rejects affiliate/creator columns ([ADR-011](../../../docs/adr/011-buyer-behavior-anomaly-scope.md))
 - `build_ad_features(manifest) -> FeatureMatrix` — campaign/day grain with spend, ROAS, CPC,
   conversions, and account-level baselines
 - `FeatureMatrix` — dataclass with `grain`, `feature_columns`, `frame`, `metadata`
@@ -23,7 +23,7 @@ Runner-agnostic plain Python — no scheduler coupling ([ADR-010](../../../docs/
 
 - `backend/ai/dataset` — manifest + parquet contract (`dataset_dir`, entity columns)
 - `pandas`, `pyarrow` — parquet I/O and vectorized feature math
-- `docs/data-models/feature-store-schema.md` — authoritative feature names
+- `docs/api/data-models/feature-store-schema.md` — authoritative feature names
 
 ## Key Behaviors
 

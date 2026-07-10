@@ -4,7 +4,7 @@
 
 Phase 1.5 backtest dataset assembly: synthetic parquet generation, schema validation,
 and versioned manifest output for seller-money ML training. No TikTok API calls;
-no Postgres writes ([ADR-011](../../../docs/decisions/011-buyer-behavior-anomaly-scope.md)).
+no Postgres writes ([ADR-011](../../../docs/adr/011-buyer-behavior-anomaly-scope.md)).
 
 ## Public Interface
 
@@ -17,8 +17,8 @@ no Postgres writes ([ADR-011](../../../docs/decisions/011-buyer-behavior-anomaly
 ## Dependencies
 
 - `pandas`, `pyarrow` — parquet I/O
-- `docs/data-models/canonical-entities.md` — entity field authority
-- `docs/data-models/mock-data-generator.md` — synthetic generation rules
+- `docs/api/data-models/canonical-entities.md` — entity field authority
+- `docs/api/data-models/mock-data-generator.md` — synthetic generation rules
 
 ## Key Behaviors
 

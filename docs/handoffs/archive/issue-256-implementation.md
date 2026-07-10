@@ -24,12 +24,12 @@ Implemented **#256** with VPS wiring runbook, Nginx provision script, smoke-test
 
 | Path | Purpose |
 |------|---------|
-| `infra/deploy/vps-wiring-runbook.md` | HITL DNS → Nginx → Certbot → sign-off |
+| `docs/runbooks/vps-wiring-runbook.md` | HITL DNS → Nginx → Certbot → sign-off |
 | `infra/scripts/provision-nginx.sh` | Install split vhosts on VPS |
 | `infra/scripts/smoke-test.sh --dns-tls-only` | DNS/TLS validation |
 | `infra/scripts/env/web.env.example` | `NEXT_PUBLIC_UI_ONLY=1` |
 | `web/src/components/LoginForm.tsx` | One-click demo login |
-| `docs/features/app_review_deployment/issues.md` | Slice index |
+| `docs/product/features/app_review_deployment/issues.md` | Slice index |
 
 ## VPS redeploy after merge
 

@@ -63,7 +63,7 @@ Today's Report (P1.8-9 #194): `buildAllDomainReportSummaries(unifiedModel)` in `
 
 ## Journey link registry (P1.8-10)
 
-RRAA cross-screen loop ([ADR-014](../../../docs/decisions/014-decision-copilot-app-structure-and-journey.md)): maps each ADR-013 `workflow_id` to a Home Today's Report metric anchor, standardized Reason/Anticipation copy, and deep-link query params.
+RRAA cross-screen loop ([ADR-014](../../../docs/adr/014-decision-copilot-app-structure-and-journey.md)): maps each ADR-013 `workflow_id` to a Home Today's Report metric anchor, standardized Reason/Anticipation copy, and deep-link query params.
 
 | Export | Purpose |
 |--------|---------|

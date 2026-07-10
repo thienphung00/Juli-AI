@@ -582,10 +582,10 @@ Core palette for prompts:
 - Keep `#FEF5F6` off full-page backgrounds — it is secondary fill only.
 - Pair every colored metric delta with a text label (e.g., "+12,5%") — never color alone.
 - Layer state colors last (green deltas, red badges, amber warnings) — verify they read over both white and pink-tinted backgrounds.
-- After first pass, compare against `docs/design/DESIGN_SYSTEM.md` for CSS variable compliance and Vietnamese copy completeness.
+- After first pass, compare against `docs/product/design/DESIGN_SYSTEM.md` for CSS variable compliance and Vietnamese copy completeness.
 
 ---
 
 **Source files:** `web/src/app/globals.css`, `web/tailwind.config.ts`, `web/src/app/layout.tsx`, component primitives in `web/src/components/`.  
-**Human-maintained reference:** `docs/design/DESIGN_SYSTEM.md`.  
+**Human-maintained reference:** `docs/product/design/DESIGN_SYSTEM.md`.  
 **Adapted structural conventions from:** `Vercel/DESIGN.md` (gray scale pattern, token naming, two-tier border system, layout discipline).

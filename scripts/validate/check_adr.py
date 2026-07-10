@@ -59,7 +59,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     if not arch_change:
         return True, "No architectural change detected", details
     if not adrs:
-        return False, "Architectural change requires new ADR in docs/decisions/", details
+        return False, "Architectural change requires new ADR in docs/adr/", details
     if adr_problems:
         return False, "ADR file structure invalid", details
     return True, "ADR present for architectural change", details

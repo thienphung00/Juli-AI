@@ -12,9 +12,9 @@
 
 - **New:** `src/modules/ml/dataset/` (assembler, synthetic, validation, schema, cli, exceptions, MODULE.md)
 - **New:** `tests/unit/test_backtest_dataset.py`
-- **New:** `docs/decisions/013-phase-15-ml-module-tree.md`
+- **New:** `docs/adr/013-phase-15-ml-module-tree.md`
 - **New:** `artifacts/reviews/review-issue-136.json`, `artifacts/validation/validation-issue-136.json`
-- **Modified:** `requirements.txt`, `docs/architecture/map.md`, `docs/decisions/README.md`
+- **Modified:** `requirements.txt`, `docs/architecture/map.md`, `docs/adr/README.md`
 - **Migrations:** none
 
 ## Tests written

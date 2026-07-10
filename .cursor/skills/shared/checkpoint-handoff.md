@@ -88,7 +88,7 @@ focus_phase:
     - choice: "{decision}"
       rationale: "{why}"
       rejected: ["{alt 1}"]
-  architectural_notes: ["ADR-NNN in docs/decisions/", "{module boundary note}"]
+  architectural_notes: ["ADR-NNN in docs/adr/", "{module boundary note}"]
 
 implementation_phase:                # legacy alias: tdd_phase
   status: "✓" | "⏳" | "✗"
@@ -149,7 +149,7 @@ planning_phase:                      # canonical doc governance (formerly discov
   assumptions: ["{assumption}"]
   canonical_updates:
     - "EXECUTION.md: {what changed}"
-    - "docs/decisions/: ADR-NNN"
+    - "docs/adr/: ADR-NNN"
   next_actions: ["to-prd"]
 
 to_prd_phase:

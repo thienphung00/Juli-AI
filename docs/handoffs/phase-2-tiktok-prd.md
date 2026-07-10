@@ -44,10 +44,10 @@ Gate all Phase 2 TikTok implementation behind a user-filled contract collection 
 - **Phase 2 signals:** Deterministic rules for shop profile (`NEW_SHOP` / `MID_LARGE_SHOP`); T8 router classifier deferred to Phase 4.
 - **Health:** SPS-first via Partner API; `health_data_source: api | proxy | unavailable`; VP/AHR not a P2 polling gate.
 - **Layer 1 reads (minimum):** token refresh, authorized shops, orders, products, returns/cancellations, product details; optional inventory search and affiliate creators; SPS if contract found.
-- **Layer 2 writes (sandbox):** inventory update; product category/image/create/edit/activate; promotion activity and coupon lifecycle; fulfillment split/combine/package/ship. Candidate paths are in `docs/tiktok_api/contract-collection.md`; implementation remains blocked until cURL + response status.
+- **Layer 2 writes (sandbox):** inventory update; product category/image/create/edit/activate; promotion activity and coupon lifecycle; fulfillment split/combine/package/ship. Candidate paths are in `docs/integrations/tiktok_api/contract-collection.md`; implementation remains blocked until cURL + response status.
 - **Polling scope:** Fujiwa only for production sync; no expansion of settlements, livestreams, production inventory unless explicitly accepted.
 - **Dependency injection:** Polling/ETL receive read client only; sandbox tools receive write-validation client only.
-- **Stop gate:** No endpoint resource implementation until user returns filled `docs/tiktok_api/contract-collection.md`.
+- **Stop gate:** No endpoint resource implementation until user returns filled `docs/integrations/tiktok_api/contract-collection.md`.
 
 ### Assumptions
 
@@ -79,6 +79,6 @@ Gate all Phase 2 TikTok implementation behind a user-filled contract collection 
 ## Further Notes
 
 - **Docs:** `EXECUTION.md`, `phase-2-mvp.md`, `system-design.md`, `data-sources.md`, `tiktok_api/*`, handoffs updated.
-- **User action:** Fill [`contract-collection.md`](../tiktok_api/contract-collection.md).
+- **User action:** Fill [`contract-collection.md`](../integrations/tiktok_api/contract-collection.md).
 - **Handoff:** [`phase-2-tiktok-implementation.md`](phase-2-tiktok-implementation.md).
 - **Rollout:** P2-A1 → P2-A2 → P2-A3 → P2-B1+.

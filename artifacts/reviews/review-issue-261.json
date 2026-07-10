@@ -7,9 +7,9 @@
   "summary": "Phase 2.5-review-f (#261) smoke checklist: PRD.md and summary.md document smoke commands; smoke-checklist-runbook.md provides HITL sign-off covering DNS, TLS, frontend, /health, OAuth callback, reviewer login, CORS, and review-only confirmation; smoke-test.sh extended with CORS preflight probe; 14 new contract tests pass with 69 phase-2.5 deploy tests green.",
   "criticalFindings": [],
   "modulesTouched": [
-    "docs/features/app_review_deployment/",
+    "docs/product/features/app_review_deployment/",
     "infra/deploy/",
-    "docs/phases/phase-2.5-deployment.md",
+    "docs/product/phases/phase-2.5-deployment.md",
     "tests/unit/test_phase_2_5_smoke_checklist.py",
     "tests/unit/test_phase_2_5_deploy_config.py"
   ],

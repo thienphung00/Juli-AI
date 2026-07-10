@@ -211,7 +211,7 @@ Machine-readable index for **focus** and agent-phase routing. Plugin skills ship
 | `web/` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
 | Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux` executor, `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
-| TikTok API / webhooks | — | `docs/tiktok_api/`, MODULE.md (no plugin) |
+| TikTok API / webhooks | — | `docs/integrations/tiktok_api/`, MODULE.md (no plugin) |
 | New vendor API onboarding | `context7` | `api-docs` → `context7-mcp` |
 | Seller/creator feature guide, policy, account health | — | `platform-docs` (WebFetch TikTok Shop University + `context7-mcp`) |
 | Library “how do I …” | `context7` | `context7-mcp` |

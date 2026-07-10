@@ -1,6 +1,6 @@
 # PRD: MVP 1.5 — Phase 1.5 ML Models
 
-> **Phase:** 1.5 (Weeks 6–9) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/system-design.md`](../../system-design.md)
+> **Phase:** 1.5 (Weeks 6–9) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/architecture/system-design.md`](../../architecture/system-design.md)
 >
 > **Exit gate:** All three model suites trained and serialized; precision/recall meets backtest targets (recorded in `system-design.md`); `docs/architecture/target-v2.md` published.
 
@@ -20,7 +20,7 @@ Phase 1.5 must train three model suites offline, validate precision/recall (and 
 
 Build an offline ML pipeline that assembles backtest parquet (historical TikTok Shop data or synthetic when unavailable), engineers features per model suite, trains and evaluates three models against documented ground truth, compares the seller-stage classifier to the Phase 1 rules router baseline, serializes passing models with metadata, and updates canonical docs with thresholds, feature specs, inference signatures, and the Phase 2 target design.
 
-The anomaly detector detects **buyer-behavior return anomalies only** — `item_swap` (wrong item returned) and `empty_return` (empty parcel) — per [ADR-011](../../decisions/011-buyer-behavior-anomaly-scope.md). Inputs are limited to **Order**, **OrderItem**, and **Return** records and buyer aggregate features derived from them. It does **not** score affiliate activity, commission disputes, creator-attributed refunds, VP/AHR milestones, or balance withholding — those remain deterministic policy rules in Phase 2, not ML.
+The anomaly detector detects **buyer-behavior return anomalies only** — `item_swap` (wrong item returned) and `empty_return` (empty parcel) — per [ADR-011](../../adr/011-buyer-behavior-anomaly-scope.md). Inputs are limited to **Order**, **OrderItem**, and **Return** records and buyer aggregate features derived from them. It does **not** score affiliate activity, commission disputes, creator-attributed refunds, VP/AHR milestones, or balance withholding — those remain deterministic policy rules in Phase 2, not ML.
 
 UX stays on Phase 1 mock fixtures; Phase 1.5 produces artifacts and documentation consumed by Phase 2 inference and ETL.
 
@@ -30,7 +30,7 @@ UX stays on Phase 1 mock fixtures; Phase 1.5 produces artifacts and documentatio
 
 ### Backtest data assembly (P1.5-1)
 
-> **Anomaly backtest:** orders, order_items, returns, and buyer-behavior labels only — no affiliate parquet ([ADR-011](../../decisions/011-buyer-behavior-anomaly-scope.md), [`data-sources.md`](../../architecture/data-sources.md)).
+> **Anomaly backtest:** orders, order_items, returns, and buyer-behavior labels only — no affiliate parquet ([ADR-011](../../adr/011-buyer-behavior-anomaly-scope.md), [`data-sources.md`](../../architecture/data-sources.md)).
 
 1. As an **ML engineer**, I want a versioned backtest dataset in parquet format (orders, order_items, returns, labels, ads), so that all three model suites train on the same schema contract with the anomaly path limited to buyer-behavior entities.
 2. As an **ML engineer**, I want parquet columns to match the Return schema contract in `system-design.md` (`order_id`, `return_id`, `buyer_id`, `product_id`, `sku_id`, `return_type`, `return_condition`, etc.), so that Phase 2 ETL mapping does not require rework.
@@ -81,7 +81,7 @@ UX stays on Phase 1 mock fixtures; Phase 1.5 produces artifacts and documentatio
 
 ### Feature specs and inference signatures (P1.5-5)
 
-35. As a **Phase 2 engineer**, I want feature specs for all three models documented in [`docs/data-models/feature-store-schema.md`](../../data-models/feature-store-schema.md), so that the Phase 2 feature-build job knows exactly which columns to materialize.
+35. As a **Phase 2 engineer**, I want feature specs for all three models documented in [`docs/api/data-models/feature-store-schema.md`](../../api/data-models/feature-store-schema.md), so that the Phase 2 feature-build job knows exactly which columns to materialize.
 36. As a **Phase 2 engineer**, I want inference signatures (input schema, output schema, model version pointer) documented per suite in `feature-store-schema.md` and cross-linked from `system-design.md`, so that the daily batch job at 08:00 UTC has a contract to implement against.
 37. As an **ML engineer**, I want feature schema hashes recorded alongside models, so that training/inference drift is detectable.
 38. As a **reviewer**, I want backtest precision/recall targets filled in (replacing `_TBD_` placeholders) in `system-design.md` before Phase 2 starts, so that promotion criteria are explicit.
@@ -137,13 +137,13 @@ UX stays on Phase 1 mock fixtures; Phase 1.5 produces artifacts and documentatio
 | **Anomaly detector trainer** | Train buyer-behavior return detector (`item_swap`, `empty_return`) from Order/OrderItem/Return features only; per-class metrics | `trainAnomalyDetector(features, labels) → TrainResult`; `evaluateAnomalyClasses(y_true, y_pred) → ClassMetrics` |
 | **Ad performance trainer** | Train regressor/classifier for ROAS and scale/cut ranking | `trainAdAnalyzer(features, labels) → TrainResult`; `evaluateRoasError(y_true, y_pred) → RoasMetrics` |
 | **Model artifact publisher** | Serialize joblib + metadata.json; promotion gate on thresholds | `publishModel(suite, result, version) → ArtifactBundle`; `loadModel(suite, version) → Model` |
-| **Feature spec documenter** | Update [`feature-store-schema.md`](../../data-models/feature-store-schema.md) with seller-stage and ad feature groups; cross-link inference signatures and filled thresholds in `system-design.md` | Script or manual PR updating canonical docs (P1.5-5) |
+| **Feature spec documenter** | Update [`feature-store-schema.md`](../../api/data-models/feature-store-schema.md) with seller-stage and ad feature groups; cross-link inference signatures and filled thresholds in `system-design.md` | Script or manual PR updating canonical docs (P1.5-5) |
 | **Target-v2 publisher** | Author `docs/architecture/target-v2.md` for Phase 2 pipeline | Markdown doc cross-linked from EXECUTION.md (P1.5-7) |
 
 ### Architectural decisions
 
 - **Offline only:** No production inference, no Postgres writes for ML artifacts in Phase 1.5 (artifacts on disk under `models/`). No TikTok API calls.
-- **Schema contract authority:** Entity shapes follow [`canonical-entities.md`](../../data-models/canonical-entities.md); feature names follow [`feature-store-schema.md`](../../data-models/feature-store-schema.md); return/ads field alignment index in `system-design.md` § Return schema contract; phase rows in `data-sources.md`. P1 mock TypeScript schemas gain P1.5 fields (`product_id`, `sku_id`, `return_type`, `return_condition`) in the dataset layer — aligned but not required to block training if parquet is self-contained.
+- **Schema contract authority:** Entity shapes follow [`canonical-entities.md`](../../api/data-models/canonical-entities.md); feature names follow [`feature-store-schema.md`](../../api/data-models/feature-store-schema.md); return/ads field alignment index in `system-design.md` § Return schema contract; phase rows in `data-sources.md`. P1 mock TypeScript schemas gain P1.5 fields (`product_id`, `sku_id`, `return_type`, `return_condition`) in the dataset layer — aligned but not required to block training if parquet is self-contained.
 - **Anomaly scope (ADR-011):** The anomaly detector is **buyer-behavior only** — classes `item_swap` and `empty_return` from Order, OrderItem, and Return data. No affiliate, creator, or commission features in training, labels, or inference. Policy signals (VP, disputes, withholding) are separate deterministic rules in Phase 2, not this model.
 - **Rules baseline:** Seller-stage ML must be evaluated against the existing Phase 1 `classifySellerStage()` thresholds (ported or wrapped for Python backtest). ML replaces rules in Phase 2 only if backtest metrics and comparison report justify it.
 - **Algorithm choices:** scikit-learn for seller stage classifier and anomaly detection (e.g., gradient boosting or random forest — chosen at implementation with reproducibility); xgboost or sklearn regressor for ad ROAS per `system-design.md` dependencies table. Pin versions at implementation.
@@ -220,7 +220,7 @@ Per [`EXECUTION.md`](../../../EXECUTION.md) — explicitly **not** in Phase 1.5:
 - Swapping mock UI data for ML predictions (Phase 2)
 - Real task execution / executor triggers (Phase 2)
 - Postgres persistence of ML scores or feature tables (Phase 2)
-- Anomaly ML beyond buyer-behavior returns — no affiliate signals, creator refunds, or commission fraud ([ADR-011](../../decisions/011-buyer-behavior-anomaly-scope.md))
+- Anomaly ML beyond buyer-behavior returns — no affiliate signals, creator refunds, or commission fraud ([ADR-011](../../adr/011-buyer-behavior-anomaly-scope.md))
 - VP/AHR/withholding/dispute ML scoring (deterministic policy rules in Phase 2)
 - Creator ↔ Shop matching (Phase 3+)
 - Vendor scrapers (Kalodata / Shoplus — Phase 2.5+)

@@ -63,10 +63,10 @@
         "architecturalChange": true,
         "adrPresent": true,
         "adrs": [
-          "docs/decisions/001-keep-python-fastapi.md",
-          "docs/decisions/002-supabase-backend-service.md",
-          "docs/decisions/004-etl-kafka-consumer.md",
-          "docs/decisions/005-alerts-module.md"
+          "docs/adr/001-keep-python-fastapi.md",
+          "docs/adr/002-supabase-backend-service.md",
+          "docs/adr/004-etl-kafka-consumer.md",
+          "docs/adr/005-alerts-module.md"
         ],
         "adrProblems": {}
       }

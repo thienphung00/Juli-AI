@@ -75,7 +75,7 @@
         "architecturalChange": false,
         "adrPresent": true,
         "adrs": [
-          "docs/decisions/012-architecture-reconciliation-mvp-vs-target.md"
+          "docs/adr/012-architecture-reconciliation-mvp-vs-target.md"
         ],
         "adrProblems": {}
       }

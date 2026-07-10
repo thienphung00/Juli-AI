@@ -22,7 +22,7 @@ Convert **official** vendor API documentation into a normalized, implementation-
 knowledge base under `docs/<vendor>_api/`. This is **not** a summary — it is
 source-of-truth material that downstream skills load without re-reading vendor sites.
 
-**Canonical example:** [`docs/tiktok_api/README.md`](../../../../docs/tiktok_api/README.md)
+**Canonical example:** [`docs/integrations/tiktok_api/README.md`](../../../../docs/integrations/tiktok_api/README.md)
 
 ## Boundaries
 
@@ -30,7 +30,7 @@ source-of-truth material that downstream skills load without re-reading vendor s
 |-------|----------------|
 | **`api-docs`** | Extract, normalize, and file vendor API reference under `docs/<vendor>_api/` |
 | **`platform-docs`** | Seller/creator platform docs under `docs/<vendor>_platform/` (features, limits, health, eligibility) |
-| **Architect Agent (Planning)** | Interview, scope features, update `EXECUTION.md`, `system-design.md`, `docs/architecture/`, `docs/decisions/` |
+| **Architect Agent (Planning)** | Interview, scope features, update `EXECUTION.md`, `system-design.md`, `docs/architecture/`, `docs/adr/` |
 | **`to-prd` / `to-issues`** | Turn feature context into PRDs and GitHub issues |
 | **`focus`** | Route which docs to load for implementation |
 
@@ -84,7 +84,7 @@ Do **not** create parallel filenames (`overview.md`, `domain-model.md`, etc.) �
 ### Step 5 — Platform hooks
 
 1. Propose or update a row in `docs/architecture/data-sources.md` (status per legend: MVP / v1.5 / v2.0 / Out / Forbidden).
-2. Draft ADR candidates in `docs/decisions/NNN-<slug>.md` when auth boundaries, ingestion model, or forbidden substitutes are non-obvious; update `docs/decisions/README.md`.
+2. Draft ADR candidates in `docs/adr/NNN-<slug>.md` when auth boundaries, ingestion model, or forbidden substitutes are non-obvious; update `docs/adr/README.md`.
 
 ### Step 6 — Validate
 
@@ -130,4 +130,4 @@ Point implementers at `docs/<vendor>_api/README.md`, `authentication.md`, `endpo
 
 - Full workflow, templates, and mapping tables: [REFERENCE.md](REFERENCE.md)
 - Platform docs counterpart: [`platform-docs`](../platform-docs/SKILL.md)
-- TikTok reference layout: [`docs/tiktok_api/`](../../../../docs/tiktok_api/)
+- TikTok reference layout: [`docs/integrations/tiktok_api/`](../../../../docs/integrations/tiktok_api/)

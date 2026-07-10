@@ -1,6 +1,6 @@
 # Repo Restructure — Implementation Plan (Meta Agent handoff)
 
-> **Status:** planned, not started. Owner: solo maintainer.
+> **Status:** Phase 5 complete on `docs/reorg` (branched from `refactor/infra-layout`). Owner: solo maintainer.
 > **Nature:** read/refactor only — no behavior changes, **except** two explicitly-flagged
 > deploy-script/systemd edits in Phase 1 that are required for the `src/` layout to run in
 > production. No Docker / Terraform / K8s / cloud IaC introduced anywhere.
@@ -89,7 +89,7 @@ agent-runtime/
 
 **Reference-update checklist:** `scripts/ci/common.py` path constants; harness scripts;
 `harness-editable.yml` + `harness-safelist.yml`; `.github/workflows/{pr,release,architecture-audit}.yml`;
-`.cursor/skills/{focus,validate,ship}`; `docs/ci/implementation-guide.md`; harness unit tests;
+`.cursor/skills/{focus,validate,ship}`; `docs/deployment/implementation-guide.md`; harness unit tests;
 grep `artifacts/` inside committed JSON if paths are embedded.
 
 **Gate:** `pytest tests/unit/test_harness_*.py tests/unit/test_implementation_artifact.py`;
@@ -170,7 +170,7 @@ Do **not** create `infra/docker/`, `infra/terraform/`, `infra/aws/` IaC.
 
 ## Phase 5 — Docs reorg
 Into `docs/{architecture,api,deployment,runbooks,adr,product,ml,integrations}`.
-Suggested mapping: `docs/decisions/` → `adr/`; `docs/tiktok_api/` → `integrations/`; `docs/ci/` + `*-runbook.md` → `deployment/` + `runbooks/`; `docs/phases/` + `docs/features/` → `product/`; `docs/ml_layer.md` etc. → `ml/`. **Ask** on anything that doesn't cleanly fit. Update internal cross-links after moves.
+Suggested mapping: `docs/adr/` → `adr/`; `docs/integrations/tiktok_api/` → `integrations/`; `docs/deployment/` + `*-runbook.md` → `deployment/` + `runbooks/`; `docs/product/phases/` + `docs/product/features/` → `product/`; `docs/ml/ml_layer.md` etc. → `ml/`. **Ask** on anything that doesn't cleanly fit. Update internal cross-links after moves.
 
 ## Phase 6 — Root cleanup
 - `.gitignore`: add **`coverage/`** and **`web/coverage/`** only. Do **not** ignore `artifacts/` (ADR-003) or `screenshots/` without an explicit decision.

@@ -15,7 +15,7 @@
 | `ListingWorkflowPanel.tsx` | `ExportExecuteStep` — format picker, download, success copy (Vietnamese) |
 | `web/src/__tests__/test_listing_export.test.ts` | 3 unit tests (JSON, CSV, blocked guard) |
 | `web/src/__tests__/test_listing_workflow_ui.test.tsx` | Path A/B E2E through export + analytics |
-| `docs/decisions/023-listing-export-service.md` | ADR |
+| `docs/adr/023-listing-export-service.md` | ADR |
 | `docs/architecture/map.md` | Export row updates |
 
 ## Acceptance criteria status

@@ -11,7 +11,7 @@
 ## Changes summary
 
 - New: `docs/architecture/target-v2.md`, `tests/unit/test_target_v2_docs.py`, `docs/handoffs/issue-143-focus.md`
-- Modified: `EXECUTION.md` (P1.5-7 + exit gate checked), `docs/system-design.md` (markdown link), `docs/architecture/map.md` (target architecture section)
+- Modified: `EXECUTION.md` (P1.5-7 + exit gate checked), `docs/architecture/system-design.md` (markdown link), `docs/architecture/map.md` (target architecture section)
 - Migrations: none
 - MODULE.md added: none
 

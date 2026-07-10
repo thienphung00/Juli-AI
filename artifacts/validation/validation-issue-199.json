@@ -63,7 +63,7 @@
         "architecturalChange": true,
         "adrPresent": true,
         "adrs": [
-          "docs/decisions/003-ai-native-cicd-policy.md"
+          "docs/adr/003-ai-native-cicd-policy.md"
         ],
         "adrProblems": {}
       }

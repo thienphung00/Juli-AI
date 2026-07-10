@@ -4,7 +4,7 @@
     "agent-runtime.config.yml",
     ".cursor/skills/standalone/focus/SKILL.md",
     ".cursor/skills/domain/ui-ux/SKILL.md",
-    "docs/phases/phase-2.5-deployment.md",
+    "docs/product/phases/phase-2.5-deployment.md",
     "docs/architecture/migration-plan.md",
     "web/package.json",
     "package.json"
@@ -29,7 +29,7 @@
     "packages/utils/package.json",
     "apps/README.md",
     "packages/README.md",
-    "docs/phases/phase-2.5-deployment.md",
+    "docs/product/phases/phase-2.5-deployment.md",
     "docs/architecture/migration-plan.md",
     "tests/unit/test_phase_2_5_workspace_tooling.py"
   ],

@@ -21,12 +21,12 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.5-2), `docs/system-design.md` § ML models, `docs/architecture/map.md` |
+| Architecture | `EXECUTION.md` (P1.5-2), `docs/architecture/system-design.md` § ML models, `docs/architecture/map.md` |
 | Feature builder | `src/modules/ml/features/seller_stage.py`, `schema.py`, `MODULE.md` |
 | Dataset contract | `src/modules/ml/dataset/assembler.py`, `MODULE.md` |
 | Rules baseline (TS) | `web/src/lib/seller-stage-router/thresholds.ts`, `classify.ts`, `boundary-fixtures.ts` |
 | Prior art | `web/src/__tests__/test_seller_stage_router.test.ts`, `docs/handoffs/issue-137-ship.md` |
-| Decisions | `docs/decisions/013-phase-15-ml-module-tree.md` |
+| Decisions | `docs/adr/013-phase-15-ml-module-tree.md` |
 
 ## Standards applied
 

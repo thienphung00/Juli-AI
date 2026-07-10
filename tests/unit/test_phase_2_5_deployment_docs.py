@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
+PHASE_25_PATH = REPO_ROOT / "docs/product/phases/phase-2.5-deployment.md"
 MIGRATION_PLAN_PATH = REPO_ROOT / "docs/architecture/migration-plan.md"
 EXECUTION_PATH = REPO_ROOT / "EXECUTION.md"
 MAP_PATH = REPO_ROOT / "docs/architecture/map.md"

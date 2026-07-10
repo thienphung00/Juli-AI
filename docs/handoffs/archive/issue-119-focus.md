@@ -20,7 +20,7 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1-2), `docs/system-design.md`, `docs/features/mvp_1.0/PRD.md` US 8–14 |
+| Architecture | `EXECUTION.md` (P1-2), `docs/architecture/system-design.md`, `docs/product/features/mvp_1.0/PRD.md` US 8–14 |
 | Module | `web/MODULE.md` |
 | Shell (read-only) | `web/src/components/seller-home/SellerHomeShell.tsx` |
 | Shared tasks | `web/src/components/tasks/*`, `web/src/lib/task-executor/*` |

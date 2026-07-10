@@ -53,7 +53,7 @@ def list_new_adrs(tag: str | None) -> list[dict]:
         files = []
     adrs: list[dict] = []
     for rel in files:
-        if not rel.startswith("docs/decisions/") or rel.endswith("README.md"):
+        if not rel.startswith("docs/adr/") or rel.endswith("README.md"):
             continue
         name = Path(rel).stem
         if not re.match(r"^\d{3}-", name):

@@ -114,12 +114,12 @@ listed below, in this order.
 **Script:** [`scripts/validate/check_adr.py`](../../../scripts/validate/check_adr.py)
 
 **Reads:** review artifact's `criticalFindings[]` and `interfaceChanges[]`,
-plus `docs/decisions/`.
+plus `docs/adr/`.
 
 **Passes if:**
 - No architectural change detected, OR
 - An architectural change is detected AND a new file matching `NNN-slug.md`
-  exists in `docs/decisions/` on the branch.
+  exists in `docs/adr/` on the branch.
 
 **Architectural change detection:**
 - New module added to [`docs/architecture/map.md`](../../../docs/architecture/map.md), OR

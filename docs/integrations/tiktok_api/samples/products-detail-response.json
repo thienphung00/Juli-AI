@@ -1,0 +1,262 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-09",
+    "region": "VN",
+    "merchant": "Fujiwa",
+    "endpoint": "GET /product/202309/products/{product_id}",
+    "api_version": "202309",
+    "contract_section": "§5",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "data": {
+      "audit": {
+        "pre_approved_reasons": [],
+        "status": "APPROVED"
+      },
+      "brand": {
+        "id": "7273019489648756485",
+        "name": "[REDACTED]"
+      },
+      "category_chains": [
+        {
+          "id": "601450",
+          "is_leaf": false,
+          "local_name": "Chăm sóc sắc đẹp & Chăm sóc cá nhân",
+          "parent_id": "0"
+        },
+        {
+          "id": "849672",
+          "is_leaf": false,
+          "local_name": "Chăm sóc mũi & răng miệng",
+          "parent_id": "601450"
+        },
+        {
+          "id": "601693",
+          "is_leaf": true,
+          "local_name": "Xịt miệng",
+          "parent_id": "849672"
+        }
+      ],
+      "create_time": 1775123176,
+      "description": "[TRUNCATED — HTML product description]",
+      "has_draft": false,
+      "id": "1734952395144267383",
+      "is_cod_allowed": true,
+      "is_not_for_sale": false,
+      "is_pre_owned": false,
+      "is_replicated": false,
+      "main_images": [
+        {
+          "height": 1200,
+          "thumb_urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/c85e41d2a1af49d4b42e011677e05aa0~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/c85e41d2a1af49d4b42e011677e05aa0~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "uri": "tos-alisg-i-aphluv4xwc-sg/c85e41d2a1af49d4b42e011677e05aa0",
+          "urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/c85e41d2a1af49d4b42e011677e05aa0~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/c85e41d2a1af49d4b42e011677e05aa0~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1024,
+          "thumb_urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/699c8cea479d42e19918d2d6c5edfd08~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/699c8cea479d42e19918d2d6c5edfd08~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "uri": "tos-alisg-i-aphluv4xwc-sg/699c8cea479d42e19918d2d6c5edfd08",
+          "urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/699c8cea479d42e19918d2d6c5edfd08~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/699c8cea479d42e19918d2d6c5edfd08~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "width": 1024
+        },
+        {
+          "height": 1200,
+          "thumb_urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/5377fbf0513244bf9f712fde61f4f9e2~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/5377fbf0513244bf9f712fde61f4f9e2~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "uri": "tos-alisg-i-aphluv4xwc-sg/5377fbf0513244bf9f712fde61f4f9e2",
+          "urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/5377fbf0513244bf9f712fde61f4f9e2~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/5377fbf0513244bf9f712fde61f4f9e2~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "thumb_urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/38fdee004d3f4b318d6171eff0408a91~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/38fdee004d3f4b318d6171eff0408a91~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "uri": "tos-alisg-i-aphluv4xwc-sg/38fdee004d3f4b318d6171eff0408a91",
+          "urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/38fdee004d3f4b318d6171eff0408a91~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/38fdee004d3f4b318d6171eff0408a91~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "thumb_urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/79a64d9ca60140b9a139031dd9119be5~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/79a64d9ca60140b9a139031dd9119be5~tplv-aphluv4xwc-resize-jpeg:300:300.jpeg?dr=15584&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "uri": "tos-alisg-i-aphluv4xwc-sg/79a64d9ca60140b9a139031dd9119be5",
+          "urls": [
+            "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/79a64d9ca60140b9a139031dd9119be5~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d",
+            "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/79a64d9ca60140b9a139031dd9119be5~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&from=520841845&idc=my&ps=933b5bde&shcp=2c1af732&shp=1f0b6a75&t=555f072d"
+          ],
+          "width": 1200
+        }
+      ],
+      "manufacturer_ids": [],
+      "package_dimensions": {
+        "height": "10",
+        "length": "2",
+        "unit": "CENTIMETER",
+        "width": "2"
+      },
+      "package_weight": {
+        "unit": "KILOGRAM",
+        "value": "0.2"
+      },
+      "product_attributes": [
+        {
+          "id": "102872",
+          "name": "[REDACTED]",
+          "values": [
+            {
+              "id": "1298954",
+              "name": "[REDACTED]"
+            }
+          ]
+        },
+        {
+          "id": "102999",
+          "name": "[REDACTED]",
+          "values": [
+            {
+              "id": "7621141332983121684",
+              "name": "[REDACTED]"
+            }
+          ]
+        },
+        {
+          "id": "103000",
+          "name": "[REDACTED]",
+          "values": [
+            {
+              "id": "7188885906408605445",
+              "name": "[REDACTED]"
+            }
+          ]
+        },
+        {
+          "id": "103001",
+          "name": "[REDACTED]",
+          "values": [
+            {
+              "id": "7130916683098916614",
+              "name": "[REDACTED]"
+            }
+          ]
+        },
+        {
+          "id": "100149",
+          "name": "[REDACTED]",
+          "values": [
+            {
+              "id": "1000854",
+              "name": "[REDACTED]"
+            }
+          ]
+        },
+        {
+          "id": "101489",
+          "name": "[REDACTED]",
+          "values": [
+            {
+              "id": "7404781769532278534",
+              "name": "[REDACTED]"
+            }
+          ]
+        },
+        {
+          "id": "101490",
+          "name": "[REDACTED]",
+          "values": [
+            {
+              "id": "7404781769532278534",
+              "name": "[REDACTED]"
+            }
+          ]
+        }
+      ],
+      "product_status": "ACTIVATE",
+      "product_tags": [],
+      "recommended_categories": [],
+      "responsible_person_ids": [],
+      "shipping_insurance_requirement": "NOT_SUPPORTED",
+      "skus": [
+        {
+          "global_listing_policy": {
+            "inventory_type": "EXCLUSIVE",
+            "price_sync": false
+          },
+          "id": "1734952449674217079",
+          "inventory": [
+            {
+              "quantity": 43,
+              "warehouse_id": "7272949914115966726"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "72000",
+            "tax_exclusive_price": "72000"
+          },
+          "sales_attributes": [],
+          "seller_sku": "XTM-C",
+          "sku_dimensions": {
+            "height": "10",
+            "length": "2",
+            "unit": "CENTIMETER",
+            "width": "2"
+          },
+          "sku_weight": {
+            "unit": "KILOGRAM",
+            "value": "0.2"
+          },
+          "status_info": {
+            "status": "NORMAL"
+          }
+        }
+      ],
+      "status": "ACTIVATE",
+      "subscribe_info": {
+        "subscribe_promotion_config": [
+          {
+            "discount_level": "REGULAR"
+          },
+          {
+            "discount_level": "FIRST_ORDER",
+            "max_discount": 99,
+            "min_discount": 1
+          }
+        ],
+        "subscribe_status": "NOT_ENABLED",
+        "support_subscribe": false
+      },
+      "title": "[Quà Tặng] Chai Xịt Thơm Miệng Fujisalt 14mL Khử Mùi Hiệu Quả, Giữ Hơi Thở Thơm Mát",
+      "update_time": 1782892330
+    },
+    "message": "Success",
+    "request_id": "{request_id}"
+  }
+}

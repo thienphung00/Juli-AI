@@ -20,7 +20,7 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.5-5), `docs/system-design.md` § ML models + Return schema |
+| Architecture | `EXECUTION.md` (P1.5-5), `docs/architecture/system-design.md` § ML models + Return schema |
 | Feature schema | `src/modules/ml/features/schema.py` — authoritative column tuples |
 | Schema hashes | `src/modules/ml/artifacts/schema.py` — `feature_schema_hash(suite)` |
 | Promotion thresholds | `src/modules/ml/artifacts/thresholds.py` — provisional gates (Product sign-off) |
@@ -51,8 +51,8 @@
 
 | File | Change |
 |------|--------|
-| `docs/data-models/feature-store-schema.md` | Group D (seller stage), Group E (ad), three inference signatures, schema hash table |
-| `docs/system-design.md` | Fill ML promotion targets, cross-link inference signatures, backtest reference metrics |
+| `docs/api/data-models/feature-store-schema.md` | Group D (seller stage), Group E (ad), three inference signatures, schema hash table |
+| `docs/architecture/system-design.md` | Fill ML promotion targets, cross-link inference signatures, backtest reference metrics |
 
 ### Key patterns
 

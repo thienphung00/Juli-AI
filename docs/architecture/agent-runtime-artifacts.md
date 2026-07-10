@@ -1,7 +1,7 @@
 # Agent Runtime Artifacts
 
 **Status:** Published (Agent Runtime Phase 5)  
-**Authority:** [ADR-003](../decisions/003-ai-native-cicd-policy.md) for CI gate fields; this file for runtime artifact routing, schemas, and persistence  
+**Authority:** [ADR-003](../adr/003-ai-native-cicd-policy.md) for CI gate fields; this file for runtime artifact routing, schemas, and persistence  
 **Canonical runtime:** [`agent-runtime.md`](agent-runtime.md)
 
 Machine-readable execution feedback for the agent-phase harness. Source documents
@@ -241,6 +241,6 @@ append it to the filename for uniqueness when multiple runs exist per issue.
 |----------|------|
 | [`agent-runtime.md`](agent-runtime.md) | Agent phases, ownership, optimization loop intent |
 | [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md) | Benchmark protocol and scoring |
-| [ADR-003](../decisions/003-ai-native-cicd-policy.md) | CI enforcement, gate ordering |
-| [`docs/ci/implementation-guide.md`](../ci/implementation-guide.md) | Gate scripts, ADR-003 schema examples |
+| [ADR-003](../adr/003-ai-native-cicd-policy.md) | CI enforcement, gate ordering |
+| [`docs/deployment/implementation-guide.md`](../ci/implementation-guide.md) | Gate scripts, ADR-003 schema examples |
 | [`artifacts/README.md`](../../artifacts/README.md) | Directory layout and commit policy |

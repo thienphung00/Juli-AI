@@ -20,10 +20,10 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.5-7, Phase 2 slices), `docs/system-design.md` § end-to-end flow |
+| Architecture | `EXECUTION.md` (P1.5-7, Phase 2 slices), `docs/architecture/system-design.md` § end-to-end flow |
 | Prior art | `docs/handoffs/issue-141-ship.md`, `issue-142-ship.md` |
-| Model artifacts | `docs/data-models/feature-store-schema.md` § Inference signatures, ADR-018 |
-| Health contract | `docs/data-models/canonical-entities.md` § Shop, `data-sources.md` |
+| Model artifacts | `docs/api/data-models/feature-store-schema.md` § Inference signatures, ADR-018 |
+| Health contract | `docs/api/data-models/canonical-entities.md` § Shop, `data-sources.md` |
 | Anomaly scope | ADR-011, `feature-store-schema.md` Group A |
 | Platform policy | ADR-008, ADR-009, `tiktok_platform/seller/implementation-hooks.md` |
 
@@ -51,7 +51,7 @@
 
 | File | Change |
 |------|--------|
-| `docs/system-design.md` | Convert `architecture/target-v2.md` reference to markdown link |
+| `docs/architecture/system-design.md` | Convert `architecture/target-v2.md` reference to markdown link |
 | `docs/architecture/map.md` | Add target architecture cross-link section |
 | `EXECUTION.md` | Mark P1.5-7 complete; ensure link resolves |
 

@@ -1,6 +1,6 @@
 # PRD: MVP 1.6 — Phase 1.6 New Seller Listing Workflow
 
-> **Phase:** 1.6 (Weeks 9–10) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/system-design.md`](../../system-design.md) · **ADR:** [ADR-020](../../decisions/020-new-seller-listing-workflow-scope.md)
+> **Phase:** 1.6 (Weeks 9–10) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/architecture/system-design.md`](../../architecture/system-design.md) · **ADR:** [ADR-020](../../adr/020-new-seller-listing-workflow-scope.md)
 >
 > **Exit gate:** E2E listing flow complete — recommend (`list_products`) → approve → Path A **or** Path B → fill forms → execute (CSV export minimum); both paths exercised; deterministic readiness/compliance; shop-progress bar updates after execute.
 
@@ -141,7 +141,7 @@ The workflow reuses P1 mock-fixture patterns, canonical workflow entities (`Prod
 
 ### Schema & contracts
 
-- Workflow entities conform to [`canonical-entities.md`](../../data-models/canonical-entities.md) § Workflow entities.
+- Workflow entities conform to [`canonical-entities.md`](../../api/data-models/canonical-entities.md) § Workflow entities.
 - `ProductDraft.status`: `in_progress | ready_for_export | blocked`.
 - `ProductDraft.compliance.status`: `approved | warning | blocked` — export gated on `blocked`.
 - `ProductDraft.readiness.overall_score`: integer 0–100, deterministic from field completeness and compliance.

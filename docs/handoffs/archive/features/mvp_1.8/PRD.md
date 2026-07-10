@@ -1,6 +1,6 @@
 # PRD: MVP 1.8 — Design System & Interaction Polish (P1.8-8)
 
-> **Phase:** 1.8 (Weeks 11–13) · **Slice:** P1.8-8 · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/system-design.md`](../../system-design.md) § Design system & token foundation · **ADR:** [ADR-027](../../decisions/027-design-system-token-foundation.md)
+> **Phase:** 1.8 (Weeks 11–13) · **Slice:** P1.8-8 · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/architecture/system-design.md`](../../architecture/system-design.md) § Design system & token foundation · **ADR:** [ADR-027](../../adr/027-design-system-token-foundation.md)
 >
 > **Exit gate (design-system):** Tokens applied (theme swap + states + elevation + motion); Seller (light) and Affiliate (dark) modes verified; no stray theme hex; `web/MODULE.md` invariant updated; screenshots re-baselined.
 
@@ -18,7 +18,7 @@ Phase 1.8-8 must deliver the **design-system & interaction polish** slice: one t
 
 ## Solution
 
-Adopt [ADR-027](../../decisions/027-design-system-token-foundation.md) as the single design-token foundation for the Juli web app:
+Adopt [ADR-027](../../adr/027-design-system-token-foundation.md) as the single design-token foundation for the Juli web app:
 
 1. **Theme swap** — Seller workspace renders on a light canvas (`#FEF5F6`/white, charcoal text); Affiliate workspace renders dark. Invert current `html.dark` semantics.
 2. **Typography** — One typeface (Inter), single **≤6-size** type scale; hierarchy from size + weight only (no serif or monospace fonts).

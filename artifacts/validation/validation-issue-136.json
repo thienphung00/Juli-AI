@@ -63,7 +63,7 @@
         "architecturalChange": true,
         "adrPresent": true,
         "adrs": [
-          "docs/decisions/013-phase-15-ml-module-tree.md"
+          "docs/adr/013-phase-15-ml-module-tree.md"
         ],
         "adrProblems": {}
       }

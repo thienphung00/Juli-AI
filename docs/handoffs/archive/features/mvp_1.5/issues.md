@@ -15,7 +15,7 @@ Process issues top-to-bottom. **#138**, **#139**, and **#140** can run in parall
 | 4 | [#139](https://github.com/thienphung00/Juli-AI/issues/139) | Anomaly detector — buyer behavior only | AFK | #137 | P1.5-3 | `ml/anomaly` |
 | 5 | [#140](https://github.com/thienphung00/Juli-AI/issues/140) | Ad performance analyzer — train + backtest | AFK | #137 | P1.5-4 | `ml/ad_performance` |
 | 6 | [#141](https://github.com/thienphung00/Juli-AI/issues/141) | Serialize models + metadata + smoke tests | AFK | #138, #139, #140 | P1.5-6 | `ml/artifacts` |
-| 7 | [#142](https://github.com/thienphung00/Juli-AI/issues/142) | Feature specs, inference signatures, threshold sign-off | HITL | #138, #139, #140 | P1.5-5 | `docs/data-models`, `docs/system-design` |
+| 7 | [#142](https://github.com/thienphung00/Juli-AI/issues/142) | Feature specs, inference signatures, threshold sign-off | HITL | #138, #139, #140 | P1.5-5 | `docs/api/data-models`, `docs/system-design` |
 | 8 | [#143](https://github.com/thienphung00/Juli-AI/issues/143) | Publish Phase 2 target architecture (`target-v2.md`) | AFK | #141, #142 | P1.5-7 | `docs/architecture` |
 
 ## Anomaly detector scope (ADR-011)
@@ -42,7 +42,7 @@ After all three trainers land, **#141** and **#142** are disjoint (code artifact
 
 Parent tracking issue for Phase 1.5 (Weeks 6–9): offline ML pipeline — backtest parquet, three trained model suites (seller stage, buyer-behavior anomaly, ad performance), feature specs, serialized artifacts with metadata, and Phase 2 target architecture doc. No production inference, no TikTok API calls, no UI changes.
 
-Full PRD: `docs/features/mvp_1.5/PRD.md`
+Full PRD: `docs/product/features/mvp_1.5/PRD.md`
 
 ## Acceptance criteria
 
@@ -95,7 +95,7 @@ None — can start immediately
 
 ## What to build
 
-Shared feature builder that reads a dataset manifest + parquet from #125 and produces per-model feature matrices with column names matching [`docs/data-models/feature-store-schema.md`](../../data-models/feature-store-schema.md). Three public entrypoints: seller-stage features (shop-level), anomaly features (return/buyer aggregates from Order/OrderItem/Return only), and ad features (campaign/day grain). Runner-agnostic plain Python functions — no scheduler coupling.
+Shared feature builder that reads a dataset manifest + parquet from #125 and produces per-model feature matrices with column names matching [`docs/api/data-models/feature-store-schema.md`](../../api/data-models/feature-store-schema.md). Three public entrypoints: seller-stage features (shop-level), anomaly features (return/buyer aggregates from Order/OrderItem/Return only), and ad features (campaign/day grain). Runner-agnostic plain Python functions — no scheduler coupling.
 
 ## Acceptance criteria
 
@@ -244,7 +244,7 @@ Blocked by #127, #128, #129
 
 ## What to build
 
-Document feature specs and inference signatures for all three model suites in [`docs/data-models/feature-store-schema.md`](../../data-models/feature-store-schema.md) (seller-stage and ad feature groups if not already complete). Cross-link inference signatures from `system-design.md`. Replace `_TBD_` precision/recall/MAPE placeholders in `system-design.md` with agreed backtest targets from actual #127–#129 metrics. **Requires Product lead sign-off** on numeric thresholds before issue close.
+Document feature specs and inference signatures for all three model suites in [`docs/api/data-models/feature-store-schema.md`](../../api/data-models/feature-store-schema.md) (seller-stage and ad feature groups if not already complete). Cross-link inference signatures from `system-design.md`. Replace `_TBD_` precision/recall/MAPE placeholders in `system-design.md` with agreed backtest targets from actual #127–#129 metrics. **Requires Product lead sign-off** on numeric thresholds before issue close.
 
 ## Acceptance criteria
 
@@ -307,7 +307,7 @@ Blocked by #130, #131
 
 ### Parent PRD
 
-- Local: `docs/features/mvp_1.5/PRD.md`
+- Local: `docs/product/features/mvp_1.5/PRD.md`
 - GitHub: [#135](https://github.com/thienphung00/Juli-AI/issues/135)
 
 ### Implementation Order

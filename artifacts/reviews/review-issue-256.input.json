@@ -4,8 +4,8 @@
   "criticalFindings": [],
   "modulesTouched": [
     "infra/deploy/",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/features/app_review_deployment/issues.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/product/features/app_review_deployment/issues.md",
     "tests/unit/test_phase_2_5_vps_wiring.py"
   ],
   "testCoverage": {

@@ -18,7 +18,7 @@
 ## Context loaded
 
 - `EXECUTION.md` (P1-7)
-- `docs/features/mvp_1.0/PRD.md` (user stories 43–47, observability)
+- `docs/product/features/mvp_1.0/PRD.md` (user stories 43–47, observability)
 - `web/MODULE.md`
 - `web/src/lib/analytics.ts` (existing `juli:analytics` sink)
 - `web/src/components/tasks/TaskCard.tsx`, `TaskQueue.tsx`

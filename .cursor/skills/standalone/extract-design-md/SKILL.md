@@ -50,7 +50,7 @@ files, theme configs, and Tailwind setups. It's faster and works anywhere.
 | Artifact | Location | Notes |
 |----------|----------|-------|
 | Web source | `web/` | Next.js App Router + Tailwind; start with `web/src/app/globals.css` and `web/tailwind.config.ts` |
-| Existing design doc | `docs/design/DESIGN_SYSTEM.md` | Human-maintained token doc — merge extracted findings here when updating Juli, not a blind overwrite |
+| Existing design doc | `docs/product/design/DESIGN_SYSTEM.md` | Human-maintained token doc — merge extracted findings here when updating Juli, not a blind overwrite |
 | Stitch export | `.stitch/DESIGN.md` | Use when pushing a design system into Google Stitch |
 | UI implementation skill | `.cursor/skills/standalone/ui-ux-design/SKILL.md` | Load alongside this skill for Juli-specific verification rules |
 

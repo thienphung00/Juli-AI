@@ -8,9 +8,9 @@
     "tests/unit/test_tiktok_auth_callback.py",
     "tests/unit/conftest.py",
     "infra/deploy/env/api.env.example",
-    "infra/deploy/backend-deploy-runbook.md",
-    "infra/deploy/app-review-runbook.md",
-    "docs/tiktok_api/authentication.md"
+    "docs/runbooks/backend-deploy-runbook.md",
+    "docs/runbooks/app-review-runbook.md",
+    "docs/integrations/tiktok_api/authentication.md"
   ],
   "interfaceChanges": [
     {

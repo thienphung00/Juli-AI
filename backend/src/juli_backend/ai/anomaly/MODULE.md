@@ -4,7 +4,7 @@
 
 Phase 1.5 buyer-behavior anomaly detector for return fraud patterns (`item_swap`,
 `empty_return`). Trains on backtest features (#137) and buyer-behavior labels from
-`labels.parquet` only — no affiliate or creator signals ([ADR-011](../../../docs/decisions/011-buyer-behavior-anomaly-scope.md)).
+`labels.parquet` only — no affiliate or creator signals ([ADR-011](../../../docs/adr/011-buyer-behavior-anomaly-scope.md)).
 Offline only; no TikTok API calls, no UI changes.
 
 ## Public Interface

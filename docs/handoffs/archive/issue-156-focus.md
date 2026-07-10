@@ -45,7 +45,7 @@
 | `web/src/lib/workflows/new-seller/listing/export.ts` | `exportProductDraft`, CSV/JSON serializers, `ExportBlockedError` |
 | `web/src/lib/workflows/new-seller/listing/export-analytics.ts` | `trackExportCompleted` via `juli:analytics` pattern |
 | `web/src/__tests__/test_listing_export.test.ts` | Unit tests for export module |
-| `docs/decisions/023-listing-export-service.md` | ADR for client-side export contract |
+| `docs/adr/023-listing-export-service.md` | ADR for client-side export contract |
 
 ### Modified files
 | File | Change |

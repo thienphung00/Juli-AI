@@ -205,7 +205,7 @@ Detect (Sentry/Grafana alert)
 
 ## Infrastructure
 
-### Current (single VPS — see ADR-020, `infra/deploy/app-review-runbook.md`)
+### Current (single VPS — see ADR-020, `docs/runbooks/app-review-runbook.md`)
 
 - Single review VPS, `juli-api` (FastAPI/uvicorn) + `juli-web` (Next.js) as `systemd` units
 - Nginx terminates TLS and reverse-proxies both

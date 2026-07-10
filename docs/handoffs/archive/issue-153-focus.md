@@ -21,9 +21,9 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.6-1), `docs/system-design.md` §7, `docs/architecture/map.md`, `docs/architecture/data-sources.md` |
-| Data models | `docs/data-models/canonical-entities.md` § Workflow entities |
-| Decisions | `docs/decisions/020-new-seller-listing-workflow-scope.md` |
+| Architecture | `EXECUTION.md` (P1.6-1), `docs/architecture/system-design.md` §7, `docs/architecture/map.md`, `docs/architecture/data-sources.md` |
+| Data models | `docs/api/data-models/canonical-entities.md` § Workflow entities |
+| Decisions | `docs/adr/020-new-seller-listing-workflow-scope.md` |
 | Prior art | `web/src/lib/mock-data/seller-personas/` (schemas, fixtures, validate, index) |
 | Module | `web/MODULE.md` |
 
