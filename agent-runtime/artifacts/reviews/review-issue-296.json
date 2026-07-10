@@ -1,0 +1,66 @@
+{
+  "id": "review-issue-296",
+  "issue": 296,
+  "timestamp": "2026-07-10T09:16:29Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-A1 credential isolation: merchant auth ID + capability enforced at repo lookup, credential resolver, and merchant-scoped refresh. Cross-merchant Fujiwa/SANDBOX_VN lookup rejected; production resolver never falls back to latest/sandbox credentials. Enum normalization bug fixed in is_cross_merchant_lookup. All three acceptance criteria mapped to 16 unit tests; 36 related auth/TikTok tests pass.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/integrations/tiktok/merchant.py",
+    "backend/src/juli_backend/core/security/credential_resolver.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/core/security/tiktok_oauth.py",
+    "tests/unit/test_tiktok_credential_isolation.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Token lookup never crosses Fujiwa and SANDBOX_VN boundaries",
+          "test": "tests/unit/test_tiktok_credential_isolation.py::test_cross_merchant_lookup_fujiwa_with_sandbox_capability_raises"
+        },
+        {
+          "criterion": "Tests assert cross-merchant lookup impossible",
+          "test": "tests/unit/test_tiktok_credential_isolation.py::test_cross_merchant_lookup_sandbox_with_production_capability_raises"
+        },
+        {
+          "criterion": "Refresh flows merchant-scoped",
+          "test": "tests/unit/test_tiktok_credential_isolation.py::test_refresh_merchant_tokens_scoped_to_fujiwa"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 36,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Deduplicate PRODUCTION_AUTH_ID/SANDBOX_AUTH_ID between merchant.py and capabilities.py in a future refactor.",
+    "Wire resolve_production_read_credential into polling orchestration in #298."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewStatus": "PASS",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-296.json",
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "maintainabilityFindings": [],
+  "architectureFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": []
+}

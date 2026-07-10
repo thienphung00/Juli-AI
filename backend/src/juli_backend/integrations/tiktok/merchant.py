@@ -32,6 +32,12 @@ def resolve_merchant_context(
     return merchant_authorization_id, TikTokCapability.SELLER_CONNECT
 
 
+def _capability_value(capability: TikTokCapability | str) -> str:
+    if isinstance(capability, TikTokCapability):
+        return capability.value
+    return capability
+
+
 def is_cross_merchant_lookup(
     merchant_authorization_id: str,
     capability: TikTokCapability | str,
@@ -40,4 +46,4 @@ def is_cross_merchant_lookup(
     expected = _KNOWN_MERCHANTS.get(merchant_authorization_id)
     if expected is None:
         return False
-    return str(capability) != expected.value
+    return _capability_value(capability) != expected.value

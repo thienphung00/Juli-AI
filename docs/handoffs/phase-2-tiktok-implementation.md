@@ -1,6 +1,6 @@
 # Phase 2 TikTok — Coding Agent Handoff
 
-> **Status:** Layer 0 complete — Layer 1 fixtures filed (#294). Implementation unblocked for P2-A1 Step 2+.  
+> **Status:** Layer 0 complete — Layer 1 fixtures filed (#294). Client factories + guards (#295). Credential isolation (#296) ship-ready. **Active: #297** Layer 1 read resources.  
 > **Prerequisite:** [`docs/integrations/tiktok_api/contract-collection.md`](../integrations/tiktok_api/contract-collection.md) (verified).  
 > **PRD:** [#278](https://github.com/thienphung00/Juli-AI/issues/278).  
 > **Slice:** [`EXECUTION.md`](../../EXECUTION.md) P2-A1 → P2-A3, then P2-B1+.
@@ -10,8 +10,11 @@
 ### Agent Phase
 - [x] Planning: Architect Agent (focus → to-prd) — **complete**
 - [x] Step 1 — Contract fixtures (#294) — **complete**
-- [ ] Implementation: Meta routing → Executor (#295+) — backend + data-platform, built-in TDD
-- [ ] Review + Testing: review → validate → ship-ready
+- [x] Step 2 — Capability factories (#295) — **complete**
+- [x] Step 3 — Runtime guards (#295) — **complete**
+- [x] Step 4 — Credential isolation (#296) — **complete**
+- [ ] Implementation: Meta routing → Executor (#297+) — backend + data-platform, built-in TDD
+- [x] Review + Testing: review → validate → ship-ready (#296)
 
 ### Rules (Tier 2)
 - [x] `.cursor/rules/reliability.mdc`
@@ -136,8 +139,8 @@ Run `review` → `validate` before ship-ready.
 
 - [x] Contract fixtures filed for minimum Layer 1 read endpoints (#294)
 - [x] `endpoints.md` updated with verified contract deltas (#294)
-- [ ] Production-read factory cannot call write endpoints (test + runtime guard)
-- [ ] Fujiwa and SANDBOX_VN credentials isolated by auth ID + capability
+- [x] Production-read factory cannot call write endpoints (test + runtime guard) (#295)
+- [x] Fujiwa and SANDBOX_VN credentials isolated by auth ID + capability (#296)
 - [ ] Polling runs on Fujiwa for orders, products, returns (minimum)
 - [ ] ETL upserts canonical entities to Postgres
 - [ ] T8 router classifier **not** introduced in Phase 2 code paths

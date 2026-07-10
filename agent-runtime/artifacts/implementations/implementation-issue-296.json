@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 296,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-10T0913Z",
+  "startedAt": "2026-07-10T09:13:53Z",
+  "completedAt": "2026-07-10T09:20:00Z",
+  "executionDurationMs": 360000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 18,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "docs/handoffs/phase-2-tiktok-implementation.md",
+    "docs/integrations/tiktok_api/multi-tenant.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/integrations/tiktok/merchant.py",
+    "tests/unit/test_tiktok_credential_isolation.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-296.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_credential_isolation.py::TestMerchantContext",
+    "tests/unit/test_tiktok_credential_isolation.py::TestCredentialRepoIsolation",
+    "tests/unit/test_tiktok_credential_isolation.py::TestCredentialResolver",
+    "tests/unit/test_tiktok_credential_isolation.py::TestMerchantScopedRefresh"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    "RED: test_is_cross_merchant_lookup_allows_matching_pair failed — enum compared via str() not .value",
+    "GREEN: _capability_value() normalizes TikTokCapability before boundary check",
+    "REFACTOR: 16 isolation tests + 52 related TikTok/auth tests pass"
+  ],
+  "implementationSummary": "Credential isolation by merchant authorization ID + capability is enforced at repo lookup, credential resolver, and merchant-scoped refresh. Cross-merchant Fujiwa/SANDBOX_VN lookup is rejected; production sync resolves Fujiwa production_read only (no latest-credential fallback). Fixed enum normalization in is_cross_merchant_lookup.",
+  "assumptions": [
+    "Pre-existing schema (008 migration), TikTokCredentialRepo.get_by_merchant, credential_resolver, and refresh_merchant_tokens from prior slices are the integration surface for #297 polling.",
+    "Seller-connect OAuth continues to use shop-scoped refresh_tokens; Fujiwa/SANDBOX_VN polling uses refresh_merchant_tokens."
+  ],
+  "risks": [
+    "Callers that pass TikTokCapability enum directly to is_cross_merchant_lookup without repo normalization would have failed before this fix — repo paths were already safe."
+  ]
+}
