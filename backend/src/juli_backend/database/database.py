@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase
 
-
-class Base(DeclarativeBase):
-    pass
+# Re-exported for backward compatibility: `Base` now lives in a dependency-free
+# leaf module (juli_backend.orm_base) to avoid the database<->models import cycle.
+# The redundant alias marks this as an intentional re-export for ruff/mypy.
+from juli_backend.orm_base import Base as Base
 
 
 def create_engine(database_url: str, **kwargs):

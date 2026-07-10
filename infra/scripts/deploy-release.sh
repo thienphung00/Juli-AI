@@ -81,7 +81,9 @@ set +a
 # --- 4. Frontend: build with the App Review env baked in ---
 echo "-- frontend --"
 cp "${WEB_ENV_FILE}" "${release_dir}/apps/dashboard/.env.production"
-"${release_dir}/infra/scripts/build-frontend-review.sh"
+# Infra scripts live in the canonical checkout (hotfix-friendly); the release
+# worktree at f7494a8 may lag behind on script-only fixes until the next SHA.
+REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-frontend-review.sh"
 
 # --- 5. Cut over: atomically flip the `current` symlink ---
 echo "-- cutover --"

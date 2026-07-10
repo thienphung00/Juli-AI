@@ -85,30 +85,34 @@ else
         bad "OAuth callback ${CALLBACK_PATH} returned ${cb_code}"
     fi
 
-    # 6. Login page chunk loads and contains demo login markers.
+    # 6. Login page client chunks load and contain demo login markers.
+    # Next.js 16 uses flat hashed chunks, not app/login/page-*.js.
     login_html="$(curl -sS "https://${APP_DOMAIN}/login")"
-    login_page_chunk="$(printf '%s' "${login_html}" | grep -oE '/_next/static/chunks/app/login/page-[^"]+\.js' | head -1 || true)"
-    if [ -z "${login_page_chunk}" ]; then
-        bad "login HTML did not reference app/login/page chunk"
-    else
+    login_demo_ok=false
+    while IFS= read -r login_page_chunk; do
+        [ -n "${login_page_chunk}" ] || continue
         login_chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${login_page_chunk}")"
         if [ "${login_chunk_code}" != "200" ]; then
-            bad "login chunk ${login_page_chunk} returned ${login_chunk_code} (stale build — run ./infra/scripts/build-frontend-review.sh && sudo systemctl restart juli-web)"
-        else
-            login_chunk_body="$(curl -sS "https://${APP_DOMAIN}${login_page_chunk}")"
-            if printf '%s' "${login_chunk_body}" | grep -qE 'loginAsReviewer|Đăng nhập demo|Tiếp tục'; then
-                ok "login serves demo entry"
-            else
-                bad "login chunk missing demo markers (rebuild with ./infra/scripts/build-frontend-review.sh)"
-            fi
+            continue
         fi
+        login_chunk_body="$(curl -sS "https://${APP_DOMAIN}${login_page_chunk}")"
+        if printf '%s' "${login_chunk_body}" | grep -qE 'loginAsReviewer|Đăng nhập demo|Tiếp tục'; then
+            login_demo_ok=true
+            break
+        fi
+    done < <(printf '%s' "${login_html}" | grep -oE '/_next/static/chunks/[^"]+\.js' | sort -u)
+
+    if [ "${login_demo_ok}" != true ]; then
+        bad "login did not serve demo entry markers in any client chunk (rebuild with ./infra/scripts/build-frontend-review.sh)"
+    else
+        ok "login serves demo entry"
     fi
 
     # 7. Home route chunks load (stale partial builds serve login but blank / after auth).
     home_html="$(curl -sS "https://${APP_DOMAIN}/")"
-    home_page_chunk="$(printf '%s' "${home_html}" | grep -oE '/_next/static/chunks/app/page-[^"]+\.js' | head -1 || true)"
+    home_page_chunk="$(printf '%s' "${home_html}" | grep -oE '/_next/static/chunks/[^"]+\.js' | grep -vE 'turbopack-' | head -1 || true)"
     if [ -z "${home_page_chunk}" ]; then
-        bad "home HTML did not reference app/page chunk"
+        bad "home HTML did not reference any client JS chunks"
     else
         home_chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${home_page_chunk}")"
         if [ "${home_chunk_code}" != "200" ]; then

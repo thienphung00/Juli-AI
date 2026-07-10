@@ -144,9 +144,9 @@ sudo systemctl restart juli-web
 Quick check:
 
 ```bash
-home_chunk="$(curl -sS https://app-juli.com/ | grep -oE '/_next/static/chunks/app/page-[^"]+\.js' | head -1)"
+home_chunk="$(curl -sS https://app-juli.com/ | grep -oE '/_next/static/chunks/[^"]+\.js' | grep -vE 'turbopack-' | head -1)"
 curl -s -o /dev/null -w '%{http_code}\n' "https://app-juli.com${home_chunk}"
-# Expect 200 — 400 means stale build.
+# Expect 200 — 400 means stale build. (Next.js 16 uses flat hashed chunks, not app/page-*.js.)
 ```
 
 ### 502 from Nginx

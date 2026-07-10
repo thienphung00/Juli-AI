@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import ForeignKey, Index, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from juli_backend.database.database import Base
+from juli_backend.orm_base import Base
 
 
 class User(Base):
