@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD_PKG = REPO_ROOT / "apps/dashboard/package.json"
 ROOT_PACKAGE_PATH = REPO_ROOT / "package.json"
