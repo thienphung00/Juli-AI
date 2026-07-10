@@ -25,8 +25,8 @@
     "agent-runtime.config.yml",
     ".cursor/skills/standalone/focus/SKILL.md",
     ".cursor/skills/domain/backend/SKILL.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "infra/deploy/app-review-runbook.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/runbooks/app-review-runbook.md",
     "infra/deploy/nginx/app-juli.com.conf",
     "infra/deploy/nginx/api.app-juli.com.conf",
     "infra/deploy/smoke-test.sh",
@@ -38,13 +38,13 @@
     "backend"
   ],
   "filesModified": [
-    "infra/deploy/vps-wiring-runbook.md",
+    "docs/runbooks/vps-wiring-runbook.md",
     "infra/deploy/provision-nginx.sh",
     "infra/deploy/smoke-test.sh",
-    "infra/deploy/app-review-runbook.md",
+    "docs/runbooks/app-review-runbook.md",
     "infra/deploy/README.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/features/app_review_deployment/issues.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/product/features/app_review_deployment/issues.md",
     "tests/unit/test_phase_2_5_vps_wiring.py"
   ],
   "testsAdded": [

@@ -4,7 +4,7 @@
 
 Phase 1.6 mock fixtures for New Seller listing workflow entities:
 `ProductDraft`, `Distributor`, and `Opportunity`. Typed schemas aligned with
-`docs/data-models/canonical-entities.md` § Workflow entities.
+`docs/api/data-models/canonical-entities.md` § Workflow entities.
 
 ## Public Interface
 

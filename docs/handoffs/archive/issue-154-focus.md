@@ -24,9 +24,9 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.6-3), `docs/system-design.md` §7, `docs/architecture/map.md` (planned row) |
-| Data models | `docs/data-models/canonical-entities.md` § Workflow entities |
-| Decisions | `docs/decisions/020-new-seller-listing-workflow-scope.md` |
+| Architecture | `EXECUTION.md` (P1.6-3), `docs/architecture/system-design.md` §7, `docs/architecture/map.md` (planned row) |
+| Data models | `docs/api/data-models/canonical-entities.md` § Workflow entities |
+| Decisions | `docs/adr/020-new-seller-listing-workflow-scope.md` |
 | Prior art | `web/src/lib/mock-data/listing-workflow/schemas.ts`, `web/src/lib/workflows/new-seller/milestone.ts` |
 | Upstream | `docs/handoffs/issue-153-ship.md` — ProductDraft schema contract |
 

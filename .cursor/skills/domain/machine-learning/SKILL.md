@@ -22,7 +22,7 @@ Green → Refactor). Canonical requirements:
 
 ## Required context
 
-- Feature specs and `docs/data-models/` feature definitions
+- Feature specs and `docs/api/data-models/` feature definitions
 - Training/evaluation module docs under `src/modules/ml/`
 - Model artifact thresholds and benchmark manifests
 - Phase constraints (e.g. offline vs live inference per `system-design.md`)

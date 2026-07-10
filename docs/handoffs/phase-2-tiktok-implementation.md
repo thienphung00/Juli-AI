@@ -1,7 +1,7 @@
 # Phase 2 TikTok — Coding Agent Handoff
 
 > **Status:** Layer 0 complete — Layer 1 fixtures filed (#294). Implementation unblocked for P2-A1 Step 2+.  
-> **Prerequisite:** [`docs/tiktok_api/contract-collection.md`](../tiktok_api/contract-collection.md) (verified).  
+> **Prerequisite:** [`docs/integrations/tiktok_api/contract-collection.md`](../integrations/tiktok_api/contract-collection.md) (verified).  
 > **PRD:** [#278](https://github.com/thienphung00/Juli-AI/issues/278).  
 > **Slice:** [`EXECUTION.md`](../../EXECUTION.md) P2-A1 → P2-A3, then P2-B1+.
 
@@ -30,11 +30,11 @@
 
 ### Load (Required)
 - `EXECUTION.md` (P2-A1, merchant separation)
-- `docs/system-design.md` (rules-only Phase 2; T8 deferred Phase 4)
+- `docs/architecture/system-design.md` (rules-only Phase 2; T8 deferred Phase 4)
 - `docs/architecture/data-sources.md`
 - `docs/architecture/map.md`
-- `docs/tiktok_api/contract-collection.md` (verified cURL)
-- `docs/tiktok_api/endpoints.md`, `authentication.md`, `architecture.md`, `multi-tenant.md`, `tech-stack.md`
+- `docs/integrations/tiktok_api/contract-collection.md` (verified cURL)
+- `docs/integrations/tiktok_api/endpoints.md`, `authentication.md`, `architecture.md`, `multi-tenant.md`, `tech-stack.md`
 - `backend/integrations/catalog/domain/integrations/tiktok/`
 - `backend/workers/services/polling/`
 - `backend/integrations/ordering/use_cases/etl/`
@@ -50,15 +50,15 @@
 ## Stop condition (cleared for Layer 1 minimum)
 
 Layer 0 contract collection is complete. Layer 1 minimum-read fixtures are filed under
-`docs/tiktok_api/samples/` and `endpoints.md` reflects verified contracts (#294).
+`docs/integrations/tiktok_api/samples/` and `endpoints.md` reflects verified contracts (#294).
 
 Proceed with implementation roadmap below. Layer 2 sandbox write fixtures remain for
 #301.
 
 Previously (gate now passed):
 
-1. ~~Update `docs/tiktok_api/endpoints.md` with verified method/path/param/schema deltas.~~
-2. ~~File sanitized fixtures under `docs/tiktok_api/samples/`.~~
+1. ~~Update `docs/integrations/tiktok_api/endpoints.md` with verified method/path/param/schema deltas.~~
+2. ~~File sanitized fixtures under `docs/integrations/tiktok_api/samples/`.~~
 3. Proceed with implementation roadmap below.
 
 ---

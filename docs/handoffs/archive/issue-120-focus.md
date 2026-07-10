@@ -21,7 +21,7 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1-3), `docs/system-design.md`, `docs/features/mvp_1.0/PRD.md` US 15–21 |
+| Architecture | `EXECUTION.md` (P1-3), `docs/architecture/system-design.md`, `docs/product/features/mvp_1.0/PRD.md` US 15–21 |
 | Module | `web/MODULE.md` |
 | Shell (read-only) | `web/src/components/seller-home/SellerHomeShell.tsx` |
 | Shared tasks | `web/src/components/tasks/TaskCard.tsx` (severity + VND impact already rendered) |

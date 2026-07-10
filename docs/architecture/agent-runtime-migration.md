@@ -91,7 +91,7 @@ retained skills into standalone and domain categories.
 
 - `docs/architecture/agent-runtime-artifacts.md`
 - `docs/schemas/agent-runtime/*.schema.json`
-- `docs/ci/implementation-guide.md`
+- `docs/deployment/implementation-guide.md`
 - `artifacts/README.md`
 - `.gitignore`
 
@@ -239,4 +239,4 @@ product-development improvements through Architect.
 | [`agent-runtime.md`](agent-runtime.md) | Runtime architecture |
 | [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md) | Artifact schemas |
 | [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md) | Benchmark protocol |
-| [ADR-003](../decisions/003-ai-native-cicd-policy.md) | CI/CD policy |
+| [ADR-003](../adr/003-ai-native-cicd-policy.md) | CI/CD policy |

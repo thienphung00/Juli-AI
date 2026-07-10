@@ -64,7 +64,7 @@ routing:
       related_paths:
         - backend/src/juli_backend/ai
         - backend/src/juli_backend/database
-        - docs/data-models
+        - docs/api/data-models
       note: Feature pipelines depend on canonical data models outside ai/
   hints:
     - domain: machine-learning

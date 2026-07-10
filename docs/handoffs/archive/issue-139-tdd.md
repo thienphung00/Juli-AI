@@ -14,7 +14,7 @@
 
 - `src/modules/ml/anomaly/` — types, thresholds, fixtures, inference, train, cli, MODULE.md
 - `tests/unit/test_anomaly_trainer.py` — 7 AC-mapped integration tests
-- `docs/decisions/016-phase-15-anomaly-trainer.md`
+- `docs/adr/016-phase-15-anomaly-trainer.md`
 
 ### Modified files
 

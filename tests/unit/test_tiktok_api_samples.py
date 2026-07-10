@@ -1,4 +1,4 @@
-"""Contract fixture tests for docs/tiktok_api/samples (issue #294)."""
+"""Contract fixture tests for docs/integrations/tiktok_api/samples (issue #294)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-SAMPLES_DIR = Path(__file__).resolve().parents[2] / "docs/tiktok_api/samples"
+SAMPLES_DIR = Path(__file__).resolve().parents[2] / "docs/integrations/tiktok_api/samples"
 
 LAYER1_FIXTURES = [
     ("authorized-shops-response.json", "shops", "GET /authorization/202309/shops"),
@@ -40,7 +40,7 @@ def test_layer1_fixture_envelope(filename: str, data_key: str | None, endpoint: 
     response = fixture["response"]
 
     assert meta["endpoint"] == endpoint
-    assert meta["contract_collection"] == "docs/tiktok_api/contract-collection.md"
+    assert meta["contract_collection"] == "docs/integrations/tiktok_api/contract-collection.md"
     assert meta["shop_cipher_redacted"] is True
     assert response["code"] == 0
     assert response["message"] == "Success"
@@ -63,7 +63,7 @@ def test_sanitized_json_samples_no_secrets(filename: str, _: str, __: str):
 
 
 def test_endpoints_md_reflects_verified_contracts():
-    endpoints = Path(__file__).resolve().parents[2] / "docs/tiktok_api/endpoints.md"
+    endpoints = Path(__file__).resolve().parents[2] / "docs/integrations/tiktok_api/endpoints.md"
     text = endpoints.read_text(encoding="utf-8")
     assert "Layer 0 — complete" in text
     assert "products-search-response.json" in text
@@ -86,4 +86,4 @@ def test_handoff_stop_condition_satisfied_layer1():
     )
     text = handoff.read_text(encoding="utf-8")
     assert "Stop condition (cleared for Layer 1 minimum)" in text
-    assert "docs/tiktok_api/samples/" in text
+    assert "docs/integrations/tiktok_api/samples/" in text

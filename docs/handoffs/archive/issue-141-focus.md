@@ -20,7 +20,7 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.5-6), `docs/system-design.md` § ML outputs, `docs/architecture/map.md` |
+| Architecture | `EXECUTION.md` (P1.5-6), `docs/architecture/system-design.md` § ML outputs, `docs/architecture/map.md` |
 | Trainers | `src/modules/ml/seller_stage/*`, `anomaly/*`, `ad_performance/*` — all return `TrainResult` with `model`, `metrics`, `metrics_path` |
 | Feature schema | `src/modules/ml/features/schema.py` — column tuples for schema hash |
 | Golden fixtures | `seller_stage/fixtures.py`, `anomaly/fixtures.py`, `ad_performance/fixtures.py` |
@@ -57,7 +57,7 @@
 | `src/modules/ml/artifacts/exceptions.py` | `ArtifactLoadError`, `ArtifactPublishError` |
 | `src/modules/ml/artifacts/MODULE.md` | Public interface |
 | `tests/unit/test_model_artifacts.py` | AC-mapped integration tests |
-| `docs/decisions/018-phase-15-model-artifacts.md` | ADR for artifact publisher |
+| `docs/adr/018-phase-15-model-artifacts.md` | ADR for artifact publisher |
 
 ### Modified files
 

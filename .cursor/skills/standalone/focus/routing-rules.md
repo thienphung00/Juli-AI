@@ -87,7 +87,7 @@ When a task spans multiple EXECUTION.md slices or subsystems:
 
 Example: "Add demand forecasting on top of TikTok inventory polling (P2-1 + P1.5-4)"
 - Load: `EXECUTION.md` slices P2-1, P1.5-4
-- Load: `docs/system-design.md` → Data pipeline + ML models sections
+- Load: `docs/architecture/system-design.md` → Data pipeline + ML models sections
 - Load: `docs/architecture/data-sources.md` (confirm #1 API only)
 - Load: `src/services/polling/MODULE.md`, `src/data/MODULE.md`
 - Load: review ai-integration checklist (shared, if model calls added)

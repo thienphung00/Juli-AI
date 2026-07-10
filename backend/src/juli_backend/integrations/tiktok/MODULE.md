@@ -82,4 +82,4 @@ dependency graph.
 - domain: integrations
 - code: `src/integrations/tiktok/`
 - tests: `tests/unit/test_tiktok_*.py`, `tests/integration/test_tiktok_*.py`
-- docs: `docs/tiktok_api/`
+- docs: `docs/integrations/tiktok_api/`

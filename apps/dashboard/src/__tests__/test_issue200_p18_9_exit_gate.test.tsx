@@ -33,7 +33,7 @@ const executionDoc = fs.readFileSync(
   "utf8",
 );
 const adr014Doc = fs.readFileSync(
-  path.join(__dirname, "../../../../docs/decisions/014-decision-copilot-app-structure-and-journey.md"),
+  path.join(__dirname, "../../../../docs/adr/014-decision-copilot-app-structure-and-journey.md"),
   "utf8",
 );
 

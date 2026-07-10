@@ -16,7 +16,7 @@ forbidden:
       reason: skills governance — never auto-edit
     - pattern: ".cursor/rules/**"
       reason: rules governance — never auto-edit
-    - pattern: "docs/decisions/**"
+    - pattern: "docs/adr/**"
       reason: ADRs require Architect approval
     - pattern: "docs/architecture/**"
       reason: architecture docs except agent-runtime-benchmarks threshold section

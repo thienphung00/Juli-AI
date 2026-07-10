@@ -71,7 +71,7 @@ When the task touches an external product or MCP integration:
 
 | Task signal | Plugin skill(s) | MCP `serverName` |
 |-------------|-----------------|------------------|
-| TikTok API / webhooks | — | — (use `docs/tiktok_api/`, MODULE.md) |
+| TikTok API / webhooks | — | — (use `docs/integrations/tiktok_api/`, MODULE.md) |
 | New vendor API | `api-docs`, `context7-mcp` | `context7` |
 | Seller/creator policy | `platform-docs` | — |
 | `web/` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `shadcn` |
@@ -98,7 +98,7 @@ Detect what the implementation involves:
 | SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
 | Frontend component / page / form | → `ui-ux` executor, `ui-ux-design`, `web/MODULE.md`; `shadcn` only if adding registry primitives |
 | Background job | → Celery MCP, reliability, observability |
-| TikTok integration / webhook | → `docs/tiktok_api/`, `data-sources.md`, affected MODULE.md |
+| TikTok integration / webhook | → `docs/integrations/tiktok_api/`, `data-sources.md`, affected MODULE.md |
 | Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first |
 | Marketplace policy / feature guide | → `platform-docs`; `docs/<vendor>_platform/` |
 | Automation / hooks changes | → `.cursor/rules/hooks.mdc` |
@@ -111,7 +111,7 @@ Always consult before loading task-specific context:
 ```
 ALWAYS load:
   - EXECUTION.md (phase, slice, in/out scope for the current issue)
-  - docs/system-design.md (subsystem behavior for the active phase)
+  - docs/architecture/system-design.md (subsystem behavior for the active phase)
   - docs/architecture/map.md (module list, tiers, dependency graph)
   - docs/architecture/data-sources.md (allowed/forbidden external data)
   - MODULE.md for each affected module under src/, web/, or ios/
@@ -124,7 +124,7 @@ From the GitHub issue (PRD from `to-prd`), planning handoff, and vendor docs:
 ```
 ALWAYS load:
   - Relevant EXECUTION.md slice(s) driving the issue
-  - docs/system-design.md sections for affected subsystems
+  - docs/architecture/system-design.md sections for affected subsystems
   - GitHub issue body (acceptance criteria, user stories)
   - to-prd / planning handoff (scope, edge cases, implementation decisions)
 
@@ -133,7 +133,7 @@ LOAD WHEN VENDOR/PLATFORM WORK:
   - docs/<vendor>_platform/*/implementation-hooks.md (guardrails, alerts, gates)
 
 LOAD IF EXISTS (legacy only):
-  - docs/features/<feature-name>/*.md — historical attachments; prefer canonical docs
+  - docs/product/features/<feature-name>/*.md — historical attachments; prefer canonical docs
 
 DO NOT load by default:
   - Full EXECUTION.md when a single slice is sufficient
@@ -146,7 +146,7 @@ Based on affected layers from [`docs/architecture/map.md`](../../../docs/archite
 
 ```
 Integrations (src/integrations/tiktok):
-  - Load: authentication.md, rate-limits.md, endpoints.md (docs/tiktok_api/)
+  - Load: authentication.md, rate-limits.md, endpoints.md (docs/integrations/tiktok_api/)
   - Skip: web/ios UI unless building OAuth callback UX
 
 Services (src/services/webhook, src/services/polling):
@@ -263,16 +263,16 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 
 ### Load (Required)
 - `EXECUTION.md` (slice P2-1)
-- `docs/system-design.md` (Data pipeline → Phase 2)
+- `docs/architecture/system-design.md` (Data pipeline → Phase 2)
 - `docs/architecture/map.md`
 - `docs/architecture/data-sources.md`
 - GitHub issue #N — acceptance criteria
-- `docs/tiktok_api/endpoints.md`, `authentication.md`
+- `docs/integrations/tiktok_api/endpoints.md`, `authentication.md`
 - `src/services/polling/MODULE.md`
 - `src/data/MODULE.md`
 
 ### Load (If Needed)
-- `docs/tiktok_api/webhooks.md`
+- `docs/integrations/tiktok_api/webhooks.md`
 - `.cursor/skills/standalone/review/checklists/api-endpoint.md`
 
 ### DO NOT Load

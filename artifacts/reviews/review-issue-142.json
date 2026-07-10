@@ -18,8 +18,8 @@
     }
   ],
   "modulesTouched": [
-    "docs/data-models",
-    "docs/system-design.md",
+    "docs/api/data-models",
+    "docs/architecture/system-design.md",
     "tests/unit/test_feature_store_docs.py"
   ],
   "interfaceChanges": [],

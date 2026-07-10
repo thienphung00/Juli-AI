@@ -16,7 +16,7 @@ all existing behaviour. The invariant is: the same tests pass before and after e
 
 1. Invoke `grill-with-docs` to answer: what must be preserved? what is allowed to change?
    Produce explicit answers to both before writing any code.
-2. Read `CONTEXT.md` and `docs/decisions/` before invoking `improve-codebase-arch`.
+2. Read `CONTEXT.md` and `docs/adr/` before invoking `improve-codebase-arch`.
    Pass any relevant ADRs to `improve-codebase-arch` as constraints — it must not re-suggest
    decisions already recorded there.
 

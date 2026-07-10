@@ -17,11 +17,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 
-VPS_RUNBOOK_PATH = DEPLOY_DIR / "vps-wiring-runbook.md"
+VPS_RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/vps-wiring-runbook.md"
 PROVISION_NGINX_PATH = SCRIPTS_DIR / "provision-nginx.sh"
 SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
-ISSUES_PATH = REPO_ROOT / "docs/features/app_review_deployment/issues.md"
-PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
+ISSUES_PATH = REPO_ROOT / "docs/product/features/app_review_deployment/issues.md"
+PHASE_25_PATH = REPO_ROOT / "docs/product/phases/phase-2.5-deployment.md"
 
 FRONTEND_PORT = "3000"
 BACKEND_PORT = "8000"

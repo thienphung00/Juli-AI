@@ -12,7 +12,7 @@
 
 - New: `src/modules/ml/ad_performance/*` (types, thresholds, rules, fixtures, inference, train, cli, MODULE.md)
 - New: `tests/unit/test_ad_performance_trainer.py`
-- New: `docs/decisions/017-phase-15-ad-performance-trainer.md`
+- New: `docs/adr/017-phase-15-ad-performance-trainer.md`
 - New: `docs/handoffs/issue-140-focus.md`
 - Modified: `docs/architecture/map.md`
 

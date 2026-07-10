@@ -18,7 +18,7 @@ This is the **only** file that assigns a phase to a data source.
 | **P3.5** | Phase 3.5 Full Web App — real backend integration |
 | **P4** | Phase 4 ML + LLM — cloud LLM copy layer live |
 | **P4.5** | Phase 4.5 Real-Time — webhooks, polyglot, event streams |
-| **Completed** | Pre-MVP mock — [`phase-1-completed.md`](../phases/phase-1-completed.md) |
+| **Completed** | Pre-MVP mock — [`phase-1-completed.md`](../product/phases/phase-1-completed.md) |
 | **Forbidden** | Never in any PR |
 
 ## Source matrix
@@ -31,7 +31,7 @@ This is the **only** file that assigns a phase to a data source.
 | **TikTok Promotion API (Shop Ads)** | Backtest only | Live polling | — | Live | Live | Live | ROAS threshold rules in P2; T2 regressor in P4 | Promotion API |
 | **TikTok Shop Account (SPS / health)** | Backtest only | Live polling (if verified) | — | Live | Live | Live | SPS + proxy rules in P2 | `health_data_source` gate |
 | **Supabase Postgres** | — | Live | — | Live | Live | Live | OLTP + OLAP | ADR-002 |
-| **Redis** | — | Live | — | Live | Live | Live | Action cards, view cache, sessions | [`phase-2-mvp.md`](../phases/phase-2-mvp.md) |
+| **Redis** | — | Live | — | Live | Live | Live | Action cards, view cache, sessions | [`phase-2-mvp.md`](../product/phases/phase-2-mvp.md) |
 | **Claude Haiku 3.5** | — | — | — | — | Live | Live | Copy layer | Deferred from P2; rules-only in P2 |
 | **Kalodata / Shoplus** | Optional | — | — | — | Optional | Optional | Validation only | Never user-facing |
 | **ClickHouse / S3 / SQS** | — | — | — | — | — | Live | Polyglot plane | Phase 4.5 — ADR-004 |

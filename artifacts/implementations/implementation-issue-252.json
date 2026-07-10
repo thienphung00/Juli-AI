@@ -23,7 +23,7 @@
   "toolInvocationCount": 45,
   "contextFilesLoaded": [
     "docs/architecture/migration-plan.md",
-    "docs/phases/phase-2.5-deployment.md",
+    "docs/product/phases/phase-2.5-deployment.md",
     "backend/README.md",
     ".cursor/skills/domain/backend/SKILL.md"
   ],
@@ -38,8 +38,8 @@
     "alembic.ini",
     "docs/architecture/map.md",
     "docs/architecture/migration-plan.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/decisions/018-backend-runtime-migration.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/adr/018-backend-runtime-migration.md",
     "scripts/ci/common.py",
     "scripts/ci/ml_thresholds.py",
     "agent-runtime.config.yml",

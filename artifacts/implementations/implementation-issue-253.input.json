@@ -7,9 +7,9 @@
     ".cursor/skills/standalone/focus/SKILL.md",
     ".cursor/skills/domain/backend/SKILL.md",
     "EXECUTION.md",
-    "docs/phases/phase-2.5-deployment.md",
-    "docs/features/app_review_deployment/PRD.md",
-    "docs/features/app_review_deployment/issues.md",
+    "docs/product/phases/phase-2.5-deployment.md",
+    "docs/product/features/app_review_deployment/PRD.md",
+    "docs/product/features/app_review_deployment/issues.md",
     "infra/README.md",
     "infra/deploy/README.md",
     "src/apps/api_gateway/api/main.py",
@@ -19,7 +19,7 @@
   ],
   "skillsLoaded": ["focus", "backend"],
   "filesModified": [
-    "infra/deploy/app-review-runbook.md",
+    "docs/runbooks/app-review-runbook.md",
     "infra/deploy/nginx/app-juli.com.conf",
     "infra/deploy/nginx/api.app-juli.com.conf",
     "infra/deploy/systemd/juli-web.service",
@@ -28,7 +28,7 @@
     "infra/deploy/env/api.env.example",
     "infra/deploy/smoke-test.sh",
     "infra/deploy/README.md",
-    "docs/phases/phase-2.5-deployment.md",
+    "docs/product/phases/phase-2.5-deployment.md",
     "tests/unit/test_phase_2_5_deploy_config.py"
   ],
   "testsAdded": [
@@ -96,7 +96,7 @@
     "Executor domain backend per infra/deploy + FastAPI service wiring; docs/config slice, no runtime code changes",
     "TikTok OAuth callback route (/v1/auth/tiktok/callback) is proxied by Nginx now; the route handler itself lands in issue #259",
     "Reviewer login uses existing Supabase phone-OTP endpoints (/v1/auth/otp/*)",
-    "summary.md VPS runbook was working-tree-only (not on main); canonical runbook now lives at infra/deploy/app-review-runbook.md"
+    "summary.md VPS runbook was working-tree-only (not on main); canonical runbook now lives at docs/runbooks/app-review-runbook.md"
   ],
   "risks": [
     "Live smoke-test.sh cannot run in CI until DNS/TLS are wired on the VPS (HITL, #256)",

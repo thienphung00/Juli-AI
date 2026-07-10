@@ -5,7 +5,7 @@
 Phase 1.7 mock fixtures for Revenue Leakage executable workflow entities:
 `LeakageWorkflowTask` with evidence bundles, root cause, recommended action,
 execution plan, and success payload. Typed schemas aligned with
-`docs/data-models/canonical-entities.md` § Leakage workflow entities.
+`docs/api/data-models/canonical-entities.md` § Leakage workflow entities.
 
 ## Public Interface
 

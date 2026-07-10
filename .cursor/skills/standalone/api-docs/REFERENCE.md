@@ -14,7 +14,7 @@ One or more of:
 - OpenAPI specifications
 - Vendor documentation portals
 
-**Repo examples:** TikTok Shop Partner API (`docs/tiktok_api/`), Shopee Open Platform,
+**Repo examples:** TikTok Shop Partner API (`docs/integrations/tiktok_api/`), Shopee Open Platform,
 Lazada Open Platform, Stripe, Shopify, Meta Graph API.
 
 **Before writing anything new**, read existing vendor docs and
@@ -87,7 +87,7 @@ Document mappings in `endpoints.md` (per-resource sections) and `tech-stack.md`
 
 ## Step 4 — Generate docs
 
-Write under **`docs/<vendor>_api/`** using the repo file set (mirror `docs/tiktok_api/`):
+Write under **`docs/<vendor>_api/`** using the repo file set (mirror `docs/integrations/tiktok_api/`):
 
 | File | Purpose |
 |------|---------|
@@ -170,8 +170,8 @@ Follow the status legend and operational rules already in that file.
 
 When auth boundaries, ingestion model, or forbidden substitutes are non-obvious, draft an ADR candidate:
 
-- File: `docs/decisions/NNN-<slug>.md` (three-digit, zero-padded)
-- Update `docs/decisions/README.md` index
+- File: `docs/adr/NNN-<slug>.md` (three-digit, zero-padded)
+- Update `docs/adr/README.md` index
 - Use the trade-off-first ADR template (Context / Decision / Options / Consequences)
 
 Example triggers:

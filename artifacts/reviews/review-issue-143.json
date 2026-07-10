@@ -8,7 +8,7 @@
   "criticalFindings": [],
   "modulesTouched": [
     "docs/architecture/target-v2.md",
-    "docs/system-design.md",
+    "docs/architecture/system-design.md",
     "docs/architecture/map.md",
     "EXECUTION.md",
     "tests/unit/test_target_v2_docs.py"

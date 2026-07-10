@@ -1,12 +1,12 @@
 # PRD: MVP 1.8.5 — Decision Copilot App Structure (P1.8-9)
 
-> **Phase:** 1.8 (Weeks 11–13) · **Slice:** P1.8-9 · **Product label:** Phase 1.8.5 · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/system-design.md`](../../system-design.md) § Decision Copilot app structure · **ADR:** [ADR-028](../../decisions/028-decision-copilot-app-structure.md)
+> **Phase:** 1.8 (Weeks 11–13) · **Slice:** P1.8-9 · **Product label:** Phase 1.8.5 · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/architecture/system-design.md`](../../architecture/system-design.md) § Decision Copilot app structure · **ADR:** [ADR-028](../../adr/028-decision-copilot-app-structure.md)
 >
 > **GitHub parent issue:** [#190](https://github.com/thienphung00/Juli-AI/issues/190)
 >
 > **Depends on:** P1.8-3 (health), P1.8-4 (ranking); relocates P1.8-5…7 surfaces from Home into Decisions.
 >
-> **Related:** [ADR-027](../../decisions/027-design-system-token-foundation.md) (tokens) · orchestration PRD [`PRD-orchestration.md`](PRD-orchestration.md) · design polish [`PRD.md`](PRD.md) (#174)
+> **Related:** [ADR-027](../../adr/027-design-system-token-foundation.md) (tokens) · orchestration PRD [`PRD-orchestration.md`](PRD-orchestration.md) · design polish [`PRD.md`](PRD.md) (#174)
 
 ---
 
@@ -27,7 +27,7 @@ Without this IA restructure, Phase 2 would wire live APIs into a landing page th
 
 ## Solution
 
-Adopt exactly **three main tabs** for the seller workspace ([ADR-028](../../decisions/028-decision-copilot-app-structure.md)) and introduce **Decision** as the primary seller-facing object (wrapping one validated `workflow_id` from the six-workflow catalog).
+Adopt exactly **three main tabs** for the seller workspace ([ADR-028](../../adr/028-decision-copilot-app-structure.md)) and introduce **Decision** as the primary seller-facing object (wrapping one validated `workflow_id` from the six-workflow catalog).
 
 **Visual foundation:** Seller workspace uses a **white canvas** (`#FFFFFF`) for page background, header, and muted surfaces — not the pink-tint `#FEF5F6`. Brand pink (`#F86BA5`) remains for accents only (shop health progress, primary CTAs, Juli tab highlight). Affiliate workspace stays dark per ADR-027.
 

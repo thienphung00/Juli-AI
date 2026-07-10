@@ -21,9 +21,9 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md`, `docs/system-design.md`, `docs/architecture/map.md`, `docs/data-models/feature-store-schema.md` |
+| Architecture | `EXECUTION.md`, `docs/architecture/system-design.md`, `docs/architecture/map.md`, `docs/api/data-models/feature-store-schema.md` |
 | Dataset contract | `src/modules/ml/dataset/schema.py`, `src/modules/ml/dataset/MODULE.md` |
-| Decisions | `docs/decisions/011-buyer-behavior-anomaly-scope.md`, `docs/decisions/013-phase-15-ml-module-tree.md` |
+| Decisions | `docs/adr/011-buyer-behavior-anomaly-scope.md`, `docs/adr/013-phase-15-ml-module-tree.md` |
 | Baseline constants | `web/src/lib/seller-stage-router/thresholds.ts` (seller-stage column names) |
 | Domain patterns | `.cursor/skills/domain/python-patterns.md`, `.cursor/skills/domain/python-testing.md` |
 

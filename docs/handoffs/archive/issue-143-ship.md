@@ -8,9 +8,9 @@
 ## What shipped
 
 - `docs/architecture/target-v2.md` — Phase 2 pipeline authority (mermaid + ASCII flow, Phase 1 mock vs Phase 2 live table, daily schedule, copy layer, health_data_source contract, buyer-behavior anomaly scope, forbidden scope table)
-- `docs/decisions/019-phase-2-target-architecture.md` — ADR for map.md architectural change
+- `docs/adr/019-phase-2-target-architecture.md` — ADR for map.md architectural change
 - `tests/unit/test_target_v2_docs.py` — 8 AC-mapped doc contract tests
-- Cross-links in `EXECUTION.md` (P1.5-7 complete), `docs/system-design.md`, `docs/architecture/map.md`
+- Cross-links in `EXECUTION.md` (P1.5-7 complete), `docs/architecture/system-design.md`, `docs/architecture/map.md`
 - Handoffs: focus, tdd, review
 - Review artifact: `artifacts/reviews/review-issue-143.json`
 

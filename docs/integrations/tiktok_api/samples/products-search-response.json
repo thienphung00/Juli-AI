@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-09",
+    "region": "VN",
+    "merchant": "Fujiwa",
+    "endpoint": "POST /product/202309/products/search",
+    "api_version": "202309",
+    "contract_section": "§4",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "data": {
+      "next_page_token": "{page_token}",
+      "products": [
+        {
+          "audit": {
+            "pre_approved_reasons": [],
+            "status": "APPROVED"
+          },
+          "create_time": 1775123176,
+          "has_draft": false,
+          "id": "1734952395144267383",
+          "is_not_for_sale": false,
+          "product_tags": [],
+          "recommended_categories": [],
+          "sales_regions": [
+            "VN"
+          ],
+          "skus": [
+            {
+              "id": "1734952449674217079",
+              "inventory": [
+                {
+                  "quantity": 43,
+                  "warehouse_id": "7272949914115966726"
+                }
+              ],
+              "price": {
+                "currency": "VND",
+                "tax_exclusive_price": "72000"
+              },
+              "seller_sku": "XTM-C",
+              "status_info": {
+                "status": "NORMAL"
+              }
+            }
+          ],
+          "status": "ACTIVATE",
+          "title": "[Quà Tặng] Chai Xịt Thơm Miệng Fujisalt 14mL Khử Mùi Hiệu Quả, Giữ Hơi Thở Thơm Mát",
+          "update_time": 1782892330
+        }
+      ],
+      "total_count": 117
+    },
+    "message": "Success",
+    "request_id": "{request_id}"
+  }
+}

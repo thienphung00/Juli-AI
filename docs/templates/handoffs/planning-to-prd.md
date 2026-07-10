@@ -5,10 +5,10 @@
 
 ## Canonical doc updates (this session)
 - EXECUTION.md: <slices/phases changed>
-- docs/system-design.md: <sections changed>
+- docs/architecture/system-design.md: <sections changed>
 - docs/architecture/map.md: <modules/edges changed | none>
 - docs/architecture/data-sources.md: <rows changed | none>
-- docs/decisions/: <ADR-NNN added/updated | none>
+- docs/adr/: <ADR-NNN added/updated | none>
 
 ## Scope
 - EXECUTION.md phase/slices: [e.g. P1-3, P2-1]

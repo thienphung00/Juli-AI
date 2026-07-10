@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_PATH = REPO_ROOT / "docs/tiktok_api/contract-collection.md"
-SAMPLES_DIR = REPO_ROOT / "docs/tiktok_api/samples"
+CONTRACT_PATH = REPO_ROOT / "docs/integrations/tiktok_api/contract-collection.md"
+SAMPLES_DIR = REPO_ROOT / "docs/integrations/tiktok_api/samples"
 
 # Layer 1 minimum set — contract-collection §N → fixture
 FIXTURE_MAP: dict[str, dict[str, str]] = {
@@ -198,7 +198,7 @@ def build_fixture(meta: dict[str, str], response: dict[str, Any]) -> dict[str, A
             "endpoint": meta["endpoint"],
             "api_version": meta["api_version"],
             "contract_section": meta["contract_section"],
-            "contract_collection": "docs/tiktok_api/contract-collection.md",
+            "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
             "shop_cipher_redacted": True,
         },
         "response": response,

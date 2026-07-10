@@ -75,8 +75,8 @@
         "architecturalChange": false,
         "adrPresent": true,
         "adrs": [
-          "docs/decisions/012-architecture-reconciliation-mvp-vs-target.md",
-          "docs/decisions/016-listing-workflow-implementation.md"
+          "docs/adr/012-architecture-reconciliation-mvp-vs-target.md",
+          "docs/adr/016-listing-workflow-implementation.md"
         ],
         "adrProblems": {}
       }

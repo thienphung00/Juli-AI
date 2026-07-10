@@ -25,7 +25,7 @@ Doc contract suite: **15 passed**
 | 1 | Removed `sync_inventory`, `sync_settlements`, `sync_livestreams`; `backfill_shop` → creators only; dropped `publish_fn` alias | `test_polling.py`, `test_webhook.py` |
 | 2 | Removed API routers: inventory, settlements, livestreams, analytics, alerts; trimmed `test_api_*` files | API unit tests |
 | 3 | Deleted `/inventory`, `/livestreams`, `/alerts` pages + components; removed 4 frontend test files; trimmed `api-client.ts` | `pnpm test` |
-| 4 | Archived `docs/features/mvp_1.*` → `docs/handoffs/archive/features/`; fixed `map.md` + MODULE.md `src/` refs; deleted `scripts/archive/migrate_backend_252.py` | doc contract tests |
+| 4 | Archived `docs/product/features/mvp_1.*` → `docs/handoffs/archive/features/`; fixed `map.md` + MODULE.md `src/` refs; deleted `scripts/archive/migrate_backend_252.py` | doc contract tests |
 | 5 | Added `scripts/clean-local.sh`; documented in `infra/deploy/README.md` | script executable |
 
 ---

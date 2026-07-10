@@ -24,9 +24,9 @@
   "contextFilesLoaded": [
     ".cursor/skills/standalone/focus/SKILL.md",
     ".cursor/skills/domain/backend/SKILL.md",
-    "docs/tiktok_api/contract-collection.md",
-    "docs/tiktok_api/endpoints.md",
-    "docs/tiktok_api/samples/README.md",
+    "docs/integrations/tiktok_api/contract-collection.md",
+    "docs/integrations/tiktok_api/endpoints.md",
+    "docs/integrations/tiktok_api/samples/README.md",
     "docs/handoffs/phase-2-tiktok-implementation.md"
   ],
   "skillsLoaded": [
@@ -36,16 +36,16 @@
   "filesModified": [
     "scripts/extract_tiktok_fixtures.py",
     "tests/unit/test_tiktok_api_samples.py",
-    "docs/tiktok_api/samples/authorized-shops-response.json",
-    "docs/tiktok_api/samples/products-search-response.json",
-    "docs/tiktok_api/samples/products-detail-response.json",
-    "docs/tiktok_api/samples/orders-search-response.json",
-    "docs/tiktok_api/samples/orders-detail-response.json",
-    "docs/tiktok_api/samples/returns-search-response.json",
-    "docs/tiktok_api/samples/cancellations-search-response.json",
-    "docs/tiktok_api/samples/inventory-search-response.json",
-    "docs/tiktok_api/samples/README.md",
-    "docs/tiktok_api/endpoints.md",
+    "docs/integrations/tiktok_api/samples/authorized-shops-response.json",
+    "docs/integrations/tiktok_api/samples/products-search-response.json",
+    "docs/integrations/tiktok_api/samples/products-detail-response.json",
+    "docs/integrations/tiktok_api/samples/orders-search-response.json",
+    "docs/integrations/tiktok_api/samples/orders-detail-response.json",
+    "docs/integrations/tiktok_api/samples/returns-search-response.json",
+    "docs/integrations/tiktok_api/samples/cancellations-search-response.json",
+    "docs/integrations/tiktok_api/samples/inventory-search-response.json",
+    "docs/integrations/tiktok_api/samples/README.md",
+    "docs/integrations/tiktok_api/endpoints.md",
     "docs/handoffs/phase-2-tiktok-implementation.md"
   ],
   "testsAdded": [
@@ -56,7 +56,7 @@
   "redGreenRefactorEvidence": [
     {
       "cycle": 1,
-      "failingTestEvidence": "No fixture contract tests existed under docs/tiktok_api/samples/",
+      "failingTestEvidence": "No fixture contract tests existed under docs/integrations/tiktok_api/samples/",
       "passingTestEvidence": "Added extract_tiktok_fixtures.py, 8 sanitized fixtures, 16 parametrized tests",
       "commands": [
         {

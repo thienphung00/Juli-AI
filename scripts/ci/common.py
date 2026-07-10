@@ -16,7 +16,7 @@ from typing import Any, Iterable
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ARCHITECTURE_MAP = REPO_ROOT / "docs" / "architecture" / "map.md"
 HANDOFFS_DIR = REPO_ROOT / "docs" / "handoffs"
-DECISIONS_DIR = REPO_ROOT / "docs" / "decisions"
+DECISIONS_DIR = REPO_ROOT / "docs" / "adr"
 REVIEWS_DIR = REPO_ROOT / "artifacts" / "reviews"
 VALIDATION_DIR = REPO_ROOT / "artifacts" / "validation"
 IMPLEMENTATIONS_DIR = REPO_ROOT / "artifacts" / "implementations"
@@ -966,7 +966,7 @@ def new_adr_files(changed: Iterable[str]) -> list[str]:
     adrs: list[str] = []
     for rel in changed:
         name = Path(rel).name
-        if rel.startswith("docs/decisions/") and ADR_FILE_RE.match(name):
+        if rel.startswith("docs/adr/") and ADR_FILE_RE.match(name):
             adrs.append(rel)
     return adrs
 

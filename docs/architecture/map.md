@@ -83,7 +83,7 @@ Frontends (as-built):
 
 ## Phase 1.6 modules (deployed — listing workflow)
 
-Tracked by [ADR-016](../decisions/016-listing-workflow-implementation.md) and
+Tracked by [ADR-016](../adr/016-listing-workflow-implementation.md) and
 `EXECUTION.md` slices P1.6-1…P1.6-5.
 
 | Module | Tier | Responsibility | Public Surface | Owners |
@@ -96,8 +96,8 @@ Tracked by [ADR-016](../decisions/016-listing-workflow-implementation.md) and
 
 ## Planned modules (Phase 1.7 / 1.8 / Phase 2 — not yet deployed)
 
-Tracked by [ADR-013](../decisions/013-operations-pipeline-spine.md),
-[ADR-013](../decisions/013-operations-pipeline-spine.md) and `EXECUTION.md`
+Tracked by [ADR-013](../adr/013-operations-pipeline-spine.md),
+[ADR-013](../adr/013-operations-pipeline-spine.md) and `EXECUTION.md`
 slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code lands.
 
 | Module (planned) | Target phase | Responsibility |
@@ -110,7 +110,7 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 | `apps/dashboard/src/lib/operations/health-check.ts` | P1.8 | `health_check_results` indicators from mock operational data (P1.8-3) |
 | `apps/dashboard/src/lib/operations/recommendations.ts` + `use-operations-pipeline.ts` | P1.8 | `workflow_recommendations` ranking + pipeline orchestration hook (P1.8-4) |
 | `apps/dashboard/src/components/workflows/operations/` | P1.8 | Operations pipeline shell: reasoning panel, unified approval gate + routing, outcome tracking views (P1.8-5…P1.8-7) |
-| `apps/dashboard/src/app/decisions/` + `apps/dashboard/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)) |
+| `apps/dashboard/src/app/decisions/` + `apps/dashboard/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-014](../adr/014-decision-copilot-app-structure-and-journey.md)) |
 | `apps/dashboard/src/components/home/todays-report/` | P1.8-9 | Today's Report domain cards (Revenue Growth, Revenue Protection, Product Listings, Advertising, Refunds) with animated domain switcher on Home |
 | `apps/dashboard/src/lib/decisions/` | P1.8-9 | Decision view-model: map `workflow_recommendations` → Decision envelopes + lifecycle status (`recommended` / `needs_input` / `executing` / `completed`) |
 | `backend/src/juli_backend/services/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
@@ -125,53 +125,53 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 | Polling: `sync_inventory`, `sync_settlements`, `sync_livestreams` | **Removed** |
 | API routers: `analytics`, `settlements`, `inventory`, `livestreams`, `alerts` | **Removed** |
 | Web pages: `/inventory`, `/livestreams`, `/alerts` | **Removed** (legacy redirects remain) |
-| `docs/features/mvp_1.*` | **Archived** to `docs/handoffs/archive/features/` |
+| `docs/product/features/mvp_1.*` | **Archived** to `docs/handoffs/archive/features/` |
 | `backend/src/juli_backend/ai/forecasting/**` | **Deferred** — still wired to recommendations engine |
 
 ## Key architectural decisions
 
-- **Backend:** Python / FastAPI only ([ADR-001](../decisions/001-keep-python-fastapi.md))
-- **Database:** Supabase (managed Postgres + Auth) — source of truth ([ADR-002](../decisions/002-supabase-backend-service.md))
+- **Backend:** Python / FastAPI only ([ADR-001](../adr/001-keep-python-fastapi.md))
+- **Database:** Supabase (managed Postgres + Auth) — source of truth ([ADR-002](../adr/002-supabase-backend-service.md))
 - **Auth:** Demo login on frontend; JWT validation on protected FastAPI routes
 - **Data sources:** TikTok Shop Official API only. Unofficial livestream websockets,
   Seller Center scraping, and buyer PII storage are **permanently forbidden**. See
   [`data-sources.md`](data-sources.md).
 - **Data model:** Canonical entity schemas and ML features live in
-  [`docs/data-models/`](../data-models/README.md). TikTok API docs (`tiktok_api/endpoints.md`)
-  are the ingestion layer only ([ADR-012](../decisions/012-entity-centric-data-model.md)).
+  [`docs/api/data-models/`](../api/data-models/README.md). TikTok API docs (`tiktok_api/endpoints.md`)
+  are the ingestion layer only ([ADR-012](../adr/012-entity-centric-data-model.md)).
 - **Platform policy:** Seller/creator feature guides and policy center rules live in
-  [`docs/tiktok_platform/`](../tiktok_platform/README.md). Implementation hooks
+  [`docs/integrations/tiktok_platform/`](../tiktok_platform/README.md). Implementation hooks
   (`seller/implementation-hooks.md`, `creator/implementation-hooks.md`) define alerts,
   gates, and ETL behavior for Phase 2 workflows.
 - **Runtime evolution:** simple daily scheduler in Phase 2; Celery for execution in Phase 2
   (see [`../../EXECUTION.md`](../../EXECUTION.md)); Kafka/streams deferred to Phase 4.5.
 
-> **Platform policy (Phase 2):** [ADR-008](../decisions/008-alert-vp-ahr-milestones.md)
-> (milestone alerts), [ADR-009](../decisions/009-dual-read-vp-ahr-transition.md)
-> (VP→AHR dual-read), [ADR-010](../decisions/010-vn-regional-platform-config.md)
+> **Platform policy (Phase 2):** [ADR-008](../adr/008-alert-vp-ahr-milestones.md)
+> (milestone alerts), [ADR-009](../adr/009-dual-read-vp-ahr-transition.md)
+> (VP→AHR dual-read), [ADR-010](../adr/010-vn-regional-platform-config.md)
 > (VN regional thresholds).
 >
-> **Anomaly ML scope (Phase 1.5):** [ADR-011](../decisions/011-buyer-behavior-anomaly-scope.md)
+> **Anomaly ML scope (Phase 1.5):** [ADR-011](../adr/011-buyer-behavior-anomaly-scope.md)
 > — buyer return anomalies (`item_swap`, `empty_return`) only; schema in
-> [`data-models/canonical-entities.md`](../data-models/canonical-entities.md) § Return, § OrderItem.
+> [`data-models/canonical-entities.md`](../api/data-models/canonical-entities.md) § Return, § OrderItem.
 >
-> **Executable leakage workflow (Phase 1.7):** [ADR-013](../decisions/013-operations-pipeline-spine.md)
+> **Executable leakage workflow (Phase 1.7):** [ADR-013](../adr/013-operations-pipeline-spine.md)
 > — modal workflow from approved leakage tasks; mock execute only until P2-9/P2-10.
 >
-> **Operations-system orchestration (Phase 1.8):** [ADR-013](../decisions/013-operations-pipeline-spine.md)
+> **Operations-system orchestration (Phase 1.8):** [ADR-013](../adr/013-operations-pipeline-spine.md)
 > — mock pipeline (classify → health check → ranked recs → reasoning → approval →
 > outcome tracking) + 2 shop profiles + validated workflow catalog; narrow inventory
 > signals approved for P2+ (Stockout/Product Scaling only).
 >
-> **Decision Copilot app structure (Phase 1.8):** [ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)
+> **Decision Copilot app structure (Phase 1.8):** [ADR-014](../adr/014-decision-copilot-app-structure-and-journey.md)
 > — 3-tab IA (Home / Decisions / Juli Chat); Decision as primary UI object; Home
 > read-only; approval and templates on Decisions tab only.
 >
-> **Entity-centric data model:** ADR-009 — `docs/data-models/` is ML schema authority.
+> **Entity-centric data model:** ADR-009 — `docs/api/data-models/` is ML schema authority.
 
 ## Target architecture (Phase 2 MVP)
 
-Forward-looking stack diagram and daily schedule: [`phase-2-mvp.md`](../phases/phase-2-mvp.md).  
+Forward-looking stack diagram and daily schedule: [`phase-2-mvp.md`](../product/phases/phase-2-mvp.md).  
 This file (`map.md`) is **as-built only**.
 
 ## Adding / removing a module

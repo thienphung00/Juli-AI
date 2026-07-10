@@ -29,7 +29,7 @@ beyond early user-testing phases.
 Shared design system, API client, types, and utilities live in `packages/`; products live
 in `apps/`; backend services live in `backend/`.
 
-> Layer KPI mapping: [`visual_layer.md`](docs/visual_layer.md) · [`ml_layer.md`](docs/ml_layer.md) · [`execution_layer.md`](docs/execution_layer.md)  
+> Layer KPI mapping: [`visual_layer.md`](docs/ml/visual_layer.md) · [`ml_layer.md`](docs/ml/ml_layer.md) · [`execution_layer.md`](docs/product/execution_layer.md)  
 > Ecosystem layout: [`architecture/migration-plan.md`](docs/architecture/migration-plan.md) · [`architecture/map.md`](docs/architecture/map.md)
 
 ---
@@ -41,17 +41,17 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | Tier | When to read | File |
 |------|--------------|------|
 | **0** | Always | `EXECUTION.md` (this file) |
-| **1a** | Subsystem envelopes, ML thresholds, pipeline stages | [`system-design.md`](docs/system-design.md) |
+| **1a** | Subsystem envelopes, ML thresholds, pipeline stages | [`system-design.md`](docs/architecture/system-design.md) |
 | **1b** | Which data sources are allowed in which phase | [`data-sources.md`](docs/architecture/data-sources.md) |
 | **1c** | Which modules/paths exist in the repo | [`map.md`](docs/architecture/map.md) |
-| **1d** | Phase 2 pipeline validation — stack, schedule | [`phase-2-mvp.md`](docs/phases/phase-2-mvp.md) |
-| **1e** | Phase 2.5 restructure, domains, deploy targets | [`phase-2.5-deployment.md`](docs/phases/phase-2.5-deployment.md) |
-| **1f** | Entity schemas, feature definitions | [`data-models/`](docs/data-models/README.md) |
-| **1g** | TikTok API ingestion field maps | [`tiktok_api/endpoints.md`](docs/tiktok_api/endpoints.md) |
-| **2** | Why a constraint exists | One ADR from [`decisions/`](docs/decisions/README.md) |
+| **1d** | Phase 2 pipeline validation — stack, schedule | [`phase-2-mvp.md`](docs/product/phases/phase-2-mvp.md) |
+| **1e** | Phase 2.5 restructure, domains, deploy targets | [`phase-2.5-deployment.md`](docs/product/phases/phase-2.5-deployment.md) |
+| **1f** | Entity schemas, feature definitions | [`data-models/`](docs/api/data-models/README.md) |
+| **1g** | TikTok API ingestion field maps | [`tiktok_api/endpoints.md`](docs/integrations/tiktok_api/endpoints.md) |
+| **2** | Why a constraint exists | One ADR from [`decisions/`](docs/adr/README.md) |
 
-**Historical pre-MVP:** [`phase-1-completed.md`](docs/phases/phase-1-completed.md)  
-**Phase 3 forward:** [`phase-3-landing-demo.md`](docs/phases/phase-3-landing-demo.md)
+**Historical pre-MVP:** [`phase-1-completed.md`](docs/product/phases/phase-1-completed.md)  
+**Phase 3 forward:** [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
 
 ---
 
@@ -147,7 +147,7 @@ Offline backtest / training work completed during pre-MVP — **out of Phase 2 s
 - [ ] **Execution** — Tool execution succeeds >95%
 - [ ] **Tracking** — Outcome measurement works
 
-Detail: [`phase-2-mvp.md`](docs/phases/phase-2-mvp.md)
+Detail: [`phase-2-mvp.md`](docs/product/phases/phase-2-mvp.md)
 
 ---
 
@@ -160,7 +160,7 @@ deployment pipelines · shared packages · real domains · CI/CD · production e
 
 **Completed (2026-07-03):** App Review deploy live at `app-juli.com` + `api.app-juli.com`;
 backend runtime in `backend/`; legacy `web/` serves review frontend until Phase 3.
-Sign-off: [`infra/deploy/smoke-checklist-runbook.md`](infra/deploy/smoke-checklist-runbook.md).
+Sign-off: [`docs/runbooks/smoke-checklist-runbook.md`](docs/runbooks/smoke-checklist-runbook.md).
 
 **Naming collision:** Top-level `apps/` holds product deployables (landing, demo, dashboard,
 mobile). Backend entrypoints live under `backend/api/` and `backend/workers/` — not top-level
@@ -173,7 +173,7 @@ mobile). Backend entrypoints live under `backend/api/` and `backend/workers/` �
 - [x] Frontend and backend independently deployable on intended domains _(2.5-review, sign-off 2026-07-03)_
 - [x] Shared package boundaries documented _(2.5-a)_
 
-Detail: [`phase-2.5-deployment.md`](docs/phases/phase-2.5-deployment.md) ·
+Detail: [`phase-2.5-deployment.md`](docs/product/phases/phase-2.5-deployment.md) ·
 [`architecture/migration-plan.md`](docs/architecture/migration-plan.md)
 
 ---
@@ -200,7 +200,7 @@ User journey: Observe → Understand → Recommend → Approve → Execute → M
 - [ ] Users understand Juli within minutes
 - [ ] Users complete the demo without assistance
 
-Detail: [`phase-3-landing-demo.md`](docs/phases/phase-3-landing-demo.md)
+Detail: [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
 
 ---
 
@@ -212,7 +212,7 @@ Focus: authentication · connected shops · real backend integration · responsi
 complete product functionality. Replaces the demo while preserving the overall product
 experience (`dashboard.app-juli.com`).
 
-Legacy `web/` dashboard retains **3-tab Decision Copilot IA** ([ADR-014](docs/decisions/014-decision-copilot-app-structure-and-journey.md))
+Legacy `web/` dashboard retains **3-tab Decision Copilot IA** ([ADR-014](docs/adr/014-decision-copilot-app-structure-and-journey.md))
 until migration to `apps/dashboard`.
 
 ---
@@ -233,8 +233,8 @@ copy · cross-platform analytics · user behavior tracking · Web ↔ Mobile syn
 Potential additions: webhooks · event-driven processing · real-time updates · live execution
 tracking · streaming architecture. Implement only when product scale justifies cost.
 
-Detail: [`phase-4.5-realtime.md`](docs/phases/phase-4.5-realtime.md) (supersedes old
-[`phase-3-vision.md`](docs/phases/phase-3-vision.md))
+Detail: [`phase-4.5-realtime.md`](docs/product/phases/phase-4.5-realtime.md) (supersedes old
+[`phase-3-vision.md`](docs/product/phases/phase-3-vision.md))
 
 ---
 

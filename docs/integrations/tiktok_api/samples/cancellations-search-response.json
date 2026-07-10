@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-09",
+    "region": "VN",
+    "merchant": "Fujiwa",
+    "endpoint": "POST /return_refund/202602/cancellations/search",
+    "api_version": "202602",
+    "contract_section": "§9",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "data": {
+      "cancellations": [
+        {
+          "cancel_id": "4035348475003308298",
+          "cancel_line_items": [
+            {
+              "cancel_line_item_id": "4035348475003373834",
+              "order_line_item_id": "577958834469570826",
+              "product_image": {
+                "height": 200,
+                "url": "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/cd87288197f84f3192c50fa57cfe98de~tplv-o3syd03w52-origin-jpeg.jpeg?dr=15568&from=4246405447&idc=my&ps=933b5bde&shcp=3c3d9ffb&shp=fd1b0147&t=555f072d",
+                "width": 200
+              },
+              "product_name": "Nước Uống Ion Kiềm Cao Cấp Đóng Chai Fujiwa Vietnam",
+              "seller_sku": "FUJIWA02-450",
+              "sku_id": "1729700293904534135",
+              "sku_name": "Thùng 24 Chai-450ml"
+            }
+          ],
+          "cancel_reason": "seller_cancel_paid_reason_address_not_deliver",
+          "cancel_reason_text": "Unable to deliver to customer address",
+          "cancel_status": "CANCELLATION_REQUEST_COMPLETE",
+          "cancel_type": "CANCEL",
+          "create_time": 1696306119,
+          "order_id": "577958834469439754",
+          "role": "SELLER",
+          "should_replenish_stock": true,
+          "update_time": 1696306119
+        }
+      ],
+      "next_page_token": "{page_token}",
+      "total_count": 2817
+    },
+    "message": "Success",
+    "request_id": "{request_id}"
+  }
+}

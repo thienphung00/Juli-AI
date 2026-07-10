@@ -135,5 +135,5 @@ apps/*     → backend only via packages/api-client (HTTP)
 ## Related docs
 
 - As-built registry: [`map.md`](map.md)
-- Phase 2.5 scope: [`../phases/phase-2.5-deployment.md`](../phases/phase-2.5-deployment.md)
-- Phase 3 demo IA: [`../phases/phase-3-landing-demo.md`](../phases/phase-3-landing-demo.md)
+- Phase 2.5 scope: [`../product/phases/phase-2.5-deployment.md`](../product/phases/phase-2.5-deployment.md)
+- Phase 3 demo IA: [`../product/phases/phase-3-landing-demo.md`](../product/phases/phase-3-landing-demo.md)

@@ -3,7 +3,7 @@
 Shared domain language for seller-money workflows across `ios/`, `web/`, and `backend/`.
 
 > Maintained by `grill-with-docs` and `domain-modeling`. Do not edit manually unless correcting an error.
-> Architectural decisions live in `docs/decisions/`.
+> Architectural decisions live in `docs/adr/`.
 
 <!-- Terms are added under ## [Domain area] sections as they are resolved in grilling sessions.
      Format per domain-modeling skill:
@@ -19,15 +19,15 @@ Shared domain language for seller-money workflows across `ios/`, `web/`, and `ba
 The product's three-layer structure — **visual layer** (Home KPI charts + one-line
 advisory signals), **ML layer** (T1–T8 advisory techniques), and **execution layer**
 (the workflow → action taxonomy a signal links to). Authoritative docs:
-`docs/visual_layer.md`, `docs/ml_layer.md`, `docs/execution_layer.md`
-([ADR-005](docs/decisions/011-display-grade-analytics-layer.md) Decision #6).
+`docs/ml/visual_layer.md`, `docs/ml/ml_layer.md`, `docs/product/execution_layer.md`
+([ADR-005](docs/adr/011-display-grade-analytics-layer.md) Decision #6).
 _Avoid_: 3 Copilots, Copilot surfaces, New Seller / Growth / Revenue Leakage Copilots
 (retired UI grouping), "exactly six validated workflows" (closed catalog — retired by ADR-005)
 
 **Workflow taxonomy**:
 The domain-organized catalog of workflows (Catalog · Ads · Inventory · Operations ·
 Customer Service) and their actions, each action owned by exactly one workflow. Single
-source of truth is `docs/execution_layer.md`. The shop profile (`NEW_SHOP` vs
+source of truth is `docs/product/execution_layer.md`. The shop profile (`NEW_SHOP` vs
 `MID_LARGE_SHOP`) selects the **rule set** via the T8 router, not a UI grouping.
 _Avoid_: validated workflow catalog (closed "six only" framing — superseded by ADR-005)
 
@@ -44,7 +44,7 @@ techniques (T1–T8: ETS forecaster, recycled ads regressor, policy rules,
 statistical anomaly, deadline rule, recycled return-fraud detector, weighted
 ranker, recycled router classifier) applied across all KPIs. Charts plus one-line
 "what changed / risk / action" signals on Home; advisory only, never executes
-([ADR-005](docs/decisions/011-display-grade-analytics-layer.md)).
+([ADR-005](docs/adr/011-display-grade-analytics-layer.md)).
 _Avoid_: per-KPI models (implies ~19 separate trained models)
 
 **Decision-grade ML**:

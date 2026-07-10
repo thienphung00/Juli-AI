@@ -11,7 +11,7 @@
       "type": "security",
       "severity": "WARNING",
       "actionRequired": false,
-      "description": "docs/tiktok_api/contract-collection.md contains ~30 ROW_* token/cipher literals in Request Demo cURL blocks. Fixtures and samples/ are sanitized; this file must not merge until cURLs use {access_token}/{shop_cipher} placeholders.",
+      "description": "docs/integrations/tiktok_api/contract-collection.md contains ~30 ROW_* token/cipher literals in Request Demo cURL blocks. Fixtures and samples/ are sanitized; this file must not merge until cURLs use {access_token}/{shop_cipher} placeholders.",
       "suggestion": "Redact contract-collection.md cURL blocks before including in PR, or ship #294 fixtures/endpoints only without contract-collection.md.",
       "acceptanceByReviewer": true,
       "ownerAck": true,
@@ -19,8 +19,8 @@
     }
   ],
   "modulesTouched": [
-    "docs/tiktok_api/samples/",
-    "docs/tiktok_api/endpoints.md",
+    "docs/integrations/tiktok_api/samples/",
+    "docs/integrations/tiktok_api/endpoints.md",
     "scripts/extract_tiktok_fixtures.py",
     "tests/unit/test_tiktok_api_samples.py",
     "docs/handoffs/phase-2-tiktok-implementation.md"
@@ -77,7 +77,7 @@
       "type": "security",
       "severity": "WARNING",
       "actionRequired": false,
-      "description": "docs/tiktok_api/contract-collection.md contains ~30 ROW_* token/cipher literals in Request Demo cURL blocks. Fixtures and samples/ are sanitized; this file must not merge until cURLs use {access_token}/{shop_cipher} placeholders.",
+      "description": "docs/integrations/tiktok_api/contract-collection.md contains ~30 ROW_* token/cipher literals in Request Demo cURL blocks. Fixtures and samples/ are sanitized; this file must not merge until cURLs use {access_token}/{shop_cipher} placeholders.",
       "suggestion": "Redact contract-collection.md cURL blocks before including in PR, or ship #294 fixtures/endpoints only without contract-collection.md.",
       "acceptanceByReviewer": true,
       "ownerAck": true,
@@ -96,7 +96,7 @@
       "type": "security",
       "severity": "WARNING",
       "actionRequired": false,
-      "description": "docs/tiktok_api/contract-collection.md contains ~30 ROW_* token/cipher literals in Request Demo cURL blocks. Fixtures and samples/ are sanitized; this file must not merge until cURLs use {access_token}/{shop_cipher} placeholders.",
+      "description": "docs/integrations/tiktok_api/contract-collection.md contains ~30 ROW_* token/cipher literals in Request Demo cURL blocks. Fixtures and samples/ are sanitized; this file must not merge until cURLs use {access_token}/{shop_cipher} placeholders.",
       "suggestion": "Redact contract-collection.md cURL blocks before including in PR, or ship #294 fixtures/endpoints only without contract-collection.md.",
       "acceptanceByReviewer": true,
       "ownerAck": true,

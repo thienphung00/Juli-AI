@@ -23,7 +23,7 @@ TDD (Red → Green → Refactor). Canonical requirements:
 ## Required context
 
 - [`docs/architecture/data-sources.md`](../../../docs/architecture/data-sources.md) — allowed sources for current phase
-- [`docs/data-models/`](../../../docs/data-models/) — canonical entities
+- [`docs/api/data-models/`](../../../docs/api/data-models/) — canonical entities
 - Migration history under `alembic/versions/`
 - Repository modules in `src/shared/utils/data/`
 

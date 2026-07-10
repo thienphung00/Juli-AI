@@ -1,6 +1,6 @@
 # PRD: MVP 1.8 — Operations-System Orchestration (P1.8-1…7)
 
-> **Phase:** 1.8 (Weeks 11–13) · **Slices:** P1.8-1 through P1.8-7 · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/system-design.md`](../../system-design.md) § Operations-system pipeline · **ADR:** [ADR-026](../../decisions/026-operations-system-orchestration.md)
+> **Phase:** 1.8 (Weeks 11–13) · **Slices:** P1.8-1 through P1.8-7 · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/architecture/system-design.md`](../../architecture/system-design.md) § Operations-system pipeline · **ADR:** [ADR-026](../../adr/026-operations-system-orchestration.md)
 >
 > **Related:** P1.8-8 design-system polish is scoped separately in [`PRD.md`](PRD.md) / GitHub [#174](https://github.com/thienphung00/Juli-AI/issues/174).
 >
@@ -34,7 +34,7 @@ PersonaSwitcher (demo input)
   → workflow_outcome_metrics (cadence tabs)
 ```
 
-**Six validated workflows only** ([ADR-026](../../decisions/026-operations-system-orchestration.md)):
+**Six validated workflows only** ([ADR-026](../../adr/026-operations-system-orchestration.md)):
 
 | Profile | Workflow | P1.8 execution |
 |---------|----------|----------------|

@@ -17,7 +17,7 @@
 
 ## Context loaded
 
-- Architecture: `EXECUTION.md`, `docs/system-design.md`, `docs/architecture/map.md`
+- Architecture: `EXECUTION.md`, `docs/architecture/system-design.md`, `docs/architecture/map.md`
 - Module docs: `web/MODULE.md`
 - Implementation: `web/src/components/seller-home/`, `web/src/lib/seller-workflows.ts`, `web/src/lib/demo-persona-context.tsx`
 - Tests: `web/src/__tests__/test_seller_home_shell.test.tsx`

@@ -57,7 +57,7 @@
     "scripts/ci/generate_implementation_artifact.py",
     ".cursor/skills/standalone/validate/SKILL.md",
     ".cursor/skills/standalone/validate/checks.md",
-    "docs/ci/implementation-guide.md",
+    "docs/deployment/implementation-guide.md",
     "tests/unit/test_implementation_artifact.py"
   ],
   "testsAdded": [

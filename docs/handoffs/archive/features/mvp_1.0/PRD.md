@@ -1,6 +1,6 @@
 # PRD: MVP 1.0 — Phase 1 UI + Mock Data
 
-> **Phase:** 1 (Weeks 1–6) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/system-design.md`](../../system-design.md)
+> **Phase:** 1 (Weeks 1–6) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/architecture/system-design.md`](../../architecture/system-design.md)
 >
 > **Exit gate:** Mockup UI live for all three workflows; 100 test sellers exercised the flows; engagement threshold met (set by Product lead).
 

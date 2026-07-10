@@ -8,7 +8,7 @@
   "criticalFindings": [],
   "modulesTouched": [
     "infra/deploy/",
-    "docs/phases/phase-2.5-deployment.md",
+    "docs/product/phases/phase-2.5-deployment.md",
     "tests/unit/test_phase_2_5_deploy_config.py"
   ],
   "interfaceChanges": [],
@@ -55,7 +55,7 @@
     "Wire tests/unit/test_phase_2_5_deploy_config.py into .github/workflows/pr.yml (runbook documents the command; CI does not execute it yet).",
     "OAuth callback handler (/v1/auth/tiktok/callback) is proxied by Nginx but returns 404 until issue #259 \u2014 expected; smoke test asserts non-5xx only.",
     "Pre-existing security follow-up: root .env.example contains real-looking TIKTOK_APP_SECRET \u2014 not introduced by #253; track separately.",
-    "Add docs/features/app_review_deployment/ PRD when planning slice lands on main; runbook now points to phase-2.5-deployment.md only."
+    "Add docs/product/features/app_review_deployment/ PRD when planning slice lands on main; runbook now points to phase-2.5-deployment.md only."
   ],
   "approvalReady": true,
   "reviewerSignoff": null,

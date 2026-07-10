@@ -1,6 +1,6 @@
 # PRD: MVP 1.7 — Phase 1.7 Revenue Leakage Executable Workflow
 
-> **Phase:** 1.7 (Weeks 10–11) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/system-design.md`](../../system-design.md) · **ADR:** [ADR-025](../../decisions/025-revenue-leakage-workflow-scope.md)
+> **Phase:** 1.7 (Weeks 10–11) · **Authority:** [`EXECUTION.md`](../../../EXECUTION.md) · **Design:** [`docs/architecture/system-design.md`](../../architecture/system-design.md) · **ADR:** [ADR-025](../../adr/025-revenue-leakage-workflow-scope.md)
 >
 > **Exit gate:** All four leakage task types completable E2E through success screen; evidence step enforces masked IDs (no PII); global skip-with-reason on dismiss across all workflows; Product lead confirms operational UX resonates.
 
@@ -155,7 +155,7 @@ Evidence drawer content migrates into the workflow evidence step; the drawer may
 
 ### Schema & contracts
 
-- Workflow entities conform to [`canonical-entities.md`](../../data-models/canonical-entities.md) § Leakage workflow entities.
+- Workflow entities conform to [`canonical-entities.md`](../../api/data-models/canonical-entities.md) § Leakage workflow entities.
 - `workflow_status`: `new` → `in_review` → `evidence_reviewed` → `ready_to_execute` → `executing` → `completed` | `skipped`.
 - `skip_reason`: `false_positive` | `already_handled` | `not_relevant` | `other`; optional `skip_note`.
 - `action_type` on recommended action: `listing_update` | `investigation_package` | `monitoring` | `shop_settings`.

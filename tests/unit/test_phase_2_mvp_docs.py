@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PHASE_2_MVP_PATH = REPO_ROOT / "docs/phases/phase-2-mvp.md"
+PHASE_2_MVP_PATH = REPO_ROOT / "docs/product/phases/phase-2-mvp.md"
 EXECUTION_PATH = REPO_ROOT / "EXECUTION.md"
-SYSTEM_DESIGN_PATH = REPO_ROOT / "docs/system-design.md"
+SYSTEM_DESIGN_PATH = REPO_ROOT / "docs/architecture/system-design.md"
 MAP_PATH = REPO_ROOT / "docs/architecture/map.md"
 
 

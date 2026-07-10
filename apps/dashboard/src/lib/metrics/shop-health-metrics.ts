@@ -6,8 +6,8 @@ import type { ShopMetadata } from "@/lib/mock-data/operations/schemas";
  * AHR — Account Health Rating per TikTok Shop policy (0–1,000 platform scale;
  * P1.8 mock uses graduation thresholds from probation fixtures).
  *
- * @see docs/tiktok_platform/seller/account-health.md
- * @see docs/system-design.md § SPS vs VP/AHR
+ * @see docs/integrations/tiktok_platform/seller/account-health.md
+ * @see docs/architecture/system-design.md § SPS vs VP/AHR
  */
 export const SPS_METRIC = {
   id: "sps",

@@ -22,9 +22,9 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.5-1), `docs/system-design.md` (Return schema contract), `docs/architecture/map.md`, `docs/architecture/data-sources.md` |
-| Data models | `docs/data-models/canonical-entities.md`, `docs/data-models/mock-data-generator.md` |
-| Decisions | `docs/decisions/011-buyer-behavior-anomaly-scope.md`, `docs/decisions/013-phase-15-ml-module-tree.md` |
+| Architecture | `EXECUTION.md` (P1.5-1), `docs/architecture/system-design.md` (Return schema contract), `docs/architecture/map.md`, `docs/architecture/data-sources.md` |
+| Data models | `docs/api/data-models/canonical-entities.md`, `docs/api/data-models/mock-data-generator.md` |
+| Decisions | `docs/adr/011-buyer-behavior-anomaly-scope.md`, `docs/adr/013-phase-15-ml-module-tree.md` |
 | Module | `src/modules/ml/dataset/MODULE.md` (new) |
 | Domain patterns | `.cursor/skills/domain/python-patterns.md`, `.cursor/skills/domain/python-testing.md` |
 
@@ -56,7 +56,7 @@
 | `src/modules/ml/dataset/exceptions.py` | `DatasetValidationError` |
 | `src/modules/ml/dataset/MODULE.md` | Public interface documentation |
 | `tests/unit/test_backtest_dataset.py` | 9 integration tests mapping all ACs |
-| `docs/decisions/013-phase-15-ml-module-tree.md` | ADR for ML module tree bootstrap |
+| `docs/adr/013-phase-15-ml-module-tree.md` | ADR for ML module tree bootstrap |
 
 ### Modified files
 

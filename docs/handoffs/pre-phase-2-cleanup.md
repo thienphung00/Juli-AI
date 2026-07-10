@@ -13,7 +13,7 @@
 | 2 | Deploy entrypoint: `juli-api.service` → `backend.api.api.main:app`; runbooks/nginx comments updated | Backend deploy + migration contract tests |
 | 3 | Deleted `src/` shim tree; archived `scripts/migrate_backend_252.py`; updated `backend/` MODULE.md paths | Full `pytest` (506 tests) |
 | 4 | `release.yml` mypy → `backend/`; `check_module_boundaries.py` + `common.py` scan `backend/`; removed empty scaffold dirs | Full `pytest` |
-| 5 | This handoff + [ADR 019](../decisions/019-src-shim-removal.md); historical handoffs archived | — |
+| 5 | This handoff + [ADR 019](../adr/019-src-shim-removal.md); historical handoffs archived | — |
 
 ---
 
@@ -46,7 +46,7 @@ Do **not** pull shim-deletion commits until the systemd unit above is installed,
 
 ### Phase 2 — active (Pipeline Validation)
 
-**Next slice: P2-A1** — Contract-first TikTok read sync, SPS discovery, production read-only guards (see [`docs/tiktok_api/contract-collection.md`](../tiktok_api/contract-collection.md))
+**Next slice: P2-A1** — Contract-first TikTok read sync, SPS discovery, production read-only guards (see [`docs/integrations/tiktok_api/contract-collection.md`](../integrations/tiktok_api/contract-collection.md))
 
 | Already done (pre-A1) | Still pending |
 |----------------------|---------------|

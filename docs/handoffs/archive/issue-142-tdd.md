@@ -11,8 +11,8 @@
 ## Changes summary
 
 - **New:** `tests/unit/test_feature_store_docs.py` — 8 AC-mapped doc contract tests
-- **Modified:** `docs/data-models/feature-store-schema.md` — Group D (seller stage), Group E (ad), schema hash table, three inference signatures
-- **Modified:** `docs/system-design.md` — promotion targets filled, backtest reference metrics, inference signature cross-links
+- **Modified:** `docs/api/data-models/feature-store-schema.md` — Group D (seller stage), Group E (ad), schema hash table, three inference signatures
+- **Modified:** `docs/architecture/system-design.md` — promotion targets filled, backtest reference metrics, inference signature cross-links
 - **Migrations:** none
 
 ## Tests written

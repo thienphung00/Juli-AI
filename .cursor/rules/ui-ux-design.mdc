@@ -10,7 +10,7 @@ Load via Focus for `web/` UI work. Companion skill: `.cursor/skills/standalone/u
 
 **Ramp research baseline:** [ramp.com](https://ramp.com/) marketing + app patterns, [Ramp DS](https://ramp-ds.vercel.app/docs). Adopt Ramp's **product UX discipline**, not their visual identity (yellow `#ffe74c`, sand canvas, Lausanne). Juli stays pink + Inter.
 
-**Token foundation ([ADR-027](../../docs/decisions/027-design-system-token-foundation.md), P1.8-8 target):**
+**Token foundation ([ADR-027](../../docs/adr/027-design-system-token-foundation.md), P1.8-8 target):**
 
 - **Theme:** **Seller = light** (`#FEF5F6`/white, charcoal text); **Affiliate = dark**. (Inverts the prior mapping — pending P1.8-8 in `globals.css`.)
 - **Type:** one typeface (Inter), single **≤6-size** scale; hierarchy from size + weight only — no serif/display or mono fonts.

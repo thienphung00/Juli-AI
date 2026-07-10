@@ -20,11 +20,11 @@
 
 | Area | Files |
 |------|-------|
-| Architecture | `EXECUTION.md` (P1.5-4), `docs/system-design.md` § ML models, `docs/architecture/map.md` |
+| Architecture | `EXECUTION.md` (P1.5-4), `docs/architecture/system-design.md` § ML models, `docs/architecture/map.md` |
 | Feature builder | `src/modules/ml/features/ad.py`, `schema.py`, `MODULE.md` |
 | Dataset contract | `src/modules/ml/dataset/assembler.py`, `ads.parquet` schema |
 | Prior art | `src/modules/ml/seller_stage/*`, `src/modules/ml/anomaly/*`, `docs/handoffs/issue-137-ship.md`, `issue-139-ship.md` |
-| Decisions | `docs/decisions/013-phase-15-ml-module-tree.md`, `014-phase-15-feature-builder.md` |
+| Decisions | `docs/adr/013-phase-15-ml-module-tree.md`, `014-phase-15-feature-builder.md` |
 
 ## Standards applied
 
@@ -55,7 +55,7 @@
 | `src/modules/ml/ad_performance/cli.py` | `train-ad` CLI |
 | `src/modules/ml/ad_performance/MODULE.md` | Public interface + inference schema |
 | `tests/unit/test_ad_performance_trainer.py` | AC-mapped integration tests |
-| `docs/decisions/017-phase-15-ad-performance-trainer.md` | ADR for new module |
+| `docs/adr/017-phase-15-ad-performance-trainer.md` | ADR for new module |
 
 ### Modified files
 

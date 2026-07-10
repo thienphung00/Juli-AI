@@ -8,7 +8,7 @@ description: Synthesizes the current conversation context and codebase understan
 Turn the current conversation context into a PRD and submit it as a GitHub issue. Do **not** interview the user—synthesize what you already know from the conversation and repository patterns.
 
 In the Planning phase, consume the **planning → to-prd handoff** and updated
-canonical docs (`EXECUTION.md`, `docs/system-design.md`, `docs/architecture/`, ADRs).
+canonical docs (`EXECUTION.md`, `docs/architecture/system-design.md`, `docs/architecture/`, ADRs).
 Do not re-interview; note assumptions from the handoff in the PRD.
 
 ### Process

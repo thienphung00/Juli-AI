@@ -39,4 +39,4 @@ fi
 mkdir -p /var/www/certbot
 nginx -t
 systemctl reload nginx
-echo "Nginx reloaded. Next: certbot --nginx (see infra/deploy/vps-wiring-runbook.md)"
+echo "Nginx reloaded. Next: certbot --nginx (see docs/runbooks/vps-wiring-runbook.md)"
