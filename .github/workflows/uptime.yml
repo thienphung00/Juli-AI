@@ -1,0 +1,61 @@
+name: Uptime Check
+
+# Minimal external uptime check — no Datadog/New Relic/ELK. Hits the two
+# public health endpoints and posts a Slack alert only on failure (no
+# per-run "all good" noise). See infra/scripts/smoke-test.sh for the fuller
+# deploy-time smoke check this intentionally does not duplicate.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check frontend (app-juli.com)
+        id: frontend
+        run: |
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://app-juli.com/ || echo 000)"
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          echo "frontend responded ${code}"
+
+      - name: Check backend health (api.app-juli.com/health)
+        id: backend
+        run: |
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.app-juli.com/health || echo 000)"
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          echo "backend responded ${code}"
+
+      - name: Evaluate
+        id: evaluate
+        run: |
+          fe="${{ steps.frontend.outputs.code }}"
+          be="${{ steps.backend.outputs.code }}"
+          failed=false
+          [[ "$fe" =~ ^2 ]] || failed=true
+          [[ "$be" =~ ^2 ]] || failed=true
+          echo "failed=${failed}" >> "$GITHUB_OUTPUT"
+          echo "app-juli.com=${fe} api.app-juli.com/health=${be}"
+
+      - name: Alert Slack on failure
+        if: steps.evaluate.outputs.failed == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          FRONTEND_CODE: ${{ steps.frontend.outputs.code }}
+          BACKEND_CODE: ${{ steps.backend.outputs.code }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::warning::Uptime check failed but SLACK_WEBHOOK_URL secret is not set — no alert sent." >&2
+            exit 1
+          fi
+          text=":rotating_light: Juli App Review uptime check failed — app-juli.com=${FRONTEND_CODE} api.app-juli.com/health=${BACKEND_CODE} (run: ${RUN_URL})"
+          payload="$(python3 -c 'import json, sys; print(json.dumps({"text": sys.argv[1]}))' "${text}")"
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data "${payload}" \
+            "${SLACK_WEBHOOK_URL}"
+
+      - name: Fail the run if unhealthy
+        if: steps.evaluate.outputs.failed == 'true'
+        run: exit 1

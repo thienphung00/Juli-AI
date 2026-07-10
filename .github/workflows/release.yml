@@ -27,7 +27,7 @@ jobs:
 
   # Deploys to the single review VPS via SSH — no Railway/Vercel/containers.
   # Skipped on tag pushes (tags cut a GitHub Release from what's already live;
-  # only a push to main triggers a new deploy). See infra/deploy/deploy-release.sh
+  # only a push to main triggers a new deploy). See infra/scripts/deploy-release.sh
   # for the release-worktree/symlink/health-check mechanics run on the VPS.
   deploy:
     runs-on: ubuntu-latest
@@ -45,14 +45,14 @@ jobs:
           script_stop: true
           # Pulls the canonical checkout up to this SHA first so deploy-release.sh
           # itself is always the version being deployed, then hands off to it —
-          # see infra/deploy/deploy-release.sh for the worktree/health-check flow.
+          # see infra/scripts/deploy-release.sh for the worktree/health-check flow.
           script: |
             set -euo pipefail
             cd ~/Juli-AI-v2
             git fetch origin main
             git checkout main
             git pull --ff-only origin main
-            ./infra/deploy/deploy-release.sh "${{ github.sha }}"
+            ./infra/scripts/deploy-release.sh "${{ github.sha }}"
 
   generate-release-artifact:
     runs-on: ubuntu-latest

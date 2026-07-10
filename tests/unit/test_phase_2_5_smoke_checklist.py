@@ -14,11 +14,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
+SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 FEATURE_DIR = REPO_ROOT / "docs/features/app_review_deployment"
 
 SMOKE_CHECKLIST_RUNBOOK_PATH = DEPLOY_DIR / "smoke-checklist-runbook.md"
-SMOKE_TEST_PATH = DEPLOY_DIR / "smoke-test.sh"
-ENV_BACKEND_PATH = DEPLOY_DIR / "env/api.env.example"
+SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
+ENV_BACKEND_PATH = SCRIPTS_DIR / "env/api.env.example"
 PRD_PATH = FEATURE_DIR / "PRD.md"
 SUMMARY_PATH = FEATURE_DIR / "summary.md"
 ISSUES_PATH = FEATURE_DIR / "issues.md"

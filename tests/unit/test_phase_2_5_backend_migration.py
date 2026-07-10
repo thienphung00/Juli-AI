@@ -57,6 +57,6 @@ def test_src_python_runtime_shims_removed():
 
 def test_deploy_entrypoint_uses_backend_api_main():
     """Deploy systemd uses canonical juli_backend.api.main:app entrypoint."""
-    service = (REPO_ROOT / "infra/deploy/systemd/juli-api.service").read_text(encoding="utf-8")
+    service = (REPO_ROOT / "infra/systemd/juli-api.service").read_text(encoding="utf-8")
     assert "juli_backend.api.main:app" in service
     assert "src.apps.api_gateway" not in service

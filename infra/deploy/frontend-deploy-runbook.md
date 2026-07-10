@@ -5,8 +5,8 @@
 > **Next:** [#258](backend-deploy-runbook.md) (backend) → [#254](https://github.com/thienphung00/Juli-AI/issues/254) (E2E)
 
 Deploy the existing `web/` Next.js app behind `https://app-juli.com/` for TikTok
-reviewers. Landing page and demo app work remain **deferred to Phase 3** — this
-slice serves only the legacy `web/` reviewer UI.
+reviewers. Landing page and demo app work remain **deferred** — this
+slice serves only the App Review seller dashboard UI.
 
 ---
 
@@ -21,8 +21,8 @@ https://app-juli.com  →  Nginx  →  juli-web (127.0.0.1:3000)  →  Next.js p
 | Service | `juli-web` (systemd) |
 | Upstream | `127.0.0.1:3000` |
 | Build env | `~/Juli-AI-v2/web/.env.production` |
-| Build script | `./infra/deploy/build-frontend-review.sh` |
-| Provision script | `sudo ./infra/deploy/provision-frontend.sh` |
+| Build script | `./infra/scripts/build-frontend-review.sh` |
+| Provision script | `sudo ./infra/scripts/provision-frontend.sh` |
 
 ---
 
@@ -35,15 +35,15 @@ cd ~/Juli-AI-v2
 git pull
 
 # 1. Frontend env (placeholders only in git — real file stays on VPS)
-cp -n infra/deploy/env/web.env.example web/.env.production
+cp -n infra/scripts/env/web.env.example web/.env.production
 grep NEXT_PUBLIC_API_URL=https://api.app-juli.com web/.env.production
 
 # 2. Install systemd unit, build, and start juli-web
-chmod +x infra/deploy/provision-frontend.sh infra/deploy/build-frontend-review.sh
-sudo ./infra/deploy/provision-frontend.sh
+chmod +x infra/scripts/provision-frontend.sh infra/scripts/build-frontend-review.sh
+sudo ./infra/scripts/provision-frontend.sh
 
 # 3. Verify frontend + login over public HTTPS
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
 `provision-frontend.sh` copies `juli-web.service`, runs `build-frontend-review.sh`
@@ -64,7 +64,7 @@ cd ~/Juli-AI-v2
 #   NEXT_PUBLIC_API_URL=https://api.app-juli.com
 #   NEXT_PUBLIC_UI_ONLY=1   (reviewer demo login — see fallback below)
 
-./infra/deploy/build-frontend-review.sh   # npm ci && rm -rf .next && npm run build
+./infra/scripts/build-frontend-review.sh   # npm ci && rm -rf .next && npm run build
 sudo systemctl restart juli-web
 ```
 
@@ -90,7 +90,7 @@ If login shows phone OTP instead of demo entry:
 
 ```bash
 grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
-./infra/deploy/build-frontend-review.sh
+./infra/scripts/build-frontend-review.sh
 sudo systemctl restart juli-web
 ```
 
@@ -106,7 +106,7 @@ Full reviewer login sign-off: [`reviewer-login-runbook.md`](reviewer-login-runbo
 ```bash
 cd ~/Juli-AI-v2
 git pull
-./infra/deploy/build-frontend-review.sh
+./infra/scripts/build-frontend-review.sh
 sudo systemctl restart juli-web
 sudo systemctl status juli-web --no-pager
 ```
@@ -123,7 +123,7 @@ from `juli-web` (`npm run start -- --port 3000 --hostname 127.0.0.1`).
 - [ ] `curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/` returns 2xx
 - [ ] `https://app-juli.com/` loads over HTTPS (no local setup required)
 - [ ] `https://app-juli.com/login` loads and shows demo login entry
-- [ ] `./infra/deploy/smoke-test.sh` passes frontend + login checks
+- [ ] `./infra/scripts/smoke-test.sh` passes frontend + login checks
 - [ ] Landing page / `demo.app-juli.com` work **not** started (Phase 3)
 
 ---
@@ -137,7 +137,7 @@ Rebuild and restart together:
 
 ```bash
 cd ~/Juli-AI-v2
-./infra/deploy/build-frontend-review.sh
+./infra/scripts/build-frontend-review.sh
 sudo systemctl restart juli-web
 ```
 

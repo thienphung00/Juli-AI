@@ -15,13 +15,15 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
+SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
+SYSTEMD_DIR = REPO_ROOT / "infra/systemd"
 
 FRONTEND_RUNBOOK_PATH = DEPLOY_DIR / "frontend-deploy-runbook.md"
-PROVISION_FRONTEND_PATH = DEPLOY_DIR / "provision-frontend.sh"
-BUILD_SCRIPT_PATH = DEPLOY_DIR / "build-frontend-review.sh"
-SYSTEMD_FRONTEND_PATH = DEPLOY_DIR / "systemd/juli-web.service"
-ENV_FRONTEND_PATH = DEPLOY_DIR / "env/web.env.example"
-SMOKE_TEST_PATH = DEPLOY_DIR / "smoke-test.sh"
+PROVISION_FRONTEND_PATH = SCRIPTS_DIR / "provision-frontend.sh"
+BUILD_SCRIPT_PATH = SCRIPTS_DIR / "build-frontend-review.sh"
+SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-web.service"
+ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/web.env.example"
+SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
 ISSUES_PATH = REPO_ROOT / "docs/features/app_review_deployment/issues.md"
 PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
 

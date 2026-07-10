@@ -25,9 +25,9 @@ App Review remains live at `app-juli.com` + `api.app-juli.com` (sign-off 2026-07
 
 ```bash
 cd ~/Juli-AI-v2 && git pull
-sudo cp infra/deploy/systemd/juli-api.service /etc/systemd/system/
+sudo cp infra/systemd/juli-api.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl restart juli-api
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
 Do **not** pull shim-deletion commits until the systemd unit above is installed, or

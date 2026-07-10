@@ -5,12 +5,12 @@
 # Run on the VPS after DNS A records point at the host and nginx is installed.
 #
 # Usage (on VPS):
-#   sudo ./infra/deploy/provision-nginx.sh
-#   REPO_ROOT=~/Juli-AI-v2 sudo ./infra/deploy/provision-nginx.sh
+#   sudo ./infra/scripts/provision-nginx.sh
+#   REPO_ROOT=~/Juli-AI-v2 sudo ./infra/scripts/provision-nginx.sh
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-NGINX_SRC="${REPO_ROOT}/infra/deploy/nginx"
+NGINX_SRC="${REPO_ROOT}/infra/nginx"
 SITES_AVAILABLE="/etc/nginx/sites-available"
 SITES_ENABLED="/etc/nginx/sites-enabled"
 

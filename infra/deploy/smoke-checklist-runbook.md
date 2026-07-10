@@ -60,7 +60,7 @@ From the repo root on the review VPS:
 
 ```bash
 cd ~/Juli-AI-v2
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
 `smoke-test.sh` asserts:
@@ -79,7 +79,7 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
 DNS/TLS-only mode (before apps are up, #256):
 
 ```bash
-./infra/deploy/smoke-test.sh --dns-tls-only
+./infra/scripts/smoke-test.sh --dns-tls-only
 ```
 
 ---
@@ -141,7 +141,7 @@ python -m pytest tests/unit/test_phase_2_5_deploy_config.py \
 |---------|-----|
 | CORS preflight fails | Set `CORS_ALLOW_ORIGINS=https://app-juli.com` in `.env`; restart `juli-api` |
 | `/health` returns 502 | `sudo systemctl status juli-api`; check `DATABASE_URL` |
-| Login missing demo markers | Rebuild with `./infra/deploy/build-frontend-review.sh`; restart `juli-web` |
+| Login missing demo markers | Rebuild with `./infra/scripts/build-frontend-review.sh`; restart `juli-web` |
 | Home chunks return 400 | Stale partial build — run `build-frontend-review.sh` and restart `juli-web` |
 | OAuth callback 5xx | Check `juli-api` logs; verify TikTok env vars on VPS |
 
@@ -169,6 +169,6 @@ VPS transcript:
 grep CORS_ALLOW_ORIGINS=https://app-juli.com ~/Juli-AI-v2/.env
 → CORS_ALLOW_ORIGINS=https://app-juli.com
 
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 → 11 passed, 0 failed (DNS, TLS, frontend, /health, OAuth callback, reviewer login, home chunks, CORS)
 ```

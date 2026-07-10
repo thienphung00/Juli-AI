@@ -124,8 +124,8 @@ Pre-established evidence to write up:
 - [ ] `backend/.../database/migrations/env.py`: imports `backend.database.*`, `backend.runtime`
 - [ ] `.github/workflows/pr.yml`: `mypy backend/`, `bandit -r backend/`, `--cov=backend`, `pip install -r requirements.txt`
 - [ ] `.github/workflows/release.yml`: `mypy backend/`
-- [ ] **`infra/deploy/systemd/juli-api.service`**: `uvicorn backend.api.api.main:app` → `juli_backend.api.api.main:app`
-- [ ] **`infra/deploy/deploy-release.sh`**: add `pip install -e .` (or `-e backend`) after venv create — *flagged deploy change*
+- [ ] **`infra/systemd/juli-api.service`**: `uvicorn backend.api.api.main:app` → `juli_backend.api.api.main:app`
+- [ ] **`infra/scripts/deploy-release.sh`**: add `pip install -e .` (or `-e backend`) after venv create — *flagged deploy change*
 - [ ] any other `backend/` path refs in scripts/docs
 
 **Gate:** clean venv `pip install -e ".[dev]"` succeeds; `pytest` == baseline; alembic up/down/up green.
@@ -147,9 +147,9 @@ Target (prompt): `api/{routes,middleware,dependencies}`, `services/`, `repositor
 
 **Reference-update checklist:**
 - [ ] CI `frontend` job: `working-directory: web` → `apps/dashboard`; `cache-dependency-path: web/package-lock.json`
-- [ ] `infra/deploy/systemd/juli-web.service`: `WorkingDirectory=/root/releases/current/web` → `.../apps/dashboard`
-- [ ] `infra/deploy/deploy-release.sh`: `web/.env.production` + build/copy paths
-- [ ] `infra/deploy/nginx/*.conf`: verify upstream still `127.0.0.1:3000` (unchanged, confirm)
+- [ ] `infra/systemd/juli-web.service`: `WorkingDirectory=/root/releases/current/web` → `.../apps/dashboard`
+- [ ] `infra/scripts/deploy-release.sh`: `web/.env.production` + build/copy paths
+- [ ] `infra/nginx/*.conf`: verify upstream still `127.0.0.1:3000` (unchanged, confirm)
 - [ ] root `package.json` scripts referencing `juli-web`/turbo
 - [ ] `web/MODULE.md`, docs referencing `web/`
 
@@ -159,14 +159,14 @@ Target (prompt): `api/{routes,middleware,dependencies}`, `services/`, `repositor
 
 | From | To |
 |---|---|
-| `infra/deploy/nginx/` | `infra/nginx/` |
-| `infra/deploy/systemd/` | `infra/systemd/` |
+| `infra/nginx/` | `infra/nginx/` |
+| `infra/systemd/` | `infra/systemd/` |
 | `infra/deploy/*.sh` | `infra/scripts/` |
-| `infra/deploy/aws/iam-policy-secrets-reader.json` | `infra/scripts/aws/` (secrets-only, not an IaC tree) |
-| `infra/deploy/env/` | `infra/scripts/env/` (or keep adjacent to scripts that read it — confirm) |
+| `infra/scripts/aws/iam-policy-secrets-reader.json` | `infra/scripts/aws/` (secrets-only, not an IaC tree) |
+| `infra/scripts/env/` | `infra/scripts/env/` (or keep adjacent to scripts that read it — confirm) |
 
 Do **not** create `infra/docker/`, `infra/terraform/`, `infra/aws/` IaC.
-**Reference-update checklist:** systemd `ExecStartPre=/root/Juli-AI-v2/infra/deploy/fetch-secrets.sh`, `EnvironmentFile` notes; `release.yml`/`rollback.yml` script paths; runbooks referencing `infra/deploy/…`.
+**Reference-update checklist:** systemd `ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh`, `EnvironmentFile` notes; `release.yml`/`rollback.yml` script paths; runbooks referencing `infra/deploy/…`.
 
 ## Phase 5 — Docs reorg
 Into `docs/{architecture,api,deployment,runbooks,adr,product,ml,integrations}`.
@@ -191,5 +191,5 @@ Suggested mapping: `docs/decisions/` → `adr/`; `docs/tiktok_api/` → `integra
 ## Open items to confirm during execution
 - P0: keep or delete `apps/demo` / `apps/landing` (marketing split?) and `apps/mobile` (dup of `ios/`).
 - P2: destination of `database/models.py` + `repos.py` (`models/`+`repositories/` vs stay); confirm re-export surface.
-- P4: whether `infra/deploy/env/` moves under `scripts/` or stays adjacent.
+- P4: whether `infra/scripts/env/` moves under `scripts/` or stays adjacent.
 - P5: any doc that resists the 8 categories.

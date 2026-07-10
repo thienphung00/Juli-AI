@@ -29,7 +29,7 @@ inventory, no rotation path, and no access control beyond "whoever can SSH in."
 **Deployment target stays the existing VPS — no new compute infra.** No Docker, no
 containers, no ECS/ECR/Kubernetes/EC2, no Railway, no Vercel. `release.yml` deploys over
 SSH (`appleboy/ssh-action`) on every merge to `main`, running
-[`infra/deploy/deploy-release.sh`](../../infra/deploy/deploy-release.sh) on the VPS.
+[`infra/scripts/deploy-release.sh`](../../infra/scripts/deploy-release.sh) on the VPS.
 
 - **Release model:** git worktrees, not overwrite-in-place. The canonical checkout
   (`~/Juli-AI-v2`) is the source of truth for `git worktree add`; each deploy creates
@@ -38,7 +38,7 @@ SSH (`appleboy/ssh-action`) on every merge to `main`, running
   units run from `~/releases/current`. Keeps the last 3 releases for rollback.
 - **Rollback:** manual, `workflow_dispatch`-triggered
   ([`rollback.yml`](../../.github/workflows/rollback.yml) →
-  [`rollback-release.sh`](../../infra/deploy/rollback-release.sh)) — re-point the symlink to
+  [`rollback-release.sh`](../../infra/scripts/rollback-release.sh)) — re-point the symlink to
   a previous release and restart. No blue/green, no automatic rollback-on-failure.
 - **Secrets move to AWS Secrets Manager** — the one AWS *service* adopted here, for secret
   storage only; this is not a move of compute to AWS. Two secrets grouped by app
@@ -48,7 +48,7 @@ SSH (`appleboy/ssh-action`) on every merge to `main`, running
   role (the VPS isn't EC2). Static credentials live only in
   `/etc/juli/aws-credentials` on the VPS (root-owned, `chmod 600`) — never in git, never in
   GitHub Actions secrets.
-- **Fetch mechanism:** [`fetch-secrets.sh`](../../infra/deploy/fetch-secrets.sh) writes
+- **Fetch mechanism:** [`fetch-secrets.sh`](../../infra/scripts/fetch-secrets.sh) writes
   `/etc/juli/juli-{api,web}.env`, wired as `ExecStartPre=` on both systemd units *and* called
   at the start of every deploy. Chosen over deploy-time-only fetch so a bare
   `systemctl restart` (crash, reboot) also picks up the latest secret value; the accepted
@@ -111,8 +111,8 @@ SSH (`appleboy/ssh-action`) on every merge to `main`, running
 
 - [`infra/deploy/app-review-runbook.md`](../../infra/deploy/app-review-runbook.md) — full
   topology, secrets inventory, IAM policy, rotation flow, rollback, and log commands
-- [`infra/deploy/deploy-release.sh`](../../infra/deploy/deploy-release.sh),
-  [`rollback-release.sh`](../../infra/deploy/rollback-release.sh),
-  [`fetch-secrets.sh`](../../infra/deploy/fetch-secrets.sh)
-- [`infra/deploy/aws/iam-policy-secrets-reader.json`](../../infra/deploy/aws/iam-policy-secrets-reader.json)
+- [`infra/scripts/deploy-release.sh`](../../infra/scripts/deploy-release.sh),
+  [`rollback-release.sh`](../../infra/scripts/rollback-release.sh),
+  [`fetch-secrets.sh`](../../infra/scripts/fetch-secrets.sh)
+- [`infra/scripts/aws/iam-policy-secrets-reader.json`](../../infra/scripts/aws/iam-policy-secrets-reader.json)
 - `.github/workflows/release.yml`, `rollback.yml`, `uptime.yml`, `pr.yml`

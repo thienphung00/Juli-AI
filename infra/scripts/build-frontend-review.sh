@@ -6,7 +6,7 @@
 #
 # Usage (on the VPS):
 #   cd ~/Juli-AI-v2
-#   ./infra/deploy/build-frontend-review.sh
+#   ./infra/scripts/build-frontend-review.sh
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -15,7 +15,7 @@ ENV_FILE="${WEB_DIR}/.env.production"
 
 if [ ! -f "${ENV_FILE}" ]; then
     echo "Missing ${ENV_FILE}" >&2
-    echo "Copy infra/deploy/env/web.env.example to web/.env.production first." >&2
+    echo "Copy infra/scripts/env/web.env.example to web/.env.production first." >&2
     exit 1
 fi
 

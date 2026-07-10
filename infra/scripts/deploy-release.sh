@@ -15,8 +15,8 @@
 #
 # Usage (on the VPS, from the canonical checkout):
 #   cd ~/Juli-AI-v2 && git fetch origin main && git checkout main && git pull
-#   ./infra/deploy/deploy-release.sh <sha>
-#   ./infra/deploy/deploy-release.sh                 # defaults to origin/main HEAD
+#   ./infra/scripts/deploy-release.sh <sha>
+#   ./infra/scripts/deploy-release.sh                 # defaults to origin/main HEAD
 #
 # Env overrides: KEEP_RELEASES (default 3), HEALTH_TIMEOUT_SECS (default 60).
 set -euo pipefail
@@ -40,8 +40,8 @@ echo "== Juli deploy: ${sha} (${short_sha}) =="
 mkdir -p "${RELEASES_ROOT}"
 
 # --- 1. Refresh secrets before building so the new release's env is current ---
-if [ -x "${CANONICAL_ROOT}/infra/deploy/fetch-secrets.sh" ]; then
-    "${CANONICAL_ROOT}/infra/deploy/fetch-secrets.sh"
+if [ -x "${CANONICAL_ROOT}/infra/scripts/fetch-secrets.sh" ]; then
+    "${CANONICAL_ROOT}/infra/scripts/fetch-secrets.sh"
 else
     echo "WARN: fetch-secrets.sh missing or not executable — reusing existing ${API_ENV_FILE}/${WEB_ENV_FILE}" >&2
 fi
@@ -81,7 +81,7 @@ set +a
 # --- 4. Frontend: build with the App Review env baked in ---
 echo "-- frontend --"
 cp "${WEB_ENV_FILE}" "${release_dir}/web/.env.production"
-"${release_dir}/infra/deploy/build-frontend-review.sh"
+"${release_dir}/infra/scripts/build-frontend-review.sh"
 
 # --- 5. Cut over: atomically flip the `current` symlink ---
 echo "-- cutover --"

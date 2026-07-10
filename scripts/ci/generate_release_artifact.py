@@ -118,7 +118,7 @@ def main() -> int:
             "dataLossPotential": False,
             "criticalSteps": [
                 "Trigger rollback.yml (workflow_dispatch) or run "
-                "infra/deploy/rollback-release.sh on the VPS directly",
+                "infra/scripts/rollback-release.sh on the VPS directly",
                 "alembic downgrade -1 if the migration is not backward compatible",
             ],
             "testRollback": True,

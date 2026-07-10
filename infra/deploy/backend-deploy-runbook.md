@@ -20,9 +20,9 @@ https://api.app-juli.com  →  Nginx  →  juli-api (127.0.0.1:8000)  →  FastA
 |------|-------|
 | Service | `juli-api` (systemd) |
 | Upstream | `127.0.0.1:8000` |
-| Env file | `~/Juli-AI-v2/.env` (from `infra/deploy/env/api.env.example`) |
+| Env file | `~/Juli-AI-v2/.env` (from `infra/scripts/env/api.env.example`) |
 | ASGI entry | `backend.api.api.main:app` |
-| Provision script | `sudo ./infra/deploy/provision-backend.sh` |
+| Provision script | `sudo ./infra/scripts/provision-backend.sh` |
 
 ---
 
@@ -73,17 +73,17 @@ cd ~/Juli-AI-v2
 git pull
 
 # 1. Backend env (placeholders only in git — real file stays on VPS)
-cp -n infra/deploy/env/api.env.example .env
+cp -n infra/scripts/env/api.env.example .env
 grep DATABASE_URL= .env
 grep CORS_ALLOW_ORIGINS=https://app-juli.com .env
 
 # 2. Install systemd unit, venv deps, and start juli-api
-chmod +x infra/deploy/provision-backend.sh
-sudo ./infra/deploy/provision-backend.sh
+chmod +x infra/scripts/provision-backend.sh
+sudo ./infra/scripts/provision-backend.sh
 
 # 3. Verify backend health over public HTTPS
 curl -sS https://api.app-juli.com/health
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
 `provision-backend.sh` copies `juli-api.service`, ensures `.env` exists from the
@@ -111,7 +111,7 @@ Manual equivalent:
 cd ~/Juli-AI-v2
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-sudo cp infra/deploy/systemd/juli-api.service /etc/systemd/system/
+sudo cp infra/systemd/juli-api.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl restart juli-api
 ```
@@ -124,7 +124,7 @@ sudo systemctl restart juli-api
 - [ ] `juli-api` is active (`systemctl is-active juli-api`)
 - [ ] `curl -sS http://127.0.0.1:8000/health` returns JSON with `"status":"ok"`
 - [ ] `https://api.app-juli.com/health` returns 2xx JSON over HTTPS
-- [ ] `./infra/deploy/smoke-test.sh` passes backend `/health` check
+- [ ] `./infra/scripts/smoke-test.sh` passes backend `/health` check
 - [ ] Redis, cron, workers, ML jobs, polling, and webhook services **not** started
 - [ ] Alembic migrations **not** run unless OAuth/login persistence requires schema
 
