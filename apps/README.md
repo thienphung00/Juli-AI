@@ -1,24 +1,18 @@
 # apps/
 
-Product deployables for the Juli AI ecosystem. Each subdirectory is an independently deployable app.
+Product deployables for the Juli AI ecosystem.
 
-| App | Domain | Phase | Status |
-|-----|--------|-------|--------|
-| [`landing/`](landing/) | `app-juli.com` (Phase 3 target) | 3 | Scaffold only |
-| [`demo/`](demo/) | `demo.app-juli.com` | 3 | Scaffold only |
-| [`dashboard/`](dashboard/) | `dashboard.app-juli.com` | 3.5 | Scaffold only |
-| [`mobile/`](mobile/) | App stores | 4 | Scaffold only |
+| App | Domain | Status |
+|-----|--------|--------|
+| [`dashboard/`](dashboard/) | `app-juli.com` (App Review) | **Live** — Next.js seller dashboard (Home / Decisions / Juli Chat per ADR-014) |
 
-**Not to be confused with `backend/api/`** — that path is the FastAPI backend entrypoint.
+**Not to be confused with `backend/src/juli_backend/api/`** — that path is the FastAPI backend entrypoint.
 
-Runtime code currently lives in legacy paths:
+| Legacy | Current |
+|--------|---------|
+| `web/` (removed) | `apps/dashboard/` |
+| `ios/` | native iOS app (unchanged) |
 
-| Legacy | Future | Current live use |
-|--------|--------|------------------|
-| `web/` | `apps/dashboard` | **`app-juli.com`** (App Review until Phase 3 landing) |
-| `ios/` | `apps/mobile` | — |
+Frontend uses **npm** in `apps/dashboard/` (`npm ci`, `npm run build`, `npm run dev`).
 
-**Status:** Phase 2.5 complete (2026-07-03). Workspace tooling (`pnpm` + Turborepo) in place;
-scaffold members are private placeholders.
-
-See [`docs/phases/phase-2.5-deployment.md`](../docs/phases/phase-2.5-deployment.md).
+See [`docs/handoffs/repo-restructure-plan.md`](../docs/handoffs/repo-restructure-plan.md) Phase 3.

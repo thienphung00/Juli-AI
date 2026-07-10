@@ -12,7 +12,7 @@ topology, env vars (no secrets in git), independent frontend/backend restart, an
 validation.
 
 **VPS layout:** single checkout at `~/Juli-AI-v2` — backend `.env` at repo root,
-frontend `.env.production` in `web/`.
+frontend `.env.production` in `apps/dashboard/`.
 
 | Path | Purpose |
 |------|---------|
@@ -42,7 +42,7 @@ delivery, rollback, secrets, and monitoring are documented in
 
 | Domain | Product |
 |--------|---------|
-| `app-juli.com` | App Review frontend (`web/`) |
+| `app-juli.com` | App Review frontend (`apps/dashboard/`) |
 | `demo.app-juli.com` | Demo |
 | `dashboard.app-juli.com` | Dashboard |
 | `api.app-juli.com` | Backend API |

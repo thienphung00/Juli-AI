@@ -8,11 +8,11 @@ cd "$ROOT"
 
 echo "Cleaning gitignored artifacts under $ROOT ..."
 
-rm -rf node_modules web/node_modules
-rm -rf apps/*/node_modules packages/*/node_modules 2>/dev/null || true
-rm -rf .next web/.next apps/*/.next 2>/dev/null || true
+rm -rf node_modules apps/dashboard/node_modules
+rm -rf apps/*/node_modules 2>/dev/null || true
+rm -rf .next apps/dashboard/.next apps/*/.next 2>/dev/null || true
 rm -rf __pycache__ .pytest_cache .turbo .coverage .coverage.*
 rm -rf .worktrees/
 find . -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
 
-echo "Done. Reinstall with: pip install -e '.[dev]' (or project venv) and cd web && pnpm install"
+echo "Done. Reinstall with: pip install -e './backend[dev]' and cd apps/dashboard && npm ci"

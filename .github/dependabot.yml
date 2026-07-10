@@ -1,0 +1,31 @@
+version: 2
+
+updates:
+  # Backend — requirements.txt at repo root
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - backend
+
+  # Frontend — apps/dashboard/package.json
+  - package-ecosystem: npm
+    directory: /apps/dashboard
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - frontend
+
+  # GitHub Actions workflow pinning
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - ci

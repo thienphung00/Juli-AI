@@ -63,7 +63,7 @@ def test_runbook_documents_review_topology(runbook_text: str):
 
 def test_runbook_documents_single_monorepo_vps_layout(runbook_text: str):
     assert "Juli-AI-v2" in runbook_text
-    assert "web/.env.production" in runbook_text
+    assert "apps/dashboard/.env.production" in runbook_text
     assert FRONTEND_PORT in runbook_text, "frontend upstream port must be documented"
     assert BACKEND_PORT in runbook_text, "backend upstream port must be documented"
 
@@ -161,7 +161,7 @@ def test_env_examples_exist_and_are_placeholders_only():
     assert "NEXT_PUBLIC_API_URL=" in web_env
     assert "NEXT_PUBLIC_UI_ONLY=1" in web_env
     assert "Juli-AI-v2" in api_env
-    assert "Juli-AI-v2/web" in web_env
+    assert "Juli-AI-v2/apps/dashboard" in web_env
 
 
 def test_env_examples_do_not_contain_real_secrets():

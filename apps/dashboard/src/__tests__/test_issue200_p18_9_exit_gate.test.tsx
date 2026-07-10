@@ -29,11 +29,11 @@ const globalsCss = fs.readFileSync(
 );
 const moduleDoc = fs.readFileSync(path.join(__dirname, "../../MODULE.md"), "utf8");
 const executionDoc = fs.readFileSync(
-  path.join(__dirname, "../../../EXECUTION.md"),
+  path.join(__dirname, "../../../../EXECUTION.md"),
   "utf8",
 );
 const adr014Doc = fs.readFileSync(
-  path.join(__dirname, "../../../docs/decisions/014-decision-copilot-app-structure-and-journey.md"),
+  path.join(__dirname, "../../../../docs/decisions/014-decision-copilot-app-structure-and-journey.md"),
   "utf8",
 );
 

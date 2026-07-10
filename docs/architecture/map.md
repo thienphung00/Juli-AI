@@ -15,8 +15,7 @@ Product-oriented monorepo — `backend/` holds runtime Python services (ADR-019:
 `src/` shim tree removed).
 
 ```
-apps/          # Product deployables (landing, demo, dashboard, mobile)
-packages/      # Shared UI, types, api-client, utils
+apps/          # Product deployables (dashboard)
 backend/       # API, workers, AI, integrations, database
 infra/         # CI/CD, deploy config, env templates
 docs/
@@ -26,7 +25,7 @@ See [`migration-plan.md`](migration-plan.md) for full path mapping and migration
 
 ### Current layout (as-built)
 
-The backend is a modular monolith under `backend/`. Frontends live in `web/` and
+The backend is a modular monolith under `backend/`. Frontends live in `apps/dashboard/` and
 `ios/`. **`backend/api/` and `backend/workers/` are backend entrypoints — not top-level `apps/`.**
 
 ```
@@ -45,11 +44,11 @@ backend/src/juli_backend/
 └── database/                     # Engine/session, Alembic migrations
 ```
 
-Frontends (legacy, pre-ecosystem):
+Frontends (as-built):
 
 | Path | Product role | Future target |
 |------|--------------|---------------|
-| `web/` | Seller dashboard (3-tab IA, ADR-014) | `apps/dashboard` (Phase 3.5) |
+| `apps/dashboard/` | Seller dashboard (3-tab IA, ADR-014) | — (consolidated Phase 3) |
 | `ios/` | SwiftUI mobile app | `apps/mobile` (Phase 4) |
 
 ## Module tier policy
@@ -73,7 +72,7 @@ Frontends (legacy, pre-ecosystem):
 | [`backend/src/juli_backend/api`](../../backend/src/juli_backend/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, orders, products, creators, recommendations, outcomes | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/orders`, `GET /v1/products`, `GET /v1/creators`, `GET /v1/recommendations` | domain: api |
 | [`backend/src/juli_backend/ai/recommendations`](../../backend/src/juli_backend/ai/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
 | [`backend/src/juli_backend/services/etl`](../../backend/src/juli_backend/services/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
-| [`web`](../../web/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
+| [`apps/dashboard`](../../apps/dashboard/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: demo auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
 | [`backend/ai/dataset`](../../backend/ai/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
 | [`backend/ai/features`](../../backend/ai/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | domain: ml |
@@ -89,11 +88,11 @@ Tracked by [ADR-016](../decisions/016-listing-workflow-implementation.md) and
 
 | Module | Tier | Responsibility | Public Surface | Owners |
 |--------|------|----------------|----------------|--------|
-| [`web/src/lib/mock-data/listing-workflow`](../../web/src/lib/mock-data/listing-workflow/MODULE.md) | 2 | Listing workflow mock fixtures: ProductDraft, Distributor, Opportunity | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | domain: web |
-| [`web/src/lib/workflows/new-seller/listing`](../../web/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Listing generation + export: rules engine, CSV/JSON serialize, state machine | `generateProductDraft`, `exportProductDraft`, `useListingWorkflow` | domain: web |
-| [`web/src/lib/workflows/new-seller/shop-progress`](../../web/src/lib/workflows/new-seller/shop-progress/MODULE.md) | 2 | Session-scoped listing milestone + widget states | `loadShopProgress`, `recordExportCompleted`, `useShopProgress` | domain: web |
-| [`web/src/components/workflows/new-seller/listing`](../../web/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | 2 | Modal listing workflow from approved `list_products` | `ListingWorkflowPanel` | domain: web |
-| [`web/src/components/workflows/new-seller/ListingProgressWidget`](../../web/src/components/workflows/new-seller/ListingProgressWidget.tsx) | 2 | Copilot home listing progress widget | `ListingProgressWidget` | domain: web |
+| [`apps/dashboard/src/lib/mock-data/listing-workflow`](../../apps/dashboard/src/lib/mock-data/listing-workflow/MODULE.md) | 2 | Listing workflow mock fixtures: ProductDraft, Distributor, Opportunity | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | domain: web |
+| [`apps/dashboard/src/lib/workflows/new-seller/listing`](../../apps/dashboard/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Listing generation + export: rules engine, CSV/JSON serialize, state machine | `generateProductDraft`, `exportProductDraft`, `useListingWorkflow` | domain: web |
+| [`apps/dashboard/src/lib/workflows/new-seller/shop-progress`](../../apps/dashboard/src/lib/workflows/new-seller/shop-progress/MODULE.md) | 2 | Session-scoped listing milestone + widget states | `loadShopProgress`, `recordExportCompleted`, `useShopProgress` | domain: web |
+| [`apps/dashboard/src/components/workflows/new-seller/listing`](../../apps/dashboard/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | 2 | Modal listing workflow from approved `list_products` | `ListingWorkflowPanel` | domain: web |
+| [`apps/dashboard/src/components/workflows/new-seller/ListingProgressWidget`](../../apps/dashboard/src/components/workflows/new-seller/ListingProgressWidget.tsx) | 2 | Copilot home listing progress widget | `ListingProgressWidget` | domain: web |
 
 ## Planned modules (Phase 1.7 / 1.8 / Phase 2 — not yet deployed)
 
@@ -103,17 +102,17 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 
 | Module (planned) | Target phase | Responsibility |
 |------------------|--------------|----------------|
-| `web/src/lib/mock-data/leakage-workflow/` | P1.7 | Leakage workflow fixtures: `LeakageWorkflowTask`, evidence bundles, execution plans |
-| `web/src/lib/workflows/leakage/state-machine.ts` + `use-leakage-workflow.ts` | P1.7 | Leakage step graph, session resume, `canAdvance` |
-| `web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` | P1.7 | Modal leakage workflow from approved leakage tasks; four task-type step renderers |
-| `web/src/lib/mock-data/operations/` | P1.8 | `unified_operational_data_model` fixtures + datum→workflow traceability map (P1.8-2) |
-| `web/src/lib/operations/classification.ts` | P1.8 | Rules-based `shop_profile` classification + profile→workflow catalog mapping (P1.8-1) |
-| `web/src/lib/operations/health-check.ts` | P1.8 | `health_check_results` indicators from mock operational data (P1.8-3) |
-| `web/src/lib/operations/recommendations.ts` + `use-operations-pipeline.ts` | P1.8 | `workflow_recommendations` ranking + pipeline orchestration hook (P1.8-4) |
-| `web/src/components/workflows/operations/` | P1.8 | Operations pipeline shell: reasoning panel, unified approval gate + routing, outcome tracking views (P1.8-5…P1.8-7) |
-| `web/src/app/decisions/` + `web/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)) |
-| `web/src/components/home/todays-report/` | P1.8-9 | Today's Report domain cards (Revenue Growth, Revenue Protection, Product Listings, Advertising, Refunds) with animated domain switcher on Home |
-| `web/src/lib/decisions/` | P1.8-9 | Decision view-model: map `workflow_recommendations` → Decision envelopes + lifecycle status (`recommended` / `needs_input` / `executing` / `completed`) |
+| `apps/dashboard/src/lib/mock-data/leakage-workflow/` | P1.7 | Leakage workflow fixtures: `LeakageWorkflowTask`, evidence bundles, execution plans |
+| `apps/dashboard/src/lib/workflows/leakage/state-machine.ts` + `use-leakage-workflow.ts` | P1.7 | Leakage step graph, session resume, `canAdvance` |
+| `apps/dashboard/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` | P1.7 | Modal leakage workflow from approved leakage tasks; four task-type step renderers |
+| `apps/dashboard/src/lib/mock-data/operations/` | P1.8 | `unified_operational_data_model` fixtures + datum→workflow traceability map (P1.8-2) |
+| `apps/dashboard/src/lib/operations/classification.ts` | P1.8 | Rules-based `shop_profile` classification + profile→workflow catalog mapping (P1.8-1) |
+| `apps/dashboard/src/lib/operations/health-check.ts` | P1.8 | `health_check_results` indicators from mock operational data (P1.8-3) |
+| `apps/dashboard/src/lib/operations/recommendations.ts` + `use-operations-pipeline.ts` | P1.8 | `workflow_recommendations` ranking + pipeline orchestration hook (P1.8-4) |
+| `apps/dashboard/src/components/workflows/operations/` | P1.8 | Operations pipeline shell: reasoning panel, unified approval gate + routing, outcome tracking views (P1.8-5…P1.8-7) |
+| `apps/dashboard/src/app/decisions/` + `apps/dashboard/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)) |
+| `apps/dashboard/src/components/home/todays-report/` | P1.8-9 | Today's Report domain cards (Revenue Growth, Revenue Protection, Product Listings, Advertising, Refunds) with animated domain switcher on Home |
+| `apps/dashboard/src/lib/decisions/` | P1.8-9 | Decision view-model: map `workflow_recommendations` → Decision envelopes + lifecycle status (`recommended` / `needs_input` / `executing` / `completed`) |
 | `backend/src/juli_backend/services/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
 | `backend/src/juli_backend/services/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
 | `backend/src/juli_backend/services/operations/` *(TBD)* | P2 | Live operations pipeline (P2-11): real classification, health, ranking, outcome tracking |

@@ -33,7 +33,7 @@ SSH (`appleboy/ssh-action`) on every merge to `main`, running
 
 - **Release model:** git worktrees, not overwrite-in-place. The canonical checkout
   (`~/Juli-AI-v2`) is the source of truth for `git worktree add`; each deploy creates
-  `~/releases/<short-sha>/` with its own `.venv` / `web/node_modules`, then atomically flips
+  `~/releases/<short-sha>/` with its own `.venv` / `apps/dashboard/node_modules`, then atomically flips
   the `~/releases/current` symlink once the new build passes a health check. Both systemd
   units run from `~/releases/current`. Keeps the last 3 releases for rollback.
 - **Rollback:** manual, `workflow_dispatch`-triggered
@@ -65,7 +65,7 @@ SSH (`appleboy/ssh-action`) on every merge to `main`, running
   --cov-fail-under=80` (5 points below the measured 85% baseline at the time of this ADR, not
   an arbitrary 80%); `npm run build` added to the frontend job with the same
   `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_UI_ONLY` build-time env used in the real App Review
-  deploy. `.github/dependabot.yml` covers `pip` (root `requirements.txt`), `npm` (`web/`),
+  deploy. `.github/dependabot.yml` covers `pip` (root `requirements.txt`), `npm` (`apps/dashboard/`),
   and `github-actions` version updates.
 - **No staging environment.** One VPS, review traffic only — a second environment is an
   explicit future TODO, not built here.

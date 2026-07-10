@@ -83,7 +83,7 @@ def test_preview_change_rejects_forbidden_field() -> None:
 def test_build_runtime_includes_cross_layer_hints() -> None:
     runtime = build_runtime(load_simple_yaml(REPO_ROOT / "agent-runtime.config.yml"))
     ui = runtime["executorRoutingTable"]["ui-ux"]["crossLayer"]
-    assert "web" in ui["related_paths"]
+    assert "apps/dashboard" in ui["related_paths"]
     assert runtime["context"]["retrieval_depth"] == 3
 
 

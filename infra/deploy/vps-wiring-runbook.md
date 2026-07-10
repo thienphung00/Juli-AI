@@ -20,7 +20,7 @@ subdomains, production traffic.
 | Review VPS | Ubuntu 22.04+ or Debian 12+ with a **static public IPv4** |
 | SSH access | `sudo` for package install and Nginx reload |
 | DNS registrar | Ability to create **A records** for `app-juli.com` and `api.app-juli.com` |
-| Repo checkout | `~/Juli-AI-v2` (single monorepo — backend at repo root, frontend in `web/`) |
+| Repo checkout | `~/Juli-AI-v2` (single monorepo — backend at repo root, frontend in `apps/dashboard/`) |
 | Firewall | Inbound **80/tcp** and **443/tcp** open to the VPS |
 
 Record the VPS public IP as `VPS_IP` for the steps below. **Do not commit** the IP or

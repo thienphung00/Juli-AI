@@ -23,8 +23,8 @@ ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/web.env.example"
 SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
 ISSUES_PATH = REPO_ROOT / "docs/features/app_review_deployment/issues.md"
 PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
-LOGIN_FORM_PATH = REPO_ROOT / "web/src/components/LoginForm.tsx"
-AUTH_CONTEXT_PATH = REPO_ROOT / "web/src/lib/auth-context.tsx"
+LOGIN_FORM_PATH = REPO_ROOT / "apps/dashboard/src/components/LoginForm.tsx"
+AUTH_CONTEXT_PATH = REPO_ROOT / "apps/dashboard/src/lib/auth-context.tsx"
 
 APP_URL = "https://app-juli.com"
 

@@ -34,7 +34,7 @@ ADR-002: phone-OTP login was removed (2026-07). Supabase free tier remains for
 ```bash
 cd ~/Juli-AI-v2
 
-# web/.env.production must include:
+# apps/dashboard/.env.production must include:
 #   NEXT_PUBLIC_API_URL=https://api.app-juli.com
 #   NEXT_PUBLIC_UI_ONLY=1
 
@@ -49,8 +49,8 @@ sudo systemctl restart juli-web
 3. Select **Seller** workspace on `/mode-select` (if not already persisted).
 4. Browse Home, Decisions, and Juli AI with **mock demo data** — no API auth calls.
 
-Login implementation: `web/src/components/LoginForm.tsx` → `loginAsReviewer()` in
-`web/src/lib/auth-context.tsx` stores a local demo token and shop id.
+Login implementation: `apps/dashboard/src/components/LoginForm.tsx` → `loginAsReviewer()` in
+`apps/dashboard/src/lib/auth-context.tsx` stores a local demo token and shop id.
 
 ### Verify (HITL)
 
@@ -99,7 +99,7 @@ that is out of scope for the default App Review slice and needs a separate issue
 **Never commit** reviewer credentials, Supabase keys, or TikTok Partner Center
 secrets. Store them only in:
 
-- VPS env files (`~/Juli-AI-v2/.env`, `~/Juli-AI-v2/web/.env.production`)
+- VPS env files (`~/Juli-AI-v2/.env`, `~/Juli-AI-v2/apps/dashboard/.env.production`)
 - A password manager or secret manager
 - Operator ops notes (not this repository)
 
@@ -151,7 +151,7 @@ Reviewers do **not** need real TikTok Shop orders, PII, or production shop recor
 Build predates UI-only or was not built with the review script:
 
 ```bash
-grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
+grep NEXT_PUBLIC_UI_ONLY=1 apps/dashboard/.env.production
 ./infra/scripts/build-frontend-review.sh
 sudo systemctl restart juli-web
 ```

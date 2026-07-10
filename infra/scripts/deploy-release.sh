@@ -5,7 +5,7 @@
 #
 # Release model (no Docker/containers — plain git worktrees):
 #   ~/Juli-AI-v2            canonical clone; source of truth for `git worktree add`
-#   ~/releases/<short-sha>/ one worktree per release (own .venv + web/node_modules)
+#   ~/releases/<short-sha>/ one worktree per release (own .venv + apps/dashboard/node_modules)
 #   ~/releases/current      symlink to the active release — systemd units point here
 #   ~/releases/deploy-history.log   append-only log consumed by rollback-release.sh
 #
@@ -80,7 +80,7 @@ set +a
 
 # --- 4. Frontend: build with the App Review env baked in ---
 echo "-- frontend --"
-cp "${WEB_ENV_FILE}" "${release_dir}/web/.env.production"
+cp "${WEB_ENV_FILE}" "${release_dir}/apps/dashboard/.env.production"
 "${release_dir}/infra/scripts/build-frontend-review.sh"
 
 # --- 5. Cut over: atomically flip the `current` symlink ---

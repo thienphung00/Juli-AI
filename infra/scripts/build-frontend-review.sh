@@ -10,12 +10,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-WEB_DIR="${REPO_ROOT}/web"
+WEB_DIR="${REPO_ROOT}/apps/dashboard"
 ENV_FILE="${WEB_DIR}/.env.production"
 
 if [ ! -f "${ENV_FILE}" ]; then
     echo "Missing ${ENV_FILE}" >&2
-    echo "Copy infra/scripts/env/web.env.example to web/.env.production first." >&2
+    echo "Copy infra/scripts/env/web.env.example to apps/dashboard/.env.production first." >&2
     exit 1
 fi
 
