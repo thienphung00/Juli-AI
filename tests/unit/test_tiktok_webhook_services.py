@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from backend.api.services.tiktok.dispatcher import TikTokWebhookDispatcher
-from backend.api.services.tiktok.schemas import TikTokWebhookPayload
-from backend.api.services.tiktok.signature import TikTokWebhookSignatureVerifier
+from juli_backend.services.tiktok.dispatcher import TikTokWebhookDispatcher
+from juli_backend.services.tiktok.schemas import TikTokWebhookPayload
+from juli_backend.services.tiktok.signature import TikTokWebhookSignatureVerifier
 
 
 class TestWebhookDispatcher:

@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.api.services.webhook.app import create_app
+from juli_backend.services.webhook.app import create_app
 
 
 APP_KEY = "test_app_key"

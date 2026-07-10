@@ -13,8 +13,8 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.api.services.tiktok.dispatcher import TikTokWebhookDispatcher
-from backend.api.services.tiktok.schemas import TikTokWebhookPayload
+from juli_backend.services.tiktok.dispatcher import TikTokWebhookDispatcher
+from juli_backend.services.tiktok.schemas import TikTokWebhookPayload
 
 APP_SECRET = "test_app_secret"
 APP_KEY = "test_app_key"
@@ -53,7 +53,7 @@ def mock_token_exchange(monkeypatch):
         }
     )
     monkeypatch.setattr(
-        "backend.integrations.catalog.domain.integrations.tiktok.auth.TikTokAuth.exchange_code",
+        "juli_backend.integrations.tiktok.auth.TikTokAuth.exchange_code",
         mock,
     )
     return mock
@@ -61,8 +61,8 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def api_client(engine, monkeypatch):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -95,9 +95,9 @@ async def test_oauth_callback_validates_required_parameters(api_client):
 async def test_webhook_accepts_json_payload_with_valid_signature():
     import json as json_mod
 
-    from backend.api.services.tiktok.signature import TikTokWebhookSignatureVerifier
-    from backend.api.services.tiktok.webhook import TikTokWebhookService
-    from backend.api.services.tiktok import TikTokWebhookDispatcher
+    from juli_backend.services.tiktok.signature import TikTokWebhookSignatureVerifier
+    from juli_backend.services.tiktok.webhook import TikTokWebhookService
+    from juli_backend.services.tiktok import TikTokWebhookDispatcher
 
     app_key = "key"
     app_secret = "secret"

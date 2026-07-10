@@ -85,13 +85,38 @@ def test_nginx_api_config_exposes_health_and_oauth_callback():
 
 
 def test_systemd_units_use_single_monorepo_checkout():
-    """Backend and frontend systemd units share one Juli-AI-v2 repo on the VPS."""
+    """Backend and frontend systemd units share one Juli-AI-v2 canonical checkout.
+
+    The canonical checkout at ~/Juli-AI-v2 is the source of truth for
+    `git worktree add` (continuous delivery, see deploy-release.sh) and hosts
+    the stable ExecStartPre secret-fetch script; the units themselves run from
+    the `~/releases/current` symlink so a deploy never needs to touch the
+    units in place.
+    """
     api_unit = _read(SYSTEMD_BACKEND_PATH)
     web_unit = _read(SYSTEMD_FRONTEND_PATH)
     assert "Juli-AI-v2" in api_unit
-    assert "Juli-AI-v2/web" in web_unit
-    assert "/root/Juli-AI-v2/.env" in api_unit
-    assert "/root/Juli-AI-v2/web/.env.production" in web_unit
+    assert "Juli-AI-v2" in web_unit
+    assert "/root/Juli-AI-v2/infra/deploy/fetch-secrets.sh" in api_unit
+    assert "/root/Juli-AI-v2/infra/deploy/fetch-secrets.sh" in web_unit
+    assert "releases/current" in api_unit
+    assert "releases/current" in web_unit
+
+
+def test_systemd_units_source_env_outside_release_dir():
+    """EnvironmentFile paths must survive release worktree pruning and rollback.
+
+    Secrets are fetched from AWS Secrets Manager into /etc/juli/*.env (not a
+    path under any release worktree) so rotating/pruning releases never loses
+    or stales the running env — see fetch-secrets.sh and the "Secrets"
+    section of app-review-runbook.md.
+    """
+    api_unit = _read(SYSTEMD_BACKEND_PATH)
+    web_unit = _read(SYSTEMD_FRONTEND_PATH)
+    assert "EnvironmentFile=/etc/juli/api.env" in api_unit
+    assert "EnvironmentFile=/etc/juli/web.env" in web_unit
+    assert "ExecStartPre=" in api_unit
+    assert "ExecStartPre=" in web_unit
 
 
 # AC2: Frontend and backend deploy steps separated and independently restartable.
@@ -104,7 +129,7 @@ def test_systemd_units_are_separate_and_restartable():
     assert "Restart=" in frontend
     assert "Restart=" in backend
     # Backend runs the FastAPI ASGI app; frontend runs the Next.js server.
-    assert "backend.api.api.main:app" in backend
+    assert "juli_backend.api.main:app" in backend
     assert "next" in frontend.lower() or "npm" in frontend.lower()
 
 

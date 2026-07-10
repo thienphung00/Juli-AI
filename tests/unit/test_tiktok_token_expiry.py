@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from backend.api.services.tiktok.token_expiry import access_token_expires_at
+from juli_backend.services.tiktok.token_expiry import access_token_expires_at
 
 
 class TestAccessTokenExpiresAt:

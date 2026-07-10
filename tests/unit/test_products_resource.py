@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.integrations.catalog.domain.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok.constants import (
     PRODUCT_SEARCH_PATH,
     product_detail_path,
 )
-from backend.integrations.catalog.domain.integrations.tiktok.resources.products import ProductsResource
+from juli_backend.integrations.tiktok.resources.products import ProductsResource
 
 
 @pytest.fixture

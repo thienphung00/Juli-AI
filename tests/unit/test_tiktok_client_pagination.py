@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.integrations.catalog.domain.integrations.tiktok.client import TikTokClient
+from juli_backend.integrations.tiktok.client import TikTokClient
 
 
 @pytest.fixture

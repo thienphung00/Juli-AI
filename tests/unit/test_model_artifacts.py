@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from backend.ai.ad_performance import train_ad_performance
-from backend.ai.anomaly import train_anomaly
-from backend.ai.artifacts import (
+from juli_backend.ai.ad_performance import train_ad_performance
+from juli_backend.ai.anomaly import train_anomaly
+from juli_backend.ai.artifacts import (
     ArtifactLoadError,
     evaluate_promotion_status,
     feature_schema_hash,
@@ -18,8 +18,8 @@ from backend.ai.artifacts import (
     run_all_smoke_tests,
     run_smoke_test,
 )
-from backend.ai.dataset import assemble_backtest_dataset
-from backend.ai.seller_stage import train_seller_stage
+from juli_backend.ai.dataset import assemble_backtest_dataset
+from juli_backend.ai.seller_stage import train_seller_stage
 
 
 @pytest.fixture
@@ -261,7 +261,7 @@ def test_all_three_suites_publish_load_and_smoke(tmp_path, models_root):
 
 def test_publish_model_has_no_postgres_persistence():
     """Artifact publisher does not import Postgres or SQLAlchemy session layers."""
-    import backend.ai.artifacts.publish as publish_module
+    import juli_backend.ai.artifacts.publish as publish_module
 
     source = Path(publish_module.__file__).read_text(encoding="utf-8")
     forbidden = ("sqlalchemy", "postgres", "supabase", "get_session")

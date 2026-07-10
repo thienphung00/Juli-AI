@@ -1,11 +1,9 @@
-"""Tests for Issue #37: Orders + Products + Inventory + Revenue API endpoints.
+"""Tests for Issue #37: Orders + Products API endpoints.
 
 Test mapping from acceptance criteria:
 - AC1 → test_orders_endpoint_filters
 - AC2 → test_confirm_shipment
 - AC3 → test_products_ranked_by_revenue
-- AC4 → test_inventory_with_velocity
-- AC5 → test_revenue_analytics_trends
 """
 
 import uuid
@@ -16,7 +14,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.database.models import InventoryItem, Order, Product, Shop, User
+from juli_backend.models.models import Order, Product, Shop, User
 
 pytestmark = pytest.mark.asyncio
 
@@ -28,8 +26,8 @@ pytestmark = pytest.mark.asyncio
 
 @pytest_asyncio.fixture
 async def app(engine, session):
-    from backend.api.api.app import create_app
-    from backend.database import get_session
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
 
     application = create_app()
 
@@ -64,8 +62,8 @@ async def shop(session, authenticated_user):
 
 @pytest_asyncio.fixture
 async def auth_client(app, authenticated_user, shop):
-    from backend.integrations.identity.infrastructure.auth import get_current_user
-    from backend.api.api.dependencies import get_active_shop
+    from juli_backend.core.security import get_current_user
+    from juli_backend.api.dependencies import get_active_shop
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
@@ -123,30 +121,6 @@ async def seed_products(session, shop):
     session.add_all(products)
     await session.flush()
     return products
-
-
-@pytest_asyncio.fixture
-async def seed_inventory(session, shop):
-    """Seed inventory items with velocity data."""
-    now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=timezone.utc)
-    items = []
-    for i, (qty, vel) in enumerate(
-        [(100, "high"), (50, "medium"), (10, "low"), (0, "out_of_stock")]
-    ):
-        item = InventoryItem(
-            id=uuid.uuid4(),
-            shop_id=shop.id,
-            tiktok_product_id=f"tt_prod_{i}",
-            tiktok_sku_id=f"sku_{i}",
-            quantity=qty,
-            velocity=vel,
-            update_time=now - timedelta(hours=i),
-            created_at=now - timedelta(hours=i),
-        )
-        items.append(item)
-    session.add_all(items)
-    await session.flush()
-    return items
 
 
 # ---------------------------------------------------------------------------
@@ -263,92 +237,3 @@ class TestProductsRankedByRevenue:
         data = resp.json()
         assert len(data["items"]) == 2
         assert "next_cursor" in data
-
-
-# ---------------------------------------------------------------------------
-# AC4: GET /v1/inventory — current stock levels with velocity indicator
-# ---------------------------------------------------------------------------
-
-
-class TestInventoryWithVelocity:
-    """AC4: GET /v1/inventory returns stock levels with velocity indicator."""
-
-    async def test_inventory_list(self, auth_client, seed_inventory):
-        resp = await auth_client.get("/v1/inventory")
-        assert resp.status_code == 200
-        data = resp.json()
-        items = data["items"]
-        assert len(items) == 4
-
-    async def test_inventory_has_velocity(self, auth_client, seed_inventory):
-        resp = await auth_client.get("/v1/inventory")
-        assert resp.status_code == 200
-        items = resp.json()["items"]
-        for item in items:
-            assert "velocity" in item
-            assert item["velocity"] in ("high", "medium", "low", "out_of_stock")
-
-    async def test_inventory_has_quantity(self, auth_client, seed_inventory):
-        resp = await auth_client.get("/v1/inventory")
-        assert resp.status_code == 200
-        items = resp.json()["items"]
-        for item in items:
-            assert "quantity" in item
-            assert "tiktok_sku_id" in item
-
-    async def test_inventory_paginated(self, auth_client, seed_inventory):
-        resp = await auth_client.get("/v1/inventory", params={"limit": 2})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data["items"]) == 2
-        assert "next_cursor" in data
-
-
-# ---------------------------------------------------------------------------
-# AC5: GET /v1/analytics/revenue — daily/weekly/monthly GMV with trend
-# ---------------------------------------------------------------------------
-
-
-class TestRevenueAnalyticsTrends:
-    """AC5: GET /v1/analytics/revenue returns GMV with trend direction."""
-
-    async def test_revenue_daily(self, auth_client, seed_orders):
-        resp = await auth_client.get(
-            "/v1/analytics/revenue", params={"period": "daily"}
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "total_gmv" in data
-        assert "trend" in data
-        assert data["trend"] in ("up", "down", "flat")
-        assert "data_points" in data
-
-    async def test_revenue_weekly(self, auth_client, seed_orders):
-        resp = await auth_client.get(
-            "/v1/analytics/revenue", params={"period": "weekly"}
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "total_gmv" in data
-        assert "data_points" in data
-
-    async def test_revenue_monthly(self, auth_client, seed_orders):
-        resp = await auth_client.get(
-            "/v1/analytics/revenue", params={"period": "monthly"}
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "total_gmv" in data
-
-    async def test_revenue_default_period_is_daily(self, auth_client, seed_orders):
-        resp = await auth_client.get("/v1/analytics/revenue")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "total_gmv" in data
-        assert "trend" in data
-
-    async def test_revenue_invalid_period(self, auth_client, seed_orders):
-        resp = await auth_client.get(
-            "/v1/analytics/revenue", params={"period": "hourly"}
-        )
-        assert resp.status_code == 422

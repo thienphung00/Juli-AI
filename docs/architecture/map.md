@@ -11,8 +11,8 @@ Update this file when you add, rename, remove, or restructure a module.
 
 ### Target layout (Phase 2.5+)
 
-Product-oriented monorepo — `backend/` holds runtime Python services; `src/` retains
-compatibility shims (issue #252).
+Product-oriented monorepo — `backend/` holds runtime Python services (ADR-019:
+`src/` shim tree removed).
 
 ```
 apps/          # Product deployables (landing, demo, dashboard, mobile)
@@ -26,9 +26,8 @@ See [`migration-plan.md`](migration-plan.md) for full path mapping and migration
 
 ### Current layout (as-built)
 
-The backend is a modular monolith under `backend/`. Legacy `src/` paths re-export
-`backend.*` for deploy entrypoints. Frontends live in `web/` and `ios/`.
-**`backend/api/` and `backend/workers/` are backend entrypoints — not top-level `apps/`.**
+The backend is a modular monolith under `backend/`. Frontends live in `web/` and
+`ios/`. **`backend/api/` and `backend/workers/` are backend entrypoints — not top-level `apps/`.**
 
 ```
 backend/
@@ -68,10 +67,10 @@ Frontends (legacy, pre-ecosystem):
 | [`backend/integrations/catalog/domain/integrations/tiktok`](../../backend/integrations/catalog/domain/integrations/tiktok/MODULE.md) | 1 | TikTok Shop Partner API client (auth, signing, rate limiting, resources) | `TikTokClient`, `TikTokAuth`, `RateLimiter`, `CreatorsResource`, `ProductsResource`, `OrdersResource`, `InventoryResource`, `LivestreamsResource`, `SettlementsResource`, `TikTokAPIError` hierarchy | domain: integrations |
 | [`backend/integrations/ordering/api/ingestion`](../../backend/integrations/ordering/api/ingestion/MODULE.md) | 1 | Ingest handoff contracts and `make_etl_handoff` wiring | `HandoffFn`, `make_etl_handoff` | domain: data |
 | [`backend/api/services/webhook`](../../backend/api/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
-| [`backend/workers/services/polling`](../../backend/workers/services/polling/MODULE.md) | 2 | Background polling sync workers (seller signal collection) | `sync_creators`, `sync_products`, `sync_orders`, `backfill_shop` | domain: integrations |
+| [`backend/workers/services/polling`](../../backend/workers/services/polling/MODULE.md) | 2 | Background polling sync workers (P2-A1 read sync) | `sync_creators`, `sync_products`, `sync_orders`, `sync_returns`, `backfill_shop` | domain: integrations |
 | [`backend/database`](../../backend/database/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `Creator`, `Product`, `Recommendation`, … repos, `Base`, `NotFound`, `get_session` | domain: data |
 | [`backend/integrations/identity/infrastructure/auth`](../../backend/integrations/identity/infrastructure/auth/MODULE.md) | 1 | JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
-| [`backend/api/api`](../../backend/api/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, creators, products, recommendations | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/creators`, `GET /v1/products`, `GET /v1/recommendations` | domain: api |
+| [`backend/api/api`](../../backend/api/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, orders, products, creators, recommendations, outcomes | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/orders`, `GET /v1/products`, `GET /v1/creators`, `GET /v1/recommendations` | domain: api |
 | [`backend/integrations/catalog/domain/recommendations`](../../backend/integrations/catalog/domain/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
 | [`backend/integrations/ordering/use_cases/etl`](../../backend/integrations/ordering/use_cases/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
@@ -115,25 +114,20 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 | `web/src/app/decisions/` + `web/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)) |
 | `web/src/components/home/todays-report/` | P1.8-9 | Today's Report domain cards (Revenue Growth, Revenue Protection, Product Listings, Advertising, Refunds) with animated domain switcher on Home |
 | `web/src/lib/decisions/` | P1.8-9 | Decision view-model: map `workflow_recommendations` → Decision envelopes + lifecycle status (`recommended` / `needs_input` / `executing` / `completed`) |
-| `src/modules/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
-| `src/modules/catalog/domain/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
-| `src/modules/catalog/domain/operations/` *(TBD)* | P2 | Live operations pipeline (P2-11): real classification, health, ranking, outcome tracking |
-| `src/modules/catalog/domain/inventory/` *(TBD)* | P2 | Scoped inventory signals (level, velocity, lead time) for Stockout/Product Scaling (P2-12) — signals only, not inventory management |
+| `backend/integrations/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
+| `backend/integrations/catalog/domain/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
+| `backend/integrations/catalog/domain/operations/` *(TBD)* | P2 | Live operations pipeline (P2-11): real classification, health, ranking, outcome tracking |
+| `backend/integrations/catalog/domain/inventory/` *(TBD)* | P2 | Scoped inventory signals (level, velocity, lead time) for Stockout/Product Scaling (P2-12) — signals only, not inventory management |
 
-## Pending cleanup (tracked in EXECUTION.md)
+## Cleanup status (2026-07 aggressive cleanup)
 
-These remain in the tree but are **out of scope** for Phase 1–2 and slated for
-removal. Deleting code is sequenced after the docs rescope (not part of the first
-PR) to avoid breaking imports/tests:
-
-| Target | Why | Status |
-|--------|-----|--------|
-| `src/modules/catalog/domain/intelligence/**` | Legacy creator-matching/livestream scoring — not a seller-money workflow | Remove (verify no live callers first) |
-| Polling: `sync_inventory`, `sync_settlements`, `sync_livestreams` | Inventory/finance/livestream-ops not in Phase 1–2 scope | Remove from polling workers |
-
-> Already removed in an earlier pass: API routers `analytics`, `settlements`,
-> `inventory`, `orders`, `livestreams`, `alerts`; the `catalog/domain/alerts`
-> module; matching-specific web pages.
+| Target | Status |
+|--------|--------|
+| Polling: `sync_inventory`, `sync_settlements`, `sync_livestreams` | **Removed** |
+| API routers: `analytics`, `settlements`, `inventory`, `livestreams`, `alerts` | **Removed** |
+| Web pages: `/inventory`, `/livestreams`, `/alerts` | **Removed** (legacy redirects remain) |
+| `docs/features/mvp_1.*` | **Archived** to `docs/handoffs/archive/features/` |
+| `backend/integrations/catalog/domain/intelligence/**` | **Deferred** — still wired to recommendations engine |
 
 ## Key architectural decisions
 

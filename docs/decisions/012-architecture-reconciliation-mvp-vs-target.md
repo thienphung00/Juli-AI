@@ -5,7 +5,11 @@ Accepted
 
 **Supersedes:** Ollama copy-layer choice (historical).  
 **Reaffirms:** [ADR-002](002-supabase-backend-service.md), [ADR-004](004-etl-kafka-consumer.md),
-[ADR-010](010-ml-module-tree-and-trainers.md).
+[ADR-010](010-ml-module-tree-and-trainers.md).  
+**Partially superseded by:** [ADR-020](020-vps-ssh-continuous-delivery-and-secrets-manager.md)
+— the "Deployment — Railway for MVP" line below never shipped; the live deploy target is the
+VPS built out in Phase 2.5-d/2.5-review. All other decisions in this ADR (Postgres, Haiku,
+real-time scope, tenant isolation) remain in force.
 
 ## Context
 
@@ -27,7 +31,9 @@ data, single Postgres, hosted Haiku, and Railway deployment.
   volume is lower-ops than self-hosted Ollama. Rules fallback on timeout/error/budget cap.
   Raw financial PII never sent to LLM.
 
-- **Deployment — Railway for MVP.** FastAPI + cron poller on Railway; Supabase for DB/Auth.
+- **Deployment — Railway for MVP.** *(Superseded by [ADR-020](020-vps-ssh-continuous-delivery-and-secrets-manager.md)
+  — this never shipped; the live deploy target is the VPS/SSH pipeline.)* FastAPI + cron
+  poller on Railway; Supabase for DB/Auth.
 
 - **Real-time — out of scope for Phase 2 MVP.** No Supabase Realtime or SSE; UI served
   from batch/daily data. Real-time is Phase 3 ([`phase-3-vision.md`](../phases/phase-3-vision.md)).

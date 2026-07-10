@@ -5,6 +5,24 @@ isolated credentials, rate-limit buckets, and data scope.
 
 ---
 
+## Merchant capability isolation (P2-A1)
+
+| Merchant | Authorization ID | Capability | Credential storage |
+|----------|------------------|------------|-------------------|
+| Fujiwa (production) | `7658073774813611784` | `production_read` | Tagged by merchant auth ID + `shop_cipher` |
+| SANDBOX_VN (sandbox) | `7658096633384781588` | `sandbox_write` | Separate credential row; never used for production sync |
+
+Rules:
+
+- No “latest credential” lookup on production sync paths — resolve by merchant auth ID + capability.
+- Production transport allows `GET` and allowlisted read-only `POST` search endpoints only.
+- Write paths (`update`, `create`, `ship`, `publish`, `deactivate`) are rejected at the
+  production guard before signing.
+- Outbound request metadata includes `capability`, merchant authorization ID, HTTP method,
+  endpoint path, and redacted shop identifier (never tokens or full signed URLs).
+
+---
+
 ## Identity model
 
 ```

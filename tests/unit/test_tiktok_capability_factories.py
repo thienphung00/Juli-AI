@@ -6,28 +6,28 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend.integrations.catalog.domain.integrations.tiktok.capabilities import (
+from juli_backend.integrations.tiktok.capabilities import (
     PRODUCTION_AUTH_ID,
     PRODUCTION_READ_GET_EXACT,
     PRODUCTION_READ_POST_PATHS,
     SANDBOX_AUTH_ID,
     path_contains_write_marker,
 )
-from backend.integrations.catalog.domain.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok.constants import (
     AUTHORIZED_SHOPS_PATH,
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     product_detail_path,
     product_inventory_update_path,
 )
-from backend.integrations.catalog.domain.integrations.tiktok.exceptions import TransportGuardError
-from backend.integrations.catalog.domain.integrations.tiktok.factories import (
+from juli_backend.integrations.tiktok.exceptions import TransportGuardError
+from juli_backend.integrations.tiktok.factories import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
     SandboxWriteClientFactory,
 )
-from backend.integrations.catalog.domain.integrations.tiktok.guards import redact_shop_identifier
-from backend.integrations.catalog.domain.integrations.tiktok.resources.inventory import InventoryResource
+from juli_backend.integrations.tiktok.guards import redact_shop_identifier
+from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
 
 
 @pytest.fixture
@@ -113,7 +113,7 @@ class TestProductionReadClientFactory:
 
         client._session.post.assert_not_called()
 
-    @patch("backend.integrations.catalog.domain.integrations.tiktok.guarded_client.log_outbound_request")
+    @patch("juli_backend.integrations.tiktok.guarded_client.log_outbound_request")
     def test_logs_outbound_metadata_without_secrets(
         self,
         mock_log: MagicMock,

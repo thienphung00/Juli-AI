@@ -54,6 +54,7 @@ fi
 
 echo "Installing Python dependencies..."
 "${VENV}/bin/pip" install -r "${REQUIREMENTS}"
+"${VENV}/bin/pip" install -e "${REPO_ROOT}/backend"
 
 install -m 0644 "${SYSTEMD_SRC}" /etc/systemd/system/juli-api.service
 systemctl daemon-reload

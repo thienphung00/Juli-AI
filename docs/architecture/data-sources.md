@@ -29,7 +29,7 @@ This is the **only** file that assigns a phase to a data source.
 | **TikTok Products (incl. inventory)** | Backtest only | Live polling | — | Live | Live | Live | NPL, Product Scaling, Stockout | Products API |
 | **TikTok Affiliate** | Backtest only | Live polling | — | Live | Live | Live | Policy alerts (rules in P2) | ADR-008 |
 | **TikTok Promotion API (Shop Ads)** | Backtest only | Live polling | — | Live | Live | Live | ROAS threshold rules in P2; T2 regressor in P4 | Promotion API |
-| **TikTok Shop Account** | Backtest only | Live polling | — | Live | Live | Live | Policy rules in P2; T8 router in P4 | `health_data_source` gate |
+| **TikTok Shop Account (SPS / health)** | Backtest only | Live polling (if verified) | — | Live | Live | Live | SPS + proxy rules in P2 | `health_data_source` gate |
 | **Supabase Postgres** | — | Live | — | Live | Live | Live | OLTP + OLAP | ADR-002 |
 | **Redis** | — | Live | — | Live | Live | Live | Action cards, view cache, sessions | [`phase-2-mvp.md`](../phases/phase-2-mvp.md) |
 | **Claude Haiku 3.5** | — | — | — | — | Live | Live | Copy layer | Deferred from P2; rules-only in P2 |
@@ -46,7 +46,10 @@ This is the **only** file that assigns a phase to a data source.
 - Display-grade **rules-based** scoring at **08:00 UTC** in P2.
 - Rules-based copy in P2; Haiku is copy-layer only in P4+; rules fallback must pass CI when unreachable.
 - ML promotion thresholds: `system-design.md` §3 + `thresholds.py` — **Phase 4 only**.
-- VP/AHR dual-read May–July 2026 (ADR-005, ADR-006).
+- SPS / shop health: verify via Partner Center API Reference + API Testing Tool at P2-A1.
+  If no official contract, set `health_data_source: unavailable` or `proxy` — do not scrape
+  Seller Center. VP/AHR dual-read (ADR-005, ADR-006) is platform-policy context for Phase 4+,
+  not a Phase 2 operational gate.
 
 ## Forbidden (permanent)
 

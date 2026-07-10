@@ -117,10 +117,9 @@ def main() -> int:
             "estimatedDowntime": "< 5 minutes",
             "dataLossPotential": False,
             "criticalSteps": [
-                "Stop FastAPI workers",
-                "alembic downgrade -1",
-                "Redeploy previous Railway image",
-                "Restart workers",
+                "Trigger rollback.yml (workflow_dispatch) or run "
+                "infra/deploy/rollback-release.sh on the VPS directly",
+                "alembic downgrade -1 if the migration is not backward compatible",
             ],
             "testRollback": True,
         },

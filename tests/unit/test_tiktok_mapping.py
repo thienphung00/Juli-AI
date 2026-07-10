@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from backend.integrations.catalog.domain.integrations.tiktok.mapping import (
+from juli_backend.integrations.tiktok.mapping import (
     expand_order_line_items,
     normalize_creator,
     normalize_livestream,
@@ -11,7 +11,7 @@ from backend.integrations.catalog.domain.integrations.tiktok.mapping import (
     normalize_return,
     normalize_statement,
 )
-from backend.integrations.ordering.use_cases.etl.transform import transform_for_channel
+from juli_backend.services.etl.transform import transform_for_channel
 
 
 class TestNormalizeOrder:

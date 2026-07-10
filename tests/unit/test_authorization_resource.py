@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.integrations.catalog.domain.integrations.tiktok.constants import AUTHORIZED_SHOPS_PATH
-from backend.integrations.catalog.domain.integrations.tiktok.resources.authorization import (
+from juli_backend.integrations.tiktok.constants import AUTHORIZED_SHOPS_PATH
+from juli_backend.integrations.tiktok.resources.authorization import (
     AuthorizationResource,
 )
 

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import User, Shop, TikTokCredential
+from juli_backend.database import User, Shop, TikTokCredential
 
 
 class TestAuthCoreModelsDefined:
@@ -26,7 +26,7 @@ class TestAuthCoreModelsDefined:
     def test_tiktok_credential_table_columns(self):
         mapper = sa_inspect(TikTokCredential)
         column_names = {c.key for c in mapper.columns}
-        assert {"id", "shop_id", "access_token", "refresh_token", "token_expires_at", "created_at", "updated_at"} <= column_names
+        assert {"id", "shop_id", "merchant_authorization_id", "capability", "access_token", "refresh_token", "token_expires_at", "created_at", "updated_at"} <= column_names
 
     def test_user_id_is_uuid_primary_key(self):
         mapper = sa_inspect(User)

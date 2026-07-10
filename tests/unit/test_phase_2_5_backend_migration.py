@@ -10,19 +10,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def test_backend_entrypoints_workers_integrations_database_ownership_align():
     """Backend boundary matches migration-plan target layout."""
     for rel in (
-        "backend/api/api/main.py",
-        "backend/workers/services/polling/sync.py",
-        "backend/integrations/catalog/domain/integrations/tiktok/client.py",
-        "backend/database/models.py",
-        "backend/ai/dataset/assembler.py",
+        "backend/src/juli_backend/api/main.py",
+        "backend/src/juli_backend/workers/services/polling/sync.py",
+        "backend/src/juli_backend/integrations/tiktok/client.py",
+        "backend/src/juli_backend/models/models.py",
+        "backend/src/juli_backend/ai/dataset/assembler.py",
     ):
         assert (REPO_ROOT / rel).is_file(), f"missing runtime module: {rel}"
 
 
 def test_python_imports_rewritten_no_product_app_imports_in_backend():
-    """Backend code imports backend.* only — not top-level apps/."""
+    """Backend code imports juli_backend.* only — not top-level apps/."""
     offenders: list[str] = []
-    for path in (REPO_ROOT / "backend").rglob("*.py"):
+    for path in (REPO_ROOT / "backend/src/juli_backend").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         if "from apps." in text or "import apps." in text:
             offenders.append(str(path.relative_to(REPO_ROOT)))
@@ -31,12 +31,12 @@ def test_python_imports_rewritten_no_product_app_imports_in_backend():
 
 def test_api_factory_auth_polling_etl_tiktok_repository_tests_pass():
     """Representative migrated suites remain importable from backend paths."""
-    from backend.api.api.app import create_app
-    from backend.integrations.identity.infrastructure.auth import get_current_user
-    from backend.workers.services.polling import sync
-    from backend.integrations.ordering.use_cases.etl import EtlConsumer
-    from backend.integrations.catalog.domain.integrations.tiktok.client import TikTokClient
-    from backend.database.repos import ShopScopedRepo
+    from juli_backend.api.app import create_app
+    from juli_backend.core.security import get_current_user
+    from juli_backend.workers.services.polling import sync
+    from juli_backend.services.etl import EtlConsumer
+    from juli_backend.integrations.tiktok.client import TikTokClient
+    from juli_backend.repositories.repos import ShopScopedRepo
 
     assert callable(create_app)
     assert callable(get_current_user)
@@ -56,7 +56,7 @@ def test_src_python_runtime_shims_removed():
 
 
 def test_deploy_entrypoint_uses_backend_api_main():
-    """Deploy systemd uses canonical backend.api.api.main:app entrypoint."""
+    """Deploy systemd uses canonical juli_backend.api.main:app entrypoint."""
     service = (REPO_ROOT / "infra/deploy/systemd/juli-api.service").read_text(encoding="utf-8")
-    assert "backend.api.api.main:app" in service
+    assert "juli_backend.api.main:app" in service
     assert "src.apps.api_gateway" not in service

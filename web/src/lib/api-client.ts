@@ -90,40 +90,6 @@ export interface ProductsResponse {
   total: number;
 }
 
-export interface InventoryItem {
-  id: string;
-  product_name: string;
-  sku: string;
-  current_stock: number;
-  daily_velocity: number;
-  days_until_depletion: number;
-  reorder_recommended: boolean;
-  reorder_quantity: number;
-}
-
-export interface InventoryResponse {
-  items: InventoryItem[];
-  total: number;
-}
-
-export interface LivestreamSession {
-  id: string;
-  title: string;
-  started_at: string;
-  ended_at: string;
-  duration_minutes: number;
-  viewers_peak: number;
-  viewers_avg: number;
-  gmv: number;
-  orders_count: number;
-  performance_grade: number;
-}
-
-export interface LivestreamsResponse {
-  sessions: LivestreamSession[];
-  total: number;
-}
-
 export interface Creator {
   id: string;
   name: string;
@@ -138,40 +104,6 @@ export interface Creator {
 export interface CreatorsResponse {
   creators: Creator[];
   total: number;
-}
-
-export interface AlertHistoryItem {
-  id: string;
-  alert_type: string;
-  channel: string;
-  triggered_at: string;
-  status: string;
-  payload?: Record<string, unknown> | null;
-}
-
-export interface AlertsHistoryResponse {
-  items: AlertHistoryItem[];
-  next_cursor?: string | null;
-}
-
-export interface AlertRuleInput {
-  alert_type: string;
-  channel?: string;
-  is_active?: boolean;
-  threshold?: Record<string, unknown> | null;
-  cooldown_seconds?: number;
-}
-
-export interface AlertConfigRule {
-  id: string;
-  alert_type: string;
-  channel: string;
-  is_active: boolean;
-  threshold?: Record<string, unknown> | null;
-}
-
-export interface AlertsConfigResponse {
-  rules: AlertConfigRule[];
 }
 
 export interface PredictedOutcome {
@@ -244,40 +176,9 @@ export const api = {
     },
   },
 
-  inventory: {
-    list(): Promise<InventoryResponse> {
-      return request("/v1/inventory");
-    },
-  },
-
-  livestreams: {
-    list(): Promise<LivestreamsResponse> {
-      return request("/v1/livestreams");
-    },
-  },
-
   creators: {
     list(): Promise<CreatorsResponse> {
       return request("/v1/creators");
-    },
-  },
-
-  alerts: {
-    history(params?: {
-      limit?: number;
-      after?: string;
-    }): Promise<AlertsHistoryResponse> {
-      const searchParams = new URLSearchParams();
-      if (params?.limit) searchParams.set("limit", String(params.limit));
-      if (params?.after) searchParams.set("after", params.after);
-      const qs = searchParams.toString();
-      return request(`/v1/alerts/history${qs ? `?${qs}` : ""}`);
-    },
-    upsertConfig(rules: AlertRuleInput[]): Promise<AlertsConfigResponse> {
-      return request("/v1/alerts/config", {
-        method: "PUT",
-        body: JSON.stringify({ rules }),
-      });
     },
   },
 

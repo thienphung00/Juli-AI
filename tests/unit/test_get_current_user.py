@@ -11,8 +11,8 @@ from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.integrations.identity.infrastructure.auth.dependencies import get_current_user
-from backend.database import User, Shop, get_session
+from juli_backend.core.security.dependencies import get_current_user
+from juli_backend.database import User, Shop, get_session
 
 
 pytestmark = pytest.mark.asyncio

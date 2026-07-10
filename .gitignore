@@ -4,6 +4,8 @@ node_modules/
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+.coverage.*
 *.egg-info/
 dist/
 build/
@@ -22,13 +24,30 @@ artifacts/runtime/raw/
 artifacts/runtime/logs/
 
 # Serialized ML model artifacts (runtime output — not source control)
-models/
+/models/
 
 # Python virtual environment
 .venv/
+
+# Accidental venv dirs from mistyped `python -m venv <word>` (e.g. `#`, `already`)
+#/
+already/
+exists/
+if/
+skip/
 
 # Next.js build output
 .next/
 
 # Local SQLite test databases
 *.db
+
+# AWS Secrets Manager credentials / generated env files (VPS-only runtime
+# state — infra/deploy/fetch-secrets.sh writes these outside the repo at
+# /etc/juli/*, but ignore any local copies too in case someone stages one
+# here for testing).
+aws-credentials
+infra/deploy/aws-credentials
+infra/deploy/*.env
+infra/deploy/env/*.local
+releases/

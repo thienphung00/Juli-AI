@@ -3,15 +3,15 @@
 import pytest
 from unittest.mock import MagicMock
 
-from backend.integrations.catalog.domain.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok.constants import (
     CREATOR_CONTENT_DETAILS_PATH,
     FINANCE_STATEMENTS_PATH,
     MARKETPLACE_CREATORS_SEARCH_PATH,
     marketplace_creator_path,
 )
-from backend.integrations.catalog.domain.integrations.tiktok.resources.creators import CreatorsResource
-from backend.integrations.catalog.domain.integrations.tiktok.resources.livestreams import LivestreamsResource
-from backend.integrations.catalog.domain.integrations.tiktok.resources.settlements import SettlementsResource
+from juli_backend.integrations.tiktok.resources.creators import CreatorsResource
+from juli_backend.integrations.tiktok.resources.livestreams import LivestreamsResource
+from juli_backend.integrations.tiktok.resources.settlements import SettlementsResource
 
 
 @pytest.fixture

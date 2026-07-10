@@ -27,42 +27,42 @@ routing:
   ml_threshold: 0.7
   domain_mappings:
     backend:
-      - backend/api
-      - backend/integrations/identity
-      - backend/workers
+      - backend/src/juli_backend/api
+      - backend/src/juli_backend/integrations/identity
+      - backend/src/juli_backend/workers
     ui-ux:
       - web
       - ios
     data-platform:
-      - backend/database
-      - backend/database/migrations
+      - backend/src/juli_backend/database
+      - backend/src/juli_backend/database/migrations
     machine-learning:
-      - backend/ai
+      - backend/src/juli_backend/ai
   cross_layer_hints:
     backend:
       related_paths:
-        - backend/api
-        - backend/database
+        - backend/src/juli_backend/api
+        - backend/src/juli_backend/database
         - docs/architecture/map.md
-      note: API and persistence context often required beyond backend/api
+      note: API and persistence context often required beyond backend/src/juli_backend/api
     ui-ux:
       related_paths:
         - web
         - ios
-        - backend/api
+        - backend/src/juli_backend/api
         - docs/architecture/map.md
       note: UI tasks frequently depend on API contracts one layer beyond web/
     data-platform:
       related_paths:
-        - backend/database
-        - backend/integrations/ordering/use_cases/etl
-        - backend/database/migrations
+        - backend/src/juli_backend/database
+        - backend/src/juli_backend/services/etl
+        - backend/src/juli_backend/database/migrations
         - docs/architecture/data-sources.md
       note: Schema and ingestion paths span ordering and database layers
     machine-learning:
       related_paths:
-        - backend/ai
-        - backend/database
+        - backend/src/juli_backend/ai
+        - backend/src/juli_backend/database
         - docs/data-models
       note: Feature pipelines depend on canonical data models outside ai/
   hints:

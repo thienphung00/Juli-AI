@@ -5,11 +5,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from backend.integrations.catalog.domain.integrations.tiktok.auth import (
+from juli_backend.integrations.tiktok.auth import (
     DEFAULT_AUTH_BASE_URL,
     TikTokAuth,
 )
-from backend.integrations.catalog.domain.integrations.tiktok.exceptions import (
+from juli_backend.integrations.tiktok.exceptions import (
     AuthenticationError,
 )
 
@@ -36,7 +36,7 @@ class TestTikTokAuthTokenRequest:
         }
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("backend.integrations.catalog.domain.integrations.tiktok.auth.requests.get", return_value=mock_resp) as mock_get:
+        with patch("juli_backend.integrations.tiktok.auth.requests.get", return_value=mock_resp) as mock_get:
             result = tiktok_auth.exchange_code("auth_code_xyz")
 
         mock_get.assert_called_once()
@@ -52,7 +52,7 @@ class TestTikTokAuthTokenRequest:
 
     def test_exchange_code_maps_http_error_to_authentication_error(self, tiktok_auth):
         with patch(
-            "backend.integrations.catalog.domain.integrations.tiktok.auth.requests.get",
+            "juli_backend.integrations.tiktok.auth.requests.get",
             side_effect=requests.HTTPError("404 Client Error"),
         ):
             with pytest.raises(AuthenticationError, match="TikTok token request failed"):
@@ -68,7 +68,7 @@ class TestTikTokAuthTokenRequest:
         mock_resp.raise_for_status = MagicMock()
 
         with patch(
-            "backend.integrations.catalog.domain.integrations.tiktok.auth.requests.get",
+            "juli_backend.integrations.tiktok.auth.requests.get",
             return_value=mock_resp,
         ):
             with pytest.raises(AuthenticationError) as exc_info:
