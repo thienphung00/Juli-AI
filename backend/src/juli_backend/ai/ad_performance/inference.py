@@ -7,10 +7,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from juli_backend.ai.features.schema import AD_FEATURE_COLUMNS
 from juli_backend.ai.ad_performance.rules import is_sparse_ad_history
-from juli_backend.ai.ad_performance.thresholds import HOLD_CONFIDENCE_THRESHOLD, SPARSE_MAX_CONFIDENCE
+from juli_backend.ai.ad_performance.thresholds import (
+    HOLD_CONFIDENCE_THRESHOLD,
+    SPARSE_MAX_CONFIDENCE,
+)
 from juli_backend.ai.ad_performance.types import AdPerformanceModel, InferenceResult
+from juli_backend.ai.features.schema import AD_FEATURE_COLUMNS
 
 
 def _feature_row(features: dict[str, Any]) -> pd.DataFrame:

@@ -138,7 +138,8 @@ def build_anomaly_features(manifest: dict[str, Any]) -> FeatureMatrix:
     shop_cancel_rate = _compute_seller_fault_cancel_rate_30d(orders, reference)
 
     if buyer_frame.empty:
-        frame = pd.DataFrame(columns=["buyer_id", "shop_id", "feature_date", *ANOMALY_FEATURE_COLUMNS])
+        columns = ["buyer_id", "shop_id", "feature_date", *ANOMALY_FEATURE_COLUMNS]
+        frame = pd.DataFrame(columns=columns)
     else:
         frame = buyer_frame.merge(shop_return_rate, on="shop_id", how="left").merge(
             shop_cancel_rate, on="shop_id", how="left"

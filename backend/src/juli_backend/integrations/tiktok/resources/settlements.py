@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import FINANCE_STATEMENTS_PATH
@@ -25,10 +25,10 @@ class SettlementsResource:
     def list(
         self,
         *,
-        settle_time_from: Optional[int] = None,
-        settle_time_to: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        settle_time_from: int | None = None,
+        settle_time_to: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
     ) -> dict[str, Any]:
         params = strip_nones({
             "sort_field": "statement_time",
@@ -50,8 +50,8 @@ class SettlementsResource:
     def list_all(
         self,
         *,
-        settle_time_from: Optional[int] = None,
-        settle_time_to: Optional[int] = None,
+        settle_time_from: int | None = None,
+        settle_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict[str, Any]]:
         params = strip_nones({

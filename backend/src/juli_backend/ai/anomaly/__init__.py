@@ -3,7 +3,11 @@
 from juli_backend.ai.anomaly.fixtures import GOLDEN_ANOMALY_FIXTURES
 from juli_backend.ai.anomaly.inference import predict_anomaly
 from juli_backend.ai.anomaly.thresholds import ANOMALY_CLASSES, ANOMALY_CONFIDENCE_THRESHOLD
-from juli_backend.ai.anomaly.train import CLASS_IMBALANCE_STRATEGY, build_anomaly_training_frame, train_anomaly
+from juli_backend.ai.anomaly.train import (
+    CLASS_IMBALANCE_STRATEGY,
+    build_anomaly_training_frame,
+    train_anomaly,
+)
 from juli_backend.ai.anomaly.types import InferenceResult, TrainResult
 
 __all__ = [

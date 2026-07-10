@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.alerts.types import Alert, ChannelAdapter, DeliveryResult
 from juli_backend.repositories.repos import AlertHistoryRepo
+from juli_backend.services.alerts.types import Alert, ChannelAdapter, DeliveryResult
 
 
 async def deliver_alert(
@@ -25,7 +25,7 @@ async def deliver_alert(
     await history_repo.create(
         shop_id=alert.shop_id,
         alert_config_id=alert.config_id,
-        triggered_at=datetime.now(timezone.utc),
+        triggered_at=datetime.now(UTC),
         payload=json.dumps(
             {
                 "title": alert.title,

@@ -34,7 +34,10 @@ def main(argv: list[str] | None = None) -> int:
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
     result = train_seller_stage(manifest, args.output_dir, seed=args.seed)
     print(f"Wrote metrics to {result.metrics_path}")
-    print(f"  precision={result.metrics['precision']:.4f} recall_macro={result.metrics['recall_macro']:.4f}")
+    print(
+        f"  precision={result.metrics['precision']:.4f} "
+        f"recall_macro={result.metrics['recall_macro']:.4f}"
+    )
     return 0
 
 

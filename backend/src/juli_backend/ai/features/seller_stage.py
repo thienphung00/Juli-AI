@@ -8,7 +8,11 @@ import pandas as pd
 
 from juli_backend.ai.features.loader import load_ads, load_orders, load_returns, resolve_dataset_dir
 from juli_backend.ai.features.schema import SELLER_STAGE_FEATURE_COLUMNS
-from juli_backend.ai.features.time_windows import in_last_n_days, parse_timestamp, resolve_reference_date
+from juli_backend.ai.features.time_windows import (
+    in_last_n_days,
+    parse_timestamp,
+    resolve_reference_date,
+)
 from juli_backend.ai.features.types import FeatureMatrix
 
 

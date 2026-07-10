@@ -14,12 +14,12 @@ import json
 import logging
 import uuid
 
-from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
+from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.exceptions import (
     AuthenticationError,
 )
-from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
 
 logger = logging.getLogger(__name__)
 

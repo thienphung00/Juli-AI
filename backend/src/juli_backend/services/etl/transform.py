@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -25,7 +25,7 @@ def _unix_to_datetime(value: Any) -> datetime:
     if value is None:
         raise TransformError("missing update_time")
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        return datetime.fromtimestamp(float(value), tz=UTC)
     if isinstance(value, str):
         try:
             return datetime.fromisoformat(value.replace("Z", "+00:00"))

@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Awaitable, Callable, Literal
+from typing import Literal
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import Creator, InventoryItem, Livestream, Product, Recommendation
-from juli_backend.repositories.repos import GraphRepo
-from juli_backend.ai.ranking import score_livestream
 from juli_backend.ai.forecasting.forecaster import (
     get_low_stock_risks,
     get_velocity_changes,
 )
+from juli_backend.ai.ranking import score_livestream
 from juli_backend.ai.recommendations.prediction import (
     PredictedOutcome,
     build_action_cta,
@@ -25,6 +24,8 @@ from juli_backend.ai.recommendations.prediction import (
     estimate_predicted_outcome,
     select_action_type,
 )
+from juli_backend.models.models import Creator, InventoryItem, Livestream, Product, Recommendation
+from juli_backend.repositories.repos import GraphRepo
 
 _MAX_SUGGESTIONS = 10
 _WEIGHT_TREND = 0.35
@@ -356,7 +357,12 @@ async def get_host_product_matching(
 
             if graph_boost is not None:
                 match_score = round(
-                    min(graph_boost * 0.6 + product_push_score * 0.25 + stream_grade / 100 * 0.15, 1.0),
+                    min(
+                        graph_boost * 0.6
+                        + product_push_score * 0.25
+                        + stream_grade / 100 * 0.15,
+                        1.0,
+                    ),
                     4,
                 )
             else:

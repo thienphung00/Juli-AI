@@ -3,7 +3,11 @@
 from juli_backend.ai.seller_stage.compare import compare_to_rules_baseline
 from juli_backend.ai.seller_stage.fixtures import STAGE_BOUNDARY_FIXTURES
 from juli_backend.ai.seller_stage.inference import predict_seller_stage
-from juli_backend.ai.seller_stage.rules import SellerStage, SellerStageProfile, classify_seller_stage
+from juli_backend.ai.seller_stage.rules import (
+    SellerStage,
+    SellerStageProfile,
+    classify_seller_stage,
+)
 from juli_backend.ai.seller_stage.thresholds import (
     AD_SPEND_GROWTH_MIN_VND,
     ORDER_COUNT_GROWTH_MIN,

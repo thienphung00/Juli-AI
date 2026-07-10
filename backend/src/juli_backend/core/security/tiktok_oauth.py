@@ -14,19 +14,19 @@ import json
 import logging
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.exceptions import Unauthorized
-from juli_backend.models.models import Shop, TikTokCredential
-from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
-from juli_backend.services.tiktok.token_expiry import access_token_expires_at
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.merchant import (
     TikTokCapability,
     resolve_merchant_context,
 )
+from juli_backend.models.models import Shop, TikTokCredential
+from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
+from juli_backend.services.tiktok.token_expiry import access_token_expires_at
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ REFRESH_BUFFER = timedelta(minutes=30)
 
 def _utc_now() -> datetime:
     """Naive UTC timestamp (compatible with SQLite and PostgreSQL)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class TikTokOAuthService:

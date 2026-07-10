@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from juli_backend.services.alerts.types import AlertEvent
 from juli_backend.models.models import AlertConfig
+from juli_backend.services.alerts.types import AlertEvent
 
 
 def parse_threshold(config: AlertConfig) -> dict[str, Any]:

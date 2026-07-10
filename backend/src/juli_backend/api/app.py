@@ -3,8 +3,8 @@ from typing import Any
 from fastapi import APIRouter, FastAPI
 
 from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
-from juli_backend.api.routes.debug_tiktok import router as debug_tiktok_router
 from juli_backend.api.routes.creators import router as creators_router
+from juli_backend.api.routes.debug_tiktok import router as debug_tiktok_router
 from juli_backend.api.routes.orders import router as orders_router
 from juli_backend.api.routes.outcomes import router as outcomes_router
 from juli_backend.api.routes.products import router as products_router

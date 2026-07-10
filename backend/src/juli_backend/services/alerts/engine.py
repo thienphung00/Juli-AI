@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.models import AlertConfig
+from juli_backend.repositories.repos import AlertConfigsRepo, AlertHistoryRepo
 from juli_backend.services.alerts.rules import (
     build_alert_copy,
     cooldown_seconds,
@@ -15,8 +17,6 @@ from juli_backend.services.alerts.rules import (
     rule_matches,
 )
 from juli_backend.services.alerts.types import Alert, AlertEvent, RuleConfigInput
-from juli_backend.models.models import AlertConfig
-from juli_backend.repositories.repos import AlertConfigsRepo, AlertHistoryRepo
 
 
 async def configure_rules(
@@ -64,7 +64,7 @@ async def evaluate_rules(
     """Evaluate active rules; apply per-type cooldown deduplication."""
     configs_repo = AlertConfigsRepo(session)
     history_repo = AlertHistoryRepo(session)
-    clock = now or datetime.now(timezone.utc)
+    clock = now or datetime.now(UTC)
 
     configs = await configs_repo.list_active(shop_id)
     alerts: list[Alert] = []

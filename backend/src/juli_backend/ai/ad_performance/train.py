@@ -11,11 +11,11 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
-from juli_backend.ai.features import AD_FEATURE_COLUMNS, build_ad_features
 from juli_backend.ai.ad_performance.fixtures import GOLDEN_AD_FIXTURES
 from juli_backend.ai.ad_performance.inference import predict_ad_action
 from juli_backend.ai.ad_performance.rules import derive_ad_action
 from juli_backend.ai.ad_performance.types import AdPerformanceModel, TrainResult
+from juli_backend.ai.features import AD_FEATURE_COLUMNS, build_ad_features
 
 CLASS_IMBALANCE_STRATEGY = "class_weight=balanced on RandomForestClassifier (no resampling)"
 DEFAULT_RANDOM_SEED = 140
@@ -44,7 +44,9 @@ def _roas_mape(y_true: list[float], y_pred: list[float]) -> float:
     return float(np.mean(np.abs((true_values[mask] - pred_values[mask]) / true_values[mask])) * 100)
 
 
-def _split_by_date(frame: pd.DataFrame, manifest: dict[str, Any], *, seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _split_by_date(
+    frame: pd.DataFrame, manifest: dict[str, Any], *, seed: int
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     boundaries = manifest.get("split_boundaries", {})
     train_end = boundaries.get("train_end")
     if train_end:
@@ -68,7 +70,11 @@ def _augment_training_with_golden_rows(train_frame: pd.DataFrame) -> pd.DataFram
         if fixture["id"] == "sparse":
             continue
         for _ in range(8):
-            row = {**fixture["features"], "action_label": fixture["expected_action"], "roas": fixture["features"]["roas"]}
+            row = {
+                **fixture["features"],
+                "action_label": fixture["expected_action"],
+                "roas": fixture["features"]["roas"],
+            }
             extra_rows.append(row)
 
     if not extra_rows:

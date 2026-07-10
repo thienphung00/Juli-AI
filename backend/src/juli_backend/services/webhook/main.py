@@ -9,15 +9,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from juli_backend.services.webhook.app import create_app
 from juli_backend.core.config.runtime import async_database_url, require_env
-from juli_backend.services.etl.consumer import EtlConsumer
-from juli_backend.services.etl.record import IngestRecord
 from juli_backend.database.database import (
     create_engine,
     create_session_factory,
     init_session_factory,
 )
+from juli_backend.services.etl.consumer import EtlConsumer
+from juli_backend.services.etl.record import IngestRecord
+from juli_backend.services.webhook.app import create_app
 
 logger = logging.getLogger(__name__)
 

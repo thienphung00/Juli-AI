@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import (
     ORDER_DETAIL_PATH,
@@ -22,11 +20,11 @@ class OrdersResource:
     def search(
         self,
         *,
-        status: Optional[str] = None,
-        update_time_from: Optional[int] = None,
-        update_time_to: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        status: str | None = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
     ) -> dict:
         body = strip_nones({
             "order_status": status,
@@ -51,9 +49,9 @@ class OrdersResource:
     def search_all(
         self,
         *,
-        status: Optional[str] = None,
-        update_time_from: Optional[int] = None,
-        update_time_to: Optional[int] = None,
+        status: str | None = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
         body = strip_nones({

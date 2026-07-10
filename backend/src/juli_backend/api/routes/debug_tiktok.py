@@ -10,19 +10,19 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.config.runtime import require_env
+from juli_backend.database import TikTokCredentialRepo, get_session
+from juli_backend.database.exceptions import NotFound
+from juli_backend.integrations.tiktok.auth import (
+    DEFAULT_OPEN_API_BASE_URL,
+)
+from juli_backend.integrations.tiktok.merchant import (
+    TikTokCapability,
+)
 from juli_backend.services.tiktok.verify_connection import (
     TikTokVerifyConnectionService,
     tiktok_debug_enabled,
 )
-from juli_backend.database import TikTokCredentialRepo, get_session
-from juli_backend.database.exceptions import NotFound
-from juli_backend.integrations.tiktok.merchant import (
-    TikTokCapability,
-)
-from juli_backend.integrations.tiktok.auth import (
-    DEFAULT_OPEN_API_BASE_URL,
-)
-from juli_backend.core.config.runtime import require_env
 
 router = APIRouter(prefix="/debug/tiktok", tags=["debug"])
 

@@ -1,13 +1,12 @@
 import os
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from alembic import context
-
-from juli_backend.database.database import Base
-from juli_backend.models.models import User, Shop, TikTokCredential  # noqa: F401 — register models
 from juli_backend.core.config.runtime import sync_database_url
+from juli_backend.database.database import Base
+from juli_backend.models.models import Shop, TikTokCredential, User  # noqa: F401 — register models
 
 config = context.config
 

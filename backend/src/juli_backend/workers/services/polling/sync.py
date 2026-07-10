@@ -16,7 +16,6 @@ import json
 import logging
 from typing import Any
 
-from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.integrations.tiktok.constants import (
     MARKETPLACE_CREATORS_SEARCH_PATH,
     ORDER_SEARCH_PATH,
@@ -32,6 +31,7 @@ from juli_backend.integrations.tiktok.mapping import (
     normalize_return,
 )
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
+from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,9 @@ async def sync_orders(
     sync_state: dict[str, Any],
 ) -> None:
     """Fetch orders since last sync and hand off to ETL."""
-    if not rate_limiter.acquire(app_id, shop_id, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(
+        app_id, shop_id, ORDER_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "orders"})
         return
 
@@ -88,7 +90,9 @@ async def sync_products(
     sync_state: dict[str, Any],
 ) -> None:
     """Fetch products since last sync and hand off to ETL."""
-    if not rate_limiter.acquire(app_id, shop_id, PRODUCT_SEARCH_PATH, max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(
+        app_id, shop_id, PRODUCT_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "products"})
         return
 
@@ -123,7 +127,9 @@ async def sync_returns(
     sync_state: dict[str, Any],
 ) -> None:
     """Fetch returns since last sync and hand off to ETL."""
-    if not rate_limiter.acquire(app_id, shop_id, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(
+        app_id, shop_id, RETURN_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "returns"})
         return
 
@@ -165,7 +171,9 @@ async def sync_creators(
     Raises PermissionDeniedError (scope_missing) instead of swallowing it —
     the Affiliate API requires separate per-seller scope approval.
     """
-    if not rate_limiter.acquire(app_id, shop_id, MARKETPLACE_CREATORS_SEARCH_PATH, max_requests=10, window_seconds=60):
+    if not rate_limiter.acquire(
+        app_id, shop_id, MARKETPLACE_CREATORS_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
         logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "creators"})
         return
 

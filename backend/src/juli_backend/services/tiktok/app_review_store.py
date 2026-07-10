@@ -7,12 +7,12 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.tiktok.token_expiry import access_token_expires_at
 from juli_backend.database.exceptions import NotFound
-from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo, UsersRepo
 from juli_backend.integrations.tiktok.merchant import (
     resolve_merchant_context,
 )
+from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo, UsersRepo
+from juli_backend.services.tiktok.token_expiry import access_token_expires_at
 
 APP_REVIEW_USER_PHONE = "+849000000001"
 

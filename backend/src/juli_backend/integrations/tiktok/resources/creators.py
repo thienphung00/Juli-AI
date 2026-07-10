@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import (
@@ -28,8 +28,8 @@ class CreatorsResource:
     def list(
         self,
         *,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
     ) -> dict[str, Any]:
         params = strip_nones({
             "page_size": str(page_size) if page_size is not None else None,

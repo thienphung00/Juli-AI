@@ -7,8 +7,6 @@ Inventory API family.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import (
     INVENTORY_SEARCH_PATH,
@@ -26,7 +24,7 @@ class InventoryResource:
     def search(
         self,
         *,
-        sku_ids: Optional[list[str]] = None,
+        sku_ids: list[str] | None = None,
     ) -> dict:
         body = strip_nones({
             "sku_ids": sku_ids,

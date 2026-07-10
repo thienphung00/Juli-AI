@@ -7,10 +7,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.services.tiktok.dispatcher import TikTokWebhookDispatcher
 from juli_backend.services.tiktok.schemas import TikTokWebhookPayload
 from juli_backend.services.tiktok.signature import TikTokWebhookSignatureVerifier
-from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
 

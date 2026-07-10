@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 from sqlalchemy import select
@@ -128,7 +128,7 @@ async def _daily_units_series(
     lookback_days: int = 90,
 ) -> dict[str, list[float]]:
     """Build per-SKU daily unit estimates from completed orders (equal attribution)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - timedelta(days=lookback_days)
     stmt = select(Order).where(
         Order.shop_id == shop_id,
@@ -142,7 +142,7 @@ async def _daily_units_series(
     for order in orders:
         created = order.created_at
         if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
+            created = created.replace(tzinfo=UTC)
         day = created.date()
         counts_by_day[day] = counts_by_day.get(day, 0.0) + 1.0
 
@@ -197,7 +197,7 @@ async def get_forecast(
     depletion_date: datetime | None = None
     if daily_velocity > 0 and item.quantity > 0:
         days_left = item.quantity / daily_velocity
-        depletion_date = datetime.now(timezone.utc) + timedelta(days=days_left)
+        depletion_date = datetime.now(UTC) + timedelta(days=days_left)
 
     return ForecastResult(
         sku_id=sku_id,

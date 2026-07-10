@@ -8,9 +8,9 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
-from juli_backend.ai.features.schema import ANOMALY_FEATURE_COLUMNS
 from juli_backend.ai.anomaly.thresholds import ANOMALY_CLASSES, ANOMALY_CONFIDENCE_THRESHOLD
 from juli_backend.ai.anomaly.types import InferenceResult
+from juli_backend.ai.features.schema import ANOMALY_FEATURE_COLUMNS
 
 
 def _feature_row(features: dict[str, Any]) -> pd.DataFrame:

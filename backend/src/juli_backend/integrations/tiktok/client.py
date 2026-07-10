@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Optional, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 import requests
 from pydantic import BaseModel
@@ -39,7 +39,7 @@ class TikTokClient:
         app_secret: str,
         access_token: str,
         base_url: str = "https://open-api.tiktokglobalshop.com",
-        shop_cipher: Optional[str] = None,
+        shop_cipher: str | None = None,
         timeout: int = 15,
     ) -> None:
         self._app_key = app_key
@@ -54,7 +54,7 @@ class TikTokClient:
     def get(
         self,
         path: str,
-        params: Optional[dict[str, str]] = None,
+        params: dict[str, str] | None = None,
         *,
         response_model: type[T],
     ) -> T: ...
@@ -63,7 +63,7 @@ class TikTokClient:
     def get(
         self,
         path: str,
-        params: Optional[dict[str, str]] = None,
+        params: dict[str, str] | None = None,
         *,
         response_model: None = None,
     ) -> dict[str, Any]: ...
@@ -71,9 +71,9 @@ class TikTokClient:
     def get(
         self,
         path: str,
-        params: Optional[dict[str, str]] = None,
+        params: dict[str, str] | None = None,
         *,
-        response_model: Optional[type[BaseModel]] = None,
+        response_model: type[BaseModel] | None = None,
     ) -> dict[str, Any] | BaseModel:
         """Signed GET request. Returns the ``data`` payload (optionally validated)."""
         all_params = self._build_params(path, params)
@@ -98,8 +98,8 @@ class TikTokClient:
     def post(
         self,
         path: str,
-        body: Optional[dict[str, Any]] = None,
-        params: Optional[dict[str, str]] = None,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
         *,
         response_model: type[T],
     ) -> T: ...
@@ -108,8 +108,8 @@ class TikTokClient:
     def post(
         self,
         path: str,
-        body: Optional[dict[str, Any]] = None,
-        params: Optional[dict[str, str]] = None,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
         *,
         response_model: None = None,
     ) -> dict[str, Any]: ...
@@ -117,10 +117,10 @@ class TikTokClient:
     def post(
         self,
         path: str,
-        body: Optional[dict[str, Any]] = None,
-        params: Optional[dict[str, str]] = None,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
         *,
-        response_model: Optional[type[BaseModel]] = None,
+        response_model: type[BaseModel] | None = None,
     ) -> dict[str, Any] | BaseModel:
         """Signed POST request with JSON body. Returns the ``data`` payload."""
         body = body or {}
@@ -205,7 +205,7 @@ class TikTokClient:
         return all_items
 
     def _build_params(
-        self, path: str, extra: Optional[dict[str, str]] = None
+        self, path: str, extra: dict[str, str] | None = None
     ) -> dict[str, str]:
         params: dict[str, str] = {
             "app_key": self._app_key,

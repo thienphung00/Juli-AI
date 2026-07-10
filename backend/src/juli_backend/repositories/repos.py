@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
@@ -9,6 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.token_crypto import decrypt_token, encrypt_token
+from juli_backend.integrations.tiktok.merchant import (
+    TikTokCapability,
+    is_cross_merchant_lookup,
+)
 from juli_backend.models.models import (
     AlertConfig,
     AlertHistory,
@@ -27,11 +32,6 @@ from juli_backend.models.models import (
     Shop,
     TikTokCredential,
     User,
-)
-from juli_backend.database.token_crypto import decrypt_token, encrypt_token
-from juli_backend.integrations.tiktok.merchant import (
-    TikTokCapability,
-    is_cross_merchant_lookup,
 )
 
 T = TypeVar("T")
@@ -390,7 +390,7 @@ class OrdersRepo(ShopScopedRepo[Order]):
                 f"Cannot ship order in status '{order.status}'"
             )
         order.status = "SHIPPED"
-        order.update_time = datetime.now(timezone.utc)
+        order.update_time = datetime.now(UTC)
         await self._session.flush()
         return order
 

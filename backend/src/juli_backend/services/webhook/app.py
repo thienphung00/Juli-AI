@@ -12,12 +12,12 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.services.tiktok import (
     TikTokWebhookDispatcher,
     TikTokWebhookService,
     TikTokWebhookSignatureVerifier,
 )
-from juli_backend.services.ingestion.handoff import HandoffFn
 
 WEBHOOK_PATH = "/webhooks/tiktok"
 

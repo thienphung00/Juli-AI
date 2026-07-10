@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-
 ANOMALY_BASE_RATE = 0.05
 ITEM_SWAP_RATIO = 0.60
 REPEAT_BUYER_RATE = 0.15

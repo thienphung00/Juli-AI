@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import TikTokCredential
-from juli_backend.repositories.repos import TikTokCredentialRepo
 from juli_backend.integrations.tiktok.merchant import (
     PRODUCTION_AUTH_ID,
     SANDBOX_AUTH_ID,
     TikTokCapability,
 )
+from juli_backend.models.models import TikTokCredential
+from juli_backend.repositories.repos import TikTokCredentialRepo
 
 
 async def resolve_production_read_credential(

@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
-from juli_backend.services.feedback import ingest_campaign_outcome
 from juli_backend.database import Shop, get_session
+from juli_backend.services.feedback import ingest_campaign_outcome
 
 logger = logging.getLogger(__name__)
 

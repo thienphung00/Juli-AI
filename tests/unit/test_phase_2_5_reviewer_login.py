@@ -49,7 +49,7 @@ def test_reviewer_runbook_documents_supabase_free_tier_for_otp(reviewer_runbook_
 
 # AC2: Site URL and redirect URLs for Supabase when OTP is used.
 def test_reviewer_runbook_documents_supabase_site_and_redirect_urls(reviewer_runbook_text: str):
-    assert f"Site URL" in reviewer_runbook_text or "site url" in reviewer_runbook_text.lower()
+    assert "Site URL" in reviewer_runbook_text or "site url" in reviewer_runbook_text.lower()
     assert APP_URL in reviewer_runbook_text
     assert f"{APP_URL}/**" in reviewer_runbook_text or "redirect" in reviewer_runbook_text.lower()
 

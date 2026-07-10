@@ -6,7 +6,7 @@ Legacy ``/api/affiliate/livestreams/*`` paths are not production surfaces.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import CREATOR_CONTENT_DETAILS_PATH
@@ -29,11 +29,11 @@ class LivestreamsResource:
     def list(
         self,
         *,
-        creator_id: Optional[str] = None,
-        start_time: Optional[int] = None,
-        end_time: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        creator_id: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
     ) -> dict[str, Any]:
         params = strip_nones({
             "creator_id": creator_id,
@@ -55,9 +55,9 @@ class LivestreamsResource:
     def list_all(
         self,
         *,
-        creator_id: Optional[str] = None,
-        start_time: Optional[int] = None,
-        end_time: Optional[int] = None,
+        creator_id: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
         page_size: int = 50,
     ) -> list[dict[str, Any]]:
         params = strip_nones({

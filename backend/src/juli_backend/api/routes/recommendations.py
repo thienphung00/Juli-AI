@@ -1,19 +1,19 @@
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
-from juli_backend.database import RecommendationsRepo, Shop, get_session
-from juli_backend.models.models import Recommendation
 from juli_backend.ai.recommendations import (
     get_host_product_matching,
     get_product_push_suggestions,
 )
+from juli_backend.api.dependencies import get_active_shop
+from juli_backend.database import RecommendationsRepo, Shop, get_session
+from juli_backend.models.models import Recommendation
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
@@ -60,14 +60,14 @@ async def list_recommendations(
 
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 async def _list_active(
     session: AsyncSession, shop_id: uuid.UUID
 ) -> list[Recommendation]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stmt = (
         select(Recommendation)
         .where(
@@ -88,7 +88,7 @@ async def _list_active(
 async def _refresh_recommendations(session: AsyncSession, shop_id: uuid.UUID) -> None:
     """Upsert rule-based recommendations from the recommendations engine."""
     repo = RecommendationsRepo(session)
-    expires = datetime.now(timezone.utc).replace(
+    expires = datetime.now(UTC).replace(
         hour=23, minute=59, second=59, microsecond=0
     )
 
@@ -176,10 +176,16 @@ def _to_item(row: Recommendation) -> RecommendationItem:
         message=message,
         cta=cta,
         match_score=match_score_val,
-        confidence=payload.get("confidence") if isinstance(payload.get("confidence"), str) else None,
-        action_type=payload.get("action_type") if isinstance(payload.get("action_type"), str) else None,
+        confidence=(
+            payload.get("confidence") if isinstance(payload.get("confidence"), str) else None
+        ),
+        action_type=(
+            payload.get("action_type") if isinstance(payload.get("action_type"), str) else None
+        ),
         predicted_outcome=predicted,
         source=payload.get("source") if isinstance(payload.get("source"), str) else None,
-        computed_at=payload.get("computed_at") if isinstance(payload.get("computed_at"), str) else None,
+        computed_at=(
+            payload.get("computed_at") if isinstance(payload.get("computed_at"), str) else None
+        ),
         payload=payload or None,
     )

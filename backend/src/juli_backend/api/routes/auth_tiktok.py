@@ -7,16 +7,16 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.tiktok.app_review_store import persist_oauth_tokens
-from juli_backend.services.tiktok.oauth import TikTokOAuthInfrastructureService
+from juli_backend.core.config.runtime import require_env
+from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.database import get_session
-from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.exceptions import (
     AuthenticationError,
 )
-from juli_backend.core.security.exceptions import Unauthorized
-from juli_backend.core.config.runtime import require_env
+from juli_backend.services.tiktok.app_review_store import persist_oauth_tokens
+from juli_backend.services.tiktok.oauth import TikTokOAuthInfrastructureService
+from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
 
 router = APIRouter(prefix="/auth/tiktok", tags=["auth"])
 

@@ -7,8 +7,8 @@ from juli_backend.ai.dataset.schema import (
     LABELS_COLUMNS,
     ORDER_ITEMS_COLUMNS,
     ORDERS_COLUMNS,
-    RETURNS_COLUMNS,
     RETURN_TYPE_VALUES,
+    RETURNS_COLUMNS,
 )
 from juli_backend.ai.dataset.validation import validate_backtest_dataset
 

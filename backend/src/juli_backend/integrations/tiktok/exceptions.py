@@ -7,8 +7,6 @@ inspecting raw codes.
 
 from __future__ import annotations
 
-from typing import Optional
-
 
 class TikTokAPIError(Exception):
     """Base exception for all TikTok Shop API errors."""
@@ -17,7 +15,7 @@ class TikTokAPIError(Exception):
         self,
         code: int,
         message: str,
-        request_id: Optional[str] = None,
+        request_id: str | None = None,
     ) -> None:
         self.code = code
         self.message = message
@@ -54,7 +52,7 @@ _CODE_MAP: dict[int, type[TikTokAPIError]] = {
 }
 
 
-def error_from_response(response: dict) -> Optional[TikTokAPIError]:
+def error_from_response(response: dict) -> TikTokAPIError | None:
     """Build the correct exception from a TikTok API response dict.
 
     Returns None when the response indicates success (code == 0).

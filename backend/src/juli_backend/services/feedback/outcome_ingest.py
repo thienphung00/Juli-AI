@@ -6,7 +6,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,7 +74,7 @@ async def ingest_campaign_outcome(
         if predicted_conversion is not None:
             campaign.predicted_conversion = predicted_conversion
         campaign.status = "completed"
-        campaign.completed_at = datetime.now(timezone.utc)
+        campaign.completed_at = datetime.now(UTC)
         campaign.idempotency_key = idempotency_key
         await session.flush()
     else:
@@ -89,7 +89,7 @@ async def ingest_campaign_outcome(
             realized_conversion=realized_conversion,
             idempotency_key=idempotency_key,
         )
-        campaign.completed_at = datetime.now(timezone.utc)
+        campaign.completed_at = datetime.now(UTC)
         await session.flush()
 
     weight = compute_calibration_weight(
@@ -108,7 +108,7 @@ async def ingest_campaign_outcome(
             ),
         }
     )
-    computed_at = datetime.now(timezone.utc)
+    computed_at = datetime.now(UTC)
     edge_count = 0
     for product_id in product_ids:
         await repo.upsert_edge(

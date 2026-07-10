@@ -12,9 +12,9 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import precision_recall_fscore_support
 
-from juli_backend.ai.features import ANOMALY_FEATURE_COLUMNS, build_anomaly_features
 from juli_backend.ai.anomaly.inference import predict_anomaly
 from juli_backend.ai.anomaly.types import TrainResult
+from juli_backend.ai.features import ANOMALY_FEATURE_COLUMNS, build_anomaly_features
 
 CLASS_IMBALANCE_STRATEGY = "class_weight=balanced on RandomForestClassifier (no resampling)"
 DEFAULT_RANDOM_SEED = 139
@@ -74,7 +74,7 @@ def _stratified_train_eval_split(
 
 
 def _augment_training_with_golden_rows(train_frame: pd.DataFrame) -> pd.DataFrame:
-    """Boost high-signal buyer profiles so all anomaly classes are learnable on sparse backtest data."""
+    """Boost high-signal buyer profiles so all anomaly classes are learnable."""
     from juli_backend.ai.anomaly.fixtures import GOLDEN_ANOMALY_FIXTURES
 
     extra_rows: list[dict[str, Any]] = []

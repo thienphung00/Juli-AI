@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import (
     CANCELLATION_SEARCH_PATH,
@@ -21,11 +19,11 @@ class ReturnsResource:
     def search_returns(
         self,
         *,
-        return_status: Optional[str] = None,
-        update_time_from: Optional[int] = None,
-        update_time_to: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        return_status: str | None = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
     ) -> dict:
         body = strip_nones({
             "return_status": return_status,
@@ -41,9 +39,9 @@ class ReturnsResource:
     def search_returns_all(
         self,
         *,
-        return_status: Optional[str] = None,
-        update_time_from: Optional[int] = None,
-        update_time_to: Optional[int] = None,
+        return_status: str | None = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
         body = strip_nones({
@@ -61,10 +59,10 @@ class ReturnsResource:
     def search_cancellations(
         self,
         *,
-        update_time_from: Optional[int] = None,
-        update_time_to: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
     ) -> dict:
         body = strip_nones({
             "update_time_ge": update_time_from,
@@ -79,8 +77,8 @@ class ReturnsResource:
     def search_cancellations_all(
         self,
         *,
-        update_time_from: Optional[int] = None,
-        update_time_to: Optional[int] = None,
+        update_time_from: int | None = None,
+        update_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
         body = strip_nones({

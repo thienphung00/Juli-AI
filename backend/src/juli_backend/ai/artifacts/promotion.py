@@ -19,7 +19,10 @@ def evaluate_promotion_status(suite: ModelSuite, metrics: dict[str, Any]) -> Pro
     if suite == "seller_stage":
         precision = float(metrics.get("precision", 0.0))
         recall_macro = float(metrics.get("recall_macro", 0.0))
-        if precision >= SELLER_STAGE_MIN_PRECISION and recall_macro >= SELLER_STAGE_MIN_RECALL_MACRO:
+        if (
+            precision >= SELLER_STAGE_MIN_PRECISION
+            and recall_macro >= SELLER_STAGE_MIN_RECALL_MACRO
+        ):
             return "promoted"
         return "experimental"
 
