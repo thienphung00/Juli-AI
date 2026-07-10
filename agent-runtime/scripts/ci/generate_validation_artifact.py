@@ -21,7 +21,7 @@ from common import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-VALIDATE_DIR = REPO_ROOT / "scripts" / "validate"
+VALIDATE_DIR = Path(__file__).resolve().parents[1] / "validate"
 
 CHECKS: list[tuple[str, str]] = [
     ("review_artifact_present", "check_review_artifact.py"),
