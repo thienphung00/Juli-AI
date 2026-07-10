@@ -13,20 +13,20 @@ Recovery playbook for the gates defined in
 
 ```
 PR Validation Failed: check_review_artifact
-artifacts/reviews/review-issue-123.json not found
+agent-runtime/artifacts/reviews/review-issue-123.json not found
 ```
 
 ### Causes
 
 1. `review` skill ran but did not write the artifact.
 2. Filename uses the wrong pattern (`review-123.json` instead of `review-issue-123.json`).
-3. Wrong directory (root `artifacts/` instead of `artifacts/reviews/`).
+3. Wrong directory (root `artifacts/` instead of `agent-runtime/artifacts/reviews/`).
 
 ### Fix
 
 ```bash
-python scripts/ci/generate_review_artifact.py --issue 123
-git add artifacts/reviews/review-issue-123.json
+python agent-runtime/agent-runtime/scripts/ci/generate_review_artifact.py --issue 123
+git add agent-runtime/artifacts/reviews/review-issue-123.json
 git commit -m "chore: add review artifact for issue #123"
 git push
 ```
@@ -66,7 +66,7 @@ Total: 5  Mapped: 3  Unmapped: ["Invalid OTP shows error", "OTP expires after 5 
      "test": "web/src/__tests__/test_ui_only_login.test.tsx"
    }
    ```
-4. Re-run locally: `python scripts/ci/generate_validation_artifact.py --issue 123`.
+4. Re-run locally: `python agent-runtime/agent-runtime/scripts/ci/generate_validation_artifact.py --issue 123`.
 
 ---
 
@@ -89,7 +89,7 @@ Excess in MODULE.md: deprecated_login
    ```
 2. Update `src/auth/MODULE.md` "Public Interfaces" to match.
 3. If a symbol is internal, prefix with `_` so the AST scan ignores it.
-4. Re-run: `python scripts/validate/check_module_drift.py`.
+4. Re-run: `python agent-runtime/scripts/validate/check_module_drift.py`.
 
 Tier 3 utility modules without `MODULE.md` are exempt — see
 [`docs/architecture/map.md`](../architecture/map.md).
@@ -109,13 +109,13 @@ Cycle: src/auth -> src/api -> src/data -> src/auth
 
 1. Localize the offending edge:
    ```bash
-   python scripts/validate/check_module_boundaries.py --verbose
+   python agent-runtime/scripts/validate/check_module_boundaries.py --verbose
    ```
 2. Apply one of:
    - Move shared types to a new utility module that neither side imports.
    - Use dependency inversion (pass a callable in instead of importing the module).
    - Convert runtime import to `from __future__ import annotations` + typing-only `TYPE_CHECKING` block.
-3. Confirm: `python scripts/validate/check_module_boundaries.py`.
+3. Confirm: `python agent-runtime/scripts/validate/check_module_boundaries.py`.
 
 ---
 
@@ -209,7 +209,7 @@ Unauthorized import: src/api/v1/orders.py imports src.data.repos.orders.OrdersRe
 2. Either use the public surface, or, if the symbol is legitimately needed:
    - Add it to the importee's `MODULE.md` "Public Interfaces".
    - Re-export it from the module's `__init__.py`.
-3. Confirm: `python scripts/validate/check_module_boundaries.py`.
+3. Confirm: `python agent-runtime/scripts/validate/check_module_boundaries.py`.
 
 ---
 
@@ -245,11 +245,11 @@ mypy src/
 pytest tests/
 alembic upgrade head && alembic downgrade -1 && alembic upgrade head
 (cd web && npm ci && npm run lint && npm run type-check && npm run test)
-python scripts/ci/generate_review_artifact.py --issue <N>
-python scripts/ci/generate_validation_artifact.py --issue <N>
+python agent-runtime/agent-runtime/scripts/ci/generate_review_artifact.py --issue <N>
+python agent-runtime/agent-runtime/scripts/ci/generate_validation_artifact.py --issue <N>
 git status   # confirm artifacts/ is staged
 git push
 ```
 
-If anything fails, the JSON artifact under `artifacts/validation/` lists the
+If anything fails, the JSON artifact under `agent-runtime/artifacts/validation/` lists the
 exact failing check; start your fix there.

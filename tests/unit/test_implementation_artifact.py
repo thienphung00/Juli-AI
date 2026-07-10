@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "ci"))
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "validate"))
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "validate"))
 
 from common import build_implementation_artifact, write_json  # noqa: E402
 from check_implementation_artifact import run_check  # noqa: E402

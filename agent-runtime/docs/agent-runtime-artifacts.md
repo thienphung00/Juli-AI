@@ -14,15 +14,15 @@ substitutes for runtime artifacts.
 
 | Artifact | Producer | Primary consumers | Path pattern |
 |----------|----------|-------------------|--------------|
-| **implementation** | Executor Agent | Review Agent, Meta Agent | `artifacts/implementations/implementation-issue-<n>.json` |
-| **review** | Review Agent (`review` skill) | Validate, `pr.yml`, Meta Agent | `artifacts/reviews/review-issue-<n>.json` |
-| **validation** | Review Agent (`validate` skill, `pr.yml`) | Ship, Meta Agent | `artifacts/validation/validation-issue-<n>.json` |
-| **harness_optimization** | Meta Agent | Harness config, benchmark reruns | `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
-| **product_development_optimization** | Meta Agent (occasional) | Architect Agent backlog | `artifacts/optimization/product-development-<id>.json` |
-| **release** *(ADR-003)* | Ship skill, `release.yml` | Rollback / hotfix agents | `artifacts/releases/release-<version>.json` |
-| **audit** *(ADR-003)* | `architecture-audit.yml` | Triage to GitHub issues | `artifacts/validation/audit-<type>-<date>.json` |
+| **implementation** | Executor Agent | Review Agent, Meta Agent | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` |
+| **review** | Review Agent (`review` skill) | Validate, `pr.yml`, Meta Agent | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
+| **validation** | Review Agent (`validate` skill, `pr.yml`) | Ship, Meta Agent | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
+| **harness_optimization** | Meta Agent | Harness config, benchmark reruns | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
+| **product_development_optimization** | Meta Agent (occasional) | Architect Agent backlog | `agent-runtime/artifacts/optimization/product-development-<id>.json` |
+| **release** *(ADR-003)* | Ship skill, `release.yml` | Rollback / hotfix agents | `agent-runtime/artifacts/releases/release-<version>.json` |
+| **audit** *(ADR-003)* | `architecture-audit.yml` | Triage to GitHub issues | `agent-runtime/artifacts/validation/audit-<type>-<date>.json` |
 
-JSON Schema definitions: [`docs/schemas/agent-runtime/`](../schemas/agent-runtime/).
+JSON Schema definitions: [`schemas/`](schemas/).
 
 ---
 
@@ -65,7 +65,7 @@ schemas **extend** those contracts — they do not replace gate-required fields.
 | Per-check results | `checks[]` | `validationFailures` | Gate uses `checks`; Meta uses failure count |
 
 **Phase 4** updates skills to emit optimization fields. Gate scripts under
-`scripts/validate/` continue to validate only ADR-003 required fields.
+`agent-runtime/scripts/validate/` continue to validate only ADR-003 required fields.
 
 ---
 
@@ -75,13 +75,13 @@ schemas **extend** those contracts — they do not replace gate-required fields.
 
 | Path | Commit? | Rationale |
 |------|---------|-----------|
-| `artifacts/reviews/review-issue-*.json` | **Yes** | ADR-003: CI `pr.yml` requires branch-persistent review artifacts |
-| `artifacts/validation/validation-issue-*.json` | **Yes** | ADR-003: ship and CI consume validation artifacts |
-| `artifacts/implementations/implementation-issue-*.json` | **Yes** | Small JSON; Meta optimization input |
-| `artifacts/optimization/harness-issue-*.json` | **Yes** | Primary Meta output; benchmark before/after comparison |
-| `artifacts/optimization/product-development-*.json` | **Yes** | Architect backlog routing evidence |
-| `artifacts/releases/release-*.json` | **Yes** | ADR-003 rollback metadata |
-| `artifacts/validation/audit-*.json` | **Yes** | Nightly audit summaries (structured JSON) |
+| `agent-runtime/artifacts/reviews/review-issue-*.json` | **Yes** | ADR-003: CI `pr.yml` requires branch-persistent review artifacts |
+| `agent-runtime/artifacts/validation/validation-issue-*.json` | **Yes** | ADR-003: ship and CI consume validation artifacts |
+| `agent-runtime/artifacts/implementations/implementation-issue-*.json` | **Yes** | Small JSON; Meta optimization input |
+| `agent-runtime/artifacts/optimization/harness-issue-*.json` | **Yes** | Primary Meta output; benchmark before/after comparison |
+| `agent-runtime/artifacts/optimization/product-development-*.json` | **Yes** | Architect backlog routing evidence |
+| `agent-runtime/artifacts/releases/release-*.json` | **Yes** | ADR-003 rollback metadata |
+| `agent-runtime/artifacts/validation/audit-*.json` | **Yes** | Nightly audit summaries (structured JSON) |
 
 ### Never commit
 
@@ -97,7 +97,7 @@ schemas **extend** those contracts — they do not replace gate-required fields.
 - **Validation artifact:** produced by `validate` skill or `generate_validation_artifact.py` after gates pass.
 - **Implementation / optimization artifacts:** produced by Executor / Meta agents per Phase 4 skill updates; manual edits only for harness benchmark fixtures.
 
-See [`artifacts/README.md`](../../artifacts/README.md) for directory layout.
+See [`artifacts/README.md`](../../agent-runtime/artifacts/README.md) for directory layout.
 
 ---
 
@@ -226,8 +226,8 @@ append it to the filename for uniqueness when multiple runs exist per issue.
 
 ## Validation workflow
 
-1. **CI gates (mandatory):** `scripts/validate/*.py` — ADR-003 fields only.
-2. **Schema check (advisory):** validate JSON against `docs/schemas/agent-runtime/*.schema.json`
+1. **CI gates (mandatory):** `agent-runtime/scripts/validate/*.py` — ADR-003 fields only.
+2. **Schema check (advisory):** validate JSON against `schemas/*.schema.json`
    before committing optimization artifacts or during benchmark runs.
 3. **Meta scoring:** derive the eight baseline metrics from `baselineMetrics`
    on harness optimization artifacts; compare across benchmark reruns per
@@ -243,4 +243,4 @@ append it to the filename for uniqueness when multiple runs exist per issue.
 | [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md) | Benchmark protocol and scoring |
 | [ADR-003](../adr/003-ai-native-cicd-policy.md) | CI enforcement, gate ordering |
 | [`docs/deployment/implementation-guide.md`](../ci/implementation-guide.md) | Gate scripts, ADR-003 schema examples |
-| [`artifacts/README.md`](../../artifacts/README.md) | Directory layout and commit policy |
+| [`artifacts/README.md`](../../agent-runtime/artifacts/README.md) | Directory layout and commit policy |

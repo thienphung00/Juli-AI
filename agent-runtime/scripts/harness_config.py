@@ -30,10 +30,12 @@ from build_runtime import (  # noqa: E402
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_EDITABLE = REPO_ROOT / "harness-editable.yml"
-DEFAULT_SAFELIST = REPO_ROOT / "harness-safelist.yml"
-DEFAULT_CONFIG = REPO_ROOT / "agent-runtime.config.yml"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+AGENT_RUNTIME_ROOT = REPO_ROOT / "agent-runtime"
+DEFAULT_EDITABLE = AGENT_RUNTIME_ROOT / "config" / "harness-editable.yml"
+DEFAULT_SAFELIST = AGENT_RUNTIME_ROOT / "config" / "harness-safelist.yml"
+DEFAULT_CONFIG = AGENT_RUNTIME_ROOT / "config" / "agent-runtime.config.yml"
+CONFIG_FILE_LABEL = "agent-runtime/config/agent-runtime.config.yml"
 
 VALIDATION_RE = re.compile(
     r"^(>=|<=|>|<|==)\s*(-?\d+(?:\.\d+)?)$"
@@ -179,7 +181,7 @@ def allowed_auto_apply_fields(editable: dict[str, Any] | None = None) -> set[str
     return {
         spec.path
         for spec in iter_field_specs(editable)
-        if spec.auto_apply and spec.file == "agent-runtime.config.yml"
+        if spec.auto_apply and spec.file == CONFIG_FILE_LABEL
     }
 
 
@@ -231,7 +233,7 @@ def _resolve_config_path(field_path: str, config_path: Path | None = None) -> Pa
     spec = find_field_spec(field_path)
     if spec is None:
         raise HarnessConfigError(f"field not in harness-editable.yml: {field_path}")
-    if spec.file != "agent-runtime.config.yml":
+    if spec.file != CONFIG_FILE_LABEL:
         raise HarnessConfigError(
             f"{field_path} maps to {spec.file}; use markdown workflow for non-YAML targets"
         )

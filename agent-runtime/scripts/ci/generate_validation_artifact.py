@@ -20,7 +20,7 @@ from common import (
     write_json,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 VALIDATE_DIR = REPO_ROOT / "scripts" / "validate"
 
 CHECKS: list[tuple[str, str]] = [

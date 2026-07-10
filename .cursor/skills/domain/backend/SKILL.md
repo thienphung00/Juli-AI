@@ -10,7 +10,7 @@ description: >-
 
 Executor Agent domain skill for backend work. Implements issues with **mandatory
 built-in TDD** (Red → Green → Refactor). Canonical requirements:
-[`docs/architecture/agent-runtime.md`](../../../docs/architecture/agent-runtime.md).
+[`agent-runtime/docs/agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md).
 
 ## When to load
 
@@ -83,10 +83,10 @@ consistency per `patterns.mdc`.
 
 ## Implementation artifact (required handoff)
 
-Before Review Agent, write `artifacts/implementations/implementation-issue-<n>.json`.
+Before Review Agent, write `agent-runtime/artifacts/implementations/implementation-issue-<n>.json`.
 
 ```bash
-python scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain backend
+python agent-runtime/agent-runtime/scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain backend
 ```
 
 Fill in from the implementation session:
@@ -97,7 +97,7 @@ Fill in from the implementation session:
 - `implementationSummary`, `assumptions`, `risks`
 - `phaseRunId` — shared with review/validation artifacts for this run
 
-Schema: [`docs/schemas/agent-runtime/implementation-artifact.schema.json`](../../../docs/schemas/agent-runtime/implementation-artifact.schema.json)
+Schema: [`agent-runtime/docs/schemas/implementation-artifact.schema.json`](../../../agent-runtime/docs/schemas/implementation-artifact.schema.json)
 
 Commit the artifact on the feature branch with the code changes.
 

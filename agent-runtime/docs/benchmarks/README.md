@@ -1,7 +1,7 @@
 # Agent Runtime Benchmark Fixtures
 
 Issue-like specs for the unified benchmark framework
-([`docs/architecture/agent-runtime-benchmarks.md`](../../architecture/agent-runtime-benchmarks.md)).
+([`agent-runtime/docs/agent-runtime-benchmarks.md`](../../architecture/agent-runtime-benchmarks.md)).
 
 Each fixture defines scope small enough for a single agent session, expected artifacts,
 and deterministic checks. Use a real GitHub issue when it matches the type; otherwise
@@ -27,10 +27,10 @@ run against the fixture description directly.
 
 Every run must produce:
 
-1. `artifacts/implementations/implementation-issue-<n>.json`
-2. `artifacts/reviews/review-issue-<n>.json`
-3. `artifacts/validation/validation-issue-<n>.json`
-4. `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json`
+1. `agent-runtime/artifacts/implementations/implementation-issue-<n>.json`
+2. `agent-runtime/artifacts/reviews/review-issue-<n>.json`
+3. `agent-runtime/artifacts/validation/validation-issue-<n>.json`
+4. `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json`
 5. `artifacts/benchmarks/<benchmarkRunId>.json`
 
 Product-development optimization is optional unless the fixture or rerun protocol

@@ -18,6 +18,7 @@ from harness_config import allowed_auto_apply_fields, apply_change, preview_chan
 from common import (
     IMPLEMENTATIONS_DIR,
     OPTIMIZATION_DIR,
+    REPO_ROOT,
     REVIEWS_DIR,
     RUNTIME_SCHEMA_VERSION,
     VALIDATION_DIR,
@@ -28,7 +29,7 @@ from common import (
 )
 
 
-DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "agent-runtime.config.yml"
+DEFAULT_CONFIG = REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml"
 ROOT_CAUSE_ORDER = [
     "artifact_incomplete",
     "validation_failure",
@@ -78,7 +79,7 @@ def as_float(value: Any, default: float = 0.0) -> float:
 
 def artifact_path(path: Path) -> str:
     try:
-        return path.relative_to(Path(__file__).resolve().parents[1]).as_posix()
+        return path.relative_to(REPO_ROOT).as_posix()
     except ValueError:
         return path.as_posix()
 

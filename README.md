@@ -12,7 +12,7 @@ collect explicit approval, and execute via tools.
 | [`ios/`](ios/) | Native iOS app |
 | [`infra/`](infra/) | VPS deploy scripts, nginx, systemd |
 | [`docs/`](docs/) | Architecture, ADRs, runbooks, product specs |
-| [`artifacts/`](artifacts/) | Agent runtime artifacts (versioned per ADR-003) |
+| [`agent-runtime/`](agent-runtime/) | Agent harness config, scripts, artifacts (ADR-003) |
 | [`scripts/`](scripts/) | CI, validation, and harness scripts |
 
 Start with [`EXECUTION.md`](EXECUTION.md) for phase scope and [`docs/README.md`](docs/README.md) for documentation routing.

@@ -13,15 +13,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
+AGENT_RUNTIME_ROOT = REPO_ROOT / "agent-runtime"
 ARCHITECTURE_MAP = REPO_ROOT / "docs" / "architecture" / "map.md"
 HANDOFFS_DIR = REPO_ROOT / "docs" / "handoffs"
 DECISIONS_DIR = REPO_ROOT / "docs" / "adr"
-REVIEWS_DIR = REPO_ROOT / "artifacts" / "reviews"
-VALIDATION_DIR = REPO_ROOT / "artifacts" / "validation"
-IMPLEMENTATIONS_DIR = REPO_ROOT / "artifacts" / "implementations"
-OPTIMIZATION_DIR = REPO_ROOT / "artifacts" / "optimization"
-RELEASES_DIR = REPO_ROOT / "artifacts" / "releases"
+REVIEWS_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "reviews"
+VALIDATION_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "validation"
+IMPLEMENTATIONS_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "implementations"
+OPTIMIZATION_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "optimization"
+RELEASES_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "releases"
 RUNTIME_SCHEMA_VERSION = "1.0.0"
 DONE_MD = REPO_ROOT / "done.md"
 

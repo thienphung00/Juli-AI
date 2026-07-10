@@ -5,8 +5,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "ci"))
+AGENT_RUNTIME_CONFIG = REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml"
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
 
 from build_runtime import build_runtime, load_simple_yaml  # noqa: E402
 from harness_optimizer import (  # noqa: E402
@@ -19,7 +20,7 @@ from harness_optimizer import (  # noqa: E402
 
 
 def test_build_runtime_uses_declarative_config() -> None:
-    config = load_simple_yaml(REPO_ROOT / "agent-runtime.config.yml")
+    config = load_simple_yaml(AGENT_RUNTIME_CONFIG)
 
     runtime = build_runtime(config)
 
@@ -32,7 +33,7 @@ def test_build_runtime_uses_declarative_config() -> None:
 
 
 def test_optimizer_proposes_context_budget_change(tmp_path: Path) -> None:
-    config = load_simple_yaml(REPO_ROOT / "agent-runtime.config.yml")
+    config = load_simple_yaml(AGENT_RUNTIME_CONFIG)
     config["context"]["max_files"] = 1
     implementation = {
         "issueId": 123,
@@ -80,7 +81,7 @@ def test_optimizer_proposes_context_budget_change(tmp_path: Path) -> None:
 
 def test_apply_fix_updates_only_config_file(tmp_path: Path) -> None:
     config_path = tmp_path / "agent-runtime.config.yml"
-    config_path.write_text((REPO_ROOT / "agent-runtime.config.yml").read_text(encoding="utf-8"), encoding="utf-8")
+    config_path.write_text(AGENT_RUNTIME_CONFIG.read_text(encoding="utf-8"), encoding="utf-8")
     config = load_simple_yaml(config_path)
     config["context"]["max_files"] = 1
 

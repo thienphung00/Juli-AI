@@ -55,7 +55,7 @@ done.md                          # root definition-of-done checklist
 
 ## Skill / Agent Phase Wiring
 
-Harness routing: [`docs/architecture/agent-runtime.md`](../architecture/agent-runtime.md).
+Harness routing: [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md).
 
 ```
 Planning:      focus -> to-prd -> to-issues
@@ -66,19 +66,19 @@ Bug filing:    qa -> focus -> Executor -> review -> validate -> ship
 
 | Producer | Output | Consumer |
 |----------|--------|----------|
-| Executor Agent | `artifacts/implementations/implementation-issue-<n>.json` | `review` skill, Meta Agent |
-| `review` skill | `artifacts/reviews/review-issue-<n>.json` | `validate` skill, `pr.yml`, Meta Agent |
-| `validate` skill (and `pr.yml`) | `artifacts/validation/validation-issue-<n>.json` | `ship` skill, Meta Agent |
-| Meta Agent (Focus, post-validation) | `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` | Harness config, benchmarks |
-| Meta Agent (occasional) | `artifacts/optimization/product-development-<id>.json` | Architect backlog |
-| `ship` skill (and `release.yml`) | `artifacts/releases/release-<version>.json` | Future agents (rollback) |
-| `architecture-audit.yml` (nightly) | `artifacts/validation/audit-<date>.json` | Triage to GitHub issues |
+| Executor Agent | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` | `review` skill, Meta Agent |
+| `review` skill | `agent-runtime/artifacts/reviews/review-issue-<n>.json` | `validate` skill, `pr.yml`, Meta Agent |
+| `validate` skill (and `pr.yml`) | `agent-runtime/artifacts/validation/validation-issue-<n>.json` | `ship` skill, Meta Agent |
+| Meta Agent (Focus, post-validation) | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` | Harness config, benchmarks |
+| Meta Agent (occasional) | `agent-runtime/artifacts/optimization/product-development-<id>.json` | Architect backlog |
+| `ship` skill (and `release.yml`) | `agent-runtime/artifacts/releases/release-<version>.json` | Future agents (rollback) |
+| `architecture-audit.yml` (nightly) | `agent-runtime/artifacts/validation/audit-<date>.json` | Triage to GitHub issues |
 
 ## Artifact Schemas
 
 **Agent Runtime (Phase 3):** JSON Schema definitions and persistence policy live in
-[`docs/architecture/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md)
-and [`docs/schemas/agent-runtime/`](../schemas/agent-runtime/). The review and validation
+[`agent-runtime/docs/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md)
+and [`agent-runtime/docs/schemas/`](../schemas/agent-runtime/). The review and validation
 schemas below remain the **ADR-003 CI gate contract**. Agent Runtime extends them with
 optional Meta optimization fields (`reviewFailures`, `baselineMetrics`, etc.) — gate scripts
 validate only the fields documented here.
@@ -92,7 +92,7 @@ validate only the fields documented here.
 
 ### Review Artifact
 
-`artifacts/reviews/review-issue-<n>.json`
+`agent-runtime/artifacts/reviews/review-issue-<n>.json`
 
 ```json
 {
@@ -150,9 +150,9 @@ exist (and no CRITICAL/actionRequired/mandatory fail). Legacy top-level
 `PASS_WITH_WARNINGS` blocks merge until each WARNING has `acceptanceByReviewer`,
 `ownerAck`, and `fixedInCommit` or `shipAsIsReason`, plus `reviewerSignoff` and
 `ownerSignoff`. Regenerate with
-`python scripts/ci/generate_review_artifact.py --issue <n>` (preserves existing
+`python agent-runtime/agent-runtime/scripts/ci/generate_review_artifact.py --issue <n>` (preserves existing
 fields; use `--fresh` to reset) or batch-fix with
-`python scripts/ci/normalize_review_artifacts.py`. CI rejects status/findings mismatches.
+`python agent-runtime/agent-runtime/scripts/ci/normalize_review_artifacts.py`. CI rejects status/findings mismatches.
 
 **Hotfix override:** set `overriddenMerge` with `timestamp`, `overriddenBy`, `reason`,
 `incidentLink` to merge despite overridable mandatory fails (see
@@ -163,12 +163,12 @@ production data exposure are never overridable.
 `linkedFinding` (matches `criticalFindings[].id`) when a shipped-as-is risk
 materializes in production.
 
-**ML gates:** `mlGates` booleans plus source scan in `scripts/ci/ml_thresholds.py`.
+**ML gates:** `mlGates` booleans plus source scan in `agent-runtime/scripts/ci/ml_thresholds.py`.
 Optional `mlGates.thresholds` cross-checks declared values against `thresholds.py`.
 
 ### Validation Artifact
 
-`artifacts/validation/validation-issue-<n>.json`
+`agent-runtime/artifacts/validation/validation-issue-<n>.json`
 
 ```json
 {
@@ -224,7 +224,7 @@ Optional `mlGates.thresholds` cross-checks declared values against `thresholds.p
 
 ### Release Artifact
 
-`artifacts/releases/release-<version>.json`
+`agent-runtime/artifacts/releases/release-<version>.json`
 
 ```json
 {
@@ -271,7 +271,7 @@ this guide does not duplicate the YAML. What each workflow does:
 
 | Workflow | Trigger | Jobs |
 |----------|---------|------|
-| [`pr.yml`](../../.github/workflows/pr.yml) | `pull_request` | lint-and-typecheck (ruff + mypy), test (pytest with Postgres + Redis), migration-check (alembic up/down/up), frontend (npm in `web/`), validate-artifacts (`scripts/validate/*.py`), generate-validation-artifact, status-check |
+| [`pr.yml`](../../.github/workflows/pr.yml) | `pull_request` | lint-and-typecheck (ruff + mypy), test (pytest with Postgres + Redis), migration-check (alembic up/down/up), frontend (npm in `web/`), validate-artifacts (`agent-runtime/scripts/validate/*.py`), generate-validation-artifact, status-check |
 | [`release.yml`](../../.github/workflows/release.yml) | `push` to `main` or `v*` tag | build, deploy (SSH to the review VPS — `infra/scripts/deploy-release.sh`, skipped on tag-only pushes), generate-release-artifact, github-release (tags only) |
 | [`architecture-audit.yml`](../../.github/workflows/architecture-audit.yml) | `cron: '0 2 * * *'`, `workflow_dispatch` | audit-drift, audit-cycles, audit-size, summarize, file-issue-on-critical |
 
@@ -282,26 +282,26 @@ a single file, stdlib-only, with `--help`. Summary:
 
 | Script | Reads | Writes / Exit code |
 |--------|-------|-------------------|
-| [`scripts/ci/generate_implementation_artifact.py`](../../scripts/ci/generate_implementation_artifact.py) | `--issue`, `--executor-domain`, optional `--input-json` | Writes `artifacts/implementations/implementation-issue-<n>.json` |
-| [`scripts/ci/generate_review_artifact.py`](../../scripts/ci/generate_review_artifact.py) | `--issue`, optional `--input-json` | Writes `artifacts/reviews/review-issue-<n>.json` (ADR-003 + Meta fields) |
-| [`scripts/ci/generate_validation_artifact.py`](../../scripts/ci/generate_validation_artifact.py) | Runs all checks | Writes `artifacts/validation/validation-issue-<n>.json` (ADR-003 + Meta fields), exit 0 if PASS |
-| [`scripts/ci/generate_release_artifact.py`](../../scripts/ci/generate_release_artifact.py) | `--version`, `--commit`, git history | Writes `artifacts/releases/release-<version>.json` |
-| [`scripts/ci/audit_module_drift.py`](../../scripts/ci/audit_module_drift.py) | `MODULE.md` files vs Python AST | Writes `artifacts/validation/audit-drift-<date>.json` |
-| [`scripts/ci/audit_cycles.py`](../../scripts/ci/audit_cycles.py) | `docs/architecture/map.md`, AST imports | Writes `artifacts/validation/audit-cycles-<date>.json` |
-| [`scripts/ci/audit_module_size.py`](../../scripts/ci/audit_module_size.py) | LOC per module | Writes `artifacts/validation/audit-size-<date>.json` |
-| [`scripts/validate/check_review_artifact.py`](../../scripts/validate/check_review_artifact.py) | `--issue` | Exit 0 if PASS, 1 otherwise |
-| [`scripts/validate/check_implementation_artifact.py`](../../scripts/validate/check_implementation_artifact.py) | `--issue` | Exit 0 if PASS, 1 otherwise |
-| [`scripts/validate/check_acceptance_mapping.py`](../../scripts/validate/check_acceptance_mapping.py) | review artifact | Exit 0/1 |
-| [`scripts/validate/check_module_boundaries.py`](../../scripts/validate/check_module_boundaries.py) | git diff + AST + map.md | Exit 0/1 |
-| [`scripts/validate/check_module_drift.py`](../../scripts/validate/check_module_drift.py) | `MODULE.md` vs AST | Exit 0/1 |
-| [`scripts/validate/check_handoff.py`](../../scripts/validate/check_handoff.py) | `docs/handoffs/*.md` | Exit 0/1 |
-| [`scripts/validate/check_adr.py`](../../scripts/validate/check_adr.py) | review artifact + `docs/adr/` | Exit 0/1 |
-| [`scripts/validate/check_done_md.py`](../../scripts/validate/check_done_md.py) | root `done.md` | Exit 0/1 |
-| [`scripts/validate/check_critical_findings_resolved.py`](../../scripts/validate/check_critical_findings_resolved.py) | review artifact mandatory fail triggers | Exit 0/1 |
-| [`scripts/validate/check_findings_acknowledged.py`](../../scripts/validate/check_findings_acknowledged.py) | WARNING finding signoffs | Exit 0/1 |
-| [`scripts/validate/check_reviewer_signoff.py`](../../scripts/validate/check_reviewer_signoff.py) | `reviewerSignoff` | Exit 0/1 |
-| [`scripts/validate/check_owner_signoff.py`](../../scripts/validate/check_owner_signoff.py) | `ownerSignoff` | Exit 0/1 |
-| [`scripts/validate/check_ml_gates.py`](../../scripts/validate/check_ml_gates.py) | `mlGates` for ML modules | Exit 0/1 |
+| [`agent-runtime/scripts/ci/generate_implementation_artifact.py`](../../agent-runtime/scripts/ci/generate_implementation_artifact.py) | `--issue`, `--executor-domain`, optional `--input-json` | Writes `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` |
+| [`agent-runtime/scripts/ci/generate_review_artifact.py`](../../agent-runtime/scripts/ci/generate_review_artifact.py) | `--issue`, optional `--input-json` | Writes `agent-runtime/artifacts/reviews/review-issue-<n>.json` (ADR-003 + Meta fields) |
+| [`agent-runtime/scripts/ci/generate_validation_artifact.py`](../../agent-runtime/scripts/ci/generate_validation_artifact.py) | Runs all checks | Writes `agent-runtime/artifacts/validation/validation-issue-<n>.json` (ADR-003 + Meta fields), exit 0 if PASS |
+| [`agent-runtime/scripts/ci/generate_release_artifact.py`](../../agent-runtime/scripts/ci/generate_release_artifact.py) | `--version`, `--commit`, git history | Writes `agent-runtime/artifacts/releases/release-<version>.json` |
+| [`agent-runtime/scripts/ci/audit_module_drift.py`](../../agent-runtime/scripts/ci/audit_module_drift.py) | `MODULE.md` files vs Python AST | Writes `agent-runtime/artifacts/validation/audit-drift-<date>.json` |
+| [`agent-runtime/scripts/ci/audit_cycles.py`](../../agent-runtime/scripts/ci/audit_cycles.py) | `docs/architecture/map.md`, AST imports | Writes `agent-runtime/artifacts/validation/audit-cycles-<date>.json` |
+| [`agent-runtime/scripts/ci/audit_module_size.py`](../../agent-runtime/scripts/ci/audit_module_size.py) | LOC per module | Writes `agent-runtime/artifacts/validation/audit-size-<date>.json` |
+| [`agent-runtime/scripts/validate/check_review_artifact.py`](../../agent-runtime/scripts/validate/check_review_artifact.py) | `--issue` | Exit 0 if PASS, 1 otherwise |
+| [`agent-runtime/scripts/validate/check_implementation_artifact.py`](../../agent-runtime/scripts/validate/check_implementation_artifact.py) | `--issue` | Exit 0 if PASS, 1 otherwise |
+| [`agent-runtime/scripts/validate/check_acceptance_mapping.py`](../../agent-runtime/scripts/validate/check_acceptance_mapping.py) | review artifact | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_module_boundaries.py`](../../agent-runtime/scripts/validate/check_module_boundaries.py) | git diff + AST + map.md | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_module_drift.py`](../../agent-runtime/scripts/validate/check_module_drift.py) | `MODULE.md` vs AST | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_handoff.py`](../../agent-runtime/scripts/validate/check_handoff.py) | `docs/handoffs/*.md` | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_adr.py`](../../agent-runtime/scripts/validate/check_adr.py) | review artifact + `docs/adr/` | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_done_md.py`](../../agent-runtime/scripts/validate/check_done_md.py) | root `done.md` | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_critical_findings_resolved.py`](../../agent-runtime/scripts/validate/check_critical_findings_resolved.py) | review artifact mandatory fail triggers | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_findings_acknowledged.py`](../../agent-runtime/scripts/validate/check_findings_acknowledged.py) | WARNING finding signoffs | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_reviewer_signoff.py`](../../agent-runtime/scripts/validate/check_reviewer_signoff.py) | `reviewerSignoff` | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_owner_signoff.py`](../../agent-runtime/scripts/validate/check_owner_signoff.py) | `ownerSignoff` | Exit 0/1 |
+| [`agent-runtime/scripts/validate/check_ml_gates.py`](../../agent-runtime/scripts/validate/check_ml_gates.py) | `mlGates` for ML modules | Exit 0/1 |
 
 ## Acceptance Criteria Mapping
 

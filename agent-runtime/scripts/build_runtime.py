@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = REPO_ROOT / "agent-runtime.config.yml"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+AGENT_RUNTIME_ROOT = REPO_ROOT / "agent-runtime"
+DEFAULT_CONFIG = AGENT_RUNTIME_ROOT / "config" / "agent-runtime.config.yml"
 EXECUTOR_ALIASES = {
     "ui": "ui-ux",
     "ml": "machine-learning",

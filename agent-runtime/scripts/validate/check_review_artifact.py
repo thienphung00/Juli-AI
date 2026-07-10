@@ -22,7 +22,7 @@ from common import (  # noqa: E402
 def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     review = load_review_artifact(issue)
     if review is None:
-        return False, "Review artifact missing", {"path": f"artifacts/reviews/review-issue-{issue}.json"}
+        return False, "Review artifact missing", {"path": f"agent-runtime/artifacts/reviews/review-issue-{issue}.json"}
 
     required = ("id", "issue", "status", "criticalFindings", "modulesTouched", "testCoverage")
     missing = [field for field in required if field not in review]

@@ -8,7 +8,7 @@
 
 ## Context
 
-**Harness routing (updated 2026):** Agent phases in [`docs/architecture/agent-runtime.md`](../architecture/agent-runtime.md) supersede the workflow skills below. **CI gate ordering is unchanged.**
+**Harness routing (updated 2026):** Agent phases in [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md) supersede the workflow skills below. **CI gate ordering is unchanged.**
 
 - The repository is built and operated by AI agents using skills in
   [`.cursor/skills/`](../../.cursor/skills/). Conversations are session-local;
@@ -38,9 +38,9 @@ Adopt an **artifact-driven CI/CD policy** with three principles:
 1. **Conversation is temporary compute.** Decisions and review findings live in
    repository artifacts, not chat history.
 2. **Repository is persistent memory.** Every gate consumes or emits a JSON
-   artifact under [`artifacts/`](../../artifacts/).
+   artifact under [`artifacts/`](../../agent-runtime/artifacts/).
 3. **CI/CD is the enforcer.** Every rule that can be checked deterministically
-   is checked by a Python script in [`scripts/validate/`](../../scripts/validate/)
+   is checked by a Python script in [`agent-runtime/scripts/validate/`](../../agent-runtime/scripts/validate/)
    wired into [`.github/workflows/`](../../.github/workflows/).
 
 The policy is implemented as:
@@ -48,8 +48,8 @@ The policy is implemented as:
 - A new `validate` skill ([`.cursor/skills/standalone/validate/SKILL.md`](../../.cursor/skills/standalone/validate/SKILL.md))
   inserted between `review` and `ship` in the Review Agent phase.
 - Three GitHub Actions workflows: `pr.yml`, `release.yml`, `architecture-audit.yml`.
-- Python validation and audit scripts under `scripts/validate/` and `scripts/ci/`.
-- Three artifact directories: `artifacts/reviews/`, `artifacts/validation/`, `artifacts/releases/`.
+- Python validation and audit scripts under `agent-runtime/scripts/validate/` and `agent-runtime/scripts/ci/`.
+- Three artifact directories: `agent-runtime/artifacts/reviews/`, `agent-runtime/artifacts/validation/`, `agent-runtime/artifacts/releases/`.
 - A root [`done.md`](../../done.md) checklist consumed by `check_done_md.py`.
 
 The full implementation reference lives in
@@ -74,21 +74,21 @@ The three JSON artifact schemas are defined in
 
 | Artifact | Producer | Consumer | Path |
 |----------|----------|----------|------|
-| Review | `review` skill | `validate` skill, `pr.yml`, Meta Agent | `artifacts/reviews/review-issue-<n>.json` |
-| Validation | `validate` skill, `pr.yml` | `ship` skill, Meta Agent | `artifacts/validation/validation-issue-<n>.json` |
-| Release | `ship` skill, `release.yml` | Future agents (rollback/hotfix) | `artifacts/releases/release-<version>.json` |
-| Audit (nightly) | `architecture-audit.yml` | Triaged into GitHub issues | `artifacts/validation/audit-<date>.json` |
-| Implementation | Executor Agent | Review Agent, Meta Agent | `artifacts/implementations/implementation-issue-<n>.json` |
-| Harness optimization | Meta Agent | Harness config | `artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
-| Product-development optimization | Meta Agent | Architect Agent backlog | `artifacts/optimization/product-development-<id>.json` |
+| Review | `review` skill | `validate` skill, `pr.yml`, Meta Agent | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
+| Validation | `validate` skill, `pr.yml` | `ship` skill, Meta Agent | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
+| Release | `ship` skill, `release.yml` | Future agents (rollback/hotfix) | `agent-runtime/artifacts/releases/release-<version>.json` |
+| Audit (nightly) | `architecture-audit.yml` | Triaged into GitHub issues | `agent-runtime/artifacts/validation/audit-<date>.json` |
+| Implementation | Executor Agent | Review Agent, Meta Agent | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` |
+| Harness optimization | Meta Agent | Harness config | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
+| Product-development optimization | Meta Agent | Architect Agent backlog | `agent-runtime/artifacts/optimization/product-development-<id>.json` |
 
-Runtime schemas and persistence: [`docs/architecture/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md).
+Runtime schemas and persistence: [`agent-runtime/docs/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md).
 
 ## Enforcement Rules
 
 CI **must fail** on any of:
 
-- Missing `artifacts/reviews/review-issue-<n>.json` for the PR's issue number.
+- Missing `agent-runtime/artifacts/reviews/review-issue-<n>.json` for the PR's issue number.
 - Review artifact `status: "FAIL"`, any `criticalFindings[*].severity == "CRITICAL"`,
   `actionRequired: true` on any finding, legacy non-empty `warnings[]`, or
   `status` inconsistent with findings (e.g. WARNING findings with `status: "PASS"`).
@@ -195,7 +195,7 @@ Bug filing:     qa -> focus -> Executor -> review -> validate -> ship
 
 - `.cursor/skills/standalone/validate/SKILL.md`, `checks.md`
 - `.github/workflows/pr.yml`, `release.yml`, `architecture-audit.yml`
-- `scripts/ci/*.py`, `scripts/validate/*.py`
+- `agent-runtime/scripts/ci/*.py`, `agent-runtime/scripts/validate/*.py`
 - `artifacts/{reviews,validation,releases}/.gitkeep`, `artifacts/README.md`
 - `done.md`
 - `docs/deployment/implementation-guide.md`, `quick-reference.md`, `troubleshooting.md`
@@ -205,7 +205,7 @@ Bug filing:     qa -> focus -> Executor -> review -> validate -> ship
 - [`.cursor/skills/standalone/review/SKILL.md`](../../.cursor/skills/standalone/review/SKILL.md) — emits review artifact
 - [`.cursor/skills/standalone/ship/SKILL.md`](../../.cursor/skills/standalone/ship/SKILL.md) — consumes validation artifact, emits release artifact
 - [`.cursor/skills/standalone/ship/ci-examples.md`](../../.cursor/skills/standalone/ship/ci-examples.md) — replaced with pointer to real workflows
-- [`docs/architecture/agent-runtime.md`](../architecture/agent-runtime.md) — agent phase harness (Phase 2)
+- [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md) — agent phase harness (Phase 2)
 - [`.cursor/skills/standalone/focus/routing-rules.md`](../../.cursor/skills/standalone/focus/routing-rules.md) — adds validation-stage routing
 - [`.cursor/rules/git-baseline.mdc`](../../.cursor/rules/git-baseline.mdc) — CI/CD subsection
 

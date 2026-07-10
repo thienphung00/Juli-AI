@@ -5,7 +5,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+AGENT_RUNTIME_CONFIG = REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml"
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts"))
 
 from harness_config import (  # noqa: E402
     HarnessConfigError,
@@ -42,13 +43,13 @@ def test_check_path_blocks_skills() -> None:
 
 
 def test_check_path_allows_benchmarks_doc_exception() -> None:
-    allowed, _ = check_path("docs/architecture/agent-runtime-benchmarks.md")
+    allowed, _ = check_path("agent-runtime/docs/agent-runtime-benchmarks.md")
     assert allowed is True
 
 
 def test_preview_change_emits_diff_without_writing(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "agent-runtime.config.yml"
-    config_path.write_text((REPO_ROOT / "agent-runtime.config.yml").read_text(encoding="utf-8"), encoding="utf-8")
+    config_path.write_text(AGENT_RUNTIME_CONFIG.read_text(encoding="utf-8"), encoding="utf-8")
     before = read_field("routing.ui_threshold", config_path=config_path)
 
     result = preview_change("routing.ui_threshold", 0.64, config_path=config_path)
@@ -61,7 +62,7 @@ def test_preview_change_emits_diff_without_writing(tmp_path: Path, monkeypatch) 
 
 def test_apply_change_requires_confirm(tmp_path: Path) -> None:
     config_path = tmp_path / "agent-runtime.config.yml"
-    config_path.write_text((REPO_ROOT / "agent-runtime.config.yml").read_text(encoding="utf-8"), encoding="utf-8")
+    config_path.write_text(AGENT_RUNTIME_CONFIG.read_text(encoding="utf-8"), encoding="utf-8")
 
     dry = apply_change("routing.ui_threshold", 0.64, config_path=config_path, confirm=False)
     assert dry["applied"] is False
@@ -81,14 +82,14 @@ def test_preview_change_rejects_forbidden_field() -> None:
 
 
 def test_build_runtime_includes_cross_layer_hints() -> None:
-    runtime = build_runtime(load_simple_yaml(REPO_ROOT / "agent-runtime.config.yml"))
+    runtime = build_runtime(load_simple_yaml(AGENT_RUNTIME_CONFIG))
     ui = runtime["executorRoutingTable"]["ui-ux"]["crossLayer"]
     assert "apps/dashboard" in ui["related_paths"]
     assert runtime["context"]["retrieval_depth"] == 3
 
 
 def test_optimizer_dry_run_artifact_includes_config_diff() -> None:
-    config = load_simple_yaml(REPO_ROOT / "agent-runtime.config.yml")
+    config = load_simple_yaml(AGENT_RUNTIME_CONFIG)
     implementation = {
         "issueId": 123,
         "executorDomain": "backend",
