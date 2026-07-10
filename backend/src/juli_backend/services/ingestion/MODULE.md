@@ -1,4 +1,4 @@
-# backend/integrations/ordering/api/ingestion
+# backend/src/juli_backend/services/ingestion
 
 ## Purpose
 
@@ -14,8 +14,8 @@ Producers (webhook, polling) do not import broker clients; they call an injected
 
 ## Dependencies
 
-- `backend/integrations/ordering/use_cases/etl/consumer.EtlConsumer` (lazy import inside `make_etl_handoff` only)
-- `backend/integrations/ordering/use_cases/etl/record.IngestRecord`
+- `juli_backend.services.etl.consumer.EtlConsumer` (lazy import inside `make_etl_handoff` only)
+- `juli_backend.services.etl.record.IngestRecord`
 
 ## Key Behaviors
 

@@ -1,10 +1,10 @@
-# backend/integrations/ordering/use_cases/etl
+# backend/src/juli_backend/services/etl
 
 ## Purpose
 
 Ingestion consumer: deduplicates by `event_id`, transforms payloads, persists via
-`backend/database` repositories. Webhook and polling services hand off validated payloads
-directly (no message bus). See [`EXECUTION.md`](../../../../../EXECUTION.md).
+`juli_backend.repositories` and `juli_backend.models`. Webhook and polling services
+hand off validated payloads directly (no message bus). See [`EXECUTION.md`](../../../../../EXECUTION.md).
 
 ## Public API
 
@@ -15,13 +15,13 @@ directly (no message bus). See [`EXECUTION.md`](../../../../../EXECUTION.md).
 - `ProcessOutcome` — `processed` | `duplicate` | `dlq`
 - `transform_for_channel(channel, payload)` — map payload to entity upsert kwargs
 - `RAW_CHANNELS`, `DLQ_CHANNEL` — routing constants in `channels.py`
-- `make_etl_handoff(consumer)` in `backend/integrations/ordering/api/ingestion/handoff.py` — wires producers to
+- `make_etl_handoff(consumer)` in `juli_backend.services.ingestion.handoff` — wires producers to
   `EtlConsumer.ingest`
 
 ## Dependencies
 
-- `backend/database` — repos, `ProcessedEventsRepo`, shop resolution
-- `backend/integrations/ordering/api/ingestion/handoff` — `HandoffFn` type and `make_etl_handoff` helper only
+- `juli_backend.database` — repos, `ProcessedEventsRepo`, shop resolution
+- `juli_backend.services.ingestion` — `HandoffFn` type and `make_etl_handoff` helper only
   (no circular import at runtime)
 
 ## Key Behaviors

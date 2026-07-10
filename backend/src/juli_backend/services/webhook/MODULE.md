@@ -1,4 +1,4 @@
-# backend/api/services/webhook
+# backend/src/juli_backend/services/webhook
 
 ## Purpose
 
@@ -10,7 +10,7 @@ raw payloads to the ingest pipeline (ETL) via an injected `handoff_fn`.
 - `create_app(*, app_key, app_secret, handoff_fn) -> FastAPI` — application factory
   - `handoff_fn: Callable[[str, str, bytes], Awaitable[None]]` — async function
     invoked with `(channel, shop_key, payload_bytes)` for each verified event
-- `HandoffFn` — type alias (from `backend/integrations/ordering/api/ingestion/handoff`)
+- `HandoffFn` — type alias (from `juli_backend.services.ingestion`)
 - `EVENT_CATEGORY_ROUTES` — prefix → channel mapping for livestream/creator/settlement
 
 ## Dependencies
@@ -26,13 +26,13 @@ raw payloads to the ingest pipeline (ETL) via an injected `handoff_fn`.
 - Malformed JSON or missing `type` / `shop_id` → HTTP 400 without handoff
 - Channel derived from event `type` (category prefixes or `tiktok.{type}`)
 - `shop_id` is the handoff key (TikTok shop id) for per-shop ordering downstream
-- Duplicate webhook delivery is expected; deduplication is in `backend/integrations/ordering/use_cases/etl`
+- Duplicate webhook delivery is expected; deduplication is in `juli_backend.services.etl`
 
 ## Wiring (production)
 
 ```python
-from src.etl.consumer import EtlConsumer
-from src.ingestion.handoff import make_etl_handoff
+from juli_backend.services.etl.consumer import EtlConsumer
+from juli_backend.services.ingestion import make_etl_handoff
 
 consumer = EtlConsumer(session=session, dlq_handoff=dlq_fn)
 handoff = make_etl_handoff(consumer)

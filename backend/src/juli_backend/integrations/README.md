@@ -1,9 +1,7 @@
 # backend/integrations
 
-External API clients, ETL, webhook handling.
+External API clients and vendor-specific adapters.
 
 **Key paths:**
 
-- `backend/integrations/catalog/domain/integrations/tiktok/`
-- `backend/integrations/ordering/`
-- `backend/integrations/identity/`
+- `backend/src/juli_backend/integrations/tiktok/` — TikTok Shop Partner API client

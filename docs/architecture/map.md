@@ -30,19 +30,19 @@ The backend is a modular monolith under `backend/`. Frontends live in `web/` and
 `ios/`. **`backend/api/` and `backend/workers/` are backend entrypoints — not top-level `apps/`.**
 
 ```
-backend/
-├── api/                          # FastAPI /v1 routers + app factory + webhook service
-│   ├── api/
-│   └── services/webhook/
-├── workers/services/polling/       # Scheduled sync workers
-├── integrations/                 # Domain modules (business logic)
-│   ├── identity/infrastructure/auth/   # JWT verification, TikTok OAuth
-│   ├── catalog/domain/
-│   │   ├── integrations/tiktok/  # TikTok Shop Partner API client
-│   │   └── recommendations/      # Decision/recommendation generation
-│   └── ordering/                 # Ingestion handoff + ETL (data accumulation)
+backend/src/juli_backend/
+├── api/                          # FastAPI /v1 routes, app factory, dependencies
+│   ├── routes/                   # Versioned REST routers
+│   ├── app.py                    # create_app factory
+│   └── main.py                   # ASGI entrypoint (uvicorn)
+├── services/                     # Domain services (webhook, ETL, alerts, TikTok OAuth)
+├── core/                         # Config, JWT auth, credential resolution
+├── models/                       # SQLAlchemy ORM models
+├── repositories/                 # Data access repositories
+├── integrations/tiktok/          # TikTok Shop Partner API client
+├── workers/services/polling/     # Scheduled sync workers
 ├── ai/                           # ML trainers, features, artifacts
-└── database/                     # SQLAlchemy models, repos, Alembic migrations
+└── database/                     # Engine/session, Alembic migrations
 ```
 
 Frontends (legacy, pre-ecosystem):
@@ -64,15 +64,15 @@ Frontends (legacy, pre-ecosystem):
 
 | Module | Tier | Responsibility | Public Surface | Owners |
 |--------|------|----------------|----------------|--------|
-| [`backend/integrations/catalog/domain/integrations/tiktok`](../../backend/integrations/catalog/domain/integrations/tiktok/MODULE.md) | 1 | TikTok Shop Partner API client (auth, signing, rate limiting, resources) | `TikTokClient`, `TikTokAuth`, `RateLimiter`, `CreatorsResource`, `ProductsResource`, `OrdersResource`, `InventoryResource`, `LivestreamsResource`, `SettlementsResource`, `TikTokAPIError` hierarchy | domain: integrations |
-| [`backend/integrations/ordering/api/ingestion`](../../backend/integrations/ordering/api/ingestion/MODULE.md) | 1 | Ingest handoff contracts and `make_etl_handoff` wiring | `HandoffFn`, `make_etl_handoff` | domain: data |
-| [`backend/api/services/webhook`](../../backend/api/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
-| [`backend/workers/services/polling`](../../backend/workers/services/polling/MODULE.md) | 2 | Background polling sync workers (P2-A1 read sync) | `sync_creators`, `sync_products`, `sync_orders`, `sync_returns`, `backfill_shop` | domain: integrations |
-| [`backend/database`](../../backend/database/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `Creator`, `Product`, `Recommendation`, … repos, `Base`, `NotFound`, `get_session` | domain: data |
-| [`backend/integrations/identity/infrastructure/auth`](../../backend/integrations/identity/infrastructure/auth/MODULE.md) | 1 | JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
-| [`backend/api/api`](../../backend/api/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, orders, products, creators, recommendations, outcomes | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/orders`, `GET /v1/products`, `GET /v1/creators`, `GET /v1/recommendations` | domain: api |
-| [`backend/integrations/catalog/domain/recommendations`](../../backend/integrations/catalog/domain/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
-| [`backend/integrations/ordering/use_cases/etl`](../../backend/integrations/ordering/use_cases/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
+| [`backend/src/juli_backend/integrations/tiktok`](../../backend/src/juli_backend/integrations/tiktok/MODULE.md) | 1 | TikTok Shop Partner API client (auth, signing, rate limiting, resources) | `TikTokClient`, `TikTokAuth`, `RateLimiter`, `CreatorsResource`, `ProductsResource`, `OrdersResource`, `InventoryResource`, `LivestreamsResource`, `SettlementsResource`, `TikTokAPIError` hierarchy | domain: integrations |
+| [`backend/src/juli_backend/services/ingestion`](../../backend/src/juli_backend/services/ingestion/MODULE.md) | 1 | Ingest handoff contracts and `make_etl_handoff` wiring | `HandoffFn`, `make_etl_handoff` | domain: data |
+| [`backend/src/juli_backend/services/webhook`](../../backend/src/juli_backend/services/webhook/MODULE.md) | 1 | Receives TikTok webhooks, verifies HMAC signature, hands validated payloads to ETL | `create_app(..., handoff_fn) -> FastAPI` | domain: integrations |
+| [`backend/src/juli_backend/workers/services/polling`](../../backend/src/juli_backend/workers/services/polling/MODULE.md) | 2 | Background polling sync workers (P2-A1 read sync) | `sync_creators`, `sync_products`, `sync_orders`, `sync_returns`, `backfill_shop` | domain: integrations |
+| [`backend/src/juli_backend/database`](../../backend/src/juli_backend/database/MODULE.md) | 1 | Persistence layer: SQLAlchemy async models, repos, Alembic migrations | `User`, `Shop`, `Creator`, `Product`, `Recommendation`, … repos, `Base`, `NotFound`, `get_session` | domain: data |
+| [`backend/src/juli_backend/core/security`](../../backend/src/juli_backend/core/security/MODULE.md) | 1 | JWT verification, TikTok OAuth lifecycle, FastAPI auth dependency | `TikTokOAuthService`, `verify_supabase_jwt`, `get_current_user`, `Unauthorized` | domain: auth |
+| [`backend/src/juli_backend/api`](../../backend/src/juli_backend/api/MODULE.md) | 1 | FastAPI REST API (`/v1/*`): auth, shops, orders, products, creators, recommendations, outcomes | `create_app`, `get_active_shop`, `GET /v1/shops`, `GET /v1/orders`, `GET /v1/products`, `GET /v1/creators`, `GET /v1/recommendations` | domain: api |
+| [`backend/src/juli_backend/ai/recommendations`](../../backend/src/juli_backend/ai/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
+| [`backend/src/juli_backend/services/etl`](../../backend/src/juli_backend/services/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
 | [`web`](../../web/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: demo auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
 | [`backend/ai/dataset`](../../backend/ai/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
@@ -114,10 +114,10 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 | `web/src/app/decisions/` + `web/src/components/decisions/` | P1.8-9 | Decisions tab: Recommended / In Progress / Workflow Templates sub-tabs; decision detail 5-step flow; approval gate host ([ADR-014](../decisions/014-decision-copilot-app-structure-and-journey.md)) |
 | `web/src/components/home/todays-report/` | P1.8-9 | Today's Report domain cards (Revenue Growth, Revenue Protection, Product Listings, Advertising, Refunds) with animated domain switcher on Home |
 | `web/src/lib/decisions/` | P1.8-9 | Decision view-model: map `workflow_recommendations` → Decision envelopes + lifecycle status (`recommended` / `needs_input` / `executing` / `completed`) |
-| `backend/integrations/catalog/domain/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
-| `backend/integrations/catalog/domain/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
-| `backend/integrations/catalog/domain/operations/` *(TBD)* | P2 | Live operations pipeline (P2-11): real classification, health, ranking, outcome tracking |
-| `backend/integrations/catalog/domain/inventory/` *(TBD)* | P2 | Scoped inventory signals (level, velocity, lead time) for Stockout/Product Scaling (P2-12) — signals only, not inventory management |
+| `backend/src/juli_backend/services/listing/` *(TBD)* | P2 | ProductDraft persistence, approval queue (P2-7), Products API publish (P2-8) |
+| `backend/src/juli_backend/services/leakage/` *(TBD)* | P2 | Leakage task persistence, approval queue (P2-9), live executors (P2-10) |
+| `backend/src/juli_backend/services/operations/` *(TBD)* | P2 | Live operations pipeline (P2-11): real classification, health, ranking, outcome tracking |
+| `backend/src/juli_backend/services/inventory/` *(TBD)* | P2 | Scoped inventory signals (level, velocity, lead time) for Stockout/Product Scaling (P2-12) — signals only, not inventory management |
 
 ## Cleanup status (2026-07 aggressive cleanup)
 
@@ -127,7 +127,7 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 | API routers: `analytics`, `settlements`, `inventory`, `livestreams`, `alerts` | **Removed** |
 | Web pages: `/inventory`, `/livestreams`, `/alerts` | **Removed** (legacy redirects remain) |
 | `docs/features/mvp_1.*` | **Archived** to `docs/handoffs/archive/features/` |
-| `backend/integrations/catalog/domain/intelligence/**` | **Deferred** — still wired to recommendations engine |
+| `backend/src/juli_backend/ai/forecasting/**` | **Deferred** — still wired to recommendations engine |
 
 ## Key architectural decisions
 

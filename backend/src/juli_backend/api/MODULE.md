@@ -21,9 +21,9 @@ routers were deleted as misaligned with Phase 1 (inventory/finance/order managem
 analytics, and threshold alerting). See `docs/decisions/006-matching-pivot.md`.
 
 ## Dependencies
-- `identity` — `get_current_user` for JWT-based authentication
-- `shared/utils/data` — repos and models for shop-scoped persistence
-- `catalog/domain/recommendations` — engine functions for recommendation refresh
+- `core/security` — `get_current_user` for JWT-based authentication
+- `database` — repos and models for shop-scoped persistence
+- `ai/recommendations` — engine functions for recommendation refresh
 
 ## Invariants
 - All /v1/* endpoints require a valid Supabase JWT (401 on failure)
@@ -33,4 +33,4 @@ analytics, and threshold alerting). See `docs/decisions/006-matching-pivot.md`.
 
 ## Owners
 - domain: api
-- code: backend/api/api/
+- code: backend/src/juli_backend/api/
