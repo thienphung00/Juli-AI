@@ -17,7 +17,7 @@ jobs:
         id: drift
         run: python agent-runtime/scripts/ci/audit_module_drift.py
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-drift
@@ -34,7 +34,7 @@ jobs:
         id: cycles
         run: python agent-runtime/scripts/ci/audit_cycles.py
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-cycles
@@ -49,7 +49,7 @@ jobs:
           python-version: "3.12"
       - name: Audit module size
         run: python agent-runtime/scripts/ci/audit_module_size.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-size
@@ -65,7 +65,7 @@ jobs:
       - name: Audit review/validation coverage and status semantics
         run: python agent-runtime/scripts/ci/audit_pipeline_coverage.py --json
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-pipeline-coverage
