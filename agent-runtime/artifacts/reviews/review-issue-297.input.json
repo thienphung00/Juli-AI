@@ -1,0 +1,105 @@
+{
+  "status": "PASS",
+  "summary": "Layer 1 read resources (#297): API paths aligned to verified Fujiwa contracts (product 202309, order detail 202507, return/refund search 202602); Pydantic validation on all seven read entrypoints; ProductionReadResources factory wires authorization/orders/products/returns through ProductionReadClientFactory only. All three acceptance criteria mapped to 9 fixture-backed unit tests; 58 TikTok-related tests pass; ruff clean.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/integrations/tiktok/constants.py",
+    "backend/integrations/tiktok/schemas.py",
+    "backend/integrations/tiktok/factories.py",
+    "backend/integrations/tiktok/resources/orders.py",
+    "backend/integrations/tiktok/resources/products.py",
+    "backend/integrations/tiktok/resources/returns.py",
+    "tests/unit/test_layer1_read_resources.py"
+  ],
+  "interfaceChanges": [
+    {
+      "type": "added",
+      "symbol": "ProductionReadResources",
+      "module": "backend.integrations.tiktok.factories"
+    },
+    {
+      "type": "added",
+      "symbol": "ProductionReadClientFactory.create_resources",
+      "module": "backend.integrations.tiktok.factories"
+    },
+    {
+      "type": "added",
+      "symbol": "TikTokCancellation",
+      "module": "backend.integrations.tiktok.schemas"
+    },
+    {
+      "type": "added",
+      "symbol": "CancellationsSearchData",
+      "module": "backend.integrations.tiktok.schemas"
+    },
+    {
+      "type": "changed",
+      "symbol": "ORDER_DETAIL_PATH",
+      "module": "backend.integrations.tiktok.constants",
+      "note": "202309 -> 202507 per verified contract"
+    },
+    {
+      "type": "changed",
+      "symbol": "PRODUCT_API_VERSION",
+      "module": "backend.integrations.tiktok.constants",
+      "note": "202502 -> 202309 per verified contract"
+    },
+    {
+      "type": "changed",
+      "symbol": "RETURN_REFUND_SEARCH_API_VERSION",
+      "module": "backend.integrations.tiktok.constants",
+      "note": "202309 -> 202602 per verified contract"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Each resource matches sanitized fixture schemas",
+          "test": "tests/unit/test_layer1_read_resources.py::test_each_resource_matches_sanitized_fixture_schema"
+        },
+        {
+          "criterion": "Fujiwa production-read factory only",
+          "test": "tests/unit/test_layer1_read_resources.py::test_fujiwa_production_read_factory_only"
+        },
+        {
+          "criterion": "One pytest per resource with fixture-backed parsing",
+          "test": "tests/unit/test_layer1_read_resources.py::test_one_pytest_per_resource_with_fixture_backed_parsing"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 58,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Add Pydantic validation to search_all pagination helpers in a follow-up if polling consumes raw page items.",
+    "Update endpoints.md migration note now that PRODUCT_API_VERSION is 202309."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [
+    {
+      "severity": "INFO",
+      "description": "search_all helpers still return unvalidated dicts from get_all_pages; acceptable for this slice since acceptance targets single-page parse paths."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "artifacts/implementations/implementation-issue-297.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": []
+}

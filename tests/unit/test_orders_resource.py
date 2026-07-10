@@ -9,6 +9,7 @@ from juli_backend.integrations.tiktok.constants import (
     ORDER_SEARCH_PATH,
 )
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource
+from juli_backend.integrations.tiktok.schemas import OrdersSearchData
 
 
 @pytest.fixture
@@ -66,4 +67,5 @@ class TestOrdersResource:
         mock_client.get.assert_called_once_with(
             ORDER_DETAIL_PATH,
             params={"ids": "o1,o2"},
+            response_model=OrdersSearchData,
         )

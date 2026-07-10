@@ -15,6 +15,10 @@ from juli_backend.integrations.tiktok.guards import (
     ReadOnlyTransportGuard,
     SandboxOnlyWriteGuard,
 )
+from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
+from juli_backend.integrations.tiktok.resources.orders import OrdersResource
+from juli_backend.integrations.tiktok.resources.products import ProductsResource
+from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
 
 DEFAULT_BASE_URL = "https://open-api.tiktokglobalshop.com"
 
@@ -30,6 +34,16 @@ class ClientFactoryConfig:
     shop_cipher: str | None = None
     base_url: str = DEFAULT_BASE_URL
     timeout: int = 15
+
+
+@dataclass(frozen=True)
+class ProductionReadResources:
+    """Layer 1 read resources wired to a Fujiwa production-read client."""
+
+    authorization: AuthorizationResource
+    orders: OrdersResource
+    products: ProductsResource
+    returns: ReturnsResource
 
 
 class ProductionReadClientFactory:
@@ -54,6 +68,15 @@ class ProductionReadClientFactory:
             guard=ReadOnlyTransportGuard(),
             capability=MerchantCapability.PRODUCTION_READ,
             merchant_auth_id=config.merchant_auth_id,
+        )
+
+    def create_resources(self, config: ClientFactoryConfig) -> ProductionReadResources:
+        client = self.create(config)
+        return ProductionReadResources(
+            authorization=AuthorizationResource(client),
+            orders=OrdersResource(client),
+            products=ProductsResource(client),
+            returns=ReturnsResource(client),
         )
 
 

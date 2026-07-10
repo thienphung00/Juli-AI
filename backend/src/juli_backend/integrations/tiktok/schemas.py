@@ -71,6 +71,24 @@ class ReturnsSearchData(PaginatedData):
     return_orders: list[TikTokReturnOrder] = Field(default_factory=list)
 
 
+class TikTokCancellation(TikTokModel):
+    cancel_id: str | None = None
+    order_id: str | None = None
+    cancel_status: str | None = None
+    cancel_reason: str | None = None
+    cancel_reason_text: str | None = None
+    cancel_type: str | None = None
+    create_time: int | None = None
+    update_time: int | None = None
+    role: str | None = None
+    cancel_line_items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CancellationsSearchData(PaginatedData):
+    cancellations: list[TikTokCancellation] = Field(default_factory=list)
+    total_count: int | None = None
+
+
 class AuthorizedShop(TikTokModel):
     id: str | None = None
     cipher: str | None = None
