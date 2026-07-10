@@ -58,7 +58,8 @@ Cross-screen **Reward → Reason → Action → Anticipation** loop between Home
 - `auth` (read-only) — demo login stores a local session token (no backend auth call)
 
 ## Stack
-- Next.js 14 (App Router)
+- Next.js 16 (App Router)
+- React 19
 - TypeScript
 - Tailwind CSS
 - **Recharts** — Home metric sparklines / interactive charts

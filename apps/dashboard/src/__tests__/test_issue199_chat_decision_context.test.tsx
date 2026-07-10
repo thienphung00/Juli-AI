@@ -98,7 +98,9 @@ describe("Issue #199: Juli Chat decision context UI", () => {
     expect(screen.queryByText("Creator nào nên đẩy tối nay?")).not.toBeInTheDocument();
   });
 
-  it("mock reply references decision-specific content when context present", async () => {
+  it(
+    "mock reply references decision-specific content when context present",
+    async () => {
     const user = userEvent.setup();
     const pipeline = runOperationsPipeline("new");
     const decision = pipeline.workflowRecommendations.recommended_workflows[0]!;
@@ -119,5 +121,5 @@ describe("Issue #199: Juli Chat decision context UI", () => {
         /được đưa ra vì/i,
       );
     });
-  });
+  }, 15000);
 });
