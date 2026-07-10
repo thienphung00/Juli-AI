@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 297,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-10T0928Z",
+  "startedAt": "2026-07-10T09:15:00Z",
+  "completedAt": "2026-07-10T09:28:03Z",
+  "executionDurationMs": 783000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 28,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "docs/integrations/tiktok_api/endpoints.md",
+    "docs/integrations/tiktok_api/samples/",
+    "docs/handoffs/phase-2-tiktok-implementation.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/integrations/tiktok/constants.py",
+    "backend/src/juli_backend/integrations/tiktok/schemas.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/orders.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/products.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/returns.py",
+    "tests/unit/test_layer1_read_resources.py",
+    "tests/unit/test_orders_resource.py",
+    "tests/unit/test_products_resource.py",
+    "tests/unit/test_returns_resource.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_layer1_read_resources.py::test_each_resource_matches_sanitized_fixture_schema",
+    "tests/unit/test_layer1_read_resources.py::test_fujiwa_production_read_factory_only",
+    "tests/unit/test_layer1_read_resources.py::test_one_pytest_per_resource_with_fixture_backed_parsing"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_orders_resource.py",
+    "tests/unit/test_products_resource.py",
+    "tests/unit/test_returns_resource.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ProductionReadClientFactory lacked create_resources; product/return paths used unverified API versions",
+      "passingTestEvidence": "9 fixture-backed Layer 1 tests pass via ProductionReadClientFactory",
+      "commands": [
+        {
+          "command": "cd backend && python -m pytest ../tests/unit/test_layer1_read_resources.py -q",
+          "exitCode": 0,
+          "outputSummary": "9 passed"
+        },
+        {
+          "command": "cd backend && python -m pytest ../tests/unit/test_layer1_read_resources.py ../tests/unit/test_orders_resource.py ../tests/unit/test_products_resource.py ../tests/unit/test_returns_resource.py ../tests/unit/test_tiktok_capability_factories.py -q",
+          "exitCode": 0,
+          "outputSummary": "34 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #297: migrated Layer 1 read paths to verified Fujiwa contracts (product 202309, order detail 202507, return/refund search 202602); added Pydantic schema validation on all seven read resources; introduced ProductionReadResources factory accessor for Fujiwa production-read client only; one fixture-backed pytest per resource.",
+  "assumptions": [
+    "Blockers #295 and #296 are merged — production-read guards and credential isolation already in place",
+    "OrdersSearchData schema is sufficient for order detail responses (same orders[] envelope)",
+    "Inventory search and affiliate creators remain out of scope for this issue's minimum set"
+  ],
+  "risks": [
+    "Sandbox write approve/reject paths still reference 202309 while search uses 202602 — unchanged, Layer 2 scope",
+    "endpoints.md migration note for PRODUCT_API_VERSION still documents pre-migration state until docs slice"
+  ]
+}

@@ -67,7 +67,12 @@ class OrdersResource:
         )
 
     def get_details(self, order_ids: list[str]) -> dict:
-        return self._client.get(
-            ORDER_DETAIL_PATH,
-            params={"ids": ",".join(order_ids)},
+        parsed = coerce_model(
+            OrdersSearchData,
+            self._client.get(
+                ORDER_DETAIL_PATH,
+                params={"ids": ",".join(order_ids)},
+                response_model=OrdersSearchData,
+            ),
         )
+        return parsed.model_dump()

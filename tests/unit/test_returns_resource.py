@@ -9,6 +9,10 @@ from juli_backend.integrations.tiktok.constants import (
     RETURN_SEARCH_PATH,
 )
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
+from juli_backend.integrations.tiktok.schemas import (
+    CancellationsSearchData,
+    ReturnsSearchData,
+)
 
 
 @pytest.fixture
@@ -38,6 +42,7 @@ class TestReturnsResource:
                 "update_time_lt": 1_700_010_000,
             },
             params={"page_size": "25"},
+            response_model=ReturnsSearchData,
         )
 
     def test_search_returns_all_paginates_return_orders(self, mock_client):
@@ -58,4 +63,5 @@ class TestReturnsResource:
             CANCELLATION_SEARCH_PATH,
             body={"update_time_ge": 1_700_000_000},
             params={"page_size": "10"},
+            response_model=CancellationsSearchData,
         )

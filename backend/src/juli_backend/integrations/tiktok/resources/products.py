@@ -8,6 +8,11 @@ from juli_backend.integrations.tiktok.constants import (
     product_detail_path,
 )
 from juli_backend.integrations.tiktok.resources import strip_nones
+from juli_backend.integrations.tiktok.schemas import (
+    ProductsSearchData,
+    TikTokProduct,
+    coerce_model,
+)
 
 
 class ProductsResource:
@@ -34,7 +39,16 @@ class ProductsResource:
             body["update_time_ge"] = update_time_from
         if update_time_to is not None:
             body["update_time_lt"] = update_time_to
-        return self._client.post(PRODUCT_SEARCH_PATH, body=body, params=params)
+        parsed = coerce_model(
+            ProductsSearchData,
+            self._client.post(
+                PRODUCT_SEARCH_PATH,
+                body=body,
+                params=params,
+                response_model=ProductsSearchData,
+            ),
+        )
+        return parsed.model_dump()
 
     def search_all(
         self,
@@ -57,4 +71,11 @@ class ProductsResource:
         )
 
     def get_details(self, product_id: str) -> dict:
-        return self._client.get(product_detail_path(product_id))
+        parsed = coerce_model(
+            TikTokProduct,
+            self._client.get(
+                product_detail_path(product_id),
+                response_model=TikTokProduct,
+            ),
+        )
+        return parsed.model_dump()

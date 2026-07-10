@@ -8,6 +8,11 @@ from juli_backend.integrations.tiktok.constants import (
     RETURN_SEARCH_PATH,
 )
 from juli_backend.integrations.tiktok.resources import strip_nones
+from juli_backend.integrations.tiktok.schemas import (
+    CancellationsSearchData,
+    ReturnsSearchData,
+    coerce_model,
+)
 
 
 class ReturnsResource:
@@ -34,7 +39,16 @@ class ReturnsResource:
             "page_size": str(page_size) if page_size is not None else None,
             "page_token": page_token,
         })
-        return self._client.post(RETURN_SEARCH_PATH, body=body, params=params)
+        parsed = coerce_model(
+            ReturnsSearchData,
+            self._client.post(
+                RETURN_SEARCH_PATH,
+                body=body,
+                params=params,
+                response_model=ReturnsSearchData,
+            ),
+        )
+        return parsed.model_dump()
 
     def search_returns_all(
         self,
@@ -72,7 +86,16 @@ class ReturnsResource:
             "page_size": str(page_size) if page_size is not None else None,
             "page_token": page_token,
         })
-        return self._client.post(CANCELLATION_SEARCH_PATH, body=body, params=params)
+        parsed = coerce_model(
+            CancellationsSearchData,
+            self._client.post(
+                CANCELLATION_SEARCH_PATH,
+                body=body,
+                params=params,
+                response_model=CancellationsSearchData,
+            ),
+        )
+        return parsed.model_dump()
 
     def search_cancellations_all(
         self,

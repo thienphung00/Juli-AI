@@ -9,6 +9,7 @@ from juli_backend.integrations.tiktok.constants import (
     product_detail_path,
 )
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
+from juli_backend.integrations.tiktok.schemas import ProductsSearchData, TikTokProduct
 
 
 @pytest.fixture
@@ -30,6 +31,7 @@ class TestProductsResource:
             PRODUCT_SEARCH_PATH,
             body={"status": "ON_SALE"},
             params={"page_size": "20", "page_token": "tok"},
+            response_model=ProductsSearchData,
         )
 
     def test_search_all_uses_versioned_path(self, mock_client):
@@ -49,4 +51,7 @@ class TestProductsResource:
 
         products.get_details("prod-99")
 
-        mock_client.get.assert_called_once_with(product_detail_path("prod-99"))
+        mock_client.get.assert_called_once_with(
+            product_detail_path("prod-99"),
+            response_model=TikTokProduct,
+        )
