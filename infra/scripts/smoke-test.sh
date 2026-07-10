@@ -7,9 +7,9 @@
 # are required to pass.
 #
 # Usage:
-#   ./infra/deploy/smoke-test.sh
-#   ./infra/deploy/smoke-test.sh --dns-tls-only   # Issue #256 — no upstream apps required
-#   APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+#   ./infra/scripts/smoke-test.sh
+#   ./infra/scripts/smoke-test.sh --dns-tls-only   # Issue #256 — no upstream apps required
+#   APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 set -euo pipefail
 
 DNS_TLS_ONLY=false
@@ -93,13 +93,13 @@ else
     else
         login_chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${login_page_chunk}")"
         if [ "${login_chunk_code}" != "200" ]; then
-            bad "login chunk ${login_page_chunk} returned ${login_chunk_code} (stale build — run ./infra/deploy/build-frontend-review.sh && sudo systemctl restart juli-web)"
+            bad "login chunk ${login_page_chunk} returned ${login_chunk_code} (stale build — run ./infra/scripts/build-frontend-review.sh && sudo systemctl restart juli-web)"
         else
             login_chunk_body="$(curl -sS "https://${APP_DOMAIN}${login_page_chunk}")"
             if printf '%s' "${login_chunk_body}" | grep -qE 'loginAsReviewer|Đăng nhập demo|Tiếp tục'; then
                 ok "login serves demo entry"
             else
-                bad "login chunk missing demo markers (rebuild with ./infra/deploy/build-frontend-review.sh)"
+                bad "login chunk missing demo markers (rebuild with ./infra/scripts/build-frontend-review.sh)"
             fi
         fi
     fi
@@ -112,7 +112,7 @@ else
     else
         home_chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${home_page_chunk}")"
         if [ "${home_chunk_code}" != "200" ]; then
-            bad "home chunk ${home_page_chunk} returned ${home_chunk_code} (stale build — run ./infra/deploy/build-frontend-review.sh && sudo systemctl restart juli-web)"
+            bad "home chunk ${home_page_chunk} returned ${home_chunk_code} (stale build — run ./infra/scripts/build-frontend-review.sh && sudo systemctl restart juli-web)"
         else
             ok "home route chunk loads"
         fi
@@ -128,7 +128,7 @@ else
         fi
     done < <(printf '%s' "${home_html}" | grep -oE '/_next/static/chunks/[^"]+\.js' | sort -u)
     if [ -n "${stale_chunk}" ]; then
-        bad "home HTML references stale chunk ${stale_chunk} (rebuild with ./infra/deploy/build-frontend-review.sh)"
+        bad "home HTML references stale chunk ${stale_chunk} (rebuild with ./infra/scripts/build-frontend-review.sh)"
     else
         ok "all home JS chunks return 200"
     fi

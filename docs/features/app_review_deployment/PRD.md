@@ -76,7 +76,7 @@ Prerequisites: [#256](https://github.com/thienphung00/Juli-AI/issues/256) DNS/TL
 ```bash
 cd ~/Juli-AI-v2
 grep CORS_ALLOW_ORIGINS=https://app-juli.com .env
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
 `smoke-test.sh` covers DNS, TLS, frontend load, `/health`, OAuth callback, reviewer

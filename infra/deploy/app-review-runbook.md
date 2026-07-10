@@ -1,265 +1,955 @@
-# App Review Deployment Runbook (Phase 2.5-d)
+# Juli AI Production Deployment Runbook
 
-> **Scope:** Public, HTTPS-accessible Juli deployment for **TikTok App Review only**.
-> Not production: no real users, no production traffic, no persistent business data.
-> **Authority:** [`EXECUTION.md`](../../EXECUTION.md) ·
-> [`docs/phases/phase-2.5-deployment.md`](../../docs/phases/phase-2.5-deployment.md)
+> **Authority:** [ADR-020](../../docs/decisions/020-vps-ssh-continuous-delivery-and-secrets-manager.md) ·
+> [`EXECUTION.md`](../../EXECUTION.md) ·
+> [`vps-wiring-runbook.md`](vps-wiring-runbook.md) (DNS/TLS bootstrap)
 
-This runbook splits the **frontend** and **backend** deploy paths so each is
-independently restartable on a single review **VPS** fronted by **Nginx** with
-**HTTPS**. Live DNS/TLS/VPS wiring is **HITL** (issue #256) — follow
-[`vps-wiring-runbook.md`](vps-wiring-runbook.md). This slice ships the documentation
-and config samples that make that wiring repeatable.
+This document is the official guide for deploying, operating, and maintaining Juli AI on the production VPS. It assumes a single Ubuntu host running **Nginx**, **FastAPI**, **Next.js**, and **systemd**, with secrets sourced from **AWS Secrets Manager** and authenticated via **IAM Roles Anywhere** (X.509 client certificate — no EC2, no static AWS access keys, no shared credentials file).
+
+A new engineer should be able to follow this runbook end-to-end without prior context.
 
 ---
 
-## Topology
+## Table of contents
 
-```
-                         Internet
-                            │  HTTPS (443)
-                    ┌───────▼────────┐
-                    │     Nginx      │  TLS termination + routing
-                    └───┬────────┬───┘
-        app-juli.com    │        │   api.app-juli.com
-                        │        │
-             ┌──────────▼─┐   ┌──▼───────────┐
-             │ juli-web   │   │ juli-api      │
-             │ Next.js    │   │ FastAPI       │
-             │ 127.0.0.1: │   │ 127.0.0.1:    │
-             │   3000     │   │   8000        │
-             └────────────┘   └───────────────┘
-```
+1. [Architecture overview](#architecture-overview)
+2. [Prerequisites](#prerequisites)
+3. [Provision a new production VPS](#provision-a-new-production-vps)
+4. [Configure IAM Roles Anywhere](#configure-iam-roles-anywhere)
+5. [Configure AWS Secrets Manager](#configure-aws-secrets-manager)
+6. [Deploy the application](#deploy-the-application)
+7. [Automatic secret synchronization](#automatic-secret-synchronization)
+8. [Continuous delivery and rollback](#continuous-delivery-and-rollback)
+9. [Routine maintenance](#routine-maintenance)
+10. [Security](#security)
+11. [Disaster recovery](#disaster-recovery)
+12. [Monitoring and validation](#monitoring-and-validation)
+13. [Troubleshooting](#troubleshooting)
+14. [Reference](#reference)
+
+---
+
+## Architecture overview
+
+### Production topology
 
 | Component | Value |
 |-----------|-------|
-| Host | Single review **VPS** (no HA, no autoscaling) |
-| Reverse proxy | **Nginx**, terminates **HTTPS** for both domains |
-| Frontend upstream | `juli-web` → `127.0.0.1:3000` (Next.js) |
-| Backend upstream | `juli-api` → `127.0.0.1:8000` (FastAPI/uvicorn) |
+| Host | Single Ubuntu VPS (no HA, no autoscaling) |
+| Reverse proxy | Nginx — TLS termination on port 443 |
+| Frontend | `juli-web` → Next.js on `127.0.0.1:3000` |
+| Backend | `juli-api` → FastAPI/uvicorn on `127.0.0.1:8000` |
 | Frontend domain | `app-juli.com` |
 | Backend domain | `api.app-juli.com` |
 | OAuth callback | `https://api.app-juli.com/v1/auth/tiktok/callback` |
-| TLS | Let's Encrypt via certbot (renewable) |
-| VPS checkout | `~/Juli-AI-v2` — single monorepo (`web/` = frontend, repo root = backend) |
+| TLS | Let's Encrypt (certbot) |
+| AWS region | `us-east-2` |
+| Canonical checkout | `~/Juli-AI-v2` |
+| Active release | `~/releases/current` → `~/releases/<short-sha>/` |
+
+### Secrets and authentication flow
+
+```mermaid
+flowchart TB
+    subgraph VPS["Ubuntu VPS (non-AWS)"]
+        CERT["X.509 client certificate<br/>/root/juli-ca/juli-vps.crt + .key"]
+        FETCH["fetch-secrets.sh"]
+        APIENV["/etc/juli/api.env"]
+        WEBENV["/etc/juli/web.env"]
+        SYS["systemd<br/>juli-api · juli-web"]
+        NGINX["Nginx :443"]
+        API["FastAPI :8000"]
+        WEB["Next.js :3000"]
+    end
+
+    subgraph AWS["AWS (us-east-2)"]
+        IRA["IAM Roles Anywhere"]
+        STS["Temporary STS credentials"]
+        SM["AWS Secrets Manager<br/>juli/api/production<br/>juli/web/production"]
+    end
+
+    CERT -->|"aws_signing_helper credential-process"| IRA
+    IRA --> STS
+    STS -->|"GetSecretValue"| SM
+    SM --> FETCH
+    FETCH --> APIENV
+    FETCH --> WEBENV
+    APIENV --> SYS
+    WEBENV --> SYS
+    SYS --> API
+    SYS --> WEB
+    NGINX --> API
+    NGINX --> WEB
+```
+
+### Periodic secret refresh flow
+
+```mermaid
+flowchart LR
+    TIMER["juli-secrets-refresh.timer<br/>(daily)"]
+    SVC["juli-secrets-refresh.service"]
+    REFRESH["refresh-secrets.sh"]
+    FETCH["Fetch to temp files"]
+    CMP{"Content<br/>changed?"}
+    API["Restart juli-api"]
+    WEB["Restart juli-web"]
+    DONE["Exit — no restart"]
+
+    TIMER --> SVC --> REFRESH --> FETCH --> CMP
+    CMP -->|api.env changed| API
+    CMP -->|web.env changed| WEB
+    CMP -->|unchanged| DONE
+```
+
+### VPS directory layout
+
+```text
+~/Juli-AI-v2/                 Canonical clone — infra scripts, git worktree source
+~/releases/<short-sha>/         One worktree per release (.venv + web/node_modules)
+~/releases/current              Symlink to active release — systemd WorkingDirectory
+~/releases/deploy-history.log   Append-only deploy/rollback audit trail
+/etc/juli/api.env               Backend runtime env (root:root, 600)
+/etc/juli/web.env               Frontend runtime env (root:root, 600)
+/etc/aws/config                 IAM Roles Anywhere credential_process config
+/root/juli-ca/                  X.509 CA + client certificate (see Security)
+```
 
 ### Config files in this directory
 
 | Path | Purpose |
 |------|---------|
-| [`nginx/app-juli.com.conf`](nginx/app-juli.com.conf) | Frontend vhost → `127.0.0.1:3000` |
-| [`nginx/api.app-juli.com.conf`](nginx/api.app-juli.com.conf) | Backend vhost → `127.0.0.1:8000`, health + OAuth callback |
-| [`systemd/juli-web.service`](systemd/juli-web.service) | Frontend service unit |
-| [`systemd/juli-api.service`](systemd/juli-api.service) | Backend service unit |
-| [`env/web.env.example`](env/web.env.example) | Frontend env template (placeholders) |
-| [`env/api.env.example`](env/api.env.example) | Backend env template (placeholders) |
-| [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | HITL DNS + Nginx + Certbot (#256) |
-| [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) | Deploy Next.js frontend on VPS (#257) |
-| [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | Deploy FastAPI backend on VPS (#258) |
-| [`reviewer-login-runbook.md`](reviewer-login-runbook.md) | Reviewer demo login path (#260) |
-| [`smoke-checklist-runbook.md`](smoke-checklist-runbook.md) | Smoke sign-off + CORS checklist (#261) |
-| [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
-| [`provision-frontend.sh`](provision-frontend.sh) | Install `juli-web` + production build (#257) |
-| [`provision-backend.sh`](provision-backend.sh) | Install `juli-api` + pip deps (#258) |
-| [`build-frontend-review.sh`](build-frontend-review.sh) | `npm ci && npm run build` with UI-only login |
-| [`smoke-test.sh`](smoke-test.sh) | DNS/TLS/frontend/health/OAuth/login/CORS checklist |
+| [`nginx/`](nginx/) | Nginx vhosts for frontend and API |
+| [`systemd/juli-api.service`](systemd/juli-api.service) | Backend systemd unit |
+| [`systemd/juli-web.service`](systemd/juli-web.service) | Frontend systemd unit |
+| [`systemd/juli-secrets-refresh.service`](systemd/juli-secrets-refresh.service) | Daily secret sync (oneshot) |
+| [`systemd/juli-secrets-refresh.timer`](systemd/juli-secrets-refresh.timer) | 24-hour timer for secret sync |
+| [`fetch-secrets.sh`](fetch-secrets.sh) | Pull secrets → `/etc/juli/*.env` |
+| [`refresh-secrets.sh`](refresh-secrets.sh) | Compare-and-restart secret sync |
+| [`deploy-release.sh`](deploy-release.sh) | CD entrypoint (worktree, migrate, build, cutover) |
+| [`rollback-release.sh`](rollback-release.sh) | Re-point `current` symlink + restart |
+| [`aws/iam-policy-secrets-reader.json`](aws/iam-policy-secrets-reader.json) | Least-privilege IAM policy template |
+| [`env/api.env.example`](env/api.env.example) | Backend env key reference (placeholders only) |
+| [`env/web.env.example`](env/web.env.example) | Frontend env key reference (placeholders only) |
+| [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | DNS + Nginx + TLS bootstrap |
 
 ---
 
-## Environment variables (no secrets in git)
+## Prerequisites
 
-Real values are set **only on the VPS** env files (`~/Juli-AI-v2/.env`,
-`~/Juli-AI-v2/web/.env.production`) or a secret manager. **Do not commit** real
-credentials — the templates in `env/` hold placeholders **outside** any
-functional value.
+| Item | Requirement |
+|------|-------------|
+| VPS | Ubuntu 22.04+ with static public IPv4 |
+| DNS | A records for `app-juli.com` and `api.app-juli.com` |
+| Firewall | Inbound TCP 22, 80, 443 |
+| AWS account | Secrets Manager + IAM Roles Anywhere enabled in `us-east-2` |
+| GitHub | Deploy SSH key in Actions secrets (`VPS_SSH_HOST`, `VPS_SSH_USER`, `VPS_SSH_KEY`) |
+| Packages | `nginx`, `certbot`, `python3-venv`, `nodejs`, `npm`, `awscli`, `aws_signing_helper` |
 
-**Backend (`api.app-juli.com`)** — see [`env/api.env.example`](env/api.env.example):
-
-| Var | Required | Notes |
-|-----|----------|-------|
-| `DATABASE_URL` | Yes | Opened at startup (FastAPI lifespan). Supabase Postgres for review. |
-| `SUPABASE_JWT_SECRET` | Protected routes | Secret — VPS only (optional when frontend uses UI-only demo login). |
-| `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | OAuth | Partner Center review app. Secret — VPS only. |
-| `TIKTOK_TOKEN_ENCRYPTION_KEY` | OAuth persistence | Secret — encrypts stored TikTok access/refresh tokens. |
-| `CORS_ALLOW_ORIGINS` | Yes | Set to `https://app-juli.com`. |
-
-**Frontend (`app-juli.com`)** — see [`env/web.env.example`](env/web.env.example):
-
-| Var | Required | Notes |
-|-----|----------|-------|
-| `NEXT_PUBLIC_API_URL` | Yes | `https://api.app-juli.com` (baked at build time). |
-| `NEXT_PUBLIC_UI_ONLY` | App Review | Set to `1` — one-click demo login and mock data. |
-
-App Review **skips** `REDIS_URL`, cron, workers, ML batch, polling, and webhook
-services. If a required startup path forces one of these, stop and split it into a
-separate issue (PRD rollback rule).
+**Do not commit** real credentials, certificates, private keys, or env files to git. Secrets live **outside** source control on the VPS and in AWS Secrets Manager.
 
 ---
 
-## Deploy — frontend and backend are independent
+## Provision a new production VPS
 
-The two services are deployed and restarted independently. A frontend rebuild
-never restarts the backend and vice versa.
+### Step 1 — Base system packages
 
-### Frontend (`juli-web`)
-
-`NEXT_PUBLIC_UI_ONLY` is **baked at build time**. Restarting `juli-web` without
-rebuilding cannot switch login behavior.
+SSH into the VPS as a user with `sudo` access:
 
 ```bash
-cd ~/Juli-AI-v2
-git pull
+sudo apt-get update
+sudo apt-get install -y \
+  nginx certbot python3-certbot-nginx \
+  python3 python3-venv python3-pip \
+  git curl jq unzip \
+  nodejs npm
 
-# Ensure env exists (copy once from infra/deploy/env/web.env.example)
-grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
-
-# Clean build with UI-only login enforced
-chmod +x infra/deploy/build-frontend-review.sh
-./infra/deploy/build-frontend-review.sh
-
-sudo systemctl restart juli-web
-sudo systemctl status juli-web --no-pager
-
-# Must show UI-only login checks (not just 7 DNS/TLS/health checks)
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+sudo mkdir -p /var/www/certbot /etc/juli /etc/aws
+sudo chmod 700 /etc/juli
+sudo systemctl enable --now nginx
 ```
 
-### Backend (`juli-api`)
+Install the AWS CLI v2 and IAM Roles Anywhere signing helper per [AWS documentation](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/getting-started.html). Place `aws_signing_helper` at `/usr/local/bin/aws_signing_helper`.
 
-See [`backend-deploy-runbook.md`](backend-deploy-runbook.md) (#258) for the full
-sign-off checklist. Quick redeploy:
+### Step 2 — DNS and TLS
+
+Follow [`vps-wiring-runbook.md`](vps-wiring-runbook.md) to:
+
+1. Create A records pointing both domains at the VPS public IP.
+2. Install Nginx vhosts from this repo.
+3. Issue Let's Encrypt certificates.
+
+Confirm DNS before continuing:
+
+```bash
+dig +short app-juli.com A
+dig +short api.app-juli.com A
+```
+
+### Step 3 — Clone the repository
+
+```bash
+cd ~
+git clone git@github.com:thienphung00/Juli-AI-v2.git
+cd Juli-AI-v2
+```
+
+Adjust the remote URL to match your org's repository.
+
+### Step 4 — Install systemd units
 
 ```bash
 cd ~/Juli-AI-v2
-git pull
-.venv/bin/pip install -r requirements.txt
+chmod +x infra/scripts/fetch-secrets.sh infra/scripts/refresh-secrets.sh
+
+sudo cp infra/systemd/juli-api.service /etc/systemd/system/
+sudo cp infra/systemd/juli-web.service /etc/systemd/system/
+sudo cp infra/systemd/juli-secrets-refresh.service /etc/systemd/system/
+sudo cp infra/systemd/juli-secrets-refresh.timer /etc/systemd/system/
+
+sudo systemctl daemon-reload
+```
+
+Do **not** start `juli-api` or `juli-web` yet — secrets and the first release must exist first.
+
+---
+
+## Configure IAM Roles Anywhere
+
+The VPS is **not** running inside AWS. There is no EC2 instance profile. Authentication uses a **private PKI** trusted by an AWS **Trust Anchor**, an IAM **Profile**, and an IAM **Role** that grants least-privilege access to Secrets Manager.
+
+### Step 1 — Generate the certificate authority and client certificate
+
+On the VPS (or a secure offline machine, then transfer):
+
+```bash
+sudo mkdir -p /root/juli-ca
+cd /root/juli-ca
+
+# Root CA (keep offline or tightly access-controlled)
+openssl genrsa -out juli-ca.key 4096
+openssl req -x509 -new -nodes -key juli-ca.key -sha256 -days 3650 \
+  -out juli-ca.crt -subj "/CN=Juli VPS CA"
+
+# Client certificate for this VPS
+openssl genrsa -out juli-vps.key 2048
+openssl req -new -key juli-vps.key -out juli-vps.csr \
+  -subj "/CN=juli-production-vps"
+
+cat > client-ext.cnf <<'EOF'
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature
+extendedKeyUsage = clientAuth
+EOF
+
+openssl x509 -req -in juli-vps.csr -CA juli-ca.crt -CAkey juli-ca.key \
+  -CAcreateserial -out juli-vps.crt -days 365 -sha256 -extfile client-ext.cnf
+
+openssl verify -CAfile juli-ca.crt juli-vps.crt
+# Expected: juli-vps.crt: OK
+```
+
+Set permissions immediately:
+
+```bash
+sudo chmod 600 /root/juli-ca/juli-ca.key /root/juli-ca/juli-vps.key
+sudo chmod 644 /root/juli-ca/juli-ca.crt /root/juli-ca/juli-vps.crt
+sudo chown -R root:root /root/juli-ca
+```
+
+### Step 2 — Create AWS Trust Anchor, Profile, and Role
+
+In the AWS Console (or via CLI/Terraform) in **`us-east-2`**:
+
+1. **Trust Anchor** — upload `/root/juli-ca/juli-ca.crt` as the source of trust.
+2. **Profile** — associate the Trust Anchor; set session duration (e.g. 1 hour).
+3. **IAM Role** — create `juli-vps-secrets-role` with the policy in
+   [`aws/iam-policy-secrets-reader.json`](aws/iam-policy-secrets-reader.json).
+   Replace `AWS_ACCOUNT_ID` with your account ID.
+4. **Profile ↔ Role** — attach `juli-vps-secrets-role` to the Profile.
+
+Record the ARNs:
+
+| Resource | Example ARN pattern |
+|----------|---------------------|
+| Trust Anchor | `arn:aws:rolesanywhere:us-east-2:<account>:trust-anchor/<id>` |
+| Profile | `arn:aws:rolesanywhere:us-east-2:<account>:profile/<id>` |
+| Role | `arn:aws:iam::<account>:role/juli-vps-secrets-role` |
+
+### Step 3 — Configure `/etc/aws/config`
+
+Create `/etc/aws/config` (root-owned, `chmod 644`):
+
+```ini
+[profile juli-vps-secrets-reader]
+
+region = us-east-2
+
+credential_process = /usr/local/bin/aws_signing_helper credential-process \
+  --certificate /root/juli-ca/juli-vps.crt \
+  --private-key /root/juli-ca/juli-vps.key \
+  --trust-anchor-arn arn:aws:rolesanywhere:us-east-2:ACCOUNT_ID:trust-anchor/TA_ID \
+  --profile-arn arn:aws:rolesanywhere:us-east-2:ACCOUNT_ID:profile/PROFILE_ID \
+  --role-arn arn:aws:iam::ACCOUNT_ID:role/juli-vps-secrets-role
+```
+
+Set environment defaults for root-operated scripts:
+
+```bash
+sudo tee /etc/profile.d/juli-aws.sh <<'EOF'
+export AWS_CONFIG_FILE=/etc/aws/config
+export AWS_PROFILE=juli-vps-secrets-reader
+export AWS_REGION=us-east-2
+EOF
+```
+
+### Step 4 — Verify authentication
+
+```bash
+sudo AWS_CONFIG_FILE=/etc/aws/config \
+  AWS_PROFILE=juli-vps-secrets-reader \
+  AWS_REGION=us-east-2 \
+  aws sts get-caller-identity
+```
+
+Expected output includes:
+
+```text
+arn:aws:sts::<account-id>:assumed-role/juli-vps-secrets-role/...
+```
+
+If this fails, see [IAM Roles Anywhere troubleshooting](#iam-roles-anywhere).
+
+---
+
+## Configure AWS Secrets Manager
+
+Secrets are stored as **JSON blobs** — one secret per application, not one secret per key.
+
+### Secret inventory
+
+#### Backend — `juli/api/production`
+
+| Key | Required | Notes |
+|-----|----------|-------|
+| `DATABASE_URL` | Yes | Supabase session pooler URI (IPv4-compatible) |
+| `DATABASE_DIRECT_URL` | Yes | Direct connection URI for migrations |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Yes | Public anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key — server-side only |
+| `SUPABASE_JWT_SECRET` | Yes | JWT validation for protected routes |
+| `TIKTOK_APP_KEY` | Yes | TikTok Partner Center app key |
+| `TIKTOK_APP_SECRET` | Yes | TikTok Partner Center app secret |
+| `TIKTOK_TOKEN_ENCRYPTION_KEY` | Yes | Master key for encrypted OAuth tokens — see [Token encryption key](#tiktok_token_encryption_key) |
+| `CORS_ALLOW_ORIGINS` | Yes | e.g. `https://app-juli.com` |
+
+#### Frontend — `juli/web/production`
+
+| Key | Required | Notes |
+|-----|----------|-------|
+| `NEXT_PUBLIC_API_URL` | Yes | `https://api.app-juli.com` — **baked at build time** |
+| `NEXT_PUBLIC_APP_URL` | Yes | `https://app-juli.com` — **baked at build time** |
+| `NEXT_PUBLIC_UI_ONLY` | Optional | Set to `1` for demo/review mode |
+
+### Create secrets (first time)
+
+From a secure workstation with AWS admin credentials (not on the VPS):
+
+```bash
+# Write values to local temp files — never commit these
+cat > /tmp/juli-api-production.json <<'EOF'
+{
+  "DATABASE_URL": "postgresql://...",
+  "DATABASE_DIRECT_URL": "postgresql://...",
+  "SUPABASE_URL": "https://xxxx.supabase.co",
+  "SUPABASE_ANON_KEY": "...",
+  "SUPABASE_SERVICE_ROLE_KEY": "...",
+  "SUPABASE_JWT_SECRET": "...",
+  "TIKTOK_APP_KEY": "...",
+  "TIKTOK_APP_SECRET": "...",
+  "TIKTOK_TOKEN_ENCRYPTION_KEY": "...",
+  "CORS_ALLOW_ORIGINS": "https://app-juli.com"
+}
+EOF
+
+aws secretsmanager create-secret \
+  --region us-east-2 \
+  --name juli/api/production \
+  --description "Juli API production runtime configuration" \
+  --secret-string file:///tmp/juli-api-production.json
+
+cat > /tmp/juli-web-production.json <<'EOF'
+{
+  "NEXT_PUBLIC_API_URL": "https://api.app-juli.com",
+  "NEXT_PUBLIC_APP_URL": "https://app-juli.com",
+  "NEXT_PUBLIC_UI_ONLY": "0"
+}
+EOF
+
+aws secretsmanager create-secret \
+  --region us-east-2 \
+  --name juli/web/production \
+  --description "Juli web production build-time configuration" \
+  --secret-string file:///tmp/juli-web-production.json
+
+rm -f /tmp/juli-api-production.json /tmp/juli-web-production.json
+```
+
+### Edit or update secrets
+
+```bash
+# Update in place (creates a new version)
+aws secretsmanager put-secret-value \
+  --region us-east-2 \
+  --secret-id juli/api/production \
+  --secret-string file:///path/to/updated-values.json
+```
+
+After updating a secret on the VPS:
+
+```bash
+# Immediate pickup (restarts both services)
+sudo /root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
+sudo systemctl restart juli-api juli-web
+
+# Or wait for the daily refresh timer (restarts only if content changed)
+# Or trigger manually:
+sudo systemctl start juli-secrets-refresh.service
+```
+
+If `NEXT_PUBLIC_*` values changed, you **must** redeploy the frontend:
+
+```bash
+cd ~/Juli-AI-v2 && ./infra/scripts/deploy-release.sh
+```
+
+### Verify secrets (admin workstation)
+
+```bash
+aws secretsmanager describe-secret \
+  --region us-east-2 --secret-id juli/api/production
+
+aws secretsmanager get-secret-value \
+  --region us-east-2 --secret-id juli/api/production \
+  --query SecretString --output text | jq 'keys'
+```
+
+### Validate access (from VPS via IAM Roles Anywhere)
+
+```bash
+sudo AWS_CONFIG_FILE=/etc/aws/config \
+  AWS_PROFILE=juli-vps-secrets-reader \
+  AWS_REGION=us-east-2 \
+  aws secretsmanager get-secret-value \
+    --secret-id juli/api/production \
+    --query SecretString --output text | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'keys OK')"
+
+sudo /root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
+sudo wc -l /etc/juli/api.env /etc/juli/web.env
+sudo ls -la /etc/juli/api.env /etc/juli/web.env
+# Expect root:root, mode 600
+```
+
+### IAM policy (least privilege)
+
+Attach [`aws/iam-policy-secrets-reader.json`](aws/iam-policy-secrets-reader.json) to `juli-vps-secrets-role`. The policy grants **only**:
+
+- `secretsmanager:GetSecretValue`
+- `secretsmanager:DescribeSecret`
+
+…scoped to the two production secret ARNs.
+
+**Do not** attach `SecretsManagerFullAccess`.
+
+**Avoid `secretsmanager:ListSecrets`** on production roles unless an operational tool genuinely requires discovery across all secrets. Listing secrets expands the blast radius of a compromised certificate and is unnecessary when secret IDs are known and fixed.
+
+### `TIKTOK_TOKEN_ENCRYPTION_KEY`
+
+`TIKTOK_TOKEN_ENCRYPTION_KEY` is the application's **long-lived master encryption key**. It encrypts persisted TikTok OAuth access and refresh tokens at rest.
+
+| Rule | Rationale |
+|------|-----------|
+| **Never auto-rotate** | Rotating without a migration re-encrypts nothing — existing tokens become unreadable |
+| **Back up securely** | Loss of this key means permanent loss of stored OAuth tokens |
+| **Manual rotation only** | Requires a planned migration: multiple active keys, token re-encryption, validation, then decommission of the old key |
+
+Scheduled automatic rotation is **disabled** for this key. All other secrets may be rotated normally via `put-secret-value` + `refresh-secrets.sh` or the daily timer.
+
+---
+
+## Deploy the application
+
+### First deploy (bootstrap)
+
+Prerequisites on the VPS:
+
+1. IAM Roles Anywhere verified (`aws sts get-caller-identity`).
+2. Secrets exist in AWS Secrets Manager.
+3. DNS and TLS are wired.
+
+```bash
+cd ~/Juli-AI-v2
+git fetch origin main && git checkout main && git pull --ff-only
+
+# 1. Fetch runtime env files
+sudo ./infra/scripts/fetch-secrets.sh
+
+# 2. Run the CD script (creates release worktree, migrates, builds, cuts over)
+./infra/scripts/deploy-release.sh
+
+# 3. Enable and start services
+sudo systemctl enable --now juli-api juli-web
+
+# 4. Enable daily secret refresh
+sudo systemctl enable --now juli-secrets-refresh.timer
+
+# 5. Smoke test
+./infra/scripts/smoke-test.sh
+```
+
+### How `deploy-release.sh` works
+
+Each deploy:
+
+1. Runs `fetch-secrets.sh` to refresh `/etc/juli/api.env` and `/etc/juli/web.env`.
+2. Creates (or re-checks-out) a release worktree at `~/releases/<short-sha>/`.
+3. Backend: creates `.venv`, `pip install`, `alembic upgrade head`.
+4. Frontend: copies `/etc/juli/web.env` → `web/.env.production`, runs `build-frontend-review.sh`.
+5. Atomically flips `~/releases/current` symlink.
+6. Restarts `juli-api` and `juli-web`.
+7. Health-checks `http://127.0.0.1:8000/health` and `http://127.0.0.1:3000/` (60s timeout).
+8. Appends to `deploy-history.log` and prunes old worktrees (keeps last 3).
+
+### systemd units
+
+Both services re-fetch secrets on every start via `ExecStartPre`:
+
+```ini
+# /etc/systemd/system/juli-api.service (excerpt)
+[Service]
+ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
+EnvironmentFile=/etc/juli/api.env
+WorkingDirectory=/root/releases/current
+ExecStart=/root/releases/current/.venv/bin/uvicorn backend.api.api.main:app \
+    --host 127.0.0.1 --port 8000 --workers 1
+```
+
+```ini
+# /etc/systemd/system/juli-web.service (excerpt)
+[Service]
+ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
+EnvironmentFile=/etc/juli/web.env
+WorkingDirectory=/root/releases/current/web
+ExecStart=/usr/bin/npm run start -- --port 3000 --hostname 127.0.0.1
+```
+
+Full unit files: [`systemd/juli-api.service`](systemd/juli-api.service),
+[`systemd/juli-web.service`](systemd/juli-web.service).
+
+### Manual service restart
+
+```bash
+# Backend only
 sudo systemctl restart juli-api
 sudo systemctl status juli-api --no-pager
+
+# Frontend only (does not rebuild — NEXT_PUBLIC_* unchanged)
+sudo systemctl restart juli-web
+sudo systemctl status juli-web --no-pager
 ```
 
-One-time install on the VPS:
+### Independent frontend rebuild
 
-```bash
-chmod +x infra/deploy/provision-backend.sh
-sudo ./infra/deploy/provision-backend.sh
-```
-
-### One-time install
+`NEXT_PUBLIC_*` values are baked at **build time**. To change them:
 
 ```bash
 cd ~/Juli-AI-v2
-
-# systemd units
-sudo cp infra/deploy/systemd/juli-web.service /etc/systemd/system/
-sudo cp infra/deploy/systemd/juli-api.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now juli-web juli-api
-
-# nginx vhosts
-sudo cp infra/deploy/nginx/app-juli.com.conf     /etc/nginx/sites-available/
-sudo cp infra/deploy/nginx/api.app-juli.com.conf /etc/nginx/sites-available/
-sudo ln -sf /etc/nginx/sites-available/app-juli.com.conf     /etc/nginx/sites-enabled/
-sudo ln -sf /etc/nginx/sites-available/api.app-juli.com.conf /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-
-# HTTPS certificates (HITL — requires DNS pointing at the VPS first)
-sudo certbot --nginx -d app-juli.com -d www.app-juli.com
-sudo certbot --nginx -d api.app-juli.com
+git pull
+sudo ./infra/scripts/fetch-secrets.sh
+./infra/scripts/deploy-release.sh
 ```
 
 ---
 
-## Validation
+## Automatic secret synchronization
 
-### CI (automated, no live domain required)
+A **systemd timer** runs every 24 hours to pick up secret changes without unnecessary restarts.
 
-CI validates the config contracts without touching the VPS:
+### Install
+
+```bash
+sudo cp ~/Juli-AI-v2/infra/systemd/juli-secrets-refresh.service /etc/systemd/system/
+sudo cp ~/Juli-AI-v2/infra/systemd/juli-secrets-refresh.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now juli-secrets-refresh.timer
+```
+
+### Verify timer
+
+```bash
+systemctl list-timers juli-secrets-refresh.timer
+systemctl status juli-secrets-refresh.timer --no-pager
+```
+
+### Manual trigger
+
+```bash
+sudo systemctl start juli-secrets-refresh.service
+journalctl -u juli-secrets-refresh.service -n 20 --no-pager
+```
+
+### Behaviour
+
+| Condition | Action |
+|-----------|--------|
+| Fetched secrets match on-disk files | Exit 0 — no service restart |
+| `api.env` changed | Atomic replace → `systemctl restart juli-api` |
+| `web.env` changed | Atomic replace → `systemctl restart juli-web` + warning if `NEXT_PUBLIC_*` may need rebuild |
+
+Automatic **rotation is disabled** for `TIKTOK_TOKEN_ENCRYPTION_KEY` — see above.
+
+---
+
+## Continuous delivery and rollback
+
+### Automated deploy (`release.yml`)
+
+Merges to `main` trigger `.github/workflows/release.yml`, which SSHes to the VPS and runs `deploy-release.sh`. GitHub Actions holds **only** the SSH deploy key — no AWS credentials in CI.
+
+Required GitHub Actions secrets: `VPS_SSH_HOST`, `VPS_SSH_USER`, `VPS_SSH_KEY`, optionally `VPS_SSH_PORT`.
+
+### Manual deploy
+
+```bash
+ssh <user>@<vps-host>
+cd ~/Juli-AI-v2 && git fetch origin main && git checkout main && git pull --ff-only
+./infra/scripts/deploy-release.sh            # latest main
+./infra/scripts/deploy-release.sh <sha>      # specific commit
+```
+
+### Rollback
+
+No blue/green — rollback re-points the `current` symlink and restarts.
+
+**GitHub UI:** Actions → **Rollback** → Run workflow.
+
+**On the VPS:**
+
+```bash
+cd ~/Juli-AI-v2
+./infra/scripts/rollback-release.sh            # previous release
+./infra/scripts/rollback-release.sh <sha>      # specific past release
+```
+
+Rollback does **not** run `alembic downgrade` — schema changes must stay backward compatible.
+
+Audit trail: `~/releases/deploy-history.log`.
+
+---
+
+## Routine maintenance
+
+### Daily (automated)
+
+- `juli-secrets-refresh.timer` — sync secrets, restart only if changed.
+
+### Weekly
+
+```bash
+# Review service health
+systemctl status juli-api juli-web --no-pager
+journalctl -u juli-api --since "7 days ago" -p err --no-pager
+journalctl -u juli-web --since "7 days ago" -p err --no-pager
+
+# Confirm timer fired
+journalctl -u juli-secrets-refresh.service --since "8 days ago" --no-pager
+
+# TLS renewal (certbot timer should handle this; verify)
+sudo certbot renew --dry-run
+```
+
+### Monthly
+
+- Review IAM Roles Anywhere session logs in CloudTrail.
+- Verify client certificate expiry: `openssl x509 -in /root/juli-ca/juli-vps.crt -noout -dates`
+- Confirm `~/releases/` disk usage is bounded (last 3 releases retained).
+- Rotate non-encryption secrets as needed via Secrets Manager + `refresh-secrets.sh`.
+
+### Certificate renewal (client cert)
+
+Before `juli-vps.crt` expires:
+
+```bash
+cd /root/juli-ca
+# Re-issue client cert with same CA (see IAM Roles Anywhere setup)
+openssl verify -CAfile juli-ca.crt juli-vps.crt
+# No AWS-side change needed if the same CA is still trusted
+```
+
+---
+
+## Security
+
+### File permissions
+
+| Path | Owner | Mode | Notes |
+|------|-------|------|-------|
+| `/root/juli-ca/juli-vps.key` | root:root | `600` | Client private key — most sensitive VPS asset |
+| `/root/juli-ca/juli-ca.key` | root:root | `600` | CA private key — back up offline |
+| `/root/juli-ca/juli-vps.crt` | root:root | `644` | Client certificate |
+| `/root/juli-ca/juli-ca.crt` | root:root | `644` | CA certificate (also in AWS Trust Anchor) |
+| `/etc/juli/api.env` | root:root | `600` | Backend secrets |
+| `/etc/juli/web.env` | root:root | `600` | Frontend config |
+| `/etc/juli/` | root:root | `700` | Env directory |
+| `/etc/aws/config` | root:root | `644` | Contains ARNs only — no secrets |
+
+```bash
+sudo chmod 600 /root/juli-ca/juli-vps.key /root/juli-ca/juli-ca.key
+sudo chmod 644 /root/juli-ca/juli-vps.crt /root/juli-ca/juli-ca.crt
+sudo chmod 600 /etc/juli/api.env /etc/juli/web.env
+sudo chmod 700 /etc/juli
+```
+
+### What must never exist on the VPS
+
+- IAM user access keys (`aws_access_key_id` / `aws_secret_access_key`)
+- `/etc/juli/aws-credentials` or `~/.aws/credentials` with static keys
+- Secrets in the git checkout or release worktrees
+
+### Backups
+
+| Asset | Backup method |
+|-------|---------------|
+| `/root/juli-ca/` | Encrypted offline backup — required for DR |
+| `TIKTOK_TOKEN_ENCRYPTION_KEY` | Secure secrets backup separate from AWS (break-glass) |
+| `deploy-history.log` | Included in VPS snapshot or periodic copy |
+| Database | Supabase managed backups |
+
+### Monitoring
+
+- **Uptime:** `.github/workflows/uptime.yml` — 15-minute health poll, Slack alert on failure.
+- **Logs:** `journalctl -u juli-api` / `journalctl -u juli-web`.
+- **AWS:** CloudTrail for Roles Anywhere `CreateSession` and Secrets Manager `GetSecretValue`.
+
+---
+
+## Disaster recovery
+
+### VPS lost — rebuild from scratch
+
+1. Provision new VPS (same Ubuntu version).
+2. Restore `/root/juli-ca/` from encrypted backup **or** issue new client cert and update Trust Anchor.
+3. Restore `/etc/aws/config` (or recreate from ARNs).
+4. Follow [Provision](#provision-a-new-production-vps) through [Deploy](#deploy-the-application).
+5. DNS should already point at the new IP (update A records if IP changed).
+6. Run `deploy-release.sh` and smoke tests.
+
+### CA or client key compromised
+
+1. Revoke the Trust Anchor or remove the Profile in AWS.
+2. Generate new CA + client certificate.
+3. Create new Trust Anchor trusting the new CA.
+4. Update `/etc/aws/config` ARNs if Profile/Anchor changed.
+5. Verify `aws sts get-caller-identity`, then restart services.
+
+### Secrets Manager unavailable
+
+Services already running continue with on-disk `/etc/juli/*.env`. New starts and `ExecStartPre` will fail until AWS is reachable. Monitor the uptime workflow for external impact.
+
+---
+
+## Monitoring and validation
+
+### CI (no live VPS required)
 
 ```bash
 python -m pytest tests/unit/test_phase_2_5_deploy_config.py -q
 ```
 
-These tests assert the topology docs, split frontend/backend units, secret-free
-env templates, and smoke-test coverage stay in sync with this runbook.
-
-### Live smoke test (HITL, after DNS + TLS are wired on the VPS)
-
-Full domain wiring (DNS records, TLS issuance) stays **HITL / manual** on the VPS
-per issue #256. Once wired, run the checklist from the repo root:
+### Live smoke test
 
 ```bash
 cd ~/Juli-AI-v2
-./infra/deploy/smoke-test.sh
-# or point at other hostnames:
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+./infra/scripts/smoke-test.sh
+# Or with explicit domains:
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
-`smoke-test.sh` covers DNS resolution, TLS handshake, frontend load,
-`GET /health`, and the OAuth callback route (asserts no 5xx on missing params).
+### Production acceptance checklist
 
----
-
-## Reviewer acceptance checklist
-
-- [ ] `https://app-juli.com/` resolves over HTTPS and loads the frontend.
-- [ ] `https://api.app-juli.com/health` returns a 2xx JSON response.
-- [ ] `https://api.app-juli.com/v1/auth/tiktok/callback` exists and handles
-      missing/invalid OAuth params without a 5xx crash.
-- [ ] Reviewer login uses one-click demo entry (`NEXT_PUBLIC_UI_ONLY=1`).
-      See [`reviewer-login-runbook.md`](reviewer-login-runbook.md) (#260).
-- [ ] CORS allows `https://app-juli.com` (`CORS_ALLOW_ORIGINS` on VPS).
-- [ ] Full sign-off checklist completed per [`smoke-checklist-runbook.md`](smoke-checklist-runbook.md) (#261).
-- [ ] No production users, production traffic, or persistent business data are
-      required to complete App Review.
+- [ ] `https://app-juli.com/` loads over HTTPS.
+- [ ] `https://api.app-juli.com/health` returns 2xx JSON.
+- [ ] OAuth callback route handles invalid params without 5xx.
+- [ ] CORS allows `https://app-juli.com`.
+- [ ] `aws sts get-caller-identity` returns `juli-vps-secrets-role`.
+- [ ] `/etc/juli/api.env` and `/etc/juli/web.env` exist (mode 600).
+- [ ] `juli-secrets-refresh.timer` is active.
+- [ ] `~/releases/current` points at a healthy release.
 
 ---
 
 ## Troubleshooting
 
-### Blank homepage after login (or smoke test: home chunk returned 400)
+### IAM Roles Anywhere
 
-Next.js returns **400** (not 404) when HTML references JS chunk hashes that the
-running `juli-web` process cannot serve. A **partial** rebuild can leave `/login`
-working while `/` (Home) chunks 400 — the app shows a blank page after demo login.
+#### Unable to parse private key
+
+| | |
+|---|---|
+| **Symptoms** | `credential_process` fails; `aws sts get-caller-identity` errors with key parse message |
+| **Root cause** | Corrupt key file, wrong PEM format, or permissions too open |
+| **Diagnose** | `openssl rsa -in /root/juli-ca/juli-vps.key -check`; `ls -la /root/juli-ca/juli-vps.key` |
+| **Resolution** | Restore key from backup or re-issue client cert; ensure mode `600` |
+
+#### AccessDeniedException
+
+| | |
+|---|---|
+| **Symptoms** | `aws sts get-caller-identity` or `get-secret-value` returns `AccessDeniedException` |
+| **Root cause** | Role not attached to Profile, or IAM policy missing required action/resource |
+| **Diagnose** | `aws sts get-caller-identity` (auth vs secrets); check CloudTrail for denied `GetSecretValue` |
+| **Resolution** | Verify Profile→Role mapping; attach [`iam-policy-secrets-reader.json`](aws/iam-policy-secrets-reader.json) with correct ARNs |
+
+#### Untrusted certificate
+
+| | |
+|---|---|
+| **Symptoms** | `UntrustedCertificate` or trust anchor rejection |
+| **Root cause** | Client cert signed by a CA not registered in the Trust Anchor |
+| **Diagnose** | `openssl verify -CAfile /root/juli-ca/juli-ca.crt /root/juli-ca/juli-vps.crt` |
+| **Resolution** | Upload correct CA to Trust Anchor, or re-sign client cert with the trusted CA |
+
+#### Insufficient certificate
+
+| | |
+|---|---|
+| **Symptoms** | Certificate rejected despite valid signature |
+| **Root cause** | Missing `clientAuth` EKU or `CA:FALSE` constraint |
+| **Diagnose** | `openssl x509 -in /root/juli-ca/juli-vps.crt -text -noout \| grep -A2 "X509v3 extensions"` |
+| **Resolution** | Re-issue cert with `extendedKeyUsage = clientAuth` and `basicConstraints = CA:FALSE` |
+
+#### ResourceNotFoundException
+
+| | |
+|---|---|
+| **Symptoms** | `get-secret-value` fails with `ResourceNotFoundException` |
+| **Root cause** | Wrong secret name/region, or secret not created |
+| **Diagnose** | `aws secretsmanager describe-secret --secret-id juli/api/production --region us-east-2` |
+| **Resolution** | Create secret in `us-east-2`; verify `AWS_REGION=us-east-2` everywhere |
+
+#### Incorrect Trust Anchor
+
+| | |
+|---|---|
+| **Symptoms** | Auth fails immediately; no assumed-role ARN returned |
+| **Root cause** | `--trust-anchor-arn` in `/etc/aws/config` does not match the anchor trusting your CA |
+| **Diagnose** | Compare ARN in config vs AWS Console → Roles Anywhere → Trust anchors |
+| **Resolution** | Update `/etc/aws/config` with correct ARN |
+
+#### Incorrect IAM Role permissions
+
+| | |
+|---|---|
+| **Symptoms** | `get-caller-identity` succeeds; `get-secret-value` denied |
+| **Root cause** | Policy resource ARN mismatch (wrong suffix or region) |
+| **Diagnose** | `aws secretsmanager get-secret-value --secret-id juli/api/production` with explicit `--region us-east-2` |
+| **Resolution** | Update policy `Resource` ARNs to match actual secret ARNs (include `??????` suffix wildcard) |
+
+#### Incorrect AWS Region
+
+| | |
+|---|---|
+| **Symptoms** | `ResourceNotFoundException` or auth to wrong partition/region |
+| **Root cause** | `AWS_REGION` or `region` in profile set to something other than `us-east-2` |
+| **Diagnose** | `echo $AWS_REGION`; `grep region /etc/aws/config` |
+| **Resolution** | Set `AWS_REGION=us-east-2` in profile, `/etc/profile.d/juli-aws.sh`, and systemd units |
+
+#### Malformed credential_process
+
+| | |
+|---|---|
+| **Symptoms** | AWS CLI cannot invoke signing helper; "error running credential_process" |
+| **Root cause** | Line breaks in INI, missing backslash continuations, wrong helper path |
+| **Diagnose** | `aws configure list`; run the `credential_process` command manually |
+| **Resolution** | Fix `/etc/aws/config` formatting; confirm `/usr/local/bin/aws_signing_helper` exists and is executable |
+
+#### Expired client certificate
+
+| | |
+|---|---|
+| **Symptoms** | Auth suddenly fails after months of operation |
+| **Root cause** | `juli-vps.crt` past `notAfter` date |
+| **Diagnose** | `openssl x509 -in /root/juli-ca/juli-vps.crt -noout -dates` |
+| **Resolution** | Re-issue client cert (same CA); no Trust Anchor change needed |
+
+### Application
+
+#### Service fails on start — secrets
 
 ```bash
-cd ~/Juli-AI-v2
-git pull
-./infra/deploy/build-frontend-review.sh   # rm -rf .next && npm run build
-sudo systemctl restart juli-web
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+sudo /root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
+journalctl -u juli-api -n 50 --no-pager
 ```
 
-Quick check on the VPS:
+#### Blank homepage / 400 on JS chunks
+
+Stale Next.js build. Rebuild and redeploy:
 
 ```bash
-home_chunk="$(curl -sS https://app-juli.com/ | grep -oE '/_next/static/chunks/app/page-[^"]+\.js' | head -1)"
-curl -s -o /dev/null -w '%{http_code}\n' "https://app-juli.com${home_chunk}"
-# Expect 200 — 400 means stale build.
+cd ~/Juli-AI-v2 && ./infra/scripts/deploy-release.sh
 ```
 
-Confirm `juli-web` runs `npm run start` (production), not `npm run dev`. The tmux
-`web` session must not override systemd with a dev server on port 3000.
-
-### Smoke test: login chunk missing demo markers
-
-`NEXT_PUBLIC_UI_ONLY` is baked at build time. If the smoke test fails on demo
-markers, the running build predates the one-click reviewer login or was built
-without `./infra/deploy/build-frontend-review.sh` (which forces `NEXT_PUBLIC_UI_ONLY=1`).
+#### Health check fails after deploy
 
 ```bash
-grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
-./infra/deploy/build-frontend-review.sh
-sudo systemctl restart juli-web
+curl -sS http://127.0.0.1:8000/health
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/
+journalctl -u juli-api -n 100 --no-pager
 ```
 
-Frontend deploy steps: [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) (#257).
+Run rollback if the new release is broken:
+
+```bash
+./infra/scripts/rollback-release.sh
+```
 
 ---
 
-## Rollback / stop condition
+## Reference
 
-If the review path starts requiring production-only services (Redis, workers,
-cron, ML batch, polling, webhooks, HA tuning), **stop** and split the dependency
-into a new issue. Phase 2.5 stays reviewer-accessible and minimal; production
-hardening moves to Phase 3+ / Phase 5.
+### Environment variable templates
+
+Committed templates (placeholders only): [`env/api.env.example`](env/api.env.example),
+[`env/web.env.example`](env/web.env.example).
+
+Runtime files (never in git): `/etc/juli/api.env`, `/etc/juli/web.env`.
+
+### Related runbooks
+
+| Document | Scope |
+|----------|-------|
+| [`vps-wiring-runbook.md`](vps-wiring-runbook.md) | DNS, Nginx, TLS |
+| [`frontend-deploy-runbook.md`](frontend-deploy-runbook.md) | Frontend-specific deploy |
+| [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | Backend-specific deploy |
+| [`smoke-checklist-runbook.md`](smoke-checklist-runbook.md) | Sign-off checklist |
+
+### Log commands
+
+```bash
+sudo journalctl -u juli-api -f
+sudo journalctl -u juli-web -f
+sudo journalctl -u juli-secrets-refresh.service -n 50 --no-pager
+sudo journalctl -u juli-api --since "1 hour ago" -p err
+```
+
+### Quick reference — secret update flow
+
+```bash
+# 1. Update in AWS (admin workstation)
+aws secretsmanager put-secret-value --region us-east-2 \
+  --secret-id juli/api/production --secret-string file://new-values.json
+
+# 2. Pick up on VPS
+sudo systemctl start juli-secrets-refresh.service
+# Or immediate:
+sudo /root/Juli-AI-v2/infra/scripts/fetch-secrets.sh && sudo systemctl restart juli-api
+```

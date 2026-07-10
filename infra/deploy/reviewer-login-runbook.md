@@ -38,7 +38,7 @@ cd ~/Juli-AI-v2
 #   NEXT_PUBLIC_API_URL=https://api.app-juli.com
 #   NEXT_PUBLIC_UI_ONLY=1
 
-./infra/deploy/build-frontend-review.sh   # forces NEXT_PUBLIC_UI_ONLY=1
+./infra/scripts/build-frontend-review.sh   # forces NEXT_PUBLIC_UI_ONLY=1
 sudo systemctl restart juli-web
 ```
 
@@ -56,7 +56,7 @@ Login implementation: `web/src/components/LoginForm.tsx` → `loginAsReviewer()`
 
 ```bash
 cd ~/Juli-AI-v2
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
 Smoke test checks #6–7 assert the login chunk contains demo markers
@@ -136,7 +136,7 @@ Reviewers do **not** need real TikTok Shop orders, PII, or production shop recor
 - [ ] Frontend built with `NEXT_PUBLIC_UI_ONLY=1` (`build-frontend-review.sh`)
 - [ ] `https://app-juli.com/login` shows one-click demo entry (not phone OTP)
 - [ ] Demo login reaches Home with mock data (no blank page after auth)
-- [ ] `./infra/deploy/smoke-test.sh` passes login + home chunk checks
+- [ ] `./infra/scripts/smoke-test.sh` passes login + home chunk checks
 - [ ] Supabase Site URL = `https://app-juli.com` **if** OTP path is enabled
 - [ ] Redirect URLs include `https://app-juli.com/**` **if** OTP path is enabled
 - [ ] Reviewer instructions stored in ops notes / secret manager — **not in git**
@@ -152,7 +152,7 @@ Build predates UI-only or was not built with the review script:
 
 ```bash
 grep NEXT_PUBLIC_UI_ONLY=1 web/.env.production
-./infra/deploy/build-frontend-review.sh
+./infra/scripts/build-frontend-review.sh
 sudo systemctl restart juli-web
 ```
 

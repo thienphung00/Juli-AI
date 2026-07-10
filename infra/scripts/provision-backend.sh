@@ -8,13 +8,13 @@
 # Database migrations are skipped unless OAuth/login persistence requires schema.
 #
 # Usage (on VPS):
-#   sudo ./infra/deploy/provision-backend.sh
-#   REPO_ROOT=~/Juli-AI-v2 sudo ./infra/deploy/provision-backend.sh
+#   sudo ./infra/scripts/provision-backend.sh
+#   REPO_ROOT=~/Juli-AI-v2 sudo ./infra/scripts/provision-backend.sh
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-SYSTEMD_SRC="${REPO_ROOT}/infra/deploy/systemd/juli-api.service"
-ENV_EXAMPLE="${REPO_ROOT}/infra/deploy/env/api.env.example"
+SYSTEMD_SRC="${REPO_ROOT}/infra/systemd/juli-api.service"
+ENV_EXAMPLE="${REPO_ROOT}/infra/scripts/env/api.env.example"
 ENV_FILE="${REPO_ROOT}/.env"
 VENV="${REPO_ROOT}/.venv"
 REQUIREMENTS="${REPO_ROOT}/requirements.txt"
@@ -65,4 +65,4 @@ systemctl --no-pager --full status juli-api || true
 
 echo "juli-api listening on 127.0.0.1:8000 (single uvicorn worker)."
 echo "Verify: curl -sS http://127.0.0.1:8000/health"
-echo "Next: APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh"
+echo "Next: APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh"

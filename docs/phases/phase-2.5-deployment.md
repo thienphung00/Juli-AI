@@ -153,7 +153,7 @@ install steps, and validation. Validate the deploy config contracts with
 `python -m pytest tests/unit/test_phase_2_5_deploy_config.py`; live DNS/TLS wiring
 stays HITL on the VPS (issue #256) — see
 [`vps-wiring-runbook.md`](../../infra/deploy/vps-wiring-runbook.md). The
-[`smoke-test.sh`](../../infra/deploy/smoke-test.sh) checklist covers DNS, TLS,
+[`smoke-test.sh`](../../infra/scripts/smoke-test.sh) checklist covers DNS, TLS,
 frontend load, `/health`, and the OAuth callback route (`--dns-tls-only` for #256).
 
 Out of scope for the review deploy: Redis, cron, workers, ML batch, polling,
@@ -169,7 +169,7 @@ certificates. Repo deliverables:
 | Path | Purpose |
 |------|---------|
 | [`vps-wiring-runbook.md`](../../infra/deploy/vps-wiring-runbook.md) | Step-by-step DNS, Certbot, sign-off |
-| [`provision-nginx.sh`](../../infra/deploy/provision-nginx.sh) | Copy vhosts + reload Nginx on VPS |
+| [`provision-nginx.sh`](../../infra/scripts/provision-nginx.sh) | Copy vhosts + reload Nginx on VPS |
 | `smoke-test.sh --dns-tls-only` | Validate DNS + TLS before apps are deployed |
 
 **VPS layout:** one checkout at `~/Juli-AI-v2` — backend `.env` at repo root, frontend
@@ -188,8 +188,8 @@ remain deferred to Phase 3.
 | Path | Purpose |
 |------|---------|
 | [`frontend-deploy-runbook.md`](../../infra/deploy/frontend-deploy-runbook.md) | Build, systemd, UI-only fallback, sign-off |
-| [`provision-frontend.sh`](../../infra/deploy/provision-frontend.sh) | Install `juli-web` + `npm ci && npm run build` on VPS |
-| [`build-frontend-review.sh`](../../infra/deploy/build-frontend-review.sh) | Review build with `NEXT_PUBLIC_API_URL` + UI-only login |
+| [`provision-frontend.sh`](../../infra/scripts/provision-frontend.sh) | Install `juli-web` + `npm ci && npm run build` on VPS |
+| [`build-frontend-review.sh`](../../infra/scripts/build-frontend-review.sh) | Review build with `NEXT_PUBLIC_API_URL` + UI-only login |
 
 Prerequisite: [#256](vps-wiring-runbook.md) DNS/TLS. Full smoke test frontend checks
 require `juli-web` running; backend checks wait for [#258](https://github.com/thienphung00/Juli-AI/issues/258).
@@ -205,7 +205,7 @@ surface, and (after #259) TikTok OAuth callback are in scope.
 | Path | Purpose |
 |------|---------|
 | [`backend-deploy-runbook.md`](../../infra/deploy/backend-deploy-runbook.md) | Env, systemd, Alembic skip policy, sign-off |
-| [`provision-backend.sh`](../../infra/deploy/provision-backend.sh) | Install `juli-api` + `pip install` on VPS |
+| [`provision-backend.sh`](../../infra/scripts/provision-backend.sh) | Install `juli-api` + `pip install` on VPS |
 
 Prerequisite: [#256](vps-wiring-runbook.md) DNS/TLS. Full smoke test backend checks
 require `juli-api` running with `DATABASE_URL` and `CORS_ALLOW_ORIGINS` set on the VPS.
@@ -221,7 +221,7 @@ data. Optional Supabase OTP path documented only when TikTok explicitly requires
 | Path | Purpose |
 |------|---------|
 | [`reviewer-login-runbook.md`](../../infra/deploy/reviewer-login-runbook.md) | UI-only default, optional Supabase OTP, credentials outside git |
-| [`build-frontend-review.sh`](../../infra/deploy/build-frontend-review.sh) | Forces `NEXT_PUBLIC_UI_ONLY=1` at build time |
+| [`build-frontend-review.sh`](../../infra/scripts/build-frontend-review.sh) | Forces `NEXT_PUBLIC_UI_ONLY=1` at build time |
 
 Prerequisites: [#257](frontend-deploy-runbook.md) frontend deploy, [#258](backend-deploy-runbook.md)
 backend deploy. Smoke test login checks require `juli-web` built with the review script.
@@ -238,7 +238,7 @@ business data).
 | Path | Purpose |
 |------|---------|
 | [`smoke-checklist-runbook.md`](../../infra/deploy/smoke-checklist-runbook.md) | HITL sign-off checklist + CORS verification |
-| [`smoke-test.sh`](../../infra/deploy/smoke-test.sh) | Automated DNS/TLS/frontend/health/OAuth/login/CORS probes |
+| [`smoke-test.sh`](../../infra/scripts/smoke-test.sh) | Automated DNS/TLS/frontend/health/OAuth/login/CORS probes |
 | [`PRD.md`](../features/app_review_deployment/PRD.md) | Canonical smoke commands and acceptance criteria |
 | [`summary.md`](../features/app_review_deployment/summary.md) | Operator quick reference |
 

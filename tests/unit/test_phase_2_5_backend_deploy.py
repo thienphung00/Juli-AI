@@ -15,12 +15,14 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
+SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
+SYSTEMD_DIR = REPO_ROOT / "infra/systemd"
 
 BACKEND_RUNBOOK_PATH = DEPLOY_DIR / "backend-deploy-runbook.md"
-PROVISION_BACKEND_PATH = DEPLOY_DIR / "provision-backend.sh"
-SYSTEMD_BACKEND_PATH = DEPLOY_DIR / "systemd/juli-api.service"
-ENV_BACKEND_PATH = DEPLOY_DIR / "env/api.env.example"
-SMOKE_TEST_PATH = DEPLOY_DIR / "smoke-test.sh"
+PROVISION_BACKEND_PATH = SCRIPTS_DIR / "provision-backend.sh"
+SYSTEMD_BACKEND_PATH = SYSTEMD_DIR / "juli-api.service"
+ENV_BACKEND_PATH = SCRIPTS_DIR / "env/api.env.example"
+SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
 ISSUES_PATH = REPO_ROOT / "docs/features/app_review_deployment/issues.md"
 PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
 

@@ -21,9 +21,9 @@ WorkingDirectory=/root/releases/current
 # Re-fetch secrets on every start/restart (crash, reboot, manual restart) so the
 # env file is never stale for longer than one restart cycle. Path is the stable
 # canonical checkout, not a release dir, so it survives release pruning.
-ExecStartPre=/root/Juli-AI-v2/infra/deploy/fetch-secrets.sh
+ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
 # Env file lives on the VPS only, outside any release dir — see
-# infra/deploy/fetch-secrets.sh and the "Secrets" section of app-review-runbook.md.
+# infra/scripts/fetch-secrets.sh and the "Secrets" section of app-review-runbook.md.
 EnvironmentFile=/etc/juli/api.env
 # Single worker is sufficient for review; no HA/multi-worker tuning in Phase 2.5.
 ExecStart=/root/releases/current/.venv/bin/uvicorn juli_backend.api.main:app \

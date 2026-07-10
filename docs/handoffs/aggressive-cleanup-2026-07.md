@@ -58,7 +58,7 @@ Router surface changed on production API. After merge, redeploy `juli-api` on VP
 
 ```bash
 cd ~/Juli-AI-v2 && git pull
-sudo cp infra/deploy/systemd/juli-api.service /etc/systemd/system/
+sudo cp infra/systemd/juli-api.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl restart juli-api
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```

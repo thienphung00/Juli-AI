@@ -69,7 +69,7 @@ From the repo checkout on the VPS:
 
 ```bash
 cd ~/Juli-AI-v2
-sudo ./infra/deploy/provision-nginx.sh
+sudo ./infra/scripts/provision-nginx.sh
 ```
 
 The script:
@@ -115,7 +115,7 @@ Run the **DNS/TLS-only** smoke subset (no upstream apps required) from the repo 
 
 ```bash
 cd ~/Juli-AI-v2
-./infra/deploy/smoke-test.sh --dns-tls-only
+./infra/scripts/smoke-test.sh --dns-tls-only
 ```
 
 Expected: DNS resolves for both domains and TLS handshakes succeed. Frontend `/health`
@@ -144,7 +144,7 @@ yet — acceptable for #256.
 - [x] Backend `/health` accessible over HTTPS
 - [x] No Redis, webhook, or HA tuning in Nginx config
 - [x] Single-process deployment (appropriate for App Review MVP)
-- [x] `./infra/deploy/smoke-test.sh --dns-tls-only` passes (or full smoke after app deploy)
+- [x] `./infra/scripts/smoke-test.sh --dns-tls-only` passes (or full smoke after app deploy)
 - [x] Reviewers use UI-only demo login (`NEXT_PUBLIC_UI_ONLY=1`)
 
 Document provider-specific DNS steps and any non-git secrets in your ops notes — **not**

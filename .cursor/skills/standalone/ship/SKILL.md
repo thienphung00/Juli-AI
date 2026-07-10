@@ -205,20 +205,23 @@ Detect (Sentry/Grafana alert)
 
 ## Infrastructure
 
-### MVP (Railway)
+### Current (single VPS — see ADR-020, `infra/deploy/app-review-runbook.md`)
 
-- Single instance per service
-- Managed PostgreSQL
-- Redis add-on
-- Auto-deploy from `main` branch
+- Single review VPS, `juli-api` (FastAPI/uvicorn) + `juli-web` (Next.js) as `systemd` units
+- Nginx terminates TLS and reverse-proxies both
+- Supabase-managed Postgres (session pooler) — not self-hosted
+- Secrets fetched from AWS Secrets Manager at deploy/restart time (`fetch-secrets.sh`)
+- Auto-deploy from `main` via SSH (`release.yml` → `infra/scripts/deploy-release.sh`);
+  manual rollback via `rollback.yml`
+- No Docker/containers, no Railway/Vercel, no staging environment yet (future TODO)
 
-### Scale (Hetzner VPS)
+### Scale (future — not built, no infra provisioned)
 
-- Nginx load balancer
-- Multiple FastAPI workers
-- Dedicated PostgreSQL server
-- Redis cluster
-- Cloudflare CDN + DDoS protection
+- Second environment (staging) ahead of a real second VPS or managed platform
+- Multiple FastAPI workers / load balancing once traffic is more than review-only
+- Dedicated Postgres if Supabase free/session-pooler limits are hit
+- Heavier observability (beyond `journalctl` + the 15-min uptime check) if this
+  stack ever takes production traffic
 
 ### Environment Management
 

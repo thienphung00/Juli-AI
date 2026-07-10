@@ -1,6 +1,6 @@
 # infra/deploy
 
-Per-product deploy manifests and environment templates for the App Review deployment.
+App Review deploy runbooks and reviewer checklists.
 
 | Property | Value |
 |----------|-------|
@@ -22,24 +22,33 @@ frontend `.env.production` in `web/`.
 | [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | Deploy FastAPI backend on VPS (#258) |
 | [`reviewer-login-runbook.md`](reviewer-login-runbook.md) | Reviewer demo login + optional Supabase OTP (#260) |
 | [`smoke-checklist-runbook.md`](smoke-checklist-runbook.md) | App Review smoke sign-off + CORS (#261) |
-| [`provision-nginx.sh`](provision-nginx.sh) | Install Nginx vhosts on the VPS (#256) |
-| [`provision-frontend.sh`](provision-frontend.sh) | Install juli-web + build on the VPS (#257) |
-| [`provision-backend.sh`](provision-backend.sh) | Install juli-api + pip deps on the VPS (#258) |
-| [`build-frontend-review.sh`](build-frontend-review.sh) | `npm ci && npm run build` with UI-only login |
-| [`nginx/`](nginx/) | Frontend/backend Nginx vhosts |
-| [`systemd/`](systemd/) | `juli-web` / `juli-api` service units |
-| [`env/`](env/) | Env templates (placeholders only) |
-| [`smoke-test.sh`](smoke-test.sh) | DNS/TLS/frontend/health/OAuth checklist |
 
-CI: `python -m pytest tests/unit/test_phase_2_5_deploy_config.py`.
+**Operational assets** (scripts, Nginx, systemd, env templates) live alongside this folder:
+
+| Path | Purpose |
+|------|---------|
+| [`../scripts/`](../scripts/) | Provision, build, deploy, rollback, secrets, smoke-test scripts |
+| [`../nginx/`](../nginx/) | Frontend/backend Nginx vhosts |
+| [`../systemd/`](../systemd/) | `juli-web` / `juli-api` service units (run from `~/releases/current`) |
+| [`../scripts/env/`](../scripts/env/) | Env templates (placeholders — real values in AWS Secrets Manager) |
+| [`../scripts/aws/`](../scripts/aws/) | IAM policy for the `juli-vps-secrets-reader` user |
+
+CI: `python -m pytest tests/unit/test_phase_2_5_deploy_config.py`. Continuous
+delivery, rollback, secrets, and monitoring are documented in
+[`app-review-runbook.md`](app-review-runbook.md) (see "Continuous Delivery",
+"Rollback", "Secrets", and "Minimal Monitoring").
 
 **Target domains:**
 
 | Domain | Product |
 |--------|---------|
-| `app-juli.com` | App Review frontend (legacy `web/`) |
+| `app-juli.com` | App Review frontend (`web/`) |
 | `demo.app-juli.com` | Demo |
 | `dashboard.app-juli.com` | Dashboard |
 | `api.app-juli.com` | Backend API |
 
 See [`docs/phases/phase-2.5-deployment.md`](../../docs/phases/phase-2.5-deployment.md).
+
+**Local artifact hygiene:** after aggressive branch switches or parallel worktrees, run
+`./scripts/clean-local.sh` from the repo root to remove `node_modules/`, `.next/`,
+`__pycache__/`, `.pytest_cache/`, and `.worktrees/` (all gitignored).

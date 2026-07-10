@@ -1,0 +1,39 @@
+name: Rollback
+
+# Manual, minimal rollback: re-point ~/releases/current on the VPS at a
+# previous release worktree and restart both services. No blue/green, no
+# automated rollback-on-failure — see infra/scripts/rollback-release.sh.
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: >-
+          Commit SHA to roll back to. Leave empty to roll back to the previous
+          successful release (per ~/releases/deploy-history.log on the VPS).
+        required: false
+        default: ""
+
+concurrency:
+  group: release-refs/heads/main
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Roll back on the VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd ~/Juli-AI-v2
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            ./infra/scripts/rollback-release.sh "${{ github.event.inputs.target_sha }}"

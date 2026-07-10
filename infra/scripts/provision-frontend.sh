@@ -5,15 +5,15 @@
 # build (npm ci && npm run build with NEXT_PUBLIC_API_URL), and enables systemd.
 #
 # Usage (on VPS):
-#   sudo ./infra/deploy/provision-frontend.sh
-#   REPO_ROOT=~/Juli-AI-v2 sudo ./infra/deploy/provision-frontend.sh
+#   sudo ./infra/scripts/provision-frontend.sh
+#   REPO_ROOT=~/Juli-AI-v2 sudo ./infra/scripts/provision-frontend.sh
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-SYSTEMD_SRC="${REPO_ROOT}/infra/deploy/systemd/juli-web.service"
-ENV_EXAMPLE="${REPO_ROOT}/infra/deploy/env/web.env.example"
+SYSTEMD_SRC="${REPO_ROOT}/infra/systemd/juli-web.service"
+ENV_EXAMPLE="${REPO_ROOT}/infra/scripts/env/web.env.example"
 ENV_FILE="${REPO_ROOT}/web/.env.production"
-BUILD_SCRIPT="${REPO_ROOT}/infra/deploy/build-frontend-review.sh"
+BUILD_SCRIPT="${REPO_ROOT}/infra/scripts/build-frontend-review.sh"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Run as root: sudo $0" >&2
@@ -51,4 +51,4 @@ systemctl enable juli-web
 systemctl restart juli-web
 systemctl --no-pager --full status juli-web || true
 
-echo "juli-web listening on 127.0.0.1:3000. Next: ./infra/deploy/smoke-test.sh"
+echo "juli-web listening on 127.0.0.1:3000. Next: ./infra/scripts/smoke-test.sh"

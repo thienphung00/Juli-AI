@@ -135,7 +135,7 @@ jobs:
     defaults:
       run:
         working-directory: web
-    # Build-time env matches infra/deploy/env/web.env.example (App Review deploy) —
+    # Build-time env matches infra/scripts/env/web.env.example (App Review deploy) —
     # NEXT_PUBLIC_* values are baked into the bundle at build time.
     env:
       NEXT_PUBLIC_API_URL: https://api.app-juli.com

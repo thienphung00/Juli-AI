@@ -47,14 +47,14 @@ python -m pytest tests/unit/test_phase_2_5_deploy_config.py \
 
 ```bash
 cd ~/Juli-AI-v2
-./infra/deploy/smoke-test.sh --dns-tls-only
+./infra/scripts/smoke-test.sh --dns-tls-only
 ```
 
 ### Full App Review sign-off (#261)
 
 ```bash
 cd ~/Juli-AI-v2
-APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/deploy/smoke-test.sh
+APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 ```
 
 Checks: DNS · TLS · frontend load · `/health` · OAuth callback · reviewer login ·

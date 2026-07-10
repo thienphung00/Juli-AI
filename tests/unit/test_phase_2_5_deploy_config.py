@@ -16,15 +16,18 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
+SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
+NGINX_DIR = REPO_ROOT / "infra/nginx"
+SYSTEMD_DIR = REPO_ROOT / "infra/systemd"
 
 RUNBOOK_PATH = DEPLOY_DIR / "app-review-runbook.md"
-NGINX_APP_PATH = DEPLOY_DIR / "nginx/app-juli.com.conf"
-NGINX_API_PATH = DEPLOY_DIR / "nginx/api.app-juli.com.conf"
-SYSTEMD_FRONTEND_PATH = DEPLOY_DIR / "systemd/juli-web.service"
-SYSTEMD_BACKEND_PATH = DEPLOY_DIR / "systemd/juli-api.service"
-ENV_FRONTEND_PATH = DEPLOY_DIR / "env/web.env.example"
-ENV_BACKEND_PATH = DEPLOY_DIR / "env/api.env.example"
-SMOKE_TEST_PATH = DEPLOY_DIR / "smoke-test.sh"
+NGINX_APP_PATH = NGINX_DIR / "app-juli.com.conf"
+NGINX_API_PATH = NGINX_DIR / "api.app-juli.com.conf"
+SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-web.service"
+SYSTEMD_BACKEND_PATH = SYSTEMD_DIR / "juli-api.service"
+ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/web.env.example"
+ENV_BACKEND_PATH = SCRIPTS_DIR / "env/api.env.example"
+SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
 PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
 
 # App Review upstream ports (frontend Next.js / backend FastAPI on the single VPS).
@@ -97,8 +100,12 @@ def test_systemd_units_use_single_monorepo_checkout():
     web_unit = _read(SYSTEMD_FRONTEND_PATH)
     assert "Juli-AI-v2" in api_unit
     assert "Juli-AI-v2" in web_unit
-    assert "/root/Juli-AI-v2/infra/deploy/fetch-secrets.sh" in api_unit
-    assert "/root/Juli-AI-v2/infra/deploy/fetch-secrets.sh" in web_unit
+    assert "/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh" in api_unit, (
+        "juli-api must fetch secrets from the stable canonical checkout path"
+    )
+    assert "/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh" in web_unit, (
+        "juli-web must fetch secrets from the stable canonical checkout path"
+    )
     assert "releases/current" in api_unit
     assert "releases/current" in web_unit
 
@@ -184,7 +191,7 @@ def test_runbook_directs_secrets_outside_source_control(runbook_text: str):
 
 # AC4: Smoke test covers DNS, TLS, frontend, /health, OAuth callback.
 def test_smoke_test_script_exists_and_is_executable():
-    assert SMOKE_TEST_PATH.is_file(), "infra/deploy/smoke-test.sh is required"
+    assert SMOKE_TEST_PATH.is_file(), "infra/scripts/smoke-test.sh is required"
     mode = SMOKE_TEST_PATH.stat().st_mode
     assert mode & 0o111, "smoke-test.sh must be executable"
 

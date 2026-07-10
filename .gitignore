@@ -43,11 +43,11 @@ skip/
 *.db
 
 # AWS Secrets Manager credentials / generated env files (VPS-only runtime
-# state — infra/deploy/fetch-secrets.sh writes these outside the repo at
+# state — infra/scripts/fetch-secrets.sh writes these outside the repo at
 # /etc/juli/*, but ignore any local copies too in case someone stages one
 # here for testing).
 aws-credentials
-infra/deploy/aws-credentials
+infra/scripts/aws-credentials
 infra/deploy/*.env
-infra/deploy/env/*.local
+infra/scripts/env/*.local
 releases/

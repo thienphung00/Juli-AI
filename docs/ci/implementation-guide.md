@@ -248,7 +248,7 @@ Optional `mlGates.thresholds` cross-checks declared values against `thresholds.p
     "estimatedDowntime": "< 5 minutes",
     "dataLossPotential": false,
     "criticalSteps": [
-      "Trigger rollback.yml (workflow_dispatch) or run infra/deploy/rollback-release.sh on the VPS",
+      "Trigger rollback.yml (workflow_dispatch) or run infra/scripts/rollback-release.sh on the VPS",
       "alembic downgrade -1 if the migration is not backward compatible"
     ],
     "testRollback": true
@@ -272,7 +272,7 @@ this guide does not duplicate the YAML. What each workflow does:
 | Workflow | Trigger | Jobs |
 |----------|---------|------|
 | [`pr.yml`](../../.github/workflows/pr.yml) | `pull_request` | lint-and-typecheck (ruff + mypy), test (pytest with Postgres + Redis), migration-check (alembic up/down/up), frontend (npm in `web/`), validate-artifacts (`scripts/validate/*.py`), generate-validation-artifact, status-check |
-| [`release.yml`](../../.github/workflows/release.yml) | `push` to `main` or `v*` tag | build, deploy (SSH to the review VPS — `infra/deploy/deploy-release.sh`, skipped on tag-only pushes), generate-release-artifact, github-release (tags only) |
+| [`release.yml`](../../.github/workflows/release.yml) | `push` to `main` or `v*` tag | build, deploy (SSH to the review VPS — `infra/scripts/deploy-release.sh`, skipped on tag-only pushes), generate-release-artifact, github-release (tags only) |
 | [`architecture-audit.yml`](../../.github/workflows/architecture-audit.yml) | `cron: '0 2 * * *'`, `workflow_dispatch` | audit-drift, audit-cycles, audit-size, summarize, file-issue-on-critical |
 
 ## Script Reference

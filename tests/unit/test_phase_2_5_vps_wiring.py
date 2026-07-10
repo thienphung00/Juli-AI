@@ -15,10 +15,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
+SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 
 VPS_RUNBOOK_PATH = DEPLOY_DIR / "vps-wiring-runbook.md"
-PROVISION_NGINX_PATH = DEPLOY_DIR / "provision-nginx.sh"
-SMOKE_TEST_PATH = DEPLOY_DIR / "smoke-test.sh"
+PROVISION_NGINX_PATH = SCRIPTS_DIR / "provision-nginx.sh"
+SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
 ISSUES_PATH = REPO_ROOT / "docs/features/app_review_deployment/issues.md"
 PHASE_25_PATH = REPO_ROOT / "docs/phases/phase-2.5-deployment.md"
 

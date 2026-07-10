@@ -29,9 +29,9 @@ seller dashboard — not a monorepo of dashboard + marketing.
 | Surface | Path / command |
 |---------|----------------|
 | **CI** (`.github/workflows/pr.yml` `frontend` job) | `working-directory: web`; `npm ci`; lint / type-check / test / build |
-| **CD** (`release.yml` → `infra/deploy/deploy-release.sh`) | Copies `/etc/juli/web.env` → `web/.env.production`; `npm run build` in `web/` |
-| **systemd** (`infra/deploy/systemd/juli-web.service`) | `WorkingDirectory=/root/releases/current/web`; `npm run start -- --port 3000` |
-| **Nginx** (`infra/deploy/nginx/app-juli.com.conf`) | Proxies `app-juli.com` → `127.0.0.1:3000` (upstream `juli_web`) |
+| **CD** (`release.yml` → `infra/scripts/deploy-release.sh`) | Copies `/etc/juli/web.env` → `web/.env.production`; `npm run build` in `web/` |
+| **systemd** (`infra/systemd/juli-web.service`) | `WorkingDirectory=/root/releases/current/web`; `npm run start -- --port 3000` |
+| **Nginx** (`infra/nginx/app-juli.com.conf`) | Proxies `app-juli.com` → `127.0.0.1:3000` (upstream `juli_web`) |
 
 Nginx comments still say "legacy web/" — accurate; this is the App Review / production
 frontend on the single VPS.
