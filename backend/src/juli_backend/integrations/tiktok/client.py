@@ -146,6 +146,58 @@ class TikTokClient:
             return validate_data(response_model, data)
         return data
 
+    @overload
+    def put(
+        self,
+        path: str,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        *,
+        response_model: type[T],
+    ) -> T: ...
+
+    @overload
+    def put(
+        self,
+        path: str,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        *,
+        response_model: None = None,
+    ) -> dict[str, Any]: ...
+
+    def put(
+        self,
+        path: str,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        *,
+        response_model: type[BaseModel] | None = None,
+    ) -> dict[str, Any] | BaseModel:
+        """Signed PUT request with JSON body. Returns the ``data`` payload."""
+        body = body or {}
+        body_str = json.dumps(body, separators=(",", ":"), sort_keys=True)
+
+        all_params = self._build_params(path, params)
+        all_params["sign"] = sign_request(
+            app_secret=self._app_secret,
+            path=path,
+            params=all_params,
+            body=body_str,
+        )
+
+        resp = self._session.put(
+            f"{self._base_url}{path}",
+            params=all_params,
+            json=body,
+            headers=self._auth_headers(path),
+            timeout=self._timeout,
+        )
+        data = self._handle_response(resp)
+        if response_model is not None:
+            return validate_data(response_model, data)
+        return data
+
     def get_all_pages(
         self,
         path: str,

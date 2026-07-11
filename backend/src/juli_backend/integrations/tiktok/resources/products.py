@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import (
+    PRODUCT_CREATE_PATH,
     PRODUCT_SEARCH_PATH,
     product_detail_path,
+    product_edit_path,
 )
 from juli_backend.integrations.tiktok.resources import strip_nones
 from juli_backend.integrations.tiktok.schemas import (
@@ -79,3 +83,11 @@ class ProductsResource:
             ),
         )
         return parsed.model_dump()
+
+    def create(self, *, body: dict[str, Any]) -> dict:
+        """Create a product (Layer 2 sandbox write — contract-collection.md §17)."""
+        return self._client.post(PRODUCT_CREATE_PATH, body=body)
+
+    def edit(self, *, product_id: str, body: dict[str, Any]) -> dict:
+        """Partial edit a product (Layer 2 sandbox write — contract-collection.md §18)."""
+        return self._client.put(product_edit_path(product_id), body=body)
