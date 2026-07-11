@@ -16,6 +16,8 @@ from juli_backend.integrations.tiktok.guards import (
     SandboxOnlyWriteGuard,
 )
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
+from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentResource
+from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
@@ -44,6 +46,15 @@ class ProductionReadResources:
     orders: OrdersResource
     products: ProductsResource
     returns: ReturnsResource
+
+
+@dataclass(frozen=True)
+class SandboxWriteResources:
+    """Layer 2 sandbox write resources reachable only via SandboxWriteClientFactory."""
+
+    inventory: InventoryResource
+    products: ProductsResource
+    fulfillment: FulfillmentResource
 
 
 class ProductionReadClientFactory:
@@ -102,4 +113,12 @@ class SandboxWriteClientFactory:
             guard=SandboxOnlyWriteGuard(),
             capability=MerchantCapability.SANDBOX_WRITE,
             merchant_auth_id=config.merchant_auth_id,
+        )
+
+    def create_resources(self, config: ClientFactoryConfig) -> SandboxWriteResources:
+        client = self.create(config)
+        return SandboxWriteResources(
+            inventory=InventoryResource(client),
+            products=ProductsResource(client),
+            fulfillment=FulfillmentResource(client),
         )
