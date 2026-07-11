@@ -76,6 +76,31 @@ class TikTokCredential(Base):
     )
 
 
+class TikTokSyncState(Base):
+    """Per-endpoint incremental sync cursor for Fujiwa production polling."""
+
+    __tablename__ = "tiktok_sync_state"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    endpoint: Mapped[str] = mapped_column(String(50), nullable=False)
+    last_update_time: Mapped[int] = mapped_column(nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_tiktok_sync_state_shop_endpoint",
+            "shop_id",
+            "endpoint",
+            unique=True,
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Commerce models (#28)
 # ---------------------------------------------------------------------------

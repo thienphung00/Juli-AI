@@ -31,6 +31,7 @@ from juli_backend.models.models import (
     Settlement,
     Shop,
     TikTokCredential,
+    TikTokSyncState,
     User,
 )
 
@@ -226,6 +227,65 @@ class TikTokCredentialRepo:
         await self._session.flush()
         _hydrate_decrypted_tokens(credential)
         return credential
+
+
+_ENDPOINT_STATE_KEYS: dict[str, str] = {
+    "orders": "orders_last_update_time",
+    "products": "products_last_update_time",
+    "returns": "returns_last_update_time",
+}
+
+_STATE_KEY_ENDPOINTS = {value: key for key, value in _ENDPOINT_STATE_KEYS.items()}
+
+
+class TikTokSyncStateRepo:
+    """Persist incremental sync cursors per shop and endpoint."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def load(self, shop_id: uuid.UUID) -> dict[str, Any]:
+        stmt = select(TikTokSyncState).where(TikTokSyncState.shop_id == shop_id)
+        result = await self._session.execute(stmt)
+        rows = result.scalars().all()
+        state: dict[str, Any] = {}
+        for row in rows:
+            state_key = _ENDPOINT_STATE_KEYS.get(row.endpoint)
+            if state_key is not None:
+                state[state_key] = row.last_update_time
+        return state
+
+    async def save(self, shop_id: uuid.UUID, sync_state: dict[str, Any]) -> None:
+        endpoints_to_update = {
+            _STATE_KEY_ENDPOINTS[state_key]: int(last_update_time)
+            for state_key, last_update_time in sync_state.items()
+            if state_key in _STATE_KEY_ENDPOINTS and last_update_time is not None
+        }
+        if not endpoints_to_update:
+            return
+
+        stmt = select(TikTokSyncState).where(
+            TikTokSyncState.shop_id == shop_id,
+            TikTokSyncState.endpoint.in_(endpoints_to_update),
+        )
+        result = await self._session.execute(stmt)
+        existing = {row.endpoint: row for row in result.scalars()}
+
+        for endpoint, last_update_time in endpoints_to_update.items():
+            row = existing.get(endpoint)
+            if row is None:
+                self._session.add(
+                    TikTokSyncState(
+                        id=uuid.uuid4(),
+                        shop_id=shop_id,
+                        endpoint=endpoint,
+                        last_update_time=last_update_time,
+                    )
+                )
+            else:
+                row.last_update_time = last_update_time
+
+        await self._session.flush()
 
 
 def _hydrate_decrypted_tokens(credential: TikTokCredential) -> None:

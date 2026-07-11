@@ -4,10 +4,12 @@
 
 Polls TikTok Shop resources on a schedule, respects rate limits, and hands each
 fetched record to the ingest pipeline (ETL). Maintains incremental sync state per
-shop.
+shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 
 ## Public API
 
+- `run_fujiwa_poll_cycle(*, session, config, oauth_service, rate_limiter, handoff_fn)` — Fujiwa-only scheduled poll for orders, products, returns; refreshes tokens, persists sync state, backs off on rate limits
+- `FujiwaPollConfig(app_key, app_secret)` — app credentials for poll cycles
 - `sync_orders(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `sync_products(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `sync_returns(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
@@ -19,11 +21,17 @@ Out-of-scope workers removed (Phase 2 cleanup): `sync_inventory`, `sync_livestre
 
 ## Dependencies
 
-- `juli_backend.integrations.tiktok` — resource modules, `RateLimiter`, exceptions
+- `juli_backend.integrations.tiktok` — resource modules, `RateLimiter`, `ProductionReadClientFactory`, exceptions
+- `juli_backend.core.security` — `resolve_production_read_credential`, `TikTokOAuthService`
+- `juli_backend.repositories.repos` — `TikTokSyncStateRepo`
 - `juli_backend.services.ingestion` — `HandoffFn` type
 
 ## Key Behaviors
 
+- `run_fujiwa_poll_cycle` resolves Fujiwa `production_read` credentials only; rejects SANDBOX_VN
+- Token refresh via `refresh_merchant_tokens` before each cycle
+- Sync cursors persisted in `tiktok_sync_state` per shop + endpoint (`orders`, `products`, `returns`)
+- Rate-limit backoff waits for Redis TTL via `RateLimiter.is_exhausted` / `time_until_reset`; cycle completes without raising
 - `handoff_fn: Callable[[str, str, bytes], Awaitable[None]]` — invoked with
   `(channel, shop_key, payload_bytes)` per record
 - Rate limit denied → logs `rate_limited` and returns without handoff
@@ -36,4 +44,5 @@ Out-of-scope workers removed (Phase 2 cleanup): `sync_inventory`, `sync_livestre
 ## Wiring
 
 Use `make_etl_handoff(etl_consumer)` from `juli_backend.services.ingestion`
-the same way as the webhook receiver.
+the same way as the webhook receiver. Schedule `run_fujiwa_poll_cycle` from the
+worker beat (Celery) once deployed.
