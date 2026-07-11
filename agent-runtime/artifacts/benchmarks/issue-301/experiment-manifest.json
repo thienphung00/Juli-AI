@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "benchmark_experiment_manifest",
+  "issueId": 301,
+  "parentIssueId": 278,
+  "layerZeroContractIssueIds": [287, 289, 291],
+  "benchmarkType": "multi-agent-workflow",
+  "shas": {
+    "BASE_SHA": "9c7efd0ece3c9c7a7c0d696f920da3876d3222b9",
+    "COMMON_SHA": "28f219fea22bd925d13088d01e70341f9632a29e",
+    "EVALUATOR_SHA": "a8448b8a970c84bbacfd80db6fd2f74c047d4fb0",
+    "A_START_SHA": "28f219fea22bd925d13088d01e70341f9632a29e",
+    "B_SETUP_SHA": "8813d3a02f9a172328496566b28727a52591910d",
+    "B_START_SHA": "8813d3a02f9a172328496566b28727a52591910d",
+    "notes": "A_START_SHA == COMMON_SHA (no A-only setup commit). B_START_SHA == B_SETUP_SHA (the one B-only cache-prep commit is B's start point, and is excluded from B's implementation-run LOC per filesExcludedFromImplementationLoc below)."
+  },
+  "baseShaVerification": {
+    "prerequisitesClosed": [295, 287, 289, 291, 296, 297],
+    "allClosedAndAncestorsOfBaseSha": true,
+    "verificationMethod": "gh issue view <n> --json state,closed for each; git merge-base --is-ancestor <prereq-merge-commit> BASE_SHA for 295/296/297 (287/289/291 are HITL doc-verification issues whose deliverable is docs/integrations/tiktok_api/contract-collection.md, present and populated at BASE_SHA)",
+    "layerZeroContractsPresentAtBaseSha": true,
+    "layerZeroEvidence": "docs/integrations/tiktok_api/contract-collection.md #14 (inventory update) and #17 (create product) carry verified cURL + response samples at BASE_SHA; #18 (edit product), #20-23 (promotion, still TBD), and #29-41 (fulfillment) carry stated paths per the same file."
+  },
+  "branches": {
+    "experiment/301-common": "28f219fea22bd925d13088d01e70341f9632a29e",
+    "experiment/301-evaluator": "a8448b8a970c84bbacfd80db6fd2f74c047d4fb0",
+    "experiment/301-a-no-cache": "28f219fea22bd925d13088d01e70341f9632a29e",
+    "experiment/301-b-cache-hit": "8813d3a02f9a172328496566b28727a52591910d"
+  },
+  "worktrees": {
+    "experiment/301-common": ".worktrees/experiment-301-common",
+    "experiment/301-evaluator": ".worktrees/experiment-301-evaluator",
+    "experiment/301-a-no-cache": ".worktrees/experiment-301-a-no-cache",
+    "experiment/301-b-cache-hit": ".worktrees/experiment-301-b-cache-hit"
+  },
+  "testCommands": {
+    "hiddenSuite": "pytest tests/unit/test_tiktok_sandbox_write_contract.py -v --tb=short",
+    "hiddenSuiteNote": "Path/content defined only on experiment/301-evaluator. Apply out-of-band at grading time by copying the file into each treatment's final worktree -- never during the treatment's own session.",
+    "fullRegression": "pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing --cov-fail-under=80"
+  },
+  "coverageCommand": "pytest tests/ --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+  "filesExcludedFromImplementationLoc": [
+    "agent-runtime/artifacts/benchmarks/",
+    "agent-runtime/artifacts/grill-cache/",
+    "agent-runtime/artifacts/implementations/",
+    "agent-runtime/artifacts/reviews/",
+    "agent-runtime/artifacts/validation/",
+    "agent-runtime/artifacts/optimization/",
+    "agent-runtime/scripts/benchmarks/",
+    "this experiment manifest, the benchmark plan, and the measurement manifest",
+    "hidden evaluator test file(s) authored on experiment/301-evaluator"
+  ],
+  "runFields": {
+    "A": {
+      "model": null,
+      "modelSettings": null,
+      "toolPermissions": null,
+      "sessionType": "fresh, no prior transcript",
+      "startSha": "28f219fea22bd925d13088d01e70341f9632a29e",
+      "cacheCondition": "disabled by explicit benchmark override",
+      "unavailableReason": "To be filled at run time from platform run metadata -- never estimated in advance."
+    },
+    "B": {
+      "model": null,
+      "modelSettings": null,
+      "toolPermissions": null,
+      "sessionType": "fresh, no prior transcript",
+      "startSha": "8813d3a02f9a172328496566b28727a52591910d",
+      "cacheCondition": "valid parent-cache-issue-278.json + grill-cache-issue-301.json injected before measurement",
+      "unavailableReason": "To be filled at run time from platform run metadata -- never estimated in advance."
+    },
+    "modelParityRequirement": "A and B must use the identical model + modelSettings value once filled; a run with mismatched model/settings between A and B is invalid and must be discarded, not adjusted post hoc."
+  },
+  "cacheSetupDuration": {
+    "durationMs": null,
+    "unavailableReason": "No platform-level start/end timestamp was captured specifically bounding the B-only cache-prep window (writing + jsonschema-validating parent-cache-issue-278.json, grill-cache-issue-301.json, scope-alignment-issue-301.md). Per the no-estimation policy, this is recorded as null rather than approximated from conversation elapsed time.",
+    "excludedFromBMeasurement": true,
+    "scope": "Bounded by the diff COMMON_SHA (28f219f) -> B_SETUP_SHA (8813d3a) -- short forms shown for readability, see shas block above for full hashes; contains only the three grill-cache artifacts, no #301 production code."
+  },
+  "crossTreatmentAccessPolicy": "Neither A nor B's session may read the other treatment's branch, worktree, transcript, or artifacts. Both branch names are fixed here for benchmark bookkeeping only -- this does not grant either run permission to inspect the sibling branch's contents.",
+  "nextSteps": "Neither A nor B implementation has begun. Launch commands are recorded below for operator use; the operator (not either treatment's own session) is responsible for starting each run in its own isolated worktree/session and for applying the hidden evaluator suite out-of-band after each run completes."
+}
