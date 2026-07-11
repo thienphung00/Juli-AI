@@ -53,15 +53,17 @@ flowchart LR
 | Phase | Owner | Canonical sequence |
 |-------|-------|-------------------|
 | **Planning** | Architect Agent | `focus` → `to-prd` → `to-issues` |
-| **Implementation** | Meta Agent + Executor Agent | Meta runs `focus`, assigns domain executor; Executor implements with built-in TDD |
-| **Review + Testing** | Review Agent | `review` → `validate` → ship-ready |
+| **Scope Alignment** | Meta Agent + `grill-with-docs` + `prompt-caching` | Parent cache (constant) + child grill cache (unique per #N) |
+| **Implementation** | Meta Agent + Executor Agent | Inject cache blocks; Meta → Executor; append `phaseCacheBlocks` per phase |
+| **Review + Testing** | Review Agent | Inject review cache block → `review` → `validate` → ship-ready |
 | **Harness Optimization** | Meta Agent | Consumes execution artifacts; emits optimization artifacts |
 
 Source documents (PRDs, ADRs, GitHub issues, handoff markdown) are continuity and planning
 inputs. They are **not** execution feedback artifacts. First-class runtime artifacts
 (defined in [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md)) are limited to:
 `implementation-artifact`, `review-artifact`, `validation-artifact`,
-`harness-optimization-artifact`, and `product-development-optimization-artifact`.
+`harness-optimization-artifact`, `product-development-optimization-artifact`, and
+`grill-cache` / `parent-cache` workflow prompt caches (continuity inputs, not execution feedback).
 
 ---
 
@@ -113,11 +115,15 @@ pipeline.
 
 **Must**
 
-- Run `focus` before Implementation to produce a Context Plan.
+- Run **workflow prompt cache** check before any phase on issue #N (see [Workflow prompt cache](#workflow-prompt-cache); skill: `.cursor/skills/standalone/prompt-caching/SKILL.md`).
+- Invoke `grill-with-docs` when scope conflicts need resolution; invoke `prompt-caching` when cache is missing, stale, or ready to inject.
+- After Meta routing, append `phaseCacheBlocks.meta` and `harnessUtility` to grill cache.
 - Select exactly one primary executor domain unless the issue clearly spans domains.
 - Record routing decisions and execution signals for optimization.
 
 **Must not**
+
+- Assign Executor while grill cache `cacheStatus` is not `valid`.
 
 - Implement features, review its own routing decisions, or bypass Review Agent / Validate.
 - Automatically edit skills, rules, architecture docs, PRDs, ADRs, or product scope.
@@ -139,10 +145,15 @@ pipeline.
 
 - Write a failing test first (Red), make it pass with minimal code (Green), then
   refactor while keeping tests green (Refactor).
+- Read workflow cache (`promptCacheBlock` + `phaseCacheBlocks.executor` + `harnessUtility`) before Red phase.
+- After TDD completes, append `phaseCacheBlocks.executor`; set `workflowPhase: review`; write grill cache.
 - Document TDD cycles with failing/passing test evidence and commands when available.
 - Stay within issue acceptance criteria and affected module boundaries.
 
 **Must not**
+
+- Start TDD when grill cache `cacheStatus` is not `valid`.
+- Resolve scope conflicts by picking a doc — escalate to `grill-with-docs`.
 
 - Ship, validate, or optimize the harness.
 - Skip TDD for behavior changes (exceptions: pure docs/config with no executable
@@ -166,12 +177,47 @@ The standalone `tdd` skill was removed in Phase 2.
 
 **Must**
 
+- Load workflow prompt cache (`grill-cache-issue-<n>.json`) before review checks; inject `phaseCacheBlocks.review` + `harnessUtility`.
+- After review, update cache (`workflowPhase: validate`); write grill cache JSON.
 - Block ship until validation passes.
 - Emit structured findings consumable by Validate and Meta Agent.
 
 **Must not**
 
+- Reload full review skill or upstream scope docs when valid cache blocks exist.
 - Route context, assign executors, or ship before validation passes.
+
+---
+
+## Workflow prompt cache
+
+Two-tier model: **parent issue is the only constant**; each child issue loads differently.
+
+| File | Key | Shared across siblings? |
+|------|-----|-------------------------|
+| `parent-cache-issue-<P>.json` | Parent PRD/epic (#278) | Yes — `parentScopeBlock` + epic `doNotLoad` |
+| `grill-cache-issue-<n>.json` | Child implementation (#301) | No — unique `issueLoadProfile`, `harnessUtility`, phase blocks |
+
+Sibling children under the same parent (#297 reads vs #299 ETL vs #301 writes) inject the
+same parent block but **never** copy each other's child cache fields.
+
+### Injection order
+
+1. `parent-cache.parentScopeBlock`
+2. Child `promptCacheBlock` / `phaseCacheBlocks.<phase>`
+3. Child `issueLoadProfile` (requiredDocs, requiredModules, acceptanceCriteria)
+4. Child `harnessUtility`
+5. Code + MODULE.md from child `issueLoadProfile` only
+
+### Phase progression (child cache)
+
+`scope_alignment` → `meta` → `executor` → `review` → `validate` → `complete`
+
+Parent cache refreshes only on epic rescope — not on every child completion.
+
+Schemas: [`parent-cache-artifact.schema.json`](schemas/parent-cache-artifact.schema.json),
+[`grill-cache-artifact.schema.json`](schemas/grill-cache-artifact.schema.json).
+Protocol: [`.cursor/skills/standalone/grill-with-docs/SKILL.md`](../../.cursor/skills/standalone/grill-with-docs/SKILL.md).
 
 ---
 

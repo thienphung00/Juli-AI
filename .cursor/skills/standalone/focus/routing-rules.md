@@ -70,8 +70,10 @@ Some detections override others:
 
 | Context Type | Staleness Threshold | Action |
 |-------------|--------------------:|--------|
-| EXECUTION.md / system-design.md | If rescope PR merged | Reload affected slices/sections |
-| GitHub issue / PRD | If planning handoff updated since issue filed | Reload issue + handoff |
+| EXECUTION.md / system-design.md | If rescope PR merged | Reload affected slices/sections; invalidate grill cache fingerprints |
+| Grill cache (`grill-cache-issue-<n>.json`) | Child issue body fingerprint mismatch | Delta grill child only |
+| Parent cache (`parent-cache-issue-<P>.json`) | Parent issue or epic handoff changed | Delta grill epic; may affect all children |
+| GitHub issue / PRD | If planning handoff updated since issue filed | Reload issue + handoff; invalidate grill cache |
 | Standards | Never stale | Always use latest |
 | Architecture | If new services added | Regenerate affected sections |
 

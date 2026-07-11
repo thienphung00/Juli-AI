@@ -19,6 +19,8 @@ substitutes for runtime artifacts.
 | **validation** | Review Agent (`validate` skill, `pr.yml`) | Ship, Meta Agent | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
 | **harness_optimization** | Meta Agent | Harness config, benchmark reruns | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
 | **product_development_optimization** | Meta Agent (occasional) | Architect Agent backlog | `agent-runtime/artifacts/optimization/product-development-<id>.json` |
+| **parent_cache** | Planning / `grill-with-docs` + `prompt-caching` | All children of parent #P | `agent-runtime/artifacts/grill-cache/parent-cache-issue-<P>.json` |
+| **grill_cache** | `grill-with-docs`, `prompt-caching`, agents per phase | Meta, Executor, Review, Validate (child #N only) | `agent-runtime/artifacts/grill-cache/grill-cache-issue-<n>.json` |
 | **release** *(ADR-003)* | Ship skill, `release.yml` | Rollback / hotfix agents | `agent-runtime/artifacts/releases/release-<version>.json` |
 | **audit** *(ADR-003)* | `architecture-audit.yml` | Triage to GitHub issues | `agent-runtime/artifacts/validation/audit-<type>-<date>.json` |
 
@@ -80,6 +82,8 @@ schemas **extend** those contracts — they do not replace gate-required fields.
 | `agent-runtime/artifacts/implementations/implementation-issue-*.json` | **Yes** | Small JSON; Meta optimization input |
 | `agent-runtime/artifacts/optimization/harness-issue-*.json` | **Yes** | Primary Meta output; benchmark before/after comparison |
 | `agent-runtime/artifacts/optimization/product-development-*.json` | **Yes** | Architect backlog routing evidence |
+| `agent-runtime/artifacts/grill-cache/parent-cache-issue-*.json` | **Yes** | Parent/PRD constant across child issues |
+| `agent-runtime/artifacts/grill-cache/grill-cache-issue-*.json` | **Yes** | Per-child workflow cache (unique load profile) |
 | `agent-runtime/artifacts/releases/release-*.json` | **Yes** | ADR-003 rollback metadata |
 | `agent-runtime/artifacts/validation/audit-*.json` | **Yes** | Nightly audit summaries (structured JSON) |
 
@@ -112,6 +116,8 @@ All runtime artifacts include `schemaVersion` (semver string). Current version: 
 | `validation-artifact.schema.json` | `validation` |
 | `harness-optimization-artifact.schema.json` | `harness_optimization` |
 | `product-development-optimization-artifact.schema.json` | `product_development_optimization` |
+| `parent-cache-artifact.schema.json` | `parent_cache` |
+| `grill-cache-artifact.schema.json` | `grill_cache` |
 
 Bump `schemaVersion` minor for backward-compatible field additions; major for breaking
 changes to required CI gate fields (requires ADR and gate script updates).

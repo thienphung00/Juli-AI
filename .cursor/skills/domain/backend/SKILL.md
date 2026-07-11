@@ -24,6 +24,8 @@ built-in TDD** (Red → Green → Refactor). Canonical requirements:
 
 ## Required context
 
+- Valid child workflow cache per [`prompt-caching`](../../standalone/prompt-caching/SKILL.md): `grill-cache-issue-<n>.json` + parent `parent-cache-issue-<P>.json`
+- Inject parent `parentScopeBlock` + child `issueLoadProfile` + `phaseCacheBlocks.executor` — never sibling child caches
 - `MODULE.md` for each affected module under `backend/`
 - API contracts from issue / `system-design.md`
 - Relevant ADRs for architectural constraints

@@ -1,6 +1,6 @@
 # Phase 2 TikTok — Coding Agent Handoff
 
-> **Status:** Layer 0 complete — Layer 1 fixtures filed (#294). Client factories + guards (#295). Credential isolation (#296) ship-ready. **Active: #297** Layer 1 read resources.  
+> **Status:** P2-A1 complete through ETL (#294–#299). Layer 1 read resources (#297), Fujiwa polling (#298), and canonical ETL upserts (#299) ship-ready. **Active: #301** Layer 2 sandbox write validation.  
 > **Prerequisite:** [`docs/integrations/tiktok_api/contract-collection.md`](../integrations/tiktok_api/contract-collection.md) (verified).  
 > **PRD:** [#278](https://github.com/thienphung00/Juli-AI/issues/278).  
 > **Slice:** [`EXECUTION.md`](../../EXECUTION.md) P2-A1 → P2-A3, then P2-B1+.
@@ -13,8 +13,11 @@
 - [x] Step 2 — Capability factories (#295) — **complete**
 - [x] Step 3 — Runtime guards (#295) — **complete**
 - [x] Step 4 — Credential isolation (#296) — **complete**
-- [ ] Implementation: Meta routing → Executor (#297+) — backend + data-platform, built-in TDD
-- [x] Review + Testing: review → validate → ship-ready (#296)
+- [x] Step 6 — Layer 1 read resources (#297) — **complete**
+- [x] Step 7 — Polling orchestration (#298) — **complete**
+- [x] Step 8 — ETL normalization (#299) — **complete**
+- [ ] Implementation: Meta routing → Executor (#301+) — Layer 2 sandbox writes, P2-A3 aggregates
+- [x] Review + Testing: review → validate → ship-ready (#294–#299)
 
 ### Rules (Tier 2)
 - [x] `.cursor/rules/reliability.mdc`
@@ -26,7 +29,7 @@
 ### Skills
 - [x] `backend` executor
 - [x] `data-platform` executor
-- [ ] `review` (post-implementation)
+- [x] `review` (post-implementation — #294–#299)
 
 ### MCPs
 - [x] none (TikTok uses local docs)
@@ -38,9 +41,9 @@
 - `docs/architecture/map.md`
 - `docs/integrations/tiktok_api/contract-collection.md` (verified cURL)
 - `docs/integrations/tiktok_api/endpoints.md`, `authentication.md`, `architecture.md`, `multi-tenant.md`, `tech-stack.md`
-- `backend/integrations/catalog/domain/integrations/tiktok/`
-- `backend/workers/services/polling/`
-- `backend/integrations/ordering/use_cases/etl/`
+- `backend/src/juli_backend/integrations/tiktok/`
+- `backend/src/juli_backend/workers/services/polling/`
+- `backend/src/juli_backend/services/etl/`
 
 ### DO NOT Load
 - `web/`, `ios/` (not P2-A1)
@@ -141,6 +144,6 @@ Run `review` → `validate` before ship-ready.
 - [x] `endpoints.md` updated with verified contract deltas (#294)
 - [x] Production-read factory cannot call write endpoints (test + runtime guard) (#295)
 - [x] Fujiwa and SANDBOX_VN credentials isolated by auth ID + capability (#296)
-- [ ] Polling runs on Fujiwa for orders, products, returns (minimum)
-- [ ] ETL upserts canonical entities to Postgres
-- [ ] T8 router classifier **not** introduced in Phase 2 code paths
+- [x] Polling runs on Fujiwa for orders, products, returns (minimum) (#298)
+- [x] ETL upserts canonical entities to Postgres (#299)
+- [x] T8 router classifier **not** introduced in Phase 2 code paths

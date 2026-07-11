@@ -11,6 +11,7 @@ and Agent Runtime ([`agent-runtime/docs/agent-runtime-artifacts.md`](../agent-ru
 | `validation/` | `validate` skill, `generate_validation_artifact.py`, nightly audits | `ship`, `pr.yml`, Meta Agent | **Yes** — CI gate |
 | `implementations/` | Executor Agent | Review Agent, Meta Agent | **Yes** — small JSON |
 | `optimization/` | Meta Agent | Harness config, Architect backlog | **Yes** — small JSON |
+| `grill-cache/` | `prompt-caching`, `grill-with-docs`, agents | Parent + child caches | **Yes** — workflow prompt cache |
 | `benchmarks/` | Benchmark runs | Meta Agent, Architect | **Yes** — benchmark reports |
 | `releases/` | `ship` skill, `release.yml` | Rollback / hotfix agents | **Yes** |
 | `runtime/raw/` | Agents (verbose logs) | Local debugging only | **No** — gitignored |
@@ -26,6 +27,8 @@ and Agent Runtime ([`agent-runtime/docs/agent-runtime-artifacts.md`](../agent-ru
 | `implementations/implementation-issue-<n>.json` | `implementation-issue-42.json` |
 | `optimization/harness-issue-<n>-<phaseRunId>.json` | `harness-issue-42-2026-06-23-a1b2c3.json` |
 | `optimization/product-development-<id>.json` | `product-development-unclear-decomposition-2026-06.json` |
+| `grill-cache/parent-cache-issue-<P>.json` | `parent-cache-issue-278.json` |
+| `grill-cache/grill-cache-issue-<n>.json` | `grill-cache-issue-301.json` |
 | `benchmarks/<benchmarkRunId>.json` | `bug-fix-2026-06-23-a1b2.json` |
 | `releases/release-<version>.json` | `release-1.2.3.json` |
 

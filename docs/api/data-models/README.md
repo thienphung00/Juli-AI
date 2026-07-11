@@ -24,4 +24,4 @@ tiktok_api/endpoints.md (ingestion)
 
 ## UNKNOWN fields
 
-Do not fabricate `vp_score`, `ahr_score`, Ads API fields, or unverified cancel fields until P2-B1 verification. See `canonical-entities.md`.
+Do not fabricate `vp_score`, `ahr_score`, Ads API fields, or unverified shop-health fields until API contracts are confirmed. Order cancellation fields (`cancel_reason`, `is_seller_fault`) are verified and ETL-mapped in #299. See `canonical-entities.md`.

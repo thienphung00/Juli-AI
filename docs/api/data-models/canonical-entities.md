@@ -23,8 +23,8 @@ Raw Events / Responses
 Canonical Entities  ◄── THIS FILE
         │
         ├──► Mock Data (P1 fixtures)
-        ├──► Backtest Parquet (Phase 2 MVP Milestone A training)
-        ├──► Postgres (P2 OLTP)
+        ├──► Backtest Parquet (historical ML prep — Phase 4)
+        ├──► Postgres (P2 OLTP — ETL #299)
         └──► Feature Store (feature-store-schema.md)
                 │
                 ▼
@@ -42,7 +42,7 @@ TikTok API → endpoints.md → direct to ML
 
 **Why the change:** The old flow couples feature engineering to TikTok response
 schemas. Canonical entities decouple ingestion from ML, enable synthetic data
-generation without API access (Phase 2 MVP Milestone A), and allow Shopee/Lazada adapters to feed
+generation without API access (historical backtest prep), and allow Shopee/Lazada adapters to feed
 the same feature store without rewriting ML code.
 
 ---
@@ -60,7 +60,7 @@ the same feature store without rewriting ML code.
 | `Numeric(18,2)` | Fixed-precision monetary value (VND). Never use float for money |
 | `timestamp` | ISO-8601 UTC datetime string in canonical form; Unix int in transit, converted in ETL |
 | `boolean` | `true` / `false` |
-| `UNKNOWN` | Field exists in policy docs but API exposure is unverified (P2-1 gate) |
+| `UNKNOWN` | Field exists in policy docs but API exposure is unverified (P2-A1 gate) |
 
 ---
 
@@ -69,7 +69,7 @@ the same feature store without rewriting ML code.
 **Refresh:** Daily (account health proxies), on OAuth grant (shop metadata)  
 **History:** Current state only; health snapshots kept 90 days for trend analysis  
 **Data lineage:** `GET /authorization/202309/shops` (shop metadata); Account Health
-endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Account Health)
+endpoint — **UNKNOWN** until P2-A1 API verification (see `endpoints.md` §Account Health)
 
 ```json
 {
@@ -121,7 +121,12 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 
 **Refresh:** Hourly (audit status, inventory); Daily (sales aggregates)  
 **History:** 30-day rolling window for sales_30d, returns_30d; point-in-time snapshot at daily batch  
-**Data lineage:** `POST /product/202502/products/search` + `GET /api/products/details` (see `endpoints.md` §Products)
+**Data lineage:** `POST /product/202309/products/search` + `GET /product/202309/products/{product_id}` (see `endpoints.md` §Products; verified #282, #294)
+
+**P2-A2 persistence (#299):** ETL writes `tiktok_product_id`, `title`, `category`, `category_id`,
+`price`, `price_currency`, `inventory`, `audit_status`, `tiktok_created_at`. Legacy API columns
+`name`, `status`, `revenue`, `units_sold` remain for backward compatibility. Sales aggregates
+(`sales_7d`, `sales_30d`, etc.) are **deferred to P2-A3** feature build.
 
 ```json
 {
@@ -139,8 +144,8 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
   // Inventory
   "inventory": "integer",             // units in stock across all SKUs
 
-  // Sales aggregates — computed in feature build step (06:00–07:00 UTC)
-  // P1: seeded from mock fixtures; Phase 2 MVP Milestone A: from backtest parquet; P2: from polled orders
+  // Sales aggregates — computed in feature build step (06:00–07:00 UTC, P2-A3)
+  // P1: seeded from mock fixtures; historical backtest parquet; P2-A2: polled product metadata only
   "sales_7d": "integer",              // units sold in last 7 days
   "sales_30d": "integer",             // units sold in last 30 days
   "sales_prev_7d": "integer",         // units sold in the 7 days before sales_7d window (for growth calc)
@@ -176,11 +181,12 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 
 **Refresh:** Daily polling (incremental via `update_time_from` cursor)  
 **History:** ~90-day bounded history (TikTok API operational constraint; see `data-sources.md`)  
-**Data lineage:** `POST /api/orders/search` + `POST /api/orders/detail/query` (see `endpoints.md` §Orders)
+**Data lineage:** `POST /order/202309/orders/search` + `GET /order/202507/orders?ids=...` (see `endpoints.md` §Orders; verified #284, #285, #294)
 
-> **UNKNOWN:** Full TikTok request/response schema for `/api/orders/search` is not
-> yet extracted. Confirm `cancel_reason` enum and `is_seller_fault` field name in
-> Partner Center API Reference before P2-1. See `endpoints.md` §Orders.
+**P2-A2 persistence (#299):** ETL maps TikTok operational statuses to canonical enum
+(`pending | confirmed | shipped | delivered | cancelled | returned`). `order_value` is the canonical
+monetary field; `total_amount` is populated with the same value for legacy API routes.
+`is_seller_fault` is derived from `cancellation_initiator = SELLER` when status is `CANCELLED`.
 
 ```json
 {
@@ -199,39 +205,39 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
   "payment_time": "timestamp | null",
   "ship_time": "timestamp | null",    // when seller dispatches
   "delivery_time": "timestamp | null",// when buyer confirms receipt
-  "created_at": "timestamp",
+  "created_at": "timestamp",          // ETL: tiktok_created_at from create_time (unix → datetime)
+  "update_time": "timestamp",         // reconciliation key for idempotent upserts
 
   // Cancellation signals (used in seller_fault_cancel_rate_30d feature)
-  "cancel_reason": "string | null",   // UNKNOWN enum — confirm field name in P2-1
-  "is_seller_fault": "boolean | null" // UNKNOWN — confirm field exposure in P2-1
+  "cancel_reason": "string | null",   // verified: cancel_reason on cancelled orders (#299)
+  "is_seller_fault": "boolean | null" // ETL-derived from cancellation_initiator (#299)
 }
 ```
 
 **Operational rules:**
 - `buyer_id` must remain masked at all layers — never store full buyer identity ([Forbidden #17](../architecture/data-sources.md)).
-- Phase 2 MVP Milestone A parquet must use the same field names (`order_id`, `buyer_id`, `status`, `order_value`) to avoid P2 ETL drift.
-- `is_seller_fault` and `cancel_reason` are marked UNKNOWN — use `null` in mock/synthetic data and emit a runtime warning if missing in P2.
+- ETL maps `user_id` → `buyer_id` and `order_status` → canonical `status` per `mapping.py`.
+- `is_seller_fault` defaults to `null` when `cancellation_initiator` is absent; do not infer from `cancel_reason` text alone.
 
 ---
 
 ## Entity 4 — OrderItem
 
-**Refresh:** Populated when `Order` is fetched via `POST /api/orders/detail/query`  
+**Refresh:** Populated from `line_items[]` in order search/detail responses  
 **History:** Same as parent `Order` (~90-day bounded)  
-**Data lineage:** `line_items[]` array inside Order detail response (see `endpoints.md` §Orders — Return/refund schema contract)
+**Data lineage:** `line_items[]` inside `POST /order/202309/orders/search` and `GET /order/202507/orders` responses (see `endpoints.md` §Orders; expanded by `mapping.expand_order_line_items`)
 
 > **Critical:** Without `OrderItem`, anomaly detection for `item_swap` returns is
 > impossible — you cannot compare ordered SKU vs returned SKU without the line-item
-> record. This entity **must** be populated in Phase 2 MVP Milestone A parquet and P2 persistence.
-> See `system-design.md` §Return schema contract and ADR-008.
+> record. Populated in P2-A2 ETL (#299). See `system-design.md` §Return schema contract and ADR-008.
 
 ```json
 {
   "id": "string (uuid)",
   "order_id": "string (uuid)",        // FK → Order.id
   "tiktok_order_id": "string",        // denormalized for join efficiency
-  "product_id": "string",             // endpoints.md: line_items[].product_id
-  "sku_id": "string",                 // endpoints.md: line_items[].sku_id — ordered SKU
+  "tiktok_product_id": "string",      // line_items[].product_id
+  "tiktok_sku_id": "string",          // line_items[].sku_id — ordered SKU
   "quantity": "integer",
   "unit_price": "Numeric(18,2)",      // price per unit at time of order (VND)
   "line_total": "Numeric(18,2)"       // unit_price × quantity
@@ -239,13 +245,13 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 ```
 
 **Anomaly detection use:**
-- `item_swap` detection: compare `OrderItem.sku_id` (ordered) vs `Return.sku_id` (returned).
-- If `sku_id` values differ → candidate for `return_type = item_swap`.
+- `item_swap` detection: compare `OrderItem.tiktok_sku_id` (ordered) vs `Return.tiktok_sku_id` (returned).
+- If SKU values differ → ETL promotes `return_type` to `item_swap` (`consumer._derive_return_type`, #299).
 - `unit_price` is required for revenue-leakage magnitude calculation (how much GMV was lost per swap event).
 
 **Null handling:**
 - `unit_price` must never be `null` — default to `0` only when order was free/promo; log a warning.
-- `sku_id` must not be `null` — missing SKU makes item_swap detection impossible; emit a data quality alert.
+- `tiktok_sku_id` must not be `null` — missing SKU makes item_swap detection impossible; emit a data quality alert.
 
 ---
 
@@ -253,7 +259,7 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 
 **Refresh:** Daily (aligned with Order polling)  
 **History:** 30-day rolling window for feature aggregation; raw records kept 90 days  
-**Data lineage:** Return/refund record edges on `POST /api/orders/detail/query` (UNKNOWN exact path — confirm in P2-1); see `endpoints.md` §Return/refund schema contract
+**Data lineage:** `POST /return_refund/202602/returns/search` + `POST /return_refund/202309/cancellations/search` (see `endpoints.md` §Returns; verified #286, #288, #294)
 
 ```json
 {
@@ -265,16 +271,16 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
   "buyer_id": "string (masked)",      // masked — no PII (Forbidden #17)
 
   // Line-item identifiers (critical for item_swap detection)
-  "product_id": "string",             // which product was returned
-  "sku_id": "string",                 // which SKU was returned — compare vs OrderItem.sku_id
+  "tiktok_product_id": "string",      // which product was returned
+  "tiktok_sku_id": "string",          // which SKU was returned — compare vs OrderItem.tiktok_sku_id
 
-  // Classification (ML label in Phase 2 MVP Milestone A training; ETL-derived in P2)
+  // Classification (ETL-derived in P2-A2; ML label deferred to Phase 4)
   // Enum is the ground truth used in system-design.md §Return schema contract
   "return_type": "string (enum: item_swap | empty_return | other)",
 
   // Detection inputs
   "return_condition": "string (enum: wrong_item | empty_parcel | correct_item | unknown)",
-  // item_swap  → return_condition = 'wrong_item' OR sku_id ≠ OrderItem.sku_id
+  // item_swap  → return_condition = 'wrong_item' OR tiktok_sku_id ≠ OrderItem.tiktok_sku_id
   // empty_return → return_condition = 'empty_parcel'
 
   "return_reason": "string | null",   // free text or platform enum — confirm in P2-1
@@ -289,14 +295,14 @@ endpoint — **UNKNOWN** until P2-1 API verification (see `endpoints.md` §Accou
 }
 ```
 
-**Derivation rules for `return_type` (ETL layer):**
-1. `item_swap`: `return_condition = 'wrong_item'` **OR** `Return.sku_id ≠ OrderItem.sku_id` for the parent order line.
+**Derivation rules for `return_type` (ETL layer — #299):**
+1. `item_swap`: `return_condition = 'wrong_item'` **OR** `Return.tiktok_sku_id ≠ OrderItem.tiktok_sku_id` for the parent order line (requires OrderItem ingested first).
 2. `empty_return`: `return_condition = 'empty_parcel'`.
-3. `other`: all remaining — legitimate returns (size, SNAD, change-of-mind). Used as **negative class** in anomaly training.
+3. `other`: all remaining — legitimate returns (size, SNAD, change-of-mind). Negative class for Phase 4 anomaly training.
 
 **Null handling:**
-- `return_condition = 'unknown'` when inspection outcome is not exposed by the API — do not infer `return_type` from `return_reason` text alone in Phase 2 MVP Milestone A.
-- `sku_id = null` blocks item_swap detection — emit data quality alert; label `return_type = other` conservatively.
+- `return_condition = 'unknown'` when inspection outcome is not exposed by the API — do not infer `return_type` from `return_reason` text alone.
+- `tiktok_sku_id = null` blocks item_swap SKU-edge detection — emit data quality alert; label `return_type = other` conservatively.
 
 ---
 
@@ -642,10 +648,31 @@ derivation and masked `buyer_id`).
 
 ---
 
+## P2-A2 ETL implementation reference (#299)
+
+**Code:** `backend/src/juli_backend/integrations/tiktok/mapping.py` (vendor JSON normalization) →
+`backend/src/juli_backend/services/etl/transform.py` (canonical upsert kwargs) →
+`backend/src/juli_backend/services/etl/consumer.py` (idempotent upserts + `item_swap` edge derivation).
+
+**Migration:** `010_canonical_product_fields` adds nullable canonical columns on `products` and `orders`.
+
+| Entity | Persisted in P2-A2 | Deferred |
+|--------|-------------------|----------|
+| **Product** | `tiktok_product_id`, `title`, `category`, `category_id`, `price`, `price_currency`, `inventory`, `audit_status`, `tiktok_created_at`; legacy `name`, `status`, `revenue`, `units_sold` | `sales_7d`, `sales_30d`, return aggregates, `creator_count` (P2-A3 feature build) |
+| **Order** | `tiktok_order_id`, canonical `status`, `buyer_id`, `order_value`, `currency`, `payment_time`, `ship_time`, `delivery_time`, `tiktok_created_at`, `cancel_reason`, `is_seller_fault`; legacy `total_amount` | — |
+| **OrderItem** | `tiktok_order_id`, `tiktok_product_id`, `tiktok_sku_id`, `quantity`, `unit_price`, `line_total` | — |
+| **Return** | `tiktok_return_id`, `tiktok_order_id`, `buyer_id`, `tiktok_product_id`, `tiktok_sku_id`, `return_type`, `return_condition`, `return_reason`, `refund_amount`, `status` | — |
+
+**Idempotency:** Natural-key upserts on `(shop_id, tiktok_*_id)`; `update_time` drives re-poll updates.
+
+**Tests:** `tests/unit/test_etl.py` — canonical product/order re-poll, `item_swap` edge derivation.
+
+---
+
 ## Unknown fields — do NOT fabricate
 
 The following are in policy documentation but their API exposure is **unverified**
-as of P2-1 gate. Mark these `UNKNOWN` in mock fixtures — never generate plausible
+as of P2-A1 gate. Mark these `UNKNOWN` in mock fixtures — never generate plausible
 numeric values.
 
 | Field | Entity | Why UNKNOWN |
@@ -654,10 +681,10 @@ numeric values.
 | `ahr_score` | Shop | API endpoint not confirmed; VN transition May–July 2026 |
 | `withholding_active` | Shop | Enforcement API field not extracted |
 | `violation_events` | Shop | Webhook catalog not extracted |
-| Ads API fields | — (separate entity TBD) | No `AdsResource` exists yet; confirm official path before P2-1 |
-| `cancel_reason` enum | Order | Field name/enum not extracted from official schema |
-| `is_seller_fault` | Order | Field exposure not confirmed in Partner API |
+| Ads API fields | — (separate entity TBD) | No `AdsResource` exists yet; confirm official path before P2-A3 |
 
-> **Action (P2-1):** When Partner API Reference confirms these fields, add them to
-> the entity schemas above, update `endpoints.md` §Account Health, and update
-> `data-sources.md`.
+> **Verified in P2-A2 (#299):** `cancel_reason`, `is_seller_fault` (Order); product audit
+> status and pricing fields (Product); return classification inputs (Return).
+>
+> **Action:** When Partner API Reference confirms remaining UNKNOWN fields, update this file,
+> `endpoints.md` §Account Health, and `data-sources.md`.

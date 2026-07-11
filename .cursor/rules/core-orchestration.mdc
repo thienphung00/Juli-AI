@@ -11,7 +11,7 @@ For every non-trivial task, read and follow [`.cursor/skills/standalone/focus/SK
 
 - **Ad-hoc chat:** Focus only — do not auto-enter review/validate/ship pipelines.
 - **Planning:** Architect Agent — `focus` → `to-prd` → `to-issues`.
-- **Implementation:** Meta Agent routes via `focus`; Executor Agent implements with built-in TDD.
+- **Implementation:** Meta → **`prompt-caching`** (parent constant + child unique; grill via `grill-with-docs` when stale) → Executor TDD → Review → Validate. Inject `parent-cache-issue-<P>.json` + `grill-cache-issue-<n>.json`; no code until child cache `valid`.
 - **Review + Testing:** Review Agent — `review` → `validate` → ship-ready.
 - **Harness optimization:** Meta Agent consumes execution artifacts after validation.
 - **MCP/plugin skills:** load only what Focus selects via [skill-catalog](../skills/skill-catalog/SKILL.md); read MCP tool schemas after selection, not at startup.

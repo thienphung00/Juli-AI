@@ -8,11 +8,15 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 ### Agent Phase
 - [ ] ad-hoc (Focus only)
 - [ ] Planning: Architect Agent (focus → to-prd → to-issues)
+- [ ] Scope Alignment: `grill-with-docs` (alignment) + `prompt-caching` (cache)
 - [ ] Implementation: Meta routing → Executor (built-in TDD)
 - [ ] Review + Testing: review → validate → ship-ready
 - [ ] Harness Optimization: Meta (post-validation)
 
 ### Runtime artifacts (commit on branch when phase completes)
+- [ ] `artifacts/grill-cache/parent-cache-issue-<P>.json` (epic constant)
+- [ ] `artifacts/grill-cache/grill-cache-issue-<n>.json` (child unique)
+- [ ] `docs/handoffs/scope-alignment-issue-<n>.md` (scope alignment)
 - [ ] `artifacts/implementations/implementation-issue-<n>.json` (Executor)
 - [ ] `artifacts/reviews/review-issue-<n>.json` (Review)
 - [ ] `artifacts/validation/validation-issue-<n>.json` (Validate)
@@ -30,8 +34,15 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 - [ ] `.cursor/rules/hooks.mdc`
 - [ ] `.cursor/rules/issue-workflow.mdc`
 
+### Grill cache (child #N, parent #P)
+- [ ] Parent constant: `parent-cache-issue-<P>.json`
+- [ ] Child unique: `grill-cache-issue-<n>.json` — phase: ___
+- [ ] issueLoadProfile: domain ___ | docs ___ | modules ___
+- [ ] No sibling child cache loaded
+
 ### Skills
 - [ ] `to-prd` / `to-issues` (Architect planning; `discover` removed)
+- [ ] `grill-with-docs` (scope alignment) + `prompt-caching` (workflow cache)
 - [ ] `review` / `validate` / `ship` / `qa` (Executor uses built-in TDD; standalone `tdd` removed)
 - [ ] `api-docs` / `platform-docs`
 - [ ] Domain: `python-patterns` / `python-testing` / `postgres-patterns` / `swift-patterns`

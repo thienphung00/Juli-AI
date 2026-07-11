@@ -20,6 +20,51 @@ context:
   max_files: 25
   retrieval_depth: 3
   reserved_reasoning_ratio: 0.1
+grill_cache:
+  enabled: true
+  parent_cache_path: agent-runtime/artifacts/grill-cache/parent-cache-issue-{parentIssueId}.json
+  child_cache_path: agent-runtime/artifacts/grill-cache/grill-cache-issue-{n}.json
+  scope_alignment_path: docs/handoffs/scope-alignment-issue-{n}.md
+  parent_template_json: agent-runtime/templates/parent-cache-template.json
+  child_template_json: agent-runtime/templates/grill-cache-issue-template.json
+  template_markdown: agent-runtime/templates/scope-alignment-issue-template.md
+  parent_schema: agent-runtime/docs/schemas/parent-cache-artifact.schema.json
+  child_schema: agent-runtime/docs/schemas/grill-cache-artifact.schema.json
+  parent_resolution:
+    - epic_handoff_prd_link
+    - child_issue_body_parent_field
+    - checkpoint_parent_prd
+    - gh_issue_labels
+  workflow_phases:
+    - scope_alignment
+    - meta
+    - executor
+    - review
+    - validate
+    - complete
+  injection_order:
+    - parent.parentScopeBlock
+    - parent.doNotLoad
+    - child.promptCacheBlock
+    - child.phaseCacheBlocks.{phase}
+    - child.issueLoadProfile
+    - child.harnessUtility
+  inherit_from_siblings: false
+  parent_invalidation_sources:
+    - EXECUTION.md
+    - GitHub issue #{parentIssueId}
+    - docs/handoffs/{epic-handoff}.md
+  child_invalidation_sources:
+    - GitHub issue #{n}
+    - docs/handoffs/scope-alignment-issue-{n}.md
+  fingerprint_method: git-blob-sha
+  cache_hit_confirm_question: "Parent #{parentIssueId} + child #{n} cached workflow v{cacheBlockVersion} still accurate?"
+  harness_utility_cache:
+    scope: per_child_issue_only
+    skills: minimal_path_and_purpose_only
+    mcps: server_and_tool_names_only
+    rules: tier2_paths_only
+    tools: allowed_tool_names_only
 routing:
   backend_threshold: 0.7
   ui_threshold: 0.6
@@ -110,12 +155,12 @@ agents:
     owns: "[prds, adrs, issues, architecture-docs, backlog]"
     must_not: "[implement, route-executors, validate, ship]"
   meta:
-    phase: "[implementation-routing, harness-optimization]"
+    phase: "[scope-alignment, implementation-routing, harness-optimization]"
     built_on: focus
-    owns: "[context-routing, skill-routing, executor-assignment, harness-optimization, product-dev-optimization]"
-    consumes_artifacts: "[implementation-artifact, review-artifact, validation-artifact]"
+    owns: "[context-routing, skill-routing, executor-assignment, grill-cache-check, harness-optimization, product-dev-optimization]"
+    consumes_artifacts: "[grill-cache-artifact, implementation-artifact, review-artifact, validation-artifact]"
     emits_artifacts: "[harness-optimization-artifact, product-development-optimization-artifact]"
-    must_not: "[implement-features, bypass-review-agent, auto-edit-skills-rules-adrs]"
+    must_not: "[implement-features, bypass-review-agent, auto-edit-skills-rules-adrs, assign-executor-without-valid-grill-cache]"
   executor:
     phase: implementation
     tdd: red-green-refactor
@@ -125,8 +170,9 @@ agents:
   review:
     phase: review-and-testing
     sequence: "[review, validate, ship-ready]"
+    consumes_workflow_cache: "[parent-cache-issue-{parentIssueId}, grill-cache-issue-{n}]"
     emits_artifacts: "[review-artifact, validation-artifact]"
-    must_not: "[route-context, assign-executors, ship-before-validation]"
+    must_not: "[route-context, assign-executors, ship-before-validation, reload-full-skills-on-cache-hit]"
 agent_structure:
   mode: single_executor
 baseline_metrics:

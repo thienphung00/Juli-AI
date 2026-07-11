@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "benchmark_measurement_manifest",
+  "benchmarkType": "multi-agent-workflow",
+  "issueId": 301,
+  "parentIssueId": 278,
+  "layerZeroContractIssueIds": [287, 289, 291],
+  "commonBranch": "experiment/301-common",
+  "notes": "Neutral baseline manifest. No hidden tests, no #301 implementation on this branch. Defines what must be recorded identically for treatments A and B -- does not itself contain measured values.",
+  "controlledVariables": {
+    "model": null,
+    "modelSettings": null,
+    "toolPermissions": null,
+    "freshSessionPerRun": true,
+    "sourceBaseSha": "<BASE_SHA>",
+    "acceptanceCriteriaSource": "GitHub issue #301 body",
+    "visibleRepoTestsSha": "<COMMON_SHA>",
+    "crossTreatmentAccess": "forbidden -- no read access to the other branch, worktree, transcript, or artifacts"
+  },
+  "independentVariable": {
+    "name": "promptCachingCondition",
+    "levels": [
+      {
+        "id": "A",
+        "label": "no-cache",
+        "description": "Prompt caching explicitly disabled by benchmark override; no parent/child cache present or injected."
+      },
+      {
+        "id": "B",
+        "label": "cache-hit",
+        "description": "Valid parent-cache-issue-278.json + grill-cache-issue-301.json prepared and validated before measurement; cacheStatus: valid on both; injected per prompt-caching SKILL.md order."
+      }
+    ]
+  },
+  "timingBoundary": {
+    "startEvent": "immediately before Scope/Meta begins",
+    "endEvent": "after Validate completes and post-validation Harness Optimization completes",
+    "excluded": ["cache preparation and validation time (B only)"],
+    "executorDurationReportedSeparately": true,
+    "executorDurationRule": "report only when a distinguishable phase boundary exists in runtime evidence; otherwise null with unavailableReason"
+  },
+  "metrics": {
+    "durationMs": {
+      "byPhase": {
+        "scopeMeta": null,
+        "executor": null,
+        "review": null,
+        "validate": null,
+        "harnessOptimization": null
+      },
+      "total": null,
+      "unavailableReason": null
+    },
+    "tokenUsage": {
+      "input": null,
+      "output": null,
+      "total": null,
+      "source": null,
+      "unavailableReason": "populate only when platform telemetry provides it; never estimate"
+    },
+    "toolInvocationCount": null,
+    "contextFilesLoaded": {
+      "paths": [],
+      "count": null,
+      "bytes": null
+    },
+    "skillsLoaded": {
+      "paths": [],
+      "count": null
+    },
+    "cacheHits": null,
+    "cacheMisses": null,
+    "contextTransferCount": null,
+    "retryCount": null,
+    "phaseLoops": null,
+    "linesOfCode": {
+      "productionAdded": null,
+      "productionDeleted": null,
+      "testAdded": null,
+      "testDeleted": null,
+      "documentationAdded": null,
+      "documentationDeleted": null,
+      "runtimeArtifactAdded": null,
+      "runtimeArtifactDeleted": null
+    },
+    "tests": {
+      "collected": null,
+      "passed": null,
+      "failed": null,
+      "skipped": null,
+      "passRate": null,
+      "coveragePercentage": null
+    },
+    "review": {
+      "status": null,
+      "failures": null
+    },
+    "validation": {
+      "status": null,
+      "failures": null
+    },
+    "acceptanceCriterionMapping": [],
+    "scores": {
+      "implementation": null,
+      "review": null,
+      "validation": null,
+      "optimization": null
+    }
+  },
+  "excludedFromImplementationLoc": [
+    "agent-runtime/artifacts/benchmarks/",
+    "agent-runtime/artifacts/grill-cache/",
+    "agent-runtime/artifacts/implementations/",
+    "agent-runtime/artifacts/reviews/",
+    "agent-runtime/artifacts/validation/",
+    "agent-runtime/artifacts/optimization/",
+    "agent-runtime/scripts/benchmarks/",
+    "this measurement manifest and the benchmark plan"
+  ],
+  "estimationPolicy": "Never estimate unavailable token or timing data. Use null plus a one-line unavailableReason. Do not average, extrapolate, or backfill from other runs.",
+  "testCommands": {
+    "hiddenSuite": "path defined only on experiment/301-evaluator -- resolve at grading time, never hardcode here",
+    "fullRegression": "pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing --cov-fail-under=80"
+  }
+}

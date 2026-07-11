@@ -16,6 +16,10 @@ This skill is non-conversational. It runs Python scripts, aggregates their
 outputs into a single JSON file, and exits with PASS or FAIL. The repository
 artifact — not the chat output — is the system of record.
 
+## Workflow prompt cache (required)
+
+Before running gates, load and inject per [`prompt-caching`](../prompt-caching/SKILL.md) (Validate row).
+
 ## When to invoke
 
 - After `review` has emitted `agent-runtime/artifacts/reviews/review-issue-<n>.json` and

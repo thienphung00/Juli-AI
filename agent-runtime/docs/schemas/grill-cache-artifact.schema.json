@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/grill-cache-artifact.schema.json",
+  "title": "Workflow Grill Cache Artifact",
+  "description": "Per-child-issue workflow prompt cache. Unique load profile per issue; parent issue is the only shared constant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactType",
+    "issueId",
+    "parentIssueId",
+    "parentCachePath",
+    "cacheStatus",
+    "cacheBlockVersion",
+    "workflowPhase",
+    "authorityChain",
+    "resolvedDecisions",
+    "inScope",
+    "outOfScope",
+    "doNotLoad",
+    "promptCacheBlock",
+    "phaseCacheBlocks",
+    "harnessUtility",
+    "issueLoadProfile",
+    "upstreamFingerprints",
+    "lastValidatedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver schema version. Current: 1.2.0"
+    },
+    "artifactType": {
+      "const": "grill_cache"
+    },
+    "issueId": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "parentIssueId": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Parent/PRD issue (constant across siblings). Resolve from handoff, issue body, or parent_prd checkpoint."
+    },
+    "parentCachePath": {
+      "type": "string",
+      "minLength": 1,
+      "description": "agent-runtime/artifacts/grill-cache/parent-cache-issue-<parentIssueId>.json"
+    },
+    "phaseRunId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Correlates artifacts from one agent-phase execution."
+    },
+    "workflowPhase": {
+      "type": "string",
+      "enum": [
+        "scope_alignment",
+        "meta",
+        "executor",
+        "review",
+        "validate",
+        "complete"
+      ],
+      "description": "Last completed or active workflow phase. Agents inject blocks for their phase and all prior phases."
+    },
+    "cacheStatus": {
+      "type": "string",
+      "enum": ["valid", "stale", "partial"],
+      "description": "valid = safe to use as primary context; stale = upstream docs changed; partial = grilling in progress."
+    },
+    "cacheBlockVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Increment when any phaseCacheBlock or harnessUtility changes."
+    },
+    "parentLinkage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sliceId": {
+          "type": "string",
+          "description": "EXECUTION.md slice for this child (informational)."
+        },
+        "handoffPath": {
+          "type": "string",
+          "description": "Epic handoff path (same for all children of parent)."
+        }
+      },
+      "description": "Metadata linking child to parent epic. Does not inherit sibling load profiles."
+    },
+    "issueLoadProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executorDomain"],
+      "properties": {
+        "executorDomain": {
+          "type": "string",
+          "enum": ["ui-ux", "backend", "data-platform", "machine-learning"]
+        },
+        "requiredDocs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Docs loaded for this child only (not siblings)."
+        },
+        "requiredModules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "MODULE.md paths for this child only."
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "loadWhenNeeded": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "description": "Unique context load plan for this child issue. Never copy from sibling grill caches."
+    },
+    "authorityChain": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rank", "source", "reason"],
+        "properties": {
+          "rank": { "type": "integer", "minimum": 1 },
+          "source": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "resolvedDecisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic", "decision", "resolvedAt"],
+        "properties": {
+          "topic": { "type": "string", "minLength": 1 },
+          "decision": { "type": "string", "minLength": 1 },
+          "conflictingSources": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "resolvedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "inScope": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "outOfScope": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "doNotLoad": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "promptCacheBlock": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Scope block (alias of phaseCacheBlocks.scope). Injected first on every phase."
+    },
+    "phaseCacheBlocks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope"],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Scope alignment — same content as promptCacheBlock."
+        },
+        "meta": {
+          "type": "string",
+          "description": "Meta routing: executor domain, Context Plan summary, rules/skills selected."
+        },
+        "executor": {
+          "type": "string",
+          "description": "Executor: domain skill, MODULE paths, TDD scope, files in play."
+        },
+        "review": {
+          "type": "string",
+          "description": "Review: acceptance mapping, checklists to run, modules touched."
+        },
+        "validate": {
+          "type": "string",
+          "description": "Validate: gate list, artifact paths, commands."
+        }
+      },
+      "description": "Per-phase injectable blocks. Agent loads scope + its phase block only."
+    },
+    "harnessUtility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skills", "rulesTier2", "mcps", "tools"],
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "purpose"],
+            "properties": {
+              "path": { "type": "string" },
+              "purpose": { "type": "string" }
+            }
+          },
+          "description": "Minimal skill index — do not reload full SKILL.md when listed here."
+        },
+        "rulesTier2": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mcps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["server"],
+            "properties": {
+              "server": { "type": "string" },
+              "tools": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Tool names only; read schemas on first use."
+              }
+            }
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed agent tools for this issue workflow."
+        }
+      },
+      "description": "Per-child harness context. Unique to this issueId — never inherited from siblings."
+    },
+    "glossarySnippets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["term", "definition"],
+        "properties": {
+          "term": { "type": "string" },
+          "definition": { "type": "string" },
+          "avoid": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "openQuestions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "upstreamFingerprints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "fingerprint"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "fingerprint": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "scopeAlignmentPath": {
+      "type": "string"
+    },
+    "lastValidatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lastGrillSessionAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tokenUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "output": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 },
+        "cacheHitSavingsEstimate": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

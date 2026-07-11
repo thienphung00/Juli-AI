@@ -16,7 +16,12 @@ Review Agent skill: validates code quality after Executor implementation. Owns t
 Emits `agent-runtime/artifacts/reviews/review-issue-<n>.json` (ADR-003 CI gate + Meta fields per
 [`agent-runtime/docs/agent-runtime-artifacts.md`](../../../agent-runtime/docs/agent-runtime-artifacts.md)).
 
-A validator, reviewer, checklist provider, and patch suggester. This skill does NOT generate features — it enforces quality on existing or proposed code.
+## Workflow prompt cache (required)
+
+Before review checks, load and inject per [`prompt-caching`](../prompt-caching/SKILL.md) (Review row).
+After review, update **child** cache only (`workflowPhase: validate`).
+
+A validator, reviewer, checklist provider, and patch suggester.
 
 ## Artifact emission (required)
 

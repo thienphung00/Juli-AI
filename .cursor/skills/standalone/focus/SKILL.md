@@ -4,6 +4,7 @@ description: >-
   Default context router — classifies tasks and produces a Context Plan for docs,
   rules, skills, MCPs, and agent phases. Invoke at conversation start and before
   implementation; also when switching features or context overload is detected.
+  For issue implementation, run Step 0.5 grill cache check before loading upstream docs.
 catalog:
   pluginIndex: skill-catalog
   loadWhen:
@@ -51,12 +52,30 @@ User message
 |-------------|-------------|------|
 | New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) Planning section; canonical docs; `to-prd` path |
 | Spec from conversation | Planning | `to-prd` → `to-issues` |
-| GitHub issue implementation | Implementation | Meta routing; domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
+| GitHub issue implementation | Scope Alignment → Implementation | `prompt-caching` + `grill-with-docs` (when stale); then Meta routing; domain executor; built-in TDD |
 | Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
 | Post-implementation quality gate | Review + Testing | `review` → `validate` → `ship` |
 | Parallel issues / worktrees | Implementation | `issue-workflow.mdc` + `docs/handoffs/` |
 
 Domain executor skills live under `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning}/`.
+
+### Step 0.5: Workflow prompt cache (parent constant + child unique)
+
+Load [`.cursor/skills/standalone/prompt-caching/SKILL.md`](../prompt-caching/SKILL.md).
+When the task references child issue #N:
+
+1. **Resolve parent #P** (PRD/epic) — handoff, issue body, or checkpoint. Parent is the only shared constant.
+2. **Parent cache:** `parent-cache-issue-<P>.json` → inject `parentScopeBlock` + epic `doNotLoad` only.
+3. **Child cache:** `grill-cache-issue-<n>.json` → inject child scope, `issueLoadProfile`, `phaseCacheBlocks.<phase>`, `harnessUtility`.
+4. **Never** load sibling child caches or inherit sibling `harnessUtility` / `issueLoadProfile`.
+5. Missing/stale → load [`prompt-caching`](../prompt-caching/SKILL.md); delta grill via [`grill-with-docs`](../grill-with-docs/SKILL.md) (parent tier and/or child tier separately).
+
+| Agent phase | Child inject | Parent inject |
+|-------------|--------------|---------------|
+| Meta | `meta` + issueLoadProfile + harnessUtility | `parentScopeBlock` |
+| Executor | `executor` + harnessUtility | `parentScopeBlock` |
+| Review | `review` + harnessUtility | `parentScopeBlock` |
+| Validate | `validate` | `parentScopeBlock` |
 
 ### Step 1: Plugin and MCP routing
 
@@ -241,9 +260,21 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 ### Agent Phase
 - [ ] ad-hoc (Focus only)
 - [ ] Planning: Architect Agent (focus → to-prd → to-issues)
+- [ ] Scope Alignment: `grill-with-docs` (alignment) + `prompt-caching` (cache load/write)
 - [x] Implementation: Meta routing → Executor (built-in TDD)
 - [ ] Review + Testing: review → validate → ship-ready
 - [ ] Harness Optimization: Meta (post-validation)
+
+### Grill cache (child #N, parent #P)
+- [ ] Parent: `parent-cache-issue-<P>.json` (constant)
+- [ ] Child: `grill-cache-issue-<n>.json` — phase: ___
+- [ ] issueLoadProfile: domain ___ | docs: ___ | modules: ___
+- [ ] Do not load sibling child caches
+
+### Scope conflicts (if any)
+| Topic | Sources | Resolution |
+|-------|---------|------------|
+| | | |
 
 ### Rules (Tier 2 — load selectively)
 - [x] `.cursor/rules/reliability.mdc`
