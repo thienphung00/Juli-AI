@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-06",
+    "region": "VN",
+    "merchant": "SANDBOX_VN",
+    "endpoint": "POST /product/202309/products/{product_id}/inventory/update",
+    "api_version": "202309",
+    "contract_section": "§14",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "message": "Success",
+    "data": {},
+    "request_id": "20260706120436B68CEC044C979801CB59"
+  }
+}

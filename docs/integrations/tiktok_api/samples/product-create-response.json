@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "captured_at": "2026-07-06",
+    "region": "VN",
+    "merchant": "SANDBOX_VN",
+    "endpoint": "POST /product/202309/products",
+    "api_version": "202309",
+    "contract_section": "§17",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true
+  },
+  "response": {
+    "code": 0,
+    "message": "Success",
+    "data": {
+      "product_id": "1736405947247986307",
+      "skus": [
+        {
+          "fees": [],
+          "id": "1736405690908575363",
+          "sales_attributes": [],
+          "seller_sku": "water-bottle-100ml"
+        }
+      ],
+      "warnings": []
+    },
+    "request_id": "20260706134157C43D65A356658703FB9F"
+  }
+}

@@ -53,6 +53,19 @@ class ProductsSearchData(PaginatedData):
     products: list[TikTokProduct] = Field(default_factory=list)
 
 
+class CreateProductSku(TikTokModel):
+    id: str | None = None
+    seller_sku: str | None = None
+    sales_attributes: list[dict[str, Any]] = Field(default_factory=list)
+    fees: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CreateProductData(TikTokModel):
+    product_id: str | None = None
+    skus: list[CreateProductSku] = Field(default_factory=list)
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class TikTokReturnOrder(TikTokModel):
     return_id: str | None = None
     order_id: str | None = None

@@ -40,6 +40,8 @@ docs/integrations/tiktok_api/samples/
   returns-search-response.json        # POST /return_refund/202602/returns/search (§8)
   cancellations-search-response.json  # POST /return_refund/202602/cancellations/search (§9)
   inventory-search-response.json      # POST /product/202309/inventory/search (§10)
+  inventory-update-response.json    # POST /product/202309/products/{id}/inventory/update (§14)
+  product-create-response.json      # POST /product/202309/products (§17)
 ```
 
 Each file includes:

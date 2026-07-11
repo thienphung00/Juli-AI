@@ -140,7 +140,8 @@ def test_fujiwa_production_read_factory_only():
     assert isinstance(resources.orders, OrdersResource)
     assert isinstance(resources.products, ProductsResource)
     assert isinstance(resources.returns, ReturnsResource)
-    assert not hasattr(SandboxWriteClientFactory(), "create_resources")
+    assert hasattr(SandboxWriteClientFactory(), "create_resources")
+    assert not hasattr(ProductionReadClientFactory(), "create_write_resources")
 
 
 def test_one_pytest_per_resource_with_fixture_backed_parsing():

@@ -6,6 +6,7 @@ ORDER_API_VERSION = "202309"
 ORDER_DETAIL_API_VERSION = "202507"
 PRODUCT_API_VERSION = "202309"
 PRODUCT_INVENTORY_API_VERSION = "202309"
+FULFILLMENT_API_VERSION = "202309"
 RETURN_REFUND_SEARCH_API_VERSION = "202602"
 AUTHORIZATION_API_VERSION = "202309"
 AFFILIATE_SELLER_API_VERSION = "202406"
@@ -16,6 +17,7 @@ ORDER_SEARCH_PATH = f"/order/{ORDER_API_VERSION}/orders/search"
 ORDER_DETAIL_PATH = f"/order/{ORDER_DETAIL_API_VERSION}/orders"
 
 PRODUCT_SEARCH_PATH = f"/product/{PRODUCT_API_VERSION}/products/search"
+PRODUCT_CREATE_PATH = f"/product/{PRODUCT_API_VERSION}/products"
 INVENTORY_SEARCH_PATH = f"/product/{PRODUCT_INVENTORY_API_VERSION}/inventory/search"
 
 RETURN_SEARCH_PATH = (
@@ -45,6 +47,18 @@ def product_inventory_update_path(product_id: str) -> str:
         f"/product/{PRODUCT_INVENTORY_API_VERSION}/products/"
         f"{product_id}/inventory/update"
     )
+
+
+def fulfillment_package_ship_path(package_id: str) -> str:
+    return f"/fulfillment/{FULFILLMENT_API_VERSION}/packages/{package_id}/ship"
+
+
+def fulfillment_batch_ship_path() -> str:
+    return f"/fulfillment/{FULFILLMENT_API_VERSION}/packages/ship"
+
+
+def fulfillment_package_detail_path(package_id: str) -> str:
+    return f"/fulfillment/{FULFILLMENT_API_VERSION}/packages/{package_id}"
 
 
 def marketplace_creator_path(creator_user_id: str) -> str:

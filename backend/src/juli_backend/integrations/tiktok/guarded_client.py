@@ -112,3 +112,41 @@ class GuardedTikTokClient(TikTokClient):
             shop_cipher=self._shop_cipher,
         )
         return super().post(path, body=body, params=params, response_model=response_model)
+
+    @overload
+    def put(
+        self,
+        path: str,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        *,
+        response_model: type[T],
+    ) -> T: ...
+
+    @overload
+    def put(
+        self,
+        path: str,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        *,
+        response_model: None = None,
+    ) -> dict[str, Any]: ...
+
+    def put(
+        self,
+        path: str,
+        body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        *,
+        response_model: type[BaseModel] | None = None,
+    ) -> dict[str, Any] | BaseModel:
+        self._guard.assert_allowed("PUT", path)
+        log_outbound_request(
+            capability=self._capability,
+            merchant_auth_id=self._merchant_auth_id,
+            method="PUT",
+            path=path,
+            shop_cipher=self._shop_cipher,
+        )
+        return super().put(path, body=body, params=params, response_model=response_model)

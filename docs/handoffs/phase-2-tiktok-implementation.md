@@ -17,7 +17,6 @@
 - [x] Step 7 — Polling orchestration (#298) — **complete**
 - [x] Step 8 — ETL normalization (#299) — **complete**
 - [ ] Implementation: Meta routing → Executor (#301+) — Layer 2 sandbox writes, P2-A3 aggregates
-- [x] Review + Testing: review → validate → ship-ready (#294–#299)
 
 ### Rules (Tier 2)
 - [x] `.cursor/rules/reliability.mdc`
@@ -125,6 +124,26 @@ Retries, idempotency, webhook handoff, sync state, DB updates.
 ### Step 12 — Review / validate gates
 Run `review` → `validate` before ship-ready.
 
+### Layer 2 technical validation (#301)
+
+| Resource | Contract § | Path | Fixture | Status |
+|----------|--------------|------|---------|--------|
+| Inventory update | §14 | `POST /product/202309/products/{product_id}/inventory/update` | `inventory-update-response.json` | Verified — signing, HTTP 200, `code`, parsing |
+| Create product | §17 | `POST /product/202309/products` | `product-create-response.json` | Verified — signing, HTTP 200, `code`, parsing |
+| Edit product (partial) | §18 | `PUT /product/202309/products/{product_id}` | — | Path wired; cURL/response pending sandbox check |
+| Ship package | §32 | `POST /fulfillment/202309/packages/{package_id}/ship` | — | Path wired; request body TBD from Testing Tool |
+| Batch ship packages | §40 | `POST /fulfillment/202309/packages/ship` | — | Path wired; payload TBD |
+| Promotion lifecycle | §20–23 | **TBD** | — | **Not implemented** — contract paths unverified |
+| Create packages | §31 | **TBD** | — | **Not implemented** — contract path unverified |
+
+**Access control:** `SandboxWriteClientFactory.create_resources()` is the only factory entry
+point for write resources. `ProductionReadClientFactory` rejects write paths at the transport
+guard before signing (CI + runtime).
+
+**Sparse sandbox:** Non-zero TikTok `code` responses raise `TikTokAPIError` with parsed
+`code` and `request_id` — successful technical validation when signing and envelope parsing
+work; business failure from sparse data is acceptable.
+
 ---
 
 ## Risks
@@ -146,4 +165,5 @@ Run `review` → `validate` before ship-ready.
 - [x] Fujiwa and SANDBOX_VN credentials isolated by auth ID + capability (#296)
 - [x] Polling runs on Fujiwa for orders, products, returns (minimum) (#298)
 - [x] ETL upserts canonical entities to Postgres (#299)
+- [x] Layer 2 sandbox write resources behind `SandboxWriteClientFactory` (#301)
 - [x] T8 router classifier **not** introduced in Phase 2 code paths
