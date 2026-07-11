@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 298,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-11T0031Z",
+  "startedAt": "2026-07-11T00:15:00Z",
+  "completedAt": "2026-07-11T00:31:51Z",
+  "executionDurationMs": 1011000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 24,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "docs/handoffs/phase-2-tiktok-implementation.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/integrations/tiktok/rate_limiter.py",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/workers/services/polling/__init__.py",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "backend/src/juli_backend/database/migrations/versions/009_tiktok_sync_state.py",
+    "tests/unit/test_fujiwa_polling_orchestration.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestTikTokSyncStateRepo::test_load_returns_empty_when_no_rows",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestTikTokSyncStateRepo::test_save_and_load_per_endpoint",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestTikTokSyncStateRepo::test_save_upserts_existing_endpoint",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestRunFujiwaPollCycle::test_fujiwa_only_rejects_sandbox_credential",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestRunFujiwaPollCycle::test_refreshes_tokens_before_sync",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestRunFujiwaPollCycle::test_persists_sync_state_per_endpoint",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestRunFujiwaPollCycle::test_resumes_from_persisted_sync_state",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestRunFujiwaPollCycle::test_completes_when_all_endpoints_rate_limited",
+    "tests/unit/test_fujiwa_polling_orchestration.py::TestRunFujiwaPollCycle::test_uses_production_read_factory"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "TikTokSyncState model and TikTokSyncStateRepo missing; import errors on test collection",
+      "passingTestEvidence": "3 sync state repo tests pass after model, migration, and repo added",
+      "commands": [
+        {
+          "command": "cd backend && python -m pytest ../tests/unit/test_fujiwa_polling_orchestration.py::TestTikTokSyncStateRepo -q",
+          "exitCode": 0,
+          "outputSummary": "3 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "run_fujiwa_poll_cycle and orchestrate module missing; 6 orchestrator tests error on collection/setup",
+      "passingTestEvidence": "9 orchestration tests pass including Fujiwa-only guard, token refresh, sync state persistence, rate-limit completion",
+      "commands": [
+        {
+          "command": "cd backend && python -m pytest ../tests/unit/test_fujiwa_polling_orchestration.py -q",
+          "exitCode": 0,
+          "outputSummary": "9 passed"
+        },
+        {
+          "command": "cd backend && python -m pytest ../tests/unit/test_polling.py ../tests/unit/test_fujiwa_polling_orchestration.py ../tests/unit/test_layer1_read_resources.py -q",
+          "exitCode": 0,
+          "outputSummary": "35 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — refactor pass after GREEN",
+      "passingTestEvidence": "Data-driven _PollStep loop replaces triplicated backoff+sync blocks; TikTokSyncStateRepo.save batches one SELECT; test run_poll fixture DRYs orchestrator tests",
+      "commands": [
+        {
+          "command": "cd backend && python -m pytest ../tests/unit/test_fujiwa_polling_orchestration.py ../tests/unit/test_polling.py -q",
+          "exitCode": 0,
+          "outputSummary": "26 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #298: added Fujiwa-only polling orchestration via run_fujiwa_poll_cycle — resolves production-read credentials, refreshes tokens, runs orders/products/returns sync workers with pagination (via Layer 1 resources), persists per-endpoint cursors in tiktok_sync_state, and backs off on rate limits without crashing the cycle.",
+  "assumptions": [
+    "Blocker #297 Layer 1 read resources are available on branch (ProductionReadClientFactory.create_resources)",
+    "Celery beat wiring is deferred — run_fujiwa_poll_cycle is the schedulable entry point",
+    "shop_key for ETL handoff uses internal shop UUID string"
+  ],
+  "risks": [
+    "Migration 009 must run before production poll cycles persist state",
+    "Rate-limit backoff sleeps in-process; long TTL windows may extend poll cycle duration"
+  ]
+}

@@ -34,6 +34,19 @@ class RateLimiter:
             return False
         return True
 
+    def is_exhausted(
+        self,
+        app_id: str,
+        shop_id: str,
+        endpoint: str,
+        max_requests: int,
+    ) -> bool:
+        """Return True when the bucket is at or above max_requests (read-only)."""
+        raw = self._redis.get(self._key(app_id, shop_id, endpoint))
+        if raw is None:
+            return False
+        return int(raw) >= max_requests
+
     def time_until_reset(self, app_id: str, shop_id: str, endpoint: str) -> int:
         """Seconds until the rate-limit window resets.  Returns 0 if no active window."""
         ttl_raw = self._redis.ttl(self._key(app_id, shop_id, endpoint))

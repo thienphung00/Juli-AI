@@ -1,0 +1,103 @@
+{
+  "id": "review-issue-298",
+  "issue": 298,
+  "timestamp": "2026-07-11T00:36:09Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Fujiwa polling orchestration (#298): run_fujiwa_poll_cycle wires production-read credential resolution, token refresh, orders/products/returns sync with rate-limit backoff, and tiktok_sync_state persistence. All three acceptance criteria mapped to tests; 35 unit tests pass; ruff clean. Refactor pass verified (_PollStep loop, batched repo save).",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/integrations/tiktok/rate_limiter.py",
+    "backend/src/juli_backend/database/migrations/versions/009_tiktok_sync_state.py",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "tests/unit/test_fujiwa_polling_orchestration.py"
+  ],
+  "interfaceChanges": [
+    {
+      "type": "added",
+      "symbol": "run_fujiwa_poll_cycle",
+      "module": "backend.workers.services.polling.orchestrate"
+    },
+    {
+      "type": "added",
+      "symbol": "FujiwaPollConfig",
+      "module": "backend.workers.services.polling.orchestrate"
+    },
+    {
+      "type": "added",
+      "symbol": "TikTokSyncState",
+      "module": "backend.models.models"
+    },
+    {
+      "type": "added",
+      "symbol": "TikTokSyncStateRepo",
+      "module": "backend.repositories.repos"
+    },
+    {
+      "type": "added",
+      "symbol": "RateLimiter.is_exhausted",
+      "module": "backend.integrations.tiktok.rate_limiter"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Fujiwa only \u2014 never SANDBOX_VN",
+          "test": "tests/unit/test_fujiwa_polling_orchestration.py::test_fujiwa_only_rejects_sandbox_credential"
+        },
+        {
+          "criterion": "Sync state persisted per endpoint",
+          "test": "tests/unit/test_fujiwa_polling_orchestration.py::test_persists_sync_state_per_endpoint"
+        },
+        {
+          "criterion": "Rate-limit backoff without worker crash",
+          "test": "tests/unit/test_fujiwa_polling_orchestration.py::test_completes_when_all_endpoints_rate_limited"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 35,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Wire run_fujiwa_poll_cycle to Celery beat when worker infra lands.",
+    "Run migration 009_tiktok_sync_state before first production poll cycle.",
+    "Add cycle-start/cycle-complete structured logs when observability slice lands."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "observabilityFindings": [
+    {
+      "severity": "INFO",
+      "description": "rate_limit_backoff logged per endpoint; no cycle-level start/complete log yet \u2014 deferred to worker wiring slice."
+    }
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-298.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": [],
+  "reviewDurationMs": 120000,
+  "phaseRunId": "2026-07-11T0031Z",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS"
+}
