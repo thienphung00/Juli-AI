@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 301,
+  "phaseRunId": "issue-301-benchmark-treatment-A-20260711T043600Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "backend",
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "docs/handoffs/phase-2-tiktok-implementation.md",
+    "docs/integrations/tiktok_api/contract-collection.md",
+    "docs/integrations/tiktok_api/endpoints.md",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "backend/src/juli_backend/integrations/tiktok/client.py",
+    "tests/unit/test_tiktok_capability_factories.py"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "tokenUsage": {
+    "total": 0
+  },
+  "tokenUsageUnavailableReason": "Platform telemetry not exposed to agent session; total recorded as 0 per schema minimum.",
+  "executionDurationMs": 1080000,
+  "phaseDurationsMs": {
+    "scopeMeta": null,
+    "executor": 960000,
+    "review": 180000,
+    "validate": 45000,
+    "harnessOptimization": 45000,
+    "total": 1080000,
+    "unavailableReason": "scopeMeta boundary not captured by platform timestamp; executor/review/validate durations from artifact fields; total is sum of recorded phases excluding unavailable scopeMeta."
+  },
+  "reviewFailures": 0,
+  "validationFailures": 0,
+  "retryCount": 1,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 74,
+  "baselineMetrics": {
+    "executionTimeMs": 1080000,
+    "tokenUsageTotal": 0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 83.67,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 1,
+    "toolInvocationCount": 74
+  },
+  "rootCauseCategory": "none",
+  "rootCause": "none",
+  "proposedOptimization": {
+    "summary": "Treatment A (no cache): add Focus routing hint for Layer 2 TikTok writes to preload factories.py + capabilities.py + contract-collection Layer 2 section only, reducing contract-collection full-file reads on cold scope.",
+    "changeType": "routing_hint",
+    "details": "Benchmark control run completed without prompt cache. Observed large contract-collection.md read during scope; a narrow issueLoadProfile for #301 could trim scope phase context without activating prompt-cache artifacts."
+  },
+  "configTarget": "agent-runtime.config.yml",
+  "expectedMetricImpact": [
+    {
+      "metric": "executionTimeMs",
+      "direction": "decrease",
+      "magnitude": "low"
+    },
+    {
+      "metric": "toolInvocationCount",
+      "direction": "decrease",
+      "magnitude": "low"
+    }
+  ],
+  "expectedImpact": "Minor scope-phase reduction for Layer 2 TikTok issues on cold runs.",
+  "harnessConfigTargets": [
+    "agent_runtime_config"
+  ],
+  "autoApplyEligible": true,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "implementation": "agent-runtime/artifacts/implementations/implementation-issue-301.json",
+    "review": "agent-runtime/artifacts/reviews/review-issue-301.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-301.json"
+  },
+  "benchmarkTreatment": "A-no-cache",
+  "cacheCondition": "disabled by explicit benchmark override"
+}

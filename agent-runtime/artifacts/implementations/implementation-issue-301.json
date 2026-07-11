@@ -1,0 +1,188 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 301,
+  "executorDomain": "backend",
+  "phaseRunId": "issue-301-benchmark-treatment-A-20260711T043600Z",
+  "startedAt": "2026-07-11T04:36:00Z",
+  "completedAt": "2026-07-11T04:52:00Z",
+  "executionDurationMs": 960000,
+  "tokenUsage": {
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 28,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 8,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 14,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Shell",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 6,
+      "stage": "scope"
+    },
+    {
+      "toolName": "Glob",
+      "count": 4,
+      "stage": "scope"
+    },
+    {
+      "toolName": "TodoWrite",
+      "count": 2,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 74,
+  "contextFilesLoaded": [
+    {
+      "path": ".cursor/skills/standalone/focus/SKILL.md",
+      "phase": "scope",
+      "reason": "Context routing",
+      "bytes": 15872
+    },
+    {
+      "path": ".cursor/skills/domain/backend/SKILL.md",
+      "phase": "executor",
+      "reason": "TDD executor domain",
+      "bytes": 3584
+    },
+    {
+      "path": "docs/handoffs/phase-2-tiktok-implementation.md",
+      "phase": "scope",
+      "reason": "P2-A1 handoff",
+      "bytes": 6144
+    },
+    {
+      "path": "docs/integrations/tiktok_api/contract-collection.md",
+      "phase": "scope",
+      "reason": "Layer 0 verified contracts",
+      "bytes": 98304
+    },
+    {
+      "path": "docs/integrations/tiktok_api/endpoints.md",
+      "phase": "scope",
+      "reason": "Layer 2 path reference",
+      "bytes": 28672
+    },
+    {
+      "path": "backend/src/juli_backend/integrations/tiktok/factories.py",
+      "phase": "executor",
+      "reason": "Factory extension point",
+      "bytes": 3584
+    },
+    {
+      "path": "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+      "phase": "executor",
+      "reason": "Sandbox allowlist",
+      "bytes": 5120
+    },
+    {
+      "path": "backend/src/juli_backend/integrations/tiktok/client.py",
+      "phase": "executor",
+      "reason": "HTTP client PUT support",
+      "bytes": 8192
+    },
+    {
+      "path": "tests/unit/test_tiktok_capability_factories.py",
+      "phase": "executor",
+      "reason": "Existing guard test patterns",
+      "bytes": 8192
+    }
+  ],
+  "skillsLoaded": [
+    {
+      "path": ".cursor/skills/standalone/focus/SKILL.md",
+      "phase": "scope"
+    },
+    {
+      "path": ".cursor/skills/domain/backend/SKILL.md",
+      "phase": "executor"
+    }
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/integrations/tiktok/constants.py",
+    "backend/src/juli_backend/integrations/tiktok/client.py",
+    "backend/src/juli_backend/integrations/tiktok/guarded_client.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "backend/src/juli_backend/integrations/tiktok/schemas.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/__init__.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/product_writes.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/fulfillment_writes.py",
+    "tests/unit/test_layer2_sandbox_write_resources.py",
+    "tests/unit/test_layer1_read_resources.py",
+    "docs/integrations/tiktok_api/samples/inventory-update-response.json",
+    "docs/integrations/tiktok_api/samples/product-create-response.json",
+    "docs/integrations/tiktok_api/samples/README.md",
+    "docs/handoffs/phase-2-tiktok-implementation.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_layer2_sandbox_write_resources.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_layer1_read_resources.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "SandboxWriteClientFactory.create_resources missing; Layer 2 test module import errors",
+      "passingTestEvidence": "test_create_resources_returns_write_bundle passes",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_layer2_sandbox_write_resources.py::TestSandboxWriteClientFactory::test_create_resources_returns_write_bundle -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "ProductWriteResource and FulfillmentWriteResource not implemented",
+      "passingTestEvidence": "11 Layer 2 sandbox write tests pass",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_layer2_sandbox_write_resources.py -q",
+          "exitCode": 0,
+          "outputSummary": "11 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "sparse sandbox test used non-numeric product_id rejected by guard regex",
+      "passingTestEvidence": "full Layer 2 suite green after numeric product_id fix",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_layer2_sandbox_write_resources.py -q",
+          "exitCode": 0,
+          "outputSummary": "11 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #301: Layer 2 sandbox write resources (inventory update, product create/edit, fulfillment ship/batch ship) wired exclusively via SandboxWriteClientFactory.create_resources(); production factory blocks write paths before signing; fixture-backed tests assert signing, HTTP status, TikTok code, and response parsing; promotion lifecycle omitted (contract TBD).",
+  "assumptions": [
+    "Benchmark override disables prompt caching \u2014 scope resolved via Focus + handoff without grill-cache artifacts",
+    "Edit product uses PUT per contract-collection \u00a718 pending full sandbox cURL verification",
+    "Promotion lifecycle endpoints \u00a720\u201323 remain TBD and are intentionally not implemented"
+  ],
+  "risks": [
+    "Fulfillment ship/package request bodies still TBD from API Testing Tool",
+    "Edit product response schema unverified \u2014 returns raw data dict",
+    "Create packages endpoint \u00a731 not implemented (path TBD)"
+  ]
+}

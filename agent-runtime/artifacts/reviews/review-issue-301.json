@@ -1,0 +1,61 @@
+{
+  "id": "review-issue-301",
+  "issue": 301,
+  "timestamp": "2026-07-11T04:40:47Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Layer 2 sandbox write resources (#301): SandboxWriteClientFactory.create_resources wires inventory/product/fulfillment write paths; production factory blocks writes before signing; fixture-backed tests assert signing, HTTP status, TikTok code, and parsing; technical validation table added to handoff. Promotion lifecycle omitted (contract TBD).",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/integrations/tiktok"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "production factory does not expose write resources",
+          "test": "tests/unit/test_layer2_sandbox_write_resources.py::test_production_factory_does_not_expose_write_resources"
+        },
+        {
+          "criterion": "create product matches verified contract",
+          "test": "tests/unit/test_layer2_sandbox_write_resources.py::test_create_product_matches_verified_contract"
+        },
+        {
+          "criterion": "technical validation documented in handoff",
+          "test": "tests/unit/test_layer2_sandbox_write_resources.py::test_technical_validation_documented_in_handoff"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 563,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "issue-301-benchmark-treatment-A-20260711T043600Z",
+  "reviewDurationMs": 180000,
+  "reviewFailures": 0,
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "none",
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-301.json"
+}
