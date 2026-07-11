@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 299,
+  "executorDomain": "data-platform",
+  "phaseRunId": "2026-07-11T0209Z",
+  "startedAt": "2026-07-11T01:58:00Z",
+  "completedAt": "2026-07-11T02:09:07Z",
+  "executionDurationMs": 667000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "ReadFile",
+      "count": 18,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "rg",
+      "count": 4,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Glob",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ApplyPatch",
+      "count": 11,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Shell",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "ReadLints",
+      "count": 1,
+      "stage": "refactor"
+    }
+  ],
+  "toolInvocationCount": 47,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/data-platform/SKILL.md",
+    "EXECUTION.md",
+    "docs/architecture/map.md",
+    "docs/architecture/system-design.md",
+    "docs/architecture/data-sources.md",
+    "docs/api/data-models/canonical-entities.md",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "backend/src/juli_backend/database/MODULE.md",
+    "backend/src/juli_backend/services/etl/consumer.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "tests/unit/test_etl.py",
+    "tests/unit/test_fujiwa_polling_orchestration.py"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend-executor",
+    "data-platform-executor"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/database/migrations/versions/010_canonical_product_fields.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/services/etl/consumer.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "tests/unit/test_etl.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-299.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_etl.py::test_etl_persists_canonical_product_and_repolls_idempotently",
+    "tests/unit/test_etl.py::test_etl_persists_canonical_order_and_repolls_idempotently",
+    "tests/unit/test_etl.py::test_etl_derives_item_swap_return_from_order_item_edge"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_etl.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Product canonical upsert test first failed because a newer re-poll DLQ'd on aware-vs-naive update_time comparison, then exposed product-channel payloads with id being routed as orders.",
+      "passingTestEvidence": "Canonical product fields persist and re-poll updates the same Product row by tiktok_product_id.",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_etl.py::test_etl_persists_canonical_product_and_repolls_idempotently -q",
+          "exitCode": 1,
+          "outputSummary": "failed: second product ingest returned DLQ"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_etl.py::test_etl_persists_canonical_product_and_repolls_idempotently -q",
+          "exitCode": 1,
+          "outputSummary": "failed: product payload routed through order id heuristic, leaving zero Product rows"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_etl.py::test_etl_persists_canonical_product_and_repolls_idempotently -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Canonical order re-poll test failed with AttributeError: Order had no order_value field.",
+      "passingTestEvidence": "Order ETL persists order_value, timing fields, cancel_reason, is_seller_fault, and keeps total_amount populated for legacy API compatibility.",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_etl.py::test_etl_persists_canonical_order_and_repolls_idempotently -q",
+          "exitCode": 1,
+          "outputSummary": "failed: Order object has no attribute order_value"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_etl.py::test_etl_persists_canonical_order_and_repolls_idempotently -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "Return edge test failed because a returned SKU different from the parent OrderItem SKU stayed return_type=other.",
+      "passingTestEvidence": "ETL now derives item_swap from persisted OrderItem edges when the return SKU differs from ordered SKU.",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_etl.py::test_etl_derives_item_swap_return_from_order_item_edge -q",
+          "exitCode": 1,
+          "outputSummary": "failed: expected item_swap, got other"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_etl.py::test_etl_derives_item_swap_return_from_order_item_edge -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A - refactor and regression pass after green cycles.",
+      "passingTestEvidence": "Relevant ETL, polling, Fujiwa orchestration, and TikTok mapping suites pass; changed files pass ruff and IDE diagnostics.",
+      "refactorEvidence": "Kept legacy API fields alongside canonical fields, normalized ETL timestamps centrally, and kept Fujiwa read-only orchestration unchanged.",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_etl.py tests/unit/test_polling.py tests/unit/test_fujiwa_polling_orchestration.py tests/unit/test_tiktok_mapping.py -q",
+          "exitCode": 0,
+          "outputSummary": "47 passed"
+        },
+        {
+          "command": "python -m ruff check backend/src/juli_backend/services/etl/transform.py backend/src/juli_backend/services/etl/consumer.py backend/src/juli_backend/integrations/tiktok/mapping.py backend/src/juli_backend/models/models.py backend/src/juli_backend/database/migrations/versions/010_canonical_product_fields.py tests/unit/test_etl.py",
+          "exitCode": 0,
+          "outputSummary": "All checks passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #299: normalized polled TikTok product and order payloads into canonical persistence fields with idempotent natural-key upserts, fixed product-channel dispatch and ETL timestamp normalization for re-polls, and derived item_swap return_type from persisted OrderItem edges. Fujiwa read-only polling remains the upstream handoff boundary.",
+  "assumptions": [
+    "The existing commerce tables remain backward-compatible for API routes, so canonical order_value is added alongside legacy total_amount.",
+    "Product canonical fields are nullable for existing rows and are populated by new ETL payloads.",
+    "Shop canonical metadata is provisioned by OAuth/Fujiwa credential flow; this slice normalizes polled Product, Order, OrderItem, and Return payloads."
+  ],
+  "risks": [
+    "Migration 010 must run after 009 before canonical product/order fields are available in Postgres.",
+    "Order status canonicalization maps TikTok operational statuses to the documented canonical enum; downstream code that filters raw TikTok statuses should use the canonical values for ETL-created rows.",
+    "Return item_swap derivation depends on parent OrderItem being ingested before Return; missing order item edges conservatively leave return_type unchanged."
+  ]
+}

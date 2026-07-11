@@ -21,14 +21,17 @@ TransformError = ValueError
 
 def _unix_to_datetime(value: Any) -> datetime:
     if isinstance(value, datetime):
-        return value
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(UTC).replace(tzinfo=None)
     if value is None:
         raise TransformError("missing update_time")
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(float(value), tz=UTC)
+        return datetime.fromtimestamp(float(value), tz=UTC).replace(tzinfo=None)
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return _unix_to_datetime(parsed)
         except ValueError as exc:
             raise TransformError(f"invalid datetime: {value}") from exc
     raise TransformError(f"unsupported update_time type: {type(value)}")
@@ -65,16 +68,47 @@ def _transform_order(body: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         or _nested_payment_amount(body.get("payment"))
         or 0
     )
+    order_value = Decimal(str(amount))
     return {
         "tiktok_order_id": str(order_id),
-        "status": str(status),
+        "status": _canonical_order_status(status),
         "buyer_id": body.get("buyer_id"),
-        "total_amount": Decimal(str(amount)),
+        "order_value": order_value,
+        "total_amount": order_value,
         "currency": str(body.get("currency") or "VND"),
+        "payment_time": _optional_datetime(body.get("payment_time")),
+        "ship_time": _optional_datetime(body.get("ship_time") or body.get("shipping_time")),
+        "delivery_time": _optional_datetime(
+            body.get("delivery_time") or body.get("delivered_time")
+        ),
+        "tiktok_created_at": _optional_datetime(body.get("create_time")),
+        "cancel_reason": body.get("cancel_reason"),
+        "is_seller_fault": body.get("is_seller_fault"),
         "update_time": _unix_to_datetime(
             body.get("update_time") or payload.get("timestamp")
         ),
     }
+
+
+def _optional_datetime(value: Any) -> datetime | None:
+    return _unix_to_datetime(value) if value is not None else None
+
+
+def _canonical_order_status(value: Any) -> str:
+    status = str(value or "").upper()
+    status_map = {
+        "UNPAID": "pending",
+        "AWAITING_SHIPMENT": "confirmed",
+        "PARTIALLY_SHIPPING": "confirmed",
+        "AWAITING_COLLECTION": "confirmed",
+        "IN_TRANSIT": "shipped",
+        "SHIPPED": "shipped",
+        "DELIVERED": "delivered",
+        "COMPLETED": "delivered",
+        "CANCELLED": "cancelled",
+        "RETURNED": "returned",
+    }
+    return status_map.get(status, str(value).lower())
 
 
 def _transform_order_item(
@@ -137,16 +171,43 @@ def _transform_product(body: dict[str, Any]) -> dict[str, Any]:
     product_id = body.get("product_id") or body.get("id")
     if not product_id:
         raise TransformError("product_id required")
+    price = body.get("price")
+    audit_status = _canonical_audit_status(body.get("audit_status") or body.get("status"))
     return {
         "tiktok_product_id": str(product_id),
+        "title": str(body.get("title") or body.get("name") or "Unknown"),
+        "category": body.get("category"),
+        "category_id": body.get("category_id"),
+        "price": Decimal(str(price)) if price is not None else None,
+        "price_currency": body.get("price_currency") or "VND",
+        "inventory": (
+            _coerce_int(body["inventory"]) if body.get("inventory") is not None else None
+        ),
+        "audit_status": audit_status,
+        "tiktok_created_at": (
+            _unix_to_datetime(body["create_time"]) if body.get("create_time") else None
+        ),
         "name": str(body.get("name") or body.get("title") or "Unknown"),
-        "status": str(body.get("status") or "ACTIVE"),
+        "status": str(body.get("status") or audit_status or "ACTIVE"),
         "revenue": Decimal(str(body.get("revenue", 0))),
         "units_sold": int(body.get("units_sold", 0)),
         "update_time": _unix_to_datetime(
             body.get("updated_at") or body.get("update_time")
         ),
     }
+
+
+def _canonical_audit_status(value: Any) -> str:
+    status = str(value or "active").lower()
+    if status in {"on_sale", "active", "approved"}:
+        return "active"
+    if status in {"under_audit", "auditing", "reviewing"}:
+        return "under_audit"
+    if status in {"suspended", "blocked"}:
+        return "suspended"
+    if status in {"delisted", "inactive", "deleted"}:
+        return "delisted"
+    return status
 
 
 def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
@@ -248,6 +309,7 @@ def transform_for_channel(
             (body.get("order_id") or body.get("id"))
             and not body.get("return_id")
             and channel != "tiktok.order_items.raw"
+            and channel != "tiktok.products.raw"
         )
     ):
         return "order", _transform_order(normalize_order(body), payload)

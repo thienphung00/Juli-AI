@@ -14,7 +14,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import Order
+from juli_backend.models.models import Order, OrderItem
 from juli_backend.repositories.repos import (
     CreatorsRepo,
     InventoryRepo,
@@ -192,6 +192,12 @@ class EtlConsumer:
         elif entity_kind == "return" and kwargs.get("tiktok_order_id"):
             order_pk = await self._lookup_order_id(shop_id, kwargs["tiktok_order_id"])
             kwargs["order_id"] = order_pk
+            if order_pk is not None:
+                kwargs["return_type"] = await self._derive_return_type(
+                    shop_id=shop_id,
+                    order_id=order_pk,
+                    kwargs=kwargs,
+                )
 
         repos: dict[str, _UpsertRepo] = {
             "order": self._orders,
@@ -223,6 +229,30 @@ class EtlConsumer:
         if order_pk is None:
             raise TransformError(f"parent order not found: {tiktok_order_id}")
         return order_pk
+
+    async def _derive_return_type(
+        self, *, shop_id: Any, order_id: Any, kwargs: dict[str, Any]
+    ) -> str:
+        current = kwargs.get("return_type") or "other"
+        if current != "other":
+            return str(current)
+
+        returned_sku = kwargs.get("tiktok_sku_id")
+        if not returned_sku:
+            return str(current)
+
+        stmt = select(OrderItem.tiktok_sku_id).where(
+            OrderItem.shop_id == shop_id,
+            OrderItem.order_id == order_id,
+        )
+        if kwargs.get("tiktok_product_id"):
+            stmt = stmt.where(OrderItem.tiktok_product_id == kwargs["tiktok_product_id"])
+
+        result = await self._session.execute(stmt)
+        ordered_skus = {sku for sku in result.scalars().all() if sku}
+        if ordered_skus and str(returned_sku) not in ordered_skus:
+            return "item_swap"
+        return str(current)
 
     async def _send_dlq(
         self,

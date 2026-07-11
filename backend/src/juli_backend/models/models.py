@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Index, Numeric, String, Text, func
+from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from juli_backend.orm_base import Base
@@ -116,8 +116,15 @@ class Order(Base):
     tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     buyer_id: Mapped[str | None] = mapped_column(String(100))
+    order_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     total_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False)
+    payment_time: Mapped[datetime | None] = mapped_column()
+    ship_time: Mapped[datetime | None] = mapped_column()
+    delivery_time: Mapped[datetime | None] = mapped_column()
+    tiktok_created_at: Mapped[datetime | None] = mapped_column()
+    cancel_reason: Mapped[str | None] = mapped_column(String(500))
+    is_seller_fault: Mapped[bool | None] = mapped_column(Boolean())
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -216,6 +223,14 @@ class Product(Base):
         ForeignKey("shops.id"), nullable=False
     )
     tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(500))
+    category: Mapped[str | None] = mapped_column(String(200))
+    category_id: Mapped[str | None] = mapped_column(String(100))
+    price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    price_currency: Mapped[str | None] = mapped_column(String(10))
+    inventory: Mapped[int | None] = mapped_column()
+    audit_status: Mapped[str | None] = mapped_column(String(30))
+    tiktok_created_at: Mapped[datetime | None] = mapped_column()
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     revenue: Mapped[Decimal] = mapped_column(
