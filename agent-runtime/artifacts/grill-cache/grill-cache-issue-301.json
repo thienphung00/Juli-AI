@@ -4,8 +4,8 @@
   "issueId": 301,
   "parentIssueId": 278,
   "parentCachePath": "agent-runtime/artifacts/grill-cache/parent-cache-issue-278.json",
-  "phaseRunId": "301-2026-07-11-b-setup",
-  "workflowPhase": "scope_alignment",
+  "phaseRunId": "301-2026-07-11-b-run",
+  "workflowPhase": "complete",
   "cacheStatus": "valid",
   "cacheBlockVersion": 1,
   "parentLinkage": {
@@ -89,9 +89,9 @@
   "phaseCacheBlocks": {
     "scope": "# Issue #301 -- Child scope (unique)\n\nSee promptCacheBlock. Full detail: agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md\n",
     "meta": "# Meta -- #301\n\n- Executor domain: backend\n- Context Plan: docs/integrations/tiktok_api/{contract-collection,endpoints}.md +\n  backend/src/juli_backend/integrations/tiktok/MODULE.md + handoff\n- Skills: backend (domain executor)\n- Gate: do not assign Executor until this cache's cacheStatus == valid (it is)\n",
-    "executor": "# Executor -- #301\n\n- MODULE: backend/src/juli_backend/integrations/tiktok/MODULE.md\n- Files in play: factories.py (add create_resources), client.py (add put()),\n  resources/products.py (add create/edit), new resources/fulfillment.py,\n  constants.py (add product create/edit + fulfillment path helpers)\n- TDD scope: one red test per write path from contract-collection.md #14-41\n  (excluding #20-23 promotion, deferred)\n- Do not touch ProductionReadClientFactory / ProductionReadResources\n",
-    "review": "# Review -- #301\n\n- Acceptance mapping: write-unreachable-from-production, matches-Layer-0-contracts,\n  technical-validation-documented\n- Modules touched: integrations/tiktok only\n- Check: every new write path appears in capabilities.SANDBOX_ALLOWED_REQUESTS\n  before use; no new path is invented for promotion\n",
-    "validate": "# Validate -- #301\n\n- Gate list: unit tests green, no production-factory regression, coverage threshold\n  met, technical validation evidence present in implementation artifact\n- Command: pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing\n  --cov-fail-under=80\n"
+    "executor": "# Executor -- #301 (complete)\n\n- MODULE: backend/src/juli_backend/integrations/tiktok/MODULE.md\n- Shipped: SandboxWriteResources + create_resources(); TikTokClient.put(); FulfillmentResource;\n  ProductsResource.create/edit; inventory update warehouse_id optional\n- Tests: tests/unit/test_tiktok_sandbox_write_contract.py (17 tests)\n- Promotion (#20-23) deferred per resolvedDecisions\n",
+    "review": "# Review -- #301 (complete)\n\n- PASS: write-unreachable-from-production, Layer-0 path alignment, technical-validation-documented\n- 566 tests, 83.71% coverage\n",
+    "validate": "# Validate -- #301 (complete)\n\n- PASS: pytest tests/ --cov-fail-under=80; review artifact PASS\n- Artifact: agent-runtime/artifacts/validation/validation-issue-301.json\n"
   },
   "harnessUtility": {
     "skills": [
@@ -124,6 +124,6 @@
     { "path": "agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md", "fingerprint": "bb21bc91ba1629c4d4a4313f343ea774b2086917" }
   ],
   "scopeAlignmentPath": "agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md",
-  "lastValidatedAt": "2026-07-11T04:00:00Z",
-  "lastGrillSessionAt": "2026-07-11T04:00:00Z"
+  "lastValidatedAt": "2026-07-11T04:42:00Z",
+  "lastGrillSessionAt": "2026-07-11T04:42:00Z"
 }

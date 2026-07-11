@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "id": "review-issue-301",
+  "issue": 301,
+  "phaseRunId": "301-2026-07-11-b-run",
+  "treatment": "B",
+  "timestamp": "2026-07-11T04:41:10Z",
+  "reviewedBy": "review phase cache block",
+  "status": "PASS",
+  "reviewStatus": "PASS",
+  "summary": "Layer 2 sandbox writes (#301): SandboxWriteClientFactory.create_resources wires inventory/products/fulfillment; production factory does not expose fulfillment/inventory bundle; all write paths in capabilities.SANDBOX_ALLOWED_REQUESTS; promotion paths not invented; 17 new contract tests plus updated layer1 factory isolation test.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/integrations/tiktok/client.py",
+    "backend/src/juli_backend/integrations/tiktok/constants.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "backend/src/juli_backend/integrations/tiktok/guarded_client.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/fulfillment.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/inventory.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/products.py",
+    "tests/unit/test_tiktok_sandbox_write_contract.py"
+  ],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Write resources unreachable from production factory",
+          "tests": [
+            "tests/unit/test_tiktok_sandbox_write_contract.py::TestSandboxWriteClientFactoryResources::test_production_factory_does_not_expose_sandbox_write_resources",
+            "tests/unit/test_tiktok_sandbox_write_contract.py::TestInventoryUpdateContract::test_inventory_update_blocked_on_production",
+            "tests/unit/test_tiktok_sandbox_write_contract.py::TestProductCreateEditContract::test_create_product_blocked_on_production"
+          ]
+        },
+        {
+          "criterion": "Matches Layer 0 contracts from #287, #289, #291",
+          "tests": [
+            "tests/unit/test_tiktok_sandbox_write_contract.py::TestInventoryUpdateContract",
+            "tests/unit/test_tiktok_sandbox_write_contract.py::TestProductCreateEditContract",
+            "tests/unit/test_tiktok_sandbox_write_contract.py::TestFulfillmentWriteContract"
+          ],
+          "notes": "Promotion (#289) deferred — paths TBD in contract-collection.md #20-23"
+        },
+        {
+          "criterion": "Technical validation documented per handoff",
+          "tests": [
+            "tests/unit/test_tiktok_sandbox_write_contract.py::TestTechnicalValidationDocumentation"
+          ]
+        }
+      ]
+    }
+  },
+  "securityFindings": [],
+  "architectureFindings": [],
+  "approvalReady": true,
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-301.json"
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 301,
+  "phaseRunId": "301-2026-07-11-b-run",
+  "treatment": "B",
+  "completedAt": "2026-07-11T04:42:00Z",
+  "summary": "Child grill-cache phase blocks updated to complete workflow; executor block confirmed accurate for fulfillment.py + create_resources; no parent cache changes required.",
+  "parentCacheChanged": false,
+  "childCacheUpdates": [
+    "workflowPhase: complete",
+    "phaseCacheBlocks.executor appended with completion note",
+    "phaseCacheBlocks.review finalized",
+    "phaseCacheBlocks.validate finalized"
+  ],
+  "harnessRecommendations": [
+    "Keep promotion deferral in child cache resolvedDecisions — prevents A/B drift on #289 TBD paths.",
+    "Fingerprint algorithm is git hash-object (blob), not sha256 — document in prompt-caching REFERENCE to avoid false stale detection."
+  ],
+  "measurementBoundaryEnd": "2026-07-11T04:42:00Z"
+}

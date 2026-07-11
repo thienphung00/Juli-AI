@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "validation",
+  "id": "validation-issue-301",
+  "issue": 301,
+  "phaseRunId": "301-2026-07-11-b-run",
+  "treatment": "B",
+  "timestamp": "2026-07-11T04:41:42Z",
+  "validatedBy": "validate phase cache block",
+  "status": "PASS",
+  "validationFailures": 0,
+  "readyForShip": true,
+  "testsExecuted": 566,
+  "testsPassed": 566,
+  "testsFailed": 0,
+  "testsSkipped": 0,
+  "coveragePercentage": 83.71,
+  "testCommand": "pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing --cov-fail-under=80",
+  "checks": [
+    {
+      "name": "unit_tests_green",
+      "status": "PASS",
+      "details": "566 passed, 0 failed"
+    },
+    {
+      "name": "coverage_threshold",
+      "status": "PASS",
+      "details": "83.71% >= 80%"
+    },
+    {
+      "name": "production_factory_regression",
+      "status": "PASS",
+      "details": "test_tiktok_capability_factories and test_layer1_read_resources pass"
+    },
+    {
+      "name": "technical_validation_evidence",
+      "status": "PASS",
+      "details": "implementation artifact technicalValidation block + contract tests"
+    }
+  ],
+  "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-301.json",
+  "retryCount": 0
+}
