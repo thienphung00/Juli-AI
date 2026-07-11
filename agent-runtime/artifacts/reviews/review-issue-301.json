@@ -19,7 +19,7 @@
     "backend/src/juli_backend/integrations/tiktok/resources/fulfillment.py",
     "backend/src/juli_backend/integrations/tiktok/resources/inventory.py",
     "backend/src/juli_backend/integrations/tiktok/resources/products.py",
-    "tests/unit/test_tiktok_sandbox_write_contract.py"
+    "tests/unit/test_layer2_sandbox_write_contract.py"
   ],
   "testCoverage": {
     "acceptance": {
@@ -30,24 +30,24 @@
         {
           "criterion": "Write resources unreachable from production factory",
           "tests": [
-            "tests/unit/test_tiktok_sandbox_write_contract.py::TestSandboxWriteClientFactoryResources::test_production_factory_does_not_expose_sandbox_write_resources",
-            "tests/unit/test_tiktok_sandbox_write_contract.py::TestInventoryUpdateContract::test_inventory_update_blocked_on_production",
-            "tests/unit/test_tiktok_sandbox_write_contract.py::TestProductCreateEditContract::test_create_product_blocked_on_production"
+            "tests/unit/test_layer2_sandbox_write_contract.py::TestSandboxWriteClientFactoryResources::test_production_factory_does_not_expose_sandbox_write_resources",
+            "tests/unit/test_layer2_sandbox_write_contract.py::TestInventoryUpdateContract::test_inventory_update_blocked_on_production",
+            "tests/unit/test_layer2_sandbox_write_contract.py::TestProductCreateEditContract::test_create_product_blocked_on_production"
           ]
         },
         {
           "criterion": "Matches Layer 0 contracts from #287, #289, #291",
           "tests": [
-            "tests/unit/test_tiktok_sandbox_write_contract.py::TestInventoryUpdateContract",
-            "tests/unit/test_tiktok_sandbox_write_contract.py::TestProductCreateEditContract",
-            "tests/unit/test_tiktok_sandbox_write_contract.py::TestFulfillmentWriteContract"
+            "tests/unit/test_layer2_sandbox_write_contract.py::TestInventoryUpdateContract",
+            "tests/unit/test_layer2_sandbox_write_contract.py::TestProductCreateEditContract",
+            "tests/unit/test_layer2_sandbox_write_contract.py::TestFulfillmentWriteContract"
           ],
           "notes": "Promotion (#289) deferred — paths TBD in contract-collection.md #20-23"
         },
         {
           "criterion": "Technical validation documented per handoff",
           "tests": [
-            "tests/unit/test_tiktok_sandbox_write_contract.py::TestTechnicalValidationDocumentation"
+            "tests/unit/test_layer2_sandbox_write_contract.py::TestTechnicalValidationDocumentation"
           ]
         }
       ]

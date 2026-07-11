@@ -89,7 +89,7 @@
   "phaseCacheBlocks": {
     "scope": "# Issue #301 -- Child scope (unique)\n\nSee promptCacheBlock. Full detail: agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md\n",
     "meta": "# Meta -- #301\n\n- Executor domain: backend\n- Context Plan: docs/integrations/tiktok_api/{contract-collection,endpoints}.md +\n  backend/src/juli_backend/integrations/tiktok/MODULE.md + handoff\n- Skills: backend (domain executor)\n- Gate: do not assign Executor until this cache's cacheStatus == valid (it is)\n",
-    "executor": "# Executor -- #301 (complete)\n\n- MODULE: backend/src/juli_backend/integrations/tiktok/MODULE.md\n- Shipped: SandboxWriteResources + create_resources(); TikTokClient.put(); FulfillmentResource;\n  ProductsResource.create/edit; inventory update warehouse_id optional\n- Tests: tests/unit/test_tiktok_sandbox_write_contract.py (17 tests)\n- Promotion (#20-23) deferred per resolvedDecisions\n",
+    "executor": "# Executor -- #301 (complete)\n\n- MODULE: backend/src/juli_backend/integrations/tiktok/MODULE.md\n- Shipped: SandboxWriteResources + create_resources(); TikTokClient.put(); FulfillmentResource;\n  ProductsResource.create/edit; inventory update warehouse_id optional\n- Tests: tests/unit/test_layer2_sandbox_write_contract.py (17 tests)\n- Promotion (#20-23) deferred per resolvedDecisions\n",
     "review": "# Review -- #301 (complete)\n\n- PASS: write-unreachable-from-production, Layer-0 path alignment, technical-validation-documented\n- 566 tests, 83.71% coverage\n",
     "validate": "# Validate -- #301 (complete)\n\n- PASS: pytest tests/ --cov-fail-under=80; review artifact PASS\n- Artifact: agent-runtime/artifacts/validation/validation-issue-301.json\n"
   },

@@ -56,11 +56,11 @@
     "backend/src/juli_backend/integrations/tiktok/resources/products.py",
     "backend/src/juli_backend/integrations/tiktok/resources/__init__.py",
     "backend/src/juli_backend/integrations/tiktok/MODULE.md",
-    "tests/unit/test_tiktok_sandbox_write_contract.py",
+    "tests/unit/test_layer2_sandbox_write_contract.py",
     "tests/unit/test_layer1_read_resources.py"
   ],
   "testsAdded": [
-    "tests/unit/test_tiktok_sandbox_write_contract.py"
+    "tests/unit/test_layer2_sandbox_write_contract.py"
   ],
   "testsUpdated": [
     "tests/unit/test_layer1_read_resources.py"
@@ -80,7 +80,7 @@
   "implementationSummary": "Layer 2 sandbox write resources behind SandboxWriteClientFactory.create_resources(): inventory update, product create/edit (PUT), fulfillment combine/ship/batch/split/uncombine, and supply-chain confirm shipment. ProductionReadClientFactory unchanged for write exposure. Promotion lifecycle (#289) deferred per cached scope decision.",
   "technicalValidation": {
     "bar": "signing, HTTP status, TikTok code, response parsing",
-    "evidence": "tests/unit/test_tiktok_sandbox_write_contract.py asserts HMAC sign param, raise_for_status path, ResourceNotFoundError on code 100004, and data payload parsing",
+    "evidence": "tests/unit/test_layer2_sandbox_write_contract.py asserts HMAC sign param, raise_for_status path, ResourceNotFoundError on code 100004, and data payload parsing",
     "promotionDeferred": "contract-collection.md #20-23 paths TBD — not implemented"
   },
   "assumptions": [

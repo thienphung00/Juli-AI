@@ -17,5 +17,11 @@
     "Keep promotion deferral in child cache resolvedDecisions — prevents A/B drift on #289 TBD paths.",
     "Fingerprint algorithm is git hash-object (blob), not sha256 — document in prompt-caching REFERENCE to avoid false stale detection."
   ],
-  "measurementBoundaryEnd": "2026-07-11T04:42:00Z"
+  "measurementBoundaryEnd": "2026-07-11T04:42:00Z",
+  "benchmarkExitGate": {
+    "allowed": true,
+    "reason": "Treatment B completed Scope/Meta through post-validation Harness Optimization per benchmark-plan.md timing boundary.",
+    "agentTestPath": "tests/unit/test_layer2_sandbox_write_contract.py",
+    "hiddenEvaluatorPathReserved": "tests/unit/test_tiktok_sandbox_write_contract.py"
+  }
 }
