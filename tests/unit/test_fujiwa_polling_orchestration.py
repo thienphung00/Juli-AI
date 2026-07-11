@@ -25,7 +25,7 @@ from juli_backend.integrations.tiktok.merchant import (
     SANDBOX_AUTH_ID,
     TikTokCapability,
 )
-from juli_backend.models.models import Shop, TikTokCredential, TikTokSyncState, User
+from juli_backend.models.models import Shop, TikTokSyncState, User
 from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
