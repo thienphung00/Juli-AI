@@ -205,6 +205,74 @@ async def test_etl_persists_return_record(session, shop, publish_dlq):
     assert ret.refund_amount == Decimal("50.00")
 
 
+async def test_etl_derives_item_swap_return_from_order_item_edge(
+    session, shop, publish_dlq
+):
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.orders.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps({
+                "order_id": "ord-swap",
+                "status": "DELIVERED",
+                "total_amount": "80.00",
+                "currency": "VND",
+                "update_time": 1_700_000_500,
+                "event_id": "evt-order-swap",
+            }).encode(),
+        )
+    )
+    await session.commit()
+
+    consumer2 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    await consumer2.ingest(
+        IngestRecord(
+            channel="tiktok.order_items.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps({
+                "tiktok_order_id": "ord-swap",
+                "product_id": "prod-swap",
+                "sku_id": "sku-ordered",
+                "quantity": 1,
+                "unit_price": "80.00",
+                "update_time": 1_700_000_510,
+                "event_id": "evt-order-swap-line",
+            }).encode(),
+        )
+    )
+    await session.commit()
+
+    consumer3 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    outcome = await consumer3.ingest(
+        IngestRecord(
+            channel="tiktok.returns.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps({
+                "return_id": "ret-swap",
+                "order_id": "ord-swap",
+                "buyer_id": "buyer-x",
+                "product_id": "prod-swap",
+                "sku_id": "sku-returned",
+                "refund_amount": "80.00",
+                "return_condition": "unknown",
+                "status": "approved",
+                "update_time": 1_700_000_600,
+                "event_id": "evt-ret-swap",
+            }).encode(),
+        )
+    )
+    assert outcome == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    from juli_backend.models.models import Return
+
+    result = await session.execute(select(Return).where(Return.tiktok_return_id == "ret-swap"))
+    ret = result.scalar_one()
+    assert ret.order_id is not None
+    assert ret.return_type == "item_swap"
+
+
 async def test_etl_accepts_official_tiktok_order_shape(session, shop, publish_dlq):
     """Versioned API returns id, user_id, payment.total_amount — not legacy handoff names."""
     consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
@@ -228,6 +296,130 @@ async def test_etl_accepts_official_tiktok_order_shape(session, shop, publish_dl
     assert len(orders) == 1
     assert orders[0].tiktok_order_id == "577000000000099"
     assert orders[0].total_amount == Decimal("250.00")
+
+
+async def test_etl_persists_canonical_product_and_repolls_idempotently(
+    session, shop, publish_dlq
+):
+    from juli_backend.models.models import Product
+
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    first_payload = {
+        "id": "prod-canonical-1",
+        "title": "Canonical Widget",
+        "category": "Household",
+        "category_id": "cat-1",
+        "skus": [
+            {
+                "price": {"sale_price": "199000.00", "currency": "VND"},
+                "inventory": [{"quantity": 7}],
+            }
+        ],
+        "audit": {"status": "ON_SALE"},
+        "create_time": 1_700_000_000,
+        "update_time": 1_700_000_100,
+    }
+    updated_payload = {
+        **first_payload,
+        "title": "Canonical Widget Updated",
+        "skus": [
+            {
+                "price": {"sale_price": "219000.00", "currency": "VND"},
+                "inventory": [{"quantity": 5}],
+            }
+        ],
+        "update_time": 1_700_000_200,
+    }
+
+    assert await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.products.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(first_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    consumer2 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    assert await consumer2.ingest(
+        IngestRecord(
+            channel="tiktok.products.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(updated_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    result = await session.execute(select(Product))
+    products = result.scalars().all()
+    assert len(products) == 1
+    product = products[0]
+    assert product.tiktok_product_id == "prod-canonical-1"
+    assert product.title == "Canonical Widget Updated"
+    assert product.category == "Household"
+    assert product.category_id == "cat-1"
+    assert product.price == Decimal("219000.00")
+    assert product.price_currency == "VND"
+    assert product.inventory == 5
+    assert product.audit_status == "active"
+
+
+async def test_etl_persists_canonical_order_and_repolls_idempotently(
+    session, shop, publish_dlq
+):
+    from juli_backend.models.models import Order
+
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    first_payload = {
+        "id": "order-canonical-1",
+        "user_id": "buyer_masked_1",
+        "order_status": "AWAITING_SHIPMENT",
+        "payment": {"total_amount": "150000.00", "currency": "VND"},
+        "payment_time": 1_700_000_010,
+        "create_time": 1_700_000_000,
+        "update_time": 1_700_000_100,
+    }
+    updated_payload = {
+        **first_payload,
+        "order_status": "CANCELLED",
+        "payment": {"total_amount": "175000.00", "currency": "VND"},
+        "cancellation_initiator": "SELLER",
+        "cancel_reason": "OUT_OF_STOCK",
+        "update_time": 1_700_000_200,
+    }
+
+    assert await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.orders.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(first_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    consumer2 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    assert await consumer2.ingest(
+        IngestRecord(
+            channel="tiktok.orders.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(updated_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    result = await session.execute(select(Order))
+    orders = result.scalars().all()
+    assert len(orders) == 1
+    order = orders[0]
+    assert order.tiktok_order_id == "order-canonical-1"
+    assert order.buyer_id == "buyer_masked_1"
+    assert order.order_value == Decimal("175000.00")
+    assert order.total_amount == Decimal("175000.00")
+    assert order.payment_time == datetime.fromtimestamp(
+        1_700_000_010, tz=timezone.utc
+    ).replace(tzinfo=None)
+    assert order.cancel_reason == "OUT_OF_STOCK"
+    assert order.is_seller_fault is True
 
 
 async def test_etl_processes_event_within_latency_budget(

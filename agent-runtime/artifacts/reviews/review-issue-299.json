@@ -1,0 +1,109 @@
+{
+  "id": "review-issue-299",
+  "issue": 299,
+  "timestamp": "2026-07-11T02:20:36Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "ETL normalization (#299): polled TikTok product/order/return payloads map to canonical persistence fields with idempotent natural-key upserts. Product-channel dispatch fix, centralized timestamp normalization, and item_swap derivation from OrderItem edges are covered by TDD. 47 related unit tests pass; ruff clean. Migration 010 adds nullable canonical columns with reversible downgrade.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/database/migrations/versions/010_canonical_product_fields.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/services/etl/consumer.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "tests/unit/test_etl.py"
+  ],
+  "interfaceChanges": [
+    {
+      "type": "added",
+      "symbol": "Order.order_value",
+      "module": "backend.models.models"
+    },
+    {
+      "type": "added",
+      "symbol": "Order.payment_time",
+      "module": "backend.models.models"
+    },
+    {
+      "type": "added",
+      "symbol": "Product.title",
+      "module": "backend.models.models"
+    },
+    {
+      "type": "added",
+      "symbol": "Product.audit_status",
+      "module": "backend.models.models"
+    },
+    {
+      "type": "modified",
+      "symbol": "transform_for_channel",
+      "module": "backend.services.etl.transform",
+      "description": "Product-channel routing guard; canonical order/product transforms"
+    },
+    {
+      "type": "modified",
+      "symbol": "EtlConsumer._derive_return_type",
+      "module": "backend.services.etl.consumer",
+      "description": "Derives item_swap when returned SKU differs from persisted OrderItem"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Canonical mapping matches canonical-entities.md",
+          "test": "tests/unit/test_etl.py::test_etl_persists_canonical_product_and_repolls_idempotently"
+        },
+        {
+          "criterion": "Re-poll idempotent upsert",
+          "test": "tests/unit/test_etl.py::test_etl_persists_canonical_order_and_repolls_idempotently"
+        },
+        {
+          "criterion": "ETL receives read client only (Fujiwa)",
+          "test": "tests/unit/test_fujiwa_polling_orchestration.py::test_fujiwa_only_rejects_sandbox_credential"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 47,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Run migration 010_canonical_product_fields after 009 before ETL persists canonical columns.",
+    "Assert order status canonicalization (e.g. CANCELLED -> cancelled) in order re-poll test.",
+    "Return item_swap edge test covers canonical Return derivation; keep ingest order (order -> order_item -> return) in polling orchestration."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "observabilityFindings": [
+    {
+      "severity": "INFO",
+      "description": "item_swap derivation is silent \u2014 consider structured log when SKU mismatch promotes return_type from other to item_swap."
+    }
+  ],
+  "maintainabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-299.json",
+  "phaseRunId": "2026-07-11T0209Z",
+  "reviewDurationMs": 180000,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "suggestedRemediation": []
+}

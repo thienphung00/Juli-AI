@@ -112,7 +112,76 @@ def normalize_product(raw: dict[str, Any]) -> dict[str, Any]:
         if title is not None:
             result["name"] = title
 
+    if not result.get("title") and result.get("name"):
+        result["title"] = result["name"]
+
+    if result.get("price") is None or result.get("inventory") is None:
+        sku = _first_dict(result.get("skus"))
+        if sku is not None:
+            if result.get("price") is None:
+                price = _extract_sku_price(sku)
+                if price is not None:
+                    result["price"] = price
+            if result.get("price_currency") is None:
+                currency = _extract_sku_currency(sku)
+                if currency is not None:
+                    result["price_currency"] = currency
+            if result.get("inventory") is None:
+                inventory = _sum_sku_inventory(sku)
+                if inventory is not None:
+                    result["inventory"] = inventory
+
+    if result.get("price_currency") is None:
+        result["price_currency"] = "VND"
+
     return result
+
+
+def _first_dict(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, list) and value and isinstance(value[0], dict):
+        return value[0]
+    if isinstance(value, dict):
+        return value
+    return None
+
+
+def _extract_sku_price(sku: dict[str, Any]) -> Any:
+    price = sku.get("price")
+    if isinstance(price, dict):
+        return (
+            price.get("sale_price")
+            or price.get("list_price")
+            or price.get("original_price")
+            or price.get("amount")
+        )
+    return price
+
+
+def _extract_sku_currency(sku: dict[str, Any]) -> Any:
+    price = sku.get("price")
+    if isinstance(price, dict):
+        return price.get("currency")
+    return sku.get("currency")
+
+
+def _sum_sku_inventory(sku: dict[str, Any]) -> int | None:
+    inventory = sku.get("inventory")
+    if isinstance(inventory, list):
+        total = 0
+        seen = False
+        for row in inventory:
+            if not isinstance(row, dict):
+                continue
+            quantity = row.get("quantity") or row.get("available_quantity")
+            if quantity is None:
+                continue
+            total += int(quantity)
+            seen = True
+        return total if seen else None
+    if isinstance(inventory, dict):
+        quantity = inventory.get("quantity") or inventory.get("available_quantity")
+        return int(quantity) if quantity is not None else None
+    return int(inventory) if inventory is not None else None
 
 
 def derive_return_type(
