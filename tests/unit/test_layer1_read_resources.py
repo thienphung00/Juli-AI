@@ -8,11 +8,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from juli_backend.integrations.tiktok.capabilities import PRODUCTION_AUTH_ID
+from juli_backend.integrations.tiktok.capabilities import PRODUCTION_AUTH_ID, SANDBOX_AUTH_ID
 from juli_backend.integrations.tiktok.factories import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
     SandboxWriteClientFactory,
+    SandboxWriteResources,
 )
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource
@@ -140,7 +141,18 @@ def test_fujiwa_production_read_factory_only():
     assert isinstance(resources.orders, OrdersResource)
     assert isinstance(resources.products, ProductsResource)
     assert isinstance(resources.returns, ReturnsResource)
-    assert not hasattr(SandboxWriteClientFactory(), "create_resources")
+    assert not hasattr(resources, "fulfillment")
+    assert not hasattr(resources, "inventory")
+    sandbox_resources = SandboxWriteClientFactory().create_resources(
+        ClientFactoryConfig(
+            app_key="app-key",
+            app_secret="app-secret",
+            access_token="access-token",
+            merchant_auth_id=SANDBOX_AUTH_ID,
+            shop_cipher="ROW_sandboxcipher12",
+        )
+    )
+    assert isinstance(sandbox_resources, SandboxWriteResources)
 
 
 def test_one_pytest_per_resource_with_fixture_backed_parsing():

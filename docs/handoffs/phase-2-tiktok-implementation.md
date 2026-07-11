@@ -117,7 +117,10 @@ Normalize to canonical entities; idempotent Postgres upserts.
 SQL/Python feature aggregates over synced production data. SPS consumed only if verified API contract.
 
 ### Step 10 — Layer 2 sandbox write resources
-Behind sandbox factory only. Record contract fixtures for inventory, product, promotion, fulfillment candidates.
+Behind `SandboxWriteClientFactory.create_resources()` only (#301). Inventory update,
+product create/edit, fulfillment combine/ship/batch/split/uncombine, supply-chain
+confirm shipment. Promotion lifecycle (#289) deferred until Layer 0 verifies paths.
+Technical validation bar: signing, HTTP status, TikTok code, response parsing.
 
 ### Step 11 — Layer 3 mock integration tests
 Retries, idempotency, webhook handoff, sync state, DB updates.

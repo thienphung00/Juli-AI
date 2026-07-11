@@ -20,6 +20,8 @@ API plus OAuth lifecycle management.
 - `TikTokClient.get(path, params) -> dict` — signed GET, returns `data` payload
 - `TikTokClient.post(path, body, params) -> dict` — signed POST, returns `data`
   payload
+- `TikTokClient.put(path, body, params) -> dict` — signed PUT, returns `data`
+  payload
 - `TikTokClient.get_all_pages(path, body, items_key, page_size) -> list[dict]`
   — auto-paginate a cursor-based POST endpoint
 
@@ -36,8 +38,9 @@ API plus OAuth lifecycle management.
 
 ### Resources (`resources/`)
 - `OrdersResource(client)` — search / search_all / get_details
-- `ProductsResource(client)` — search / search_all / get_details
+- `ProductsResource(client)` — search / search_all / get_details / create / edit
 - `InventoryResource(client)` — Product API inventory search / update
+- `FulfillmentResource(client)` — combine / ship / batch_ship / split / uncombine / confirm_shipment
 - `CreatorsResource(client)` — list / list_all / get (Affiliate API, requires
   per-seller scope approval)
 - `LivestreamsResource(client)` — list / list_all / get (post-stream summaries

@@ -14,6 +14,7 @@ from juli_backend.integrations.tiktok.resources.authorization import (  # noqa: 
     AuthorizationResource,
 )
 from juli_backend.integrations.tiktok.resources.creators import CreatorsResource  # noqa: E402
+from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentResource  # noqa: E402
 from juli_backend.integrations.tiktok.resources.inventory import InventoryResource  # noqa: E402
 from juli_backend.integrations.tiktok.resources.livestreams import LivestreamsResource  # noqa: E402
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource  # noqa: E402
@@ -28,6 +29,7 @@ __all__ = [
     "ProductsResource",
     "ReturnsResource",
     "InventoryResource",
+    "FulfillmentResource",
     "CreatorsResource",
     "LivestreamsResource",
     "SettlementsResource",

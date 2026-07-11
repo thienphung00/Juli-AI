@@ -7,6 +7,8 @@ Inventory API family.
 
 from __future__ import annotations
 
+from typing import Any
+
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import (
     INVENTORY_SEARCH_PATH,
@@ -36,21 +38,19 @@ class InventoryResource:
         *,
         product_id: str,
         sku_id: str,
-        warehouse_id: str,
         quantity: int,
+        warehouse_id: str | None = None,
     ) -> dict:
+        inventory_entry: dict[str, Any] = {"quantity": quantity}
+        if warehouse_id is not None:
+            inventory_entry["warehouse_id"] = warehouse_id
         return self._client.post(
             product_inventory_update_path(product_id),
             body={
                 "skus": [
                     {
                         "id": sku_id,
-                        "inventory": [
-                            {
-                                "warehouse_id": warehouse_id,
-                                "quantity": quantity,
-                            }
-                        ],
+                        "inventory": [inventory_entry],
                     }
                 ]
             },
