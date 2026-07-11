@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "evaluator_red_baseline",
+  "issueId": 301,
+  "evaluatorBranch": "experiment/301-evaluator",
+  "ranAgainstSha": "28f219f",
+  "testCommand": "pytest tests/unit/test_tiktok_sandbox_write_contract.py -v --tb=short",
+  "result": {
+    "collected": 36,
+    "passed": 18,
+    "failed": 18,
+    "skipped": 0
+  },
+  "redConfirmation": {
+    "allFailuresAttributableTo": "AttributeError: 'SandboxWriteClientFactory' object has no attribute 'create_resources'",
+    "isSetupError": false,
+    "explanation": "Every failing test reaches SandboxWriteClientFactory().create_resources(config), which does not exist at this SHA. This is the single missing #301 integration point (resource wiring behind the factory) -- not a fixture, import-path, or test-authoring mistake. The 18 passing tests exercise pre-existing #295 guard/isolation infrastructure (production-factory rejection, capability separation, auth-id checks) that #301 must not regress but did not need to add."
+  },
+  "passingTestsPreExistFrom": "#295 (capability factories) and #296 (credential isolation) -- not #301",
+  "failingTestGroups": [
+    "TestSandboxReachableOnlyViaFactory (create_resources missing)",
+    "TestInventoryUpdateContract (depends on create_resources)",
+    "TestProductPublishEditContract (depends on create_resources; also requires new ProductsResource.create/.edit and TikTokClient.put)",
+    "TestPromotionLifecycleDeferredUntilVerified::test_promotion_resource_group_is_optional_until_layer0_verified (depends on create_resources; skip path itself unreachable pre-#301)",
+    "TestFulfillmentPackageShipContract (depends on create_resources; also requires a new fulfillment resource module)",
+    "TestNoProductionCredentialEntersSandboxWriteValidation::test_guarded_client_capability_never_silently_downgrades (depends on create_resources)"
+  ],
+  "notes": "Recorded once, at EVALUATOR_SHA commit time, against COMMON_SHA. Not re-run automatically -- treatments must not see this file or the test source before their run completes."
+}
