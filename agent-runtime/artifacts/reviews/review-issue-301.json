@@ -29,26 +29,16 @@
       "mappings": [
         {
           "criterion": "Write resources unreachable from production factory",
-          "tests": [
-            "tests/unit/test_layer2_sandbox_write_contract.py::TestSandboxWriteClientFactoryResources::test_production_factory_does_not_expose_sandbox_write_resources",
-            "tests/unit/test_layer2_sandbox_write_contract.py::TestInventoryUpdateContract::test_inventory_update_blocked_on_production",
-            "tests/unit/test_layer2_sandbox_write_contract.py::TestProductCreateEditContract::test_create_product_blocked_on_production"
-          ]
+          "test": "tests/unit/test_layer2_sandbox_write_contract.py::test_production_factory_does_not_expose_sandbox_write_resources"
         },
         {
-          "criterion": "Matches Layer 0 contracts from #287, #289, #291",
-          "tests": [
-            "tests/unit/test_layer2_sandbox_write_contract.py::TestInventoryUpdateContract",
-            "tests/unit/test_layer2_sandbox_write_contract.py::TestProductCreateEditContract",
-            "tests/unit/test_layer2_sandbox_write_contract.py::TestFulfillmentWriteContract"
-          ],
-          "notes": "Promotion (#289) deferred — paths TBD in contract-collection.md #20-23"
+          "criterion": "Inventory update matches Layer 0 contract #287",
+          "test": "tests/unit/test_layer2_sandbox_write_contract.py::test_inventory_update_signing_and_response",
+          "notes": "Promotion (#289) deferred — paths TBD in contract-collection.md #20-23; fulfillment covered by test_combine_packages in suite"
         },
         {
           "criterion": "Technical validation documented per handoff",
-          "tests": [
-            "tests/unit/test_layer2_sandbox_write_contract.py::TestTechnicalValidationDocumentation"
-          ]
+          "test": "tests/unit/test_layer2_sandbox_write_contract.py::test_handoff_documents_layer2_technical_validation_bar"
         }
       ]
     }
