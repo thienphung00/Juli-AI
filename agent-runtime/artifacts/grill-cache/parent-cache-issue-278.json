@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "parent_cache",
+  "parentIssueId": 278,
+  "cacheBlockVersion": 1,
+  "parentScopeBlock": "# Parent #278 -- Phase 2: Contract-first TikTok Shop read sync and sandbox write validation\n\n(Constant for all children of #278.)\n\n## Epic north star\nContract-first TikTok Shop integration: verify Layer 0 API contracts before writing\nany client code, isolate Fujiwa (production-read) from SANDBOX_VN (write-validation)\nby merchant auth ID and capability, then build Layer 1 read sync -> ETL -> Layer 2\nsandbox write validation -> P2-A3 feature aggregates.\n\n## Epic deferrals\n- T8 router / trained ML inference: Phase 4, not P2\n- web/, ios/: out of P2-A1..P2-A3 scope\n- Marketing API: out of Shop Partner API scope\n- Coupon operations (#34-37 in contract-collection.md): investigated and removed --\n  no seller-facing create-coupon operation exists in the Partner API\n\n## Merchants (never cross these)\n- Fujiwa (`7658073774813611784`): production-read only, never write-capable\n- SANDBOX_VN (`7658096633384781588`): write-validation only, never production data\n\n## Data-source policy\n- TikTok Partner API only, per `docs/architecture/data-sources.md`\n- Business failures from sparse sandbox data are acceptable; the P2-A1 sandbox-write\n  bar is technical validation (signing, HTTP status/TikTok code, response parsing),\n  documented per `docs/handoffs/phase-2-tiktok-implementation.md`\n\n## Shared handoff decisions\n- Layer 0 contract verification (HITL, API Testing Tool cURL capture) happens before\n  any resource code for that endpoint is written\n- Every Layer 2 write path must be unreachable from `ProductionReadClientFactory` /\n  `ProductionReadResources`, enforced at the transport-guard layer before signing\n",
+  "sliceId": "P2-A1",
+  "handoffPath": "docs/handoffs/phase-2-tiktok-implementation.md",
+  "childIssueIds": [294, 295, 296, 297, 298, 299],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "web/",
+    "ios/",
+    "src/modules/ml/"
+  ],
+  "upstreamFingerprints": [
+    { "path": "GitHub issue #278 (body sha256)", "fingerprint": "a6d803e9045f0a8b3ea64f41b6c7078fd06ba57dae21ae6aedf95a5eaad6a5d4" },
+    { "path": "docs/handoffs/phase-2-tiktok-implementation.md", "fingerprint": "08a48c462b6af0646704658c34e3f48a951c286e" },
+    { "path": "EXECUTION.md", "fingerprint": "979ce6f7ae661bf776d89d34352ca4e438a1479a" }
+  ],
+  "lastValidatedAt": "2026-07-11T04:00:00Z"
+}

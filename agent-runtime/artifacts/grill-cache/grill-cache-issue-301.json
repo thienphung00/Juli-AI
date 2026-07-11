@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "grill_cache",
+  "issueId": 301,
+  "parentIssueId": 278,
+  "parentCachePath": "agent-runtime/artifacts/grill-cache/parent-cache-issue-278.json",
+  "phaseRunId": "301-2026-07-11-b-setup",
+  "workflowPhase": "scope_alignment",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "P2-A1",
+    "handoffPath": "docs/handoffs/phase-2-tiktok-implementation.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "backend",
+    "requiredDocs": [
+      "docs/integrations/tiktok_api/contract-collection.md",
+      "docs/integrations/tiktok_api/endpoints.md",
+      "docs/handoffs/phase-2-tiktok-implementation.md",
+      "agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md"
+    ],
+    "requiredModules": [
+      "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+    ],
+    "acceptanceCriteria": [
+      "Write resources unreachable from production factory (test + runtime)",
+      "Matches Layer 0 contracts from #287, #289, #291",
+      "Technical validation documented per handoff"
+    ],
+    "loadWhenNeeded": [
+      "docs/integrations/tiktok_api/samples/",
+      "docs/integrations/execution_layer.md (Promotion section removal rationale)"
+    ]
+  },
+  "authorityChain": [
+    { "rank": 1, "source": "EXECUTION.md P2-A1", "reason": "Phase/slice law" },
+    { "rank": 2, "source": "parent-cache-issue-278.json", "reason": "Epic constant for all children" },
+    { "rank": 3, "source": "GitHub issue #301", "reason": "Child acceptance criteria (unique)" },
+    { "rank": 4, "source": "docs/handoffs/phase-2-tiktok-implementation.md", "reason": "Epic handoff, not superseded" },
+    { "rank": 5, "source": "docs/integrations/tiktok_api/contract-collection.md #14-41", "reason": "Verified Layer 0 write contracts (#287, #289, #291)" }
+  ],
+  "resolvedDecisions": [
+    {
+      "topic": "Promotion lifecycle write endpoints (#289)",
+      "decision": "Defer implementation until Layer 0 verifies the path; SandboxWriteClientFactory-backed promotion resources are optional for #301, absence is not a regression.",
+      "conflictingSources": [
+        "GitHub issue #301 body (\"Matches Layer 0 contracts from #287, #289, #291\")",
+        "contract-collection.md #20-23 (method/path TBD from Promotion API Testing Tool)"
+      ],
+      "resolvedAt": "2026-07-11T04:00:00Z"
+    },
+    {
+      "topic": "Product edit body shape (#287, contract-collection.md #18)",
+      "decision": "Implement using the stated 202309 PUT path only; do not use the unconfirmed 202509 full-replace variant; keep body fields minimal until a verified sample exists.",
+      "conflictingSources": [
+        "contract-collection.md #18 (path stated, no captured cURL/response demo)"
+      ],
+      "resolvedAt": "2026-07-11T04:00:00Z"
+    },
+    {
+      "topic": "Confirm Package Shipment API family (#291, contract-collection.md #39)",
+      "decision": "Use the Supply Chain API path (POST /supply_chain/202309/packages/sync), not a /fulfillment/ path -- this endpoint moved API families per the verified contract note.",
+      "conflictingSources": [],
+      "resolvedAt": "2026-07-11T04:00:00Z"
+    }
+  ],
+  "inScope": [
+    "Inventory update resource behind SandboxWriteClientFactory (Layer 0 #287, #14 verified)",
+    "Product create + edit resources behind SandboxWriteClientFactory (Layer 0 #287, #17 verified / #18 path-stated)",
+    "Fulfillment combine/ship/uncombine/split/confirm-shipment resources behind SandboxWriteClientFactory (Layer 0 #291, #29-#41 paths stated)",
+    "SandboxWriteClientFactory.create_resources() entry point mirroring the existing ProductionReadClientFactory.create_resources() convention",
+    "Technical validation evidence (signing, HTTP status, TikTok code, response parsing) for every implemented write path"
+  ],
+  "outOfScope": [
+    "Promotion lifecycle write endpoints (#289) -- paths TBD, see resolvedDecisions",
+    "Layer 1 read resources (already shipped in #297)",
+    "ETL normalization / Postgres upserts (already shipped in #299)",
+    "Any change to ProductionReadClientFactory, ProductionReadResources, or the production-read guard allowlist",
+    "P2-A3 feature aggregates (#300) -- separate slice, separate child cache"
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "agent-runtime/artifacts/grill-cache/grill-cache-issue-300.json",
+    "any other sibling grill-cache-issue-<n>.json under parent #278"
+  ],
+  "promptCacheBlock": "# Issue #301 -- Child scope (unique)\n\n## In scope\n- Layer 2 sandbox writes only: inventory update, product create/edit, fulfillment\n  combine/ship/uncombine/split/confirm-shipment -- all behind\n  SandboxWriteClientFactory.create_resources()\n\n## Out of scope\n- Promotion lifecycle (#289 paths TBD -- deferred, not a regression)\n- Layer 1 reads (#297, done) and ETL (#299, done)\n- Production factory / guard allowlist changes\n\n## Bar\nTechnical validation (signing, HTTP status, TikTok code, response parsing). Business\nfailures from sparse sandbox data are OK.\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #301 -- Child scope (unique)\n\nSee promptCacheBlock. Full detail: agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md\n",
+    "meta": "# Meta -- #301\n\n- Executor domain: backend\n- Context Plan: docs/integrations/tiktok_api/{contract-collection,endpoints}.md +\n  backend/src/juli_backend/integrations/tiktok/MODULE.md + handoff\n- Skills: backend (domain executor)\n- Gate: do not assign Executor until this cache's cacheStatus == valid (it is)\n",
+    "executor": "# Executor -- #301\n\n- MODULE: backend/src/juli_backend/integrations/tiktok/MODULE.md\n- Files in play: factories.py (add create_resources), client.py (add put()),\n  resources/products.py (add create/edit), new resources/fulfillment.py,\n  constants.py (add product create/edit + fulfillment path helpers)\n- TDD scope: one red test per write path from contract-collection.md #14-41\n  (excluding #20-23 promotion, deferred)\n- Do not touch ProductionReadClientFactory / ProductionReadResources\n",
+    "review": "# Review -- #301\n\n- Acceptance mapping: write-unreachable-from-production, matches-Layer-0-contracts,\n  technical-validation-documented\n- Modules touched: integrations/tiktok only\n- Check: every new write path appears in capabilities.SANDBOX_ALLOWED_REQUESTS\n  before use; no new path is invented for promotion\n",
+    "validate": "# Validate -- #301\n\n- Gate list: unit tests green, no production-factory regression, coverage threshold\n  met, technical validation evidence present in implementation artifact\n- Command: pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing\n  --cov-fail-under=80\n"
+  },
+  "harnessUtility": {
+    "skills": [
+      { "path": ".cursor/skills/domain/backend/SKILL.md", "purpose": "Backend/FastAPI executor domain skill for sandbox write TDD" },
+      { "path": ".cursor/skills/standalone/review/SKILL.md", "purpose": "Post-implementation review checklist" },
+      { "path": ".cursor/skills/standalone/validate/SKILL.md", "purpose": "Deterministic validation gates before ship" }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/reliability.mdc",
+      ".cursor/rules/security.mdc"
+    ],
+    "mcps": [],
+    "tools": ["Read", "Grep", "Glob", "Shell", "StrReplace", "Write", "ReadLints"]
+  },
+  "glossarySnippets": [
+    {
+      "term": "Technical validation",
+      "definition": "Sandbox write success bar per the Phase 2 handoff: correct request signing, correct HTTP status handling, correct TikTok `code` interpretation, correct response parsing. Business failures on sparse sandbox data are acceptable and do not block ship.",
+      "avoid": ["business success", "end-to-end sandbox data correctness"]
+    },
+    {
+      "term": "SANDBOX_VN",
+      "definition": "The write-validation-only merchant auth ID (7658096633384781588). Never used for production reads; never receives Fujiwa credentials.",
+      "avoid": ["production merchant", "Fujiwa"]
+    }
+  ],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    { "path": "GitHub issue #301 (body sha256)", "fingerprint": "6ea2e9fae4d03e7ec2c2a925b5d4ebc67126065597b2bdc5daba358ad6ed42d6" },
+    { "path": "agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md", "fingerprint": "bb21bc91ba1629c4d4a4313f343ea774b2086917" }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/grill-cache/scope-alignment-issue-301.md",
+  "lastValidatedAt": "2026-07-11T04:00:00Z",
+  "lastGrillSessionAt": "2026-07-11T04:00:00Z"
+}
