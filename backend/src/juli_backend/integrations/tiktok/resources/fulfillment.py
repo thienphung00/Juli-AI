@@ -16,7 +16,6 @@ from juli_backend.integrations.tiktok.constants import (
     fulfillment_uncombine_package_path,
     supply_chain_confirm_shipment_path,
 )
-from juli_backend.integrations.tiktok.resources import strip_nones
 
 
 class FulfillmentResource:

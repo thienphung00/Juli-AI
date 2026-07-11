@@ -16,11 +16,11 @@ from juli_backend.integrations.tiktok.guards import (
     SandboxOnlyWriteGuard,
 )
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
+from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentResource
 from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
-from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentResource
 
 DEFAULT_BASE_URL = "https://open-api.tiktokglobalshop.com"
 
