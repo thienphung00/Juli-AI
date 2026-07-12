@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.repositories.repos import ProductsRepo
 from juli_backend.services.aggregates.builder import build_feature_aggregates
 from juli_backend.services.aggregates.types import ShopLifecycleContext
+from juli_backend.services.scoring.copy_layer import build_reasoning_for_recommendations
 from juli_backend.services.scoring.recommendations import rank_workflow_recommendations
 from juli_backend.services.scoring.signals import compute_scoring_signals
 from juli_backend.services.scoring.types import DailyScoringResult
@@ -42,9 +43,11 @@ async def run_daily_scoring_for_shop(
         products=products,
     )
     recommendations = rank_workflow_recommendations(aggregates.shop_profile, signals)
+    reasoning_summaries = build_reasoning_for_recommendations(recommendations, signals)
 
     return DailyScoringResult(
         aggregates=aggregates,
         signals=signals,
         recommendations=recommendations,
+        reasoning_summaries=reasoning_summaries,
     )

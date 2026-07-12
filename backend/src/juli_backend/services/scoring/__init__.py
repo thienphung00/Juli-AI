@@ -1,7 +1,13 @@
-"""Rules-based daily batch scoring — aggregates → visual_layer signals → recommendations (#303)."""
+"""Rules-based daily batch scoring — aggregates → signals → recommendations → copy (#303, #304)."""
 
 from juli_backend.services.scoring.advisory import format_advisory_one_line
 from juli_backend.services.scoring.batch import run_daily_scoring_batch
+from juli_backend.services.scoring.copy_layer import (
+    COPY_SOURCE_RULES,
+    WORKFLOW_COPY_TEMPLATE_KEYS,
+    build_reasoning_for_recommendations,
+    build_workflow_reasoning_copy,
+)
 from juli_backend.services.scoring.kpi_catalog import (
     KPI_WORKFLOW_KEYS,
     get_workflows_for_profile,
@@ -20,11 +26,14 @@ from juli_backend.services.scoring.types import (
     DailyScoringResult,
     ScoringSignals,
     VisualLayerDomain,
+    WorkflowReasoningCopy,
+    WorkflowReasoningSummary,
     WorkflowRecommendations,
 )
 
 __all__ = [
     "AdvisorySignal",
+    "COPY_SOURCE_RULES",
     "DAILY_SCORING_CRON_UTC",
     "DAILY_SCORING_UTC_HOUR",
     "DAILY_SCORING_UTC_MINUTE",
@@ -33,7 +42,12 @@ __all__ = [
     "ScoringSignals",
     "VisualLayerDomain",
     "VISUAL_LAYER_KPI_IDS",
+    "WORKFLOW_COPY_TEMPLATE_KEYS",
+    "WorkflowReasoningCopy",
+    "WorkflowReasoningSummary",
     "WorkflowRecommendations",
+    "build_reasoning_for_recommendations",
+    "build_workflow_reasoning_copy",
     "compute_scoring_signals",
     "format_advisory_one_line",
     "get_workflows_for_profile",
