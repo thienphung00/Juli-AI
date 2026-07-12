@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 374,
+  "executorDomain": "backend",
+  "phaseRunId": "374-2026-07-12-computed-kpis",
+  "startedAt": "2026-07-12T05:00:00Z",
+  "completedAt": "2026-07-12T05:30:00Z",
+  "executionDurationMs": 1800000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Shell",
+    "Write",
+    "StrReplace",
+    "ReadLints"
+  ],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "docs/ml/visual_layer.md",
+    "docs/ml/ml_layer.md",
+    "docs/api/data-models/feature-store-schema.md",
+    "docs/integrations/tiktok_platform/seller/operational-limits.md",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-374.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-374.json",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "backend/src/juli_backend/services/scoring/MODULE.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "filesModified": [
+    "CONTEXT.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+    "backend/src/juli_backend/services/aggregates/__init__.py",
+    "backend/src/juli_backend/services/aggregates/types.py",
+    "backend/src/juli_backend/services/aggregates/thresholds.py",
+    "backend/src/juli_backend/services/aggregates/builder.py",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "backend/src/juli_backend/services/scoring/pipeline.py",
+    "backend/src/juli_backend/services/scoring/signals.py",
+    "tests/unit/test_computed_kpis_contract.py",
+    "tests/unit/test_feature_aggregates_contract.py",
+    "tests/unit/test_daily_batch_scoring_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_computed_kpis_contract.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_feature_aggregates_contract.py",
+    "tests/unit/test_daily_batch_scoring_contract.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "behavior": "Inventory turnover formula with divide-by-zero guard",
+      "red": "inventory_turnover always unavailable in signals.py",
+      "green": "compute_inventory_turnover golden + edge tests pass"
+    },
+    {
+      "behavior": "Multi-endpoint builder loads order_items and inventory_items",
+      "red": "SYNCED_DATA_SOURCES missing order_items/inventory_items",
+      "green": "builder repo spy test covers 5 tables; computed_kpis populated"
+    },
+    {
+      "behavior": "Daily batch flips 10 Postgres KPIs + CSAT proxy from unavailable",
+      "red": "13 KPIs emit unavailable in compute_scoring_signals",
+      "green": "TestComputedKpisFlipUnavailableSignals integration test passes"
+    },
+    {
+      "behavior": "Ads KPIs stay unavailable with Promotion API reason",
+      "red": "roas/cac/ctr used generic Ads API message",
+      "green": "action_hint Ch\u1edd \u0111\u1ed3ng b\u1ed9 Promotion API asserted in contract tests"
+    }
+  ],
+  "implementationSummary": "",
+  "assumptions": [],
+  "risks": [],
+  "cacheHits": [
+    "parent-cache-issue-278.json",
+    "issue-context-cache-374.json"
+  ],
+  "cacheMisses": [],
+  "retryCount": 0
+}

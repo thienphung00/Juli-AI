@@ -17,8 +17,22 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from juli_backend.models.models import Order, Product, Return, Shop, User
-from juli_backend.repositories.repos import OrdersRepo, ProductsRepo, ReturnsRepo
+from juli_backend.models.models import (
+    InventoryItem,
+    Order,
+    OrderItem,
+    Product,
+    Return,
+    Shop,
+    User,
+)
+from juli_backend.repositories.repos import (
+    InventoryRepo,
+    OrderItemsRepo,
+    OrdersRepo,
+    ProductsRepo,
+    ReturnsRepo,
+)
 from juli_backend.services.aggregates.builder import (
     SYNCED_DATA_SOURCES,
     build_feature_aggregates,
@@ -132,7 +146,9 @@ def _import_names_from_module(path: Path) -> set[str]:
 
 class TestSyncedPostgresSourcesOnly:
     def test_builder_declares_synced_table_sources(self):
-        assert SYNCED_DATA_SOURCES == frozenset({"orders", "products", "returns"})
+        assert SYNCED_DATA_SOURCES == frozenset(
+            {"orders", "products", "returns", "order_items", "inventory_items"}
+        )
 
     def test_builder_module_imports_only_commerce_repos(self):
         builder_imports = _import_names_from_module(AGGREGATES_PKG / "builder.py")
@@ -155,6 +171,8 @@ class TestSyncedPostgresSourcesOnly:
             (OrdersRepo, "orders"),
             (ProductsRepo, "products"),
             (ReturnsRepo, "returns"),
+            (OrderItemsRepo, "order_items"),
+            (InventoryRepo, "inventory_items"),
         ):
             original_list = repo_cls.list
 
@@ -175,11 +193,24 @@ class TestSyncedPostgresSourcesOnly:
             session, shop.id, lifecycle=lifecycle
         )
 
-        assert set(calls) == {"orders", "products", "returns"}
+        assert set(calls) == {
+            "orders",
+            "products",
+            "returns",
+            "order_items",
+            "inventory_items",
+        }
         assert snapshot.order_count == 2
         assert snapshot.product_count == 2
         assert snapshot.return_count == 1
-        assert snapshot.data_sources == ["orders", "products", "returns"]
+        assert snapshot.data_sources == [
+            "inventory_items",
+            "order_items",
+            "orders",
+            "products",
+            "returns",
+        ]
+        assert snapshot.computed_kpis is not None
 
 
 class TestNoMlArtifactsInPhase2Paths:

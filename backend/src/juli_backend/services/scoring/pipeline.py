@@ -32,6 +32,7 @@ async def run_daily_scoring_for_shop(
         shop_id,
         lifecycle=lifecycle,
         list_limit=list_limit,
+        computed_at=computed_at,
     )
     products = await ProductsRepo(session).list(shop_id, limit=list_limit)
     signals = compute_scoring_signals(

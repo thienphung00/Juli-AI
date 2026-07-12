@@ -1,0 +1,179 @@
+{
+  "id": "review-issue-374",
+  "issue": 374,
+  "timestamp": "2026-07-12T05:26:29Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-B3 computed KPI signals (#374): aggregates/computed_kpis.py implements 10 Postgres formulas + CSAT proxy; builder extends SYNCED_DATA_SOURCES; signals.py advisory-only with rules_proxy thresholds; Ads stay unavailable; 47 contract tests pass; no ML imports.",
+  "criticalFindings": [
+    {
+      "id": "find-374-return-rate-window",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "return_request_rate still uses all-time order-level return_rate_proxy from aggregates, not 30d window; CSAT proxy correctly uses return_rate_30d.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Align return_request_rate with return_rate_30d in a follow-up if visual_layer requires consistent windows."
+    },
+    {
+      "id": "find-374-sla-proxy",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/aggregates/thresholds.py",
+      "description": "ORDER_DISPATCH_SLA_HOURS=48 cites operational-limits.md FDR/LDR policy, not verified Partner API per-order SLA field.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Replace with Partner API SLA when schema verified; constant documented in MODULE.md per AC."
+    },
+    {
+      "id": "find-374-in-memory-window",
+      "type": "performance",
+      "module": "backend/src/juli_backend/services/aggregates/builder.py",
+      "description": "30d window filtering happens in compute_all_kpis after loading up to list_limit rows per table.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add repo-level date filters when shop order volume exceeds list_limit."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+    "backend/src/juli_backend/services/aggregates/__init__.py",
+    "backend/src/juli_backend/services/aggregates/types.py",
+    "backend/src/juli_backend/services/aggregates/thresholds.py",
+    "backend/src/juli_backend/services/aggregates/builder.py",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "backend/src/juli_backend/services/scoring/pipeline.py",
+    "backend/src/juli_backend/services/scoring/signals.py",
+    "tests/unit/test_computed_kpis_contract.py",
+    "tests/unit/test_feature_aggregates_contract.py",
+    "tests/unit/test_daily_batch_scoring_contract.py",
+    "CONTEXT.md"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/aggregates",
+      "interface": "FeatureAggregateSnapshot.computed_kpis",
+      "changeType": "added",
+      "breaking": false,
+      "description": "ComputedKpiMetrics nested field with 10 Postgres KPI values + CSAT proxy inputs."
+    },
+    {
+      "module": "backend/src/juli_backend/services/aggregates",
+      "interface": "compute_all_kpis",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Pure multi-endpoint KPI rollup from orders, order_items, products, inventory_items, returns."
+    },
+    {
+      "module": "backend/src/juli_backend/services/scoring",
+      "interface": "compute_scoring_signals",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Emits live advisory signals for 10 Postgres KPIs + CSAT proxy when computed_kpis populated."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "FeatureAggregateSnapshot extended with typed fields for all computable KPI metrics (10 + CSAT proxy inputs); SYNCED_DATA_SOURCES includes order_items and inventory_items.",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_builder_declares_synced_table_sources"
+        },
+        {
+          "criterion": "computed_kpis.py (or equivalent under aggregates/) implements formulas above with documented null/edge policies (division-by-zero \u2192 null \u2192 signal unavailable).",
+          "test": "tests/unit/test_computed_kpis_contract.py"
+        },
+        {
+          "criterion": "compute_scoring_signals emits risk/opportunity/healthy (not unavailable) for the 10 Postgres KPIs + CSAT proxy when synced data suffices; Ads KPIs remain unavailable with reason \"Ch\u1edd \u0111\u1ed3ng b\u1ed9 Promotion API\".",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_daily_batch_flips_previously_unavailable_kpis"
+        },
+        {
+          "criterion": "Advisory one-liners match visual_layer.md format (What changed \u2192 Risk/Opportunity \u2192 Action); workflow_keys unchanged from kpi_catalog.py.",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_one_line_format_matches_visual_layer_pattern"
+        },
+        {
+          "criterion": "multi endpoint integration test populates computed KPI metrics on seeded postgres data",
+          "test": "tests/unit/test_computed_kpis_contract.py::test_multi_endpoint_snapshot_populates_metrics"
+        },
+        {
+          "criterion": "No ML imports in aggregates package phase2 paths AST scan",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_no_ml_inference_artifacts_in_phase2_paths"
+        },
+        {
+          "criterion": "ORDER_DISPATCH_SLA_HOURS constant documented in thresholds.py",
+          "test": "tests/unit/test_computed_kpis_contract.py::test_order_dispatch_sla_hours_thresholds_constant"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 48,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Reviewed P2-B3 computed KPI slice against issue #374 AC; no blocking findings.",
+    "timestamp": "2026-07-12T05:35:00Z",
+    "acceptedRisks": false
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "374-2026-07-12-computed-kpis",
+  "scopeChecks": {
+    "mlModulesTouched": false,
+    "webIosDrift": false,
+    "tiktokWritePaths": false,
+    "notes": "Formulas in aggregates/computed_kpis.py; signals advisory-only; Ads deferred; CSAT no workflow_keys."
+  },
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-374.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "find-374-return-rate-window",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "return_request_rate still uses all-time order-level return_rate_proxy from aggregates, not 30d window; CSAT proxy correctly uses return_rate_30d.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Align return_request_rate with return_rate_30d in a follow-up if visual_layer requires consistent windows."
+    },
+    {
+      "id": "find-374-sla-proxy",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/aggregates/thresholds.py",
+      "description": "ORDER_DISPATCH_SLA_HOURS=48 cites operational-limits.md FDR/LDR policy, not verified Partner API per-order SLA field.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Replace with Partner API SLA when schema verified; constant documented in MODULE.md per AC."
+    },
+    {
+      "id": "find-374-in-memory-window",
+      "type": "performance",
+      "module": "backend/src/juli_backend/services/aggregates/builder.py",
+      "description": "30d window filtering happens in compute_all_kpis after loading up to list_limit rows per table.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add repo-level date filters when shop order volume exceeds list_limit."
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [
+    "Align return_request_rate with return_rate_30d in a follow-up if visual_layer requires consistent windows.",
+    "Replace with Partner API SLA when schema verified; constant documented in MODULE.md per AC.",
+    "Add repo-level date filters when shop order volume exceeds list_limit."
+  ]
+}

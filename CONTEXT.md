@@ -91,6 +91,28 @@ deferred) and live Post-sales workflows Prevent Return (8b), Prevent Cancellatio
 Prevent Refund (8c). Phase 2 CSAT is advisory-only with **no live workflow key**.
 _Avoid_: Prevent Product Returns (renamed Prevent Return 8b), Workflow Engine, Monitoring Engine, Messaging API (use Customer Service API in execution tables)
 
+## Scoring
+
+**Computed KPI**:
+A visual-layer KPI whose value is derived from joins or rollups across two or more
+synced Postgres sources (orders, order_items, products, inventory_items, returns, etc.)
+— not a single API field or one-table aggregate. Phase 2 computes these in
+`services/aggregates/` (extended `FeatureAggregateSnapshot` + builder); `signals.py`
+applies thresholds and `visual_layer.md` one-liners only. Techniques are deterministic
+rules (`rules_proxy`, T3/T4/T5-style thresholds per `ml_layer.md`); trained T1/T2 remain
+Phase 4. P2-B3 scope (grill 2026-07-12): all 13 KPIs still emitting `unavailable` in
+#303 — Inventory (3), Operations (3), Revenue (2), Ads (3), CSAT + After-Sales Handling
+Time (2). Ads KPIs remain `unavailable` until Promotion API ETL lands; CSAT uses a
+deterministic proxy (see **CSAT proxy** below).
+_Avoid_: derived metric (generic), calculated field (DB jargon), multi-source KPI (ambiguous — use this term)
+
+**CSAT proxy**:
+Phase 2 stand-in for CSAT when no buyer review/chat text exists: score =
+`clamp(100 × (1 − return_rate_30d), 0, 100)` from synced returns/orders; technique
+`rules_proxy`; **no workflow_keys** (Resolve Recurring Customer Complaints deferred Phase 3).
+Real CSAT replaces this when a legal text source exists (ADR-011).
+_Avoid_: CSAT score (when meaning the Phase 3 model), customer satisfaction (generic)
+
 ## Execution
 
 **Action executor**:

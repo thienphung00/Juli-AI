@@ -4,6 +4,7 @@ import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+from juli_backend.services.aggregates.computed_kpis import ComputedKpiMetrics
 from typing import Literal
 
 
@@ -78,4 +79,5 @@ class FeatureAggregateSnapshot:
     total_units_sold: int
     return_rate_proxy: float | None
     data_sources: list[str]
+    computed_kpis: ComputedKpiMetrics | None = None
     proxy_signals: ProxyHealthSignals | None = None
