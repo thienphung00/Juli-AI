@@ -1,0 +1,79 @@
+{
+  "id": "review-issue-366",
+  "issue": 366,
+  "timestamp": "2026-07-12T03:42:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "TikTok Sandbox OAuth + webhook integration tests (#366): live token/get error path, optional exchange/refresh with CI secrets, webhook HMAC round-trip via FastAPI app, contract checks for CI wiring and secret hygiene. Ruff and targeted pytest green.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "tests/integration/tiktok_sandbox.py",
+    "tests/integration/test_tiktok_sandbox_oauth.py",
+    "tests/integration/test_tiktok_sandbox_webhook.py",
+    "tests/integration/test_tiktok_sandbox_contract.py",
+    "tests/integration/conftest.py",
+    ".github/workflows/pr.yml",
+    "infra/scripts/env/api.env.example"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "New tests live under tests/integration/ (e.g. test_tiktok_sandbox_oauth.py, test_tiktok_sandbox_webhook.py)",
+          "test": "tests/integration/test_tiktok_sandbox_contract.py::test_sandbox_oauth_and_webhook_modules_live_under_tests_integration"
+        },
+        {
+          "criterion": "Tests skip when TIKTOK_APP_KEY / TIKTOK_APP_SECRET are unset",
+          "test": "tests/integration/test_tiktok_sandbox_contract.py::test_sandbox_helpers_skip_when_tiktok_app_key_and_app_secret_unset"
+        },
+        {
+          "criterion": "CI secrets configured in GitHub Actions so tests run on PRs",
+          "test": "tests/integration/test_tiktok_sandbox_contract.py::test_pr_workflow_configures_tiktok_ci_secrets_for_sandbox_tests"
+        },
+        {
+          "criterion": "One behavior per test (token exchange success, invalid signature rejection, etc.)",
+          "test": "tests/integration/test_tiktok_sandbox_oauth.py::test_invalid_auth_code_returns_authentication_error_from_live_api"
+        },
+        {
+          "criterion": "No secrets committed to source control",
+          "test": "tests/integration/test_tiktok_sandbox_contract.py::test_no_secrets_committed_to_source_control_in_sandbox_files"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 10,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Rotate TIKTOK_SANDBOX_AUTH_CODE in GitHub secrets after each Partner Center OAuth consent flow.",
+    "Add TIKTOK_SANDBOX_REFRESH_TOKEN to repository secrets for refresh-path coverage in CI."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "observabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-366.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": [],
+  "reviewDurationMs": 60000,
+  "phaseRunId": "366-2026-07-12-a-run",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS"
+}

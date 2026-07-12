@@ -183,3 +183,17 @@ benchmark:
     execution_time_regression_ratio: 0.1
     token_usage_regression_ratio: 0.1
     failure_regression_count: 0
+workflow_prompt_cache:
+  artifactsDir: agent-runtime/artifacts/workflow-cache
+  injectionOrder:
+    - parentScopeBlock
+    - parentDoNotLoad
+    - harnessUtility
+    - issueLoadProfile
+    - phaseCacheBlocks
+    - promptCacheBlock
+    - requiredModulesCodeAndModuleMd
+  bootstrap:
+    sourcePaths:
+      - .cursor/skills
+      - agent-runtime/docs

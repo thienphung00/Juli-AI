@@ -9,6 +9,12 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.database.database import Base
+from juli_backend.integrations.tiktok.auth import TikTokAuth
+
+from tests.integration.tiktok_sandbox import (
+    sandbox_app_key,
+    sandbox_app_secret,
+)
 
 
 @pytest.fixture(scope="session")
@@ -43,3 +49,8 @@ async def session(engine):
 @pytest.fixture
 def user_id():
     return uuid.uuid4()
+
+
+@pytest.fixture
+def tiktok_auth_client() -> TikTokAuth:
+    return TikTokAuth(app_key=sandbox_app_key(), app_secret=sandbox_app_secret())
