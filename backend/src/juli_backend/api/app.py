@@ -11,6 +11,7 @@ from juli_backend.api.routes.outcomes import router as outcomes_router
 from juli_backend.api.routes.products import router as products_router
 from juli_backend.api.routes.recommendations import router as recommendations_router
 from juli_backend.api.routes.shops import router as shops_router
+from juli_backend.api.routes.workflow_outcomes import router as workflow_outcomes_router
 
 
 def create_app(*, lifespan: Any | None = None) -> FastAPI:
@@ -31,6 +32,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(recommendations_router)
     v1_router.include_router(outcomes_router)
     v1_router.include_router(executions_router)
+    v1_router.include_router(workflow_outcomes_router)
     v1_router.include_router(creators_router)
     app.include_router(v1_router)
     app.include_router(debug_tiktok_router)
