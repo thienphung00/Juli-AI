@@ -111,7 +111,10 @@ async def sync_products(
             shop_id,
             json.dumps(normalize_product(product)).encode(),
         )
-        max_update_time = max(max_update_time, product.get("updated_at", 0))
+        max_update_time = max(
+            max_update_time,
+            product.get("update_time") or product.get("updated_at") or 0,
+        )
 
     if products:
         sync_state["products_last_update_time"] = max_update_time

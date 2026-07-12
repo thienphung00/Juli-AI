@@ -252,6 +252,25 @@ class TestSyncProducts:
         assert sync_state["products_last_update_time"] == 1700000200
 
     @pytest.mark.asyncio
+    async def test_updates_sync_state_from_update_time_field(
+        self, mock_products_resource, mock_rate_limiter, handoff_fn, sync_state
+    ):
+        mock_products_resource.search_all.return_value = [
+            {"product_id": "p1", "update_time": 1700000300},
+        ]
+
+        await sync_products(
+            resource=mock_products_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+        )
+
+        assert sync_state["products_last_update_time"] == 1700000300
+
+    @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
         self, mock_products_resource, mock_rate_limiter, handoff_fn, handoff_calls, sync_state
     ):

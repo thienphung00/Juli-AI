@@ -1,0 +1,69 @@
+{
+  "id": "review-issue-367",
+  "issue": 367,
+  "timestamp": "2026-07-12T03:19:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Fujiwa polling sync-state E2E (#367): recorded-response replay exercises full run_fujiwa_poll_cycle through real client, sync workers, and TikTokSyncStateRepo. Three acceptance behaviors mapped; sync_products update_time fix included. Ruff and targeted pytest green.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "tests/integration/conftest.py",
+    "tests/integration/test_fujiwa_polling_sync_state_e2e.py",
+    "tests/integration/tiktok_recorded_replay.py",
+    "tests/unit/test_polling.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Initial poll persists sync state from recorded responses",
+          "test": "tests/integration/test_fujiwa_polling_sync_state_e2e.py::test_initial_poll_persists_sync_state_from_recorded_responses"
+        },
+        {
+          "criterion": "Re-poll is idempotent and does not corrupt sync state",
+          "test": "tests/integration/test_fujiwa_polling_sync_state_e2e.py::test_repoll_is_idempotent_and_does_not_corrupt_sync_state"
+        },
+        {
+          "criterion": "Partial endpoint failure preserves existing sync state",
+          "test": "tests/integration/test_fujiwa_polling_sync_state_e2e.py::test_partial_endpoint_failure_preserves_existing_sync_state"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 4,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Land test suite restructure on main so integration DB fixtures are not duplicated.",
+    "Add optional live Fujiwa poll path when production-read CI secrets are available."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "observabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-367.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": [],
+  "reviewDurationMs": 90000,
+  "phaseRunId": "367-2026-07-12-a-run",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS"
+}
