@@ -32,7 +32,7 @@ work and return immediately; workers execute tools and persist queryable outcome
 
 - Workflow-specific listing/leakage executors (P2-B6+)
 - Redis action-card persistence
-- Outcome tracking metrics (P2-B5)
+- Outcome tracking metrics (P2-B5) — see `services/operations/outcome_tracking.py`
 
 ## Owners
 

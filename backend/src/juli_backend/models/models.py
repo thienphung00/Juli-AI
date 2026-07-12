@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Text, func
+from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from juli_backend.orm_base import Base
@@ -508,6 +508,39 @@ class ToolExecution(Base):
     __table_args__ = (
         Index("ix_tool_executions_shop", "shop_id"),
         Index("ix_tool_executions_status", "shop_id", "status"),
+    )
+
+
+class WorkflowOutcomeRecord(Base):
+    """Persisted workflow outcome metrics after tool execution — P2-B5 (#306)."""
+
+    __tablename__ = "workflow_outcome_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    approval_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    execution_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tool_executions.id"), nullable=False
+    )
+    workflow_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    execution_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_workflow_outcome_records_shop", "shop_id"),
+        Index("ix_workflow_outcome_records_approval", "shop_id", "approval_id"),
+        UniqueConstraint(
+            "shop_id",
+            "execution_id",
+            name="uq_workflow_outcome_records_shop_execution",
+        ),
     )
 
 

@@ -34,6 +34,7 @@ from juli_backend.models.models import (
     TikTokSyncState,
     ToolExecution,
     User,
+    WorkflowOutcomeRecord,
     WorkflowWebhookSignal,
 )
 
@@ -906,3 +907,61 @@ class ToolExecutionsRepo:
             record.error_message = error_message
         await self._session.flush()
         return record
+
+
+class WorkflowOutcomeRecordsRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        shop_id: uuid.UUID,
+        approval_id: str,
+        execution_id: uuid.UUID,
+        workflow_id: str,
+        execution_status: str,
+        metrics_json: str,
+        executed_at: datetime,
+    ) -> WorkflowOutcomeRecord:
+        record = WorkflowOutcomeRecord(
+            shop_id=shop_id,
+            approval_id=approval_id,
+            execution_id=execution_id,
+            workflow_id=workflow_id,
+            execution_status=execution_status,
+            metrics_json=metrics_json,
+            executed_at=executed_at,
+        )
+        self._session.add(record)
+        await self._session.flush()
+        return record
+
+    async def get_by_approval_id(
+        self,
+        shop_id: uuid.UUID,
+        approval_id: str,
+    ) -> WorkflowOutcomeRecord:
+        stmt = select(WorkflowOutcomeRecord).where(
+            WorkflowOutcomeRecord.shop_id == shop_id,
+            WorkflowOutcomeRecord.approval_id == approval_id,
+        )
+        result = await self._session.execute(stmt)
+        record = result.scalar_one_or_none()
+        if record is None:
+            raise NotFound(
+                f"WorkflowOutcomeRecord for approval {approval_id} not found"
+            )
+        return record
+
+    async def get_by_execution_id(
+        self,
+        shop_id: uuid.UUID,
+        execution_id: uuid.UUID,
+    ) -> WorkflowOutcomeRecord | None:
+        stmt = select(WorkflowOutcomeRecord).where(
+            WorkflowOutcomeRecord.shop_id == shop_id,
+            WorkflowOutcomeRecord.execution_id == execution_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()

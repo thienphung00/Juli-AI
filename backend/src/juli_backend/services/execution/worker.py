@@ -12,6 +12,7 @@ from juli_backend.repositories.repos import ToolExecutionsRepo
 from juli_backend.services.execution.dispatch import mark_execution_finished
 from juli_backend.services.execution.runner import run_tool
 from juli_backend.services.execution.types import ExecutionStatus
+from juli_backend.services.operations.outcome_tracking import record_workflow_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,21 @@ async def run_approved_tool(session: AsyncSession, execution_id: uuid.UUID) -> N
             status=ExecutionStatus.FAILED,
             error_message=str(exc),
         )
+        try:
+            await record_workflow_outcome(
+                session,
+                record,
+                execution_status=ExecutionStatus.FAILED,
+                error_message=str(exc),
+            )
+        except ValueError as outcome_exc:
+            logger.warning(
+                "workflow_outcome_skipped",
+                extra={
+                    "execution_id": str(execution_id),
+                    "error": str(outcome_exc),
+                },
+            )
         await session.commit()
         raise
 
@@ -49,4 +65,18 @@ async def run_approved_tool(session: AsyncSession, execution_id: uuid.UUID) -> N
         status=ExecutionStatus.SUCCEEDED,
         outcome=outcome,
     )
+    try:
+        await record_workflow_outcome(
+            session,
+            record,
+            execution_status=ExecutionStatus.SUCCEEDED,
+        )
+    except ValueError as outcome_exc:
+        logger.warning(
+            "workflow_outcome_skipped",
+            extra={
+                "execution_id": str(execution_id),
+                "error": str(outcome_exc),
+            },
+        )
     await session.commit()

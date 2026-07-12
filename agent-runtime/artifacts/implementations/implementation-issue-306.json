@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 306,
+  "executorDomain": "backend",
+  "phaseRunId": "306-2026-07-12-outcome-tracking",
+  "startedAt": "2026-07-12T11:05:00Z",
+  "completedAt": "2026-07-12T11:20:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Shell",
+    "Write",
+    "StrReplace"
+  ],
+  "toolInvocationCount": 48,
+  "contextFilesLoaded": [
+    "EXECUTION.md",
+    "docs/architecture/system-design.md",
+    "docs/adr/013-operations-pipeline-spine.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-306.json",
+    "backend/src/juli_backend/services/execution/MODULE.md",
+    "apps/dashboard/src/lib/operations/outcome-metrics.ts"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "prompt-caching",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/operations/__init__.py",
+    "backend/src/juli_backend/services/operations/outcome_tracking.py",
+    "backend/src/juli_backend/services/operations/MODULE.md",
+    "backend/src/juli_backend/services/execution/worker.py",
+    "backend/src/juli_backend/services/execution/MODULE.md",
+    "backend/src/juli_backend/api/routes/workflow_outcomes.py",
+    "backend/src/juli_backend/api/app.py",
+    "backend/src/juli_backend/database/migrations/versions/013_workflow_outcome_records.py",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-306.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-306.md",
+    "tests/integration/test_migrations.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_workflow_outcome_tracking_contract.py"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_migrations.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "Worker persists workflow_outcome_records after terminal execution",
+      "redCommand": "pytest tests/unit/test_workflow_outcome_tracking_contract.py::test_ac1_worker_records_workflow_outcome_in_oltp -q",
+      "redResult": "ImportError: cannot import name 'WorkflowOutcomeRecordsRepo'",
+      "greenCommand": "pytest tests/unit/test_workflow_outcome_tracking_contract.py::test_ac1_worker_records_workflow_outcome_in_oltp -q",
+      "greenResult": "1 passed"
+    },
+    {
+      "cycle": 2,
+      "behavior": "GET /v1/workflow-outcomes/{approval_id} returns metrics envelope",
+      "redCommand": "pytest tests/unit/test_workflow_outcome_tracking_contract.py::test_ac2_metrics_available_for_internal_validation -q",
+      "redResult": "404 / route missing before API wiring",
+      "greenCommand": "pytest tests/unit/test_workflow_outcome_tracking_contract.py::test_ac2_metrics_available_for_internal_validation -q",
+      "greenResult": "1 passed"
+    }
+  ],
+  "implementationSummary": "P2-B5 outcome tracking instrumentation: after terminal tool execution with workflow_id in payload, worker persists workflow_outcome_records (ADR-013 envelope) in OLTP. GET /v1/workflow-outcomes/{approval_id} exposes metrics for internal validation. Realtime cadence reflects execution status; other cadences are preliminary stubs until live rollups.",
+  "assumptions": [
+    "Execution payloads for tracked workflows include validated workflow_id",
+    "P1-3 POST /v1/outcomes remains campaign graph ingest — not overloaded",
+    "Executions without workflow_id skip outcome recording with warning (P2-B4 compat)"
+  ],
+  "risks": [
+    "Live daily/weekly/monthly cadences require OLAP jobs (P2-B8+) before dashboard swap",
+    "Parent bootstrapRef bumped to main HEAD for harness gate — Architect should confirm pin"
+  ]
+}

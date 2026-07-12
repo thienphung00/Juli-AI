@@ -1,0 +1,87 @@
+{
+  "id": "review-issue-306",
+  "issue": 306,
+  "timestamp": "2026-07-12T11:08:06Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-B5 outcome tracking (#306): workflow_outcome_records OLTP table + outcome_tracking service records ADR-013 envelope after terminal Celery execution; GET /v1/workflow-outcomes/{approval_id} for internal validation; idempotent per execution; shop-scoped reads; executions without workflow_id skip with warning (P2-B4 compat). 2/2 acceptance tests pass; no CRITICAL findings.",
+  "criticalFindings": [
+    {
+      "id": "find-306-cadence-stubs",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/operations/outcome_tracking.py",
+      "description": "Daily/weekly/monthly cadences return preliminary 'pending' readings \u2014 live OLAP rollups deferred to P2-B8+ per scope alignment.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Wire aggregate jobs in P2-B8 before dashboard loader swap."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/operations/outcome_tracking.py",
+    "backend/src/juli_backend/services/operations/MODULE.md",
+    "backend/src/juli_backend/services/execution/worker.py",
+    "backend/src/juli_backend/api/routes/workflow_outcomes.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/database/migrations/versions/013_workflow_outcome_records.py",
+    "tests/unit/test_workflow_outcome_tracking_contract.py",
+    "tests/integration/test_migrations.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 2,
+      "mapped": 2,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Approved action \u2192 execution \u2192 outcome recorded in OLTP",
+          "test": "tests/unit/test_workflow_outcome_tracking_contract.py::test_ac1_worker_records_workflow_outcome_in_oltp"
+        },
+        {
+          "criterion": "Metrics available for internal validation",
+          "test": "tests/unit/test_workflow_outcome_tracking_contract.py::test_ac2_metrics_available_for_internal_validation"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "306-2026-07-12-outcome-tracking",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "find-306-cadence-stubs",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/operations/outcome_tracking.py",
+      "description": "Daily/weekly/monthly cadences return preliminary 'pending' readings \u2014 live OLAP rollups deferred to P2-B8+ per scope alignment.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Wire aggregate jobs in P2-B8 before dashboard loader swap."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "implementationSummary": "P2-B5 instruments approve\u2192execute\u2192outcome loop with Postgres persistence and queryable metrics API.",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "low",
+  "suggestedRemediation": [
+    "Wire aggregate jobs in P2-B8 before dashboard loader swap."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-306.json"
+}
