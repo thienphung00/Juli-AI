@@ -71,6 +71,7 @@ app = create_app(
     app_secret=os.environ.get("TIKTOK_APP_SECRET", ""),
     handoff_fn=_handoff,
     lifespan=lifespan,
+    session_factory=_session_factory,
 )
 
 

@@ -1,13 +1,10 @@
 # Webhooks
 
 TikTok Shop pushes event notifications to an ISV-registered HTTPS endpoint. Juli
-receives, verifies HMAC, ACKs quickly, and hands off to ETL.
+receives, verifies HMAC, ACKs quickly, dispatches through the **Phase 2 catalog**
+(#354), emits workflow-intent signals, and hands in-scope payloads to ETL.
 
-**Implementation:** `src/apps/api_gateway/services/webhook/`
-
-> **UNKNOWN — not in extracted official pages:** Full event type catalog and retry
-> policy. Register and verify events in Partner Center; update this file when
-> event list is confirmed from official webhook documentation.
+**Implementation:** `backend/src/juli_backend/services/webhook/`
 
 ---
 
@@ -21,6 +18,10 @@ POST /webhooks/tiktok
 ```
 
 Wired via `create_app(app_key=..., app_secret=..., handoff_fn=...)`.
+
+Subscribe only to the **Phase 2 catalog** types below (~18 types). The remaining
+~50 catalog slots (Affiliate, Customer Service, Finance beyond invoicing, etc.) are
+**not subscribed** in Phase 2.
 
 ---
 
@@ -51,57 +52,61 @@ expected    = HMAC-SHA256(app_secret, sign_string) → hex
 
 Invalid or missing signature → HTTP 401, no handoff.
 
-**Source:** `src/apps/api_gateway/services/webhook/app.py`
+**Source:** `backend/src/juli_backend/services/webhook/app.py`
 
 ---
 
-## Event routing
+## Phase 2 catalog (authoritative)
 
-| Event prefix | ETL channel | Notes |
-|--------------|-------------|-------|
-| `LIVESTREAM*` | `livestream-events` | Post-stream signals |
-| `CREATOR*` | `creator-events` | Affiliate creator changes |
-| `AFFILIATE*` | `creator-events` | Affiliate program events |
-| `SETTLEMENT*` | `settlement-events` | Finance signals |
-| Other | `tiktok.{type_lower}` | Generic fallback |
+Registry: `backend/src/juli_backend/services/tiktok/webhook_catalog.py`  
+Workflow mapping: `docs/product/execution_layer.md` — Webhook catalog in use
 
-**Source:** `EVENT_CATEGORY_ROUTES` in `app.py`
+| # | Event type (Partner Center) | ETL channel | Workflow(s) | Confirmed |
+|---|----------------------------|-------------|-------------|-----------|
+| 1 | `ORDER_STATUS_CHANGE` | `tiktok.order_status_change` | Process Order (5) | Yes |
+| 2 | `REVERSE_STATUS_UPDATE` | `tiktok.reverse_status_update` | Prevent 8a/8b/8c intake | Yes |
+| 3 | `RECIPIENT_ADDRESS_UPDATE` | `tiktok.recipient_address_update` | Process Order (5) | Yes |
+| 4 | `PACKAGE_UPDATE` | `tiktok.package_update` | Split Package (6) | Yes |
+| 5 | `PRODUCT_STATUS_CHANGE` | `tiktok.product_status_change` | Hero Product (1), Optimize (2) | Yes |
+| 6 | `SELLER_DEAUTHORIZATION` | `tiktok.account.lifecycle` | Account — pause automations | Yes |
+| 7 | `UPCOMING_AUTHORIZATION_EXPIRATION` | `tiktok.account.lifecycle` | Account — re-auth prompt | **UNKNOWN** |
+| 11 | `CANCELLATION_STATUS_CHANGE` | `tiktok.cancellation_status_change` | Prevent Cancellation (8a) | **UNKNOWN** |
+| 12 | `RETURN_STATUS_CHANGE` | `tiktok.returns.raw` | Prevent Return (8b) | **UNKNOWN** |
+| 21 | `INBOUND_FBT_ORDER_STATUS_CHANGE` | `tiktok.inbound_fbt_order_status` | Replenish FBT (3b) | **UNKNOWN** |
+| 24 | `FBT_INVENTORY_UPDATE` | `tiktok.fbt_inventory_update` | Replenish/Clear/Return FBT | **UNKNOWN** |
+| 27 | `INVENTORY_STATUS_CHANGE` | `tiktok.inventory_status_change` | Replenish (3), Clear (4) | **UNKNOWN** |
+| 37 | `PRODUCT_AUDIT_STATUS_CHANGE` | `tiktok.product_audit_status_change` | Hero Product (1) | **UNKNOWN** |
+| 39 | `ACTIVITY_STATUS_CHANGE` | `tiktok.activity_status_change` | Activity 7a/7b/7c, Clear (4) | **UNKNOWN** |
+| 58 | `FBT_MCF_ORDER_STATUS` | `tiktok.fbt_mcf_order_status` | Process Order FBT (5B) | **UNKNOWN** |
+| 64 | `AFTERSALES_REQUEST_STATUS_UPDATE` | `tiktok.aftersales_request_status` | Prevent Refund (8c) | **UNKNOWN** |
+| 65 | `RMA_STATUS_UPDATE` | `tiktok.rma_status_update` | Prevent Return (8b) | **UNKNOWN** |
+| 67 | `REFUND_SUCCESS` | `tiktok.refund_success` | Prevent Refund (8c) | **UNKNOWN** |
+| 68 | `INVENTORY_CHANGED` | `tiktok.inventory.raw` | Replenish (3), Clear (4) | **UNKNOWN** |
 
-### Expected high-value events (operational — verify officially)
+**UNKNOWN** = best-guess type string until Partner Center registration confirms the
+official name. Update this table when confirmed.
 
-| Event type (illustrative) | Juli action |
-|---------------------------|-------------|
-| Order status change | Trigger incremental order sync / leakage scoring |
-| Seller deauthorization | Stop polling, notify seller to re-auth |
-| Authorization expiration warning | Proactive token refresh |
-| Product update | Catalog sync |
-| `INVENTORY_UPDATE` | Feeds Post-sales / Inventory workflows in `execution_layer.md` |
-| Cancellation Status Change | Prevent Cancellation (8a) step 5 — distinct from `INVENTORY_UPDATE`; **UNKNOWN** exact event type name, needs Partner Center webhook catalog confirmation |
-| Return Status Change | Prevent Return (8b) step 9 — **UNKNOWN** exact event type name, needs Partner Center webhook catalog confirmation |
+### Deferred (Phase 3+) — not subscribed, not routed
 
-Mark undocumented event names `UNKNOWN` until confirmed in Partner Center webhook docs.
+Prefixes: `AFFILIATE`, `CREATOR`, `LIVESTREAM`, `SETTLEMENT`, `NEW_CONVERSATION`,
+`NEW_MESSAGE`, `CUSTOMER_SERVICE`, `FINANCE_`.
+
+These receive HTTP 200 ACK but **no** Phase 2 ETL handoff or workflow signal.
 
 ---
 
-## Handoff → ETL
+## Dispatch pipeline
 
 ```
 Webhook POST → verify signature → parse JSON
-            → handoff_fn(channel, shop_id, payload_bytes)
+            → catalog dispatch (handler + workflow_webhook_signals)
+            → handoff_fn(channel, shop_id, payload_bytes)  [in-scope only]
             → EtlConsumer.ingest (dedup, transform, persist)
 ```
 
+Account/platform events (#6, #7) write side effects only — no ETL handoff.
+
 `shop_id` is the TikTok shop identifier (matches `Shop.tiktok_shop_id`).
-
-**Wiring:**
-
-```python
-from src.modules.ordering.use_cases.etl.consumer import EtlConsumer
-from src.modules.ordering.api.ingestion.handoff import make_etl_handoff
-
-handoff = make_etl_handoff(consumer)
-app = create_app(app_key=..., app_secret=..., handoff_fn=handoff)
-```
 
 ---
 
@@ -109,10 +114,14 @@ app = create_app(app_key=..., app_secret=..., handoff_fn=handoff)
 
 Per `data-sources.md` operational rules:
 
-- **Webhooks** — low-latency signal for UX refresh (when registered).
-- **Polling** — authoritative reconciliation; run at least every 15 minutes.
-- Phase 2 primary ingestion path is **polling** (`EXECUTION.md` P2-1); webhooks
-  are additive when Partner Center registration is complete.
+- **Webhooks** — low-latency workflow gates and incremental sync triggers.
+- **Polling (Fujiwa)** — authoritative reconciliation; run at least every 15 minutes.
+- Phase 2 ingestion is **polling + catalog webhooks**; polling remains the backstop.
+
+```
+Webhook POST → verify HMAC → parse → catalog dispatch → ETL upsert
+Polling (Fujiwa) → authoritative reconciliation every ≤15 min
+```
 
 ---
 
@@ -124,6 +133,7 @@ Per `data-sources.md` operational rules:
 | Bad signature | 401 | No |
 | Malformed JSON | 400 | No |
 | Missing `type` or `shop_id` | 400 | No |
-| Valid event | 200 `{"code":0}` | Yes |
+| Phase 2 catalog event | 200 `{"code":0}` | Yes (except #6/#7) |
+| Deferred out-of-scope event | 200 `{"code":0}` | No |
 
-Duplicate delivery is normal — idempotent upserts in ETL.
+Duplicate delivery is normal — idempotent upserts in ETL and workflow signals.

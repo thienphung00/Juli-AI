@@ -145,9 +145,6 @@ class TestValidWebhook:
         )
 
         assert handoff_calls[0]["channel"] == "tiktok.product_status_change"
-
-
-class TestSignatureRejection:
     @pytest.mark.asyncio
     async def test_missing_authorization_returns_401(self, client):
         body = _order_event_body()
@@ -215,11 +212,10 @@ class TestMalformedRequest:
 
 
 class TestNewEventTypeRouting:
-    """Issue #27 — new event types routed to category topics."""
+    """Deferred Phase 3+ types ACK without ETL handoff (#354)."""
 
     @pytest.mark.asyncio
-    async def test_webhook_livestream_event_published(self, client, handoff_calls):
-        """AC1: Livestream events published to 'livestream-events' topic."""
+    async def test_webhook_livestream_event_ack_without_handoff(self, client, handoff_calls):
         event = {
             "type": "LIVESTREAM_SESSION_END",
             "shop_id": "shop_ls_1",
@@ -236,36 +232,10 @@ class TestNewEventTypeRouting:
         )
 
         assert resp.status_code == 200
-        assert len(handoff_calls) == 1
-        assert handoff_calls[0]["channel"] == "livestream-events"
-        assert handoff_calls[0]["shop_key"] == "shop_ls_1"
-        assert handoff_calls[0]["value"] == body
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
-    async def test_webhook_livestream_start_also_routes_correctly(
-        self, client, handoff_calls
-    ):
-        """AC1: All livestream subtypes route to the same topic."""
-        event = {
-            "type": "LIVESTREAM_SESSION_START",
-            "shop_id": "shop_ls_2",
-            "timestamp": 1700000002,
-            "data": {"session_id": "sess_002"},
-        }
-        body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
-
-        await client.post(
-            WEBHOOK_PATH,
-            content=body,
-            headers={"Authorization": sig, "Content-Type": "application/json"},
-        )
-
-        assert handoff_calls[0]["channel"] == "livestream-events"
-
-    @pytest.mark.asyncio
-    async def test_webhook_creator_event_published(self, client, handoff_calls):
-        """AC2: Creator/affiliate events published to 'creator-events' topic."""
+    async def test_webhook_creator_event_ack_without_handoff(self, client, handoff_calls):
         event = {
             "type": "CREATOR_AFFILIATE_LINK",
             "shop_id": "shop_cr_1",
@@ -282,15 +252,10 @@ class TestNewEventTypeRouting:
         )
 
         assert resp.status_code == 200
-        assert len(handoff_calls) == 1
-        assert handoff_calls[0]["channel"] == "creator-events"
-        assert handoff_calls[0]["shop_key"] == "shop_cr_1"
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
-    async def test_webhook_affiliate_event_routes_to_creator_topic(
-        self, client, handoff_calls
-    ):
-        """AC2: Affiliate-prefixed events also go to 'creator-events'."""
+    async def test_webhook_affiliate_event_ack_without_handoff(self, client, handoff_calls):
         event = {
             "type": "AFFILIATE_COMMISSION_CHANGE",
             "shop_id": "shop_af_1",
@@ -306,11 +271,10 @@ class TestNewEventTypeRouting:
             headers={"Authorization": sig, "Content-Type": "application/json"},
         )
 
-        assert handoff_calls[0]["channel"] == "creator-events"
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
-    async def test_webhook_settlement_event_published(self, client, handoff_calls):
-        """AC3: Settlement events published to 'settlement-events' topic."""
+    async def test_webhook_settlement_event_ack_without_handoff(self, client, handoff_calls):
         event = {
             "type": "SETTLEMENT_COMPLETED",
             "shop_id": "shop_st_1",
@@ -327,15 +291,10 @@ class TestNewEventTypeRouting:
         )
 
         assert resp.status_code == 200
-        assert len(handoff_calls) == 1
-        assert handoff_calls[0]["channel"] == "settlement-events"
-        assert handoff_calls[0]["shop_key"] == "shop_st_1"
+        assert len(handoff_calls) == 0
 
     @pytest.mark.asyncio
-    async def test_existing_order_event_still_uses_generic_topic(
-        self, client, handoff_calls
-    ):
-        """Backward compat: unrecognized types fallback to tiktok.{type}."""
+    async def test_existing_order_event_uses_catalog_channel(self, client, handoff_calls):
         body = _order_event_body()
         sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
 

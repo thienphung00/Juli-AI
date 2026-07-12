@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 354,
+  "executorDomain": "backend",
+  "phaseRunId": "354-2026-07-12-webhook-catalog",
+  "startedAt": "2026-07-12T03:50:00Z",
+  "completedAt": "2026-07-12T04:35:00Z",
+  "executionDurationMs": 2700000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Shell",
+    "Write",
+    "StrReplace"
+  ],
+  "toolInvocationCount": 42,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-354.json",
+    "docs/product/execution_layer.md",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "backend/src/juli_backend/services/etl/MODULE.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend",
+    "data-platform",
+    "prompt-caching"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/services/tiktok/webhook_catalog.py",
+    "backend/src/juli_backend/services/tiktok/webhook_handlers.py",
+    "backend/src/juli_backend/services/tiktok/dispatcher.py",
+    "backend/src/juli_backend/services/tiktok/webhook.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/database/migrations/versions/011_workflow_webhook_signals.py",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "tests/unit/test_webhook_catalog.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_webhook_catalog.py::TestPhase2CatalogRegistry::test_catalog_covers_all_acceptance_ids",
+    "tests/unit/test_webhook_catalog.py::TestAccountLifecycleWebhooks::test_seller_deauthorization_pauses_matching_shop_only",
+    "tests/unit/test_webhook_catalog.py::TestAccountLifecycleWebhooks::test_auth_expiration_emits_reauth_intent"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_webhook.py",
+    "tests/unit/test_tiktok_webhook_services.py",
+    "tests/unit/test_tiktok_infrastructure_contract.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ImportError: WorkflowWebhookSignal missing; catalog registry absent",
+      "passingTestEvidence": "89 webhook catalog tests pass; 647/647 unit suite green",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_webhook_catalog.py tests/unit/test_webhook.py -q",
+          "exitCode": 0,
+          "outputSummary": "89 passed"
+        },
+        {
+          "command": "pytest tests/unit/ -q",
+          "exitCode": 0,
+          "outputSummary": "647 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #354: Phase 2 webhook catalog registry (18 types), catalog-aware dispatcher, workflow_webhook_signals persistence, account lifecycle #6/#7 side effects, ETL handoff gating, and one parametrized pytest per catalog type.",
+  "assumptions": [
+    "Several Partner Center event type strings marked UNKNOWN until registration confirms names",
+    "Deferred Phase 3+ prefixes ACK without ETL handoff (supersedes #27 category handoff for those types)"
+  ],
+  "risks": [
+    "Production wiring must inject DatabaseWebhookSideEffects with DB session for workflow signals in webhook main.py (currently noop dispatcher in create_app factory)"
+  ]
+}

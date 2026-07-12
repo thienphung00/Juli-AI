@@ -125,11 +125,11 @@ async def test_webhook_accepts_json_payload_with_valid_signature():
     assert len(handoffs) == 1
 
 
-async def test_webhook_dispatcher_routes_order_created_event():
+async def test_webhook_dispatcher_routes_order_status_change_event():
     dispatcher = TikTokWebhookDispatcher()
-    event = TikTokWebhookPayload(type="ORDER_CREATED", shop_id="shop_1")
+    event = TikTokWebhookPayload(type="ORDER_STATUS_CHANGE", shop_id="shop_1")
     handler_name = await dispatcher.dispatch(event)
-    assert handler_name == "order_created"
+    assert handler_name == "order_status_change"
 
 
 async def test_oauth_callback_returns_proper_http_responses(api_client, user_id):

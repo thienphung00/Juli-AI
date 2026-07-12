@@ -460,6 +460,30 @@ class ProcessedEvent(Base):
     __table_args__ = (Index("ix_processed_events_shop", "shop_id"),)
 
 
+class WorkflowWebhookSignal(Base):
+    """Durable workflow-intent record emitted by Phase 2 catalog webhooks (#354)."""
+
+    __tablename__ = "workflow_webhook_signals"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    tiktok_shop_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    catalog_id: Mapped[int] = mapped_column(nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    workflow_keys: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    intent: Mapped[str] = mapped_column(String(50), nullable=False)
+    event_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    payload: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_workflow_webhook_signals_shop", "shop_id"),
+        Index("ix_workflow_webhook_signals_catalog", "catalog_id"),
+    )
+
+
 class Recommendation(Base):
     __tablename__ = "recommendations"
 

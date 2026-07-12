@@ -21,14 +21,23 @@ EVENT_CATEGORY_ROUTES: dict[str, str] = {
     "SETTLEMENT": "settlement-events",
 }
 
+ACCOUNT_LIFECYCLE_CHANNEL = "tiktok.account.lifecycle"
+
+
+def should_handoff_to_etl(event_type: str, channel: str) -> bool:
+    """Account/platform and deferred events skip ETL ingest."""
+    if channel == ACCOUNT_LIFECYCLE_CHANNEL:
+        return False
+    from juli_backend.services.tiktok.webhook_catalog import is_deferred_webhook_type
+
+    return not is_deferred_webhook_type(event_type)
+
 
 def resolve_ingest_channel(event_type: str) -> str:
-    """Route event to a category ingest channel by prefix, falling back to generic."""
-    upper = event_type.upper()
-    for prefix, channel in EVENT_CATEGORY_ROUTES.items():
-        if upper.startswith(prefix):
-            return channel
-    return f"tiktok.{event_type.lower()}"
+    """Route event to a Phase 2 catalog or legacy category ingest channel."""
+    from juli_backend.services.tiktok.webhook_catalog import ingest_channel_for_event
+
+    return ingest_channel_for_event(event_type)
 
 
 @dataclass
@@ -86,5 +95,6 @@ class TikTokWebhookService:
             },
         )
 
-        await self._handoff_fn(channel, event.shop_id, body)
+        if should_handoff_to_etl(event.type, channel):
+            await self._handoff_fn(channel, event.shop_id, body)
         return WebhookProcessResult(200, {"code": 0})
