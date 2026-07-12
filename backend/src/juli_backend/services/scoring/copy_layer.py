@@ -6,6 +6,7 @@ Phase 2: rules-only ``copy_source: rules``. Cloud LLM deferred to Phase 4.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from juli_backend.services.scoring.kpi_catalog import (
     MID_LARGE_WORKFLOW_KEYS,
@@ -13,6 +14,8 @@ from juli_backend.services.scoring.kpi_catalog import (
 )
 from juli_backend.services.scoring.types import (
     AdvisorySignal,
+    CopySource,
+    KpiId,
     ScoringSignals,
     WorkflowReasoningCopy,
     WorkflowReasoningSummary,
@@ -20,7 +23,7 @@ from juli_backend.services.scoring.types import (
     WorkflowRecommendations,
 )
 
-COPY_SOURCE_RULES = "rules"
+COPY_SOURCE_RULES: CopySource = "rules"
 
 WORKFLOW_COPY_TEMPLATE_KEYS: frozenset[str] = NEW_SHOP_WORKFLOW_KEYS | MID_LARGE_WORKFLOW_KEYS
 
@@ -117,7 +120,7 @@ def _linked_signals(
 ) -> list[AdvisorySignal]:
     linked: list[AdvisorySignal] = []
     for kpi_id in recommendation.source_kpi_ids:
-        signal = signals.kpis.get(kpi_id)  # type: ignore[arg-type]
+        signal = signals.kpis.get(cast(KpiId, kpi_id))
         if signal is None or signal.signal_type == "unavailable":
             continue
         linked.append(signal)
