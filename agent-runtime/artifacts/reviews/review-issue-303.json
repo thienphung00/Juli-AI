@@ -1,0 +1,224 @@
+{
+  "id": "review-issue-303",
+  "issue": 303,
+  "timestamp": "2026-07-12T04:55:24Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-B1 daily batch rules pipeline (#303): services/scoring emits visual_layer AdvisorySignal per 20 KPI IDs (6 domains), ranks execution_layer workflow keys from synced #300 aggregates; Shop Status/CSAT have empty workflow_keys per scope alignment; no ML imports; 08:00 UTC schedule constants; 10/10 contract tests pass.",
+  "criticalFindings": [
+    {
+      "id": "find-303-shop-status-workflow-test",
+      "type": "test_gap",
+      "module": "tests/unit/test_daily_batch_scoring_contract.py",
+      "description": "No explicit contract test asserting Shop Status and CSAT KPI_WORKFLOW_KEYS are empty tuples; behavior verified via kpi_catalog definition and manual spot-check.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage."
+    },
+    {
+      "id": "find-303-cache-doc-drift",
+      "type": "drift",
+      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
+      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
+    },
+    {
+      "id": "find-303-return-proxy",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "return_rate_proxy uses order-level ratio from aggregates, not true 7d/30d windows documented in visual_layer examples.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Defer windowed return-rate computation to P2-B3 multi-endpoint KPI slice."
+    },
+    {
+      "id": "find-303-batch-observability",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/scoring/batch.py",
+      "description": "Batch entry point has no structured logging or per-shop error isolation; acceptable for P2-B1 schedulable stub.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add structured logging and per-shop try/except when Celery beat wiring lands."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/scoring/__init__.py",
+    "backend/src/juli_backend/services/scoring/types.py",
+    "backend/src/juli_backend/services/scoring/advisory.py",
+    "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+    "backend/src/juli_backend/services/scoring/schedule.py",
+    "backend/src/juli_backend/services/scoring/signals.py",
+    "backend/src/juli_backend/services/scoring/recommendations.py",
+    "backend/src/juli_backend/services/scoring/pipeline.py",
+    "backend/src/juli_backend/services/scoring/batch.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "tests/unit/test_daily_batch_scoring_contract.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/scoring",
+      "interface": "run_daily_scoring_for_shop",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Single-shop pipeline: build_feature_aggregates \u2192 compute_scoring_signals \u2192 rank_workflow_recommendations."
+    },
+    {
+      "module": "backend/src/juli_backend/services/scoring",
+      "interface": "run_daily_scoring_batch",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Batch entry over active shops or explicit shop_ids list."
+    },
+    {
+      "module": "backend/src/juli_backend/services/scoring",
+      "interface": "compute_scoring_signals",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Emits visual_layer AdvisorySignal for all 20 KPI IDs from FeatureAggregateSnapshot."
+    },
+    {
+      "module": "backend/src/juli_backend/services/scoring",
+      "interface": "rank_workflow_recommendations",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Profile-gated execution_layer workflow ranking from advisory signals."
+    },
+    {
+      "module": "backend/src/juli_backend/services/scoring",
+      "interface": "format_advisory_one_line",
+      "changeType": "added",
+      "breaking": false,
+      "description": "visual_layer one-line format: change \u00b7 risk|opportunity \u00b7 action."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Batch job runs on synced Postgres aggregates",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_batch_scoring_uses_feature_aggregates_from_synced_tables"
+        },
+        {
+          "criterion": "Deterministic rules produce signals and ranked recommendations",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_same_inputs_produce_identical_recommendations"
+        },
+        {
+          "criterion": "Schedule aligns with phase-2-mvp.md (08:00 UTC scoring window)",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_daily_scoring_window_is_08_00_utc"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 10,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Reviewed P2-B1 scoring pipeline against scope-alignment-issue-303; no blocking findings.",
+    "timestamp": "2026-07-12T04:55:00Z",
+    "acceptedRisks": false
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "303-2026-07-12-visual-layer",
+  "scopeChecks": {
+    "mlModulesTouched": false,
+    "webIosDrift": false,
+    "tiktokWritePaths": false,
+    "notes": "Rules-only scoring confined to backend/src/juli_backend/services/scoring/ and contract tests. P1.8 health_check not used as signal authority."
+  },
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-303.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "find-303-shop-status-workflow-test",
+      "type": "test_gap",
+      "module": "tests/unit/test_daily_batch_scoring_contract.py",
+      "description": "No explicit contract test asserting Shop Status and CSAT KPI_WORKFLOW_KEYS are empty tuples; behavior verified via kpi_catalog definition and manual spot-check.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage."
+    },
+    {
+      "id": "find-303-cache-doc-drift",
+      "type": "drift",
+      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
+      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
+    },
+    {
+      "id": "find-303-return-proxy",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "return_rate_proxy uses order-level ratio from aggregates, not true 7d/30d windows documented in visual_layer examples.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Defer windowed return-rate computation to P2-B3 multi-endpoint KPI slice."
+    },
+    {
+      "id": "find-303-batch-observability",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/scoring/batch.py",
+      "description": "Batch entry point has no structured logging or per-shop error isolation; acceptable for P2-B1 schedulable stub.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add structured logging and per-shop try/except when Celery beat wiring lands."
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [
+    {
+      "id": "find-303-cache-doc-drift",
+      "type": "drift",
+      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
+      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
+    }
+  ],
+  "maintainabilityFindings": [
+    {
+      "id": "find-303-shop-status-workflow-test",
+      "type": "test_gap",
+      "module": "tests/unit/test_daily_batch_scoring_contract.py",
+      "description": "No explicit contract test asserting Shop Status and CSAT KPI_WORKFLOW_KEYS are empty tuples; behavior verified via kpi_catalog definition and manual spot-check.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage."
+    },
+    {
+      "id": "find-303-cache-doc-drift",
+      "type": "drift",
+      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
+      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
+    }
+  ],
+  "suggestedRemediation": [
+    "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage.",
+    "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh.",
+    "Defer windowed return-rate computation to P2-B3 multi-endpoint KPI slice.",
+    "Add structured logging and per-shop try/except when Celery beat wiring lands."
+  ]
+}

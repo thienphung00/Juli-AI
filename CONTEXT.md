@@ -86,12 +86,10 @@ system; ERP is the seller's stock ledger. Terminal step syncs to TikTok via Prod
 _Avoid_: ERP-sourced replenishment (when meaning supplier path), Warehouse System, Inventory System (phantom executors)
 
 **Customer Service execution**:
-Approval-gated workflow actions for Resolve Recurring Customer Complaints and
-Prevent Product Returns. **Deferred to Phase 3** — Phase 2 is advisory-only
-(KPI signals + workflow links). Phase 3 target uses Customer Service API
-(Partner Center messaging), Return/Refund API, and split corrective actions via
-Fulfillment API and Product API.
-_Avoid_: Workflow Engine, Monitoring Engine, Messaging API (use Customer Service API in execution tables)
+Approval-gated workflow actions for Resolve Recurring Customer Complaints (Phase 3
+deferred) and live Post-sales workflows Prevent Return (8b), Prevent Cancellation (8a),
+Prevent Refund (8c). Phase 2 CSAT is advisory-only with **no live workflow key**.
+_Avoid_: Prevent Product Returns (renamed Prevent Return 8b), Workflow Engine, Monitoring Engine, Messaging API (use Customer Service API in execution tables)
 
 ## Execution
 
@@ -105,3 +103,21 @@ Fulfillment ship/label/tracking actions use **Fulfillment API**; order reads use
 **Promotion API** (`open-api.tiktokglobalshop.com`) for seller promotions; **Marketing API**
 (`business-api.tiktok.com`) for Shop Ads campaign/budget/bid writes — not interchangeable.
 _Avoid_: "Ads API" on Shop Partner host (no campaign writes); Internal engine names with no implemented client or ADR
+
+**Ads KPI workflow routing**:
+Home Ads KPIs (ROAS, CAC, CTR) link to **Promotion** workflows from
+`execution_layer.md` — Create Activity (7a), Update Activity (7c), Delete Activity (7b)
+— not Shop Ads Marketing API budget/bid writes (out of Phase 2 Partner scope).
+_Avoid_: Increase Ad Budget, Reduce Ad Spend, Budget Optimization (P1.8 catalog labels — retired)
+
+**Product bundle routing**:
+Multi-SKU / bundle listing optimization is a capability inside **Optimize Product (2)** —
+not a standalone workflow in `execution_layer.md`.
+_Avoid_: Create Product Bundle (phantom workflow — use Optimize Product (2))
+
+**Shop Status KPI routing**:
+SPS / AHR / Violation Points render on Home from mock/fixture data in Phase 2 because
+Partner API shop-health fields are not available to retrieve. They emit advisory
+display only — **no execution_layer workflow mapping** until a live source exists.
+_Avoid_: mapping Shop Status KPIs to Process Order / Prevent Cancellation / Resolve
+Recurring Customer Complaints while data remains mock
