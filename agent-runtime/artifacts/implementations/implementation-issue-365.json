@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 365,
+  "executorDomain": "data-platform",
+  "phaseRunId": "365-2026-07-12-a-run",
+  "startedAt": "2026-07-12T03:44:00Z",
+  "completedAt": "2026-07-12T03:49:00Z",
+  "executionDurationMs": 300000,
+  "tokenUsage": {
+    "input": null,
+    "output": null,
+    "total": null,
+    "unavailableReason": "Platform telemetry did not expose token usage for this session."
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "Write", "StrReplace"],
+  "toolInvocationCount": 18,
+  "contextFilesLoaded": [
+    "backend/src/juli_backend/database/migrations/env.py",
+    "backend/src/juli_backend/database/migrations/versions/010_canonical_product_fields.py",
+    "backend/src/juli_backend/core/config/runtime.py",
+    ".github/workflows/pr.yml",
+    "alembic.ini"
+  ],
+  "skillsLoaded": ["focus", "data-platform"],
+  "filesModified": [
+    "tests/integration/test_migrations.py",
+    "tests/integration/test_migrations_contract.py"
+  ],
+  "testsAdded": [
+    "tests/integration/test_migrations.py::test_seeded_rows_survive_latest_migration_round_trip",
+    "tests/integration/test_migrations.py::test_latest_downgrade_drops_only_revision_010_columns",
+    "tests/integration/test_migrations.py::test_unique_constraints_enforced_after_migration_round_trip",
+    "tests/integration/test_migrations_contract.py::test_migrations_module_lives_under_tests_integration",
+    "tests/integration/test_migrations_contract.py::test_pr_test_job_provisions_postgres_database_url_for_migrations",
+    "tests/integration/test_migrations_contract.py::test_uses_same_postgres_connection_pattern_from_database_url_environment",
+    "tests/integration/test_migrations_contract.py::test_migration_integration_skips_when_postgres_unavailable"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "No migration integration tests asserting seeded row survival across alembic downgrade/upgrade",
+      "passingTestEvidence": "3 Postgres-backed migration tests pass against Docker Postgres 16",
+      "commands": [
+        {
+          "command": "DATABASE_URL=postgresql://postgres:test@localhost:5433/test_db pytest tests/integration/test_migrations.py -v",
+          "exitCode": 0,
+          "outputSummary": "3 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #365: added Alembic migration integration tests that seed representative rows, exercise downgrade -1 / upgrade head, and assert data survival, column-only downgrades, and unique constraint enforcement.",
+  "assumptions": [
+    "CI test job Postgres service is the authoritative environment; local skip when DATABASE_URL unreachable",
+    "Revision 010_canonical_product_fields is current head for round-trip assertions"
+  ],
+  "risks": [
+    "Future head migration changes require updating LATEST_REVISION and REVISION_010_COLUMNS constants"
+  ]
+}

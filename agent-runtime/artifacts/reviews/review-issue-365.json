@@ -1,0 +1,73 @@
+{
+  "id": "review-issue-365",
+  "issue": 365,
+  "timestamp": "2026-07-12T03:49:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Alembic migration integration tests (#365): seeded row survival, revision 010 column downgrade behavior, unique constraint enforcement after round trip, and contract checks for CI DATABASE_URL wiring. Targeted pytest green against Docker Postgres.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "tests/integration/test_migrations.py",
+    "tests/integration/test_migrations_contract.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "New test file lives in tests/integration/test_migrations.py",
+          "test": "tests/integration/test_migrations_contract.py::test_migrations_module_lives_under_tests_integration"
+        },
+        {
+          "criterion": "Test runs in the CI test job (Postgres service is already provisioned via DATABASE_URL)",
+          "test": "tests/integration/test_migrations_contract.py::test_pr_test_job_provisions_postgres_database_url_for_migrations"
+        },
+        {
+          "criterion": "Test fails if a migration drops data, breaks foreign keys, or removes required constraints",
+          "test": "tests/integration/test_migrations.py::test_seeded_rows_survive_latest_migration_round_trip"
+        },
+        {
+          "criterion": "Uses the same Postgres connection pattern as other integration tests (env DATABASE_URL)",
+          "test": "tests/integration/test_migrations_contract.py::test_uses_same_postgres_connection_pattern_from_database_url_environment"
+        },
+        {
+          "criterion": "One behavior per test where practical (e.g. separate tests for downgrade data survival vs constraint integrity)",
+          "test": "tests/integration/test_migrations.py::test_unique_constraints_enforced_after_migration_round_trip"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Update LATEST_REVISION constants when a new Alembic head lands on main."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "maintainabilityFindings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "observabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-365.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": [],
+  "reviewDurationMs": 45000,
+  "phaseRunId": "365-2026-07-12-a-run",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS"
+}
