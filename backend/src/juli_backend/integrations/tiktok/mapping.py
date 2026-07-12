@@ -226,7 +226,11 @@ def normalize_return(raw: dict[str, Any]) -> dict[str, Any]:
         if buyer_id is not None:
             result["buyer_id"] = buyer_id
 
-    if result.get("refund_amount") is None:
+    if isinstance(result.get("refund_amount"), dict):
+        refund_total = _nested_refund_total(result.get("refund_amount"))
+        if refund_total is not None:
+            result["refund_amount"] = refund_total
+    elif result.get("refund_amount") is None:
         refund_total = _nested_refund_total(result.get("refund"))
         if refund_total is not None:
             result["refund_amount"] = refund_total

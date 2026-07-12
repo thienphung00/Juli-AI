@@ -1,0 +1,70 @@
+{
+  "id": "review-issue-302",
+  "issue": 302,
+  "timestamp": "2026-07-12T04:24:07Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/workers/services/polling",
+    "backend/src/juli_backend/integrations/tiktok",
+    "tests/integration",
+    "tests/unit"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Poll cycle persists canonical entities via etl",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_poll_cycle_persists_canonical_entities_via_etl"
+        },
+        {
+          "criterion": "Repoll is idempotent for etl upserts",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_repoll_is_idempotent_for_etl_upserts"
+        },
+        {
+          "criterion": "Duplicate catalog webhook dedupes etl and signals",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_duplicate_catalog_webhook_dedupes_etl_and_signals"
+        },
+        {
+          "criterion": "Partial endpoint failure preserves sync state and partial etl",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_partial_endpoint_failure_preserves_sync_state_and_partial_etl"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 29,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Reviewed Layer 3 integration tests, orchestrate shop_key fix, and return mapping flatten \u2014 no blocking findings.",
+    "timestamp": "2026-07-12T04:20:00Z",
+    "acceptedRisks": false
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "severity": "none",
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-302.json"
+}

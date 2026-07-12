@@ -5,7 +5,7 @@
   "cacheBlockVersion": 1,
   "parentScopeBlock": "# Parent #278 — Phase 2 TikTok (constant for all children)\n\n## Epic deferrals\n- T8 router classifier / trained ML inference (T1–T8): Phase 4 only\n- VP/AHR dual-read: platform-policy reference — not P2 exit gate\n- Marketing API (`business-api.tiktok.com`): out of Shop Partner scope\n- Seller Center scraping for health scores: forbidden\n- Webhook types outside Phase 2 catalog (~50 types): Phase 3+\n- Cloud LLM copy layer: Phase 4\n- `web/`, `ios/`: not required for Phase 2 exit\n\n## Merchants\n- Fujiwa (`7658073774813611784`): production read-only\n- SANDBOX_VN (`7658096633384781588`): sandbox write-validation only\n\n## Data sources\n- TikTok Partner API per `docs/architecture/data-sources.md`\n- SPS / shop health: Partner API when verified contract exists\n- `health_data_source`: `api` | `proxy` | `unavailable` — never fabricate VP/AHR/SPS\n- Production sync: Fujiwa polling → ETL → Postgres canonical entities\n- Phase 2 signals: rules-based only (SQL/Python aggregates, deterministic classification)\n\n## Ingestion model\n- Polling (Fujiwa, ≤15 min reconciliation) + Phase 2 webhook catalog (#354)\n- Polling remains authoritative backstop\n",
   "handoffPath": "docs/handoffs/phase-2-tiktok-implementation.md",
-  "childIssueIds": [294, 297, 298, 299, 301, 300, 354, 365, 366, 367],
+  "childIssueIds": [294, 297, 298, 299, 301, 300, 302, 354, 365, 366, 367],
   "doNotLoad": [
     "docs/handoffs/archive/",
     "docs/product/features/",

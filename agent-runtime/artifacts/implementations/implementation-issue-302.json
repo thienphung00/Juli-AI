@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 302,
+  "executorDomain": "backend",
+  "phaseRunId": "302-2026-07-12-layer3-integration",
+  "startedAt": "2026-07-12T11:00:00Z",
+  "completedAt": "2026-07-12T11:35:00Z",
+  "executionDurationMs": 2100000,
+  "tokenUsage": {
+    "input": null,
+    "output": null,
+    "total": null,
+    "unavailableReason": "Platform telemetry did not expose token usage for this session."
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "StrReplace", "Write", "ReadLints"],
+  "toolInvocationCount": null,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-354.json",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/services/etl/consumer.py",
+    "backend/src/juli_backend/services/webhook/app.py",
+    "tests/integration/tiktok_recorded_replay.py"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "prompt-caching",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "tests/integration/test_tiktok_layer3_ingestion_e2e.py",
+    "tests/unit/test_tiktok_mapping.py",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-302.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-302.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json"
+  ],
+  "testsAdded": [
+    "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_poll_cycle_persists_canonical_entities_via_etl",
+    "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_repoll_is_idempotent_for_etl_upserts",
+    "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_rate_limit_backoff_completes_poll_without_raising",
+    "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_partial_endpoint_failure_preserves_sync_state_and_partial_etl",
+    "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestWebhookCatalogEtlHandoff::test_catalog_webhook_routes_to_etl_and_persists_order",
+    "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestWebhookCatalogEtlHandoff::test_duplicate_catalog_webhook_dedupes_etl_and_signals",
+    "tests/unit/test_tiktok_mapping.py::TestNormalizeReturn::test_flattens_nested_refund_amount_object_from_contract_sample"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Poll→ETL integration sent internal shop UUID as handoff key; ETL routed all records to DLQ (unknown shop)",
+      "passingTestEvidence": "orchestrate.py resolves shop.tiktok_shop_id for handoff; orders/products persist from recorded replay",
+      "commands": [
+        {
+          "command": "pytest tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_poll_cycle_persists_canonical_entities_via_etl -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Returns fixture nested refund_amount dict caused Decimal conversion failure in ETL transform",
+      "passingTestEvidence": "normalize_return flattens nested refund_amount; unit + integration tests pass",
+      "commands": [
+        {
+          "command": "pytest tests/integration/test_tiktok_layer3_ingestion_e2e.py tests/unit/test_tiktok_mapping.py -q",
+          "exitCode": 0,
+          "outputSummary": "17 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "Webhook catalog ETL dedup test referenced nonexistent ProcessedEventsRepo.count_for_shop",
+      "passingTestEvidence": "Assert processed_events count via SQLAlchemy select; webhook duplicate POST dedupes order + signal rows",
+      "commands": [
+        {
+          "command": "pytest tests/integration/test_tiktok_layer3_ingestion_e2e.py -q",
+          "exitCode": 0,
+          "outputSummary": "6 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #302: Layer 3 mock integration tests wire recorded TikTok contract fixtures through poll orchestration and webhook catalog into ETL/Postgres. Covers retry/backoff, idempotent upserts, sync-state partial failure, and webhook catalog handoff dedup — all deterministic without live Partner API calls.",
+  "assumptions": [
+    "Workflow prompt cache loaded via issue-context-cache-302.json (P2-A1 slice under parent #278)",
+    "Recorded replay harness from #367 reused; no new HTTP mocking layer required"
+  ],
+  "risks": [
+    "Additional contract sample shape drift (nested payment/refund objects) may require normalize_* updates similar to returns"
+  ]
+}

@@ -33,7 +33,7 @@ from juli_backend.integrations.tiktok.merchant import (
     TikTokCapability,
 )
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
-from juli_backend.models.models import TikTokCredential
+from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
@@ -184,7 +184,13 @@ async def run_fujiwa_poll_cycle(
     sync_state = await repo.load(credential.shop_id)
 
     app_id = config.app_key
-    shop_key = str(credential.shop_id)
+    shop = await session.get(Shop, credential.shop_id)
+    if shop is None or not shop.tiktok_shop_id:
+        raise ValueError(
+            "Fujiwa polling requires a shop with tiktok_shop_id; "
+            f"shop_id={credential.shop_id}"
+        )
+    shop_key = shop.tiktok_shop_id
 
     for step in _FUJIWA_POLL_STEPS:
         await _run_poll_step(

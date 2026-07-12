@@ -112,6 +112,21 @@ class TestNormalizeReturn:
         assert mapped["sku_id"] == "sku-x"
         assert mapped["return_type"] == "other"
 
+    def test_flattens_nested_refund_amount_object_from_contract_sample(self):
+        mapped = normalize_return({
+            "return_id": "4035463945335048707",
+            "order_id": "579238058323577347",
+            "refund_amount": {
+                "currency": "VND",
+                "refund_total": "864000",
+            },
+            "return_line_items": [{"sku_id": "1730420785344318071"}],
+            "return_status": "RETURN_OR_REFUND_REQUEST_COMPLETE",
+            "update_time": 1724833101,
+        })
+
+        assert mapped["refund_amount"] == "864000"
+
 
 class TestNormalizeCreatorAndStatement:
     def test_normalize_creator_maps_user_id_and_nickname(self):
