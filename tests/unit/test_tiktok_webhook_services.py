@@ -14,11 +14,10 @@ class TestWebhookDispatcher:
     @pytest.mark.parametrize(
         ("event_type", "expected_handler"),
         [
-            ("ORDER_CREATED", "order_created"),
-            ("ORDER_PAID", "order_paid"),
-            ("ORDER_CANCELLED", "order_cancelled"),
-            ("REFUND_CREATED", "refund_created"),
-            ("PRODUCT_STATUS_CHANGE", "unknown_event"),
+            ("ORDER_STATUS_CHANGE", "order_status_change"),
+            ("PRODUCT_STATUS_CHANGE", "product_status_change"),
+            ("AFFILIATE_COMMISSION_CHANGE", "deferred_out_of_scope"),
+            ("MYSTERY_EVENT", "unknown_event"),
         ],
     )
     async def test_dispatches_to_expected_handler(self, event_type, expected_handler):

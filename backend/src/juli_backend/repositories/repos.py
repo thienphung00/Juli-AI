@@ -33,6 +33,7 @@ from juli_backend.models.models import (
     TikTokCredential,
     TikTokSyncState,
     User,
+    WorkflowWebhookSignal,
 )
 
 T = TypeVar("T")
@@ -89,6 +90,14 @@ class ShopsRepo:
         self._session.add(shop)
         await self._session.flush()
         return shop
+
+    async def pause_automation(self, shop_id: uuid.UUID) -> None:
+        """Pause automations for one shop after seller deauthorization (#354 #6)."""
+        shop = await self._session.get(Shop, shop_id)
+        if shop is None:
+            return
+        shop.is_active = False
+        await self._session.flush()
 
 
 class TikTokCredentialRepo:
@@ -777,5 +786,54 @@ class ProcessedEventsRepo:
         if result.scalar_one_or_none() is not None:
             return False
         self._session.add(ProcessedEvent(event_id=event_id, shop_id=shop_id))
+        await self._session.flush()
+        return True
+
+
+class WorkflowWebhookSignalsRepo:
+    """Durable workflow-intent records for Phase 2 catalog webhooks (#354)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_for_shop(self, shop_id: uuid.UUID) -> list[WorkflowWebhookSignal]:
+        stmt = (
+            select(WorkflowWebhookSignal)
+            .where(WorkflowWebhookSignal.shop_id == shop_id)
+            .order_by(WorkflowWebhookSignal.created_at)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def record_if_new(
+        self,
+        *,
+        shop_id: uuid.UUID,
+        tiktok_shop_id: str,
+        catalog_id: int,
+        event_type: str,
+        workflow_keys: list[str],
+        intent: str,
+        event_id: str,
+        payload_json: str,
+    ) -> bool:
+        stmt = select(WorkflowWebhookSignal).where(
+            WorkflowWebhookSignal.event_id == event_id
+        )
+        result = await self._session.execute(stmt)
+        if result.scalar_one_or_none() is not None:
+            return False
+        self._session.add(
+            WorkflowWebhookSignal(
+                shop_id=shop_id,
+                tiktok_shop_id=tiktok_shop_id,
+                catalog_id=catalog_id,
+                event_type=event_type,
+                workflow_keys=json.dumps(workflow_keys),
+                intent=intent,
+                event_id=event_id,
+                payload=payload_json,
+            )
+        )
         await self._session.flush()
         return True

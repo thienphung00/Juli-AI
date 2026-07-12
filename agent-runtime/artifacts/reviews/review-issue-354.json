@@ -1,0 +1,107 @@
+{
+  "id": "review-issue-354",
+  "issue": 354,
+  "timestamp": "2026-07-12T04:03:31Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Phase 2 webhook catalog (#354): 18-type registry, catalog dispatcher, workflow_webhook_signals table, account lifecycle handlers with per-shop isolation, ETL handoff gating, production side-effects wired via session_factory in webhook/main.py. CI fixes: ruff, migration head 011, acceptance mappings.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/tiktok/webhook_catalog.py",
+    "backend/src/juli_backend/services/tiktok/webhook_handlers.py",
+    "backend/src/juli_backend/services/tiktok/dispatcher.py",
+    "backend/src/juli_backend/services/tiktok/webhook.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/database/migrations/versions/011_workflow_webhook_signals.py",
+    "backend/src/juli_backend/services/webhook/app.py",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "tests/unit/test_webhook_catalog.py",
+    "tests/integration/test_migrations.py"
+  ],
+  "interfaceChanges": [
+    {
+      "type": "added",
+      "symbol": "WorkflowWebhookSignal",
+      "module": "backend.models.models"
+    },
+    {
+      "type": "modified",
+      "symbol": "TikTokWebhookDispatcher.__init__",
+      "module": "backend.services.tiktok.dispatcher",
+      "breaking": false
+    },
+    {
+      "type": "modified",
+      "symbol": "create_app",
+      "module": "backend.services.webhook.app",
+      "breaking": false
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "All 18 Phase 2 catalog webhooks (#1\u2013#7, #11\u2013#12, #21, #24, #27, #37, #39, #58, #64\u2013#68) registered in code with workflow mapping matching execution_layer.md",
+          "test": "tests/unit/test_webhook_catalog.py::test_registered_phase2_catalog_webhooks_match_execution_layer"
+        },
+        {
+          "criterion": "Out-of-scope webhook types (~50) are **not** subscribed or routed in Phase 2 paths",
+          "test": "tests/unit/test_webhook_catalog.py::test_out_of_scope_webhook_types_not_routed_in_phase2_paths"
+        },
+        {
+          "criterion": "Each catalog type has a minimal unit test (fixture \u2192 verify channel, handler, or ETL outcome)",
+          "test": "tests/unit/test_webhook_catalog.py::test_catalog_entry_resolves_type_handler_and_channel"
+        },
+        {
+          "criterion": "Webhook payloads dedupe idempotently via existing EtlConsumer event_id path",
+          "test": "tests/unit/test_webhook_catalog.py::test_webhook_payload_dedupe_via_etl_event_id_path"
+        },
+        {
+          "criterion": "#6/#7 account webhooks pause/trigger re-auth without cross-merchant credential bleed (#296 guard)",
+          "test": "tests/unit/test_webhook_catalog.py::test_seller_deauthorization_pauses_matching_shop_only"
+        },
+        {
+          "criterion": "webhooks.md updated with confirmed event type names (or explicit UNKNOWN markers)",
+          "test": "tests/unit/test_webhook_catalog.py::test_webhooks_md_confirmed_or_unknown_event_type_names"
+        },
+        {
+          "criterion": "Documented co-existence with polling: webhooks for latency/workflow gates; polling for reconciliation",
+          "test": "tests/unit/test_webhook_catalog.py::test_webhooks_md_documented_polling_coexistence"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 649,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Confirm UNKNOWN event type strings in Partner Center and update webhook_catalog.py confirmed flags."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewDurationMs": 120000,
+  "phaseRunId": "354-2026-07-12-webhook-catalog",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": [],
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-354.json"
+}

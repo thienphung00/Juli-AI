@@ -1,10 +1,4 @@
-"""TikTok webhook event dispatcher — routes events to stub handlers by type.
-
-Handlers are infrastructure placeholders; business logic (order sync, refunds,
-etc.) will be implemented in follow-up issues. Duplicate deliveries should be
-deduplicated downstream (ETL ``event_id``); add an idempotency key check here
-when webhook event ids are confirmed in official docs.
-"""
+"""TikTok webhook event dispatcher — routes Phase 2 catalog events to handlers."""
 
 from __future__ import annotations
 
@@ -12,54 +6,43 @@ import logging
 from collections.abc import Awaitable, Callable
 
 from juli_backend.services.tiktok.schemas import TikTokWebhookPayload
+from juli_backend.services.tiktok.webhook_catalog import (
+    CatalogEntry,
+    is_deferred_webhook_type,
+    resolve_catalog_entry,
+)
+from juli_backend.services.tiktok.webhook_handlers import (
+    NoopWebhookSideEffects,
+    WebhookSideEffects,
+)
 
 logger = logging.getLogger(__name__)
 
-EventHandler = Callable[[TikTokWebhookPayload], Awaitable[None]]
+EventHandler = Callable[[TikTokWebhookPayload, CatalogEntry], Awaitable[None]]
 
 
-def _resolve_handler_name(event_type: str) -> str:
-    """Map TikTok event type strings to internal handler names."""
-    upper = event_type.upper()
-    if "ORDER_CREATED" in upper or upper in {"ORDER_CREATE", "ORDER_CREATION"}:
-        return "order_created"
-    if "ORDER_PAID" in upper or ("PAID" in upper and "ORDER" in upper):
-        return "order_paid"
-    if "ORDER_CANCEL" in upper or ("CANCEL" in upper and "ORDER" in upper):
-        return "order_cancelled"
-    if "REFUND" in upper:
-        return "refund_created"
-    return "unknown_event"
-
-
-async def _handle_order_created(event: TikTokWebhookPayload) -> None:
-    # TODO: implement order_created business logic
+async def _handle_catalog_event(
+    event: TikTokWebhookPayload,
+    entry: CatalogEntry,
+    *,
+    side_effects: WebhookSideEffects,
+) -> None:
     logger.info(
-        "tiktok_webhook_order_created",
-        extra={"shop_id": event.shop_id, "event_type": event.type},
+        "tiktok_webhook_catalog_event",
+        extra={
+            "catalog_id": entry.catalog_id,
+            "handler": entry.handler_name,
+            "shop_id": event.shop_id,
+            "event_type": event.type,
+            "workflows": list(entry.workflow_keys),
+        },
     )
+    await side_effects.on_catalog_event(entry=entry, event=event)
 
 
-async def _handle_order_paid(event: TikTokWebhookPayload) -> None:
-    # TODO: implement order_paid business logic
+async def _handle_deferred_event(event: TikTokWebhookPayload) -> None:
     logger.info(
-        "tiktok_webhook_order_paid",
-        extra={"shop_id": event.shop_id, "event_type": event.type},
-    )
-
-
-async def _handle_order_cancelled(event: TikTokWebhookPayload) -> None:
-    # TODO: implement order_cancelled business logic
-    logger.info(
-        "tiktok_webhook_order_cancelled",
-        extra={"shop_id": event.shop_id, "event_type": event.type},
-    )
-
-
-async def _handle_refund_created(event: TikTokWebhookPayload) -> None:
-    # TODO: implement refund_created business logic
-    logger.info(
-        "tiktok_webhook_refund_created",
+        "tiktok_webhook_deferred_out_of_scope",
         extra={"shop_id": event.shop_id, "event_type": event.type},
     )
 
@@ -71,25 +54,26 @@ async def _handle_unknown_event(event: TikTokWebhookPayload) -> None:
     )
 
 
-_HANDLERS: dict[str, EventHandler] = {
-    "order_created": _handle_order_created,
-    "order_paid": _handle_order_paid,
-    "order_cancelled": _handle_order_cancelled,
-    "refund_created": _handle_refund_created,
-    "unknown_event": _handle_unknown_event,
-}
-
-
 class TikTokWebhookDispatcher:
-    """Dispatch parsed webhook events to typed stub handlers."""
+    """Dispatch parsed webhook events to Phase 2 catalog handlers."""
+
+    def __init__(self, *, side_effects: WebhookSideEffects | None = None) -> None:
+        self._side_effects = side_effects or NoopWebhookSideEffects()
 
     async def dispatch(self, event: TikTokWebhookPayload) -> str:
         """Route *event* to a handler and return the handler name."""
-        handler_name = _resolve_handler_name(event.type)
-        handler = _HANDLERS[handler_name]
-        await handler(event)
-        return handler_name
+        if is_deferred_webhook_type(event.type):
+            await _handle_deferred_event(event)
+            return "deferred_out_of_scope"
+
+        entry = resolve_catalog_entry(event.type)
+        if entry is not None:
+            await _handle_catalog_event(event, entry, side_effects=self._side_effects)
+            return entry.handler_name
+
+        await _handle_unknown_event(event)
+        return "unknown_event"
 
     def register_handler(self, name: str, handler: EventHandler) -> None:
-        """Register or override a handler (extension point for new event types)."""
-        _HANDLERS[name] = handler
+        """Extension point retained for future catalog types."""
+        _ = (name, handler)
