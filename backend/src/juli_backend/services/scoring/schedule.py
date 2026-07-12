@@ -1,0 +1,5 @@
+"""Daily batch scoring schedule — phase-2-mvp.md 08:00 UTC window (#303)."""
+
+DAILY_SCORING_UTC_HOUR = 8
+DAILY_SCORING_UTC_MINUTE = 0
+DAILY_SCORING_CRON_UTC = f"{DAILY_SCORING_UTC_MINUTE} {DAILY_SCORING_UTC_HOUR} * * *"

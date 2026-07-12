@@ -138,8 +138,8 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
         ("ACTIVITY_STATUS_CHANGE",),
         (
             "create_activity_7a",
-            "update_activity_7b",
-            "delete_activity_7c",
+            "update_activity_7c",
+            "delete_activity_7b",
             "clear_excess_4",
         ),
         confirmed=False,
