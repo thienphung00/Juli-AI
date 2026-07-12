@@ -6,6 +6,8 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
 
+from juli_backend.services.aggregates.computed_kpis import ComputedKpiMetrics
+
 
 class HealthDataSource(StrEnum):
     API = "api"
@@ -78,4 +80,5 @@ class FeatureAggregateSnapshot:
     total_units_sold: int
     return_rate_proxy: float | None
     data_sources: list[str]
+    computed_kpis: ComputedKpiMetrics | None = None
     proxy_signals: ProxyHealthSignals | None = None

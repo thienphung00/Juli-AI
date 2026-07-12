@@ -10,7 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.models.models import Shop
-from juli_backend.repositories.repos import OrdersRepo, ProductsRepo, ReturnsRepo
+from juli_backend.repositories.repos import (
+    InventoryRepo,
+    OrderItemsRepo,
+    OrdersRepo,
+    ProductsRepo,
+    ReturnsRepo,
+)
+from juli_backend.services.aggregates.computed_kpis import compute_all_kpis
 from juli_backend.services.aggregates.health_source import resolve_health_snapshot
 from juli_backend.services.aggregates.shop_profile import classify_shop_profile
 from juli_backend.services.aggregates.types import (
@@ -19,7 +26,9 @@ from juli_backend.services.aggregates.types import (
     ShopProfileSignals,
 )
 
-SYNCED_DATA_SOURCES = frozenset({"orders", "products", "returns"})
+SYNCED_DATA_SOURCES = frozenset(
+    {"orders", "products", "returns", "order_items", "inventory_items"}
+)
 
 
 def _shop_age_days(created_at: datetime | None) -> int:
@@ -36,9 +45,11 @@ async def build_feature_aggregates(
     *,
     lifecycle: ShopLifecycleContext | None = None,
     list_limit: int = 10_000,
+    computed_at: datetime | None = None,
 ) -> FeatureAggregateSnapshot:
     """Roll up KPIs from synced commerce tables; rules-only profile and health."""
     lifecycle = lifecycle or ShopLifecycleContext()
+    anchor = computed_at or datetime.now(UTC)
 
     shop = await session.get(Shop, shop_id)
     if shop is None:
@@ -47,6 +58,8 @@ async def build_feature_aggregates(
     orders = await OrdersRepo(session).list(shop_id, limit=list_limit)
     products = await ProductsRepo(session).list(shop_id, limit=list_limit)
     returns = await ReturnsRepo(session).list(shop_id, limit=list_limit)
+    order_items = await OrderItemsRepo(session).list(shop_id, limit=list_limit)
+    inventory_items = await InventoryRepo(session).list(shop_id, limit=list_limit)
 
     order_count = len(orders)
     product_count = len(products)
@@ -78,6 +91,16 @@ async def build_feature_aggregates(
         product_count=product_count,
     )
 
+    computed_kpis = compute_all_kpis(
+        shop_id=shop_id,
+        orders=orders,
+        order_items=order_items,
+        products=products,
+        inventory_items=inventory_items,
+        returns=returns,
+        anchor=anchor,
+    )
+
     return FeatureAggregateSnapshot(
         shop_id=shop_id,
         shop_profile=shop_profile,
@@ -93,5 +116,6 @@ async def build_feature_aggregates(
         total_units_sold=total_units_sold,
         return_rate_proxy=return_rate_proxy,
         data_sources=sorted(SYNCED_DATA_SOURCES),
+        computed_kpis=computed_kpis,
         proxy_signals=health.proxy_signals,
     )

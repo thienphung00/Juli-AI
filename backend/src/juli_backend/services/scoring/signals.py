@@ -10,6 +10,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from juli_backend.models.models import Product
+from juli_backend.services.aggregates.computed_kpis import ComputedKpiMetrics
 from juli_backend.services.aggregates.types import (
     FeatureAggregateSnapshot,
     ShopLifecycleContext,
@@ -28,6 +29,15 @@ from juli_backend.services.scoring.types import (
 DEFAULT_SPS_THRESHOLD = 4.0
 DEFAULT_AHR_THRESHOLD = 90.0
 RETURN_RATE_RISK_THRESHOLD = 0.2
+INVENTORY_TURNOVER_RISK_THRESHOLD = 4.0
+DSI_RISK_DAYS_THRESHOLD = 60.0
+STOCKOUT_RATE_RISK_THRESHOLD = 0.05
+FULFILLMENT_ACCURACY_RISK_THRESHOLD = 0.95
+SELLER_FAULT_CANCEL_RISK_THRESHOLD = 0.03
+AFTER_SALES_HANDLING_RISK_HOURS = 20.0
+CSAT_RISK_THRESHOLD = 70.0
+
+_PROMOTION_UNAVAILABLE_REASON = "Chờ đồng bộ Promotion API"
 
 _SHOP_STATUS_ACTION = "investigate fulfillment/cancellation/CS"
 _RETURN_ACTION = "review return drivers by SKU"
@@ -246,6 +256,280 @@ def _compute_return_request_rate(snapshot: FeatureAggregateSnapshot) -> Advisory
     )
 
 
+def _computed(snapshot: FeatureAggregateSnapshot) -> ComputedKpiMetrics | None:
+    return snapshot.computed_kpis
+
+
+def _compute_inventory_turnover(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.inventory_turnover is None:
+        return _unavailable_kpi("inventory_turnover", reason="Chưa đồng bộ tồn kho")
+
+    turnover = metrics.inventory_turnover
+    change = f"Inventory Turnover {turnover:.1f}x (30d)"
+    if turnover < INVENTORY_TURNOVER_RISK_THRESHOLD:
+        return _make_signal(
+            "inventory_turnover",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="cash trapped in inventory · clear excess or replenish",
+            severity="warning",
+        )
+    return _make_signal(
+        "inventory_turnover",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="inventory velocity healthy",
+        severity="healthy",
+    )
+
+
+def _compute_dsi(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.dsi_days is None:
+        return _unavailable_kpi("dsi", reason="Chưa đồng bộ tồn kho")
+
+    dsi = metrics.dsi_days
+    change = f"DSI {dsi:.0f} ngày"
+    if dsi > DSI_RISK_DAYS_THRESHOLD:
+        return _make_signal(
+            "dsi",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="inventory aging · clear excess stock",
+            severity="warning",
+        )
+    return _make_signal(
+        "dsi",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="inventory days within band",
+        severity="healthy",
+    )
+
+
+def _compute_stockout_rate(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.stockout_rate is None:
+        return _unavailable_kpi("stockout_rate", reason="Chưa đồng bộ tồn kho")
+
+    rate = metrics.stockout_rate
+    pct = rate * 100
+    change = (
+        f"Stockout rate {pct:.1f}% "
+        f"({metrics.stockout_sku_count}/{metrics.sku_count_with_inventory} SKU)"
+    )
+    if rate > STOCKOUT_RATE_RISK_THRESHOLD:
+        return _make_signal(
+            "stockout_rate",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="lost sales risk · replenish inventory",
+            severity="critical",
+        )
+    return _make_signal(
+        "stockout_rate",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="stockout rate low",
+        severity="healthy",
+    )
+
+
+def _compute_fulfillment_accuracy_rate(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.fulfillment_accuracy_rate is None:
+        return _unavailable_kpi("fulfillment_accuracy_rate")
+
+    rate = metrics.fulfillment_accuracy_rate
+    pct = rate * 100
+    change = (
+        f"Fulfillment accuracy {pct:.1f}% "
+        f"({metrics.orders_fulfilled_without_seller_fault_30d}/"
+        f"{metrics.orders_with_ship_time_30d} đơn)"
+    )
+    if rate < FULFILLMENT_ACCURACY_RISK_THRESHOLD:
+        return _make_signal(
+            "fulfillment_accuracy_rate",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="errors rising · process orders",
+            severity="warning",
+        )
+    return _make_signal(
+        "fulfillment_accuracy_rate",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="fulfillment accuracy stable",
+        severity="healthy",
+    )
+
+
+def _compute_orders_at_sla_risk(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None:
+        return _unavailable_kpi("orders_at_sla_risk")
+
+    count = metrics.orders_at_sla_risk_count
+    change = f"{count} đơn at SLA risk"
+    if count > 0:
+        return _make_signal(
+            "orders_at_sla_risk",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="late-ship penalties · process orders",
+            severity="critical" if count >= 10 else "warning",
+        )
+    return _make_signal(
+        "orders_at_sla_risk",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="no orders past dispatch SLA",
+        severity="healthy",
+    )
+
+
+def _compute_seller_fault_cancellation_rate(
+    snapshot: FeatureAggregateSnapshot,
+) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.seller_fault_cancellation_rate is None:
+        return _unavailable_kpi("seller_fault_cancellation_rate")
+
+    rate = metrics.seller_fault_cancellation_rate
+    pct = rate * 100
+    change = f"Seller-fault cancel {pct:.1f}% ({metrics.seller_fault_order_count_30d} đơn)"
+    if rate > SELLER_FAULT_CANCEL_RISK_THRESHOLD:
+        return _make_signal(
+            "seller_fault_cancellation_rate",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="SPS deterioration risk · prevent cancellation",
+            severity="critical",
+        )
+    if rate > 0:
+        return _make_signal(
+            "seller_fault_cancellation_rate",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="monitor seller-fault cancels",
+            severity="warning",
+        )
+    return _make_signal(
+        "seller_fault_cancellation_rate",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="seller-fault cancels low",
+        severity="healthy",
+    )
+
+
+def _compute_conversion_rate_by_category(
+    snapshot: FeatureAggregateSnapshot,
+) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.conversion_rate_by_category is None:
+        return _unavailable_kpi("conversion_rate_by_category")
+
+    pct = metrics.conversion_rate_by_category * 100
+    category = metrics.top_category_name or "unknown"
+    change = f"{category} {pct:.1f}% order items (traffic-less proxy)"
+    return _make_signal(
+        "conversion_rate_by_category",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="optimize category listing effectiveness",
+        severity="healthy",
+    )
+
+
+def _compute_repeat_purchase_rate(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.repeat_purchase_rate is None:
+        return _unavailable_kpi("repeat_purchase_rate")
+
+    rate = metrics.repeat_purchase_rate
+    pct = rate * 100
+    change = (
+        f"Repeat purchase {pct:.1f}% "
+        f"({metrics.repeat_buyers_30d}/{metrics.unique_buyers_30d} buyers)"
+    )
+    return _make_signal(
+        "repeat_purchase_rate",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="retention signal · scale hero products",
+        severity="healthy" if rate >= 0.15 else "warning",
+    )
+
+
+def _compute_after_sales_handling_time(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.after_sales_handling_time_hours is None:
+        return _unavailable_kpi("after_sales_handling_time")
+
+    hours = metrics.after_sales_handling_time_hours
+    change = f"After-Sales Handling {hours:.0f}h median"
+    if hours > AFTER_SALES_HANDLING_RISK_HOURS:
+        return _make_signal(
+            "after_sales_handling_time",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="dissatisfaction risk · prevent returns",
+            severity="warning",
+        )
+    return _make_signal(
+        "after_sales_handling_time",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="after-sales handling within SLA",
+        severity="healthy",
+    )
+
+
+def _compute_csat(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.csat_proxy_score is None:
+        return _unavailable_kpi("csat", reason="Chưa đủ dữ liệu đơn/return 30d")
+
+    score = metrics.csat_proxy_score
+    change = f"CSAT proxy {score:.0f}/100 (return-rate stand-in)"
+    if score < CSAT_RISK_THRESHOLD:
+        return _make_signal(
+            "csat",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="satisfaction proxy low · review return drivers",
+            severity="warning",
+        )
+    return _make_signal(
+        "csat",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="satisfaction proxy stable",
+        severity="healthy",
+    )
+
+
 def compute_scoring_signals(
     snapshot: FeatureAggregateSnapshot,
     *,
@@ -264,21 +548,19 @@ def compute_scoring_signals(
         "aov": _compute_aov(snapshot),
         "revenue_by_sku": _compute_revenue_by_sku(products),
         "return_request_rate": _compute_return_request_rate(snapshot),
-        "conversion_rate_by_category": _unavailable_kpi("conversion_rate_by_category"),
-        "repeat_purchase_rate": _unavailable_kpi("repeat_purchase_rate"),
-        "roas": _unavailable_kpi("roas", reason="Ads API chưa đồng bộ Phase 2"),
-        "cac": _unavailable_kpi("cac", reason="Ads API chưa đồng bộ Phase 2"),
-        "ctr": _unavailable_kpi("ctr", reason="Ads API chưa đồng bộ Phase 2"),
-        "inventory_turnover": _unavailable_kpi("inventory_turnover"),
-        "dsi": _unavailable_kpi("dsi"),
-        "stockout_rate": _unavailable_kpi("stockout_rate"),
-        "fulfillment_accuracy_rate": _unavailable_kpi("fulfillment_accuracy_rate"),
-        "orders_at_sla_risk": _unavailable_kpi("orders_at_sla_risk"),
-        "seller_fault_cancellation_rate": _unavailable_kpi(
-            "seller_fault_cancellation_rate"
-        ),
-        "csat": _unavailable_kpi("csat", reason="CSAT deferred Phase 3 — no text source"),
-        "after_sales_handling_time": _unavailable_kpi("after_sales_handling_time"),
+        "conversion_rate_by_category": _compute_conversion_rate_by_category(snapshot),
+        "repeat_purchase_rate": _compute_repeat_purchase_rate(snapshot),
+        "roas": _unavailable_kpi("roas", reason=_PROMOTION_UNAVAILABLE_REASON),
+        "cac": _unavailable_kpi("cac", reason=_PROMOTION_UNAVAILABLE_REASON),
+        "ctr": _unavailable_kpi("ctr", reason=_PROMOTION_UNAVAILABLE_REASON),
+        "inventory_turnover": _compute_inventory_turnover(snapshot),
+        "dsi": _compute_dsi(snapshot),
+        "stockout_rate": _compute_stockout_rate(snapshot),
+        "fulfillment_accuracy_rate": _compute_fulfillment_accuracy_rate(snapshot),
+        "orders_at_sla_risk": _compute_orders_at_sla_risk(snapshot),
+        "seller_fault_cancellation_rate": _compute_seller_fault_cancellation_rate(snapshot),
+        "csat": _compute_csat(snapshot),
+        "after_sales_handling_time": _compute_after_sales_handling_time(snapshot),
     }
 
     return ScoringSignals(

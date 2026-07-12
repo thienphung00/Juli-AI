@@ -16,7 +16,15 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from juli_backend.models.models import Order, Product, Return, Shop, User
+from juli_backend.models.models import (
+    InventoryItem,
+    Order,
+    OrderItem,
+    Product,
+    Return,
+    Shop,
+    User,
+)
 from juli_backend.services.aggregates.types import (
     FeatureAggregateSnapshot,
     HealthDataSource,
@@ -211,6 +219,7 @@ class TestVisualLayerAdvisorySignals:
         assert signals.kpis["net_revenue"].domain == VisualLayerDomain.REVENUE
         assert signals.kpis["net_revenue"].signal_type in {"risk", "opportunity"}
         assert signals.kpis["roas"].signal_type == "unavailable"
+        assert signals.kpis["roas"].action_hint == "Chờ đồng bộ Promotion API"
         assert signals.kpis["csat"].signal_type == "unavailable"
 
 
@@ -340,8 +349,175 @@ class TestBatchJobRunsOnSyncedAggregates:
         assert calls == ["build_feature_aggregates"]
         assert len(results) == 1
         assert results[0].aggregates.data_sources == [
+            "inventory_items",
+            "order_items",
             "orders",
             "products",
             "returns",
         ]
         assert results[0].recommendations.recommended_workflows
+
+
+class TestComputedKpisFlipUnavailableSignals:
+    @pytest_asyncio.fixture
+    async def shop_with_computed_kpi_data(self, session, user_id):
+        user = User(id=user_id, phone="+84901112233")
+        shop = Shop(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            shop_name="Computed KPI Shop",
+            tiktok_shop_id="7658073774813611784",
+            created_at=datetime.now(UTC) - timedelta(days=120),
+        )
+        session.add_all([user, shop])
+        await session.flush()
+
+        now = datetime.now(UTC)
+        payment_time = now - timedelta(days=5)
+        products = [
+            Product(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_product_id="prod-a",
+                name="Widget A",
+                status="ACTIVE",
+                category="Electronics",
+                revenue=Decimal("800000"),
+                units_sold=40,
+                update_time=now,
+            ),
+        ]
+        orders = [
+            Order(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_order_id="ord-1",
+                status="COMPLETED",
+                buyer_id="buyer-1",
+                total_amount=Decimal("150000"),
+                currency="VND",
+                payment_time=payment_time,
+                ship_time=payment_time + timedelta(hours=6),
+                update_time=now,
+                created_at=payment_time,
+            ),
+            Order(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_order_id="ord-2",
+                status="COMPLETED",
+                buyer_id="buyer-1",
+                total_amount=Decimal("120000"),
+                currency="VND",
+                payment_time=payment_time,
+                ship_time=payment_time + timedelta(hours=8),
+                update_time=now,
+                created_at=payment_time,
+            ),
+        ]
+        order_items = [
+            OrderItem(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                order_id=orders[0].id,
+                tiktok_order_id="ord-1",
+                tiktok_product_id="prod-a",
+                tiktok_sku_id="sku-a",
+                quantity=4,
+                unit_price=Decimal("25000"),
+                line_total=Decimal("100000"),
+                update_time=now,
+                created_at=payment_time,
+            ),
+            OrderItem(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                order_id=orders[1].id,
+                tiktok_order_id="ord-2",
+                tiktok_product_id="prod-a",
+                tiktok_sku_id="sku-a",
+                quantity=2,
+                unit_price=Decimal("25000"),
+                line_total=Decimal("50000"),
+                update_time=now,
+                created_at=payment_time,
+            ),
+        ]
+        inventory_items = [
+            InventoryItem(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_product_id="prod-a",
+                tiktok_sku_id="sku-a",
+                quantity=10,
+                update_time=now,
+                created_at=now,
+            ),
+            InventoryItem(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_product_id="prod-b",
+                tiktok_sku_id="sku-b",
+                quantity=0,
+                update_time=now,
+                created_at=now,
+            ),
+        ]
+        returns = [
+            Return(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_return_id="ret-1",
+                tiktok_order_id="ord-1",
+                return_type="refund",
+                refund_amount=Decimal("10000"),
+                status="COMPLETED",
+                created_at=payment_time,
+                update_time=payment_time + timedelta(hours=12),
+            ),
+        ]
+        session.add_all([*products, *orders, *order_items, *inventory_items, *returns])
+        await session.flush()
+        return shop
+
+    @pytest.mark.asyncio
+    async def test_daily_batch_flips_previously_unavailable_kpis(
+        self, session, shop_with_computed_kpi_data
+    ):
+        lifecycle = ShopLifecycleContext(
+            probation_status="graduated",
+            health_data_source=HealthDataSource.PROXY,
+        )
+        computed_at = datetime(2026, 7, 12, 8, 0, tzinfo=UTC)
+        result = await run_daily_scoring_for_shop(
+            session,
+            shop_with_computed_kpi_data.id,
+            lifecycle=lifecycle,
+            computed_at=computed_at,
+        )
+
+        live_kpis = {
+            "inventory_turnover",
+            "dsi",
+            "stockout_rate",
+            "fulfillment_accuracy_rate",
+            "orders_at_sla_risk",
+            "seller_fault_cancellation_rate",
+            "conversion_rate_by_category",
+            "repeat_purchase_rate",
+            "after_sales_handling_time",
+            "csat",
+        }
+        for kpi_id in live_kpis:
+            signal = result.signals.kpis[kpi_id]
+            assert signal.signal_type in {"risk", "opportunity", "healthy"}, kpi_id
+            assert signal.technique == "rules_proxy", kpi_id
+
+        for ads_kpi in ("roas", "cac", "ctr"):
+            assert result.signals.kpis[ads_kpi].signal_type == "unavailable"
+            assert (
+                result.signals.kpis[ads_kpi].action_hint == "Chờ đồng bộ Promotion API"
+            )
+
+        assert result.signals.kpis["csat"].workflow_keys == ()
+        assert result.aggregates.computed_kpis is not None
