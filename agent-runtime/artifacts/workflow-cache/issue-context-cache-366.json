@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 366,
+  "parentIssueId": 278,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+  "phaseRunId": "366-2026-07-12-a-run",
+  "workflowPhase": "complete",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "P2-A1",
+    "handoffPath": "docs/handoffs/phase-2-tiktok-implementation.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "backend",
+    "requiredDocs": [
+      "EXECUTION.md",
+      "docs/handoffs/phase-2-tiktok-implementation.md",
+      "docs/product/phases/phase-2-mvp.md",
+      "docs/architecture/data-sources.md",
+      "docs/integrations/tiktok_api/endpoints.md",
+      "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+    ],
+    "requiredModules": [
+      "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+    ],
+    "acceptanceCriteria": [
+      "New tests live under tests/integration/ (e.g. test_tiktok_sandbox_oauth.py, test_tiktok_sandbox_webhook.py)",
+      "Tests skip when TIKTOK_APP_KEY / TIKTOK_APP_SECRET are unset",
+      "CI secrets configured in GitHub Actions so tests run on PRs",
+      "One behavior per test (token exchange success, invalid signature rejection, etc.)",
+      "No secrets committed to source control"
+    ],
+    "loadWhenNeeded": [
+      "docs/integrations/tiktok_api/authentication.md",
+      "docs/architecture/system-design.md"
+    ],
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "web/",
+      "ios/",
+      "src/modules/ml/"
+    ]
+  },
+  "authorityChain": [
+    { "rank": 1, "source": "EXECUTION.md", "reason": "Phase/slice law — P2-A1" },
+    { "rank": 2, "source": "parent-cache-issue-278", "reason": "Epic constant" },
+    { "rank": 3, "source": "GitHub issue #366", "reason": "Child acceptance criteria" },
+    { "rank": 4, "source": "docs/handoffs/phase-2-tiktok-implementation.md", "reason": "Epic handoff" }
+  ],
+  "resolvedDecisions": [
+    {
+      "topic": "OAuth success path in CI",
+      "decision": "Invalid-auth-code live test runs with app key/secret only; exchange/refresh tests require optional single-use CI secrets",
+      "conflictingSources": ["GitHub issue #366 full token exchange", "Partner Center single-use auth codes"],
+      "resolvedAt": "2026-07-12T03:40:00Z"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-366.md",
+  "promptCacheBlock": "# Issue #366 — TikTok Sandbox OAuth + webhook integration tests\n\n## In scope\n- Live OAuth token/get + webhook HMAC round-trip under tests/integration/\n- Skip markers when Partner Center secrets absent\n- CI secret wiring in pr.yml\n\n## Out of scope\n- Fujiwa polling E2E (#367), Layer 2 sandbox writes (#301)\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #366 — Scope alignment (P2-A1 sandbox integration)\n\n- tests/integration/test_tiktok_sandbox_oauth.py\n- tests/integration/test_tiktok_sandbox_webhook.py\n- pr.yml TIKTOK_* secret passthrough\n",
+    "meta": "# Meta — #366\n\n- Domain: backend\n- Docs: tiktok auth, webhook signature, api.env.example\n",
+    "executor": "# Executor — #366\n\n- tiktok_sandbox helpers + conftest fixture\n- 6 live/contract integration tests\n",
+    "review": "# Review — #366\n\n- 5 acceptance criteria mapped to pytest nodes\n",
+    "validate": "# Validate — #366\n\n- Contract tests pass without optional auth_code/refresh secrets\n"
+  },
+  "harnessUtility": {
+    "skills": [
+      { "path": ".cursor/skills/domain/backend/SKILL.md", "purpose": "TikTok OAuth and webhook integration tests" }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/security.mdc",
+      ".cursor/rules/reliability.mdc"
+    ],
+    "mcps": [],
+    "tools": ["Read", "Grep", "Glob", "Shell", "Write", "StrReplace"]
+  },
+  "upstreamFingerprints": [
+    { "path": "GitHub issue #366", "fingerprint": "e56098c17a0e28fb" },
+    { "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-366.md", "fingerprint": "7539104ffc7978d9ca7ab0ffae49e4a3a07272b7" }
+  ],
+  "lastValidatedAt": "2026-07-12T03:45:00Z",
+  "lastGrillSessionAt": "2026-07-12T03:45:00Z"
+}

@@ -90,6 +90,10 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
       REDIS_URL: redis://localhost:6379
+      TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+      TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+      TIKTOK_SANDBOX_AUTH_CODE: ${{ secrets.TIKTOK_SANDBOX_AUTH_CODE }}
+      TIKTOK_SANDBOX_REFRESH_TOKEN: ${{ secrets.TIKTOK_SANDBOX_REFRESH_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
