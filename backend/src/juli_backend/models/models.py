@@ -484,6 +484,33 @@ class WorkflowWebhookSignal(Base):
     )
 
 
+class ToolExecution(Base):
+    """Approved tool call dispatched to Celery — P2-B4 (#305)."""
+
+    __tablename__ = "tool_executions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    approval_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    celery_task_id: Mapped[str | None] = mapped_column(String(255))
+    outcome_json: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_tool_executions_shop", "shop_id"),
+        Index("ix_tool_executions_status", "shop_id", "status"),
+    )
+
+
 class Recommendation(Base):
     __tablename__ = "recommendations"
 
