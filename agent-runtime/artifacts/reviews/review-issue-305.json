@@ -1,0 +1,64 @@
+{
+  "id": "review-issue-305",
+  "issue": 305,
+  "timestamp": "2026-07-12T10:49:32Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/execution",
+    "backend/src/juli_backend/workers",
+    "backend/src/juli_backend/api/routes/executions.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Tool execution dispatched to Celery worker",
+          "test": "tests/unit/test_celery_tool_execution_contract.py::test_ac2_tool_execution_dispatched_to_celery_worker"
+        },
+        {
+          "criterion": "HTTP handler returns after enqueue",
+          "test": "tests/unit/test_celery_tool_execution_contract.py::test_ac1_post_executions_returns_after_enqueue_without_inline_run"
+        },
+        {
+          "criterion": "Outcome status queryable",
+          "test": "tests/unit/test_celery_tool_execution_contract.py::test_ac3_get_execution_returns_queryable_outcome_status"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewFailures": 0,
+  "implementationSummary": "P2-B4 Celery dispatch plumbing with shop-scoped Postgres status store; HTTP never runs tools inline.",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "none",
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-305.json"
+}

@@ -32,6 +32,7 @@ from juli_backend.models.models import (
     Shop,
     TikTokCredential,
     TikTokSyncState,
+    ToolExecution,
     User,
     WorkflowWebhookSignal,
 )
@@ -837,3 +838,71 @@ class WorkflowWebhookSignalsRepo:
         )
         await self._session.flush()
         return True
+
+
+class ToolExecutionsRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        shop_id: uuid.UUID,
+        approval_id: str,
+        tool_name: str,
+        payload_json: str,
+        status: str,
+        celery_task_id: str | None = None,
+    ) -> ToolExecution:
+        record = ToolExecution(
+            shop_id=shop_id,
+            approval_id=approval_id,
+            tool_name=tool_name,
+            payload_json=payload_json,
+            status=status,
+            celery_task_id=celery_task_id,
+        )
+        self._session.add(record)
+        await self._session.flush()
+        return record
+
+    async def get(self, shop_id: uuid.UUID, execution_id: uuid.UUID) -> ToolExecution:
+        record = await self._session.get(ToolExecution, execution_id)
+        if record is None or record.shop_id != shop_id:
+            raise NotFound(f"ToolExecution {execution_id} not found")
+        return record
+
+    async def get_by_id(self, execution_id: uuid.UUID) -> ToolExecution:
+        record = await self._session.get(ToolExecution, execution_id)
+        if record is None:
+            raise NotFound(f"ToolExecution {execution_id} not found")
+        return record
+
+    async def set_celery_task_id(
+        self,
+        shop_id: uuid.UUID,
+        execution_id: uuid.UUID,
+        celery_task_id: str,
+    ) -> ToolExecution:
+        record = await self.get(shop_id, execution_id)
+        record.celery_task_id = celery_task_id
+        await self._session.flush()
+        return record
+
+    async def update_status(
+        self,
+        shop_id: uuid.UUID,
+        execution_id: uuid.UUID,
+        *,
+        status: str,
+        outcome_json: str | None = None,
+        error_message: str | None = None,
+    ) -> ToolExecution:
+        record = await self.get(shop_id, execution_id)
+        record.status = status
+        if outcome_json is not None:
+            record.outcome_json = outcome_json
+        if error_message is not None:
+            record.error_message = error_message
+        await self._session.flush()
+        return record
