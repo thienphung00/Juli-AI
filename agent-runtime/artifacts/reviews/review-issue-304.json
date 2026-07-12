@@ -1,0 +1,103 @@
+{
+  "id": "review-issue-304",
+  "issue": 304,
+  "timestamp": "2026-07-12T10:34:54Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-B2 rules-based copy layer (#304): copy_layer.py renders WorkflowReasoningCopy (copy_source rules) from ScoringSignals + WorkflowRecommendation; 11 execution_layer template keys; wired into DailyScoringResult.reasoning_summaries; no LLM imports; template catalog in MODULE.md; 7/7 contract tests pass.",
+  "criticalFindings": [
+    {
+      "id": "find-304-why-join",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "description": "why field joins multiple one_line strings with space \u2014 may read dense when several KPIs link to one workflow.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Consider bullet separation when UI consumes reasoning_summaries in P2-B3."
+    },
+    {
+      "id": "find-304-dashboard-drift",
+      "type": "architecture",
+      "module": "apps/dashboard/src/lib/operations/reasoning.ts",
+      "description": "Dashboard P1.8 reasoning uses retired six-workflow keys; backend uses execution_layer keys \u2014 intentional per scope alignment.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Unify in P2-B3 UI swap slice."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/scoring/copy_layer.py",
+    "backend/src/juli_backend/services/scoring/types.py",
+    "backend/src/juli_backend/services/scoring/pipeline.py",
+    "backend/src/juli_backend/services/scoring/__init__.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "tests/unit/test_rules_copy_layer_contract.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 2,
+      "mapped": 2,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Copy generated from rule signals without Ollama/Claude",
+          "test": "tests/unit/test_rules_copy_layer_contract.py::test_build_workflow_reasoning_copy_returns_rules_envelope"
+        },
+        {
+          "criterion": "Template catalog documented",
+          "test": "tests/unit/test_rules_copy_layer_contract.py::test_module_documents_template_catalog"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "304-2026-07-12-copy-layer",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "find-304-why-join",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "description": "why field joins multiple one_line strings with space \u2014 may read dense when several KPIs link to one workflow.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Consider bullet separation when UI consumes reasoning_summaries in P2-B3."
+    },
+    {
+      "id": "find-304-dashboard-drift",
+      "type": "architecture",
+      "module": "apps/dashboard/src/lib/operations/reasoning.ts",
+      "description": "Dashboard P1.8 reasoning uses retired six-workflow keys; backend uses execution_layer keys \u2014 intentional per scope alignment.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Unify in P2-B3 UI swap slice."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "low",
+  "suggestedRemediation": [
+    "Consider bullet separation when UI consumes reasoning_summaries in P2-B3.",
+    "Unify in P2-B3 UI swap slice."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-304.json"
+}

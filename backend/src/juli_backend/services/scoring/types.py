@@ -129,8 +129,29 @@ class ScoringSignals:
     kpis: dict[KpiId, AdvisorySignal]
 
 
+CopySource = Literal["rules"]
+
+
+@dataclass(frozen=True)
+class WorkflowReasoningCopy:
+    """Rules-only reasoning copy from advisory signals (system-design § copy layer)."""
+
+    copy_source: CopySource
+    why: str
+    expected_impact: str
+    next_steps: tuple[str, ...]
+    source_kpi_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class WorkflowReasoningSummary:
+    workflow_key: ExecutionWorkflowKey
+    copy: WorkflowReasoningCopy
+
+
 @dataclass(frozen=True)
 class DailyScoringResult:
     aggregates: FeatureAggregateSnapshot
     signals: ScoringSignals
     recommendations: WorkflowRecommendations
+    reasoning_summaries: tuple[WorkflowReasoningSummary, ...] = ()

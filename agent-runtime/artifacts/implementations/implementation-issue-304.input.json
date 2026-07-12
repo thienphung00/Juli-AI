@@ -1,0 +1,60 @@
+{
+  "phaseRunId": "304-2026-07-12-copy-layer",
+  "implementationSummary": "P2-B2 rules-based copy layer: deterministic WorkflowReasoningCopy templates from ScoringSignals + ranked WorkflowRecommendation; wired into daily scoring pipeline as reasoning_summaries.",
+  "filesModified": [
+    "backend/src/juli_backend/services/scoring/copy_layer.py",
+    "backend/src/juli_backend/services/scoring/types.py",
+    "backend/src/juli_backend/services/scoring/pipeline.py",
+    "backend/src/juli_backend/services/scoring/__init__.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-304.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-304.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json"
+  ],
+  "testsAdded": ["tests/unit/test_rules_copy_layer_contract.py"],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "WorkflowReasoningCopy envelope from rule signals",
+      "redCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestWorkflowReasoningCopyEnvelope -q",
+      "redResult": "ModuleNotFoundError: copy_layer",
+      "greenCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestWorkflowReasoningCopyEnvelope -q",
+      "greenResult": "1 passed"
+    },
+    {
+      "cycle": 2,
+      "behavior": "Template catalog covers all profile-eligible workflow keys",
+      "redCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestTemplateCatalogCoverage -q",
+      "redResult": "failed before implementation",
+      "greenCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestTemplateCatalogCoverage -q",
+      "greenResult": "2 passed"
+    },
+    {
+      "cycle": 3,
+      "behavior": "Pipeline wires reasoning_summaries into DailyScoringResult",
+      "redCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestPipelineWiresCopyLayer -q",
+      "redResult": "failed before pipeline wiring",
+      "greenCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestPipelineWiresCopyLayer -q",
+      "greenResult": "1 passed"
+    }
+  ],
+  "contextFilesLoaded": [
+    "EXECUTION.md",
+    "docs/architecture/system-design.md",
+    "docs/product/phases/phase-2-mvp.md",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json"
+  ],
+  "skillsLoaded": ["focus", "prompt-caching", "backend"],
+  "toolsUsed": ["Read", "Grep", "Shell", "Write", "StrReplace"],
+  "toolInvocationCount": 45,
+  "assumptions": [
+    "Blocker #303 scoring pipeline is complete and provides ScoringSignals + WorkflowRecommendation inputs",
+    "Vietnamese static next_steps templates are acceptable for Phase 2 backend copy (UI localization deferred)"
+  ],
+  "risks": [
+    "Dashboard P1.8 reasoning.ts uses retired six-workflow keys — backend copy uses execution_layer keys; UI swap in P2-B3"
+  ]
+}
