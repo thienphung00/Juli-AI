@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 367,
+  "executorDomain": "backend",
+  "phaseRunId": "367-2026-07-12-a-run",
+  "startedAt": "2026-07-12T03:10:00Z",
+  "completedAt": "2026-07-12T03:19:00Z",
+  "executionDurationMs": 540000,
+  "tokenUsage": {
+    "input": null,
+    "output": null,
+    "total": null,
+    "unavailableReason": "Platform telemetry did not expose token usage for this session."
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "StrReplace", "Write", "ReadLints"],
+  "toolInvocationCount": null,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "docs/integrations/tiktok_api/samples/orders-search-response.json",
+    "docs/integrations/tiktok_api/samples/products-search-response.json",
+    "docs/integrations/tiktok_api/samples/returns-search-response.json",
+    "tests/integration/test_fujiwa_polling_orchestration.py"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "tests/integration/conftest.py",
+    "tests/integration/test_fujiwa_polling_sync_state_e2e.py",
+    "tests/integration/tiktok_recorded_replay.py",
+    "tests/unit/test_polling.py"
+  ],
+  "testsAdded": [
+    "tests/integration/test_fujiwa_polling_sync_state_e2e.py::test_initial_poll_persists_sync_state_from_recorded_responses",
+    "tests/integration/test_fujiwa_polling_sync_state_e2e.py::test_repoll_is_idempotent_and_does_not_corrupt_sync_state",
+    "tests/integration/test_fujiwa_polling_sync_state_e2e.py::test_partial_endpoint_failure_preserves_existing_sync_state",
+    "tests/unit/test_polling.py::TestSyncProducts::test_updates_sync_state_from_update_time_field"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "No E2E poll orchestration test asserting TikTokSyncStateRepo persistence through recorded replay",
+      "passingTestEvidence": "3 integration tests pass via recorded_tiktok_replay harness against contract-collection samples",
+      "commands": [
+        {
+          "command": "pytest tests/integration/test_fujiwa_polling_sync_state_e2e.py -q",
+          "exitCode": 0,
+          "outputSummary": "3 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Product cursor not persisted from recorded samples because sync_products read updated_at instead of update_time",
+      "passingTestEvidence": "sync_products accepts update_time with updated_at fallback; unit test added",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_polling.py::TestSyncProducts -q",
+          "exitCode": 0,
+          "outputSummary": "6 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #367: added end-to-end Fujiwa poll orchestration integration tests that replay sanitized TikTok contract samples through ProductionReadClientFactory, sync workers, and TikTokSyncStateRepo. Covers initial poll persistence, re-poll idempotency, and partial endpoint failure recovery without live Partner API credentials.",
+  "assumptions": [
+    "Recorded replay from docs/integrations/tiktok_api/samples is sufficient CI coverage; Fujiwa production-read live polling remains out of scope for sandbox secrets",
+    "tests/integration/conftest.py provides DB fixtures until broader test suite restructure lands on main"
+  ],
+  "risks": [
+    "Replay harness must strip pagination tokens from fixtures to avoid infinite client pagination loops"
+  ]
+}
