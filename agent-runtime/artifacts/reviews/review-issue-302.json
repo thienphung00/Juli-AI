@@ -1,7 +1,7 @@
 {
   "id": "review-issue-302",
   "issue": 302,
-  "timestamp": "2026-07-12T04:20:10Z",
+  "timestamp": "2026-07-12T04:24:07Z",
   "reviewedBy": "review skill",
   "status": "PASS",
   "summary": "",
@@ -22,29 +22,20 @@
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "Deterministic CI without network calls to TikTok",
-          "tests": [
-            "tests/integration/test_tiktok_layer3_ingestion_e2e.py"
-          ]
+          "criterion": "Poll cycle persists canonical entities via etl",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_poll_cycle_persists_canonical_entities_via_etl"
         },
         {
-          "criterion": "Covers polling retry/backoff and idempotent upsert paths",
-          "tests": [
-            "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_repoll_is_idempotent_for_etl_upserts",
-            "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_rate_limit_backoff_completes_poll_without_raising"
-          ]
+          "criterion": "Repoll is idempotent for etl upserts",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_repoll_is_idempotent_for_etl_upserts"
         },
         {
-          "criterion": "Integration tests for Phase 2 webhook catalog types (#354) \u2014 routing, handoff, and ETL dedup",
-          "tests": [
-            "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestWebhookCatalogEtlHandoff"
-          ]
+          "criterion": "Duplicate catalog webhook dedupes etl and signals",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_duplicate_catalog_webhook_dedupes_etl_and_signals"
         },
         {
-          "criterion": "Sync state transition fixtures covered end-to-end with mock responses",
-          "tests": [
-            "tests/integration/test_tiktok_layer3_ingestion_e2e.py::TestPollToEtlIngestion::test_partial_endpoint_failure_preserves_sync_state_and_partial_etl"
-          ]
+          "criterion": "Partial endpoint failure preserves sync state and partial etl",
+          "test": "tests/integration/test_tiktok_layer3_ingestion_e2e.py::test_partial_endpoint_failure_preserves_sync_state_and_partial_etl"
         }
       ]
     },

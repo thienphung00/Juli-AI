@@ -26,7 +26,7 @@ from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.constants import ORDER_SEARCH_PATH
 from juli_backend.integrations.tiktok.factories import ProductionReadClientFactory
 from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID, TikTokCapability
-from juli_backend.models.models import Order, ProcessedEvent, Product, Shop, TikTokSyncState, User
+from juli_backend.models.models import ProcessedEvent, Shop, User
 from juli_backend.repositories.repos import (
     OrdersRepo,
     ProductsRepo,
