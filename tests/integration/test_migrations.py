@@ -23,7 +23,7 @@ from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "011_workflow_webhook_signals"
+LATEST_REVISION = "012_tool_executions"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -46,6 +46,7 @@ REVISION_010_COLUMNS = {
     ),
 }
 REVISION_011_TABLE = "workflow_webhook_signals"
+REVISION_012_TABLE = "tool_executions"
 
 
 def _database_url() -> str:
@@ -294,16 +295,18 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_011_table(postgres_at_head: Engine):
-    """Downgrading the head revision removes the workflow_webhook_signals table."""
+def test_latest_downgrade_drops_only_revision_012_table(postgres_at_head: Engine):
+    """Downgrading the head revision removes tool_executions; 011 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_011_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_012_TABLE)
 
     command.downgrade(cfg, "-1")
 
-    assert not _table_exists(postgres_at_head, REVISION_011_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_012_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_011_TABLE)
     for table, columns in REVISION_010_COLUMNS.items():
         for column in columns:
             assert _table_has_column(postgres_at_head, table, column)
@@ -320,7 +323,7 @@ def test_latest_downgrade_drops_only_revision_011_table(postgres_at_head: Engine
     assert sync_state_count == 1
 
     command.upgrade(cfg, "head")
-    assert _table_exists(postgres_at_head, REVISION_011_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_012_TABLE)
 
 
 @requires_postgres
