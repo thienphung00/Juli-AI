@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 300,
+  "executorDomain": "data-platform",
+  "phaseRunId": "300-2026-07-12-fcafba08",
+  "startedAt": "2026-07-12T00:35:00Z",
+  "completedAt": "2026-07-12T00:40:00Z",
+  "executionDurationMs": 300000,
+  "tokenUsage": {
+    "input": null,
+    "output": null,
+    "total": null,
+    "measured": false,
+    "unavailableReason": "Platform telemetry did not expose token usage for this session."
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "StrReplace", "Write", "ReadLints"],
+  "toolInvocationCount": null,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-300.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-300.md",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/models/models.py",
+    "apps/dashboard/src/lib/operations/MODULE.md",
+    "apps/dashboard/src/lib/operations/classification.ts",
+    "apps/dashboard/src/lib/operations/thresholds.ts"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/data-platform/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "cacheHits": [
+    "parent-cache-issue-278.json",
+    "issue-context-cache-300.json",
+    "phaseCacheBlocks.meta",
+    "issueLoadProfile",
+    "harnessUtility"
+  ],
+  "cacheMisses": [],
+  "contextTransferCount": 0,
+  "retryCount": 0,
+  "filesModified": [
+    "backend/src/juli_backend/services/aggregates/__init__.py",
+    "backend/src/juli_backend/services/aggregates/types.py",
+    "backend/src/juli_backend/services/aggregates/thresholds.py",
+    "backend/src/juli_backend/services/aggregates/shop_profile.py",
+    "backend/src/juli_backend/services/aggregates/health_source.py",
+    "backend/src/juli_backend/services/aggregates/builder.py",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "tests/unit/test_feature_aggregates_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_feature_aggregates_contract.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "behavior": "Aggregates read only from synced Postgres tables (orders, products, returns)",
+      "red": "ModuleNotFoundError: juli_backend.services.aggregates.builder",
+      "green": "build_feature_aggregates queries OrdersRepo/ProductsRepo/ReturnsRepo only; SYNCED_DATA_SOURCES frozenset; 13/13 pass"
+    },
+    {
+      "behavior": "No ML inference artifacts loaded in Phase 2 aggregate paths",
+      "red": "No aggregates package; no import guard tests",
+      "green": "AST scan confirms no juli_backend.ai.seller_stage/sklearn/joblib imports in aggregates/"
+    },
+    {
+      "behavior": "health_data_source respected when SPS unavailable",
+      "red": "No resolve_health_snapshot; unavailable tier untested",
+      "green": "unavailable tier returns None for sps/vp/ahr; build_feature_aggregates integration test passes"
+    },
+    {
+      "behavior": "shop_profile rules-only classifier golden fixtures",
+      "red": "No classify_shop_profile in backend",
+      "green": "5 boundary fixtures ported from dashboard operations/ — all pass"
+    }
+  ],
+  "implementationSummary": "P2-A3 rules-only feature aggregates: new services/aggregates package with build_feature_aggregates (SQL repos over orders/products/returns), classify_shop_profile (thresholds from dashboard operations/ reference), and resolve_health_snapshot (api|proxy|unavailable tiers). No ML artifacts, no TikTok write paths.",
+  "assumptions": [
+    "Shop probation_status and API health scores arrive via ShopLifecycleContext until persisted on Shop rows.",
+    "Ad campaign GMV metrics default to zero in Phase 2 aggregate path (Campaign table not wired to classifier yet).",
+    "data-sources.md row TikTok Shop Account (SPS/health) governs health_data_source tier selection."
+  ],
+  "risks": [
+    "ShopLifecycleContext is caller-supplied for probation/health API fields — downstream batch job must populate from verified SPS contract or explicit unavailable.",
+    "list_limit=10000 may need pagination strategy for very large shops in production batch runs."
+  ]
+}

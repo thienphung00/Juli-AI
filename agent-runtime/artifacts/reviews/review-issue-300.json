@@ -1,0 +1,136 @@
+{
+  "id": "review-issue-300",
+  "issue": 300,
+  "timestamp": "2026-07-12T00:39:44Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-A3 rules-only feature aggregates (#300): services/aggregates package queries orders/products/returns via SQL repos only; no ML artifact imports; health_data_source unavailable tier suppresses fabricated SPS/VP/AHR; shop_profile classifier ported with 5 golden boundary fixtures. No web/, ios/, or src/modules/ml/ drift. 13/13 contract tests pass.",
+  "criticalFindings": [
+    {
+      "id": "find-300-list-limit",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/aggregates/builder.py",
+      "description": "list_limit=10000 may truncate aggregates for very large shops; pagination not yet implemented for batch job.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add cursor pagination or SQL SUM/COUNT aggregates in P2-B slice when batch scheduler lands."
+    },
+    {
+      "id": "find-300-lifecycle-context",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/aggregates/types.py",
+      "description": "ShopLifecycleContext (probation_status, API health scores) is caller-supplied until Shop rows persist lifecycle fields.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Wire batch runner to populate lifecycle from verified SPS contract or explicit unavailable per endpoints.md."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/aggregates/__init__.py",
+    "backend/src/juli_backend/services/aggregates/types.py",
+    "backend/src/juli_backend/services/aggregates/thresholds.py",
+    "backend/src/juli_backend/services/aggregates/shop_profile.py",
+    "backend/src/juli_backend/services/aggregates/health_source.py",
+    "backend/src/juli_backend/services/aggregates/builder.py",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "tests/unit/test_feature_aggregates_contract.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/aggregates",
+      "interface": "build_feature_aggregates",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Async entry point rolling up synced commerce tables into FeatureAggregateSnapshot."
+    },
+    {
+      "module": "backend/src/juli_backend/services/aggregates",
+      "interface": "classify_shop_profile",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Rules-only NEW_SHOP | MID_LARGE_SHOP classifier from ShopProfileSignals."
+    },
+    {
+      "module": "backend/src/juli_backend/services/aggregates",
+      "interface": "resolve_health_snapshot",
+      "changeType": "added",
+      "breaking": false,
+      "description": "health_data_source tier resolver (api | proxy | unavailable)."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 3,
+      "mapped": 3,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Aggregates query production-synced tables only",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_build_feature_aggregates_reads_synced_tables"
+        },
+        {
+          "criterion": "No ML inference artifacts loaded in Phase 2 paths",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_no_ml_inference_artifacts_in_phase2_paths"
+        },
+        {
+          "criterion": "health_data_source respected when SPS unavailable (#293)",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_build_feature_aggregates_unavailable_health"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "phaseRunId": "300-2026-07-12-fcafba08",
+  "reviewStatus": "PASS",
+  "scopeChecks": {
+    "mlModulesTouched": false,
+    "webIosDrift": false,
+    "tiktokWritePaths": false,
+    "notes": "Implementation confined to backend/src/juli_backend/services/aggregates/ and contract tests. Dashboard operations/ read as reference only \u2014 no imports from apps/dashboard."
+  },
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "find-300-list-limit",
+      "type": "maintainability",
+      "module": "backend/src/juli_backend/services/aggregates/builder.py",
+      "description": "list_limit=10000 may truncate aggregates for very large shops; pagination not yet implemented for batch job.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add cursor pagination or SQL SUM/COUNT aggregates in P2-B slice when batch scheduler lands."
+    },
+    {
+      "id": "find-300-lifecycle-context",
+      "type": "architecture",
+      "module": "backend/src/juli_backend/services/aggregates/types.py",
+      "description": "ShopLifecycleContext (probation_status, API health scores) is caller-supplied until Shop rows persist lifecycle fields.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Wire batch runner to populate lifecycle from verified SPS contract or explicit unavailable per endpoints.md."
+    }
+  ],
+  "severity": "low",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-300.json",
+  "suggestedRemediation": [
+    "Add cursor pagination or SQL SUM/COUNT aggregates in P2-B slice when batch scheduler lands.",
+    "Wire batch runner to populate lifecycle from verified SPS contract or explicit unavailable per endpoints.md."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
+}
