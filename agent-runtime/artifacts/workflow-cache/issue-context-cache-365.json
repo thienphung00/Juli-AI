@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 365,
+  "parentIssueId": 278,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+  "phaseRunId": "365-2026-07-12-a-run",
+  "workflowPhase": "complete",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "P2-A2",
+    "handoffPath": "docs/handoffs/phase-2-tiktok-implementation.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "data-platform",
+    "requiredDocs": [
+      "EXECUTION.md",
+      "docs/handoffs/phase-2-tiktok-implementation.md",
+      "docs/product/phases/phase-2-mvp.md",
+      "docs/api/data-models/canonical-entities.md",
+      "docs/architecture/data-sources.md",
+      "backend/src/juli_backend/services/etl/MODULE.md",
+      "backend/src/juli_backend/database/MODULE.md"
+    ],
+    "requiredModules": [
+      "backend/src/juli_backend/services/etl/MODULE.md",
+      "backend/src/juli_backend/database/MODULE.md",
+      "backend/src/juli_backend/repositories/repos.py",
+      "backend/src/juli_backend/models/models.py"
+    ],
+    "acceptanceCriteria": [
+      "New test file lives in tests/integration/test_migrations.py",
+      "Test runs in the CI test job (Postgres service is already provisioned via DATABASE_URL)",
+      "Test fails if a migration drops data, breaks foreign keys, or removes required constraints",
+      "Uses the same Postgres connection pattern as other integration tests (env DATABASE_URL)",
+      "One behavior per test where practical (e.g. separate tests for downgrade data survival vs constraint integrity)"
+    ],
+    "loadWhenNeeded": [
+      "docs/integrations/tiktok_api/endpoints.md",
+      "docs/architecture/system-design.md"
+    ],
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "web/",
+      "ios/",
+      "src/modules/ml/"
+    ]
+  },
+  "authorityChain": [
+    { "rank": 1, "source": "EXECUTION.md", "reason": "Phase/slice law — P2-A2" },
+    { "rank": 2, "source": "parent-cache-issue-278", "reason": "Epic constant" },
+    { "rank": 3, "source": "GitHub issue #365", "reason": "Child acceptance criteria" },
+    { "rank": 4, "source": "docs/handoffs/phase-2-tiktok-implementation.md", "reason": "Epic handoff" }
+  ],
+  "resolvedDecisions": [
+    {
+      "topic": "Local dev Postgres availability",
+      "decision": "Skip migration integration tests when DATABASE_URL is unreachable; CI test job Postgres service is authoritative",
+      "conflictingSources": ["Local Supabase pooler in .env", "Issue #365 always-run requirement"],
+      "resolvedAt": "2026-07-12T03:48:00Z"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-365.md",
+  "promptCacheBlock": "# Issue #365 — Alembic migration integration tests\n\n## In scope\n- tests/integration/test_migrations.py with seeded row survival + constraint checks\n- DATABASE_URL via sync_database_url (same as Alembic env.py)\n- Skip when Postgres unreachable locally\n\n## Out of scope\n- New migrations, web/, ios/, src/modules/ml/\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #365 — Scope alignment (P2-A2 migrations)\n\n- Seed rows for rev 009/010 tables\n- downgrade -1 / upgrade head round trip\n- Contract tests for CI DATABASE_URL wiring\n",
+    "meta": "# Meta — #365\n\n- Domain: data-platform\n- Docs: database MODULE, canonical-entities.md\n",
+    "executor": "# Executor — #365\n\n- tests/integration/test_migrations.py\n- tests/integration/test_migrations_contract.py\n",
+    "review": "# Review — #365\n\n- 5 acceptance criteria mapped to pytest nodes\n",
+    "validate": "# Validate — #365\n\n- 7 tests pass against Docker Postgres; skip locally without Postgres\n"
+  },
+  "harnessUtility": {
+    "skills": [
+      { "path": ".cursor/skills/domain/data-platform/SKILL.md", "purpose": "Alembic migration integration tests" }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/reliability.mdc"
+    ],
+    "mcps": [],
+    "tools": ["Read", "Grep", "Glob", "Shell", "Write", "StrReplace"]
+  },
+  "upstreamFingerprints": [
+    { "path": "GitHub issue #365", "fingerprint": "4452a5a829f541ae" },
+    { "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-365.md", "fingerprint": "e632a2a191d48c2ece0dcb293a6be4369f0d395a" }
+  ],
+  "lastValidatedAt": "2026-07-12T03:48:00Z",
+  "lastGrillSessionAt": "2026-07-12T03:48:00Z"
+}
