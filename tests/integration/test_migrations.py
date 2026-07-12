@@ -23,7 +23,7 @@ from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "010_canonical_product_fields"
+LATEST_REVISION = "011_workflow_webhook_signals"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -45,6 +45,7 @@ REVISION_010_COLUMNS = {
         "tiktok_created_at",
     ),
 }
+REVISION_011_TABLE = "workflow_webhook_signals"
 
 
 def _database_url() -> str:
@@ -97,6 +98,10 @@ def _reset_to_head() -> None:
 
 def _table_has_column(engine: Engine, table: str, column: str) -> bool:
     return column in {col["name"] for col in inspect(engine).get_columns(table)}
+
+
+def _table_exists(engine: Engine, table: str) -> bool:
+    return table in inspect(engine).get_table_names()
 
 
 def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
@@ -289,20 +294,19 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_010_columns(postgres_at_head: Engine):
-    """Downgrading the head revision removes additive columns without deleting rows."""
+def test_latest_downgrade_drops_only_revision_011_table(postgres_at_head: Engine):
+    """Downgrading the head revision removes the workflow_webhook_signals table."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
-    for table, columns in REVISION_010_COLUMNS.items():
-        for column in columns:
-            assert _table_has_column(postgres_at_head, table, column)
+    assert _table_exists(postgres_at_head, REVISION_011_TABLE)
 
     command.downgrade(cfg, "-1")
 
+    assert not _table_exists(postgres_at_head, REVISION_011_TABLE)
     for table, columns in REVISION_010_COLUMNS.items():
         for column in columns:
-            assert not _table_has_column(postgres_at_head, table, column)
+            assert _table_has_column(postgres_at_head, table, column)
 
     with postgres_at_head.connect() as conn:
         order_count = conn.execute(text("SELECT COUNT(*) FROM orders")).scalar_one()
@@ -316,10 +320,7 @@ def test_latest_downgrade_drops_only_revision_010_columns(postgres_at_head: Engi
     assert sync_state_count == 1
 
     command.upgrade(cfg, "head")
-
-    for table, columns in REVISION_010_COLUMNS.items():
-        for column in columns:
-            assert _table_has_column(postgres_at_head, table, column)
+    assert _table_exists(postgres_at_head, REVISION_011_TABLE)
 
 
 @requires_postgres

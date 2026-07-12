@@ -7,8 +7,6 @@ catalog, and hands validated payloads to the ingest pipeline (ETL) via an inject
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request

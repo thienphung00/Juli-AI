@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +18,9 @@ from juli_backend.services.tiktok.webhook_catalog import (
     resolve_catalog_entry,
 )
 
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+WEBHOOKS_DOC = REPO_ROOT / "docs/integrations/tiktok_api/webhooks.md"
 
 CATALOG_FIXTURES: list[tuple[int, str, str, str]] = [
     (1, "ORDER_STATUS_CHANGE", "order_status_change", "tiktok.order_status_change"),
@@ -43,7 +46,7 @@ CATALOG_FIXTURES: list[tuple[int, str, str, str]] = [
 
 
 class TestPhase2CatalogRegistry:
-    def test_catalog_covers_all_acceptance_ids(self):
+    def test_registered_phase2_catalog_webhooks_match_execution_layer(self):
         assert sorted(PHASE2_CATALOG_IDS) == sorted(
             [
                 1,
@@ -125,7 +128,7 @@ class TestDeferredWebhookTypes:
         assert resolve_catalog_entry(event_type) is None
 
     @pytest.mark.asyncio
-    async def test_deferred_type_dispatches_to_deferred_handler(self):
+    async def test_out_of_scope_webhook_types_not_routed_in_phase2_paths(self):
         dispatcher = TikTokWebhookDispatcher()
         event = TikTokWebhookPayload(type="AFFILIATE_COMMISSION_CHANGE", shop_id="s1")
         assert await dispatcher.dispatch(event) == "deferred_out_of_scope"
@@ -248,7 +251,7 @@ class TestAccountLifecycleWebhooks:
 
 
 class TestWebhookDedupEventId:
-    def test_catalog_payload_produces_stable_event_id(self):
+    def test_webhook_payload_dedupe_via_etl_event_id_path(self):
         from juli_backend.services.etl.event_id import extract_event_id
 
         payload = {
@@ -269,3 +272,17 @@ class TestWebhookDedupEventId:
         )
         assert first == second
         assert first.startswith("wh:")
+
+
+class TestWebhookDocsContract:
+    def test_webhooks_md_confirmed_or_unknown_event_type_names(self):
+        text = WEBHOOKS_DOC.read_text(encoding="utf-8")
+        assert "ORDER_STATUS_CHANGE" in text
+        assert "**UNKNOWN**" in text
+        assert "Phase 2 catalog" in text
+
+    def test_webhooks_md_documented_polling_coexistence(self):
+        text = WEBHOOKS_DOC.read_text(encoding="utf-8")
+        assert "Webhook vs polling" in text
+        assert "authoritative reconciliation" in text
+        assert "polling remains the backstop" in text.lower() or "backstop" in text
