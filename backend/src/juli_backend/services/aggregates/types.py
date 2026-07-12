@@ -4,8 +4,9 @@ import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
-from juli_backend.services.aggregates.computed_kpis import ComputedKpiMetrics
 from typing import Literal
+
+from juli_backend.services.aggregates.computed_kpis import ComputedKpiMetrics
 
 
 class HealthDataSource(StrEnum):

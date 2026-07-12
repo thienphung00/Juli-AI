@@ -18,9 +18,7 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.models.models import (
-    InventoryItem,
     Order,
-    OrderItem,
     Product,
     Return,
     Shop,

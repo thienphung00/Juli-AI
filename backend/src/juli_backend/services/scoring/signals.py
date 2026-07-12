@@ -408,10 +408,7 @@ def _compute_seller_fault_cancellation_rate(
 
     rate = metrics.seller_fault_cancellation_rate
     pct = rate * 100
-    change = (
-        f"Seller-fault cancel {pct:.1f}% "
-        f"({metrics.seller_fault_order_count_30d} đơn)"
-    )
+    change = f"Seller-fault cancel {pct:.1f}% ({metrics.seller_fault_order_count_30d} đơn)"
     if rate > SELLER_FAULT_CANCEL_RISK_THRESHOLD:
         return _make_signal(
             "seller_fault_cancellation_rate",
@@ -561,9 +558,7 @@ def compute_scoring_signals(
         "stockout_rate": _compute_stockout_rate(snapshot),
         "fulfillment_accuracy_rate": _compute_fulfillment_accuracy_rate(snapshot),
         "orders_at_sla_risk": _compute_orders_at_sla_risk(snapshot),
-        "seller_fault_cancellation_rate": _compute_seller_fault_cancellation_rate(
-            snapshot
-        ),
+        "seller_fault_cancellation_rate": _compute_seller_fault_cancellation_rate(snapshot),
         "csat": _compute_csat(snapshot),
         "after_sales_handling_time": _compute_after_sales_handling_time(snapshot),
     }

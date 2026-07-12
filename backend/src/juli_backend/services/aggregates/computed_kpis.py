@@ -222,18 +222,12 @@ def compute_all_kpis(
         anchor = anchor.replace(tzinfo=UTC)
 
     orders_30d = [
-        order
-        for order in orders
-        if _in_rolling_window(_order_reference_time(order), anchor=anchor)
+        order for order in orders if _in_rolling_window(_order_reference_time(order), anchor=anchor)
     ]
     order_items_30d = [
-        item
-        for item in order_items
-        if _in_rolling_window(item.created_at, anchor=anchor)
+        item for item in order_items if _in_rolling_window(item.created_at, anchor=anchor)
     ]
-    returns_30d = [
-        item for item in returns if _in_rolling_window(item.created_at, anchor=anchor)
-    ]
+    returns_30d = [item for item in returns if _in_rolling_window(item.created_at, anchor=anchor)]
 
     total_units_sold_30d = sum(item.quantity for item in order_items_30d)
     avg_on_hand_inventory: float | None = None
