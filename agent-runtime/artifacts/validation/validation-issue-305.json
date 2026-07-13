@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-305",
   "issue": 305,
-  "timestamp": "2026-07-12T10:49:34Z",
+  "timestamp": "2026-07-13T03:15:29Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 13,
@@ -23,8 +23,8 @@
       "description": "Implementation artifact present; domain backend",
       "details": {
         "executorDomain": "backend",
-        "phaseRunId": "305-2026-07-12-celery-execution",
-        "executionDurationMs": 300000
+        "phaseRunId": "305-2026-07-13-dispatch-infra",
+        "executionDurationMs": 900000
       }
     },
     {
@@ -32,8 +32,8 @@
       "status": "PASS",
       "description": "All acceptance criteria mapped to tests",
       "details": {
-        "total": 3,
-        "mapped": 3,
+        "total": 6,
+        "mapped": 6,
         "unmapped": [],
         "problems": []
       }
@@ -154,5 +154,6 @@
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
-  "executionDurationMs": 0
+  "executionDurationMs": 0,
+  "phaseRunId": "305-2026-07-13-dispatch-infra"
 }

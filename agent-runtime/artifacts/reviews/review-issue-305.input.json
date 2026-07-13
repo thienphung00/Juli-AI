@@ -1,10 +1,8 @@
 {
-  "id": "review-issue-305",
-  "issue": 305,
-  "timestamp": "2026-07-13T03:19:28Z",
+  "phaseRunId": "305-2026-07-13-dispatch-infra",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "Reopened #305 dispatch infrastructure: workflow_key\u2192tool_name routing (11 keys), sandbox write guard helpers + MODULE.md contract, idempotency_key threading POST\u2192worker payload, ExecutionErrorCategory on failures. noop.ping preserved; original Celery contract tests pass. 9/9 execution tests green; ruff/mypy clean.",
+  "summary": "Reopened #305 dispatch infrastructure: workflow_key→tool_name routing (11 keys), sandbox write guard helpers + MODULE.md contract, idempotency_key threading POST→worker payload, ExecutionErrorCategory on failures. noop.ping preserved; original Celery contract tests pass. 9/9 execution tests green; ruff/mypy clean.",
   "criticalFindings": [],
   "modulesTouched": [
     "backend/src/juli_backend/services/execution",
@@ -15,9 +13,6 @@
     "tests/unit/test_tool_execution_routing_contract.py",
     "tests/unit/test_celery_tool_execution_contract.py"
   ],
-  "interfaceChanges": [],
-  "moduleDrift": false,
-  "driftDetails": [],
   "testCoverage": {
     "acceptance": {
       "total": 6,
@@ -25,7 +20,7 @@
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "workflow_key \u2192 registered tool name resolution helper for 11 WORKFLOW_COPY_TEMPLATE_KEYS",
+          "criterion": "workflow_key → registered tool name resolution helper for 11 WORKFLOW_COPY_TEMPLATE_KEYS",
           "test": "tests/unit/test_tool_execution_routing_contract.py::test_ac1_resolve_tool_name_maps_all_workflow_copy_template_keys"
         },
         {
@@ -33,7 +28,7 @@
           "test": "tests/unit/test_tool_execution_routing_contract.py::test_ac4_sandbox_guard_rejects_production_merchant_auth_id"
         },
         {
-          "criterion": "Idempotency key threaded POST \u2192 ToolExecution \u2192 Celery \u2192 handler payload",
+          "criterion": "Idempotency key threaded POST → ToolExecution → Celery → handler payload",
           "test": "tests/unit/test_tool_execution_routing_contract.py::test_ac2_idempotency_key_persisted_and_passed_to_worker_payload"
         },
         {
@@ -49,19 +44,8 @@
           "test": "tests/unit/test_celery_tool_execution_contract.py::test_ac1_post_executions_returns_after_enqueue_without_inline_run"
         }
       ]
-    },
-    "unit": {
-      "passed": 0,
-      "failed": 0
     }
   },
-  "recommendations": [],
-  "approvalReady": true,
-  "reviewerSignoff": null,
-  "ownerSignoff": null,
-  "mlGates": null,
-  "priorReviewBlockers": [],
-  "phaseRunId": "305-2026-07-13-dispatch-infra",
   "reviewFailures": 0,
   "findings": [],
   "securityFindings": [],
@@ -69,10 +53,5 @@
   "maintainabilityFindings": [],
   "staticAnalysisExecuted": true,
   "dynamicTestsExecuted": true,
-  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-305.json",
-  "schemaVersion": "1.0.0",
-  "artifactType": "review",
-  "reviewStatus": "PASS",
-  "severity": "none",
-  "suggestedRemediation": []
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-305.json"
 }

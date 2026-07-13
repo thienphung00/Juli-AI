@@ -127,8 +127,8 @@ Scheduled polling, business-entity ETL, and feature aggregates remain pending.
 - [x] **P2-B2** Rules-based copy layer — deterministic templates from rule signals (no cloud LLM). _(#304)_
 - [ ] **P2-B3** Swap mock → live rules-based signals + policy alerts. _(#374 — Ads KPIs
       pending Promotion API, tracked separately; other 10 domains live.)_
-- [ ] **P2-B4** Celery-backed task execution behind approval (never inline in HTTP handler).
-      _(#305 reopened — scaffold + `noop.ping` done, real executors gap.)_
+- [x] **P2-B4** Celery-backed task execution behind approval (never inline in HTTP handler).
+      _(#305 — dispatch infra: routing, idempotency, error taxonomy, sandbox guard contract.)_
 - [ ] **P2-B5** Outcome tracking instrumentation. _(#306 open — realtime envelope done,
       cadence rollups pending.)_
 - [ ] **P2-B6** Listing approval queue + Products API publish. _(#379)_

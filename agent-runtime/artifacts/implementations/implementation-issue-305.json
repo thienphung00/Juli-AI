@@ -3,10 +3,10 @@
   "artifactType": "implementation",
   "issueId": 305,
   "executorDomain": "backend",
-  "phaseRunId": "305-2026-07-12-celery-execution",
-  "startedAt": "2026-07-12T10:45:00Z",
-  "completedAt": "2026-07-12T10:50:00Z",
-  "executionDurationMs": 300000,
+  "phaseRunId": "305-2026-07-13-dispatch-infra",
+  "startedAt": "2026-07-13T02:55:00Z",
+  "completedAt": "2026-07-13T03:10:00Z",
+  "executionDurationMs": 900000,
   "tokenUsage": {
     "input": 0,
     "output": 0,
@@ -19,87 +19,86 @@
     "Write",
     "StrReplace"
   ],
-  "toolInvocationCount": 52,
+  "toolInvocationCount": 48,
   "contextFilesLoaded": [
     "EXECUTION.md",
-    "docs/product/phases/phase-2-mvp.md",
-    "docs/architecture/system-design.md",
-    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
-    "agent-runtime/artifacts/workflow-cache/issue-context-cache-305.json",
-    "backend/src/juli_backend/workers/README.md"
+    "docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md",
+    "docs/product/execution_layer.md",
+    "agent-runtime/artifacts/implementations/implementation-issue-305.json",
+    "agent-runtime/artifacts/reviews/review-issue-305.json",
+    "agent-runtime/artifacts/validation/validation-issue-305.json",
+    "backend/src/juli_backend/services/execution/MODULE.md",
+    "backend/src/juli_backend/services/tiktok/webhook_catalog.py",
+    "backend/src/juli_backend/services/scoring/copy_layer.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py"
   ],
   "skillsLoaded": [
     "focus",
-    "prompt-caching",
     "backend"
   ],
   "filesModified": [
-    "backend/pyproject.toml",
-    "backend/src/juli_backend/services/execution/__init__.py",
+    "backend/src/juli_backend/services/execution/tool_routing.py",
+    "backend/src/juli_backend/services/execution/errors.py",
+    "backend/src/juli_backend/services/execution/sandbox_guard.py",
     "backend/src/juli_backend/services/execution/types.py",
-    "backend/src/juli_backend/services/execution/runner.py",
     "backend/src/juli_backend/services/execution/dispatch.py",
     "backend/src/juli_backend/services/execution/worker.py",
+    "backend/src/juli_backend/services/execution/__init__.py",
     "backend/src/juli_backend/services/execution/MODULE.md",
-    "backend/src/juli_backend/workers/celery_app.py",
-    "backend/src/juli_backend/workers/tasks/__init__.py",
-    "backend/src/juli_backend/workers/tasks/tool_execution.py",
     "backend/src/juli_backend/api/routes/executions.py",
-    "backend/src/juli_backend/api/app.py",
     "backend/src/juli_backend/models/models.py",
     "backend/src/juli_backend/repositories/repos.py",
-    "backend/src/juli_backend/database/migrations/versions/012_tool_executions.py",
-    "agent-runtime/config/slice-routing.yml",
-    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
-    "agent-runtime/artifacts/workflow-cache/issue-context-cache-305.json",
-    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-305.md"
+    "backend/src/juli_backend/database/migrations/versions/015_tool_execution_fields.py",
+    "tests/unit/test_tool_execution_routing_contract.py",
+    "EXECUTION.md",
+    "agent-runtime/artifacts/implementations/implementation-issue-305.json"
   ],
   "testsAdded": [
-    "tests/unit/test_celery_tool_execution_contract.py"
+    "tests/unit/test_tool_execution_routing_contract.py"
   ],
   "testsUpdated": [],
   "redGreenRefactorEvidence": [
     {
       "cycle": 1,
-      "behavior": "POST /v1/executions returns 202 after enqueue without inline tool run",
-      "redCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_ac1_post_executions_returns_after_enqueue_without_inline_run -q",
-      "redResult": "ModuleNotFoundError: juli_backend.services.execution",
-      "greenCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_ac1_post_executions_returns_after_enqueue_without_inline_run -q",
+      "behavior": "workflow_key → tool_name routing for all 11 WORKFLOW_COPY_TEMPLATE_KEYS",
+      "redCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac1_resolve_tool_name_maps_all_workflow_copy_template_keys -q",
+      "redResult": "ModuleNotFoundError: juli_backend.services.execution.tool_routing",
+      "greenCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac1_resolve_tool_name_maps_all_workflow_copy_template_keys -q",
       "greenResult": "1 passed"
     },
     {
       "cycle": 2,
-      "behavior": "Celery dispatcher receives persisted execution id",
-      "redCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_ac2_tool_execution_dispatched_to_celery_worker -q",
-      "redResult": "failed before dispatch wiring",
-      "greenCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_ac2_tool_execution_dispatched_to_celery_worker -q",
+      "behavior": "idempotency_key threaded POST → ToolExecution → worker payload",
+      "redCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac2_idempotency_key_persisted_and_passed_to_worker_payload -q",
+      "redResult": "422 / missing idempotency_key column",
+      "greenCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac2_idempotency_key_persisted_and_passed_to_worker_payload -q",
       "greenResult": "1 passed"
     },
     {
       "cycle": 3,
-      "behavior": "GET /v1/executions/{id} returns queryable outcome status",
-      "redCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_ac3_get_execution_returns_queryable_outcome_status -q",
-      "redResult": "failed before status API",
-      "greenCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_ac3_get_execution_returns_queryable_outcome_status -q",
+      "behavior": "coarse error_category on failed ToolExecution",
+      "redCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac3_failed_execution_records_error_category -q",
+      "redResult": "error_category attribute missing",
+      "greenCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac3_failed_execution_records_error_category -q",
       "greenResult": "1 passed"
     },
     {
       "cycle": 4,
-      "behavior": "Worker task runs tool and persists terminal status",
-      "redCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_celery_task_runs_tool_and_updates_status -q",
-      "redResult": "failed before worker + migration",
-      "greenCommand": "pytest tests/unit/test_celery_tool_execution_contract.py::test_celery_task_runs_tool_and_updates_status -q",
+      "behavior": "sandbox guard rejects production merchant auth id",
+      "redCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac4_sandbox_guard_rejects_production_merchant_auth_id -q",
+      "redResult": "ModuleNotFoundError: juli_backend.services.execution.sandbox_guard",
+      "greenCommand": "pytest tests/unit/test_tool_execution_routing_contract.py::test_ac4_sandbox_guard_rejects_production_merchant_auth_id -q",
       "greenResult": "1 passed"
     }
   ],
-  "implementationSummary": "P2-B4 Celery-backed tool execution: POST /v1/executions enqueues approved tool calls via Celery (202), worker runs tools through registry, GET /v1/executions/{id} returns Postgres-persisted status/outcome. HTTP handlers never call run_tool inline.",
+  "implementationSummary": "Reopened #305 dispatch infrastructure: workflow_key→tool_name routing catalog (11 keys), idempotency_key on POST/ToolExecution/worker payload, ExecutionErrorCategory taxonomy on failures, sandbox write guard helpers + MODULE.md contract for P2-B6/B7. noop.ping unchanged; original Celery contract tests still pass.",
   "assumptions": [
-    "Blocker #301 sandbox write resources remain available for P2-B6+ tool wiring",
-    "Celery broker defaults to memory:// for local/tests; production uses CELERY_BROKER_URL",
-    "noop.ping registry entry suffices for P2-B4 plumbing; workflow tools added in later slices"
+    "P2-B6/B7 will register real handlers at routed tool names — this issue only ships routing infra",
+    "process_order_5 maps to fulfillment.process_order pending a dedicated P2 slice issue",
+    "Workflow-cache files from prior run were not present locally; prior artifacts loaded instead"
   ],
   "risks": [
-    "VPS Celery worker systemd unit not in Phase 2.5 deploy envelope — ops wiring deferred",
-    "Parent bootstrapRef pin stale on main — harness gate fails until Architect bumps pin"
+    "Migration 015 must run before deploy; idempotency_key column required for new POST field",
+    "Real executor registration still blocked on P2-B6 (#379) and P2-B7 (#380)"
   ]
 }
