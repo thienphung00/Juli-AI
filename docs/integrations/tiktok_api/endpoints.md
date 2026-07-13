@@ -47,7 +47,7 @@ Layer 0 contract rows are verified in
 | Layer | Merchant | Endpoints | Status |
 |-------|----------|-----------|--------|
 | **1 — Production read** | Fujiwa (`7658073774813611784`) | Shops, orders, products, returns, cancellations, inventory search (+ optional affiliate, SPS) | **Minimum set fixtured** — see [`samples/README.md`](samples/README.md) |
-| **2 — Sandbox write** | SANDBOX_VN (`7658096633384781588`) | Inventory update, product create/edit, promotion lifecycle, fulfillment split/package/ship | Contracts in `contract-collection.md` §14+; fixtures deferred to Layer 2 slice (#301) |
+| **2 — Sandbox write** | SANDBOX_VN (`7658096633384781588`) | Inventory update, product create/edit, promotion lifecycle (B-5–B-8 + Get Activity), fulfillment split/package/ship | **Implemented** — `SandboxWriteClientFactory.create_resources()` (#301) |
 
 Regenerate Layer 1 fixtures after contract updates:
 
@@ -492,30 +492,23 @@ they are verified as part of the TikTok Shop Partner API reference.
 
 ## Promotion
 
-**Status:** **VERIFIED** in Partner Center (Promotion API `202309`); **not implemented**
-in Juli client — P2-1 slice.
+**Status:** **VERIFIED** and **implemented** in `PromotionResource` via
+`SandboxWriteClientFactory.create_resources()` (#301).
 
 **Source:** [Promotion API overview](https://partner.tiktokshop.com/docv2/page/promotion-api-overview),
 [Deactivate activity](https://partner.tiktokshop.com/docv2/page/deactivate-activity-202309),
-[EcomPHP Promotion resource](https://github.com/EcomPHP/tiktokshop-php) (`activities/*` paths).
+[`contract-collection.md`](contract-collection.md) §A-25, §B-5–B-8.
 
-| Juli action (execution layer) | Official operation | Notes |
-|-------------------------------|-------------------|-------|
-| Create Activity | `POST /promotion/202309/activities` | `activity_type`: `FIXED_PRICE` \| `DIRECT_DISCOUNT` \| `FLASHSALE` \| `SHIPPING_DISCOUNT` \| `BUY_MORE_SAVE_MORE` |
-| Update Activity Product | `POST /promotion/202309/activities/{activity_id}/products` | Attach product/SKU prices |
-| Update Activity | `POST /promotion/202309/activities/{activity_id}` | `contract-collection.md` Layer 2 |
-| Get Activity | `GET /promotion/202309/activities/{activity_id}` | Search/list not available — use known `activity_id` + webhook #39 |
-| Deactivate Activity | `POST /promotion/202309/activities/{activity_id}/deactivate` | Deactivate by activity id |
+| Juli action (execution layer) | Official operation | Client API |
+|-------------------------------|-------------------|------------|
+| Create Activity | `POST /promotion/202309/activities` | `promotion.create_activity` |
+| Update Activity | `PUT /promotion/202309/activities/{activity_id}` | `promotion.update_activity` |
+| Update Activity Product | `PUT /promotion/202309/activities/{activity_id}/products` | `promotion.update_activity_products` |
+| Get Activity | `GET /promotion/202309/activities/{activity_id}` | `promotion.get_activity` — replaces Search Activity |
+| Deactivate Activity | `POST /promotion/202309/activities/{activity_id}/deactivate` | `promotion.deactivate` |
 
-**Removed — Create/Delete Coupons workflow.** Investigated and confirmed: no `POST`
-(create) operation exists for seller-facing coupon creation via the Partner API.
-`Create Coupon`, `Search Coupons`, `Get Coupon Detail`, and `Delete / Deactivate Coupon`
-are **not implemented and not planned** — coupons appear to be Seller Center-only in the
-current API surface. Re-add only if a verified create-coupon contract is found in a
-future API version.
-
-**Phase:** P2 (Create Activity / Delete Activity / Update Activity workflows,
-Clear Excess Inventory).
+**Deferred:** Search RMA (A-17) and Search Aftersales Request (A-18) — return/refund
+granular reads; not required for promotion lifecycle.
 
 ---
 

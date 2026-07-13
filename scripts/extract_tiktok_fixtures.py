@@ -13,55 +13,55 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = REPO_ROOT / "docs/integrations/tiktok_api/contract-collection.md"
 SAMPLES_DIR = REPO_ROOT / "docs/integrations/tiktok_api/samples"
 
-# Layer 1 minimum set — contract-collection §N → fixture
+# Section A minimum-read set — contract-collection A-N → fixture
 FIXTURE_MAP: dict[str, dict[str, str]] = {
-    "3. Get Authorized Shops": {
+    "A-1. Get Authorized Shops": {
         "file": "authorized-shops-response.json",
         "endpoint": "GET /authorization/202309/shops",
         "api_version": "202309",
-        "contract_section": "§3",
+        "contract_section": "§A-1",
     },
-    "4. Search Products": {
+    "A-2. Search Products": {
         "file": "products-search-response.json",
         "endpoint": "POST /product/202309/products/search",
         "api_version": "202309",
-        "contract_section": "§4",
+        "contract_section": "§A-2",
     },
-    "5. Get Product": {
+    "A-3. Get Product": {
         "file": "products-detail-response.json",
         "endpoint": "GET /product/202309/products/{product_id}",
         "api_version": "202309",
-        "contract_section": "§5",
+        "contract_section": "§A-3",
     },
-    "6. Get Order List": {
+    "A-4. Get Order List": {
         "file": "orders-search-response.json",
         "endpoint": "POST /order/202309/orders/search",
         "api_version": "202309",
-        "contract_section": "§6",
+        "contract_section": "§A-4",
     },
-    "7. Get Order Detail": {
+    "A-5. Get Order Detail": {
         "file": "orders-detail-response.json",
         "endpoint": "GET /order/202507/orders",
         "api_version": "202507",
-        "contract_section": "§7",
+        "contract_section": "§A-5",
     },
-    "8. Search Returns": {
+    "A-6. Search Returns": {
         "file": "returns-search-response.json",
         "endpoint": "POST /return_refund/202602/returns/search",
         "api_version": "202602",
-        "contract_section": "§8",
+        "contract_section": "§A-6",
     },
-    "9. Search Cancellations": {
+    "A-7. Search Cancellations": {
         "file": "cancellations-search-response.json",
         "endpoint": "POST /return_refund/202602/cancellations/search",
         "api_version": "202602",
-        "contract_section": "§9",
+        "contract_section": "§A-7",
     },
-    "10. Inventory Search": {
+    "A-8. Inventory Search": {
         "file": "inventory-search-response.json",
         "endpoint": "POST /product/202309/inventory/search",
         "api_version": "202309",
-        "contract_section": "§10",
+        "contract_section": "§A-8",
     },
 }
 
@@ -95,24 +95,23 @@ ARRAY_TRUNCATE_KEYS = {
 }
 
 
-def _extract_layer1_sections(text: str) -> dict[str, str]:
-    layer1_start = text.find("## Layer 1 — Production read validation")
-    layer2_start = text.find("## Layer 2 — Sandbox write validation")
-    if layer1_start == -1 or layer2_start == -1:
-        raise ValueError("Could not locate Layer 1 section boundaries")
-    layer1 = text[layer1_start:layer2_start]
+def _extract_section_a(text: str) -> dict[str, str]:
+    section_start = text.find("# Section A — Fujiwa")
+    section_end = text.find("# Section B — SANDBOX")
+    if section_start == -1 or section_end == -1:
+        raise ValueError("Could not locate Section A boundaries")
+    section_a = text[section_start:section_end]
     sections: dict[str, str] = {}
-    for match in re.finditer(r"^### (\d+\. [^\n]+)$", layer1, re.MULTILINE):
+    for match in re.finditer(r"^## (A-\d+\. [^\n]+)$", section_a, re.MULTILINE):
         title = match.group(1)
         start = match.end()
-        next_match = re.search(r"^### \d+\.", layer1[start:], re.MULTILINE)
-        end = start + next_match.start() if next_match else len(layer1)
-        sections[title] = layer1[start:end]
+        next_match = re.search(r"^## A-\d+\.", section_a[start:], re.MULTILINE)
+        end = start + next_match.start() if next_match else len(section_a)
+        sections[title] = section_a[start:end]
     return sections
 
 
 def _extract_response_json(section_body: str) -> dict[str, Any]:
-    # Prefer filled sanitized block when present
     sanitized_marker = "**Sanitized response"
     if sanitized_marker in section_body:
         after = section_body.split(sanitized_marker, 1)[1]
@@ -126,7 +125,7 @@ def _extract_response_json(section_body: str) -> dict[str, Any]:
 
     response_marker = "**Response**"
     if response_marker not in section_body:
-        raise ValueError("Missing **Response** block")
+        raise ValueError("Missing sanitized or raw **Response** block")
     after = section_body.split(response_marker, 1)[1]
     for line in after.splitlines():
         stripped = line.strip()
@@ -181,12 +180,18 @@ def sanitize_response(response: dict[str, Any]) -> dict[str, Any]:
     if isinstance(data, dict):
         if isinstance(data.get("next_page_token"), str):
             data["next_page_token"] = "{page_token}"
-        # Get Product returns single object — wrap consistency not needed
         if "orders" in data and isinstance(data["orders"], list) and data["orders"]:
             order = data["orders"][0]
             if isinstance(order.get("line_items"), list) and order["line_items"]:
                 order["line_items"] = order["line_items"][:1]
     return cleaned
+
+
+def _fixture_response(section_body: str, raw: dict[str, Any]) -> dict[str, Any]:
+    """Use pre-sanitized contract JSON when present; otherwise redact raw captures."""
+    if "**Sanitized response" in section_body:
+        return raw
+    return sanitize_response(raw)
 
 
 def build_fixture(meta: dict[str, str], response: dict[str, Any]) -> dict[str, Any]:
@@ -207,16 +212,17 @@ def build_fixture(meta: dict[str, str], response: dict[str, Any]) -> dict[str, A
 
 def main() -> int:
     text = CONTRACT_PATH.read_text(encoding="utf-8")
-    sections = _extract_layer1_sections(text)
+    sections = _extract_section_a(text)
     SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
 
     for title, meta in FIXTURE_MAP.items():
         section_key = next((k for k in sections if k.startswith(title)), None)
         if section_key is None:
-            raise ValueError(f"Layer 1 section not found: {title}")
-        raw = _extract_response_json(sections[section_key])
-        fixture = build_fixture(meta, sanitize_response(raw))
+            raise ValueError(f"Section A block not found: {title}")
+        section_body = sections[section_key]
+        raw = _extract_response_json(section_body)
+        fixture = build_fixture(meta, _fixture_response(section_body, raw))
         out_path = SAMPLES_DIR / meta["file"]
         out_path.write_text(
             json.dumps(fixture, indent=2, ensure_ascii=False) + "\n",

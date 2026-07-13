@@ -5,7 +5,7 @@
     "merchant": "Fujiwa",
     "endpoint": "POST /product/202309/products/search",
     "api_version": "202309",
-    "contract_section": "§4",
+    "contract_section": "§A-2",
     "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
     "shop_cipher_redacted": true
   },
@@ -48,7 +48,7 @@
             }
           ],
           "status": "ACTIVATE",
-          "title": "[Quà Tặng] Chai Xịt Thơm Miệng Fujisalt 14mL Khử Mùi Hiệu Quả, Giữ Hơi Thở Thơm Mát",
+          "title": "[Quà Tặng] Chai Xịt Thơm Miệng Fujisalt 14mL",
           "update_time": 1782892330
         }
       ],

@@ -76,7 +76,7 @@ def test_samples_readme_cross_links_contract_collection():
     text = readme.read_text(encoding="utf-8")
     assert "contract-collection.md" in text
     assert "extract_tiktok_fixtures.py" in text
-    assert "§3" in text or "§6" in text
+    assert "§A-1" in text or "§A-4" in text
 
 
 def test_handoff_stop_condition_satisfied_layer1():

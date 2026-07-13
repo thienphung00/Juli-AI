@@ -19,6 +19,7 @@ from juli_backend.integrations.tiktok.resources.inventory import InventoryResour
 from juli_backend.integrations.tiktok.resources.livestreams import LivestreamsResource  # noqa: E402
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource  # noqa: E402
 from juli_backend.integrations.tiktok.resources.products import ProductsResource  # noqa: E402
+from juli_backend.integrations.tiktok.resources.promotion import PromotionResource  # noqa: E402
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource  # noqa: E402
 from juli_backend.integrations.tiktok.resources.settlements import SettlementsResource  # noqa: E402
 
@@ -30,6 +31,7 @@ __all__ = [
     "ReturnsResource",
     "InventoryResource",
     "FulfillmentResource",
+    "PromotionResource",
     "CreatorsResource",
     "LivestreamsResource",
     "SettlementsResource",

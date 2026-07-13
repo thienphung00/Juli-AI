@@ -5,7 +5,7 @@
     "merchant": "Fujiwa",
     "endpoint": "POST /product/202309/inventory/search",
     "api_version": "202309",
-    "contract_section": "§10",
+    "contract_section": "§A-8",
     "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
     "shop_cipher_redacted": true
   },
@@ -19,11 +19,6 @@
             {
               "id": "1729700293904534135",
               "seller_sku": "FUJIWA02-450",
-              "total_available_inventory_distribution": {
-                "in_shop_inventory": {
-                  "quantity": 995
-                }
-              },
               "total_available_quantity": 995,
               "total_committed_quantity": 0,
               "warehouse_inventory": [

@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-301",
   "issue": 301,
-  "timestamp": "2026-07-11T05:21:51Z",
+  "timestamp": "2026-07-13T05:02:58Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 13,
@@ -32,8 +32,8 @@
       "status": "PASS",
       "description": "All acceptance criteria mapped to tests",
       "details": {
-        "total": 3,
-        "mapped": 3,
+        "total": 5,
+        "mapped": 5,
         "unmapped": [],
         "problems": []
       }
@@ -155,5 +155,5 @@
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
   "executionDurationMs": 0,
-  "phaseRunId": "301-2026-07-11-b-run"
+  "phaseRunId": "301-2026-07-13-promotion-run"
 }
