@@ -48,7 +48,7 @@
     "backend/src/juli_backend/api/routes/executions.py",
     "backend/src/juli_backend/models/models.py",
     "backend/src/juli_backend/repositories/repos.py",
-    "backend/src/juli_backend/database/migrations/versions/015_tool_execution_routing_fields.py",
+    "backend/src/juli_backend/database/migrations/versions/015_tool_execution_fields.py",
     "tests/unit/test_tool_execution_routing_contract.py",
     "EXECUTION.md",
     "agent-runtime/artifacts/implementations/implementation-issue-305.json"
