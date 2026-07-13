@@ -121,7 +121,7 @@ Scheduled polling, business-entity ETL, and feature aggregates remain pending.
 
 ### Milestone B slices
 
-- [ ] **P2-B1** Manual-refresh rules pipeline (aggregates → rules-based signals →
+- [x] **P2-B1** Manual-refresh rules pipeline (aggregates → rules-based signals →
       recommendations → **persisted Action Cards**, [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)).
       _(#303 reopened — pipeline logic done, persistence gap.)_
 - [x] **P2-B2** Rules-based copy layer — deterministic templates from rule signals (no cloud LLM). _(#304)_

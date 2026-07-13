@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI
 
+from juli_backend.api.routes.action_cards import router as action_cards_router
 from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
 from juli_backend.api.routes.creators import router as creators_router
 from juli_backend.api.routes.debug_tiktok import router as debug_tiktok_router
@@ -32,6 +33,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(recommendations_router)
     v1_router.include_router(outcomes_router)
     v1_router.include_router(executions_router)
+    v1_router.include_router(action_cards_router)
     v1_router.include_router(workflow_outcomes_router)
     v1_router.include_router(creators_router)
     app.include_router(v1_router)

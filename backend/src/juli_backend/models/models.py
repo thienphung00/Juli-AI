@@ -546,6 +546,42 @@ class WorkflowOutcomeRecord(Base):
     )
 
 
+class ActionCard(Base):
+    """Persisted Decision row from the rules pipeline — P2-B1 (#303, ADR-021)."""
+
+    __tablename__ = "action_cards"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    workflow_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    priority: Mapped[int] = mapped_column(nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    recommendation_payload: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    approved_at: Mapped[datetime | None] = mapped_column()
+    executed_at: Mapped[datetime | None] = mapped_column()
+    outcome: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_action_cards_shop", "shop_id"),
+        Index("ix_action_cards_shop_status", "shop_id", "status"),
+        UniqueConstraint(
+            "shop_id",
+            "workflow_key",
+            name="uq_action_cards_shop_workflow",
+        ),
+    )
+
+
 class Recommendation(Base):
     __tablename__ = "recommendations"
 

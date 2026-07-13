@@ -3,10 +3,10 @@
   "artifactType": "implementation",
   "issueId": 303,
   "executorDomain": "backend",
-  "phaseRunId": "303-2026-07-12-visual-layer",
-  "startedAt": "2026-07-12T04:15:00Z",
-  "completedAt": "2026-07-12T04:50:00Z",
-  "executionDurationMs": 2100000,
+  "phaseRunId": "303-2026-07-13-action-card-persistence",
+  "startedAt": "2026-07-13T02:30:00Z",
+  "completedAt": "2026-07-13T02:45:00Z",
+  "executionDurationMs": 900000,
   "tokenUsage": {
     "input": null,
     "output": null,
@@ -14,83 +14,81 @@
     "measured": false,
     "unavailableReason": "Platform telemetry did not expose token usage for this session."
   },
-  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "Write", "StrReplace", "Delete"],
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "Write", "StrReplace"],
   "toolInvocationCount": null,
   "contextFilesLoaded": [
-    "docs/ml/visual_layer.md",
-    "docs/ml/ml_layer.md",
-    "docs/product/execution_layer.md",
-    "docs/product/phases/phase-2-mvp.md",
-    "docs/adr/011-display-grade-analytics-layer.md",
-    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-303.md",
-    "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
-    "backend/src/juli_backend/services/aggregates/MODULE.md",
-    "backend/src/juli_backend/services/tiktok/webhook_catalog.py"
+    "docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md",
+    "agent-runtime/artifacts/implementations/implementation-issue-303.json",
+    "agent-runtime/artifacts/reviews/review-issue-303.json",
+    "agent-runtime/artifacts/validation/validation-issue-303.json",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/api/routes/executions.py",
+    "backend/src/juli_backend/services/execution/dispatch.py",
+    "backend/src/juli_backend/services/scoring/pipeline.py"
   ],
   "skillsLoaded": [
     ".cursor/skills/standalone/focus/SKILL.md",
-    ".cursor/skills/standalone/prompt-caching/SKILL.md",
     ".cursor/skills/domain/backend/SKILL.md"
   ],
-  "cacheHits": [],
-  "cacheMisses": ["issue-context-cache-303.json"],
-  "contextTransferCount": 0,
-  "retryCount": 1,
+  "cacheHits": [
+    "implementation-issue-303.json",
+    "review-issue-303.json",
+    "validation-issue-303.json"
+  ],
+  "cacheMisses": [],
+  "contextTransferCount": 1,
+  "retryCount": 0,
   "filesModified": [
-    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-303.md",
-    "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
-    "agent-runtime/config/slice-routing.yml",
-    "backend/src/juli_backend/services/scoring/__init__.py",
-    "backend/src/juli_backend/services/scoring/types.py",
-    "backend/src/juli_backend/services/scoring/advisory.py",
-    "backend/src/juli_backend/services/scoring/kpi_catalog.py",
-    "backend/src/juli_backend/services/scoring/schedule.py",
-    "backend/src/juli_backend/services/scoring/signals.py",
-    "backend/src/juli_backend/services/scoring/recommendations.py",
-    "backend/src/juli_backend/services/scoring/pipeline.py",
-    "backend/src/juli_backend/services/scoring/batch.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/database/migrations/versions/014_action_cards.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/action_cards/__init__.py",
+    "backend/src/juli_backend/services/action_cards/persist.py",
+    "backend/src/juli_backend/services/action_cards/refresh.py",
+    "backend/src/juli_backend/services/action_cards/dispatch.py",
+    "backend/src/juli_backend/services/action_cards/MODULE.md",
+    "backend/src/juli_backend/workers/tasks/action_card_refresh.py",
+    "backend/src/juli_backend/api/routes/action_cards.py",
+    "backend/src/juli_backend/api/app.py",
+    "backend/src/juli_backend/database/__init__.py",
     "backend/src/juli_backend/services/scoring/MODULE.md",
-    "tests/unit/test_daily_batch_scoring_contract.py"
+    "EXECUTION.md",
+    "tests/unit/test_action_cards_contract.py"
   ],
   "testsAdded": [
-    "tests/unit/test_daily_batch_scoring_contract.py"
+    "tests/unit/test_action_cards_contract.py"
   ],
   "testsUpdated": [],
   "redGreenRefactorEvidence": [
     {
-      "behavior": "Scope alignment: visual_layer beats P1.8 health_check indicators",
-      "red": "Initial impl used P1.8 indicator IDs without prompt cache / scope alignment",
-      "green": "scope-alignment-issue-303.md + issue-context-cache-303.json record resolved conflicts"
+      "behavior": "ActionCardsRepo idempotent upsert on (shop_id, workflow_key)",
+      "red": "ImportError: ActionCardsRepo missing; 2 repo tests failed",
+      "green": "ActionCard model + ActionCardsRepo; upsert insert/update tests pass"
     },
     {
-      "behavior": "visual_layer AdvisorySignal one-line format",
-      "red": "No format_advisory_one_line; P1.8 summary strings only",
-      "green": "change · risk|opportunity · action; 3 format tests pass"
+      "behavior": "POST /v1/action-cards/refresh returns 202 without inline pipeline",
+      "red": "No action_cards router; ModuleNotFoundError on dispatch",
+      "green": "202 + celery_task_id; worker sync not called inline"
     },
     {
-      "behavior": "All 20 visual_layer KPI IDs emitted (available or unavailable)",
-      "red": "Only 7 P1.8 health indicators",
-      "green": "compute_scoring_signals keys == VISUAL_LAYER_KPI_IDS"
+      "behavior": "GET /v1/action-cards returns persisted rows only",
+      "red": "Route missing; GET 404",
+      "green": "Empty list then persisted card after repo upsert"
     },
     {
-      "behavior": "execution_layer workflow keys in recommendations",
-      "red": "ADR-013 six-workflow IDs (npl, budget_optimization, …)",
-      "green": "process_order_5, prevent_return_8b, … from kpi_catalog + webhook_catalog alignment"
-    },
-    {
-      "behavior": "Batch on synced aggregates + 08:00 UTC schedule",
-      "red": "N/A (carried from initial pass)",
-      "green": "10/10 contract tests pass"
+      "behavior": "Two consecutive refreshes same row count, bumped updated_at",
+      "red": "run_action_card_refresh missing",
+      "green": "Integration test: 2 runs, len unchanged, updated_at monotonic"
     }
   ],
-  "implementationSummary": "P2-B1 daily batch refactored to visual_layer.md: AdvisorySignal per KPI (20 IDs, 6 domains), T3/rules_proxy techniques from #300 aggregates, unavailable for Ads/Inventory/Operations/CSAT without ETL. Recommendations rank execution_layer workflow keys via KPI→workflow mapping. Scope conflicts resolved via prompt-caching workflow (issue-context-cache-303).",
+  "implementationSummary": "Reopened #303 (ADR-021): added action_cards table + migration 014, ActionCardsRepo with ShopScopedRepo upsert on workflow_key, persist_scoring_result mapping DailyScoringResult → rows, Celery refresh_action_cards task, POST/GET /v1/action-cards routes. Optional Fujiwa poll when TIKTOK_APP_* configured. Scoring pipeline unchanged.",
   "assumptions": [
-    "Promotion workflows (create_activity_7a, etc.) proxy Ads KPI routing until Ads API sync lands.",
-    "Return rate proxy uses aggregate return_count/order_count — not true 7d/30d windows yet.",
-    "P1.8 dashboard operations/ remains UI reference only."
+    "Poll skipped in tests and dev when TIKTOK_APP_KEY/SECRET absent.",
+    "Active status filter is sufficient for non-expired cards until expiry semantics land.",
+    "approved_at/executed_at/outcome columns reserved for P2-B4/B5 lifecycle wiring."
   ],
   "risks": [
-    "Workflow display names are Vietnamese stubs — may need execution_layer canonical labels later.",
-    "Parent cache childIssueIds updated to include 303 — epic fingerprint may need refresh on next gate run."
+    "Production poll requires Fujiwa credentials; refresh without poll uses stale aggregates only.",
+    "SQLite updated_at may not auto-bump on upsert in all drivers — Postgres onupdate handles production."
   ]
 }
