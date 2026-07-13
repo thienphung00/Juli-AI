@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,7 @@ from juli_backend.models.models import ActionCard
 from juli_backend.repositories.repos import ActionCardsRepo
 from juli_backend.services.scoring.types import (
     DailyScoringResult,
+    KpiId,
     Severity,
     WorkflowReasoningSummary,
 )
@@ -38,14 +40,14 @@ def _severity_for_recommendation(
     workflow_key: str,
     source_kpi_ids: tuple[str, ...],
 ) -> Severity:
-    severities: list[str] = []
+    severities: list[Severity] = []
     for kpi_id in source_kpi_ids:
-        signal = result.signals.kpis.get(kpi_id)  # type: ignore[arg-type]
+        signal = result.signals.kpis.get(cast(KpiId, kpi_id))
         if signal is not None:
             severities.append(signal.severity)
     if not severities:
         return "healthy"
-    return max(severities, key=lambda value: _SEVERITY_RANK.get(value, 0))  # type: ignore[return-value]
+    return max(severities, key=lambda value: _SEVERITY_RANK.get(value, 0))
 
 
 def _build_payload(

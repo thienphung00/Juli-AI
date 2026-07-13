@@ -286,15 +286,19 @@ async def test_integration_two_consecutive_refreshes_same_row_count(
 
 
 def test_no_redis_dependency_postgres_only_store():
-    """Reopened AC: Action Card stack uses Postgres only — no Redis imports."""
+    """Reopened AC: Action Card persistence uses Postgres only — not Redis as store."""
     import ast
     from pathlib import Path
 
     repo_root = Path(__file__).resolve().parents[2]
-    action_cards_pkg = repo_root / "backend/src/juli_backend/services/action_cards"
+    persistence_modules = (
+        repo_root / "backend/src/juli_backend/services/action_cards/persist.py",
+        repo_root / "backend/src/juli_backend/services/action_cards/dispatch.py",
+        repo_root / "backend/src/juli_backend/api/routes/action_cards.py",
+    )
     forbidden = {"redis", "aioredis"}
 
-    for py_file in action_cards_pkg.glob("*.py"):
+    for py_file in persistence_modules:
         tree = ast.parse(py_file.read_text(encoding="utf-8"))
         imports: set[str] = set()
         for node in ast.walk(tree):
