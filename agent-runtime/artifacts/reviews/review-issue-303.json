@@ -1,141 +1,122 @@
 {
   "id": "review-issue-303",
   "issue": 303,
-  "timestamp": "2026-07-12T04:55:24Z",
+  "timestamp": "2026-07-13T02:34:12Z",
   "reviewedBy": "review skill",
   "status": "PASS",
-  "summary": "P2-B1 daily batch rules pipeline (#303): services/scoring emits visual_layer AdvisorySignal per 20 KPI IDs (6 domains), ranks execution_layer workflow keys from synced #300 aggregates; Shop Status/CSAT have empty workflow_keys per scope alignment; no ML imports; 08:00 UTC schedule constants; 10/10 contract tests pass.",
+  "summary": "Reopened #303 (ADR-021): action_cards table + migration 014, ActionCardsRepo idempotent upsert on (shop_id, workflow_key), persist_scoring_result, Celery refresh_action_cards task, POST/GET /v1/action-cards. Scoring pipeline unchanged. 7/7 contract tests + 11 scoring regression tests pass.",
   "criticalFindings": [
     {
-      "id": "find-303-shop-status-workflow-test",
-      "type": "test_gap",
-      "module": "tests/unit/test_daily_batch_scoring_contract.py",
-      "description": "No explicit contract test asserting Shop Status and CSAT KPI_WORKFLOW_KEYS are empty tuples; behavior verified via kpi_catalog definition and manual spot-check.",
-      "severity": "INFO",
-      "actionRequired": false,
-      "suggestion": "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage."
-    },
-    {
-      "id": "find-303-cache-doc-drift",
-      "type": "drift",
-      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
-      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
-      "severity": "INFO",
-      "actionRequired": false,
-      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
-    },
-    {
-      "id": "find-303-return-proxy",
+      "id": "find-303-sqlite-updated-at",
       "type": "maintainability",
-      "module": "backend/src/juli_backend/services/scoring/signals.py",
-      "description": "return_rate_proxy uses order-level ratio from aggregates, not true 7d/30d windows documented in visual_layer examples.",
+      "module": "backend/src/juli_backend/repositories/repos.py",
+      "description": "ShopScopedRepo.upsert updates fields via setattr but SQLite in-memory tests may not auto-bump updated_at without explicit flush/refresh; integration test passes on current driver.",
       "severity": "INFO",
       "actionRequired": false,
-      "suggestion": "Defer windowed return-rate computation to P2-B3 multi-endpoint KPI slice."
+      "suggestion": "Consider explicit updated_at=datetime.now(UTC) on upsert if cross-driver drift appears."
     },
     {
-      "id": "find-303-batch-observability",
+      "id": "find-303-poll-skip-dev",
       "type": "architecture",
-      "module": "backend/src/juli_backend/services/scoring/batch.py",
-      "description": "Batch entry point has no structured logging or per-shop error isolation; acceptable for P2-B1 schedulable stub.",
+      "module": "backend/src/juli_backend/services/action_cards/refresh.py",
+      "description": "Fujiwa poll skipped when TIKTOK_APP_KEY/SECRET absent \u2014 dev refresh uses stale aggregates only.",
       "severity": "INFO",
       "actionRequired": false,
-      "suggestion": "Add structured logging and per-shop try/except when Celery beat wiring lands."
+      "suggestion": "Document in runbook; production must set TikTok app credentials for poll-before-score."
     }
   ],
   "modulesTouched": [
-    "backend/src/juli_backend/services/scoring/__init__.py",
-    "backend/src/juli_backend/services/scoring/types.py",
-    "backend/src/juli_backend/services/scoring/advisory.py",
-    "backend/src/juli_backend/services/scoring/kpi_catalog.py",
-    "backend/src/juli_backend/services/scoring/schedule.py",
-    "backend/src/juli_backend/services/scoring/signals.py",
-    "backend/src/juli_backend/services/scoring/recommendations.py",
-    "backend/src/juli_backend/services/scoring/pipeline.py",
-    "backend/src/juli_backend/services/scoring/batch.py",
-    "backend/src/juli_backend/services/scoring/MODULE.md",
-    "tests/unit/test_daily_batch_scoring_contract.py"
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/database/migrations/versions/014_action_cards.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/action_cards",
+    "backend/src/juli_backend/workers/tasks/action_card_refresh.py",
+    "backend/src/juli_backend/api/routes/action_cards.py",
+    "backend/src/juli_backend/api/app.py",
+    "tests/unit/test_action_cards_contract.py"
   ],
   "interfaceChanges": [
     {
-      "module": "backend/src/juli_backend/services/scoring",
-      "interface": "run_daily_scoring_for_shop",
+      "module": "backend/src/juli_backend/repositories/repos",
+      "interface": "ActionCardsRepo.upsert",
       "changeType": "added",
       "breaking": false,
-      "description": "Single-shop pipeline: build_feature_aggregates \u2192 compute_scoring_signals \u2192 rank_workflow_recommendations."
+      "description": "Idempotent upsert by (shop_id, workflow_key)."
     },
     {
-      "module": "backend/src/juli_backend/services/scoring",
-      "interface": "run_daily_scoring_batch",
+      "module": "backend/src/juli_backend/api/routes/action_cards",
+      "interface": "POST /v1/action-cards/refresh",
       "changeType": "added",
       "breaking": false,
-      "description": "Batch entry over active shops or explicit shop_ids list."
+      "description": "202 Accepted; enqueues Celery refresh_action_cards."
     },
     {
-      "module": "backend/src/juli_backend/services/scoring",
-      "interface": "compute_scoring_signals",
+      "module": "backend/src/juli_backend/api/routes/action_cards",
+      "interface": "GET /v1/action-cards",
       "changeType": "added",
       "breaking": false,
-      "description": "Emits visual_layer AdvisorySignal for all 20 KPI IDs from FeatureAggregateSnapshot."
-    },
-    {
-      "module": "backend/src/juli_backend/services/scoring",
-      "interface": "rank_workflow_recommendations",
-      "changeType": "added",
-      "breaking": false,
-      "description": "Profile-gated execution_layer workflow ranking from advisory signals."
-    },
-    {
-      "module": "backend/src/juli_backend/services/scoring",
-      "interface": "format_advisory_one_line",
-      "changeType": "added",
-      "breaking": false,
-      "description": "visual_layer one-line format: change \u00b7 risk|opportunity \u00b7 action."
+      "description": "Lists persisted active action cards for shop."
     }
   ],
   "moduleDrift": false,
   "driftDetails": [],
   "testCoverage": {
     "acceptance": {
-      "total": 3,
-      "mapped": 3,
+      "total": 7,
+      "mapped": 7,
       "unmapped": [],
       "mappings": [
         {
-          "criterion": "Batch job runs on synced Postgres aggregates",
-          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_batch_scoring_uses_feature_aggregates_from_synced_tables"
+          "criterion": "action_cards table + Alembic migration",
+          "test": "tests/unit/test_action_cards_contract.py::test_action_cards_repo_upsert_inserts_new_card"
         },
         {
-          "criterion": "Deterministic rules produce signals and ranked recommendations",
-          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_same_inputs_produce_identical_recommendations"
+          "criterion": "ActionCardsRepo upsert idempotent second refresh updates not duplicate",
+          "test": "tests/unit/test_action_cards_contract.py::test_action_cards_repo_second_upsert_updates_not_duplicates"
         },
         {
-          "criterion": "Schedule aligns with phase-2-mvp.md (08:00 UTC scoring window)",
-          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_daily_scoring_window_is_08_00_utc"
+          "criterion": "POST action-cards refresh returns 202 enqueues without inline run",
+          "test": "tests/unit/test_action_cards_contract.py::test_ac2_post_refresh_returns_202_and_enqueues_without_inline_run"
+        },
+        {
+          "criterion": "GET action-cards returns persisted only",
+          "test": "tests/unit/test_action_cards_contract.py::test_ac3_get_action_cards_returns_persisted_only"
+        },
+        {
+          "criterion": "two consecutive refreshes same row count",
+          "test": "tests/unit/test_action_cards_contract.py::test_integration_two_consecutive_refreshes_same_row_count"
+        },
+        {
+          "criterion": "No Redis dependency Postgres only store",
+          "test": "tests/unit/test_action_cards_contract.py::test_no_redis_dependency_postgres_only_store"
+        },
+        {
+          "criterion": "EXECUTION P2-B1 checkbox marked complete",
+          "test": "tests/unit/test_action_cards_contract.py::test_execution_p2_b1_checkbox_marked_complete"
         }
       ]
     },
     "unit": {
-      "passed": 10,
+      "passed": 7,
       "failed": 0
     }
   },
   "recommendations": [],
   "approvalReady": true,
   "reviewerSignoff": {
-    "statement": "Reviewed P2-B1 scoring pipeline against scope-alignment-issue-303; no blocking findings.",
-    "timestamp": "2026-07-12T04:55:00Z",
+    "statement": "Reviewed reopened #303 Action Card persistence against ADR-021; no blocking findings.",
+    "timestamp": "2026-07-13T02:55:00Z",
     "acceptedRisks": false
   },
   "ownerSignoff": null,
   "mlGates": null,
   "priorReviewBlockers": [],
-  "phaseRunId": "303-2026-07-12-visual-layer",
+  "phaseRunId": "303-2026-07-13-action-card-persistence",
   "scopeChecks": {
     "mlModulesTouched": false,
     "webIosDrift": false,
     "tiktokWritePaths": false,
-    "notes": "Rules-only scoring confined to backend/src/juli_backend/services/scoring/ and contract tests. P1.8 health_check not used as signal authority."
+    "notes": "Persistence + API only; run_daily_scoring_for_shop unmodified."
   },
   "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-303.json",
   "staticAnalysisExecuted": true,
@@ -146,79 +127,30 @@
   "reviewFailures": 0,
   "findings": [
     {
-      "id": "find-303-shop-status-workflow-test",
-      "type": "test_gap",
-      "module": "tests/unit/test_daily_batch_scoring_contract.py",
-      "description": "No explicit contract test asserting Shop Status and CSAT KPI_WORKFLOW_KEYS are empty tuples; behavior verified via kpi_catalog definition and manual spot-check.",
-      "severity": "INFO",
-      "actionRequired": false,
-      "suggestion": "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage."
-    },
-    {
-      "id": "find-303-cache-doc-drift",
-      "type": "drift",
-      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
-      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
-      "severity": "INFO",
-      "actionRequired": false,
-      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
-    },
-    {
-      "id": "find-303-return-proxy",
+      "id": "find-303-sqlite-updated-at",
       "type": "maintainability",
-      "module": "backend/src/juli_backend/services/scoring/signals.py",
-      "description": "return_rate_proxy uses order-level ratio from aggregates, not true 7d/30d windows documented in visual_layer examples.",
+      "module": "backend/src/juli_backend/repositories/repos.py",
+      "description": "ShopScopedRepo.upsert updates fields via setattr but SQLite in-memory tests may not auto-bump updated_at without explicit flush/refresh; integration test passes on current driver.",
       "severity": "INFO",
       "actionRequired": false,
-      "suggestion": "Defer windowed return-rate computation to P2-B3 multi-endpoint KPI slice."
+      "suggestion": "Consider explicit updated_at=datetime.now(UTC) on upsert if cross-driver drift appears."
     },
     {
-      "id": "find-303-batch-observability",
+      "id": "find-303-poll-skip-dev",
       "type": "architecture",
-      "module": "backend/src/juli_backend/services/scoring/batch.py",
-      "description": "Batch entry point has no structured logging or per-shop error isolation; acceptable for P2-B1 schedulable stub.",
+      "module": "backend/src/juli_backend/services/action_cards/refresh.py",
+      "description": "Fujiwa poll skipped when TIKTOK_APP_KEY/SECRET absent \u2014 dev refresh uses stale aggregates only.",
       "severity": "INFO",
       "actionRequired": false,
-      "suggestion": "Add structured logging and per-shop try/except when Celery beat wiring lands."
+      "suggestion": "Document in runbook; production must set TikTok app credentials for poll-before-score."
     }
   ],
   "severity": "low",
   "securityFindings": [],
-  "architectureFindings": [
-    {
-      "id": "find-303-cache-doc-drift",
-      "type": "drift",
-      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
-      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
-      "severity": "INFO",
-      "actionRequired": false,
-      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
-    }
-  ],
-  "maintainabilityFindings": [
-    {
-      "id": "find-303-shop-status-workflow-test",
-      "type": "test_gap",
-      "module": "tests/unit/test_daily_batch_scoring_contract.py",
-      "description": "No explicit contract test asserting Shop Status and CSAT KPI_WORKFLOW_KEYS are empty tuples; behavior verified via kpi_catalog definition and manual spot-check.",
-      "severity": "INFO",
-      "actionRequired": false,
-      "suggestion": "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage."
-    },
-    {
-      "id": "find-303-cache-doc-drift",
-      "type": "drift",
-      "module": "agent-runtime/artifacts/workflow-cache/issue-context-cache-303.json",
-      "description": "resolvedDecisions omits Shop Status/CSAT no-workflow_keys grill decisions present in scope-alignment-issue-303.md; implementation honors scope.",
-      "severity": "INFO",
-      "actionRequired": false,
-      "suggestion": "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh."
-    }
-  ],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
   "suggestedRemediation": [
-    "Add test_shop_status_and_csat_have_no_workflow_keys in follow-up if harness requires explicit grill coverage.",
-    "Sync issue-context-cache resolvedDecisions on next prompt-cache refresh.",
-    "Defer windowed return-rate computation to P2-B3 multi-endpoint KPI slice.",
-    "Add structured logging and per-shop try/except when Celery beat wiring lands."
+    "Consider explicit updated_at=datetime.now(UTC) on upsert if cross-driver drift appears.",
+    "Document in runbook; production must set TikTok app credentials for poll-before-score."
   ]
 }

@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-303",
   "issue": 303,
-  "timestamp": "2026-07-12T04:55:25Z",
+  "timestamp": "2026-07-13T02:34:13Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 13,
@@ -23,8 +23,8 @@
       "description": "Implementation artifact present; domain backend",
       "details": {
         "executorDomain": "backend",
-        "phaseRunId": "303-2026-07-12-visual-layer",
-        "executionDurationMs": 2100000
+        "phaseRunId": "303-2026-07-13-action-card-persistence",
+        "executionDurationMs": 900000
       }
     },
     {
@@ -32,8 +32,8 @@
       "status": "PASS",
       "description": "All acceptance criteria mapped to tests",
       "details": {
-        "total": 3,
-        "mapped": 3,
+        "total": 7,
+        "mapped": 7,
         "unmapped": [],
         "problems": []
       }
@@ -149,11 +149,11 @@
   "validationFailures": 0,
   "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 10,
-  "testsPassed": 10,
+  "testsExecuted": 7,
+  "testsPassed": 7,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
   "executionDurationMs": 0,
-  "phaseRunId": "303-2026-07-12-visual-layer"
+  "phaseRunId": "303-2026-07-13-action-card-persistence"
 }

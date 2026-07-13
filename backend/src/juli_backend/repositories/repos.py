@@ -15,6 +15,7 @@ from juli_backend.integrations.tiktok.merchant import (
     is_cross_merchant_lookup,
 )
 from juli_backend.models.models import (
+    ActionCard,
     AlertConfig,
     AlertHistory,
     Campaign,
@@ -635,6 +636,25 @@ class RecommendationsRepo(ShopScopedRepo[Recommendation]):
         self._session.add(entity)
         await self._session.flush()
         return entity
+
+
+class ActionCardsRepo(ShopScopedRepo[ActionCard]):
+    """Idempotent upsert for persisted Decision rows — ADR-021."""
+
+    _model = ActionCard
+    _lookup_attr = "workflow_key"
+
+    async def list_active(self, shop_id: uuid.UUID) -> list[ActionCard]:
+        stmt = (
+            select(self._model)
+            .where(
+                self._model.shop_id == shop_id,
+                self._model.status == "active",
+            )
+            .order_by(self._model.priority.asc(), self._model.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
 
 
 class GraphRepo:
