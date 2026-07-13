@@ -23,7 +23,7 @@ from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "013_workflow_outcome_records"
+LATEST_REVISION = "014_action_cards"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -48,6 +48,7 @@ REVISION_010_COLUMNS = {
 REVISION_011_TABLE = "workflow_webhook_signals"
 REVISION_012_TABLE = "tool_executions"
 REVISION_013_TABLE = "workflow_outcome_records"
+REVISION_014_TABLE = "action_cards"
 
 
 def _database_url() -> str:
@@ -296,18 +297,18 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_013_table(postgres_at_head: Engine):
-    """Downgrading the head revision removes workflow_outcome_records; 012 table remains."""
+def test_latest_downgrade_drops_only_revision_014_table(postgres_at_head: Engine):
+    """Downgrading the head revision removes action_cards; 013 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
-    assert _table_exists(postgres_at_head, REVISION_012_TABLE)
     assert _table_exists(postgres_at_head, REVISION_013_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_014_TABLE)
 
     command.downgrade(cfg, "-1")
 
-    assert not _table_exists(postgres_at_head, REVISION_013_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_012_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_014_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_013_TABLE)
     for table, columns in REVISION_010_COLUMNS.items():
         for column in columns:
             assert _table_has_column(postgres_at_head, table, column)
@@ -324,7 +325,7 @@ def test_latest_downgrade_drops_only_revision_013_table(postgres_at_head: Engine
     assert sync_state_count == 1
 
     command.upgrade(cfg, "head")
-    assert _table_exists(postgres_at_head, REVISION_013_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_014_TABLE)
 
 
 @requires_postgres

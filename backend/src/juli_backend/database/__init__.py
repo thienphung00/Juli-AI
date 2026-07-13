@@ -27,6 +27,7 @@ from juli_backend.database.exceptions import NotFound
 
 if TYPE_CHECKING:
     from juli_backend.models.models import (
+        ActionCard,
         AlertConfig,
         AlertHistory,
         Campaign,
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
         User,
     )
     from juli_backend.repositories.repos import (
+        ActionCardsRepo,
         AlertConfigsRepo,
         AlertHistoryRepo,
         CreatorsRepo,
@@ -65,6 +67,7 @@ if TYPE_CHECKING:
 # access (or `from juli_backend.database import X`) via __getattr__ below.
 _LAZY_EXPORTS = {
     # Models
+    "ActionCard": "juli_backend.models.models",
     "AlertConfig": "juli_backend.models.models",
     "AlertHistory": "juli_backend.models.models",
     "Campaign": "juli_backend.models.models",
@@ -81,6 +84,7 @@ _LAZY_EXPORTS = {
     "TikTokCredential": "juli_backend.models.models",
     "User": "juli_backend.models.models",
     # Repositories
+    "ActionCardsRepo": "juli_backend.repositories.repos",
     "AlertConfigsRepo": "juli_backend.repositories.repos",
     "AlertHistoryRepo": "juli_backend.repositories.repos",
     "CreatorsRepo": "juli_backend.repositories.repos",
@@ -111,6 +115,8 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
+    "ActionCard",
+    "ActionCardsRepo",
     "AlertConfig",
     "AlertConfigsRepo",
     "AlertHistory",

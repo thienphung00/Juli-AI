@@ -74,5 +74,5 @@ retired P1.8 six-workflow catalog.
 
 - P1.8 `health_check_results` as backend signal authority
 - Cloud LLM / Haiku / Ollama copy (Phase 4)
-- Celery beat, Redis persistence
+- Celery beat, Redis persistence (persistence lives in `services/action_cards/`, ADR-021)
 - Trained T1–T8 inference
