@@ -7,14 +7,29 @@ from juli_backend.services.execution.dispatch import (
     set_task_dispatcher,
 )
 from juli_backend.services.execution.runner import register_tool, run_tool
-from juli_backend.services.execution.types import ExecutionStatus
+from juli_backend.services.execution.sandbox_guard import (
+    build_sandbox_write_resources,
+    is_noop_tool,
+    load_sandbox_write_resources,
+)
+from juli_backend.services.execution.tool_routing import (
+    resolve_tool_name,
+    resolve_tool_name_for_workflow,
+)
+from juli_backend.services.execution.types import ExecutionErrorCategory, ExecutionStatus
 
 __all__ = [
+    "ExecutionErrorCategory",
     "ExecutionStatus",
+    "build_sandbox_write_resources",
     "enqueue_approved_tool",
     "get_task_dispatcher",
+    "is_noop_tool",
+    "load_sandbox_write_resources",
     "mark_execution_finished",
     "register_tool",
+    "resolve_tool_name",
+    "resolve_tool_name_for_workflow",
     "run_tool",
     "set_task_dispatcher",
 ]

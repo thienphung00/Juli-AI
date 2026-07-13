@@ -10,3 +10,12 @@ class ExecutionStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+
+
+class ExecutionErrorCategory(StrEnum):
+    """Coarse failure taxonomy for outcome tracking and retry policy (#305)."""
+
+    VALIDATION = "validation"
+    TIKTOK_API = "tiktok_api"
+    TRANSIENT = "transient"
+    UNKNOWN = "unknown"

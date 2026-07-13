@@ -58,6 +58,7 @@ async def create_queued_execution(
     tool_name: str,
     payload: dict[str, Any],
     celery_task_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> ToolExecution:
     repo = ToolExecutionsRepo(session)
     return await repo.create(
@@ -67,6 +68,7 @@ async def create_queued_execution(
         payload_json=json.dumps(payload),
         status=ExecutionStatus.QUEUED.value,
         celery_task_id=celery_task_id,
+        idempotency_key=idempotency_key,
     )
 
 
@@ -77,6 +79,7 @@ async def enqueue_approved_tool(
     approval_id: str,
     tool_name: str,
     payload: dict[str, Any],
+    idempotency_key: str | None = None,
 ) -> ToolExecution:
     record = await create_queued_execution(
         session,
@@ -84,6 +87,7 @@ async def enqueue_approved_tool(
         approval_id=approval_id,
         tool_name=tool_name,
         payload=payload,
+        idempotency_key=idempotency_key,
     )
     celery_task_id = get_task_dispatcher().enqueue(str(record.id))
     return await ToolExecutionsRepo(session).set_celery_task_id(
@@ -101,6 +105,7 @@ async def mark_execution_finished(
     status: ExecutionStatus,
     outcome: dict[str, Any] | None = None,
     error_message: str | None = None,
+    error_category: str | None = None,
 ) -> ToolExecution:
     repo = ToolExecutionsRepo(session)
     return await repo.update_status(
@@ -109,4 +114,5 @@ async def mark_execution_finished(
         status=status.value,
         outcome_json=json.dumps(outcome) if outcome is not None else None,
         error_message=error_message,
+        error_category=error_category,
     )

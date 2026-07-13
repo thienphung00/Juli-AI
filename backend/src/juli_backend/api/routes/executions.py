@@ -25,6 +25,7 @@ class ExecutionEnqueueRequest(BaseModel):
     approval_id: str = Field(min_length=1, max_length=255)
     tool_name: str = Field(min_length=1, max_length=100)
     payload: dict = Field(default_factory=dict)
+    idempotency_key: str | None = Field(default=None, max_length=255)
 
 
 class ExecutionEnqueueData(BaseModel):
@@ -47,6 +48,7 @@ class ExecutionStatusData(BaseModel):
     celery_task_id: str | None = None
     outcome: dict | None = None
     error: str | None = None
+    error_category: str | None = None
 
 
 class ExecutionStatusResponse(BaseModel):
@@ -69,6 +71,7 @@ async def enqueue_execution(
             approval_id=body.approval_id,
             tool_name=body.tool_name,
             payload=body.payload,
+            idempotency_key=body.idempotency_key,
         )
         await session.commit()
     except ValueError as exc:
@@ -128,5 +131,6 @@ async def get_execution_status(
             celery_task_id=record.celery_task_id,
             outcome=outcome,
             error=record.error_message,
+            error_category=record.error_category,
         )
     )

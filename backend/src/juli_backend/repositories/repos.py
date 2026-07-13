@@ -854,6 +854,7 @@ class ToolExecutionsRepo:
         payload_json: str,
         status: str,
         celery_task_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> ToolExecution:
         record = ToolExecution(
             shop_id=shop_id,
@@ -862,6 +863,7 @@ class ToolExecutionsRepo:
             payload_json=payload_json,
             status=status,
             celery_task_id=celery_task_id,
+            idempotency_key=idempotency_key,
         )
         self._session.add(record)
         await self._session.flush()
@@ -898,6 +900,7 @@ class ToolExecutionsRepo:
         status: str,
         outcome_json: str | None = None,
         error_message: str | None = None,
+        error_category: str | None = None,
     ) -> ToolExecution:
         record = await self.get(shop_id, execution_id)
         record.status = status
@@ -905,6 +908,8 @@ class ToolExecutionsRepo:
             record.outcome_json = outcome_json
         if error_message is not None:
             record.error_message = error_message
+        if error_category is not None:
+            record.error_category = error_category
         await self._session.flush()
         return record
 

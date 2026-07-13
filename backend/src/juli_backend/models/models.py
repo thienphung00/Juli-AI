@@ -496,10 +496,12 @@ class ToolExecution(Base):
     approval_id: Mapped[str] = mapped_column(String(255), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     celery_task_id: Mapped[str | None] = mapped_column(String(255))
     outcome_json: Mapped[str | None] = mapped_column(Text)
     error_message: Mapped[str | None] = mapped_column(Text)
+    error_category: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
