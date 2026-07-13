@@ -115,8 +115,8 @@ SQL/Python feature aggregates over synced production data. SPS consumed only if 
 
 ### Step 10 — Layer 2 sandbox write resources
 Behind `SandboxWriteClientFactory.create_resources()` only (#301). Inventory update,
-product create/edit, fulfillment combine/ship/batch/split/uncombine, supply-chain
-confirm shipment. Promotion lifecycle (#289) deferred until Layer 0 verifies paths.
+product create/edit, **promotion lifecycle (B-5–B-8 + Get Activity §A-25)**, fulfillment combine/ship/batch/split/uncombine, supply-chain
+confirm shipment. Promotion lifecycle complete; A-17/A-18 return/refund searches deferred.
 Technical validation bar: signing, HTTP status, TikTok code, response parsing.
 
 ### Step 11 — Layer 3 mock integration tests

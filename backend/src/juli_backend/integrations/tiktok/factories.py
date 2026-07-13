@@ -20,6 +20,7 @@ from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentRe
 from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
+from juli_backend.integrations.tiktok.resources.promotion import PromotionResource
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
 
 DEFAULT_BASE_URL = "https://open-api.tiktokglobalshop.com"
@@ -55,6 +56,7 @@ class SandboxWriteResources:
     inventory: InventoryResource
     products: ProductsResource
     fulfillment: FulfillmentResource
+    promotion: PromotionResource
 
 
 class ProductionReadClientFactory:
@@ -121,4 +123,5 @@ class SandboxWriteClientFactory:
             inventory=InventoryResource(client),
             products=ProductsResource(client),
             fulfillment=FulfillmentResource(client),
+            promotion=PromotionResource(client),
         )

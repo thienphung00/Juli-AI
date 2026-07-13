@@ -1,7 +1,7 @@
 """Layer 2 sandbox write contract tests for issue #301.
 
 Validates signing, HTTP status, TikTok code handling, response parsing, and
-factory isolation per contract-collection.md §14-41 (promotion §20-23 deferred).
+factory isolation per contract-collection.md §B-1–B-8 and §A-25 (Get Activity).
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import pytest
 from juli_backend.integrations.tiktok.capabilities import SANDBOX_AUTH_ID
 from juli_backend.integrations.tiktok.constants import (
     PRODUCT_CREATE_PATH,
+    PROMOTION_CREATE_PATH,
     fulfillment_batch_ship_path,
     fulfillment_combine_packages_path,
     fulfillment_ship_package_path,
@@ -22,6 +23,9 @@ from juli_backend.integrations.tiktok.constants import (
     fulfillment_uncombine_package_path,
     product_edit_path,
     product_inventory_update_path,
+    promotion_activity_path,
+    promotion_activity_products_path,
+    promotion_deactivate_path,
     supply_chain_confirm_shipment_path,
 )
 from juli_backend.integrations.tiktok.exceptions import ResourceNotFoundError, TransportGuardError
@@ -89,7 +93,27 @@ def _assert_signed_request(
     )
     assert params["sign"] == expected
     assert call_kwargs.get("headers", {}).get("x-tts-access-token") == "sandbox-access-token"
-    assert method in ("POST", "PUT")
+    assert method in ("POST", "PUT", "GET")
+
+
+def _assert_signed_get(
+    session_method: MagicMock,
+    *,
+    app_secret: str,
+    path: str,
+) -> None:
+    assert session_method.called
+    call_kwargs = session_method.call_args.kwargs
+    params = call_kwargs.get("params") or session_method.call_args[1].get("params", {})
+    assert "sign" in params
+    expected = sign_request(
+        app_secret=app_secret,
+        path=path,
+        params={k: v for k, v in params.items() if k != "sign"},
+        body="",
+    )
+    assert params["sign"] == expected
+    assert call_kwargs.get("headers", {}).get("x-tts-access-token") == "sandbox-access-token"
 
 
 class TestSandboxWriteClientFactoryResources:
@@ -99,6 +123,7 @@ class TestSandboxWriteClientFactoryResources:
         assert resources.inventory is not None
         assert resources.products is not None
         assert resources.fulfillment is not None
+        assert resources.promotion is not None
 
     def test_production_factory_does_not_expose_sandbox_write_resources(
         self,
@@ -107,6 +132,7 @@ class TestSandboxWriteClientFactoryResources:
         prod_resources = ProductionReadClientFactory().create_resources(production_config)
         assert not hasattr(prod_resources, "fulfillment")
         assert not hasattr(prod_resources, "inventory")
+        assert not hasattr(prod_resources, "promotion")
 
 
 class TestInventoryUpdateContract:
@@ -288,6 +314,106 @@ class TestFulfillmentWriteContract:
         )
 
 
+class TestPromotionWriteContract:
+    ACTIVITY_ID = "7660012771723118343"
+    CREATE_BODY = {
+        "title": "7/7 Flash Sale",
+        "activity_type": "FLASHSALE",
+        "product_level": "VARIATION",
+        "duration_type": "FIXED_TIME",
+        "begin_time": 1783411200,
+        "end_time": 1783432800,
+    }
+
+    @pytest.fixture
+    def promotion_resources(self, sandbox_config: ClientFactoryConfig):
+        resources = SandboxWriteClientFactory().create_resources(sandbox_config)
+        client = resources.promotion._client
+        client._session = MagicMock()
+        client._session.get.return_value = _mock_success_response(
+            {"activity_id": self.ACTIVITY_ID, "status": "ONGOING"}
+        )
+        client._session.post.return_value = _mock_success_response(
+            {"activity_id": self.ACTIVITY_ID, "status": "EXPIRED"}
+        )
+        client._session.put.return_value = _mock_success_response(
+            {"activity_id": self.ACTIVITY_ID, "status": "NOT_START"}
+        )
+        return resources, client, sandbox_config
+
+    def test_get_activity(self, promotion_resources):
+        resources, client, config = promotion_resources
+        path = promotion_activity_path(self.ACTIVITY_ID)
+        result = resources.promotion.get_activity(self.ACTIVITY_ID)
+        assert result["activity_id"] == self.ACTIVITY_ID
+        _assert_signed_get(
+            client._session.get,
+            app_secret=config.app_secret,
+            path=path,
+        )
+
+    def test_create_activity(self, promotion_resources):
+        resources, client, config = promotion_resources
+        result = resources.promotion.create_activity(body=self.CREATE_BODY)
+        assert result["activity_id"] == self.ACTIVITY_ID
+        _assert_signed_request(
+            client._session.post,
+            app_secret=config.app_secret,
+            path=PROMOTION_CREATE_PATH,
+            method="POST",
+        )
+
+    def test_update_activity(self, promotion_resources):
+        resources, client, config = promotion_resources
+        path = promotion_activity_path(self.ACTIVITY_ID)
+        resources.promotion.update_activity(
+            activity_id=self.ACTIVITY_ID,
+            body={"title": "Updated"},
+        )
+        _assert_signed_request(
+            client._session.put,
+            app_secret=config.app_secret,
+            path=path,
+            method="PUT",
+        )
+
+    def test_update_activity_products(self, promotion_resources):
+        resources, client, config = promotion_resources
+        path = promotion_activity_products_path(self.ACTIVITY_ID)
+        resources.promotion.update_activity_products(
+            activity_id=self.ACTIVITY_ID,
+            body={"products": []},
+        )
+        _assert_signed_request(
+            client._session.put,
+            app_secret=config.app_secret,
+            path=path,
+            method="PUT",
+        )
+
+    def test_deactivate_activity(self, promotion_resources):
+        resources, client, config = promotion_resources
+        path = promotion_deactivate_path(self.ACTIVITY_ID)
+        result = resources.promotion.deactivate(activity_id=self.ACTIVITY_ID)
+        assert result["status"] == "EXPIRED"
+        _assert_signed_request(
+            client._session.post,
+            app_secret=config.app_secret,
+            path=path,
+            method="POST",
+        )
+
+    def test_create_activity_blocked_on_production(self, production_config: ClientFactoryConfig):
+        client = ProductionReadClientFactory().create(production_config)
+        client._session = MagicMock()
+        from juli_backend.integrations.tiktok.resources.promotion import PromotionResource
+
+        resource = PromotionResource(client)
+        with pytest.raises(TransportGuardError):
+            resource.create_activity(body={"title": "blocked"})
+        client._session.post.assert_not_called()
+
+
 class TestTikTokCodeAndHttpStatus:
     PRODUCT_ID = "1736363193934775939"
 
@@ -346,3 +472,5 @@ class TestTechnicalValidationDocumentation:
         assert "POST /product/202309/products/{product_id}/inventory/update" in text
         assert "POST /product/202309/products" in text
         assert "POST /supply_chain/202309/packages/sync" in text
+        assert "GET /promotion/202309/activities/{activity_id}" in text
+        assert "POST /promotion/202309/activities" in text

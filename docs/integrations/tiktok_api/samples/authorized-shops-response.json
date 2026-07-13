@@ -5,7 +5,7 @@
     "merchant": "Fujiwa",
     "endpoint": "GET /authorization/202309/shops",
     "api_version": "202309",
-    "contract_section": "§3",
+    "contract_section": "§A-1",
     "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
     "shop_cipher_redacted": true
   },
@@ -17,7 +17,7 @@
           "cipher": "{shop_cipher}",
           "code": "VNLCTNWY6A",
           "id": "7495274531001436791",
-          "name": "[REDACTED]",
+          "name": "Fujiwa Vietnam Store",
           "region": "VN",
           "seller_type": "LOCAL"
         }

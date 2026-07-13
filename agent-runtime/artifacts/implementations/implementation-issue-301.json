@@ -27,7 +27,10 @@
     "backend/src/juli_backend/integrations/tiktok/constants.py",
     "backend/src/juli_backend/integrations/tiktok/resources/inventory.py",
     "backend/src/juli_backend/integrations/tiktok/resources/products.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/promotion.py",
     "docs/integrations/tiktok_api/contract-collection.md",
+    "docs/integrations/tiktok_api/endpoints.md",
+    "scripts/sanitize_contract_collection.py",
     "docs/handoffs/phase-2-tiktok-implementation.md"
   ],
   "skillsLoaded": [
@@ -77,11 +80,11 @@
       "green": "17/17 contract tests pass with mocked transport"
     }
   ],
-  "implementationSummary": "Layer 2 sandbox write resources behind SandboxWriteClientFactory.create_resources(): inventory update, product create/edit (PUT), fulfillment combine/ship/batch/split/uncombine, and supply-chain confirm shipment. ProductionReadClientFactory unchanged for write exposure. Promotion lifecycle (#289) deferred per cached scope decision.",
+  "implementationSummary": "Layer 2 sandbox write resources behind SandboxWriteClientFactory.create_resources(): inventory update, product create/edit (PUT), fulfillment combine/ship/batch/split/uncombine, supply-chain confirm shipment, and promotion lifecycle (Get Activity A-25, Create/Update/UpdateProducts/Deactivate B-5–B-8). ProductionReadClientFactory unchanged for write exposure. A-17/A-18 return/refund searches deferred.",
   "technicalValidation": {
     "bar": "signing, HTTP status, TikTok code, response parsing",
-    "evidence": "tests/unit/test_layer2_sandbox_write_contract.py asserts HMAC sign param, raise_for_status path, ResourceNotFoundError on code 100004, and data payload parsing",
-    "promotionDeferred": "contract-collection.md #20-23 paths TBD — not implemented"
+    "evidence": "tests/unit/test_layer2_sandbox_write_contract.py asserts HMAC sign param, raise_for_status path, ResourceNotFoundError on code 100004, data payload parsing, and promotion lifecycle signing",
+    "promotionDeferred": false
   },
   "assumptions": [
     "Product edit uses 202309 PUT only (not unconfirmed 202509 variant).",

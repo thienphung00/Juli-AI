@@ -68,6 +68,8 @@ WRITE_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"/activate$"),
     re.compile(r"/packages/sync$"),
     re.compile(r"^/product/\d+/products$"),
+    re.compile(r"^/promotion/\d+/activities$"),
+    re.compile(r"^/promotion/\d+/activities/\d+/products$"),
 )
 
 # Layer 2 sandbox write-validation allowlist (method, path regex).
@@ -86,12 +88,17 @@ SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("POST", re.compile(r"^/return_refund/\d+/returns/\d+/approve$")),
     ("POST", re.compile(r"^/return_refund/\d+/returns/\d+/reject$")),
     ("POST", re.compile(r"^/supply_chain/\d+/packages/sync$")),
+    ("POST", re.compile(r"^/promotion/\d+/activities$")),
+    ("PUT", re.compile(r"^/promotion/\d+/activities/\d+$")),
+    ("PUT", re.compile(r"^/promotion/\d+/activities/\d+/products$")),
+    ("POST", re.compile(r"^/promotion/\d+/activities/\d+/deactivate$")),
     # Supporting reads used during sandbox write-validation flows.
     ("GET", re.compile(r"^/product/\d+/categories/\d+/attributes$")),
     ("GET", re.compile(r"^/product/\d+/categories$")),
     ("GET", re.compile(r"^/fulfillment/\d+/combinable_packages/search$")),
     ("GET", re.compile(r"^/fulfillment/\d+/packages/\d+$")),
     ("GET", re.compile(r"^/fulfillment/\d+/packages/\d+/shipping_documents$")),
+    ("GET", re.compile(r"^/promotion/\d+/activities/\d+$")),
 )
 
 

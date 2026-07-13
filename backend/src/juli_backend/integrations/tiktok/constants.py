@@ -13,6 +13,7 @@ AUTHORIZATION_API_VERSION = "202309"
 AFFILIATE_SELLER_API_VERSION = "202406"
 AFFILIATE_CONTENT_API_VERSION = "202412"
 FINANCE_API_VERSION = "202309"
+PROMOTION_API_VERSION = "202309"
 
 ORDER_SEARCH_PATH = f"/order/{ORDER_API_VERSION}/orders/search"
 ORDER_DETAIL_PATH = f"/order/{ORDER_DETAIL_API_VERSION}/orders"
@@ -37,6 +38,20 @@ CREATOR_CONTENT_DETAILS_PATH = (
     f"/affiliate_seller/{AFFILIATE_CONTENT_API_VERSION}/open_collaborations/creator_content_details"
 )
 FINANCE_STATEMENTS_PATH = f"/finance/{FINANCE_API_VERSION}/statements"
+
+PROMOTION_CREATE_PATH = f"/promotion/{PROMOTION_API_VERSION}/activities"
+
+
+def promotion_activity_path(activity_id: str) -> str:
+    return f"/promotion/{PROMOTION_API_VERSION}/activities/{activity_id}"
+
+
+def promotion_activity_products_path(activity_id: str) -> str:
+    return f"/promotion/{PROMOTION_API_VERSION}/activities/{activity_id}/products"
+
+
+def promotion_deactivate_path(activity_id: str) -> str:
+    return f"/promotion/{PROMOTION_API_VERSION}/activities/{activity_id}/deactivate"
 
 
 def product_detail_path(product_id: str) -> str:
