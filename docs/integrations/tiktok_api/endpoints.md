@@ -214,20 +214,22 @@ Inventory API family.
 ### Product API — listing write workflow (sandbox only)
 
 **Status:** Product create has SANDBOX_VN cURL evidence in
-[`contract-collection.md`](contract-collection.md). Other write operations still require
-API Testing Tool cURL + response status before implementation. Sequence matches the
+[`contract-collection.md`](contract-collection.md). Multipart upload operations have
+sanitized Partner Center doc cURLs but still require direct SANDBOX_VN response capture,
+because the API Testing Tool does not support multipart file upload. Sequence matches the
 Create Hero Product / Optimize Product workflows in `execution_layer.md`.
 
 | Workflow step | Candidate path / operation | Required IDs |
 |---------------|----------------------------|--------------|
 | Get Category | `GET /product/202309/categories` | — |
 | Check Listing Prerequisites | Verifies seller/category eligibility ahead of attribute/brand calls | `category_id` |
-| Get Category Attributes | `GET /product/202309/categories/{category_id}/attributes` | `category_id` |
+| Get Attributes | `GET /product/202309/categories/{category_id}/attributes` | `category_id` |
 | Get Brands | Resolves `brand_id` for categories where it's required | `category_id` |
 | Upload Product Image | `POST /product/202309/images/upload` | image file / URL |
+| Upload Product File | `POST /product/202309/files/upload` | optional supporting document/certificate file; not a substitute for `main_images[].uri` |
 | Get Products SEO Words | `GET /product/202405/products/seo_words` | — |
 | Get Recommended Product Title and Description | `GET /product/202405/products/suggestions` | — |
-| Create Product | `POST /product/202309/products` | `category_id`, `brand_id` if required, image `uri` |
+| Create Product | `POST /product/202309/products` | `category_id`, `brand_id` if required, image `uri`, optional supporting file `uri` |
 | Search Product | `POST /product/202309/products/search` | — |
 | Get Product | `GET /product/202309/products/{product_id}` | `product_id` |
 | Edit Product (partial) | `PUT /product/202309/products/{product_id}` | `product_id` — **method conflict pending sandbox check:** Pass 2 review names this `PUT` ("Partial Edit Product"), while the existing candidate contract (`contract-collection.md` §18) expects `POST` (`editProduct`); confirm the actual method before implementation |
