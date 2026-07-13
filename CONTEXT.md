@@ -2,7 +2,7 @@
 
 Shared domain language for seller-money workflows across `ios/`, `web/`, and `backend/`.
 
-> Maintained by `grill-with-docs` and `domain-modeling`. Do not edit manually unless correcting an error.
+> Maintained by `grill-with-docs`, `domain-modeling`, and `improve-codebase-architecture`. Do not edit manually unless correcting an error.
 > Architectural decisions live in `docs/adr/`.
 
 <!-- Terms are added under ## [Domain area] sections as they are resolved in grilling sessions.
@@ -33,10 +33,13 @@ _Avoid_: validated workflow catalog (closed "six only" framing — superseded by
 
 **Copy layer**:
 The stage that turns structured ML/rules signals into seller-facing Vietnamese copy
-for Decisions/cards. Runs after batch inference, before UI render; uses Claude Haiku
-3.5 with a deterministic rules fallback (ADR-006). Receives computed signals only,
-never raw financial PII.
-_Avoid_: LLM layer, summarizer (when referring to the whole stage)
+for Decisions/cards. Target-state design uses Claude Haiku 3.5 with a deterministic
+rules fallback (ADR-012 — corrected citation, was mis-cited as ADR-006). **Phase 2
+implementation is rules-only** (deterministic templates, `copy_source: "rules"`) —
+Haiku is deferred to Phase 4 per `EXECUTION.md` and `services/scoring/MODULE.md`.
+Receives computed signals only, never raw financial PII.
+_Avoid_: LLM layer, summarizer (when referring to the whole stage), describing Phase 2
+copy as LLM-backed (it is not, until Phase 4)
 
 **Display-grade analytics**:
 The lightweight ML layer that powers the visual layer — a small set of reusable
@@ -55,10 +58,22 @@ outputs remain **display-grade** (advisory only); gates vet accuracy, not execut
 authority. Former "3 vetted suites" logic is **recycled** into T2/T6/T8 per ADR-005.
 _Avoid_: the 3 vetted suites (closed catalog — superseded by ADR-005)
 
+**Manual refresh pipeline**:
+Phase 2's execution model for the aggregates → signals → recommendations → copy →
+persist chain — triggered on-demand by `POST /v1/action-cards/refresh`, never by
+Celery beat, cron, or a scheduler (ADR-021). The pipeline implementation itself
+(`services/scoring/pipeline.py::run_daily_scoring_for_shop`) is unchanged; only the
+trigger changes. Supersedes the "Daily schedule (UTC)" cron table in the original
+`phase-2-mvp.md` — that table is now historical/aspirational for a later phase, not
+Phase 2 truth.
+_Avoid_: daily batch (implies unattended scheduling), cron pipeline, scheduled scoring
+
 **Phase 3 polyglot target**:
 The documented future stack — ClickHouse (OLAP), Amazon S3 (raw landing), AWS SQS
 (async ingestion queue) — adopted only when volume/latency/burst justify it. Not
-built in MVP/Phase 2, which stays single-store Supabase Postgres (ADR-006).
+built in MVP/Phase 2, which stays single-store Supabase Postgres
+([ADR-012](docs/adr/012-architecture-reconciliation-mvp-vs-target.md) — corrected
+citation, was mis-cited as ADR-006).
 _Avoid_: target architecture (overloaded term — use Phase 3 polyglot target or `phase-2-mvp.md`)
 
 ## Seller workspace
@@ -66,8 +81,25 @@ _Avoid_: target architecture (overloaded term — use Phase 3 polyglot target or
 **Decision**:
 The seller-facing primary object — a ranked recommendation envelope wrapping one
 validated workflow plus reasoning, required inputs, status, and impact estimate
-(ADR-007). What sellers review and approve on the Decisions tab.
-_Avoid_: AI Action Card, action card, recommendation card (UI renderings of a Decision, not a separate concept)
+(ADR-014 — corrected citation, was mis-cited as ADR-007). What sellers review and
+approve on the `/decisions` tab (product/UI-facing term).
+_Avoid_: AI Action Card, recommendation card (UI renderings of a Decision, not a
+separate concept) — but see **Action Card (backend)** below for the one deliberate,
+documented exception to this rule.
+
+**Action Card (backend)**:
+The Postgres persistence/API-layer name for the row that backs a **Decision** —
+`action_cards` table, `ActionCardsRepo`, `POST /v1/action-cards/refresh` (grill
+2026-07-13, Phase 2 completion). This is a **layer-boundary naming split, not a
+competing synonym**: every `ActionCard` row corresponds 1:1 to exactly one `Decision`
+shown to the seller. Product copy, UI components, and `web/` code always say
+"Decision." Backend model/table/route/repo names always say "Action Card." Never use
+"Action Card" in seller-facing copy; never use "Decision" as a SQLAlchemy model or
+table name.
+_Avoid_: using this term outside `backend/` code and its docs/issues; conflating with
+the unrelated `Recommendation` model (`models.py`), which powers a different feature
+(AI product-push / host-product matching, `juli_backend.ai.recommendations`) — not
+the rules-pipeline output this term describes.
 
 ## Inventory
 

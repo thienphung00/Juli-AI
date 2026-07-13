@@ -73,7 +73,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 
 | Phase | Stack / product additions |
 |-------|---------------------------|
-| **2** | FastAPI · Postgres · Redis · Scheduler · **rules-based signal engine** · **rules-based copy** · Celery executors |
+| **2** | FastAPI · Postgres (sole mandatory store) · **rules-based signal engine** · **rules-based copy** · Celery executors · manual-refresh trigger (no scheduler — [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)) |
 | **2.5** | Product monorepo (`apps/`, `packages/`, `backend/`, `infra/`) · domain routing · CI/CD |
 | **3** | `apps/landing` · `apps/demo` (mock only) · PostHog behavior analytics |
 | **3.5** | `apps/dashboard` · auth · TikTok connection · real API integration |
@@ -112,22 +112,32 @@ Scheduled polling, business-entity ETL, and feature aggregates remain pending.
 
 ### Milestone A slices
 
-- [ ] **P2-A1** TikTok API polling live — VP/AHR dual-read gate.
-- [ ] **P2-A2** ETL → Postgres reliable; canonical entity persistence.
-- [ ] **P2-A3** Feature aggregate build (SQL/Python aggregates — not ML feature matrices for training).
+- [x] **P2-A1** TikTok API polling live. _(VP/AHR dual-read gate dropped — not a P2 exit
+      gate per `phase-2-mvp.md`; scheduled-poll requirement superseded by manual refresh,
+      [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md).)_
+- [x] **P2-A2** ETL → Postgres reliable; canonical entity persistence. _(#299, includes
+      webhook catalog ETL handoff, #354.)_
+- [x] **P2-A3** Feature aggregate build (SQL/Python aggregates — not ML feature matrices for training). _(#300)_
 
 ### Milestone B slices
 
-- [ ] **P2-B1** Daily batch rules pipeline (aggregates → rules-based signals → recommendations).
-- [ ] **P2-B2** Rules-based copy layer — deterministic templates from rule signals (no cloud LLM).
-- [ ] **P2-B3** Swap mock → live rules-based signals + policy alerts.
+- [ ] **P2-B1** Manual-refresh rules pipeline (aggregates → rules-based signals →
+      recommendations → **persisted Action Cards**, [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)).
+      _(#303 reopened — pipeline logic done, persistence gap.)_
+- [x] **P2-B2** Rules-based copy layer — deterministic templates from rule signals (no cloud LLM). _(#304)_
+- [ ] **P2-B3** Swap mock → live rules-based signals + policy alerts. _(#374 — Ads KPIs
+      pending Promotion API, tracked separately; other 10 domains live.)_
 - [ ] **P2-B4** Celery-backed task execution behind approval (never inline in HTTP handler).
-- [ ] **P2-B5** Outcome tracking instrumentation.
-- [ ] **P2-B6** Listing approval queue + Products API publish.
-- [ ] **P2-B7** Leakage live executors.
+      _(#305 reopened — scaffold + `noop.ping` done, real executors gap.)_
+- [ ] **P2-B5** Outcome tracking instrumentation. _(#306 open — realtime envelope done,
+      cadence rollups pending.)_
+- [ ] **P2-B6** Listing approval queue + Products API publish. _(#379)_
+- [ ] **P2-B7** Leakage live executors. _(#380)_
 - [ ] **P2-B8** Live operations pipeline wiring (rules-based classify → health → rank).
-- [ ] **P2-B9** Scoped inventory collection.
-- [ ] **P2-B10** Deferred workflow executors.
+      _(folded into the P2-B1 manual-refresh issue, #303 — no separate slice.)_
+- [ ] **P2-B9** Scoped inventory collection. _(#381; `sync_inventory` removed from poll cycle.)_
+- [ ] **P2-B10** Deferred workflow executors. _(by design — Affiliate/Livestream/CS/Finance
+      prefixes stay ACK-only through Phase 2; no gap, no issue.)_
 
 ### Historical ML prep (pre-Phase 2 — not required for exit)
 
@@ -249,20 +259,27 @@ operational excellence.
 
 ## In scope (Phase 2)
 
-TikTok polling · daily batch pipeline · **rules-based signal engine** · rules-based copy ·
+TikTok polling · webhook ingestion (catalog #354, converges through the same ETL as
+polling) · manual-refresh rules pipeline (no scheduler — [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md))
+· **rules-based signal engine** · rules-based copy · Postgres-persisted Action Cards ·
 Celery workers for tool execution · operations pipeline on live data · outcome tracking ·
-Postgres · Redis.
+Postgres (sole mandatory store).
 
 Public frontend, landing page, production deployment, and **trained ML models** are
-**not required** in Phase 2.
+**not required** in Phase 2. Redis is **optional** (future read-through cache only, never
+system of record — [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)).
 
 ## Explicitly out (Phase 2)
 
 Trained ML models · backtest inference · model artifact promotion · T1–T8 sklearn training
 pipelines · Public users · Landing Page · production deployment · Kafka · WebSockets ·
-Webhook ingestion (deferred to 4.5) · Cloud LLM (Haiku / Claude) · Creator matching ·
-ClickHouse/S3/SQS · vendor scrapers · Seller Center scraping · buyer PII · unofficial
-livestream websockets.
+**Cron / Celery Beat / any scheduler** (manual refresh only — [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md))
+· Cloud LLM (Haiku / Claude) · Creator matching · ClickHouse/S3/SQS · vendor scrapers ·
+Seller Center scraping · buyer PII · unofficial livestream websockets.
+
+> **Correction (2026-07-13):** webhook ingestion was previously listed here as "deferred to
+> 4.5." That was stale — the Phase 2 webhook catalog (#354) shipped, is tested, and the
+> signal/execution architecture depends on it. See [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md).
 
 ---
 

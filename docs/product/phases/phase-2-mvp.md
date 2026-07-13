@@ -1,7 +1,7 @@
 # Phase 2 — Pipeline Validation
 
 > **Tier 1 — backend pipeline scope.** Read [`EXECUTION.md`](../../EXECUTION.md) first for slices.  
-> **Owns:** pipeline architecture diagram, daily UTC schedule, data/cache roles, account-health contract.  
+> **Owns:** pipeline architecture diagram, manual-refresh trigger model, data/cache roles, account-health contract.  
 > **Does not own:** deployment (`phase-2.5-deployment.md`), subsystem envelopes (`system-design.md`), module paths (`map.md`).
 
 **Goal:** Validate the backend pipeline end-to-end with **no public users**, **no landing page**,
@@ -9,6 +9,14 @@
 
 **Signal layer:** Rules-based only. Policy rules, thresholds, and heuristics replace trained
 models in Phase 2. Trained ML (T1–T8) begins in Phase 4.
+
+**Trigger model (amended 2026-07-13, [ADR-021](../../adr/021-manual-refresh-pipeline-and-action-card-persistence.md)):**
+The pipeline runs **on manual refresh only** — `POST /v1/action-cards/refresh` — never on a
+schedule. No Celery beat, no cron, no scheduler of any kind ships in Phase 2. The section
+below ("Daily schedule (UTC)") is retained for historical context only; it describes a
+trigger model that was **never implemented and is no longer the plan**. The pipeline stage
+order it documents (poll → aggregates → signals → copy) is still correct — only the "when"
+changed from a clock to a user/API-initiated refresh call.
 
 ---
 
@@ -24,53 +32,71 @@ flowchart TB
     subgraph app [ApplicationServer FastAPI]
         BizLogic[BusinessLogic MultiTenant]
         ToolCall[ToolCalling ReadWrite]
-        RulesEngine[RulesBasedSignalEngine]
-        RulesCopy[RulesBasedCopyLayer]
+        RefreshAPI["POST /v1/action-cards/refresh"]
     end
 
-    subgraph storage [StorageLayer]
-        Redis[(Redis Cache Sessions)]
+    subgraph storage [StorageLayer — Postgres only]
         subgraph pg [Supabase PostgreSQL]
-            OLTP[OLTP Accounts Transactions]
+            OLTP[OLTP Accounts Transactions ActionCards]
             OLAP[OLAP KPIs FeatureAggregates]
         end
     end
 
-    subgraph batch [ScheduledBatch]
+    subgraph pipeline [ManualRefreshPipeline — invoked on demand, not scheduled]
         FeatAgg[FeatureAggregates SQLPython]
-        RulesBatch[RulesBasedScoring]
-        ActionGen[ActionCardGenerator RulesTemplates]
+        RulesEngine[RulesBasedSignalEngine]
+        RulesBatch[RulesBasedRecommendations]
+        RulesCopy[RulesBasedCopyLayer]
+        ActionGen[ActionCardRepo Upsert]
     end
 
     subgraph side [SideComponents]
-        TikTok[TikTokShopAPI Ingestion ETL]
-        Celery[Celery Workers Execution]
+        TikTok[TikTokShopAPI Poll + Webhooks]
+        Celery[Celery Workers Execution + Refresh Task]
     end
 
     CLI --> app
     Scripts --> app
-    app --> Redis
     app --> pg
     TikTok --> pg
+    RefreshAPI --> Celery
+    Celery --> pipeline
     pg --> FeatAgg
-    FeatAgg --> RulesBatch
-    RulesBatch --> ActionGen
-    ActionGen --> Redis
+    FeatAgg --> RulesEngine
+    RulesEngine --> RulesBatch
+    RulesBatch --> RulesCopy
+    RulesCopy --> ActionGen
     ActionGen --> OLTP
-    app --> RulesEngine
-    app --> RulesCopy
+    app --> ToolCall
     app --> Celery
 ```
 
 **Transactional path:** Business logic → OLTP.  
-**Analytics + rules path:** OLAP → feature aggregates → rules-based signals → action cards → Redis + OLTP.
+**Analytics + rules path (on manual refresh only):** OLAP → feature aggregates → rules-based
+signals → recommendations → copy → Action Cards → OLTP.
 
 Public web clients (`web/`, `ios/`) exist for internal dogfooding but are **not required**
 for Phase 2 exit. Production deployment moves to Phase 2.5.
 
 ---
 
-## Daily schedule (UTC)
+## Manual refresh trigger (supersedes the old daily schedule)
+
+[ADR-021](../../adr/021-manual-refresh-pipeline-and-action-card-persistence.md): no cron,
+no Celery beat, no scheduler. `POST /v1/action-cards/refresh` enqueues a Celery task that
+runs the same stage order a clock would have run, on demand:
+
+| Stage | Module | Notes |
+|-------|--------|-------|
+| 1. Poll | `workers/services/polling/orchestrate.py` | Orders, Products, Returns (Affiliate/Promotion pending contract) |
+| 2. ETL | `services/etl/consumer.py` | Idempotent canonical upserts; shared with webhook handoff |
+| 3. Feature aggregates | `services/aggregates/builder.py` | Postgres → KPI aggregates (not ML training features) |
+| 4. Rules-based scoring | `services/scoring/pipeline.py` | Deterministic rules → signals → recommendations → copy |
+| 5. Persist | `ActionCardsRepo` | Upsert by `(shop_id, workflow_key)` — idempotent, no duplicates |
+| 6. On approval | Celery executor | Tool calls never block HTTP handler (unchanged from before) |
+
+<details>
+<summary>Historical: original daily schedule (UTC) — never implemented, superseded above</summary>
 
 | Time | Job | Notes |
 |------|-----|-------|
@@ -80,15 +106,17 @@ for Phase 2 exit. Production deployment moves to Phase 2.5.
 | After scoring | Rules-based copy layer | Deterministic templates from rule signals |
 | On approval | Celery executor | Tool calls never block HTTP handler |
 
+</details>
+
 ---
 
 ## Data & cache
 
 | Store | Role |
 |-------|------|
-| **Postgres OLTP** | Accounts, transactions, action-card writes |
+| **Postgres OLTP** | Accounts, transactions, Action Card writes (sole mandatory store) |
 | **Postgres OLAP** | Materialized views, KPI aggregates, feature aggregate tables |
-| **Redis** | Action cards (≤6/seller), SQL view cache, session tokens |
+| **Redis (optional, future)** | Read-through cache only if latency demands it — never system of record; not required for Phase 2 exit |
 
 Feature aggregates stay in Python/SQL (ADR-010); no trained model artifacts loaded in Phase 2.
 

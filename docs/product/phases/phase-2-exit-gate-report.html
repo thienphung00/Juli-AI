@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phase 2 Exit Gate Report — Juli AI Pipeline Validation</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --purple: #a855f7;
+      --cyan: #06b6d4;
+      --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    header .meta {
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+
+    .verdict {
+      margin-top: 1.25rem;
+      padding: 1rem 1.25rem;
+      border-radius: 10px;
+      border: 1px solid var(--amber);
+      background: rgba(245, 158, 11, 0.08);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .verdict-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+
+    .verdict strong { color: var(--amber); }
+
+    section {
+      margin-bottom: 2.5rem;
+    }
+
+    section h2 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    section h2::before {
+      content: "";
+      width: 4px;
+      height: 1.125rem;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .card h3 {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .card .value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .card .sub {
+      font-size: 0.8125rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+
+    .status-partial { color: var(--amber); }
+    .status-fail { color: var(--red); }
+    .status-pass { color: var(--green); }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-pass { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+    .badge-partial { background: rgba(245, 158, 11, 0.15); color: var(--amber); }
+    .badge-fail { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .badge-pending { background: rgba(139, 156, 179, 0.15); color: var(--muted); }
+
+    .pipeline {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+
+    .pipeline-flow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      min-width: 900px;
+    }
+
+    .stage {
+      flex: 1;
+      min-width: 130px;
+      position: relative;
+    }
+
+    .stage-box {
+      background: var(--surface-2);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 0.875rem;
+      text-align: center;
+      height: 100%;
+    }
+
+    .stage-box.wired { border-color: var(--green); }
+    .stage-box.partial { border-color: var(--amber); }
+    .stage-box.gap { border-color: var(--red); border-style: dashed; }
+
+    .stage-box .label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .stage-box .title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      margin-bottom: 0.375rem;
+    }
+
+    .stage-box .module {
+      font-size: 0.6875rem;
+      color: var(--cyan);
+      font-family: "SF Mono", Monaco, monospace;
+      word-break: break-all;
+    }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      font-size: 1.25rem;
+      padding: 0 0.25rem;
+      flex-shrink: 0;
+    }
+
+    .chart-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .chart-card h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 260px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+
+    th, td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    code {
+      font-family: "SF Mono", Monaco, monospace;
+      font-size: 0.75rem;
+      background: var(--surface-2);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      color: var(--cyan);
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: var(--surface-2);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+
+    .checklist {
+      list-style: none;
+    }
+
+    .checklist li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.625rem;
+      font-size: 0.875rem;
+    }
+
+    .checklist li:last-child { border-bottom: none; }
+
+    .check { color: var(--green); font-weight: 700; }
+    .cross { color: var(--red); font-weight: 700; }
+    .dash { color: var(--muted); font-weight: 700; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media print {
+      body { background: #fff; color: #111; padding: 1rem; }
+      .card, .pipeline, .chart-card { border-color: #ccc; background: #f9f9f9; }
+      .verdict { border-color: #b45309; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Phase 2 — Pipeline Validation Exit Gate Report</h1>
+      <p class="meta">
+        Generated 2026-07-13 · Authority: <code>EXECUTION.md</code> ·
+        Scope: KPI → Rule-based Recommendations → Execution (Webhooks + Endpoints)
+      </p>
+      <div class="verdict">
+        <span class="verdict-icon">⚠</span>
+        <div>
+          <strong>Exit gate: NOT READY for approval</strong><br />
+          The library spine is test-backed (181 contract tests passing), but the operational machine —
+          scheduled jobs, persisted decisions, real TikTok executors, and &gt;95% execution reliability —
+          is incomplete. Recommend conditional sign-off on Milestone A library work only.
+        </div>
+      </div>
+    </header>
+
+    <!-- Summary metrics -->
+    <section>
+      <h2>At a glance</h2>
+      <div class="grid-4">
+        <div class="card">
+          <h3>Contract tests</h3>
+          <div class="value status-pass">181</div>
+          <div class="sub">Phase 2 pipeline subset · all passing</div>
+        </div>
+        <div class="card">
+          <h3>Slice completion</h3>
+          <div class="value status-partial">8 / 13</div>
+          <div class="sub">P2-A1–A3 + P2-B1–B5 implemented (library)</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:62%;background:var(--amber)"></div></div>
+        </div>
+        <div class="card">
+          <h3>Exit criteria</h3>
+          <div class="value status-partial">1 / 4</div>
+          <div class="sub">Partial on Data, Signals, Tracking; Execution not met</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:25%;background:var(--red)"></div></div>
+        </div>
+        <div class="card">
+          <h3>KPI coverage</h3>
+          <div class="value">20</div>
+          <div class="sub">17 computable from ETL · 3 Ads KPIs unavailable (Promotion API)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Exit gate criteria -->
+    <section>
+      <h2>Exit gate criteria (EXECUTION.md)</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Data — TikTok → Postgres reliable</h3>
+          <span class="badge badge-partial">Partial</span>
+          <p style="margin-top:0.75rem;font-size:0.875rem;">
+            Fujiwa polling (<code>run_fujiwa_poll_cycle</code>), ETL consumer, canonical upserts, and Layer 3 integration tests exist.
+            No Celery beat / cron wiring; inventory poll absent; live reliability unproven.
+          </p>
+          <ul style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted);padding-left:1.25rem;">
+            <li>Orders, products, returns sync workers</li>
+            <li><code>EtlConsumer.ingest()</code> with idempotent upserts</li>
+            <li>Missing: scheduled overnight poll, inventory (P2-B9)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Signals — Rule-based generation stable</h3>
+          <span class="badge badge-partial">Partial</span>
+          <p style="margin-top:0.75rem;font-size:0.875rem;">
+            Full in-process pipeline: aggregates → 20 KPI signals → workflow ranking → rules copy.
+            Not scheduled at 08:00 UTC; results not persisted to Redis/OLTP.
+          </p>
+          <ul style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted);padding-left:1.25rem;">
+            <li><code>run_daily_scoring_for_shop()</code> end-to-end</li>
+            <li>11 workflow copy templates (Vietnamese)</li>
+            <li>Missing: batch scheduler, action-card store</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Execution — Tool success &gt;95%</h3>
+          <span class="badge badge-fail">Not met</span>
+          <p style="margin-top:0.75rem;font-size:0.875rem;">
+            Celery scaffold + <code>POST /v1/executions</code> work. Only registered tool: <code>noop.ping</code>.
+            No listing publish, leakage, or inventory executors.
+          </p>
+          <ul style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted);padding-left:1.25rem;">
+            <li>P2-B4 scaffold complete (#305)</li>
+            <li>P2-B6–B10 not implemented</li>
+            <li>Real TikTok write success rate unmeasurable</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Tracking — Outcome measurement</h3>
+          <span class="badge badge-partial">Partial</span>
+          <p style="margin-top:0.75rem;font-size:0.875rem;">
+            Realtime outcome envelope via <code>record_workflow_outcome()</code> and
+            <code>GET /v1/workflow-outcomes/{approval_id}</code>.
+            Daily/weekly/monthly cadences are <code>"pending"</code> stubs.
+          </p>
+          <ul style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted);padding-left:1.25rem;">
+            <li>P2-B5 (#306) contract tests pass</li>
+            <li>6 validated workflow IDs</li>
+            <li>Missing: OLAP rollups, post-execution KPI deltas</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline flow -->
+    <section>
+      <h2>End-to-end pipeline flow</h2>
+      <div class="pipeline">
+        <div class="pipeline-flow">
+          <div class="stage">
+            <div class="stage-box wired">
+              <div class="label">Ingest</div>
+              <div class="title">TikTok Poll</div>
+              <div class="module">polling/orchestrate.py</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box wired">
+              <div class="label">Ingest</div>
+              <div class="title">Webhooks</div>
+              <div class="module">/webhooks/tiktok</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box wired">
+              <div class="label">Transform</div>
+              <div class="title">ETL → Postgres</div>
+              <div class="module">services/etl/consumer.py</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box wired">
+              <div class="label">KPI</div>
+              <div class="title">Feature Aggregates</div>
+              <div class="module">aggregates/builder.py</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box wired">
+              <div class="label">Rules</div>
+              <div class="title">Signal Engine</div>
+              <div class="module">scoring/signals.py</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box wired">
+              <div class="label">Rules</div>
+              <div class="title">Recommendations</div>
+              <div class="module">scoring/recommendations.py</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box wired">
+              <div class="label">Copy</div>
+              <div class="title">Rules Templates</div>
+              <div class="module">scoring/copy_layer.py</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box gap">
+              <div class="label">Persist</div>
+              <div class="title">Action Cards</div>
+              <div class="module">Redis / OLTP — not built</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box partial">
+              <div class="label">Execute</div>
+              <div class="title">Celery + API</div>
+              <div class="module">POST /v1/executions</div>
+            </div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage">
+            <div class="stage-box partial">
+              <div class="label">Track</div>
+              <div class="title">Outcomes</div>
+              <div class="module">outcome_tracking.py</div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Implemented &amp; tested</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> Scaffold only</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--red);border:1px dashed var(--red)"></div> Not wired</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section>
+      <h2>Visualizations</h2>
+      <div class="chart-row">
+        <div class="chart-card">
+          <h3>Milestone slice status (P2-A + P2-B)</h3>
+          <div class="chart-wrap"><canvas id="sliceChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>KPI availability by domain (20 KPIs)</h3>
+          <div class="chart-wrap"><canvas id="kpiChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-row" style="margin-top:1rem;">
+        <div class="chart-card">
+          <h3>Webhook catalog (#354) — 19 Phase 2 entries</h3>
+          <div class="chart-wrap"><canvas id="webhookChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Test coverage by slice</h3>
+          <div class="chart-wrap"><canvas id="testChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slice detail table -->
+    <section>
+      <h2>Slice implementation detail</h2>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Slice</th>
+              <th>Focus</th>
+              <th>Status</th>
+              <th>Key module / test</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>P2-A1</code></td>
+              <td>TikTok API polling</td>
+              <td><span class="badge badge-partial">Library ✓ · Schedule ✗</span></td>
+              <td><code>run_fujiwa_poll_cycle</code> · #298</td>
+            </tr>
+            <tr>
+              <td><code>P2-A2</code></td>
+              <td>ETL → Postgres</td>
+              <td><span class="badge badge-pass">Implemented</span></td>
+              <td><code>EtlConsumer.ingest</code> · #299</td>
+            </tr>
+            <tr>
+              <td><code>P2-A3</code></td>
+              <td>Feature aggregates</td>
+              <td><span class="badge badge-pass">Implemented</span></td>
+              <td><code>build_feature_aggregates</code> · #300</td>
+            </tr>
+            <tr>
+              <td><code>P2-B1</code></td>
+              <td>Daily batch rules pipeline</td>
+              <td><span class="badge badge-partial">Library ✓ · Persist ✗</span></td>
+              <td><code>run_daily_scoring_batch</code> · #303</td>
+            </tr>
+            <tr>
+              <td><code>P2-B2</code></td>
+              <td>Rules copy layer</td>
+              <td><span class="badge badge-pass">Implemented</span></td>
+              <td>11 templates · #304</td>
+            </tr>
+            <tr>
+              <td><code>P2-B3</code></td>
+              <td>Live signals + alerts</td>
+              <td><span class="badge badge-partial">Partial</span></td>
+              <td>10 proxy KPIs · Ads unavailable · #374</td>
+            </tr>
+            <tr>
+              <td><code>P2-B4</code></td>
+              <td>Celery execution</td>
+              <td><span class="badge badge-partial">Scaffold</span></td>
+              <td><code>noop.ping</code> only · #305</td>
+            </tr>
+            <tr>
+              <td><code>P2-B5</code></td>
+              <td>Outcome tracking</td>
+              <td><span class="badge badge-partial">Realtime ✓ · Rollups ✗</span></td>
+              <td><code>record_workflow_outcome</code> · #306</td>
+            </tr>
+            <tr>
+              <td><code>P2-B6</code></td>
+              <td>Listing queue + publish</td>
+              <td><span class="badge badge-fail">Not started</span></td>
+              <td>Sandbox write exists (#301)</td>
+            </tr>
+            <tr>
+              <td><code>P2-B7</code></td>
+              <td>Leakage executors</td>
+              <td><span class="badge badge-fail">Not started</span></td>
+              <td>Webhook catalog maps workflows</td>
+            </tr>
+            <tr>
+              <td><code>P2-B8</code></td>
+              <td>Operations pipeline wiring</td>
+              <td><span class="badge badge-fail">Not started</span></td>
+              <td>Deferred per MODULE.md</td>
+            </tr>
+            <tr>
+              <td><code>P2-B9</code></td>
+              <td>Inventory collection</td>
+              <td><span class="badge badge-fail">Not started</span></td>
+              <td><code>sync_inventory</code> removed from poll</td>
+            </tr>
+            <tr>
+              <td><code>P2-B10</code></td>
+              <td>Deferred workflow executors</td>
+              <td><span class="badge badge-pending">By design</span></td>
+              <td>8 deferred event prefixes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- API & execution surface -->
+    <section>
+      <h2>Execution surface — Webhooks + Endpoints</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Webhook ingress</h3>
+          <table>
+            <tr><td>Path</td><td><code>POST /webhooks/tiktok</code></td></tr>
+            <tr><td>Service</td><td><code>TikTokWebhookService.handle()</code></td></tr>
+            <tr><td>Catalog entries</td><td>19 (6 confirmed, 13 pending Partner Center)</td></tr>
+            <tr><td>ETL handoff</td><td>→ <code>EtlConsumer</code> via ingest channels</td></tr>
+            <tr><td>Signal persistence</td><td><code>workflow_webhook_signals</code> table (#354)</td></tr>
+            <tr><td>Deferred prefixes</td><td>AFFILIATE, CREATOR, LIVESTREAM, SETTLEMENT, CS, FINANCE_</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>HTTP execution API</h3>
+          <table>
+            <tr><td><code>POST /v1/executions</code></td><td>Enqueue approved tool → Celery (202)</td></tr>
+            <tr><td><code>GET /v1/executions/{id}</code></td><td>Query execution status</td></tr>
+            <tr><td><code>GET /v1/workflow-outcomes/{approval_id}</code></td><td>Load outcome metrics</td></tr>
+            <tr><td>Registered tools</td><td><code>noop.ping</code> (1 of 11 workflow keys)</td></tr>
+            <tr><td>Celery task</td><td><code>execute_approved_tool</code></td></tr>
+            <tr><td>Sandbox writes</td><td>Layer 2 contract (#301) — not wired to executors</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daily schedule -->
+    <section>
+      <h2>Intended vs actual daily schedule (UTC)</h2>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Job</th>
+              <th>Code exists</th>
+              <th>Scheduled</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Overnight</td>
+              <td>TikTok API poll (orders, products, returns)</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span> No Celery beat / cron</td>
+            </tr>
+            <tr>
+              <td>06:00–07:00</td>
+              <td>Feature aggregates build</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span> Manual invocation only</td>
+            </tr>
+            <tr>
+              <td>08:00</td>
+              <td>Rules-based scoring batch</td>
+              <td><span class="check">✓</span> <code>DAILY_SCORING_CRON_UTC</code></td>
+              <td><span class="cross">✗</span> Constant only, no runner</td>
+            </tr>
+            <tr>
+              <td>After scoring</td>
+              <td>Rules copy layer</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span> In-memory; no Redis persist</td>
+            </tr>
+            <tr>
+              <td>On approval</td>
+              <td>Celery executor</td>
+              <td><span class="check">✓</span> Scaffold</td>
+              <td><span class="cross">✗</span> <code>noop.ping</code> only</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Approval checklist -->
+    <section>
+      <h2>Product lead approval checklist</h2>
+      <div class="card">
+        <ul class="checklist">
+          <li><span class="cross">✗</span> TikTok → Postgres runs reliably on schedule (not just in tests)</li>
+          <li><span class="check">✓</span> ETL normalizes to canonical entities with idempotent upserts</li>
+          <li><span class="check">✓</span> Feature aggregates compute 17+ KPIs from synced data</li>
+          <li><span class="check">✓</span> Rules-based signal engine emits advisory signals (no ML artifacts)</li>
+          <li><span class="check">✓</span> Workflow recommendations ranked by severity with rules copy</li>
+          <li><span class="cross">✗</span> Action cards persisted (≤6/seller per phase-2-mvp.md)</li>
+          <li><span class="partial" style="color:var(--amber)">~</span> Webhook catalog routes 19 event types to ETL + workflow keys</li>
+          <li><span class="cross">✗</span> Real TikTok tool executors registered (listing, leakage, inventory)</li>
+          <li><span class="cross">✗</span> Tool execution success rate &gt;95% on sandbox writes</li>
+          <li><span class="partial" style="color:var(--amber)">~</span> Outcome tracking records realtime envelope; cadence rollups pending</li>
+          <li><span class="check">✓</span> No trained ML models loaded in Phase 2 paths</li>
+          <li><span class="check">✓</span> Phase 2.5 App Review deploy independent (already signed off 2026-07-03)</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Gaps -->
+    <section>
+      <h2>Blockers before exit gate approval</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Critical (must fix)</h3>
+          <ol style="font-size:0.875rem;padding-left:1.25rem;color:var(--text);">
+            <li style="margin-bottom:0.5rem;">Wire Celery beat / cron for poll + scoring batch</li>
+            <li style="margin-bottom:0.5rem;">Persist ranked recommendations to Redis/OLTP (action cards)</li>
+            <li style="margin-bottom:0.5rem;">Register real workflow executors beyond <code>noop.ping</code></li>
+            <li style="margin-bottom:0.5rem;">Demonstrate &gt;95% execution success on sandbox writes</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Important (should fix)</h3>
+          <ol style="font-size:0.875rem;padding-left:1.25rem;color:var(--text);">
+            <li style="margin-bottom:0.5rem;">Inventory polling (P2-B9) for stockout KPI accuracy</li>
+            <li style="margin-bottom:0.5rem;">Promotion API integration for Ads KPIs (ROAS, CAC, CTR)</li>
+            <li style="margin-bottom:0.5rem;">Connect alerts engine to daily scoring batch</li>
+            <li style="margin-bottom:0.5rem;">Outcome cadence rollups (daily/weekly/monthly)</li>
+            <li style="margin-bottom:0.5rem;">Update EXECUTION.md checkboxes to reflect actual progress</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>
+        Sources: <a href="../../../EXECUTION.md">EXECUTION.md</a> ·
+        <a href="phase-2-mvp.md">phase-2-mvp.md</a> ·
+        <a href="../../handoffs/phase-2-tiktok-implementation.md">phase-2-tiktok-implementation handoff</a>
+      </p>
+      <p style="margin-top:0.5rem;">
+        Tests run: <code>pytest</code> on 13 Phase 2 contract/integration files — 181 passed (2026-07-13).
+        Open this file in a browser for interactive charts.
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    Chart.defaults.color = "#8b9cb3";
+    Chart.defaults.borderColor = "#2d3a4f";
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    // Slice status doughnut
+    new Chart(document.getElementById("sliceChart"), {
+      type: "doughnut",
+      data: {
+        labels: ["Implemented", "Partial / scaffold", "Not started", "By design"],
+        datasets: [{
+          data: [3, 5, 4, 1],
+          backgroundColor: ["#22c55e", "#f59e0b", "#ef4444", "#8b9cb3"],
+          borderWidth: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 12, padding: 12 } },
+        },
+      },
+    });
+
+    // KPI by domain stacked bar
+    new Chart(document.getElementById("kpiChart"), {
+      type: "bar",
+      data: {
+        labels: ["Shop Status", "Revenue", "Ads", "Inventory", "Operations", "Customer Service"],
+        datasets: [
+          {
+            label: "Available (rules/proxy)",
+            data: [3, 5, 0, 3, 3, 3],
+            backgroundColor: "#22c55e",
+          },
+          {
+            label: "Unavailable (API gap)",
+            data: [0, 0, 3, 0, 0, 0],
+            backgroundColor: "#ef4444",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } },
+        },
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 12 } },
+        },
+      },
+    });
+
+    // Webhook catalog
+    new Chart(document.getElementById("webhookChart"), {
+      type: "pie",
+      data: {
+        labels: ["Confirmed (#354)", "Pending Partner Center", "Deferred prefixes"],
+        datasets: [{
+          data: [6, 13, 8],
+          backgroundColor: ["#22c55e", "#f59e0b", "#8b9cb3"],
+          borderWidth: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 12, padding: 10 } },
+        },
+      },
+    });
+
+    // Test coverage horizontal bar
+    new Chart(document.getElementById("testChart"), {
+      type: "bar",
+      data: {
+        labels: ["P2-A1 Poll", "P2-A2 ETL", "P2-A3 Agg", "P2-B1 Score", "P2-B2 Copy", "P2-B3 KPIs", "P2-B4 Celery", "P2-B5 Outcome", "Webhooks", "Layer 3 E2E"],
+        datasets: [{
+          label: "Tests passing",
+          data: [9, 11, 13, 11, 7, 24, 4, 2, 91, 9],
+          backgroundColor: "#3b82f6",
+        }],
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { beginAtZero: true, grid: { color: "#2d3a4f" } },
+          y: { grid: { display: false } },
+        },
+        plugins: {
+          legend: { display: false },
+        },
+      },
+    });
+  </script>
+</body>
+</html>

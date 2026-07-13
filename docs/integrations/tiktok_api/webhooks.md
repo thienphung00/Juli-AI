@@ -86,6 +86,14 @@ Workflow mapping: `docs/product/execution_layer.md` — Webhook catalog in use
 **UNKNOWN** = best-guess type string until Partner Center registration confirms the
 official name. Update this table when confirmed.
 
+**Confirming the 13 pending rows:** requires a human with Partner Center App-settings
+access — the coding agent cannot register or inspect TikTok's console. Use
+[`webhook-contract-collection.md`](webhook-contract-collection.md) — same fill-in-and-return
+workflow as [`contract-collection.md`](contract-collection.md), one row per pending event,
+with a trigger scenario, expected parameters, and a place to paste a confirmed `type` string
+and a redacted sample payload. It also includes unofficial research hints (third-party
+package cross-references) to speed up verification — treat those as leads, not confirmation.
+
 ### Deferred (Phase 3+) — not subscribed, not routed
 
 Prefixes: `AFFILIATE`, `CREATOR`, `LIVESTREAM`, `SETTLEMENT`, `NEW_CONVERSATION`,
