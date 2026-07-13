@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 379,
+  "executorDomain": "backend",
+  "phaseRunId": "379-2026-07-13-listing-executors",
+  "startedAt": "2026-07-13T05:45:00Z",
+  "completedAt": "2026-07-13T06:15:00Z",
+  "executionDurationMs": 1800000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Shell",
+    "Write",
+    "StrReplace"
+  ],
+  "toolInvocationCount": 62,
+  "contextFilesLoaded": [
+    "EXECUTION.md",
+    "docs/product/execution_layer.md",
+    "docs/integrations/tiktok_api/contract-collection.md",
+    "docs/integrations/tiktok_api/endpoints.md",
+    "docs/handoffs/scope-alignment-issue-379.md",
+    "backend/src/juli_backend/services/execution/MODULE.md",
+    "backend/src/juli_backend/services/execution/tool_routing.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/products.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend",
+    "review"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/services/execution/listing.py",
+    "backend/src/juli_backend/services/execution/listing_handlers.py",
+    "backend/src/juli_backend/services/execution/runner.py",
+    "backend/src/juli_backend/services/execution/worker.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/products.py",
+    "backend/src/juli_backend/integrations/tiktok/client.py",
+    "backend/src/juli_backend/integrations/tiktok/guarded_client.py",
+    "backend/src/juli_backend/integrations/tiktok/constants.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "tests/unit/test_listing_executors_contract.py",
+    "EXECUTION.md",
+    "docs/handoffs/scope-alignment-issue-379.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_listing_executors_contract.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "listing tools registered in runner catalog",
+      "redCommand": "pytest tests/unit/test_listing_executors_contract.py::test_ac1_listing_tools_registered -q",
+      "redResult": "AssertionError: missing registration",
+      "greenCommand": "pytest tests/unit/test_listing_executors_contract.py::test_ac1_listing_tools_registered -q",
+      "greenResult": "1 passed"
+    },
+    {
+      "cycle": 2,
+      "behavior": "create hero product e2e via POST /v1/executions and worker",
+      "redCommand": "pytest tests/unit/test_listing_executors_contract.py::test_ac4_create_hero_product_e2e_mocked_chain -q",
+      "redResult": "Unknown tool: listing.create_hero_product",
+      "greenCommand": "pytest tests/unit/test_listing_executors_contract.py::test_ac4_create_hero_product_e2e_mocked_chain -q",
+      "greenResult": "1 passed"
+    },
+    {
+      "cycle": 3,
+      "behavior": "workflow chain derives brand_id from catalog brands response",
+      "redCommand": "pytest tests/unit/test_listing_executors_contract.py::test_create_hero_product_derives_brand_id_from_catalog -q",
+      "redResult": "brand_id not propagated to create body",
+      "greenCommand": "pytest tests/unit/test_listing_executors_contract.py::test_create_hero_product_derives_brand_id_from_catalog -q",
+      "greenResult": "1 passed"
+    }
+  ],
+  "implementationSummary": "P2-B6 listing executors: async register_tool handlers for create/optimize product workflows, sandbox-guarded Product API chains with catalog output threading (attributes, brands, suggestions), multipart upload support, and contract tests mirroring noop.ping execution pattern.",
+  "assumptions": [
+    "SANDBOX_VN live capture for multipart responses remains a manual follow-up; tests mock HTTP",
+    "Action Card auto-dispatch to POST /v1/executions is demonstrated via direct API contract tests"
+  ],
+  "risks": [
+    "Listing chain may need additional catalog allowlist entries as TikTok adds category-specific endpoints"
+  ]
+}

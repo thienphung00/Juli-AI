@@ -1,0 +1,77 @@
+{
+  "id": "review-issue-379",
+  "issue": 379,
+  "timestamp": "2026-07-13T06:20:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-B6 listing executors: listing.create_hero_product and listing.optimize_product registered with async worker support, sandbox-guarded Product API chains that thread catalog outputs between steps, multipart upload, 8/8 contract tests green.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/execution",
+    "backend/src/juli_backend/integrations/tiktok/resources/products.py",
+    "backend/src/juli_backend/integrations/tiktok/client.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "tests/unit/test_listing_executors_contract.py",
+    "EXECUTION.md"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "register listing create hero product and optimize product tool handlers via runner",
+          "test": "tests/unit/test_listing_executors_contract.py::test_ac1_listing_tools_registered"
+        },
+        {
+          "criterion": "handlers call sandbox validated product api chain through capability guard",
+          "test": "tests/unit/test_listing_executors_contract.py::test_ac4_create_hero_product_e2e_mocked_chain"
+        },
+        {
+          "criterion": "listing catalog endpoints documented in contract collection",
+          "test": "tests/unit/test_listing_executors_contract.py::test_listing_catalog_endpoints_documented_in_contract_collection"
+        },
+        {
+          "criterion": "optimize product e2e mocked celery worker execution chain",
+          "test": "tests/unit/test_listing_executors_contract.py::test_ac4_optimize_product_e2e_mocked_chain"
+        },
+        {
+          "criterion": "mocked product api failure records toolexecution failed error message",
+          "test": "tests/unit/test_listing_executors_contract.py::test_ac5_create_hero_product_api_failure_records_failed_status"
+        },
+        {
+          "criterion": "execution md p2 b6 checkbox complete for issue 379",
+          "test": "tests/unit/test_listing_executors_contract.py::test_execution_md_p2_b6_checkbox_complete"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 8,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "379-2026-07-13-listing-executors",
+  "reviewFailures": 0,
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-379.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "none",
+  "suggestedRemediation": []
+}

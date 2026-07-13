@@ -375,3 +375,29 @@ def test_create_hero_product_derives_brand_id_from_catalog():
     assert outcome["brand_id"] == "brand-999"
     create_body = mock_products.create.call_args.kwargs["body"]
     assert create_body["brand_id"] == "brand-999"
+
+
+def test_listing_catalog_endpoints_documented_in_contract_collection():
+    """Contract-collection documents listing chain endpoints used by executors."""
+    from pathlib import Path
+
+    contracts = (
+        Path(__file__).resolve().parents[2]
+        / "docs/integrations/tiktok_api/contract-collection.md"
+    )
+    text = contracts.read_text(encoding="utf-8")
+    assert "GET /product/202309/categories" in text
+    assert "GET /product/202309/categories/{category_id}/attributes" in text
+    assert "POST /product/202309/images/upload" in text
+    assert "POST /product/202309/products" in text
+
+
+def test_execution_md_p2_b6_checkbox_complete():
+    """EXECUTION.md marks P2-B6 complete for issue #379."""
+    import re
+    from pathlib import Path
+
+    execution = Path(__file__).resolve().parents[2] / "EXECUTION.md"
+    text = execution.read_text(encoding="utf-8")
+    assert re.search(r"- \[x\] \*\*P2-B6\*\*", text)
+    assert "#379" in text
