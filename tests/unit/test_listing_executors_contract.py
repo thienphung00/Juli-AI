@@ -318,7 +318,12 @@ async def test_ac4_optimize_product_e2e_mocked_chain(
         payload={
             "product_id": product_id,
             "price_update": {
-                "skus": [{"id": "1736433041572857475", "price": {"currency": "VND", "amount": "80000"}}]
+                "skus": [
+                    {
+                        "id": "1736433041572857475",
+                        "price": {"currency": "VND", "amount": "80000"},
+                    }
+                ]
             },
         },
         celery_task_id="sync-task",
