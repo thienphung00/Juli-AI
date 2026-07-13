@@ -4,7 +4,7 @@
 > **Nature:** read/refactor only — no behavior changes, **except** two explicitly-flagged
 > deploy-script/systemd edits in Phase 1 that are required for the `src/` layout to run in
 > production. No Docker / Terraform / K8s / cloud IaC introduced anywhere.
-> **Invariant (per `restructure` skill):** the same tests pass before and after every phase.
+> **Invariant (per `improve-codebase-architecture` skill):** the same tests pass before and after every phase.
 
 ## How to use this doc
 One phase = one branch = one PR. Do not combine phases. Before each phase, capture the

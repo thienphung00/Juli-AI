@@ -54,6 +54,7 @@ User message
 | GitHub issue implementation | Implementation | Meta routing; domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
 | Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
 | Post-implementation quality gate | Review + Testing | `review` → `validate` → `ship` |
+| Architecture review / deepen modules / safe refactor | Ad-hoc (explore → report → grill → execute) | `improve-codebase-architecture`, `codebase-design`, `CONTEXT.md`, `docs/adr/`, `docs/architecture/map.md` |
 | Parallel issues / worktrees | Implementation | `issue-workflow.mdc` + `docs/handoffs/` |
 
 Domain executor skills live under `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning}/`.
