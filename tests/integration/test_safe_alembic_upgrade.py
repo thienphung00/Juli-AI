@@ -184,11 +184,53 @@ def _docker_pg_url(raw_url: str) -> str:
     return raw_url.replace("@localhost:5433/", "@localhost:5432/")
 
 
+def _docker_container_running(name: str) -> bool:
+    if shutil.which("docker") is None:
+        return False
+    result = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def _pg_client_major_version(tool: str) -> int | None:
+    path = shutil.which(tool)
+    if path is None:
+        return None
+    result = subprocess.run([path, "--version"], capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return None
+    for token in result.stdout.split():
+        head = token.split(".", maxsplit=1)[0]
+        if head.isdigit():
+            return int(head)
+    return None
+
+
+def _native_pg16_cli_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    for tool in ("pg_dump", "pg_restore"):
+        if _pg_client_major_version(tool) != 16:
+            pytest.skip(
+                "pg_dump/pg_restore 16 required — start safe-alembic-pg container "
+                "or install postgresql-client-16"
+            )
+    bin_dir = tmp_path_factory.mktemp("pg16cli")
+    for tool in ("pg_dump", "pg_restore"):
+        src = shutil.which(tool)
+        assert src is not None
+        (bin_dir / tool).symlink_to(src)
+    return bin_dir
+
+
 @pytest.fixture(scope="module")
 def postgres16_cli(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Wrap pg_dump/pg_restore via the Postgres 16 container (version-matched)."""
-    if shutil.which("docker") is None:
-        pytest.skip("docker required for version-matched pg_dump/pg_restore")
+    """Version-matched pg_dump/pg_restore for safe-alembic integration tests."""
+    if not _docker_container_running(DOCKER_PG_CONTAINER):
+        return _native_pg16_cli_dir(tmp_path_factory)
+
     bin_dir = tmp_path_factory.mktemp("pg16cli")
 
     pg_dump = bin_dir / "pg_dump"
