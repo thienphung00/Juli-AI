@@ -15,6 +15,17 @@ Shared domain language for seller-money workflows across `ios/`, `web/`, and `ba
 
 ## Architecture
 
+**Schema-only migration**:
+Alembic revisions in `backend/src/juli_backend/database/migrations/` apply **DDL
+only** (create/alter/drop tables, indexes, RLS). They do **not** copy, migrate,
+or back up existing row data. OAuth tokens in `tiktok_credentials`, commerce ETL
+rows, and sync cursors survive an `upgrade head` only if the same Postgres
+database already held them — Alembic never transfers data between databases or
+projects.
+_Avoid_: data migration (when meaning Alembic auto-preserves rows), assuming
+`upgrade head` restores OAuth/commerce data after pointing at a new Supabase
+project
+
 **Layered model**:
 The product's three-layer structure — **visual layer** (Home KPI charts + one-line
 advisory signals), **ML layer** (T1–T8 advisory techniques), and **execution layer**

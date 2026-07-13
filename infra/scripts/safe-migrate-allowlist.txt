@@ -1,0 +1,13 @@
+# Explicit allowlist for protected-table row-count decreases during deploy.
+#
+# Format (one per line):
+#   <alembic_revision_id> <table_name>
+#
+# Example:
+#   abc123def456 users
+#
+# Alternatively, add this comment inside a migration file:
+#   # safe-migrate: allow-decrease users
+#
+# Only list migrations that intentionally delete or purge rows. Row-count checks
+# cannot detect concurrent writes during migration — see safe-alembic-upgrade.sh.
