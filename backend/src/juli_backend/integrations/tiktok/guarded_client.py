@@ -113,6 +113,29 @@ class GuardedTikTokClient(TikTokClient):
         )
         return super().post(path, body=body, params=params, response_model=response_model)
 
+    def post_multipart(
+        self,
+        path: str,
+        *,
+        files: dict[str, tuple[str, bytes, str]],
+        data: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        self._guard.assert_allowed("POST", path)
+        log_outbound_request(
+            capability=self._capability,
+            merchant_auth_id=self._merchant_auth_id,
+            method="POST",
+            path=path,
+            shop_cipher=self._shop_cipher,
+        )
+        return super().post_multipart(
+            path,
+            files=files,
+            data=data,
+            params=params,
+        )
+
     @overload
     def put(
         self,

@@ -131,7 +131,7 @@ Scheduled polling, business-entity ETL, and feature aggregates remain pending.
       _(#305 — dispatch infra: routing, idempotency, error taxonomy, sandbox guard contract.)_
 - [ ] **P2-B5** Outcome tracking instrumentation. _(#306 open — realtime envelope done,
       cadence rollups pending.)_
-- [ ] **P2-B6** Listing approval queue + Products API publish. _(#379)_
+- [x] **P2-B6** Listing approval queue + Products API publish. _(#379)_
 - [ ] **P2-B7** Leakage live executors. _(#380)_
 - [ ] **P2-B8** Live operations pipeline wiring (rules-based classify → health → rank).
       _(folded into the P2-B1 manual-refresh issue, #303 — no separate slice.)_

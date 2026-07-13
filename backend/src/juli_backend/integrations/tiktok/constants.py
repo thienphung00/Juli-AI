@@ -5,6 +5,8 @@ from __future__ import annotations
 ORDER_API_VERSION = "202309"
 ORDER_DETAIL_API_VERSION = "202507"
 PRODUCT_API_VERSION = "202309"
+PRODUCT_LISTING_API_VERSION = "202312"
+PRODUCT_SEO_API_VERSION = "202405"
 PRODUCT_INVENTORY_API_VERSION = "202309"
 FULFILLMENT_API_VERSION = "202309"
 SUPPLY_CHAIN_API_VERSION = "202309"
@@ -20,6 +22,13 @@ ORDER_DETAIL_PATH = f"/order/{ORDER_DETAIL_API_VERSION}/orders"
 
 PRODUCT_SEARCH_PATH = f"/product/{PRODUCT_API_VERSION}/products/search"
 PRODUCT_CREATE_PATH = f"/product/{PRODUCT_API_VERSION}/products"
+PRODUCT_CATEGORIES_PATH = f"/product/{PRODUCT_API_VERSION}/categories"
+PRODUCT_PREREQUISITES_PATH = f"/product/{PRODUCT_LISTING_API_VERSION}/prerequisites"
+PRODUCT_BRANDS_PATH = f"/product/{PRODUCT_API_VERSION}/brands"
+PRODUCT_SEO_WORDS_PATH = f"/product/{PRODUCT_SEO_API_VERSION}/products/seo_words"
+PRODUCT_SUGGESTIONS_PATH = f"/product/{PRODUCT_SEO_API_VERSION}/products/suggestions"
+PRODUCT_IMAGE_UPLOAD_PATH = f"/product/{PRODUCT_API_VERSION}/images/upload"
+PRODUCT_FILE_UPLOAD_PATH = f"/product/{PRODUCT_API_VERSION}/files/upload"
 INVENTORY_SEARCH_PATH = f"/product/{PRODUCT_INVENTORY_API_VERSION}/inventory/search"
 
 RETURN_SEARCH_PATH = (
@@ -67,6 +76,14 @@ def product_inventory_update_path(product_id: str) -> str:
 
 def product_edit_path(product_id: str) -> str:
     return f"/product/{PRODUCT_API_VERSION}/products/{product_id}"
+
+
+def category_attributes_path(category_id: str) -> str:
+    return f"/product/{PRODUCT_API_VERSION}/categories/{category_id}/attributes"
+
+
+def product_prices_update_path(product_id: str) -> str:
+    return f"/product/{PRODUCT_API_VERSION}/products/{product_id}/prices/update"
 
 
 def fulfillment_combine_packages_path() -> str:
