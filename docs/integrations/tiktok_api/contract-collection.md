@@ -61,9 +61,9 @@ been sandbox-verified, so don't drop Search RMA yet on this assumption alone.
 
 | Workflow | API category | Endpoint chain | Required IDs |
 |----------|--------------|----------------|--------------|
-| Create Hero Product (formerly Create New Product Listing) | Products | Get Categories → Check Listing Prerequisites → Get Category Attributes → Get Brands → Upload Product Image → Get SEO Words → Get Recommended Title/Description → Create Product → Search Products | `category_id`, `brand_id` if required, image `uri`, returned `product_id` |
-| Create Multi-SKU Product | Products | Same chain as Create Hero Product, Create Product with all SKU rows | `category_id`, `brand_id` if required, image `uri`, returned `product_id`, returned `sku_id`s |
-| Optimize Product (formerly Update Product Listing) | Products | Get Product → Get Category Attributes → Get SEO Words → Get Recommended Title/Description → Upload Product Image → Edit Product → Update Price | `product_id`, `category_id` if changed |
+| Create Hero Product (formerly Create New Product Listing) | Products | Get Categories → Check Listing Prerequisites → Get Attributes → Get Brands → Upload Product Image → Upload Product File *(optional supporting docs)* → Get SEO Words → Get Recommended Title/Description → Create Product → Search Products | `category_id`, `brand_id` if required, image `uri`, optional file `uri`, returned `product_id` |
+| Create Multi-SKU Product | Products | Same chain as Create Hero Product, Create Product with all SKU rows | `category_id`, `brand_id` if required, image `uri`, optional file `uri`, returned `product_id`, returned `sku_id`s |
+| Optimize Product (formerly Update Product Listing) | Products | Get Product → Get Attributes → Get SEO Words → Get Recommended Title/Description → Upload Product Image → Upload Product File *(optional supporting docs)* → Edit Product → Update Price | `product_id`, `category_id` if changed, optional file `uri` |
 | Process Order (formerly Accelerate Order Fulfillment) | Orders / Fulfillment / Supply Chain | Search Orders → Get Order Detail → Create Packages → Get Package Shipping Document → Ship Package (or Batch Ship Packages) → Confirm Package Shipment → Get Package Detail | `order_id`, returned `package_id` |
 | Handle Split Package | Fulfillment | Get Order Split Attributes → Split Orders → Search Combinable Packages → Combine Package → Uncombine Packages | `order_id`, draft `package_id`s |
 | Update / Replenish / Clear Inventory | Products | Inventory Search → Update Inventory | `product_id`, `sku_id`, `warehouse_id` |
@@ -255,7 +255,7 @@ curl -k -X 'POST' -d '{"product_ids":["{product_id}"],"sku_ids":["{sku_id}"]}' -
 
 ---
 
-## A-9. Get Category Attributes
+## A-9. Get Attributes
 
 | Field | Value |
 |-------|-------|
@@ -541,13 +541,13 @@ curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
 
 ---
 
-## A-22. Check Listing Prerequisites / Get Brands (Create Hero Product steps 2, 4)
+## A-22. Check Listing Prerequisites (Create Hero Product step 2)
 
 | Field | Value |
 |-------|-------|
-| Operation | `Check Listing Prerequisites` (seller/category eligibility) + `Get Brands` (`brand_id` where required) |
+| Operation | `Check Listing Prerequisites` (seller/category eligibility) |
 | Version | `202312` (verify in Products API Testing Tool) |
-| Method / path | `GET /product/202312/prerequisites` (brands under separate `GET /product/202309/brands`, not yet captured) |
+| Method / path | `GET /product/202312/prerequisites` |
 | Required | `category_id` |
 
 **cURL**
@@ -563,13 +563,37 @@ curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
 
 ---
 
+## A-22a. Get Brands (Create Hero Product step 4)
+
+| Field | Value |
+|-------|-------|
+| Version | `202309` |
+| Method / path | `GET /product/202309/brands` |
+| Required | signing params, `shop_cipher`; header `x-tts-access-token` |
+| Optional query | `is_authorized`, `brand_name`, `page_size`, `page_token`, `category_id`, `category_version` |
+| Notes | Resolves `brand_id` and authorization state for categories that require a brand. Use only when `Get Attributes` or category rules indicate brand is required. |
+
+**cURL**
+```bash
+curl -X GET \
+'https://open-api.tiktokglobalshop.com/product/202309/brands?is_authorized=false&brand_name={brand_name}&page_size=100&category_version=v1&app_key={app_key}&sign={sign}&category_id={category_id}&timestamp=1623812664&shop_cipher={shop_cipher}&page_token={page_token}' \
+-H 'x-tts-access-token: {access_token}' \
+-H 'content-type: application/json'
+```
+
+**Expected response shape — verify with Fujiwa/SANDBOX_VN capture**
+```json
+{"code":0,"data":{"brands":[{"id":"{brand_id}","name":"{brand_name}","authorized_status":"AUTHORIZED"}],"next_page_token":"{page_token}","total_count":1},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
 ## A-23. Get Products SEO Words (Create Hero Product step 6 · Optimize Product step 2)
 
 | Field | Value |
 |-------|-------|
 | Version | `202405` |
 | Method / path | `GET /product/202405/products/seo_words` |
-
 **cURL**
 ```bash
 curl -X GET 'https://open-api.tiktokglobalshop.com/product/202405/products/seo_words?app_key={app_key}&sign={sign}&timestamp=1623812664&shop_cipher={shop_cipher}&product_ids=1734952395144267383' \
@@ -656,17 +680,59 @@ curl -k -X 'POST' -d '{"skus":[{"id":"1736404513645233795","inventory":[{"quanti
 
 ---
 
-## B-2. Upload Product Image — NOT AVAILABLE VIA TESTING TOOL
+## B-2. Upload Product Image — Partner Center doc cURL
 
 | Field | Value |
 |-------|-------|
 | Version | `202309` |
 | Method / path | `POST /product/202309/images/upload` |
-| Response | Image `uri` used by Create Product |
-| Notes | No cURL/response captured — Partner Center Testing Tool does not support multipart image upload. Needs a direct integration test against sandbox before the Create Hero Product chain can be automated end-to-end. |
+| Body | multipart `data=@<image_file>`, `use_case=MAIN_IMAGE` |
+| Response | Image `uri` used in Create Product `main_images[].uri` and product-description image HTML |
+| Notes | Partner Center Testing Tool does not support multipart image upload. This cURL is sanitized from the Partner Center docs and still needs a direct sandbox response capture before end-to-end Create Hero Product automation is considered fully verified. |
+
+**cURL**
+```bash
+curl -X POST \
+'https://open-api.tiktokglobalshop.com/product/202309/images/upload?sign={sign}&timestamp=1623812664&app_key={app_key}' \
+-H 'x-tts-access-token: {access_token}' \
+-H 'content-type: multipart/form-data' \
+-F 'data=@"{image_file}"' \
+-F 'use_case=MAIN_IMAGE'
+```
+
+**Expected response shape — verify with SANDBOX_VN capture**
+```json
+{"code":0,"data":{"uri":"tos-alisg-i-aphluv4xwc-sg/{image_uri}","url":"{signed_image_url}"},"message":"Success","request_id":"{request_id}"}
+```
 
 ---
 
+## B-2a. Upload Product File — Partner Center doc cURL
+
+| Field | Value |
+|-------|-------|
+| Version | `202309` |
+| Method / path | `POST /product/202309/files/upload` |
+| Body | multipart `data=@<file>`, `name=<filename>` |
+| Response | File `uri` used by Create Product fields that require supporting product documents/certificates |
+| Notes | This endpoint is not a replacement for `Upload Product Image` for `main_images[].uri`. Use it only when category attributes, category rules, or listing validation require a non-image supporting document (for example, certificates, compliance files, manuals, or other product files accepted by the category). |
+
+**cURL**
+```bash
+curl -X POST \
+'https://open-api.tiktokglobalshop.com/product/202309/files/upload?app_key={app_key}&sign={sign}&timestamp=1623812664' \
+-H 'x-tts-access-token: {access_token}' \
+-H 'content-type: multipart/form-data' \
+-F 'data=@"{product_file}"' \
+-F 'name={file_name}'
+```
+
+**Expected response shape — verify with SANDBOX_VN capture**
+```json
+{"code":0,"data":{"uri":"tos-alisg-i-aphluv4xwc-sg/{file_uri}","url":"{signed_file_url}"},"message":"Success","request_id":"{request_id}"}
+```
+
+---
 ## B-3. Create Product
 
 | Field | Value |
@@ -1062,7 +1128,8 @@ API surface. Re-add only if a verified create-coupon contract is found in a futu
 
 - [Good] Section A read endpoints (A-1 through A-25) have cURL + response status (or documented failure with TikTok `code`)
 - [Good] Section B write endpoints (B-1 through B-20) have cURL + response status (business errors OK)
-- **Both Endpoints are not available, remove**  B-2 (Upload Product Image) and B-15 (Confirm Package Shipment) still need a first capture — no sample exists yet
+- B-2 (Upload Product Image) and B-2a (Upload Product File) have sanitized Partner Center doc cURLs, but still need direct SANDBOX_VN multipart response captures. Upload Product File is for category-required supporting documents/certificates, not a replacement for `main_images[].uri`.
+- B-15 (Confirm Package Shipment) still needs a first capture — no sample exists yet
 - **KEEP Search Aftersales Request endpoint** A-17 (Search RMA) vs A-18 (Search Aftersales Request) — **deferred** until Fujiwa sandbox capture
 - **Get Activity replaces Search** A-25 verified — `GET /promotion/202309/activities/{activity_id}`; B-5–B-8 promotion writes verified
 - **Use version 202309** A-2 (Search Products) re-captured at `202502` per execution_layer.md

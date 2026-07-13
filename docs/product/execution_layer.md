@@ -107,7 +107,8 @@ FBT SKU is enrolled against TikTok's fulfillment center instead.
 | 2 | Check Listing Prerequisites | TikTok | Product API | Verifies seller/category eligibility ahead of attribute/brand calls |
 | 3 | Get Attributes | TikTok | Product API | `GET /product/202309/categories/{category_id}/attributes` |
 | 4 | Get Brands | TikTok | Product API | Resolves `brand_id` for categories where it's required |
-| 5 | Upload Product Image | TikTok | Product API | `POST /product/202309/images/upload` |
+| 5 | Upload Product Image | TikTok | Product API | `POST /product/202309/images/upload` — returns image `uri` for `main_images[]` |
+| 5.5 | Upload Product File *(optional)* | TikTok | Product API | `POST /product/202309/files/upload` — supporting documents/certificates only when the category requires them; not a replacement for product gallery images |
 | 6 | Get Products SEO Words | TikTok | Product API | `GET /product/202405/products/seo_words` |
 | 7 | Get Recommended Product Title and Description | TikTok | Product API | `GET /product/202405/products/suggestions` |
 | 8 | Create Product | TikTok | Product API | `POST /product/202309/products` — single or multi-SKU payload; SKU warehouse assignment branches FBS/FBT (see note above) |
@@ -125,7 +126,8 @@ FBT SKU is enrolled against TikTok's fulfillment center instead.
 | 1 | Get Product | TikTok | Product API | `GET /product/202309/products/{product_id}` — pulls current title, description, images, price, and attributes; this response feeds steps 2–3 below |
 | 2 | Get Products SEO Words | TikTok | Product API | `GET /product/202405/products/seo_words` |
 | 3 | Get Recommended Product Title and Description | TikTok | Product API | `GET /product/202405/products/suggestions` |
-| 4 | Upload Product Image | TikTok | Product API | `POST /product/202309/images/upload` |
+| 4 | Upload Product Image | TikTok | Product API | `POST /product/202309/images/upload` — only when replacing/adding product images |
+| 4.5 | Upload Product File *(optional)* | TikTok | Product API | `POST /product/202309/files/upload` — only when replacing/adding category-required supporting documents |
 | 5 | Edit Product (partial) | TikTok | Product API | `PUT /product/202309/products/{product_id}` — Partial Edit Product; a `202509` full-replace variant exists but is not used in this workflow |
 | 6 | Update Price | TikTok | Product API | `POST /product/202309/products/{product_id}/prices/update` |
 | 6.5 | Monitor Product Status | TikTok | Webhook | **Product status change** (#5) — confirms the edit cleared re-review before the seller treats the listing as live |

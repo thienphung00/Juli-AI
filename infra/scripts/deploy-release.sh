@@ -76,7 +76,8 @@ set -a
 # shellcheck disable=SC1090
 source "${API_ENV_FILE}"
 set +a
-( cd "${release_dir}" && "${release_dir}/.venv/bin/alembic" upgrade head )
+RELEASE_DIR="${release_dir}" API_ENV_FILE="${API_ENV_FILE}" \
+    "${CANONICAL_ROOT}/infra/scripts/safe-alembic-upgrade.sh"
 
 # --- 4. Frontend: build with the App Review env baked in ---
 echo "-- frontend --"
