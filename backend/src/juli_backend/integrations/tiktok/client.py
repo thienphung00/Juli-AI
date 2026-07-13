@@ -146,6 +146,33 @@ class TikTokClient:
             return validate_data(response_model, data)
         return data
 
+    def post_multipart(
+        self,
+        path: str,
+        *,
+        files: dict[str, tuple[str, bytes, str]],
+        data: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Signed POST with multipart form data (empty JSON body for signing)."""
+        all_params = self._build_params(path, params)
+        all_params["sign"] = sign_request(
+            app_secret=self._app_secret,
+            path=path,
+            params=all_params,
+            body="",
+        )
+
+        resp = self._session.post(
+            f"{self._base_url}{path}",
+            params=all_params,
+            data=data or {},
+            files=files,
+            headers=self._auth_headers(path),
+            timeout=self._timeout,
+        )
+        return self._handle_response(resp)
+
     @overload
     def put(
         self,

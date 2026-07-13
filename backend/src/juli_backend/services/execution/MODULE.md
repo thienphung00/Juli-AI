@@ -107,9 +107,20 @@ that support `idempotency_key`.
 - Execution status is shop-scoped — no cross-tenant reads
 - Registry (`register_tool` / `run_tool`) lives in `runner.py`; `worker.py` orchestrates DB + outcome
 
+## Listing executors (P2-B6 / #379)
+
+Registered async tools in `listing_handlers.py`:
+
+- `listing.create_hero_product` — Create Hero Product chain via sandbox write resources
+- `listing.optimize_product` — Optimize Product chain (get → edit → update price)
+
+Handlers load credentials through `load_sandbox_write_resources` and orchestrate calls in
+`listing.py`. Multipart image/file upload uses `ProductsResource.upload_product_image` /
+`upload_product_file` (contract-collection.md §B-2 / B-2a URI shapes).
+
 ## Out of scope (this module)
 
-- Workflow-specific listing/leakage executor business logic (P2-B6 / P2-B7)
+- Leakage workflow executors (P2-B7)
 - Redis action-card persistence
 - Outcome tracking metrics (P2-B5) — see `services/operations/outcome_tracking.py`
 
