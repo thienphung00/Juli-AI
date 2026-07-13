@@ -6,7 +6,12 @@ from juli_backend.services.execution.dispatch import (
     mark_execution_finished,
     set_task_dispatcher,
 )
-from juli_backend.services.execution.runner import register_async_tool, register_tool, run_tool, run_tool_async
+from juli_backend.services.execution.runner import (
+    register_async_tool,
+    register_tool,
+    run_tool,
+    run_tool_async,
+)
 from juli_backend.services.execution.sandbox_guard import (
     build_sandbox_write_resources,
     is_noop_tool,

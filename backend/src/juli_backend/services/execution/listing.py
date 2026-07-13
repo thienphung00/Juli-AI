@@ -128,10 +128,10 @@ def _build_create_body(
     brand_id: str | None,
 ) -> dict[str, Any]:
     if payload.get("create_body"):
-        body = dict(payload["create_body"])
-        if image_uri and not body.get("main_images"):
-            body["main_images"] = [{"uri": image_uri}]
-        return body
+        override_body = dict(payload["create_body"])
+        if image_uri and not override_body.get("main_images"):
+            override_body["main_images"] = [{"uri": image_uri}]
+        return override_body
 
     if image_uri is None:
         raise ValueError("create_hero_product requires image_uri or image_content_base64")
