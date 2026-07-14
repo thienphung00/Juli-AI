@@ -1,0 +1,11 @@
+# Gitleaks config — extends default rules with doc/sample allowlists.
+title = "Juli AI gitleaks"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "TikTok webhook contract collection — sanitized Partner Center sample payloads (IDs look like keys)"
+paths = [
+  '''docs/integrations/tiktok_api/webhook-contract-collection\.md''',
+]

@@ -88,9 +88,9 @@ WORKFLOW_DISPLAY_NAMES: dict[str, str] = {
     "replenish_inventory_3": "Bổ sung tồn kho",
     "clear_excess_4": "Thanh lý tồn kho dư",
     "process_order_5": "Xử lý đơn hàng",
-    "prevent_cancellation_8a": "Ngăn hủy đơn",
-    "prevent_return_8b": "Ngăn hoàn trả",
-    "prevent_refund_8c": "Ngăn hoàn tiền",
+    "prevent_cancellation_8a": "Yêu cầu hủy đơn",
+    "prevent_return_8b": "Yêu cầu hoàn trả",
+    "prevent_refund_8c": "Yêu cầu hoàn tiền",
 }
 
 

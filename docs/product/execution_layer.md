@@ -62,20 +62,20 @@ not subscribed to.
 | # | Webhook | Used in | Role |
 |---|---------|---------|------|
 | 1 | Order status change | Process Order (5) | Drives the `ON_HOLD → AWAITING_SHIPMENT` trigger — see step 3.5 below |
-| 2 | Reverse status update | Prevent Cancellation (8a), Prevent Return (8b), Prevent Refund (8c) | Intake trigger — buyer opened/updated a request needing a seller decision; replaces constant polling of the Search endpoints |
+| 2 | Reverse status update | Request Cancellation (8a), Request Return (8b), Request Refund (8c) | Intake trigger — buyer opened/updated a request needing a seller decision; replaces constant polling of the Search endpoints |
 | 3 | Recipient address update | Process Order (5) | Signals an address change after order creation but before/during fulfillment — must re-check before `Create Packages`/`Ship Package` |
 | 4 | Package update | Handle Split Package (6) | Confirms a split/combine/other package mutation completed |
 | 5 | Product status change | Create Hero Product (1), Optimize Product (2) | Listing review/audit status changed |
-| 11 | Cancellation status change | Prevent Cancellation (8a) | Terminal-state monitor after Approve/Reject |
-| 12 | Return status change | Prevent Return (8b) | Terminal-state monitor after Approve/Reject |
+| 11 | Cancellation status change | Request Cancellation (8a) | Terminal-state monitor after Approve/Reject |
+| 12 | Return status change | Request Return (8b) | Terminal-state monitor after Approve/Reject |
 | 21 | Inbound FBT order status change | Replenish Inventory (3b — FBT path) | Tracks the bulk inbound shipment TikTok's warehouse is receiving |
-| 24 | FBT inventory update | Replenish Inventory (3b), Prevent Return (8b — FBT path) | TikTok-side inventory count change for FBT-held stock — the seller does not call `Update Inventory` directly for FBT stock |
+| 24 | FBT inventory update | Replenish Inventory (3b), Request Return (8b — FBT path) | TikTok-side inventory count change for FBT-held stock — the seller does not call `Update Inventory` directly for FBT stock |
 | 27 | Inventory status change | Replenish Inventory (3), Clear Excess Inventory (4) | Availability status flips (e.g. in-stock → out-of-stock) |
 | 37 | Product audit status change | Create Hero Product (1) | Post-submission audit result, distinct from the general review status in #5 |
 | 39 | Activity status change | Create/Update/Delete Activity (7a/7b/7c), Clear Excess Inventory (4) | Promotion lifecycle monitor — replaces the unavailable Search Promotion Activity read |
-| 64 | Aftersales Request Status Update | Prevent Refund (8c) | Status monitor for the aftersales/refund request itself |
-| 65 | RMA Status Update | Prevent Return (8b) | Physical-item tracking monitor — complements/can replace polling Search RMA |
-| 67 | Refund Success | Prevent Refund (8c) | Terminal completion signal for a refund |
+| 64 | Aftersales Request Status Update | Request Refund (8c) | Status monitor for the aftersales/refund request itself |
+| 65 | RMA Status Update | Request Return (8b) | Physical-item tracking monitor — complements/can replace polling Search RMA |
+| 67 | Refund Success | Request Refund (8c) | Terminal completion signal for a refund |
 | 68 | Inventory changed | Replenish Inventory (3), Clear Excess Inventory (4) | Real-time SKU quantity change from any source (orders, campaigns, manual edit, API, creator allocation) — the general-purpose inventory reconciliation signal |
 
 **Tracked at account/platform level (not tied to one workflow):**
@@ -337,7 +337,7 @@ separate resources with their own version tags.
 > never hide behind macro averages. Not applicable to 8a (Cancellation), since
 > pre-shipment cancellations don't carry a returned-item fraud signal.
 
-### 8a. Prevent Cancellation *(formerly "Prevent Order Cancellations")*
+### 8a. Request Cancellation *(formerly "Prevent Order Cancellations" / "Prevent Cancellation")*
 
 Covers buyer- and seller-initiated order cancellations, pre-shipment only. Fulfillment
 model doesn't branch this workflow — a pre-shipment cancellation releases a stock hold
@@ -359,7 +359,7 @@ This is the standard reserved-stock pattern. **`Reserve Inventory` has been
 removed from this workflow** — investigated and confirmed no such endpoint exists;
 inventory holds are a platform-side reservation, not a seller-initiated API write.
 
-### 8b. Prevent Return *(formerly "Prevent Product Returns" — un-deferred from Customer Service into a live, approval-gated Post-sales workflow)*
+### 8b. Request Return *(formerly "Prevent Product Returns" / "Prevent Return" — un-deferred from Customer Service into a live, approval-gated Post-sales workflow)*
 
 Covers post-shipment returns (buyer ships the item back for inspection).
 
@@ -384,7 +384,7 @@ Return/Refund API surface either way.
 | 8 | Get Return Records | TikTok | Return/Refund API | `GET /return_refund/202309/returns/{return_id}/records` |
 | 9 | Monitor Return Status | TikTok | Webhook | **Return status change** (#12) |
 
-### 8c. Prevent Refund
+### 8c. Request Refund *(formerly "Prevent Refund")*
 
 Covers the refund decision itself — separate from return because a refund can happen
 **with or without** a physical return (returnless refunds, and the sub-$20
@@ -466,8 +466,8 @@ stub these in Phase 2 code paths.
 | **Customer Service buyer-messaging execution** | Resolve Recurring Customer Complaints | Locked action table — Customer Service API (messaging), Return/Refund API (escalation reuse), Fulfillment API + Product API (corrective splits); no Phase 2 execution stubs |
 | Complaint text pattern mining | Resolve Recurring Customer Complaints | Analytics on legal text sources (ADR pending) |
 | Root-cause classification | Resolve Recurring Customer Complaints | Seller-fault vs buyer-fault classification model |
-| Buyer risk scoring | Prevent Return (8b) | ML risk model on buyer behavior features |
-| Advanced return segmentation | Prevent Return (8b) | Non-fraud return driver classification (extends T6) |
+| Buyer risk scoring | Request Return (8b) | ML risk model on buyer behavior features |
+| Advanced return segmentation | Request Return (8b) | Non-fraud return driver classification (extends T6) |
 | ML dynamic pricing | Optimize Product · Create Hero Product | Elasticity model upgrading T9 deterministic rules |
 | ML demand-based reorder | Replenish Inventory | ML demand forecast upgrading T10 deterministic ROP/EOQ |
 | FBT inbound-shipment creation API | Replenish Inventory (3b) | Path not yet captured — needed before FBT replenishment can be automated end-to-end |
@@ -483,7 +483,7 @@ stub these in Phase 2 code paths.
 | Escalate Return Case | TikTok | Return/Refund API | `POST /return_refund/202309/returns/{return_id}/reject` or appeal/escalation op |
 | Monitor Resolution Status | TikTok | Return/Refund API | `POST /return_refund/202602/returns/search` |
 
-**Note:** Prevent Return (8b) and Prevent Cancellation (8a) themselves are **not**
+**Note:** Request Return (8b) and Request Cancellation (8a) themselves are **not**
 deferred — they are live, approval-gated Phase 2 workflows (auto-triage + seller
 approval as last resort). Only the buyer-risk-scoring/segmentation *ML upgrades* to
 those workflows are deferred, same as the deterministic-rule-to-ML upgrade pattern used
