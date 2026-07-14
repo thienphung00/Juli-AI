@@ -5,7 +5,10 @@ alwaysApply: false
 
 # Code Review Standards
 
-Load via Focus during `review` phase or explicit review requests. Detailed checks: `.cursor/skills/standalone/review/SKILL.md`.
+Load via Focus during `review` phase or explicit review requests. Detailed checks:
+- Spec fidelity × structure: `.cursor/skills/standalone/intent-review/SKILL.md`
+- Domain Guardrails + ADR-003 artifact: `.cursor/skills/standalone/guardrails/SKILL.md`
+- Boundaries: `.cursor/skills/standalone/intent-review/BOUNDARY.md`
 
 Code review is required for production-impacting changes.
 

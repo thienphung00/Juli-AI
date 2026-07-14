@@ -69,13 +69,19 @@ Pick the **lowest-cost public interface** that proves the behavior:
 1. **Plan** — confirm public interface and critical behaviors
 2. **Tracer bullet** — one end-to-end RED→GREEN path
 3. **Incremental loop** — one behavior per RED→GREEN cycle
-4. **Refactor implementation** — when GREEN
+4. **Refactor implementation** — when GREEN (advisory; see structure authority)
 5. **Refactor tests/fixtures** — still GREEN
+
+### Structure authority
+
+> Executor MAY clean up structure during GREEN (refactor step). Only intent-review MAY block merge on structure.
+
+Refactor is non-blocking. Do not treat it as merge approval for structure — hand off to Review Agent (`intent-review`).
 
 ## Review focus
 
 Auth/authz, error handling, idempotency, timeouts/retries, logging, API envelope
-consistency per `patterns.mdc`.
+consistency per `patterns.mdc`. Structure/smells are judged by `intent-review`, not here.
 
 ## Validation
 

@@ -19,7 +19,7 @@ Before merge or release preparation:
 1. Confirm `agent-runtime/artifacts/validation/validation-issue-<n>.json` exists on the branch.
 2. Assert `status == "PASS"` and `readyForMerge == true`.
 3. If `readyForShip` is present, it must also be `true` (mirrors `readyForMerge`).
-4. On failure, return to `validate` or `review` — do not proceed.
+4. On failure, return to `validate` or `guardrails` — do not proceed.
 
 ```bash
 python -c "

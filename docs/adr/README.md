@@ -26,3 +26,4 @@
 | [019](019-src-shim-removal.md) | Remove `src/` compatibility shims after deploy entrypoint switch | Accepted |
 | [020](020-vps-ssh-continuous-delivery-and-secrets-manager.md) | VPS/SSH continuous delivery + AWS Secrets Manager (supersedes ADR-012 Railway line) | Accepted |
 | [021](021-manual-refresh-pipeline-and-action-card-persistence.md) | Manual-refresh pipeline, Postgres-only Action Card persistence, Phase 2 scope reconciliation | Accepted |
+| [022](022-intent-review-guardrails-split.md) | Intent-review / Guardrails split and structure authority | Accepted |

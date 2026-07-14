@@ -15,7 +15,8 @@ substitutes for runtime artifacts.
 | Artifact | Producer | Primary consumers | Path pattern |
 |----------|----------|-------------------|--------------|
 | **implementation** | Executor Agent | Review Agent, Meta Agent | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` |
-| **review** | Review Agent (`review` skill) | Validate, `pr.yml`, Meta Agent | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
+| **intent_review** | Review Agent (`intent-review` skill) | Guardrails (as given) | `agent-runtime/artifacts/intent-reviews/intent-review-issue-<n>.json` |
+| **review** | Review Agent (`guardrails` skill) | Validate, `pr.yml`, Meta Agent | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
 | **validation** | Review Agent (`validate` skill, `pr.yml`) | Ship, Meta Agent | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
 | **harness_optimization** | Meta Agent | Harness config, benchmark reruns | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
 | **product_development_optimization** | Meta Agent (occasional) | Architect Agent backlog | `agent-runtime/artifacts/optimization/product-development-<id>.json` |
@@ -75,6 +76,7 @@ schemas **extend** those contracts — they do not replace gate-required fields.
 
 | Path | Commit? | Rationale |
 |------|---------|-----------|
+| `agent-runtime/artifacts/intent-reviews/intent-review-issue-*.json` | **Yes** | Guardrails handoff contract (ADR-022) |
 | `agent-runtime/artifacts/reviews/review-issue-*.json` | **Yes** | ADR-003: CI `pr.yml` requires branch-persistent review artifacts |
 | `agent-runtime/artifacts/validation/validation-issue-*.json` | **Yes** | ADR-003: ship and CI consume validation artifacts |
 | `agent-runtime/artifacts/implementations/implementation-issue-*.json` | **Yes** | Small JSON; Meta optimization input |
@@ -93,7 +95,8 @@ schemas **extend** those contracts — they do not replace gate-required fields.
 
 ### Editing rules
 
-- **Review artifact:** regenerate via `review` skill or `generate_review_artifact.py` — do not edit from `validate`.
+- **Intent-review artifact:** regenerate via `intent-review` skill or `generate_intent_review_artifact.py`.
+- **Review artifact:** regenerate via `guardrails` skill or `generate_review_artifact.py` — do not edit from `validate`.
 - **Validation artifact:** produced by `validate` skill or `generate_validation_artifact.py` after gates pass.
 - **Implementation / optimization artifacts:** produced by Executor / Meta agents per Phase 4 skill updates; manual edits only for harness benchmark fixtures.
 

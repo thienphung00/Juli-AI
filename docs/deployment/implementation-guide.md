@@ -66,8 +66,9 @@ Bug filing:    qa -> focus -> Executor -> review -> validate -> ship
 
 | Producer | Output | Consumer |
 |----------|--------|----------|
-| Executor Agent | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` | `review` skill, Meta Agent |
-| `review` skill | `agent-runtime/artifacts/reviews/review-issue-<n>.json` | `validate` skill, `pr.yml`, Meta Agent |
+| Executor Agent | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` | `intent-review` / `guardrails`, Meta Agent |
+| `intent-review` skill | `agent-runtime/artifacts/intent-reviews/intent-review-issue-<n>.json` | `guardrails` (as given) |
+| `guardrails` skill | `agent-runtime/artifacts/reviews/review-issue-<n>.json` | `validate` skill, `pr.yml`, Meta Agent |
 | `validate` skill (and `pr.yml`) | `agent-runtime/artifacts/validation/validation-issue-<n>.json` | `ship` skill, Meta Agent |
 | Meta Agent (Focus, post-validation) | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` | Harness config, benchmarks |
 | Meta Agent (occasional) | `agent-runtime/artifacts/optimization/product-development-<id>.json` | Architect backlog |

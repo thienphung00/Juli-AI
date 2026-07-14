@@ -4,14 +4,19 @@ description: >-
   Aligns on a plan or design by asking one question at a time with a recommended
   answer, while building CONTEXT.md and docs/adr/ ADRs inline. Use when the
   user says "grill me", "grill with docs", "start grilling", "align before building",
-  or when invoked at the start of Planning or refactor work.
+  when Architect Agent is planning or rescoping, or when invoked at the start of
+  Planning or refactor work.
 ---
 
 # Grill with docs
 
-Align on a plan or design by asking one question at a time,
-with a recommended answer for each. Simultaneously builds and updates `CONTEXT.md` and
-`docs/adr/` ADRs inline as decisions crystallise.
+Architect Agent skill for **planning and rescoping**. Align on a plan or design by
+asking one question at a time, with a recommended answer for each. Simultaneously
+builds and updates `CONTEXT.md` and `docs/adr/` ADRs inline as decisions crystallise.
+
+Owns the `grill-with-docs` step in the Architect sequence
+`focus` → `grill-with-docs` → `to-prd` → `to-issues`. Skip or shorten only when scope
+is already fixed (e.g. decomposing an existing signed-off PRD).
 
 Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-modeling/SKILL.md`](../domain-modeling/SKILL.md) — summarised below.
 
@@ -71,3 +76,13 @@ Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-mod
 - A conversation summary in the format expected by `to-prd`.
 - An updated `CONTEXT.md` (if terms were resolved).
 - Zero or more new `docs/adr/*.md` files (+ README index row).
+
+## Integration
+
+| Agent / skill | How this interacts |
+|---------------|-------------------|
+| Architect Agent | Canonical planning/rescope step after `focus`, before `to-prd` |
+| `to-prd` | Consumes the grill summary; does not re-interview |
+| `to-issues` | Runs after PRD; grilling already settled scope TBDs |
+| `domain-modeling` | CONTEXT.md / ADR format authority |
+| `improve-codebase-architecture` / `restructure` | May invoke grilling mid-workflow for design intent |

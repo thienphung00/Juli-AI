@@ -7,7 +7,8 @@ and Agent Runtime ([`agent-runtime/docs/agent-runtime-artifacts.md`](../agent-ru
 
 | Directory | Producer | Consumer | Commit? |
 |-----------|----------|----------|---------|
-| `reviews/` | `review` skill, `generate_review_artifact.py` | `validate`, `pr.yml`, Meta Agent | **Yes** — CI gate |
+| `intent-reviews/` | `intent-review` skill, `generate_intent_review_artifact.py` | `guardrails` | **Yes** — handoff contract |
+| `reviews/` | `guardrails` skill, `generate_review_artifact.py` | `validate`, `pr.yml`, Meta Agent | **Yes** — CI gate |
 | `validation/` | `validate` skill, `generate_validation_artifact.py`, nightly audits | `ship`, `pr.yml`, Meta Agent | **Yes** — CI gate |
 | `implementations/` | Executor Agent | Review Agent, Meta Agent | **Yes** — small JSON |
 | `optimization/` | Meta Agent | Harness config, Architect backlog | **Yes** — small JSON |

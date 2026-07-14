@@ -5,7 +5,7 @@ alwaysApply: false
 
 # Code Quality
 
-Load via Focus for any code change. Review checklists: `.cursor/skills/standalone/review/SKILL.md`.
+Load via Focus for any code change. Review checklists: `.cursor/skills/standalone/intent-review/SKILL.md (structure) and `.cursor/skills/standalone/guardrails/SKILL.md` (domains)`.
 
 ## Core Principles
 

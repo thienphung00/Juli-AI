@@ -33,6 +33,7 @@ Green → Refactor). Canonical requirements:
   artifact-schema test
 - **Green:** minimal implementation to pass deterministic checks
 - **Refactor:** pipeline clarity without changing published metrics contracts
+  (advisory — only `intent-review` may block merge on structure)
 
 Prefer deterministic tests over flaky integration; use fixed seeds and small
 golden fixtures.

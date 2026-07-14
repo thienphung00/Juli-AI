@@ -19,6 +19,7 @@ ARCHITECTURE_MAP = REPO_ROOT / "docs" / "architecture" / "map.md"
 HANDOFFS_DIR = REPO_ROOT / "docs" / "handoffs"
 DECISIONS_DIR = REPO_ROOT / "docs" / "adr"
 REVIEWS_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "reviews"
+INTENT_REVIEWS_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "intent-reviews"
 VALIDATION_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "validation"
 IMPLEMENTATIONS_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "implementations"
 OPTIMIZATION_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "optimization"
@@ -369,6 +370,10 @@ def review_artifact_path(issue: int) -> Path:
     return REVIEWS_DIR / f"review-issue-{issue}.json"
 
 
+def intent_review_artifact_path(issue: int) -> Path:
+    return INTENT_REVIEWS_DIR / f"intent-review-issue-{issue}.json"
+
+
 def validation_artifact_path(issue: int) -> Path:
     return VALIDATION_DIR / f"validation-issue-{issue}.json"
 
@@ -378,6 +383,59 @@ def load_review_artifact(issue: int) -> dict[str, Any] | None:
     if not path.exists():
         return None
     return load_json(path)
+
+
+def load_intent_review_artifact(issue: int) -> dict[str, Any] | None:
+    path = intent_review_artifact_path(issue)
+    if not path.exists():
+        return None
+    return load_json(path)
+
+
+def intent_review_artifact_template(issue: int) -> dict[str, Any]:
+    """Intent-review artifact skeleton (Spec fidelity + smells + conventions)."""
+    return {
+        "schemaVersion": RUNTIME_SCHEMA_VERSION,
+        "artifactType": "intent_review",
+        "id": f"intent-review-issue-{issue}",
+        "issue": issue,
+        "timestamp": utc_now_iso(),
+        "reviewedBy": "intent-review skill",
+        "fixedPoint": "",
+        "spec_fidelity": "pass",
+        "specFidelityNotes": "",
+        "smells": [],
+        "convention_notes": [],
+        "phaseRunId": None,
+    }
+
+
+def build_intent_review_artifact(
+    issue: int,
+    *,
+    existing: dict[str, Any] | None = None,
+    overrides: dict[str, Any] | None = None,
+    fresh: bool = False,
+    update_timestamp: bool = True,
+) -> dict[str, Any]:
+    """Assemble an intent-review artifact."""
+    artifact = intent_review_artifact_template(issue)
+    if existing and not fresh:
+        artifact = deep_merge_under(artifact, existing)
+    if overrides:
+        artifact = deep_merge_under(artifact, overrides)
+    artifact["id"] = f"intent-review-issue-{issue}"
+    artifact["issue"] = issue
+    artifact["artifactType"] = "intent_review"
+    if update_timestamp:
+        artifact["timestamp"] = utc_now_iso()
+    elif existing and existing.get("timestamp"):
+        artifact["timestamp"] = existing["timestamp"]
+    if artifact.get("spec_fidelity") not in ("pass", "fail"):
+        artifact["spec_fidelity"] = "fail"
+    artifact.setdefault("smells", [])
+    artifact.setdefault("convention_notes", [])
+    return artifact
 
 
 def load_implementation_artifact(issue: int) -> dict[str, Any] | None:

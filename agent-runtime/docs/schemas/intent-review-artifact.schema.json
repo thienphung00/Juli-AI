@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/intent-review-artifact.schema.json",
+  "title": "Intent Review Artifact",
+  "description": "Intent-review skill output: Spec fidelity (intent-to-code), smells, and light convention notes. Consumed as given by guardrails.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "issue",
+    "artifactType",
+    "spec_fidelity",
+    "smells",
+    "convention_notes"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "artifactType": {
+      "const": "intent_review"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^intent-review-issue-\\d+$"
+    },
+    "issue": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reviewedBy": {
+      "type": "string"
+    },
+    "fixedPoint": {
+      "type": "string",
+      "description": "Git ref used as three-dot base for the diff."
+    },
+    "spec_fidelity": {
+      "type": "string",
+      "enum": ["pass", "fail"],
+      "description": "Intent-to-code fidelity. Guardrails must not re-judge this field."
+    },
+    "specFidelityNotes": {
+      "type": "string"
+    },
+    "smells": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "hunk": { "type": "string" },
+          "judgement": { "type": "boolean", "default": true },
+          "blocksMerge": { "type": "boolean" }
+        }
+      }
+    },
+    "convention_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["standard", "note"],
+        "properties": {
+          "standard": { "type": "string" },
+          "path": { "type": "string" },
+          "note": { "type": "string" },
+          "blocksMerge": { "type": "boolean" }
+        }
+      }
+    },
+    "phaseRunId": { "type": "string" }
+  }
+}

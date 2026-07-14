@@ -5,7 +5,7 @@ alwaysApply: false
 
 # Reliability
 
-Load via Focus when external APIs, jobs, error paths, or tests are involved. Detailed review checks: `.cursor/skills/standalone/review/SKILL.md`.
+Load via Focus when external APIs, jobs, error paths, or tests are involved. Detailed review checks: `.cursor/skills/standalone/guardrails/SKILL.md`.
 
 ## Automated Testing
 

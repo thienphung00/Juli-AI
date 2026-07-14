@@ -106,8 +106,8 @@ tools:
 agents:
   architect:
     phase: planning
-    sequence: "[focus, to-prd, to-issues]"
-    owns: "[prds, adrs, issues, architecture-docs, backlog]"
+    sequence: "[focus, grill-with-docs, to-prd, to-issues]"
+    owns: "[prds, adrs, issues, architecture-docs, backlog, scope-alignment]"
     must_not: "[implement, route-executors, validate, ship]"
   meta:
     phase: "[implementation-routing, harness-optimization]"
@@ -124,8 +124,8 @@ agents:
     must_not: "[ship, validate, optimize-harness]"
   review:
     phase: review-and-testing
-    sequence: "[review, validate, ship-ready]"
-    emits_artifacts: "[review-artifact, validation-artifact]"
+    sequence: "[intent-review, guardrails, validate, ship-ready]"
+    emits_artifacts: "[intent-review-artifact, review-artifact, validation-artifact]"
     must_not: "[route-context, assign-executors, ship-before-validation]"
 agent_structure:
   mode: single_executor

@@ -9,7 +9,8 @@ description: >-
 
 # Validate
 
-Sits between `review` and `ship` in the Review Agent phase. Generates the
+Sits between `review` and `ship` in the Review Agent phase
+(`intent-review` → `guardrails` → `validate` → ship-ready). Generates the
 machine-readable JSON artifact that `ship` and CI consume to gate merges.
 
 This skill is non-conversational. It runs Python scripts, aggregates their
@@ -18,7 +19,7 @@ artifact — not the chat output — is the system of record.
 
 ## When to invoke
 
-- After `review` has emitted `agent-runtime/artifacts/reviews/review-issue-<n>.json` and
+- After `guardrails` has emitted `agent-runtime/artifacts/reviews/review-issue-<n>.json` and
   before `ship` runs.
 - After fixing a CI failure surfaced by `pr.yml`.
 - Before opening a PR locally to catch failures early.

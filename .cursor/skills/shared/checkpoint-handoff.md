@@ -204,7 +204,7 @@ Templates live in `docs/templates/handoffs/` — load the specific file only whe
 | Phase | Template |
 |-------|---------|
 | `focus` → Implementation | [`docs/templates/handoffs/focus-implementation.md`](../../../docs/templates/handoffs/focus-implementation.md) |
-| Implementation → `review` | [`docs/templates/handoffs/implementation-review.md`](../../../docs/templates/handoffs/implementation-review.md) |
+| Implementation → Review Agent | [`docs/templates/handoffs/implementation-review.md`](../../../docs/templates/handoffs/implementation-review.md) |
 | `review` → `validate` | [`docs/templates/handoffs/review-validate.md`](../../../docs/templates/handoffs/review-validate.md) |
 | `ship` (optional) | [`docs/templates/handoffs/ship-complete.md`](../../../docs/templates/handoffs/ship-complete.md) |
 | Planning → `to-prd` | [`docs/templates/handoffs/planning-to-prd.md`](../../../docs/templates/handoffs/planning-to-prd.md) |
