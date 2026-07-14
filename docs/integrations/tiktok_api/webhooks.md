@@ -10,14 +10,19 @@ receives, verifies HMAC, ACKs quickly, dispatches through the **Phase 2 catalog*
 
 ## Registration
 
-Configure webhook URL in **TikTok Shop Partner Center** (App settings). Production
-endpoint in Juli:
+Configure webhook URL in **TikTok Shop Partner Center** (App settings) as
+`https://api.app-juli.com/webhooks/tiktok`. Production endpoint in Juli:
 
 ```
 POST /webhooks/tiktok
 ```
 
-Wired via `create_app(app_key=..., app_secret=..., handoff_fn=...)`.
+**Deployed on the main API** (`juli_backend.api.app`, the `juli-api` systemd
+service) — see `backend/src/juli_backend/api/routes/webhook_tiktok.py`. This is
+the process Nginx and TikTok Partner Center actually reach; there is no separate
+webhook service running. The route reuses `build_webhook_service(app_key=...,
+app_secret=..., handoff_fn=...)` from `services/webhook/app.py`, the same
+assembly used by the standalone `create_app(...)` kept for isolated testing.
 
 Subscribe only to the **Phase 2 catalog** types below (~18 types). The remaining
 ~50 catalog slots (Affiliate, Customer Service, Finance beyond invoicing, etc.) are
