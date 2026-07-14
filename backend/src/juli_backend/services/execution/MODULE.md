@@ -118,9 +118,23 @@ Handlers load credentials through `load_sandbox_write_resources` and orchestrate
 `listing.py`. Multipart image/file upload uses `ProductsResource.upload_product_image` /
 `upload_product_file` (contract-collection.md §B-2 / B-2a URI shapes).
 
+## Leakage executors — inventory + promotion (P2-B7 / #380 sub-PR 1)
+
+Registered async tools in `leakage_handlers.py`:
+
+- `inventory.replenish` — Inventory Search → Update Inventory (workflow 3, FBS)
+- `inventory.clear_excess` — Clearance chain: search → price update → promotion → zero stock
+- `promotion.create_activity` — Create Activity → Update Activity Product (7a)
+- `promotion.update_activity` — Update Activity metadata/products (7c)
+- `promotion.delete_activity` — Get Activity → Deactivate (7b)
+
+Chain logic lives in `inventory_leakage.py` and `promotion_leakage.py`. Returns workflows
+(8a/8b/8c) and `replenish_inventory_3b` (FBT) are deferred to follow-up work — see
+`docs/handoffs/scope-alignment-issue-380.md`.
+
 ## Out of scope (this module)
 
-- Leakage workflow executors (P2-B7)
+- Returns leakage executors (P2-B7 sub-PR 2)
 - Redis action-card persistence
 - Outcome tracking metrics (P2-B5) — see `services/operations/outcome_tracking.py`
 

@@ -74,6 +74,7 @@ WRITE_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 # Layer 2 sandbox write-validation allowlist (method, path regex).
 SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("POST", re.compile(r"^/product/\d+/inventory/search$")),
     ("POST", re.compile(r"^/product/\d+/products/\d+/inventory/update$")),
     ("POST", re.compile(r"^/product/\d+/products$")),
     ("PUT", re.compile(r"^/product/\d+/products/\d+$")),

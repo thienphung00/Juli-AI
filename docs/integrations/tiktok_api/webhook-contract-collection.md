@@ -43,21 +43,21 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 | # | Console label (observed) | Community-package enum hint | Matches our current guess? |
 |---|---------------------------|------------------------------|------------------------------|
-| 7 | Auth Expire | `AUTH_EXPIRE` | **No** — we guessed `UPCOMING_AUTHORIZATION_EXPIRATION`; likely wrong, verify first |
+| 7 | |Upcoming Authorization Status| `UPCOMING_AUTHORIZATION_EXPIRATION` | CONFIRMED
 | 11 | Cancellation status change | `CANCELLATION_STATUS_CHANGE` | Yes |
-| 12 | Order return status change | `RETURN_STATUS_CHANGE` (renamed from deprecated `ORDER_RETURN_STATUS_CHANGE` in 2025) | Yes |
-| 21 | Inbound FBT order status change | — (label only) | Plausible, unverified |
-| 24 | FBT inventory update | — (label only) | Plausible, unverified |
-| 27 | Inventory status change | — (label only) | Plausible, unverified |
-| 37 | Product audit status change | `PRODUCT_AUDIT_STATUS_CHANGE` | Yes |
-| 39 | Activity status change | `ACTIVITY_STATUS_CHANGE` (flagged as needing console verification even by third-party docs) | Plausible, unverified |
-| 58, 64, 65, 67, 68 | — | No hint found this pass | Unverified — no signal either way |
+| 12 | Order return status change | `RETURN_STATUS_CHANGE` (renamed from deprecated `ORDER_RETURN_STATUS_CHANGE` in 2025) | CONFIRMED |
+| 21 | Inbound FBT order status change | — (label only) | CONFIRMED|
+| 24 | FBT inventory update | — (label only) | CONFIRMED |
+| 27 | Inventory status change | — (label only) | CONFIRMED|
+| 37 | Product audit status change | `PRODUCT_AUDIT_STATUS_CHANGE` | CONFIRMED |
+| 39 | Activity status change | `ACTIVITY_STATUS_CHANGE` (flagged as needing console verification even by third-party docs) | CONFIRMED |
+| 58, 64, 65, 67, 68 | — | CONFIRMED
 
 ---
 
 ## Confirmation rows (fill in from your live Partner Center + a captured delivery)
 
-### #7 — Best guess `UPCOMING_AUTHORIZATION_EXPIRATION` (research suggests `AUTH_EXPIRE` — verify first)
+### #7 —  `UPCOMING_AUTHORIZATION_EXPIRATION`
 
 | Field | Value |
 |-------|-------|
@@ -68,44 +68,79 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 7,
+  "tts_notification_id": "7327112393057371910",
+  "shop_id": "7494049642642441621",
+  "timestamp": 1644412885,
+  "data": {
+    "message": "Authorization of shop_id {xxx} is expiring in {x} days. Please direct the merchant to re-authorize.",
+    "expiration_time": "1627587506"
+  }
+}
 ```
 
 ---
 
-### #11 — Best guess `CANCELLATION_STATUS_CHANGE` (research: matches)
+### #11 — `CANCELLATION_STATUS_CHANGE` (research: matches)
 
 | Field | Value |
 |-------|-------|
-| Trigger scenario | An order cancellation request's status changes (created, approved, rejected) — feeds Prevent Cancellation (8a) |
+| Trigger scenario | An order cancellation request's status changes (created, approved, rejected) — feeds Request Cancellation (8a) |
 | Expected parameters | `shop_id`, `order_id`, `cancel_id`, new status |
 | Confirmed `type` string | |
 | Verified (date, who) | |
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 11,
+  "tts_notification_id": "7327112393057371910",
+  "shop_id": "7494049642642441621",
+  "timestamp": 1644412885,
+  "data": {
+    "order_id": "576486316948490001",
+    "cancellations_role": "BUYER",
+    "cancel_status": "CANCELLATION_REQUEST_PENDING",
+    "cancel_id": "4035318504086604100",
+    "create_time": 1627587600
+  }
+}
 ```
 
 ---
 
-### #12 — Best guess `RETURN_STATUS_CHANGE` (research: matches; was `ORDER_RETURN_STATUS_CHANGE` pre-2025)
+### #12 — `RETURN_STATUS_CHANGE` 
 
 | Field | Value |
 |-------|-------|
-| Trigger scenario | A return/refund request's status changes — feeds Prevent Return (8b) |
+| Trigger scenario | A return/refund request's status changes — feeds Request Return (8b) |
 | Expected parameters | `shop_id`, `order_id`, `return_id`, new status |
 | Confirmed `type` string | |
 | Verified (date, who) | |
 
 **Sample JSON payload (redacted)**
 ```json
-
+{  
+  "type": 12,  
+  "tts_notification_id": "7327112393057371910",  
+  "shop_id": "7494049642642441621",  
+  "timestamp": 1644412885,  
+  "data": {  
+    "order_id": "576486316948490001",  
+    "return_role": "BUYER",  
+    "return_type": "REFUND",  
+    "return_status": "RETURN_OR_REFUND_REQUEST_PENDING",  
+    "return_id": "576486316948490001",  
+    "create_time": 1627587600  
+    "update_time": 1644412885  
+  }  
+}
 ```
 
 ---
 
-### #21 — Best guess `INBOUND_FBT_ORDER_STATUS_CHANGE`
+### #21 — `INBOUND_FBT_ORDER_STATUS_CHANGE`
 
 | Field | Value |
 |-------|-------|
@@ -116,28 +151,58 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 21,
+  "seller_open_id": "{seller_open_id}",
+  "tts_notification_id": "7327112393057371910",
+  "timestamp": 1644412885,
+  "data": {
+    "inbound_order_id": "IBR577087614418520388",
+    "order_status": "CANCELLED",
+    "update_time": 1644412845
+  }
+}
 ```
 
 ---
 
-### #24 — Best guess `FBT_INVENTORY_UPDATE`
+### #24 —  `FBT_INVENTORY_UPDATE`
 
 | Field | Value |
 |-------|-------|
 | Trigger scenario | FBT-managed inventory quantity/status changes at a TikTok warehouse (Replenish/Clear/Return FBT) |
-| Expected parameters | `shop_id`, `sku_id`/`product_id`, warehouse id, quantity |
-| Confirmed `type` string | |
-| Verified (date, who) | |
+| Expected parameters | `seller_open_id`, `goods_id`, `sku_id`, `fbt_warehouse_inventory[]`, `update_time` |
+| Confirmed `type` string | `FBT_INVENTORY_UPDATE` |
+| Verified (date, who) | 2026-07-13, seller grill session |
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 24,
+  "seller_open_id": "{seller_open_id}",
+  "tts_notification_id": "7327112393057371910",
+  "timestamp": 1644412885,
+  "data": {
+    "goods_id": "732357708734418520388",
+    "sku_id": "123513234",
+    "fbt_warehouse_inventory": [
+      {
+        "fbt_warehouse_id": "73823232239293999999",
+        "on_hand_detail": {
+          "total_quantity": 7,
+          "reserved_quantity": 5,
+          "available_quantity": 2
+        }
+      }
+    ],
+    "update_time": 1644412845
+  }
+}
 ```
 
 ---
 
-### #27 — Best guess `INVENTORY_STATUS_CHANGE`
+### #27 — `INVENTORY_STATUS_CHANGE`
 
 | Field | Value |
 |-------|-------|
@@ -148,12 +213,34 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 **Sample JSON payload (redacted)**
 ```json
-
+{  
+  "type": 27,  
+  "tts_notification_id": "7327112393057371910",  
+  "shop_id": "7494049642642441621",  
+  "timestamp": 1644412885,  
+  "data": {  
+    "product_id": "732357708734418520388"  
+    "sku_id": "73235770873441823254"  
+    "trigger_reason": {  
+        "alert_type": "PREDICTION",  
+        "lead_days": 21  
+    },  
+    "current_inventory_status": "LOW_STOCK",  
+    "inventory_distribution": {  
+        "total_quantity": 100,  
+        "available_quantity": 50,  
+        "creator_reserved_quantity": 20,  
+        "campaign_reserved_quantity": 20,  
+        "committed_quantity": 10  
+    },  
+    "update_time": 1627587600  
+  }  
+}
 ```
 
 ---
 
-### #37 — Best guess `PRODUCT_AUDIT_STATUS_CHANGE` (research: matches, confirmed constant name in third-party reference)
+### #37 —  `PRODUCT_AUDIT_STATUS_CHANGE` 
 
 | Field | Value |
 |-------|-------|
@@ -164,12 +251,29 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 37,
+  "shop_id": "7494049642642441621",
+  "tts_notification_id": "7327112393057371910",
+  "timestamp": 1644412885,
+  "data": {
+    "product_id": 789078671231,
+    "audit": {
+      "status": "PRE_APPROVED",
+      "pre_approved_reason": "KYC_PENDING"
+    },
+    "integrated_platform_statuses": {
+      "platform": "TOKOPEDIA",
+      "status": "AUDITING"
+    },
+    "update_time": 1644412885
+  }
+}
 ```
 
 ---
 
-### #39 — Best guess `ACTIVITY_STATUS_CHANGE` (research: plausible but flagged as needing console verification)
+### #39 — `ACTIVITY_STATUS_CHANGE` 
 
 | Field | Value |
 |-------|-------|
@@ -180,12 +284,24 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 39,
+  "shop_id": "7494049642642441621",
+  "tts_notification_id": "7327112393057371910",
+  "timestamp": 1644412885,
+  "data": {
+    "activity_id": "7136104329798256386",
+    "update_time": 1644412885,
+    "activity_type": "FIXED_PRICE",
+    "product_level": "PRODUCT",
+    "status": "ONGOING"
+  }
+}
 ```
 
 ---
 
-### #58 — Best guess `FBT_MCF_ORDER_STATUS`
+### #58 — `FBT_MCF_ORDER_STATUS`
 
 | Field | Value |
 |-------|-------|
@@ -196,60 +312,142 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 58,
+  "creator_open_id": "{creator_open_id}",
+  "tts_notification_id": "7327112393057371910",
+  "timestamp": 1644412885,
+  "data": {
+    "mcf_order": {
+      "external_order_id": "shopify202208291503530001100220033",
+      "mcf_order_id": "7136104329798256386",
+      "consign_orders": {
+        "id": "OBF12345678",
+        "tracking_number": "TN87654321",
+        "carrier": "USPS",
+        "status": "processing",
+        "goods": {
+          "id": "1231231",
+          "quantity": 1
+        }
+      },
+      "create_time": 1661756811
+    }
+  }
+}
 ```
 
 ---
 
-### #64 — Best guess `AFTERSALES_REQUEST_STATUS_UPDATE`
+### #64 — `AFTERSALES_REQUEST_STATUS_UPDATE`
 
 | Field | Value |
 |-------|-------|
-| Trigger scenario | A refund-only aftersales request's status changes — feeds Prevent Refund (8c) |
+| Trigger scenario | A refund-only aftersales request's status changes — feeds Request Refund (8c) |
 | Expected parameters | `shop_id`, `return_id`/aftersales id, new status |
 | Confirmed `type` string | |
 | Verified (date, who) | |
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 64,
+  "tts_notification_id": "1111111111",
+  "shop_id": "1234567890",
+  "timestamp": 1644412885,
+  "data": {
+    "aftersales_request_id": "576486316948490001",
+    "return_role": "BUYER",
+    "aftersales_request_status": "PENDING_REQUEST_REVIEW",
+    "aftersales_request_create_time": 1627587600,
+    "aftersales_request_update_time": 1644412885
+  }
+}
 ```
 
 ---
 
-### #65 — Best guess `RMA_STATUS_UPDATE`
+### #65 — `RMA_STATUS_UPDATE`
 
 | Field | Value |
 |-------|-------|
-| Trigger scenario | Return Merchandise Authorization tracking status changes (item physically in transit back) — feeds Prevent Return (8b) |
+| Trigger scenario | Return Merchandise Authorization tracking status changes (item physically in transit back) — feeds Request Return (8b) |
 | Expected parameters | `shop_id`, `return_id`, RMA tracking status |
 | Confirmed `type` string | |
 | Verified (date, who) | |
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 65,
+  "tts_notification_id": "1111111113",
+  "shop_id": "1234567890",
+  "timestamp": 1644412889,
+  "data": {
+    "rma_id": "576486316948490002",
+    "aftersales_request_id": "576486316948490001",
+    "return_role": "BUYER",
+    "rma_status": "RMA_CREATED",
+    "rma_create_time": 1627587601,
+    "rma_update_time": 1644412889
+  }
+}
 ```
 
 ---
 
-### #67 — Best guess `REFUND_SUCCESS`
+### #67 —  `REFUND_SUCCESS`
 
 | Field | Value |
 |-------|-------|
-| Trigger scenario | A refund completes successfully — feeds Prevent Refund (8c) outcome confirmation |
+| Trigger scenario | A refund completes successfully — feeds Request Refund (8c) outcome confirmation |
 | Expected parameters | `shop_id`, `order_id`/`return_id`, refund amount, completion timestamp |
 | Confirmed `type` string | |
 | Verified (date, who) | |
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "type": 67,
+  "tts_notification_id": "7628321701399676688",
+  "shop_id": "123456",
+  "timestamp": 1776107052,
+  "data": {
+    "aftersales_request_id": "111111111",
+    "line_items": [
+      {
+        "main_order_id": "789456123",
+        "return_line_item_id": "999999",
+        "sku_id": "147852",
+        "sku_return_request_id": "321654987",
+        "sub_return_line_item_id": "888888"
+      },
+      {
+        "main_order_id": "789456123",
+        "return_line_item_id": "999999",
+        "sku_id": "147853",
+        "sku_return_request_id": "321654987",
+        "sub_return_line_item_id": "777777"
+      },
+      {
+        "main_order_id": "789456123",
+        "return_line_item_id": "666666",
+        "sku_id": "147853",
+        "sku_return_request_id": "321654987"
+      }
+    ],
+    "refund_currency": "USD",
+    "refund_status": "REFUND_SUCCESS",
+    "refund_timestamp": 1776102211,
+    "refund_total": "1.25",
+    "rma_id": "222222222"
+  }
+}
 ```
 
 ---
 
-### #68 — Best guess `INVENTORY_CHANGED`
+### #68 — `INVENTORY_CHANGED`
 
 | Field | Value |
 |-------|-------|
@@ -260,7 +458,34 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 **Sample JSON payload (redacted)**
 ```json
-
+{
+  "event_id": "d7813cae-9997-4d24-a583-7d85801250f1",
+  "occurred_at": "2026-04-02T09:28:34.979101552Z",
+  "seller_id": "7498123456789012345",
+  "product_id": "1891234567890123456",
+  "sku_id": "1729507467923261408",
+  "quantity_snapshot_after_change": {
+    "total_quantity": 7,
+    "total_available_quantity": 7,
+    "total_committed_quantity": 0,
+    "in_shop_quantity": 7,
+    "campaign_locked_quantity": 0,
+    "creator_locked_quantity": 0
+  },
+  "change_detail": [
+    {
+      "idempotency_key": "d7813cae-9997-4d24-a583-7d85801250f1",
+      "trigger_source": "manual_adjustment",
+      "occurred_at": "2026-04-02T09:28:34.979101552Z",
+      "total_quantity_delta": 4,
+      "available_quantity_delta": 4,
+      "committed_quantity_delta": 0,
+      "in_shop_quantity_delta": 4,
+      "campaign_locked_quantity_delta": 0,
+      "creator_locked_quantity_delta": 0
+    }
+  ]
+}
 ```
 
 ---

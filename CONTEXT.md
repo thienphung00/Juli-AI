@@ -114,6 +114,35 @@ the rules-pipeline output this term describes.
 
 ## Inventory
 
+**Phase 2 FBS-only fulfillment**:
+Phase 2 executors, Action Cards, and sandbox write chains assume **Fulfillment by
+Seller (FBS)** only — seller warehouse `warehouse_id`, Product API Inventory Search,
+and `Update Inventory`. FBT paths (inbound shipment, FBT MCF order processing, FBT
+restock via webhook) are **deferred to Phase 5** (Full Launch). Do not remove working
+webhook catalog entries or ingestion — ACK, verify, log, and ETL continue. Missing FBT
+**REST** endpoints stay `TBD` in `contract-collection.md`; FBT **webhook** payloads are
+sanitized in `webhook-contract-collection.md` (promote rows to verified when confirmed).
+Webhook **#24** `FBT_INVENTORY_UPDATE` is confirmed (grill 2026-07-13); intake only in
+Phase 2 — no FBT executor dispatch until Phase 5.
+
+**Clear Excess Inventory (workflow 4)**:
+FBS executor workflow — Product API price markdown, Promotion API activity lifecycle,
+and `Update Inventory` (step 6a). `execution_layer.md` also documents step 6b (FBT
+inventory webhook monitor) as the FBT branch of the same workflow; **do not remove or
+split** catalog mappings. Webhook #24 may list `clear_excess_4` alongside FBT keys;
+the **executor** remains FBS-only in Phase 2. FBT branch automation deferred Phase 5.
+_Avoid_: removing `clear_excess_4` from webhook #24, treating 6b as a separate workflow,
+implementing FBT clearance writes in Phase 2
+
+**Request Cancellation / Request Return / Request Refund (workflows 8a / 8b / 8c)**:
+Post-sales workflows that help the seller **process buyer requests** — surface
+eligibility and reject reasons from the Return/Refund API, then execute an explicit
+**approve** or **reject** decision (`decision` required in payload; no silent default).
+Retired display name: "Prevent *". 8b Phase 2 executor: FBS chain + optional step **7a**
+`Update Inventory`; step **7b** (FBT webhook) stays in `execution_layer.md`, deferred Phase 5.
+_Avoid_: Prevent Cancellation, Prevent Return, Prevent Refund, defaulting approve/reject
+without seller or rules layer setting `decision`
+
 **Supplier-sourced replenishment**:
 Restocking inventory by creating and tracking a purchase order through an external
 supplier integration (`Replenish via Supplier` workflow). Terminal step always
@@ -130,9 +159,10 @@ _Avoid_: ERP-sourced replenishment (when meaning supplier path), Warehouse Syste
 
 **Customer Service execution**:
 Approval-gated workflow actions for Resolve Recurring Customer Complaints (Phase 3
-deferred) and live Post-sales workflows Prevent Return (8b), Prevent Cancellation (8a),
-Prevent Refund (8c). Phase 2 CSAT is advisory-only with **no live workflow key**.
-_Avoid_: Prevent Product Returns (renamed Prevent Return 8b), Workflow Engine, Monitoring Engine, Messaging API (use Customer Service API in execution tables)
+deferred) and live Post-sales workflows **Request Return (8b)**, **Request Cancellation
+(8a)**, **Request Refund (8c)**. Phase 2 CSAT is advisory-only with **no live workflow key**.
+_Avoid_: Prevent Cancellation/Return/Refund (retired names), Prevent Product Returns,
+Workflow Engine, Monitoring Engine, Messaging API (use Customer Service API in execution tables)
 
 ## Scoring
 

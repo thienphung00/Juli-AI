@@ -60,6 +60,7 @@ register_tool("noop.ping", _noop_ping)
 
 
 def _register_builtin_tools() -> None:
+    from juli_backend.services.execution import leakage_handlers  # noqa: F401
     from juli_backend.services.execution import listing_handlers  # noqa: F401
 
 

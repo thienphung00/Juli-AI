@@ -113,7 +113,7 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
         "tiktok.fbt_inventory_update",
         ("FBT_INVENTORY_UPDATE",),
         ("replenish_inventory_3b", "clear_excess_4", "prevent_return_8b_fbt"),
-        confirmed=False,
+        confirmed=True,
     ),
     27: CatalogEntry(
         27,
