@@ -103,6 +103,23 @@ def mock_resources():
     resources.returns.search_returns_all.return_value = [
         {"return_id": "r1", "update_time": 1700000300},
     ]
+    resources.inventory.search.return_value = {
+        "code": 0,
+        "data": {
+            "inventory": [
+                {
+                    "product_id": "p-inv",
+                    "skus": [
+                        {
+                            "id": "sku-inv",
+                            "total_available_quantity": 5,
+                            "warehouse_inventory": [{"warehouse_id": "wh-1"}],
+                        }
+                    ],
+                }
+            ]
+        },
+    }
     return resources
 
 
@@ -239,6 +256,7 @@ class TestRunFujiwaPollCycle:
             TikTokCapability.PRODUCTION_READ,
         )
         mock_resources.orders.search_all.assert_called_once()
+        mock_resources.inventory.search.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_persists_sync_state_per_endpoint(
@@ -254,6 +272,7 @@ class TestRunFujiwaPollCycle:
         assert loaded["orders_last_update_time"] == 1700000100
         assert loaded["products_last_update_time"] == 1700000200
         assert loaded["returns_last_update_time"] == 1700000300
+        assert "inventory_last_sync_at" in loaded
 
     @pytest.mark.asyncio
     async def test_resumes_from_persisted_sync_state(
@@ -292,6 +311,7 @@ class TestRunFujiwaPollCycle:
         mock_resources.orders.search_all.assert_not_called()
         mock_resources.products.search_all.assert_not_called()
         mock_resources.returns.search_returns_all.assert_not_called()
+        mock_resources.inventory.search.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_uses_production_read_factory(

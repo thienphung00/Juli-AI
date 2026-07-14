@@ -19,6 +19,7 @@ from juli_backend.core.security.credential_resolver import (
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok.constants import (
+    INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
@@ -37,6 +38,7 @@ from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
+    sync_inventory,
     sync_orders,
     sync_products,
     sync_returns,
@@ -71,6 +73,7 @@ _FUJIWA_POLL_STEPS: tuple[_PollStep, ...] = (
     _PollStep(ORDER_SEARCH_PATH, "orders", sync_orders),
     _PollStep(PRODUCT_SEARCH_PATH, "products", sync_products),
     _PollStep(RETURN_SEARCH_PATH, "returns", sync_returns),
+    _PollStep(INVENTORY_SEARCH_PATH, "inventory", sync_inventory),
 )
 
 
@@ -166,7 +169,7 @@ async def run_fujiwa_poll_cycle(
     sync_state_repo: TikTokSyncStateRepo | None = None,
     sleep: SleepFn = asyncio.sleep,
 ) -> None:
-    """Run one Fujiwa poll cycle for orders, products, and returns."""
+    """Run one Fujiwa poll cycle for orders, products, returns, and inventory."""
     resolve = resolve_credential or resolve_production_read_credential
     credential = await resolve(session)
     _assert_fujiwa_credential(credential)

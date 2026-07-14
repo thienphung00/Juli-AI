@@ -131,8 +131,9 @@ class TestSandboxWriteClientFactoryResources:
     ):
         prod_resources = ProductionReadClientFactory().create_resources(production_config)
         assert not hasattr(prod_resources, "fulfillment")
-        assert not hasattr(prod_resources, "inventory")
         assert not hasattr(prod_resources, "promotion")
+        # Inventory search is Layer 1 (P2-B9); write update remains sandbox-guarded.
+        assert prod_resources.inventory is not None
 
 
 class TestInventoryUpdateContract:

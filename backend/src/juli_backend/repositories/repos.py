@@ -245,6 +245,7 @@ _ENDPOINT_STATE_KEYS: dict[str, str] = {
     "orders": "orders_last_update_time",
     "products": "products_last_update_time",
     "returns": "returns_last_update_time",
+    "inventory": "inventory_last_sync_at",
 }
 
 _STATE_KEY_ENDPOINTS = {value: key for key, value in _ENDPOINT_STATE_KEYS.items()}

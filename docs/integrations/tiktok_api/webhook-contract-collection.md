@@ -453,8 +453,8 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 |-------|-------|
 | Trigger scenario | Raw inventory quantity change event (distinct from #27's status-level change) — feeds Replenish (3) / Clear Excess (4) |
 | Expected parameters | `shop_id`, `sku_id`, delta or new quantity |
-| Confirmed `type` string | |
-| Verified (date, who) | |
+| Confirmed `type` string | `INVENTORY_CHANGED` (catalog; Partner Center webhook logs pending) |
+| Verified (date, who) | Pending — normalize+ETL covered with sample shape (#381); fill when Partner Center logs available |
 
 **Sample JSON payload (redacted)**
 ```json

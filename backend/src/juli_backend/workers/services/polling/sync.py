@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from juli_backend.integrations.tiktok.constants import (
+    INVENTORY_SEARCH_PATH,
     MARKETPLACE_CREATORS_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
@@ -24,8 +26,10 @@ from juli_backend.integrations.tiktok.constants import (
 )
 from juli_backend.integrations.tiktok.exceptions import PermissionDeniedError, TikTokAPIError
 from juli_backend.integrations.tiktok.mapping import (
+    expand_inventory_search,
     expand_order_line_items,
     normalize_creator,
+    normalize_inventory,
     normalize_order,
     normalize_product,
     normalize_return,
@@ -158,6 +162,55 @@ async def sync_returns(
 
     if returns:
         sync_state["returns_last_update_time"] = max_update_time
+
+
+async def sync_inventory(
+    *,
+    resource: Any,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    app_id: str,
+    shop_id: str,
+    sync_state: dict[str, Any],
+) -> None:
+    """Fetch inventory snapshot, flatten SKUs, and hand off to ETL.
+
+    Search Inventory has no ``update_time`` filter — this is a full-snapshot
+    reconciliation backstop. Incremental changes arrive via webhook #68.
+    """
+    if not rate_limiter.acquire(
+        app_id, shop_id, INVENTORY_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
+        logger.info("rate_limited", extra={"shop_id": shop_id, "resource": "inventory"})
+        return
+
+    try:
+        response = resource.search()
+    except TikTokAPIError:
+        logger.warning("sync_inventory_failed", extra={"shop_id": shop_id}, exc_info=True)
+        return
+
+    if not isinstance(response, dict):
+        logger.warning(
+            "sync_inventory_invalid_response",
+            extra={"shop_id": shop_id, "type": type(response).__name__},
+        )
+        return
+
+    rows = expand_inventory_search(response)
+    synced_at = int(time.time())
+
+    for row in rows:
+        payload = normalize_inventory(row)
+        payload.setdefault("update_time", synced_at)
+        await handoff_fn(
+            "tiktok.inventory.raw",
+            shop_id,
+            json.dumps(payload).encode(),
+        )
+
+    if rows:
+        sync_state["inventory_last_sync_at"] = synced_at
 
 
 async def sync_creators(

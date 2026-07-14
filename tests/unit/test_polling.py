@@ -20,6 +20,7 @@ from juli_backend.integrations.tiktok.exceptions import (
 from juli_backend.workers.services.polling.sync import (
     backfill_shop,
     sync_creators,
+    sync_inventory,
     sync_orders,
     sync_products,
     sync_returns,
@@ -420,3 +421,79 @@ class TestBackfillShop:
         )
 
         assert result["creators_last_update_time"] == 1700000200
+
+
+class TestSyncInventory:
+    @pytest.fixture
+    def mock_inventory_resource(self):
+        resource = MagicMock()
+        resource.search.return_value = {
+            "code": 0,
+            "data": {
+                "inventory": [
+                    {
+                        "product_id": "prod-1",
+                        "skus": [
+                            {
+                                "id": "sku-1",
+                                "total_available_quantity": 42,
+                                "warehouse_inventory": [
+                                    {"available_quantity": 42, "warehouse_id": "wh-1"}
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+        }
+        return resource
+
+    @pytest.mark.asyncio
+    async def test_flattens_search_and_hands_off_inventory(
+        self,
+        mock_inventory_resource,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        await sync_inventory(
+            resource=mock_inventory_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+        )
+
+        mock_inventory_resource.search.assert_called_once()
+        assert len(handoff_calls) == 1
+        assert handoff_calls[0]["channel"] == "tiktok.inventory.raw"
+        payload = json.loads(handoff_calls[0]["value"])
+        assert payload["sku_id"] == "sku-1"
+        assert payload["available_quantity"] == 42
+        assert "inventory_last_sync_at" in sync_state
+
+    @pytest.mark.asyncio
+    async def test_skips_when_rate_limited(
+        self,
+        mock_inventory_resource,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        mock_rate_limiter.acquire.return_value = False
+
+        await sync_inventory(
+            resource=mock_inventory_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+        )
+
+        mock_inventory_resource.search.assert_not_called()
+        assert handoff_calls == []
+        assert sync_state == {}

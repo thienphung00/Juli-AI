@@ -3,8 +3,10 @@
 from decimal import Decimal
 
 from juli_backend.integrations.tiktok.mapping import (
+    expand_inventory_search,
     expand_order_line_items,
     normalize_creator,
+    normalize_inventory,
     normalize_livestream,
     normalize_order,
     normalize_product,
@@ -156,6 +158,74 @@ class TestNormalizeCreatorAndStatement:
         assert mapped["settlement_id"] == "st-1"
         assert mapped["amount"] == "88.00"
         assert mapped["status"] == "PAID"
+
+
+class TestNormalizeInventory:
+    def test_expand_inventory_search_flattens_nested_skus(self):
+        response = {
+            "code": 0,
+            "data": {
+                "inventory": [
+                    {
+                        "product_id": "1729700293904403063",
+                        "skus": [
+                            {
+                                "id": "1729700293904534135",
+                                "seller_sku": "FUJIWA02-450",
+                                "total_available_quantity": 995,
+                                "warehouse_inventory": [
+                                    {
+                                        "available_quantity": 995,
+                                        "warehouse_id": "7272949914115966726",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+        }
+
+        rows = expand_inventory_search(response)
+
+        assert len(rows) == 1
+        assert rows[0]["sku_id"] == "1729700293904534135"
+        assert rows[0]["product_id"] == "1729700293904403063"
+        assert rows[0]["available_quantity"] == 995
+        assert rows[0]["warehouse_id"] == "7272949914115966726"
+
+    def test_normalize_inventory_changed_webhook_snapshot(self):
+        raw = {
+            "event_id": "d7813cae-9997-4d24-a583-7d85801250f1",
+            "product_id": "1891234567890123456",
+            "sku_id": "1729507467923261408",
+            "quantity_snapshot_after_change": {
+                "total_available_quantity": 7,
+                "total_committed_quantity": 0,
+            },
+            "occurred_at": "2026-04-02T09:28:34.979101552Z",
+        }
+
+        mapped = normalize_inventory(raw)
+
+        assert mapped["sku_id"] == "1729507467923261408"
+        assert mapped["product_id"] == "1891234567890123456"
+        assert mapped["available_quantity"] == 7
+
+    def test_transform_inventory_changed_via_etl_channel(self):
+        payload = {
+            "sku_id": "sku-68",
+            "product_id": "prod-68",
+            "quantity_snapshot_after_change": {"total_available_quantity": 12},
+            "occurred_at": "2026-04-02T09:28:34.979101552Z",
+        }
+
+        kind, row = transform_for_channel("tiktok.inventory.raw", payload)
+
+        assert kind == "inventory"
+        assert row["tiktok_sku_id"] == "sku-68"
+        assert row["tiktok_product_id"] == "prod-68"
+        assert row["quantity"] == 12
 
 
 class TestTransformOrder:

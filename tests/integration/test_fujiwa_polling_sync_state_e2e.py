@@ -170,6 +170,7 @@ class TestFujiwaPollingSyncStateE2E:
         assert loaded["orders_last_update_time"] == EXPECTED_ORDER_CURSOR
         assert loaded["products_last_update_time"] == EXPECTED_PRODUCT_CURSOR
         assert loaded["returns_last_update_time"] == EXPECTED_RETURN_CURSOR
+        assert "inventory_last_sync_at" in loaded
 
     @pytest.mark.asyncio
     async def test_repoll_is_idempotent_and_does_not_corrupt_sync_state(
@@ -191,7 +192,8 @@ class TestFujiwaPollingSyncStateE2E:
         row_count_after_second = await _count_sync_state_rows(session, fujiwa_shop.id)
 
         assert after_second == after_first
-        assert row_count_after_second == row_count_after_first == 3
+        assert row_count_after_second == row_count_after_first == 4
+        assert "inventory_last_sync_at" in after_second
 
     @pytest.mark.asyncio
     async def test_partial_endpoint_failure_preserves_existing_sync_state(

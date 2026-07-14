@@ -47,7 +47,7 @@ class ProductionReadResources:
     orders: OrdersResource
     products: ProductsResource
     returns: ReturnsResource
-
+    inventory: InventoryResource
 
 @dataclass(frozen=True)
 class SandboxWriteResources:
@@ -90,6 +90,7 @@ class ProductionReadClientFactory:
             orders=OrdersResource(client),
             products=ProductsResource(client),
             returns=ReturnsResource(client),
+            inventory=InventoryResource(client),
         )
 
 

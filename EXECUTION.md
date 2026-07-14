@@ -135,7 +135,7 @@ Scheduled polling, business-entity ETL, and feature aggregates remain pending.
 - [ ] **P2-B7** Leakage live executors. _(#380)_
 - [ ] **P2-B8** Live operations pipeline wiring (rules-based classify → health → rank).
       _(folded into the P2-B1 manual-refresh issue, #303 — no separate slice.)_
-- [ ] **P2-B9** Scoped inventory collection. _(#381; `sync_inventory` removed from poll cycle.)_
+- [x] **P2-B9** Scoped inventory collection. _(#381; hybrid poll Search Inventory + webhook #68.)_
 - [ ] **P2-B10** Deferred workflow executors. _(by design — Affiliate/Livestream/CS/Finance
       prefixes stay ACK-only through Phase 2; no gap, no issue.)_
 
