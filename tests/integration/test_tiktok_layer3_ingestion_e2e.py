@@ -234,7 +234,7 @@ class TestPollToEtlIngestion:
     ):
         """Positive TTL backoff sleeps once, then the poll cycle completes."""
         rate_limiter = MagicMock()
-        rate_limiter.is_exhausted.side_effect = [True, False, False, False]
+        rate_limiter.is_exhausted.side_effect = [True, False, False, False, False]
         rate_limiter.time_until_reset.return_value = 0.01
         rate_limiter.acquire.return_value = True
 
