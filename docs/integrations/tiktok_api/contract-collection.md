@@ -241,6 +241,7 @@ curl -k -X 'POST' -d '{}' -H 'Content-Type: application/json' -H 'x-tts-access-t
 | Version | `202309` |
 | Method / path | `POST /product/202309/inventory/search` |
 | Optional body | `sku_ids` |
+| Verified | ✅ Fujiwa sample captured (`samples/inventory-search-response.json`); wired in poll `sync_inventory` (#381) |
 
 **cURL**
 ```bash

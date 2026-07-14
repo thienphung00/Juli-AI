@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-381",
+  "issue": 381,
+  "timestamp": "2026-07-14T03:38:40Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main (be46fdde5876d505a21c2f0b52d6d0295d4aed1c)",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "After removing unrelated #1 Order Status Change paste from webhook-contract-collection.md, diff matches hybrid poll Search Inventory backstop + #68 normalize/ETL intent. P2-B9 wiring, flatten, upsert tests, A-8 verified, EXECUTION checkbox covered.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_polling.py",
+      "hunk": "Near-identical Search Inventory nested fixture also in orchestration/mapping/poll-etl tests",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [],
+  "phaseRunId": "381-2026-07-14-inventory-sync"
+}

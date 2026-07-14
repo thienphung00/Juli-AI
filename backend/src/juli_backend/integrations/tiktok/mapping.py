@@ -345,3 +345,79 @@ def normalize_statement(raw: dict[str, Any]) -> dict[str, Any]:
             result["status"] = status
 
     return result
+
+
+def expand_inventory_search(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten Search Inventory nested ``inventory[] → skus[]`` into ETL rows."""
+    data = raw.get("data") if isinstance(raw.get("data"), dict) else None
+    inventory = (
+        data.get("inventory")
+        if data is not None
+        else raw.get("inventory")
+    )
+    if not isinstance(inventory, list):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for product in inventory:
+        if not isinstance(product, dict):
+            continue
+        product_id = product.get("product_id")
+        skus = product.get("skus")
+        if not isinstance(skus, list):
+            continue
+        for sku in skus:
+            if not isinstance(sku, dict):
+                continue
+            warehouse_id = None
+            warehouses = sku.get("warehouse_inventory")
+            if isinstance(warehouses, list):
+                for warehouse in warehouses:
+                    if isinstance(warehouse, dict) and warehouse.get("warehouse_id"):
+                        warehouse_id = warehouse.get("warehouse_id")
+                        break
+            rows.append(
+                {
+                    "sku_id": sku.get("id") or sku.get("sku_id"),
+                    "product_id": product_id,
+                    "available_quantity": (
+                        sku.get("total_available_quantity")
+                        if sku.get("total_available_quantity") is not None
+                        else sku.get("available_quantity")
+                    ),
+                    "warehouse_id": warehouse_id,
+                    "seller_sku": sku.get("seller_sku"),
+                }
+            )
+    return rows
+
+
+def normalize_inventory(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map Search Inventory flat rows or #68 webhook snapshots to ETL contract."""
+    result = dict(raw)
+
+    if not result.get("sku_id"):
+        sku_id = result.get("id")
+        if sku_id is not None:
+            result["sku_id"] = sku_id
+
+    snapshot = result.get("quantity_snapshot_after_change")
+    if isinstance(snapshot, dict):
+        if result.get("available_quantity") is None:
+            qty = snapshot.get("total_available_quantity")
+            if qty is None:
+                qty = snapshot.get("total_quantity")
+            if qty is not None:
+                result["available_quantity"] = qty
+        if result.get("quantity") is None and result.get("available_quantity") is not None:
+            result["quantity"] = result["available_quantity"]
+
+    if result.get("available_quantity") is None and result.get("quantity") is not None:
+        result["available_quantity"] = result["quantity"]
+
+    if not result.get("product_id"):
+        product_id = result.get("tiktok_product_id")
+        if product_id is not None:
+            result["product_id"] = product_id
+
+    return result

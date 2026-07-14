@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
 from juli_backend.integrations.tiktok.constants import (
+    INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
@@ -27,12 +28,14 @@ _PATH_FIXTURES: dict[str, str] = {
     ORDER_SEARCH_PATH: "orders-search-response.json",
     PRODUCT_SEARCH_PATH: "products-search-response.json",
     RETURN_SEARCH_PATH: "returns-search-response.json",
+    INVENTORY_SEARCH_PATH: "inventory-search-response.json",
 }
 
 _ITEMS_KEY_BY_PATH: dict[str, str] = {
     ORDER_SEARCH_PATH: "orders",
     PRODUCT_SEARCH_PATH: "products",
     RETURN_SEARCH_PATH: "return_orders",
+    # Inventory is a full snapshot — never filter by update_time_ge.
 }
 
 

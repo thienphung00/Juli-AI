@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 381,
+  "executorDomain": "backend",
+  "phaseRunId": "381-2026-07-14-inventory-sync",
+  "startedAt": "2026-07-14T03:16:16Z",
+  "completedAt": "2026-07-14T03:16:16Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "filesModified": [],
+  "testsAdded": [],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [],
+  "implementationSummary": "",
+  "assumptions": [],
+  "risks": [],
+  "tddEvidence": {
+    "red": [
+      "TestNormalizeInventory / TestSyncInventory ImportError then failing behaviors",
+      "ETL second-poll upsert tests authored before green completes"
+    ],
+    "green": [
+      "expand_inventory_search + normalize_inventory (#68 snapshot)",
+      "sync_inventory + ProductionReadResources.inventory + poll step",
+      "inventory_last_sync_at + ETL upsert idempotency"
+    ],
+    "refactor": [
+      "MODULE.md / EXECUTION / contract verification notes",
+      "recorded replay inventory fixture"
+    ]
+  },
+  "filesChanged": [
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "EXECUTION.md",
+    "tests/unit/test_tiktok_mapping.py",
+    "tests/unit/test_polling.py",
+    "tests/unit/test_etl.py",
+    "tests/integration/test_inventory_poll_etl_upsert.py",
+    "tests/integration/tiktok_recorded_replay.py"
+  ],
+  "acceptanceCriteriaMet": [
+    "sync_inventory in run_fujiwa_poll_cycle",
+    "Idempotent InventoryItem upsert",
+    "Aggregates read live InventoryItem (existing builder/computed_kpis)",
+    "3 Inventory KPIs live when rows synced",
+    "Integration second poll updates not duplicates",
+    "EXECUTION P2-B9 [x]"
+  ],
+  "notes": "Hybrid: poll backstop + webhook #68 normalize; #68 Partner Center Verified deferred"
+}

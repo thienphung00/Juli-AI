@@ -1,0 +1,92 @@
+{
+  "id": "review-issue-381",
+  "issue": 381,
+  "timestamp": "2026-07-14T03:39:45Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "P2-B9 inventory sync: intent-review pass after removing out-of-scope #1 webhook paste. Hybrid poll sync_inventory + #68 normalize/ETL; rate-limit and TikTokAPIError handling match sibling workers; no new public endpoints or secrets. AC coverage mapped.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "tests/integration/test_inventory_poll_etl_upsert.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "flattens search and hands off inventory into poll cycle",
+          "test": "tests/unit/test_polling.py::test_flattens_search_and_hands_off_inventory"
+        },
+        {
+          "criterion": "persists sync state per endpoint including inventory watermark",
+          "test": "tests/unit/test_fujiwa_polling_orchestration.py::test_persists_sync_state_per_endpoint"
+        },
+        {
+          "criterion": "etl second poll updates inventory without duplicating",
+          "test": "tests/unit/test_etl.py::test_etl_second_poll_updates_inventory_without_duplicating"
+        },
+        {
+          "criterion": "etl upserts inventory from webhook 68 and poll snapshot",
+          "test": "tests/unit/test_etl.py::test_etl_upserts_inventory_from_webhook_68_and_poll_snapshot"
+        },
+        {
+          "criterion": "second poll cycle updates inventory item not duplicates",
+          "test": "tests/integration/test_inventory_poll_etl_upsert.py::test_second_poll_cycle_updates_inventory_item_not_duplicates"
+        },
+        {
+          "criterion": "normalize inventory changed webhook snapshot for ETL",
+          "test": "tests/unit/test_tiktok_mapping.py::test_normalize_inventory_changed_webhook_snapshot"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 107,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Consider pagination (next_page_token) on InventoryResource.search if Fujiwa catalog exceeds a single page.",
+    "Extract shared Search Inventory fixtures to reduce duplicated test payloads (non-blocking smell).",
+    "Fill #68 Confirmed/Verified when Partner Center webhook logs are available."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [
+    {
+      "id": "doc-creep-order-status-1",
+      "description": "Unrelated #1 Order Status Change sample in webhook-contract-collection.md",
+      "resolved": true,
+      "resolution": "Removed from #381 diff before Guardrails PASS"
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "maintainabilityFindings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "observabilityFindings": [],
+  "staticAnalysisExecuted": false,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-381.json",
+  "sourceIntentReviewArtifact": "agent-runtime/artifacts/intent-reviews/intent-review-issue-381.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": [],
+  "reviewDurationMs": 180000,
+  "phaseRunId": "381-2026-07-14-inventory-sync"
+}

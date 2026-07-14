@@ -8,6 +8,7 @@ from typing import Any
 
 from juli_backend.integrations.tiktok.mapping import (
     normalize_creator,
+    normalize_inventory,
     normalize_livestream,
     normalize_order,
     normalize_product,
@@ -211,6 +212,7 @@ def _canonical_audit_status(value: Any) -> str:
 
 
 def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    body = normalize_inventory(body)
     sku_id = body.get("sku_id")
     if not sku_id:
         raise TransformError("sku_id required")
@@ -228,7 +230,11 @@ def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[
         "warehouse_id": body.get("warehouse_id"),
         "velocity": str(body.get("velocity") or "low"),
         "update_time": _unix_to_datetime(
-            body.get("update_time") or body.get("updated_at") or payload.get("timestamp")
+            body.get("update_time")
+            or body.get("updated_at")
+            or body.get("occurred_at")
+            or payload.get("timestamp")
+            or payload.get("occurred_at")
         ),
     }
 

@@ -364,6 +364,101 @@ async def test_etl_persists_canonical_product_and_repolls_idempotently(
     assert product.audit_status == "active"
 
 
+async def test_etl_upserts_inventory_from_webhook_68_and_poll_snapshot(
+    session, shop, publish_dlq
+):
+    """#68 snapshot and poll flat rows upsert the same InventoryItem by shop/SKU."""
+    from juli_backend.models.models import InventoryItem
+    from juli_backend.repositories.repos import InventoryRepo
+
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    webhook_payload = {
+        "event_id": "d7813cae-9997-4d24-a583-7d85801250f1",
+        "product_id": "1891234567890123456",
+        "sku_id": "sku-inv-1",
+        "quantity_snapshot_after_change": {"total_available_quantity": 7},
+        "occurred_at": "2026-04-02T09:28:34.979101552Z",
+    }
+    poll_payload = {
+        "sku_id": "sku-inv-1",
+        "product_id": "1891234567890123456",
+        "available_quantity": 15,
+        "warehouse_id": "wh-1",
+        "update_time": 1_800_000_000,
+    }
+
+    assert await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.inventory.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(webhook_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    consumer2 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    assert await consumer2.ingest(
+        IngestRecord(
+            channel="tiktok.inventory.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(poll_payload).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    items = await InventoryRepo(session).list(shop.id)
+    assert len(items) == 1
+    assert items[0].tiktok_sku_id == "sku-inv-1"
+    assert items[0].quantity == 15
+    assert items[0].warehouse_id == "wh-1"
+
+    result = await session.execute(select(InventoryItem).where(InventoryItem.shop_id == shop.id))
+    assert len(list(result.scalars().all())) == 1
+
+
+async def test_etl_second_poll_updates_inventory_without_duplicating(
+    session, shop, publish_dlq
+):
+    from juli_backend.repositories.repos import InventoryRepo
+
+    consumer = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    first = {
+        "sku_id": "sku-poll-2",
+        "product_id": "prod-poll-2",
+        "available_quantity": 10,
+        "update_time": 1_700_000_600,
+    }
+    second = {
+        "sku_id": "sku-poll-2",
+        "product_id": "prod-poll-2",
+        "available_quantity": 3,
+        "update_time": 1_700_000_700,
+    }
+
+    assert await consumer.ingest(
+        IngestRecord(
+            channel="tiktok.inventory.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(first).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    consumer2 = EtlConsumer(session=session, publish_dlq=publish_dlq)
+    assert await consumer2.ingest(
+        IngestRecord(
+            channel="tiktok.inventory.raw",
+            shop_key=TIKTOK_SHOP_ID,
+            value=json.dumps(second).encode(),
+        )
+    ) == ProcessOutcome.PROCESSED
+    await session.commit()
+
+    items = await InventoryRepo(session).list(shop.id)
+    assert len(items) == 1
+    assert items[0].quantity == 3
+
+
 async def test_etl_persists_canonical_order_and_repolls_idempotently(
     session, shop, publish_dlq
 ):
