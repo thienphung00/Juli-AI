@@ -14,6 +14,9 @@ decision-focused, not dashboard/reporting.
 - `GET /v1/creators/{id}/content` — content-to-conversion funnel for a creator
 - `GET /v1/products` — products (product nodes for matching)
 - `GET /v1/recommendations` — decision-focused recommendations: match/justification + CTA
+- `POST /webhooks/tiktok` — TikTok Shop webhook ingress (Issue #381), not under `/v1`.
+  Mounted from `juli_backend.services.webhook.app.build_webhook_service`; see
+  `api/routes/webhook_tiktok.py` and `services/webhook/MODULE.md`.
 
 ## Removed in the matching pivot
 `orders`, `inventory`, `settlements`, `analytics`, `livestreams`, and `alerts`

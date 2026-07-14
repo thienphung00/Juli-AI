@@ -8,9 +8,12 @@ the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipel
 
 ## Public API
 
-- `create_app(*, app_key, app_secret, handoff_fn) -> FastAPI` — application factory
+- `create_app(*, app_key, app_secret, handoff_fn) -> FastAPI` — standalone application factory
   - `handoff_fn: Callable[[str, str, bytes], Awaitable[None]]` — async function
     invoked with `(channel, shop_key, payload_bytes)` for each verified in-scope event
+- `build_webhook_service(*, app_key, app_secret, handoff_fn, side_effects=None) -> TikTokWebhookService`
+  — shared verify+dispatch+handoff assembly, reused by `create_app` and by
+  `juli_backend.api.routes.webhook_tiktok` (the deployed mount point)
 - `HandoffFn` — type alias (from `juli_backend.services.ingestion`)
 - `WEBHOOK_PATH` — `/webhooks/tiktok`
 
@@ -39,6 +42,21 @@ the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipel
 - `juli_backend.models.models.WorkflowWebhookSignal` — durable workflow-intent records
 
 ## Wiring (production)
+
+`WEBHOOK_PATH` (`/webhooks/tiktok`) is registered on **two** ASGI apps that share
+the `build_webhook_service` assembly:
+
+1. **`juli_backend.api.app`** (deployed) — `api/routes/webhook_tiktok.py` mounts
+   the route directly on the main API via `app.include_router(...)`, using the
+   request-scoped `get_session` dependency (same as every other `/v1/*` route)
+   instead of an injected `session_factory`. This is what TikTok Partner Center
+   actually reaches at `https://api.app-juli.com/webhooks/tiktok` — Nginx and
+   `juli-api` (systemd) require no changes since both already proxy/serve every
+   path on port 8000 (see `docs/runbooks/backend-deploy-runbook.md`).
+2. **`create_app(...)`** below (standalone, not deployed) — a dedicated FastAPI
+   app kept for isolated testing (`tests/unit/test_webhook.py`,
+   `test_webhook_main.py`) and as a future extraction point if webhook traffic
+   ever needs its own process:
 
 ```python
 from juli_backend.services.etl.consumer import EtlConsumer

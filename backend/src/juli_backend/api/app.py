@@ -12,6 +12,7 @@ from juli_backend.api.routes.outcomes import router as outcomes_router
 from juli_backend.api.routes.products import router as products_router
 from juli_backend.api.routes.recommendations import router as recommendations_router
 from juli_backend.api.routes.shops import router as shops_router
+from juli_backend.api.routes.webhook_tiktok import router as webhook_tiktok_router
 from juli_backend.api.routes.workflow_outcomes import router as workflow_outcomes_router
 
 
@@ -38,5 +39,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(creators_router)
     app.include_router(v1_router)
     app.include_router(debug_tiktok_router)
+    # Not under /v1 — TikTok Partner Center calls the literal path it was
+    # registered with (see juli_backend.services.webhook.app.WEBHOOK_PATH).
+    app.include_router(webhook_tiktok_router)
 
     return app

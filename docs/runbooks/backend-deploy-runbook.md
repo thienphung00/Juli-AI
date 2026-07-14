@@ -8,6 +8,14 @@ Deploy the existing FastAPI app behind `https://api.app-juli.com/` for TikTok Ap
 Review. This slice serves only the endpoints required for review: `/health`, auth
 surface, and (after #259) the TikTok OAuth callback.
 
+> **Update (#381):** `POST /webhooks/tiktok` is now also served by this same
+> `juli-api` process (see `backend/src/juli_backend/api/routes/webhook_tiktok.py`).
+> No new systemd unit or Nginx location is required — the existing catch-all
+> `location /` in `infra/nginx/api.app-juli.com.conf` already proxies it to
+> `127.0.0.1:8000`. Partner Center webhook deliveries need `TIKTOK_APP_KEY` /
+> `TIKTOK_APP_SECRET` set (already required for OAuth, below); no other new
+> service is deployed for webhooks.
+
 ---
 
 ## Topology
@@ -40,8 +48,10 @@ VPS only — never commit real values.
 | `SUPABASE_JWT_SECRET` | Protected routes | Optional when frontend uses UI-only demo login |
 
 See [`env/api.env.example`](env/api.env.example). App Review **does not** require
-`REDIS_URL`, cron, workers, ML batch jobs, polling, or webhook services. If startup
-forces one of these, stop and split the dependency into a new issue.
+`REDIS_URL`, cron, workers, ML batch jobs, polling, or a *separate* webhook
+service — TikTok webhook ingress (#381) is a route on this same `juli-api`
+process, not an additional deploy target. If startup forces one of the former,
+stop and split the dependency into a new issue.
 
 ---
 
@@ -125,7 +135,7 @@ sudo systemctl restart juli-api
 - [ ] `curl -sS http://127.0.0.1:8000/health` returns JSON with `"status":"ok"`
 - [ ] `https://api.app-juli.com/health` returns 2xx JSON over HTTPS
 - [ ] `./infra/scripts/smoke-test.sh` passes backend `/health` check
-- [ ] Redis, cron, workers, ML jobs, polling, and webhook services **not** started
+- [ ] Redis, cron, workers, ML jobs, polling, and a separate webhook service **not** started (webhook ingress runs as a route on `juli-api`, see #381)
 - [ ] Alembic migrations **not** run unless OAuth/login persistence requires schema
 
 ---
