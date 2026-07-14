@@ -191,9 +191,17 @@ class TestFujiwaPollingSyncStateE2E:
         after_second = await repo.load(fujiwa_shop.id)
         row_count_after_second = await _count_sync_state_rows(session, fujiwa_shop.id)
 
-        assert after_second == after_first
-        assert row_count_after_second == row_count_after_first == 4
+        # Cursor endpoints stay stable on identical replay fixtures. Inventory uses a
+        # wall-clock watermark (int(time.time())), so it may advance by ≤1s between polls.
+        for key in (
+            "orders_last_update_time",
+            "products_last_update_time",
+            "returns_last_update_time",
+        ):
+            assert after_second[key] == after_first[key]
         assert "inventory_last_sync_at" in after_second
+        assert after_second["inventory_last_sync_at"] >= after_first["inventory_last_sync_at"]
+        assert row_count_after_second == row_count_after_first == 4
 
     @pytest.mark.asyncio
     async def test_partial_endpoint_failure_preserves_existing_sync_state(

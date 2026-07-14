@@ -108,6 +108,7 @@ Webhook POST → verify signature → parse JSON
             → catalog dispatch (handler + workflow_webhook_signals)
             → handoff_fn(channel, shop_id, payload_bytes)  [in-scope only]
             → EtlConsumer.ingest (dedup, transform, persist)
+            → raw audit row (webhook_raw_events) on every exit path
 ```
 
 Account/platform events (#6, #7) write side effects only — no ETL handoff.
@@ -119,8 +120,31 @@ handoff shop key (see `TikTokWebhookPayload.from_dict`).
 
 ---
 
-## Webhook vs polling (P2)
+## Raw audit log (#392)
 
+Every inbound delivery is persisted to `webhook_raw_events` (redacted) regardless of
+catalog recognition or HTTP outcome — including 401/400 paths. This supports audit,
+replay, and gathering real delivered `type` strings for Partner Center confirmation
+work (#382).
+
+| Field | Notes |
+|-------|--------|
+| `event_type` | Raw `type` as delivered (before catalog normalization) |
+| `tiktok_shop_id` | Nullable string — **not** an FK (unknown shops still insert) |
+| `raw_body` | Denylist-redacted JSON (`[REDACTED]`); omitted when body is not valid JSON; truncated at 32KB |
+| `headers` | Allowlisted subset only (`content-type`, `user-agent`) |
+| `processing_status` | `missing_signature` / `invalid_signature` / `malformed_json` / `missing_fields`, or dispatcher handler name (`deferred_out_of_scope`, `unknown_event`, catalog handler) |
+| `http_status` | Response status returned to TikTok |
+
+Write path is fail-safe: recorder errors log `webhook_raw_log_failed` and never change
+the HTTP response or block the 3s ACK / ETL handoff. Index on `received_at` is present
+for future retention pruning; automated pruning and S3 archival are deferred.
+
+**Implementation:** `webhook_raw_log.py`, `webhook_redaction.py`, migration `016_webhook_raw_events`.
+
+---
+
+## Webhook vs polling (P2)
 Per `data-sources.md` operational rules:
 
 - **Webhooks** — low-latency workflow gates and incremental sync triggers.
@@ -136,13 +160,15 @@ Polling (Fujiwa) → authoritative reconciliation every ≤15 min
 
 ## Failure modes
 
-| Failure | HTTP | Handoff |
-|---------|------|---------|
-| Missing `Authorization` | 401 | No |
-| Bad signature | 401 | No |
-| Malformed JSON | 400 | No |
-| Missing `type` or `shop_id` | 400 | No |
-| Phase 2 catalog event | 200 `{"code":0}` | Yes (except #6/#7) |
-| Deferred out-of-scope event | 200 `{"code":0}` | No |
+| Failure | HTTP | Handoff | Raw audit |
+|---------|------|---------|-----------|
+| Missing `Authorization` | 401 | No | Yes (`missing_signature`) |
+| Bad signature | 401 | No | Yes (`invalid_signature`) |
+| Malformed JSON | 400 | No | Yes (`malformed_json`; no `raw_body`) |
+| Missing `type` or `shop_id` | 400 | No | Yes (`missing_fields`) |
+| Phase 2 catalog event | 200 `{"code":0}` | Yes (except #6/#7) | Yes (catalog handler name) |
+| Deferred out-of-scope event | 200 `{"code":0}` | No | Yes (`deferred_out_of_scope`) |
+| Unknown event type | 200 `{"code":0}` | Generic channel (usually DLQ) | Yes (`unknown_event`) |
 
 Duplicate delivery is normal — idempotent upserts in ETL and workflow signals.
+Raw audit rows are append-only (one row per delivery attempt).

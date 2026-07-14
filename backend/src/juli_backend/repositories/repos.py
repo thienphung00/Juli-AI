@@ -35,6 +35,7 @@ from juli_backend.models.models import (
     TikTokSyncState,
     ToolExecution,
     User,
+    WebhookRawEvent,
     WorkflowOutcomeRecord,
     WorkflowWebhookSignal,
 )
@@ -860,6 +861,41 @@ class WorkflowWebhookSignalsRepo:
         )
         await self._session.flush()
         return True
+
+
+class WebhookRawEventsRepo:
+    """Append-only archive of redacted TikTok webhook deliveries (#392)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def insert(
+        self,
+        *,
+        tiktok_shop_id: str | None,
+        event_type: str | None,
+        event_id: str | None,
+        signature_header: str | None,
+        headers: str | None,
+        raw_body: str | None,
+        http_status: int,
+        processing_status: str,
+        parse_version: int = 1,
+    ) -> WebhookRawEvent:
+        row = WebhookRawEvent(
+            tiktok_shop_id=tiktok_shop_id,
+            event_type=event_type,
+            event_id=event_id,
+            signature_header=signature_header,
+            headers=headers,
+            raw_body=raw_body,
+            http_status=http_status,
+            processing_status=processing_status,
+            parse_version=parse_version,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
 
 
 class ToolExecutionsRepo:

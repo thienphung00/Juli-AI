@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,6 +12,7 @@ from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.services.tiktok.dispatcher import TikTokWebhookDispatcher
 from juli_backend.services.tiktok.schemas import TikTokWebhookPayload
 from juli_backend.services.tiktok.signature import TikTokWebhookSignatureVerifier
+from juli_backend.services.tiktok.webhook_raw_log import RawWebhookEventRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -55,32 +57,101 @@ class TikTokWebhookService:
         verifier: TikTokWebhookSignatureVerifier,
         dispatcher: TikTokWebhookDispatcher,
         handoff_fn: HandoffFn,
+        raw_event_recorder: RawWebhookEventRecorder | None = None,
     ) -> None:
         self._verifier = verifier
         self._dispatcher = dispatcher
         self._handoff_fn = handoff_fn
+        self._raw_event_recorder = raw_event_recorder
+
+    async def _safe_record(
+        self,
+        *,
+        body: bytes,
+        signature: str | None,
+        http_status: int,
+        processing_status: str,
+        event: TikTokWebhookPayload | None,
+        headers: Mapping[str, str] | None,
+    ) -> None:
+        if self._raw_event_recorder is None:
+            return
+        try:
+            await self._raw_event_recorder.record(
+                body=body,
+                signature=signature,
+                http_status=http_status,
+                processing_status=processing_status,
+                event=event,
+                headers=headers,
+            )
+        except Exception:
+            logger.exception(
+                "webhook_raw_log_failed",
+                extra={
+                    "http_status": http_status,
+                    "processing_status": processing_status,
+                },
+            )
 
     async def handle(
         self,
         *,
         body: bytes,
         signature: str | None,
+        headers: Mapping[str, str] | None = None,
     ) -> WebhookProcessResult:
         if not signature:
-            return WebhookProcessResult(401, {"error": "Missing signature"})
+            result = WebhookProcessResult(401, {"error": "Missing signature"})
+            await self._safe_record(
+                body=body,
+                signature=signature,
+                http_status=result.status_code,
+                processing_status="missing_signature",
+                event=None,
+                headers=headers,
+            )
+            return result
 
         if not self._verifier.verify(body, signature):
-            return WebhookProcessResult(401, {"error": "Invalid signature"})
+            result = WebhookProcessResult(401, {"error": "Invalid signature"})
+            await self._safe_record(
+                body=body,
+                signature=signature,
+                http_status=result.status_code,
+                processing_status="invalid_signature",
+                event=None,
+                headers=headers,
+            )
+            return result
 
         try:
             raw = json.loads(body)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            return WebhookProcessResult(400, {"error": "Malformed JSON"})
+            result = WebhookProcessResult(400, {"error": "Malformed JSON"})
+            await self._safe_record(
+                body=body,
+                signature=signature,
+                http_status=result.status_code,
+                processing_status="malformed_json",
+                event=None,
+                headers=headers,
+            )
+            return result
 
         try:
             event = TikTokWebhookPayload.from_dict(raw)
         except (KeyError, TypeError, ValueError):
-            return WebhookProcessResult(400, {"error": "Missing required fields"})
+            result = WebhookProcessResult(400, {"error": "Missing required fields"})
+            await self._safe_record(
+                body=body,
+                signature=signature,
+                http_status=result.status_code,
+                processing_status="missing_fields",
+                event=None,
+                headers=headers,
+            )
+            return result
 
         handler_name = await self._dispatcher.dispatch(event)
         channel = resolve_ingest_channel(event.type)
@@ -97,4 +168,14 @@ class TikTokWebhookService:
 
         if should_handoff_to_etl(event.type, channel):
             await self._handoff_fn(channel, event.shop_id, body)
-        return WebhookProcessResult(200, {"code": 0})
+
+        result = WebhookProcessResult(200, {"code": 0})
+        await self._safe_record(
+            body=body,
+            signature=signature,
+            http_status=result.status_code,
+            processing_status=handler_name,
+            event=event,
+            headers=headers,
+        )
+        return result

@@ -8,25 +8,32 @@ the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipel
 
 ## Public API
 
-- `create_app(*, app_key, app_secret, handoff_fn) -> FastAPI` — standalone application factory
+- `create_app(*, app_key, app_secret, handoff_fn, raw_event_recorder=None, ...) -> FastAPI`
+  — standalone application factory
   - `handoff_fn: Callable[[str, str, bytes], Awaitable[None]]` — async function
     invoked with `(channel, shop_key, payload_bytes)` for each verified in-scope event
-- `build_webhook_service(*, app_key, app_secret, handoff_fn, side_effects=None) -> TikTokWebhookService`
-  — shared verify+dispatch+handoff assembly, reused by `create_app` and by
-  `juli_backend.api.routes.webhook_tiktok` (the deployed mount point)
+  - `raw_event_recorder` — optional `RawWebhookEventRecorder`; when `session_factory`
+    is set, the app constructs `DatabaseRawWebhookEventRecorder(session)` per request
+- `build_webhook_service(*, app_key, app_secret, handoff_fn, side_effects=None, raw_event_recorder=None) -> TikTokWebhookService`
+  — shared verify+dispatch+handoff (+ optional raw audit) assembly, reused by
+  `create_app` and by `juli_backend.api.routes.webhook_tiktok` (the deployed mount)
 - `HandoffFn` — type alias (from `juli_backend.services.ingestion`)
 - `WEBHOOK_PATH` — `/webhooks/tiktok`
 
 ## Dependencies
 
-- `juli_backend.services.tiktok` — signature verify, catalog dispatch, channel routing
+- `juli_backend.services.tiktok` — signature verify, catalog dispatch, channel routing,
+  raw-log recorder protocol (`webhook_raw_log`)
 - FastAPI, httpx (via test client)
-- No direct database imports — handoff is injected by the deploy wiring layer
+- No direct database imports in this module — handoff, side effects, and the raw-event
+  recorder are injected by the deploy wiring layer
 
 ## Key Behaviors
 
 - Returns `{"code": 0}` within TikTok's 3-second ACK window; persistence is async
   via ETL after handoff
+- Every inbound delivery (including 401/400) is recorded via the injected
+  `RawWebhookEventRecorder` when present — redacted body, fail-safe (never blocks ACK)
 - Missing or invalid `Authorization` header → HTTP 401 without handoff
 - Malformed JSON or missing `type` / shop key → HTTP 400 without handoff
 - Phase 2 catalog types route to catalog-specific ETL channels (see `webhook_catalog.py`)
@@ -42,7 +49,10 @@ the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipel
 
 - `juli_backend.services.tiktok.webhook_catalog` — Phase 2 registry (#1–#68 subset)
 - `juli_backend.services.tiktok.webhook_handlers` — workflow signals + account lifecycle
+- `juli_backend.services.tiktok.webhook_raw_log` — `RawWebhookEventRecorder` + DB impl (#392)
+- `juli_backend.services.tiktok.webhook_redaction` — denylist PII redaction before archive
 - `juli_backend.models.models.WorkflowWebhookSignal` — durable workflow-intent records
+- `juli_backend.models.models.WebhookRawEvent` — redacted delivery archive (`webhook_raw_events`)
 
 ## Wiring (production)
 

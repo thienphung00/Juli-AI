@@ -1,0 +1,101 @@
+{
+  "id": "review-issue-392",
+  "issue": 392,
+  "timestamp": "2026-07-14T06:05:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Webhook raw log (#392): fail-safe redacted archive on every handle() exit; HMAC/ETL unchanged; MODULE.md + webhooks.md Raw audit section only. Security review medium (unauth 401/400 storage amplification) tracked as follow-up rate-limit/retention — not a merge-blocking CRITICAL. AC coverage mapped.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/tiktok/webhook.py",
+    "backend/src/juli_backend/services/tiktok/webhook_raw_log.py",
+    "backend/src/juli_backend/services/tiktok/webhook_redaction.py",
+    "backend/src/juli_backend/services/webhook/app.py",
+    "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/database/migrations/versions/016_webhook_raw_events.py",
+    "tests/unit/test_webhook_raw_log.py",
+    "tests/unit/test_webhook_redaction.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/webhook/app.py",
+      "interface": "build_webhook_service / create_app",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Optional raw_event_recorder kwarg; session path constructs DatabaseRawWebhookEventRecorder"
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "missing signature records 401",
+          "test": "tests/unit/test_webhook_raw_log.py::test_missing_signature_records_401"
+        },
+        {
+          "criterion": "recorder failure does not change response",
+          "test": "tests/unit/test_webhook_raw_log.py::test_recorder_failure_does_not_change_response"
+        },
+        {
+          "criterion": "latest downgrade drops only revision 016 table",
+          "test": "tests/integration/test_migrations.py::test_latest_downgrade_drops_only_revision_016_table"
+        },
+        {
+          "criterion": "records redacted body and skips malformed",
+          "test": "tests/unit/test_webhook_raw_log.py::test_records_redacted_body_and_skips_malformed"
+        },
+        {
+          "criterion": "catalog match records handler name",
+          "test": "tests/unit/test_webhook_raw_log.py::test_catalog_match_records_handler_name"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 31,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Rate-limit POST /webhooks/tiktok (nginx or app) and add retention pruning to address unauthenticated storage amplification on 401/400 paths (security-review medium).",
+    "Cap signature_header length on failure-path records.",
+    "Extend PII denylist if #382 surfaces new address/PII field names."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "maintainabilityFindings": [],
+  "securityFindings": [
+    {
+      "type": "security",
+      "module": "backend/src/juli_backend/services/tiktok/webhook.py",
+      "description": "Unauthenticated appends to webhook_raw_events on 401/400 without rate limits or retention yet (intentional audit design; ETL still requires HMAC).",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Add nginx/app rate limit + retention follow-up; optionally slim failure-path rows."
+    }
+  ],
+  "architectureFindings": [],
+  "observabilityFindings": [],
+  "staticAnalysisExecuted": false,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-392.json",
+  "sourceIntentReviewArtifact": "agent-runtime/artifacts/intent-reviews/intent-review-issue-392.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "suggestedRemediation": [],
+  "reviewDurationMs": 120000,
+  "phaseRunId": "392-2026-07-14-webhook-raw-log"
+}

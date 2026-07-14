@@ -23,6 +23,10 @@ from juli_backend.services.tiktok.webhook_handlers import (
     DatabaseWebhookSideEffects,
     WebhookSideEffects,
 )
+from juli_backend.services.tiktok.webhook_raw_log import (
+    DatabaseRawWebhookEventRecorder,
+    RawWebhookEventRecorder,
+)
 
 WEBHOOK_PATH = "/webhooks/tiktok"
 SessionFactory = async_sessionmaker[AsyncSession]
@@ -34,6 +38,7 @@ def build_webhook_service(
     app_secret: str,
     handoff_fn: HandoffFn,
     side_effects: WebhookSideEffects | None = None,
+    raw_event_recorder: RawWebhookEventRecorder | None = None,
 ) -> TikTokWebhookService:
     """Assemble the signature verifier, catalog dispatcher, and ETL handoff.
 
@@ -51,6 +56,7 @@ def build_webhook_service(
         verifier=verifier,
         dispatcher=TikTokWebhookDispatcher(side_effects=side_effects),
         handoff_fn=handoff_fn,
+        raw_event_recorder=raw_event_recorder,
     )
 
 
@@ -62,6 +68,7 @@ def create_app(
     lifespan: Any | None = None,
     session_factory: SessionFactory | None = None,
     side_effects: WebhookSideEffects | None = None,
+    raw_event_recorder: RawWebhookEventRecorder | None = None,
 ) -> FastAPI:
     """Build a FastAPI app wired to the given ingest handoff function."""
     default_service = build_webhook_service(
@@ -69,6 +76,7 @@ def create_app(
         app_secret=app_secret,
         handoff_fn=handoff_fn,
         side_effects=side_effects,
+        raw_event_recorder=raw_event_recorder,
     )
 
     app = FastAPI(lifespan=lifespan)
@@ -77,6 +85,7 @@ def create_app(
     async def handle_webhook(request: Request) -> JSONResponse:
         body = await request.body()
         signature = request.headers.get("Authorization")
+        headers = dict(request.headers)
 
         if session_factory is not None:
             async with session_factory() as session:
@@ -85,11 +94,16 @@ def create_app(
                     app_secret=app_secret,
                     handoff_fn=handoff_fn,
                     side_effects=DatabaseWebhookSideEffects(session),
+                    raw_event_recorder=DatabaseRawWebhookEventRecorder(session),
                 )
-                result = await service.handle(body=body, signature=signature)
+                result = await service.handle(
+                    body=body, signature=signature, headers=headers
+                )
                 await session.commit()
         else:
-            result = await default_service.handle(body=body, signature=signature)
+            result = await default_service.handle(
+                body=body, signature=signature, headers=headers
+            )
 
         return JSONResponse(result.body, status_code=result.status_code)
 

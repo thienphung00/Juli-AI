@@ -484,6 +484,34 @@ class WorkflowWebhookSignal(Base):
     )
 
 
+class WebhookRawEvent(Base):
+    """Redacted TikTok webhook delivery archive for audit/replay (#392).
+
+    ``tiktok_shop_id`` is intentionally not an FK — unknown/unresolvable shops
+    must still insert (that is the point of this table).
+    """
+
+    __tablename__ = "webhook_raw_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    received_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    tiktok_shop_id: Mapped[str | None] = mapped_column(String(100))
+    event_type: Mapped[str | None] = mapped_column(String(100))
+    event_id: Mapped[str | None] = mapped_column(String(255))
+    signature_header: Mapped[str | None] = mapped_column(Text)
+    headers: Mapped[str | None] = mapped_column(Text)
+    raw_body: Mapped[str | None] = mapped_column(Text)
+    http_status: Mapped[int] = mapped_column(nullable=False)
+    processing_status: Mapped[str] = mapped_column(String(50), nullable=False)
+    parse_version: Mapped[int] = mapped_column(nullable=False, default=1)
+
+    __table_args__ = (
+        Index("ix_webhook_raw_events_received_at", "received_at"),
+        Index("ix_webhook_raw_events_tiktok_shop_id", "tiktok_shop_id"),
+        Index("ix_webhook_raw_events_event_type", "event_type"),
+    )
+
+
 class ToolExecution(Base):
     """Approved tool call dispatched to Celery — P2-B4 (#305)."""
 
