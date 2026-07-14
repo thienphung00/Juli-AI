@@ -42,4 +42,4 @@
 - {trade-offs, risks}
 
 ## Next step
-Review Agent: load implementation artifact → run `review` skill → write `artifacts/reviews/review-issue-{N}.json`
+Review Agent: load implementation artifact → run `intent-review` → run `guardrails` → write `artifacts/intent-reviews/intent-review-issue-{N}.json` then `artifacts/reviews/review-issue-{N}.json`

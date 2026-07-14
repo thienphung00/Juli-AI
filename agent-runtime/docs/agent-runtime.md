@@ -52,9 +52,9 @@ flowchart LR
 
 | Phase | Owner | Canonical sequence |
 |-------|-------|-------------------|
-| **Planning** | Architect Agent | `focus` → `to-prd` → `to-issues` |
+| **Planning** | Architect Agent | `focus` → `grill-with-docs` → `to-prd` → `to-issues` |
 | **Implementation** | Meta Agent + Executor Agent | Meta runs `focus`, assigns domain executor; Executor implements with built-in TDD |
-| **Review + Testing** | Review Agent | `review` → `validate` → ship-ready |
+| **Review + Testing** | Review Agent | `intent-review` → `guardrails` → `validate` → ship-ready |
 | **Harness Optimization** | Meta Agent | Consumes execution artifacts; emits optimization artifacts |
 
 Source documents (PRDs, ADRs, GitHub issues, handoff markdown) are continuity and planning
@@ -71,7 +71,12 @@ inputs. They are **not** execution feedback artifacts. First-class runtime artif
 
 **Responsibilities**
 
-- Own the Planning phase and the sequence `focus` → `to-prd` → `to-issues`.
+- Own the Planning phase and the sequence
+  `focus` → `grill-with-docs` → `to-prd` → `to-issues`.
+- Use `grill-with-docs` for scope alignment and rescoping — one clarifying question at
+  a time with a recommended answer — while updating `CONTEXT.md` and ADRs as decisions
+  crystallise. Skip or shorten grilling only when scope is already fixed (e.g. pure
+  issue decomposition from an existing PRD).
 - Govern PRD generation, issue decomposition, ADR governance, architecture evolution,
   system design, module boundaries, and technical debt analysis.
 - Absorb canonical-documentation responsibilities formerly in the `discover` skill
@@ -82,7 +87,8 @@ inputs. They are **not** execution feedback artifacts. First-class runtime artif
 
 **Must**
 
-- Ask clarifying questions to eliminate TBDs before planning artifacts are produced.
+- Ask clarifying questions to eliminate TBDs before planning artifacts are produced
+  (prefer `grill-with-docs` for planning and rescoping).
 - Perform **Research & Reuse** before proposing net-new design (search repo, prior art,
   primary vendor docs).
 - Update `EXECUTION.md`, `docs/architecture/system-design.md`, `docs/architecture/`, and
@@ -139,6 +145,11 @@ pipeline.
 
 - Write a failing test first (Red), make it pass with minimal code (Green), then
   refactor while keeping tests green (Refactor).
+- Obey structure authority ([ADR-022](../adr/022-intent-review-guardrails-split.md)):
+
+  > Executor MAY clean up structure during GREEN (refactor step). Only intent-review MAY block merge on structure.
+
+  Refactor is advisory and non-blocking. Do not treat a GREEN refactor as structure approval.
 - Document TDD cycles with failing/passing test evidence and commands when available.
 - Stay within issue acceptance criteria and affected module boundaries.
 
@@ -158,20 +169,27 @@ The standalone `tdd` skill was removed in Phase 2.
 
 **Responsibilities**
 
-- Own `review`, `validate`, and `ship` with mandatory ordering:
-  `review` → `validate` → ship-ready.
-- Static analysis / security scanning, dynamic testing, and structured feedback.
-- Produce `review-artifact` and `validation-artifact` for Meta Agent.
+- Own `intent-review`, `guardrails`, `validate`, and `ship` with mandatory ordering:
+  `intent-review` → `guardrails` → `validate` → ship-ready.
+- Run Spec fidelity × structure review via `intent-review` (parallel sub-agents +
+  intent-review artifact) before `guardrails` emits the ADR-003 review artifact.
+- Domain quality (reliability / security / observability / performance), dynamic
+  testing gates (`validate`), and structured feedback.
+- Produce `intent-review-artifact`, `review-artifact`, and `validation-artifact` for
+  Meta Agent.
 - Prepare release artifacts through the existing ADR-003 ship model when validation passes.
 
 **Must**
 
 - Block ship until validation passes.
+- Treat intent-review `spec_fidelity` as given inside Guardrails (see
+  [BOUNDARY.md](../../.cursor/skills/standalone/intent-review/BOUNDARY.md)).
 - Emit structured findings consumable by Validate and Meta Agent.
 
 **Must not**
 
 - Route context, assign executors, or ship before validation passes.
+- Re-judge Spec intent-match or re-run smell-baseline inside Guardrails.
 
 ---
 
@@ -215,10 +233,11 @@ Architect Agent owns canonical doc governance formerly in the removed `discover`
 
 | Duty | Owner |
 |------|-------|
-| Clarifying questions, scope alignment | Architect Agent |
+| Clarifying questions, scope alignment | Architect Agent (`grill-with-docs`) |
 | Research & Reuse (repo search, prior art, vendor docs) | Architect Agent |
 | Updates to `EXECUTION.md`, `system-design.md`, `architecture/`, `decisions/` | Architect Agent |
 | Context routing for planning | `focus` |
+| Scope grilling / rescoping | `grill-with-docs` |
 | PRD synthesis | `to-prd` |
 | Issue decomposition | `to-issues` |
 
@@ -290,7 +309,8 @@ in domain executor and review/validate skills; harness automation lands in Phase
 | `focus → tdd → review → ship` chain language | Meta routing + Review Agent phases |
 | `.cursor/skills/workflow/` folder | Retired — use agent phases |
 
-ADR-003 gate ordering (`review → validate → ship`) is unchanged. Harness routing is
+ADR-003 gate ordering (`review artifact → validate → ship`) is unchanged; Review Agent
+runs `intent-review` before `guardrails` writes the review artifact (ADR-022). Harness routing is
 documented in this file; CI artifact schemas remain in ADR-003 and `docs/deployment/`.
 
 ---
@@ -299,7 +319,7 @@ documented in this file; CI artifact schemas remain in ADR-003 and `docs/deploym
 
 | Location | Contents |
 |----------|----------|
-| `.cursor/skills/standalone/` | Agent-owned skills: `focus`, `to-prd`, `to-issues`, `review`, `validate`, `ship`, utilities |
+| `.cursor/skills/standalone/` | Agent-owned skills: `focus`, `grill-with-docs`, `to-prd`, `to-issues`, `intent-review`, `guardrails`, `validate`, `ship`, utilities |
 | `.cursor/skills/domain/` | Executor domain skills: `ui-ux`, `backend`, `data-platform`, `machine-learning` |
 | `.cursor/skills/workflow/` | **Removed** (Phase 2) |
 

@@ -119,7 +119,7 @@ retained skills into standalone and domain categories.
 
 **Files affected**
 
-- `.cursor/skills/standalone/review/SKILL.md`
+- `.cursor/skills/standalone/guardrails/SKILL.md`
 - `.cursor/skills/standalone/validate/SKILL.md`
 - `.cursor/skills/standalone/ship/SKILL.md`
 - `.cursor/skills/domain/*/SKILL.md`

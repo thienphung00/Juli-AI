@@ -49,11 +49,12 @@ User message
 
 | Task signal | Agent phase | Load |
 |-------------|-------------|------|
-| New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) Planning section; canonical docs; `to-prd` path |
-| Spec from conversation | Planning | `to-prd` → `to-issues` |
+| New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) Planning section; canonical docs; `grill-with-docs` → `to-prd` path |
+| Spec from conversation | Planning | `grill-with-docs` (if scope open) → `to-prd` → `to-issues` |
 | GitHub issue implementation | Implementation | Meta routing; domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
 | Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
-| Post-implementation quality gate | Review + Testing | `review` → `validate` → `ship` |
+| Post-implementation quality gate | Review + Testing | `intent-review` → `guardrails` → `validate` → `ship` |
+| Branch / PR / "review since X" | Review + Testing | `intent-review` (Spec fidelity × structure); then `guardrails` when emitting ADR-003 artifact |
 | Architecture review / deepen modules / safe refactor | Ad-hoc (explore → report → grill → execute) | `improve-codebase-architecture`, `codebase-design`, `CONTEXT.md`, `docs/adr/`, `docs/architecture/map.md` |
 | Parallel issues / worktrees | Implementation | `issue-workflow.mdc` + `docs/handoffs/` |
 
@@ -89,10 +90,10 @@ Detect what the implementation involves:
 
 | Detection | Context to Load |
 |-----------|----------------|
-| External API usage | → `review` (reliability section), `.cursor/rules/reliability.mdc` |
-| AI model integration | → `review` (ai-integration checklist), reliability, observability rules |
-| Financial/sensitive data | → `review` (security section), `.cursor/rules/security.mdc` |
-| New API endpoint | → `review` (api-endpoint checklist), security, observability |
+| External API usage | → `guardrails` (reliability section), `.cursor/rules/reliability.mdc` |
+| AI model integration | → `guardrails` (ai-integration checklist), reliability, observability rules |
+| Financial/sensitive data | → `guardrails` (security section), `.cursor/rules/security.mdc` |
+| New API endpoint | → `guardrails` (api-endpoint checklist), security, observability |
 | Database changes / SQL | → `data-platform` executor, `postgres-patterns`, `performance.mdc` |
 | Python code / FastAPI | → `backend` executor, `python-patterns`, `code-quality.mdc` |
 | Python tests / pytest | → `backend` executor, `python-testing`, `reliability.mdc` |
@@ -175,7 +176,7 @@ Interface (web/, ios/):
   - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
 
 AI features (post-MVP / OpenAI):
-  - Load: review ai-integration checklist, system-design.md ML model sections, issue eval notes
+  - Load: guardrails ai-integration checklist, system-design.md ML model sections, issue eval notes
   - Skip: TikTok connector docs unrelated to the model call
 ```
 
@@ -186,11 +187,11 @@ Do NOT load all rules. Tier 1 (`core-safety`, `core-orchestration`, `mcp-usage`,
 ```python
 RULE_TRIGGERS = {
     "external_api_call": [".cursor/rules/reliability.mdc", ".cursor/rules/observability.mdc"],
-    "ai_model_call": [".cursor/skills/standalone/review/checklists/ai-integration.md",
+    "ai_model_call": [".cursor/skills/standalone/guardrails/checklists/ai-integration.md",
                       ".cursor/rules/reliability.mdc", ".cursor/rules/observability.mdc"],
     "user_input_handling": [".cursor/rules/security.mdc", ".cursor/rules/reliability.mdc"],
     "database_query": [".cursor/rules/performance.mdc", ".cursor/rules/reliability.mdc"],
-    "new_endpoint": [".cursor/skills/standalone/review/checklists/api-endpoint.md",
+    "new_endpoint": [".cursor/skills/standalone/guardrails/checklists/api-endpoint.md",
                      ".cursor/rules/security.mdc", ".cursor/rules/observability.mdc"],
     "background_job": [".cursor/rules/reliability.mdc", ".cursor/rules/observability.mdc"],
     "financial_data": [".cursor/rules/security.mdc", ".cursor/rules/reliability.mdc",
@@ -210,6 +211,10 @@ RULE_TRIGGERS = {
 ```
 
 **Priority overrides:** security always wins for auth/PII/financial data; reliability is additive with AI integration.
+
+**Review-phase skill split:** load `intent-review` then `guardrails` per
+[`.cursor/skills/standalone/intent-review/BOUNDARY.md`](../intent-review/BOUNDARY.md) —
+do not conflate Spec fidelity with AC coverage.
 
 ### Step 7: Exclude Irrelevant Context
 
@@ -241,9 +246,9 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 
 ### Agent Phase
 - [ ] ad-hoc (Focus only)
-- [ ] Planning: Architect Agent (focus → to-prd → to-issues)
+- [ ] Planning: Architect Agent (focus → grill-with-docs → to-prd → to-issues)
 - [x] Implementation: Meta routing → Executor (built-in TDD)
-- [ ] Review + Testing: review → validate → ship-ready
+- [ ] Review + Testing: intent-review → guardrails → validate → ship-ready
 - [ ] Harness Optimization: Meta (post-validation)
 
 ### Rules (Tier 2 — load selectively)
@@ -255,7 +260,9 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 
 ### Skills
 - [x] Executor built-in TDD (Red → Green → Refactor)
-- [ ] `review` (post-implementation)
+- [ ] `grill-with-docs` (Architect planning / rescope)
+- [ ] `intent-review` (Spec fidelity × structure; Review Agent)
+- [ ] `guardrails` (domain quality + ADR-003 review artifact)
 - [ ] Plugin: `nextjs` (web/ work)
 
 ### MCPs (read schemas only when listed)
@@ -274,7 +281,7 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 
 ### Load (If Needed)
 - `docs/integrations/tiktok_api/webhooks.md`
-- `.cursor/skills/standalone/review/checklists/api-endpoint.md`
+- `.cursor/skills/standalone/guardrails/checklists/api-endpoint.md`
 
 ### DO NOT Load
 - `web/`, `ios/` (not affected)
@@ -287,10 +294,10 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 
 | Agent | Uses Navigator For |
 |-------|-------------------|
-| Architect Agent | Planning context; canonical docs; `to-prd` / `to-issues` handoffs |
+| Architect Agent | Planning context; canonical docs; `grill-with-docs` → `to-prd` / `to-issues` handoffs |
 | Meta Agent | Context routing, skill routing, executor domain assignment (IS built on focus) |
 | Executor Agent | Precisely scoped implementation context; built-in TDD |
-| Review Agent | Standards + canonical docs + issue for review and validation |
+| Review Agent | `intent-review` (Spec + structure) + `guardrails` (domains + review artifact) + issue |
 
 ## Meta Agent — Harness Optimization (post-validation)
 

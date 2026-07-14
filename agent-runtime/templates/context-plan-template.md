@@ -7,9 +7,9 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 
 ### Agent Phase
 - [ ] ad-hoc (Focus only)
-- [ ] Planning: Architect Agent (focus → to-prd → to-issues)
+- [ ] Planning: Architect Agent (focus → grill-with-docs → to-prd → to-issues)
 - [ ] Implementation: Meta routing → Executor (built-in TDD)
-- [ ] Review + Testing: review → validate → ship-ready
+- [ ] Review + Testing: intent-review → guardrails → validate → ship-ready
 - [ ] Harness Optimization: Meta (post-validation)
 
 ### Runtime artifacts (commit on branch when phase completes)
@@ -31,8 +31,8 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 - [ ] `.cursor/rules/issue-workflow.mdc`
 
 ### Skills
-- [ ] `to-prd` / `to-issues` (Architect planning; `discover` removed)
-- [ ] `review` / `validate` / `ship` / `qa` (Executor uses built-in TDD; standalone `tdd` removed)
+- [ ] `grill-with-docs` / `to-prd` / `to-issues` (Architect planning; `discover` removed)
+- [ ] `intent-review` / `guardrails` / `validate` / `ship` / `qa` (Executor uses built-in TDD; standalone `tdd` removed)
 - [ ] `api-docs` / `platform-docs`
 - [ ] Domain: `python-patterns` / `python-testing` / `postgres-patterns` / `swift-patterns`
 - [ ] Plugin: _______________

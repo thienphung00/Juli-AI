@@ -18,7 +18,7 @@ agent-runtime/artifacts/reviews/review-issue-123.json not found
 
 ### Causes
 
-1. `review` skill ran but did not write the artifact.
+1. `guardrails` skill ran but did not write the artifact (or `intent-review` artifact missing upstream).
 2. Filename uses the wrong pattern (`review-123.json` instead of `review-issue-123.json`).
 3. Wrong directory (root `artifacts/` instead of `agent-runtime/artifacts/reviews/`).
 

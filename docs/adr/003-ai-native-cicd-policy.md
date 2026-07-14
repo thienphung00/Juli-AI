@@ -74,7 +74,7 @@ The three JSON artifact schemas are defined in
 
 | Artifact | Producer | Consumer | Path |
 |----------|----------|----------|------|
-| Review | `review` skill | `validate` skill, `pr.yml`, Meta Agent | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
+| Review | `guardrails` skill (after `intent-review`) | `validate` skill, `pr.yml`, Meta Agent | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
 | Validation | `validate` skill, `pr.yml` | `ship` skill, Meta Agent | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
 | Release | `ship` skill, `release.yml` | Future agents (rollback/hotfix) | `agent-runtime/artifacts/releases/release-<version>.json` |
 | Audit (nightly) | `architecture-audit.yml` | Triaged into GitHub issues | `agent-runtime/artifacts/validation/audit-<date>.json` |
@@ -202,7 +202,9 @@ Bug filing:     qa -> focus -> Executor -> review -> validate -> ship
 
 **Files updated:**
 
-- [`.cursor/skills/standalone/review/SKILL.md`](../../.cursor/skills/standalone/review/SKILL.md) — emits review artifact
+- [`.cursor/skills/standalone/intent-review/SKILL.md`](../../.cursor/skills/standalone/intent-review/SKILL.md) — Spec fidelity × structure; emits intent-review artifact
+- [`.cursor/skills/standalone/guardrails/SKILL.md`](../../.cursor/skills/standalone/guardrails/SKILL.md) — domain Guardrails; emits review artifact
+- [ADR-022](022-intent-review-guardrails-split.md) — skill split and structure authority
 - [`.cursor/skills/standalone/ship/SKILL.md`](../../.cursor/skills/standalone/ship/SKILL.md) — consumes validation artifact, emits release artifact
 - [`.cursor/skills/standalone/ship/ci-examples.md`](../../.cursor/skills/standalone/ship/ci-examples.md) — replaced with pointer to real workflows
 - [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md) — agent phase harness (Phase 2)
@@ -221,7 +223,7 @@ Bug filing:     qa -> focus -> Executor -> review -> validate -> ship
 |-------------|--------------|
 | Keep CI conversational (chat-driven review) | Sessions are stateless; loses memory at every handoff |
 | Adopt the policy verbatim with Node tooling | Conflicts with [ADR-001](001-keep-python-fastapi.md); introduces a parallel runtime |
-| Add `validate` logic into `review` skill | Mixes generation (artifacts) with assertion (gates); harder to debug failures in CI |
+| Add `validate` logic into `guardrails` skill | Mixes generation (artifacts) with assertion (gates); harder to debug failures in CI |
 | Use `adr-NNN.md` filenames as proposed in the source policy | Breaks the existing `NNN-slug.md` convention used by ADR-001/002 |
 
 ## References

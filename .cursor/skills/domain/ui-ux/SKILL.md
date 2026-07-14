@@ -30,7 +30,8 @@ TDD (Red → Green → Refactor). Canonical requirements:
 
 - **Red:** failing component/route/a11y test for one acceptance criterion
 - **Green:** minimal UI change to pass
-- **Refactor:** extract components, tighten selectors; tests stay green
+- **Refactor:** extract components, tighten selectors; tests stay green (advisory —
+  only `intent-review` may block merge on structure)
 
 Test surfaces: `web/src/__tests__/`, Playwright when E2E is in scope, `ios/Tests/`.
 

@@ -10,9 +10,9 @@ alwaysApply: true
 For every non-trivial task, read and follow [`.cursor/skills/standalone/focus/SKILL.md`](../skills/standalone/focus/SKILL.md) and produce a **Context Plan** (docs, rules, skills, MCPs).
 
 - **Ad-hoc chat:** Focus only — do not auto-enter review/validate/ship pipelines.
-- **Planning:** Architect Agent — `focus` → `to-prd` → `to-issues`.
+- **Planning:** Architect Agent — `focus` → `grill-with-docs` → `to-prd` → `to-issues`.
 - **Implementation:** Meta Agent routes via `focus`; Executor Agent implements with built-in TDD.
-- **Review + Testing:** Review Agent — `review` → `validate` → ship-ready.
+- **Review + Testing:** Review Agent — `intent-review` → `guardrails` → `validate` → ship-ready.
 - **Harness optimization:** Meta Agent consumes execution artifacts after validation.
 - **MCP/plugin skills:** load only what Focus selects via [skill-catalog](../skills/skill-catalog/SKILL.md); read MCP tool schemas after selection, not at startup.
 

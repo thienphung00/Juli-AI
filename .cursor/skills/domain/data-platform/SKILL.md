@@ -31,7 +31,8 @@ TDD (Red → Green → Refactor). Canonical requirements:
 
 - **Red:** failing migration test, repo integration test, or data validation test
 - **Green:** schema/repo change that passes
-- **Refactor:** index/query cleanup; reversible migrations preserved
+- **Refactor:** index/query cleanup; reversible migrations preserved (advisory —
+  only `intent-review` may block merge on structure)
 
 Cover migration up/down, idempotency for ETL paths, and entity consistency with
 canonical schemas.
