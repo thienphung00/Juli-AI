@@ -1,0 +1,11 @@
+# Gitleaks config — extends default rules with doc/sample allowlists.
+title = "Juli AI gitleaks"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "False positive: UUID-shaped TikTok webhook sample idempotency_key in contract docs (introduced in feat/issue-380 history)"
+fingerprints = [
+  '''d302e6b7dae0f4084ce70f67077621e8e2e7aa25:docs/integrations/tiktok_api/webhook-contract-collection.md:generic-api-key:477''',
+]
