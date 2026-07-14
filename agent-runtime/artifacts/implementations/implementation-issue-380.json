@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 380,
+  "executorDomain": "backend",
+  "phaseRunId": "380-2026-07-14-leakage-executors-subpr1",
+  "startedAt": "2026-07-13T10:00:00Z",
+  "completedAt": "2026-07-14T00:30:00Z",
+  "executionDurationMs": 5200000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Shell",
+    "Write",
+    "StrReplace"
+  ],
+  "toolInvocationCount": 48,
+  "contextFilesLoaded": [
+    "CONTEXT.md",
+    "docs/product/execution_layer.md",
+    "docs/handoffs/scope-alignment-issue-380.md",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "docs/integrations/tiktok_api/webhook-contract-collection.md",
+    "backend/src/juli_backend/services/execution/MODULE.md",
+    "backend/src/juli_backend/services/execution/tool_routing.py",
+    "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "backend"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/services/execution/inventory_leakage.py",
+    "backend/src/juli_backend/services/execution/promotion_leakage.py",
+    "backend/src/juli_backend/services/execution/leakage_handlers.py",
+    "backend/src/juli_backend/services/execution/runner.py",
+    "backend/src/juli_backend/services/execution/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+    "backend/src/juli_backend/services/tiktok/webhook_catalog.py",
+    "tests/unit/test_leakage_executors_contract.py",
+    "CONTEXT.md",
+    "docs/handoffs/scope-alignment-issue-380.md",
+    "docs/product/execution_layer.md",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "docs/integrations/tiktok_api/webhook-contract-collection.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_leakage_executors_contract.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "leakage inventory and promotion tools registered",
+      "redCommand": "pytest tests/unit/test_leakage_executors_contract.py::test_ac1_leakage_tools_registered -q",
+      "redResult": "AssertionError: missing registration",
+      "greenCommand": "pytest tests/unit/test_leakage_executors_contract.py::test_ac1_leakage_tools_registered -q",
+      "greenResult": "1 passed"
+    },
+    {
+      "cycle": 2,
+      "behavior": "replenish inventory e2e via mocked sandbox chain",
+      "redCommand": "pytest tests/unit/test_leakage_executors_contract.py::test_ac4_replenish_inventory_e2e_mocked_chain -q",
+      "redResult": "Unknown tool: inventory.replenish",
+      "greenCommand": "pytest tests/unit/test_leakage_executors_contract.py::test_ac4_replenish_inventory_e2e_mocked_chain -q",
+      "greenResult": "1 passed"
+    },
+    {
+      "cycle": 3,
+      "behavior": "API failure records failed ToolExecution status",
+      "redCommand": "pytest tests/unit/test_leakage_executors_contract.py::test_ac5_replenish_inventory_api_failure_records_failed_status -q",
+      "redResult": "expected failed status missing",
+      "greenCommand": "pytest tests/unit/test_leakage_executors_contract.py::test_ac5_replenish_inventory_api_failure_records_failed_status -q",
+      "greenResult": "1 passed"
+    }
+  ],
+  "implementationSummary": "P2-B7 Sub-PR 1: register inventory.replenish, inventory.clear_excess, and promotion create/update/delete_activity handlers with sandbox-guarded FBS chains. Display/docs rename Prevent* to Request* for 8a/8b/8c without changing workflow_key or tool_name identifiers.",
+  "assumptions": [
+    "Returns executors deferred to Sub-PR 2",
+    "FBT executor branches deferred to Phase 5; webhook intake retained",
+    "prevent_* workflow keys remain stable until a dedicated rename migration"
+  ],
+  "risks": [
+    "Clear excess chain assumes caller supplies promotion activity targets when overrides are needed"
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "id": "review-issue-380",
+  "issue": 380,
+  "timestamp": "2026-07-14T00:45:00Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "P2-B7 Sub-PR 1 leakage executors: inventory.replenish / inventory.clear_excess / promotion.* registered with sandbox-guarded FBS chains; Request* display rename only; workflow_key and tool names unchanged; contract tests green.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/execution",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+    "backend/src/juli_backend/services/tiktok/webhook_catalog.py",
+    "tests/unit/test_leakage_executors_contract.py",
+    "docs/product/execution_layer.md",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "docs/integrations/tiktok_api/webhook-contract-collection.md",
+    "CONTEXT.md"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "register leakage inventory and promotion tool handlers via runner",
+          "test": "tests/unit/test_leakage_executors_contract.py::test_ac1_leakage_tools_registered"
+        },
+        {
+          "criterion": "workflow keys resolve to leakage inventory and promotion tools",
+          "test": "tests/unit/test_leakage_executors_contract.py::test_ac1_workflow_keys_resolve_to_leakage_tools"
+        },
+        {
+          "criterion": "replenish inventory e2e mocked celery worker execution chain",
+          "test": "tests/unit/test_leakage_executors_contract.py::test_ac4_replenish_inventory_e2e_mocked_chain"
+        },
+        {
+          "criterion": "mocked inventory api failure records toolexecution failed status",
+          "test": "tests/unit/test_leakage_executors_contract.py::test_ac5_replenish_inventory_api_failure_records_failed_status"
+        },
+        {
+          "criterion": "create activity e2e mocked promotion chain",
+          "test": "tests/unit/test_leakage_executors_contract.py::test_ac4_create_activity_e2e_mocked_chain"
+        },
+        {
+          "criterion": "leakage catalog endpoints documented in contract collection",
+          "test": "tests/unit/test_leakage_executors_contract.py::test_leakage_catalog_endpoints_documented_in_contract_collection"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "380-2026-07-14-leakage-executors-subpr1",
+  "reviewFailures": 0,
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-380.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "none",
+  "suggestedRemediation": []
+}

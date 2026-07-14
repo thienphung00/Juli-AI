@@ -474,7 +474,7 @@ substitute for Partner Center verification** — third-party wrappers can lag or
   },
   "change_detail": [
     {
-      "idempotency_key": "d7813cae-9997-4d24-a583-7d85801250f1",
+      "idempotency_key": "{idempotency_key}",
       "trigger_source": "manual_adjustment",
       "occurred_at": "2026-04-02T09:28:34.979101552Z",
       "total_quantity_delta": 4,
