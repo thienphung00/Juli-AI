@@ -5,7 +5,7 @@ title = "Juli AI gitleaks"
 useDefault = true
 
 [[allowlists]]
-description = "False positive: UUID-shaped TikTok webhook sample idempotency_key in contract docs (introduced in feat/issue-380 history)"
-fingerprints = [
-  '''d302e6b7dae0f4084ce70f67077621e8e2e7aa25:docs/integrations/tiktok_api/webhook-contract-collection.md:generic-api-key:477''',
+description = "TikTok webhook contract collection — sanitized Partner Center sample payloads (IDs look like keys)"
+paths = [
+  '''docs/integrations/tiktok_api/webhook-contract-collection\.md''',
 ]
