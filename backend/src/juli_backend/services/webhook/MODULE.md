@@ -28,11 +28,14 @@ the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipel
 - Returns `{"code": 0}` within TikTok's 3-second ACK window; persistence is async
   via ETL after handoff
 - Missing or invalid `Authorization` header → HTTP 401 without handoff
-- Malformed JSON or missing `type` / `shop_id` → HTTP 400 without handoff
+- Malformed JSON or missing `type` / shop key → HTTP 400 without handoff
 - Phase 2 catalog types route to catalog-specific ETL channels (see `webhook_catalog.py`)
 - Deferred Phase 3+ types (Affiliate, Livestream, etc.) → ACK without handoff
 - Account webhooks (#6 deauthorization, #7 auth expiration) → side effects only
-- `shop_id` is the handoff key (TikTok shop id) for per-shop ordering downstream
+- Shop key for handoff: top-level `shop_id`, or `data.seller_id` for inventory
+  `#68 INVENTORY_CHANGED` (live TikTok deliveries omit `shop_id`)
+- Numeric Partner Center `type` ids (e.g. `68`) resolve through the catalog the
+  same as named type strings (e.g. `INVENTORY_CHANGED`)
 - Duplicate webhook delivery is expected; deduplication is in `juli_backend.services.etl`
 
 ## Related modules

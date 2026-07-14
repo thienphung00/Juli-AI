@@ -110,6 +110,20 @@ class TestPhase2CatalogRegistry:
     def test_resolve_ingest_channel_uses_catalog(self, catalog_id, event_type, _handler, channel):
         assert resolve_ingest_channel(event_type) == channel
 
+    @pytest.mark.parametrize(
+        ("catalog_id", "event_type", "_handler", "channel"),
+        CATALOG_FIXTURES,
+        ids=[f"numeric-{item[0]}" for item in CATALOG_FIXTURES],
+    )
+    def test_resolve_catalog_entry_accepts_numeric_partner_center_id(
+        self, catalog_id, event_type, _handler, channel
+    ):
+        entry = resolve_catalog_entry(str(catalog_id))
+        assert entry is not None
+        assert entry.catalog_id == catalog_id
+        assert entry.event_types[0] == event_type
+        assert resolve_ingest_channel(str(catalog_id)) == channel
+
 
 class TestDeferredWebhookTypes:
     @pytest.mark.parametrize(
