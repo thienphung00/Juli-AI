@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 392,
+  "executorDomain": "backend",
+  "phaseRunId": "392-2026-07-14-webhook-raw-log",
+  "startedAt": "2026-07-14T05:12:00Z",
+  "completedAt": "2026-07-14T05:25:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "StrReplace", "Write", "Task"],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "backend/src/juli_backend/services/tiktok/webhook.py",
+    "backend/src/juli_backend/database/migrations/versions/011_workflow_webhook_signals.py",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/data-platform/SKILL.md"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/tiktok/webhook.py",
+    "backend/src/juli_backend/services/webhook/app.py",
+    "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "tests/integration/test_migrations.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_webhook_redaction.py",
+    "tests/unit/test_webhook_raw_log.py"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_migrations.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": "redaction helper",
+      "red": "pytest tests/unit/test_webhook_redaction.py → ModuleNotFoundError",
+      "green": "webhook_redaction.py; nested denylist scrub; 5 passed",
+      "refactor": "scrub leaves under denylist object keys to preserve shape"
+    },
+    {
+      "cycle": "model/repo/recorder/wiring",
+      "red": "test_webhook_raw_log capturing recorder + repo insert authored first",
+      "green": "016 migration, WebhookRawEvent, repo, DatabaseRawWebhookEventRecorder, handle() 5 exits, build_webhook_service wiring",
+      "refactor": "failure-mode docs table; signature_header allowlisted separately from headers JSON"
+    }
+  ],
+  "implementationSummary": "Persist every inbound TikTok webhook delivery to webhook_raw_events with denylist PII redaction and fail-safe recording that never blocks the 3s ACK.",
+  "assumptions": [
+    "ADR-012 interim in-DB raw archive is the correct storage choice for Phase 2",
+    "Recording 401/400 paths is required for #382 type-string collection despite unauthenticated write surface"
+  ],
+  "risks": [
+    "Unauthenticated storage amplification on 401/400 without rate limits (security-review medium) — mitigate with nginx rate limit + retention follow-up",
+    "PII denylist is best-effort; extend if #382 surfaces new field names"
+  ],
+  "tddEvidence": {
+    "red": [
+      "test_webhook_redaction ImportError",
+      "test_webhook_raw_log branch assertions before wiring"
+    ],
+    "green": [
+      "31 unit tests (redaction + raw log + existing webhook suite)",
+      "migration round-trip test_latest_downgrade_drops_only_revision_016_table + seeded rows"
+    ],
+    "refactor": [
+      "MODULE.md + webhooks.md Raw audit log section",
+      "migration test for 015 updated to downgrade to 014_action_cards"
+    ]
+  },
+  "filesChanged": [
+    "backend/src/juli_backend/database/migrations/versions/016_webhook_raw_events.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/tiktok/webhook_redaction.py",
+    "backend/src/juli_backend/services/tiktok/webhook_raw_log.py",
+    "backend/src/juli_backend/services/tiktok/webhook.py",
+    "backend/src/juli_backend/services/webhook/app.py",
+    "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "docs/integrations/tiktok_api/webhooks.md",
+    "tests/unit/test_webhook_redaction.py",
+    "tests/unit/test_webhook_raw_log.py",
+    "tests/integration/test_migrations.py"
+  ],
+  "acceptanceCriteriaMet": [
+    "Every inbound TikTok webhook (incl. 401/400) persists redacted row with correct http_status / processing_status",
+    "Recorder failure does not change HTTP response",
+    "Migration upgrade/downgrade round-trips",
+    "Docs updated; catalog table / Confirmed column untouched"
+  ],
+  "notes": "Security review: 1 medium (unauth write amplification). Follow-ups: rate limit, retention pruning, S3 Phase 3, denylist extensions from #382."
+}

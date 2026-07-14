@@ -30,6 +30,7 @@ from juli_backend.database import get_session
 from juli_backend.services.etl.consumer import EtlConsumer
 from juli_backend.services.ingestion.handoff import make_etl_handoff
 from juli_backend.services.tiktok.webhook_handlers import DatabaseWebhookSideEffects
+from juli_backend.services.tiktok.webhook_raw_log import DatabaseRawWebhookEventRecorder
 from juli_backend.services.webhook.app import WEBHOOK_PATH, build_webhook_service
 
 logger = logging.getLogger(__name__)
@@ -72,8 +73,13 @@ async def handle_tiktok_webhook(
         app_secret=app_secret,
         handoff_fn=make_etl_handoff(consumer),
         side_effects=DatabaseWebhookSideEffects(session),
+        raw_event_recorder=DatabaseRawWebhookEventRecorder(session),
     )
-    result = await service.handle(body=body, signature=signature)
+    result = await service.handle(
+        body=body,
+        signature=signature,
+        headers=dict(request.headers),
+    )
     await session.commit()
 
     return JSONResponse(result.body, status_code=result.status_code)

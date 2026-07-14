@@ -23,7 +23,7 @@ from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "015_tool_execution_fields"
+LATEST_REVISION = "016_webhook_raw_events"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -50,6 +50,7 @@ REVISION_012_TABLE = "tool_executions"
 REVISION_013_TABLE = "workflow_outcome_records"
 REVISION_014_TABLE = "action_cards"
 REVISION_015_COLUMNS = ("idempotency_key", "error_category")
+REVISION_016_TABLE = "webhook_raw_events"
 
 
 def _database_url() -> str:
@@ -298,8 +299,29 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
 
 
 @requires_postgres
+def test_latest_downgrade_drops_only_revision_016_table(postgres_at_head: Engine):
+    """Downgrading head removes webhook_raw_events; 015 columns remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert _table_exists(postgres_at_head, REVISION_016_TABLE)
+    for column in REVISION_015_COLUMNS:
+        assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
+
+    command.downgrade(cfg, "-1")
+
+    assert not _table_exists(postgres_at_head, REVISION_016_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_014_TABLE)
+    for column in REVISION_015_COLUMNS:
+        assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
+
+    command.upgrade(cfg, "head")
+    assert _table_exists(postgres_at_head, REVISION_016_TABLE)
+
+
+@requires_postgres
 def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engine):
-    """Downgrading the head revision removes tool_execution columns; 014 table remains."""
+    """Downgrading past 015 removes tool_execution columns; 014 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
@@ -307,9 +329,10 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
     for column in REVISION_015_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "014_action_cards")
 
     assert _table_exists(postgres_at_head, REVISION_014_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_016_TABLE)
     for column in REVISION_015_COLUMNS:
         assert not _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
     for table, columns in REVISION_010_COLUMNS.items():
@@ -330,6 +353,7 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
     command.upgrade(cfg, "head")
     for column in REVISION_015_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
+    assert _table_exists(postgres_at_head, REVISION_016_TABLE)
 
 
 @requires_postgres
