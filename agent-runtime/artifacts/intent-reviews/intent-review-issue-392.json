@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-392",
+  "issue": 392,
+  "timestamp": "2026-07-14T06:00:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "feat/issue-392-webhook-raw-log-storage (cf38653)",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff matches Part A only: webhook_raw_events + redaction + fail-safe recorder on all handle() exits. Catalog untouched; Part B/S3/pruning deferred as documented follow-ups. Docs add Raw audit log without Confirmed-column churn.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "392-2026-07-14-webhook-raw-log"
+}
