@@ -10,6 +10,8 @@ from typing import Any
 def extract_event_id(*, channel: str, shop_key: str, payload: dict[str, Any]) -> str:
     """Return a deterministic idempotency key for an ingest payload."""
     explicit = payload.get("event_id")
+    if not explicit and isinstance(payload.get("data"), dict):
+        explicit = payload["data"].get("event_id")
     if explicit:
         return str(explicit)
 
@@ -20,6 +22,7 @@ def extract_event_id(*, channel: str, shop_key: str, payload: dict[str, Any]) ->
         entity = (
             data.get("order_id")
             or data.get("product_id")
+            or data.get("sku_id")
             or data.get("settlement_id")
             or data.get("livestream_id")
             or data.get("creator_id")

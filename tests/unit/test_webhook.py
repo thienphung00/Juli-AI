@@ -305,3 +305,54 @@ class TestNewEventTypeRouting:
         )
 
         assert handoff_calls[0]["channel"] == "tiktok.order_status_change"
+
+
+class TestInventoryChangedWebhook:
+    """Live #68 INVENTORY_CHANGED deliveries use numeric type + seller_id, not shop_id."""
+
+    @pytest.mark.asyncio
+    async def test_inventory_68_without_shop_id_uses_seller_id(
+        self, client, handoff_calls
+    ):
+        event = {
+            "type": 68,
+            "tts_notification_id": "7661989953883391751",
+            "seller_open_id": "redacted_open_id",
+            "timestamp": 1784001969,
+            "data": {
+                "change_detail": [
+                    {
+                        "committed_quantity_delta": -1,
+                        "idempotency_key": "48bbc95b-2e62-4d7c-8596-5532f3c04c4d",
+                        "occurred_at": "2026-07-13T12:34:12.789752047Z",
+                        "total_quantity_delta": -1,
+                        "trigger_source": "order_shipped",
+                    }
+                ],
+                "event_id": "1732301361504355959:c225b109-8d47-4c68-ad7d-7496f77fef24",
+                "occurred_at": "2026-07-13T12:34:12.789752047Z",
+                "product_id": 1730420770070891127,
+                "quantity_snapshot_after_change": {
+                    "in_shop_quantity": 2313,
+                    "total_available_quantity": 2313,
+                    "total_committed_quantity": 1,
+                    "total_quantity": 2314,
+                },
+                "seller_id": 7495274531001436791,
+                "sku_id": 1732301361504355959,
+            },
+        }
+        body = json.dumps(event).encode()
+        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+
+        resp = await client.post(
+            WEBHOOK_PATH,
+            content=body,
+            headers={"Authorization": sig, "Content-Type": "application/json"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {"code": 0}
+        assert len(handoff_calls) == 1
+        assert handoff_calls[0]["channel"] == "tiktok.inventory.raw"
+        assert handoff_calls[0]["shop_key"] == "7495274531001436791"

@@ -57,6 +57,36 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 
 ## Confirmation rows (fill in from your live Partner Center + a captured delivery)
 
+### #2 — `REVERSE_STATUS_UPDATE` (already catalog-confirmed — live capture)
+
+| Field | Value |
+|-------|-------|
+| Trigger scenario | Reverse/aftersales order status changes (cancel/return/refund intake for 8a/8b/8c) |
+| Expected parameters | `shop_id`, `order_id`, `reverse_order_id`, `reverse_order_status`, `reverse_type`, `reverse_user`, `reverse_event_type`, `update_time` |
+| Confirmed `type` string | `REVERSE_STATUS_UPDATE` (numeric `type`: **2**) |
+| Verified (date, who) | 2026-07-14, seller live delivery |
+
+**Sample JSON payload (redacted)**
+```json
+{
+  "type": 2,
+  "tts_notification_id": "7662229692789049095",
+  "shop_id": "7495274531001436791",
+  "timestamp": 1784001871,
+  "data": {
+    "order_id": "584879639196894551",
+    "reverse_event_type": "UNSUPPORTED",
+    "reverse_order_id": "4041414981833491799",
+    "reverse_order_status": 100,
+    "reverse_type": 1,
+    "reverse_user": 4,
+    "update_time": 1784001871
+  }
+}
+```
+
+---
+
 ### #7 —  `UPCOMING_AUTHORIZATION_EXPIRATION`
 
 | Field | Value |
@@ -87,23 +117,23 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 | Field | Value |
 |-------|-------|
 | Trigger scenario | An order cancellation request's status changes (created, approved, rejected) — feeds Request Cancellation (8a) |
-| Expected parameters | `shop_id`, `order_id`, `cancel_id`, new status |
-| Confirmed `type` string | |
-| Verified (date, who) | |
+| Expected parameters | `shop_id`, `order_id`, `cancel_id`, `cancel_status`, `cancellations_role`, `update_time` |
+| Confirmed `type` string | `CANCELLATION_STATUS_CHANGE` (numeric `type`: **11**) |
+| Verified (date, who) | 2026-07-14, seller live delivery |
 
 **Sample JSON payload (redacted)**
 ```json
 {
   "type": 11,
-  "tts_notification_id": "7327112393057371910",
-  "shop_id": "7494049642642441621",
-  "timestamp": 1644412885,
+  "tts_notification_id": "7662229693157164821",
+  "shop_id": "7495274531001436791",
+  "timestamp": 1784001871,
   "data": {
-    "order_id": "576486316948490001",
-    "cancellations_role": "BUYER",
-    "cancel_status": "CANCELLATION_REQUEST_PENDING",
-    "cancel_id": "4035318504086604100",
-    "create_time": 1627587600
+    "cancel_id": "4041414981833491799",
+    "cancel_status": "CANCELLATION_REQUEST_COMPLETE",
+    "cancellations_role": "SYSTEM",
+    "order_id": "584879639196894551",
+    "update_time": 1784001871
   }
 }
 ```
@@ -452,39 +482,46 @@ substitute for Partner Center verification** — third-party wrappers can lag or
 | Field | Value |
 |-------|-------|
 | Trigger scenario | Raw inventory quantity change event (distinct from #27's status-level change) — feeds Replenish (3) / Clear Excess (4) |
-| Expected parameters | `shop_id`, `sku_id`, delta or new quantity |
-| Confirmed `type` string | `INVENTORY_CHANGED` (catalog; Partner Center webhook logs pending) |
-| Verified (date, who) | Pending — normalize+ETL covered with sample shape (#381); fill when Partner Center logs available |
+| Expected parameters | `seller_open_id`, `seller_id` (shop key — **no top-level `shop_id`**), `product_id`, `sku_id`, `event_id`, `occurred_at`, `change_detail[]`, `quantity_snapshot_after_change` |
+| Confirmed `type` string | `INVENTORY_CHANGED` (numeric `type`: **68**) |
+| Verified (date, who) | 2026-07-14, seller live delivery |
+| Receiver notes | Juli resolves handoff shop key from `data.seller_id`; numeric `68` maps to this catalog entry |
 
 **Sample JSON payload (redacted)**
 ```json
 {
-  "event_id": "d7813cae-9997-4d24-a583-7d85801250f1",
-  "occurred_at": "2026-04-02T09:28:34.979101552Z",
-  "seller_id": "7498123456789012345",
-  "product_id": "1891234567890123456",
-  "sku_id": "1729507467923261408",
-  "quantity_snapshot_after_change": {
-    "total_quantity": 7,
-    "total_available_quantity": 7,
-    "total_committed_quantity": 0,
-    "in_shop_quantity": 7,
-    "campaign_locked_quantity": 0,
-    "creator_locked_quantity": 0
-  },
-  "change_detail": [
-    {
-      "idempotency_key": "{idempotency_key}",
-      "trigger_source": "manual_adjustment",
-      "occurred_at": "2026-04-02T09:28:34.979101552Z",
-      "total_quantity_delta": 4,
-      "available_quantity_delta": 4,
-      "committed_quantity_delta": 0,
-      "in_shop_quantity_delta": 4,
-      "campaign_locked_quantity_delta": 0,
-      "creator_locked_quantity_delta": 0
-    }
-  ]
+  "type": 68,
+  "tts_notification_id": "7661989953883391751",
+  "seller_open_id": "{seller_open_id}",
+  "timestamp": 1784001969,
+  "data": {
+    "change_detail": [
+      {
+        "available_quantity_delta": 0,
+        "campaign_locked_quantity_delta": 0,
+        "committed_quantity_delta": -1,
+        "creator_locked_quantity_delta": 0,
+        "idempotency_key": "48bbc95b-2e62-4d7c-8596-5532f3c04c4d",
+        "in_shop_quantity_delta": 0,
+        "occurred_at": "2026-07-13T12:34:12.789752047Z",
+        "total_quantity_delta": -1,
+        "trigger_source": "order_shipped"
+      }
+    ],
+    "event_id": "1732301361504355959:c225b109-8d47-4c68-ad7d-7496f77fef24",
+    "occurred_at": "2026-07-13T12:34:12.789752047Z",
+    "product_id": 1730420770070891127,
+    "quantity_snapshot_after_change": {
+      "campaign_locked_quantity": 0,
+      "creator_locked_quantity": 0,
+      "in_shop_quantity": 2313,
+      "total_available_quantity": 2313,
+      "total_committed_quantity": 1,
+      "total_quantity": 2314
+    },
+    "seller_id": 7495274531001436791,
+    "sku_id": 1732301361504355959
+  }
 }
 ```
 

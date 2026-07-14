@@ -36,8 +36,8 @@ Subscribe only to the **Phase 2 catalog** types below (~18 types). The remaining
 |-------------|---------------|
 | ACK within 3s | Return `{"code": 0}` immediately; persistence async via ETL |
 | Signature | `Authorization` header — HMAC-SHA256 |
-| Required fields | `type` (event type), `shop_id` |
-| Duplicates | Expected — dedup in `EtlConsumer` by `event_id` |
+| Required fields | `type` (numeric catalog id or event-name string). Shop key: top-level `shop_id`, or for **#68 `INVENTORY_CHANGED`** `data.seller_id` when `shop_id` is absent (live deliveries use `seller_open_id` + `seller_id`) |
+| Duplicates | Expected — dedup in `EtlConsumer` by `event_id` (including `data.event_id` on #68) |
 
 ---
 
@@ -69,7 +69,9 @@ Workflow mapping: `docs/product/execution_layer.md` — Webhook catalog in use
 | # | Event type (Partner Center) | ETL channel | Workflow(s) | Confirmed |
 |---|----------------------------|-------------|-------------|-----------|
 | 1 | `ORDER_STATUS_CHANGE` | `tiktok.order_status_change` | Process Order (5) | Yes |
-| 2 | `REVERSE_STATUS_UPDATE` | `tiktok.reverse_status_update` | Request 8a/8b/8c intake | Yes |
+
+
+| 2 | `REVERSE_STATUS_UPDATE` | `tiktok.reverse_status_update` | Request 8a/8b/8c intake | **CONFIRMED** |
 | 3 | `RECIPIENT_ADDRESS_UPDATE` | `tiktok.recipient_address_update` | Process Order (5) | Yes |
 | 4 | `PACKAGE_UPDATE` | `tiktok.package_update` | Split Package (6) | Yes |
 | 5 | `PRODUCT_STATUS_CHANGE` | `tiktok.product_status_change` | Hero Product (1), Optimize (2) | Yes |
@@ -111,6 +113,9 @@ Webhook POST → verify signature → parse JSON
 Account/platform events (#6, #7) write side effects only — no ETL handoff.
 
 `shop_id` is the TikTok shop identifier (matches `Shop.tiktok_shop_id`).
+For `#68 INVENTORY_CHANGED`, live Partner Center deliveries omit top-level
+`shop_id` and send `data.seller_id` instead — the receiver maps that to the
+handoff shop key (see `TikTokWebhookPayload.from_dict`).
 
 ---
 

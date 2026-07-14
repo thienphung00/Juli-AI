@@ -182,7 +182,7 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
         "tiktok.inventory.raw",
         ("INVENTORY_CHANGED",),
         ("replenish_inventory_3", "clear_excess_4"),
-        confirmed=False,
+        confirmed=True,
     ),
 }
 
@@ -202,10 +202,19 @@ def is_deferred_webhook_type(event_type: str) -> bool:
 
 
 def resolve_catalog_entry(event_type: str) -> CatalogEntry | None:
-    """Resolve a Partner Center event type to a Phase 2 catalog entry."""
+    """Resolve a Partner Center event type to a Phase 2 catalog entry.
+
+    Accepts either the confirmed type string (e.g. ``INVENTORY_CHANGED``) or the
+    numeric Partner Center catalog id as a string (e.g. ``\"68\"``).
+    """
     if is_deferred_webhook_type(event_type):
         return None
-    return _EVENT_TYPE_INDEX.get(event_type.upper())
+    entry = _EVENT_TYPE_INDEX.get(event_type.upper())
+    if entry is not None:
+        return entry
+    if event_type.isdigit():
+        return PHASE2_CATALOG.get(int(event_type))
+    return None
 
 
 def ingest_channel_for_event(event_type: str) -> str:
