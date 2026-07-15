@@ -1,0 +1,236 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 397,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "397-2026-07-15T0715Z",
+  "startedAt": "2026-07-15T06:52:00Z",
+  "completedAt": "2026-07-15T07:16:00Z",
+  "executionDurationMs": 1440000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "ReadFile",
+      "count": 37,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Glob",
+      "count": 14,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "rg",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ApplyPatch",
+      "count": 38,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 23,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ReadLints",
+      "count": 1,
+      "stage": "refactor"
+    },
+    {
+      "toolName": "cursor-ide-browser",
+      "count": 18,
+      "stage": "refactor"
+    }
+  ],
+  "toolInvocationCount": 136,
+  "contextFilesLoaded": [
+    "EXECUTION.md",
+    "docs/product/phases/phase-2.6/PRD.md",
+    "docs/architecture/map.md",
+    "docs/architecture/system-design.md",
+    "docs/architecture/data-sources.md",
+    "docs/architecture/migration-plan.md",
+    "docs/adr/023-four-destination-analytics-ownership.md",
+    "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+    "docs/product/design/README.md",
+    "docs/product/design/context.md",
+    "docs/product/design/design.md",
+    "docs/product/design/flows.md",
+    "docs/product/design/soul.md",
+    "docs/product/design/ux_principles.md",
+    "docs/product/design/Screens/home.md",
+    "docs/product/design/Components/navigation.md",
+    "docs/product/design/Components/cards.md",
+    "docs/product/design/colors_and_type.css",
+    "apps/dashboard/MODULE.md",
+    "apps/dashboard/src/lib/format.ts",
+    ".github/workflows/pr.yml",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-397.json"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+    ".cursor/skills/standalone/open-design-system/SKILL.md",
+    "nextjs",
+    "context7-mcp",
+    "react-best-practices"
+  ],
+  "filesModified": [
+    ".github/workflows/pr.yml",
+    "package.json",
+    "package-lock.json (deleted)",
+    "pnpm-workspace.yaml",
+    "pnpm-lock.yaml",
+    "turbo.json",
+    "apps/demo/MODULE.md",
+    "apps/demo/package.json",
+    "apps/demo/next-env.d.ts",
+    "apps/demo/next.config.ts",
+    "apps/demo/postcss.config.mjs",
+    "apps/demo/eslint.config.mjs",
+    "apps/demo/tsconfig.json",
+    "apps/demo/vitest.config.ts",
+    "apps/demo/vitest.setup.ts",
+    "apps/demo/src/app/globals.css",
+    "apps/demo/src/app/layout.tsx",
+    "apps/demo/src/app/page.tsx",
+    "apps/demo/src/app/analytics/page.tsx",
+    "apps/demo/src/app/decisions/page.tsx",
+    "apps/demo/src/app/settings/page.tsx",
+    "apps/demo/src/components/demo-shell.tsx",
+    "apps/demo/src/components/destination-placeholder.tsx",
+    "apps/demo/src/lib/mock-data.ts",
+    "apps/demo/src/__tests__/home.test.tsx",
+    "apps/demo/src/__tests__/navigation.test.tsx",
+    "packages/theme/MODULE.md",
+    "packages/theme/package.json",
+    "packages/theme/tokens.css",
+    "packages/ui/MODULE.md",
+    "packages/ui/package.json",
+    "packages/ui/tsconfig.json",
+    "packages/ui/styles.css",
+    "packages/ui/src/index.ts",
+    "packages/ui/src/destination-card.tsx",
+    "packages/ui/src/primary-navigation.tsx",
+    "packages/utils/MODULE.md",
+    "packages/utils/package.json",
+    "packages/utils/tsconfig.json",
+    "packages/utils/src/index.ts",
+    "packages/utils/src/index.test.ts",
+    "docs/adr/025-demo-workspace-transition.md",
+    "docs/adr/README.md",
+    "docs/architecture/map.md",
+    "tests/unit/test_issue_397_demo_workspace_contract.py",
+    "tests/unit/test_phase_2_5_workspace_tooling.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-397.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_issue_397_demo_workspace_contract.py",
+    "apps/demo/src/__tests__/home.test.tsx",
+    "apps/demo/src/__tests__/navigation.test.tsx",
+    "packages/utils/src/index.test.ts"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_phase_2_5_workspace_tooling.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "The workspace contract failed three assertions because packageManager, apps/demo, shared packages, and Demo sources did not exist.",
+      "passingTestEvidence": "The same contract passed all four tests after adding the pinned pnpm/Turbo workspace and documented package surfaces.",
+      "refactorEvidence": "Kept import rules structural and public-surface based so they reject app/package boundary violations without coupling to implementation details.",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_issue_397_demo_workspace_contract.py -q --tb=short",
+          "exitCode": 1,
+          "outputSummary": "3 failed, 1 passed"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_issue_397_demo_workspace_contract.py -q --tb=short",
+          "exitCode": 0,
+          "outputSummary": "4 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "The first component run failed before assertions because Vitest globals and cleanup were not configured; the corrected run then exposed the icon-hidden accessible name contract.",
+      "passingTestEvidence": "Home and shell tests passed with exactly two launcher links, four discoverable destinations, no forbidden Home content, and no fetch calls.",
+      "refactorEvidence": "Centralized deterministic fixtures, shared accessible React primitives, and test cleanup while preserving icons as aria-hidden decoration.",
+      "commands": [
+        {
+          "command": "corepack pnpm --filter @juli/demo test",
+          "exitCode": 1,
+          "outputSummary": "2 suites failed: Vitest globals missing"
+        },
+        {
+          "command": "corepack pnpm --filter @juli/demo test",
+          "exitCode": 1,
+          "outputSummary": "2 behavior assertions failed: cleanup isolation and hidden-icon accessible name"
+        },
+        {
+          "command": "corepack pnpm --filter @juli/demo test && corepack pnpm --filter @juli/utils test",
+          "exitCode": 0,
+          "outputSummary": "Demo 4 passed; shared formatters 2 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "The independent quality gate failed lint because the app wordmark used a native internal anchor and PostCSS exported an anonymous object.",
+      "passingTestEvidence": "After the minimal framework-correct refactor, lint, type-check, tests, package builds, and the static Next.js production build all passed.",
+      "refactorEvidence": "Used next/link at the app boundary, kept shared UI framework-independent, and verified desktop/mobile grids, 44px targets, a 3px focus-visible ring, and reduced-motion styles in the production runtime.",
+      "commands": [
+        {
+          "command": "corepack pnpm check:demo",
+          "exitCode": 1,
+          "outputSummary": "Lint rejected internal native anchor and anonymous default export"
+        },
+        {
+          "command": "corepack pnpm check:demo",
+          "exitCode": 0,
+          "outputSummary": "lint, type-check, 4 Demo tests, shared package builds, and Next production build passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "The pre-Phase 2.6 workspace transition contract still required pnpm, Turbo, apps/demo, and packages/* to be absent.",
+      "passingTestEvidence": "The superseded contract now preserves dashboard npm independence while requiring the Phase 2.6 root workspace; strengthened boundary tests also scan all apps, package manifests, and package dependency cycles.",
+      "refactorEvidence": "Removed the stale root npm lock while retaining apps/dashboard/package-lock.json, making root pnpm ownership and dashboard npm ownership explicit.",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_workspace_tooling.py -q --tb=short",
+          "exitCode": 1,
+          "outputSummary": "5 failed, 1 passed on superseded removal assertions"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_workspace_tooling.py tests/unit/test_issue_397_demo_workspace_contract.py -q --tb=short",
+          "exitCode": 0,
+          "outputSummary": "9 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added a pinned pnpm 10/Turborepo workspace and independently buildable Next.js 16 Demo app. The responsive shell exposes exactly four Vietnamese destinations; Home renders exactly two accessible shared-package launchers over deterministic no-network fixtures. Semantic tokens, React primitives, and Vietnamese formatters now originate in documented shared packages, with import-boundary tests and a dedicated PR CI job.",
+  "assumptions": [
+    "Issue #397 owns shell placeholders for Decisions, Analytics, and Settings but not their feature content.",
+    "Native anchors are acceptable inside framework-independent @juli/ui primitives; apps may provide framework-specific adapters in later slices.",
+    "The parent/child workflow cache remains local because the repository intentionally ignores workflow-cache artifacts and slice-routing configuration."
+  ],
+  "risks": [
+    "The root pnpm lock includes the existing npm-managed dashboard workspace; dashboard CI remains on npm until a dedicated migration removes the dual-lock transition.",
+    "Public DNS, TLS, and standalone server process wiring remain outside this Home foundation issue.",
+    "The local dev watcher hit the machine open-file limit, so runtime verification used the successful production build/server instead."
+  ]
+}

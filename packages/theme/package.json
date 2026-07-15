@@ -1,0 +1,11 @@
+{
+  "name": "@juli/theme",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    "./tokens.css": "./tokens.css"
+  }
+}

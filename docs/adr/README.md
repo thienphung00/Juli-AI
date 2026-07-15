@@ -29,3 +29,4 @@
 | [022](022-intent-review-guardrails-split.md) | Intent-review / Guardrails split and structure authority | Accepted |
 | [023](023-four-destination-analytics-ownership.md) | Four-destination IA and exclusive Analytics reporting ownership | Accepted |
 | [024](024-phase-2.6-2.7-frontend-resequencing.md) | Phase 2.6/2.7 frontend resequencing, Demo mock/sign-in toggle, app boundaries | Accepted |
+| [025](025-demo-workspace-transition.md) | Isolate the Demo dependency graph during workspace transition | Accepted |

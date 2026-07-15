@@ -2,11 +2,25 @@
   "name": "juli-ai-monorepo",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
+    "build": "turbo run build",
+    "build:demo": "turbo run build --filter=@juli/demo",
+    "lint": "turbo run lint",
+    "lint:demo": "turbo run lint --filter=@juli/demo",
+    "type-check": "turbo run type-check",
+    "type-check:demo": "turbo run type-check --filter=@juli/demo",
+    "test": "turbo run test",
+    "test:demo": "turbo run test --filter=@juli/demo",
+    "check:demo": "pnpm lint:demo && pnpm type-check:demo && pnpm test:demo && pnpm --filter @juli/utils test && pnpm build:demo",
     "screenshots": "node scripts/capture-ui-screenshots.mjs",
     "screenshots:install": "playwright install chromium"
   },
   "devDependencies": {
-    "playwright": "^1.52.0"
+    "playwright": "^1.52.0",
+    "turbo": "2.10.5"
   }
 }

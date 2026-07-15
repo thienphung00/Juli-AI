@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-397",
+  "issue": 397,
+  "timestamp": "2026-07-15T07:30:53Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #397 intent is implemented without scope creep. The initial whole-workspace CI install finding was corrected to install only @juli/demo and its dependency graph.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "397-2026-07-15T0715Z"
+}

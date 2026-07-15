@@ -15,7 +15,7 @@ Product-oriented monorepo — `backend/` holds runtime Python services (ADR-019:
 `src/` shim tree removed).
 
 ```
-apps/          # Product deployables (dashboard)
+apps/          # Product deployables (dashboard, demo)
 backend/       # API, workers, AI, integrations, database
 infra/         # CI/CD, deploy config, env templates
 docs/
@@ -25,8 +25,9 @@ See [`migration-plan.md`](migration-plan.md) for full path mapping and migration
 
 ### Current layout (as-built)
 
-The backend is a modular monolith under `backend/`. Frontends live in `apps/dashboard/` and
-`ios/`. **`backend/api/` and `backend/workers/` are backend entrypoints — not top-level `apps/`.**
+The backend is a modular monolith under `backend/`. Frontends live in
+`apps/dashboard/`, `apps/demo/`, and `ios/`. **`backend/api/` and
+`backend/workers/` are backend entrypoints — not top-level `apps/`.**
 
 ```
 backend/src/juli_backend/
@@ -49,6 +50,7 @@ Frontends (as-built):
 | Path | Product role | Future target |
 |------|--------------|---------------|
 | `apps/dashboard/` | Seller dashboard (3-tab IA, ADR-014) | — (consolidated Phase 3) |
+| `apps/demo/` | Phase 2.6 mock Demo shell and sparse Home (ADR-023) | Phase 3 real-data upgrade |
 | `ios/` | SwiftUI mobile app | `apps/mobile` (Phase 4) |
 
 ## Module tier policy
@@ -73,6 +75,10 @@ Frontends (as-built):
 | [`backend/src/juli_backend/ai/recommendations`](../../backend/src/juli_backend/ai/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | domain: recommendations |
 | [`backend/src/juli_backend/services/etl`](../../backend/src/juli_backend/services/etl/MODULE.md) | 1 | Ingestion consumer: dedup by event_id, transform, persist via data repos, DLQ on failure | `EtlConsumer.ingest`, `IngestRecord`, `ProcessOutcome` | domain: data |
 | [`apps/dashboard`](../../apps/dashboard/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | domain: web |
+| [`apps/demo`](../../apps/demo/MODULE.md) | 2 | Standalone Next.js mock Demo; four-destination shell and sparse Home foundation | `/`, `/decisions`, `/analytics`, `/settings` | domain: web |
+| [`packages/theme`](../../packages/theme/MODULE.md) | 1 | Framework-independent semantic product tokens | `@juli/theme/tokens.css` | domain: web |
+| [`packages/ui`](../../packages/ui/MODULE.md) | 1 | Accessible shared React primitives | `DestinationCard`, `PrimaryNavigation` | domain: web |
+| [`packages/utils`](../../packages/utils/MODULE.md) | 1 | Vietnamese money, number, date, and date-time formatters | `formatVND`, `formatNumber`, `formatDate`, `formatDateTime` | domain: web |
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: demo auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | domain: ios |
 | [`backend/ai/dataset`](../../backend/ai/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | domain: ml |
 | [`backend/ai/features`](../../backend/ai/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | domain: ml |
