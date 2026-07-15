@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-398",
+  "issue": 398,
+  "timestamp": "2026-07-15T09:43:32Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #398 is implemented on top of merged #397 without scope creep: Mock remains the only active persisted mode, Sign-in is inert and explanatory, Manual Refresh resets every declared mutable category and restores Decisions, and assistance remains contextual but non-authoritative.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "398-2026-07-15T0745Z"
+}

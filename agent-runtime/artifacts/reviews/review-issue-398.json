@@ -1,0 +1,89 @@
+{
+  "id": "review-issue-398",
+  "issue": 398,
+  "timestamp": "2026-07-15T09:46:12Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #398 adds the Demo mode seam, inert Sign-in feedback, complete Manual Refresh reset contract, responsive shell controls, truthful recoverable placeholders, and assistive-only destination context.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/demo"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "apps/demo",
+      "interface": "DemoShell and DemoStateProvider",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Adds persisted Mock mode, inert Sign-in feedback, global reset behavior, and contextual assistance."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Mock is the default persisted mode",
+          "test": "apps/demo/src/__tests__/demo-shell.test.tsx::persists Mock as the default mode"
+        },
+        {
+          "criterion": "Sign-in performs no route, OAuth, backend, or network action and explains coming soon",
+          "test": "apps/demo/src/__tests__/demo-shell.test.tsx::explains disabled Sign-in without routing or making a network call"
+        },
+        {
+          "criterion": "Manual Refresh is available in the top corner on every destination",
+          "test": "apps/demo/src/__tests__/demo-shell.test.tsx::keeps Manual Refresh available on every destination"
+        },
+        {
+          "criterion": "Manual Refresh clears every mutable category and opens Decisions Recommendations",
+          "test": "apps/demo/src/__tests__/demo-shell.test.tsx::resets every mutable mock-state category and opens Decisions"
+        },
+        {
+          "criterion": "Contextual assistance is grounded in the active destination without decision or execution authority",
+          "test": "apps/demo/src/__tests__/demo-shell.test.tsx::grounds contextual assistance in the active destination without decision or execution authority"
+        },
+        {
+          "criterion": "Desktop and mobile terminology, touch targets, focus-visible, and reduced motion are preserved",
+          "test": "apps/demo/src/__tests__/demo-shell.test.tsx::preserves desktop and mobile terminology, touch targets, focus-visible, and reduced motion"
+        },
+        {
+          "criterion": "Loading, empty, and error placeholders are truthful and recoverable",
+          "test": "apps/demo/src/__tests__/demo-shell.test.tsx::keeps loading, empty, and error placeholders truthful and recoverable"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 14,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no blocking reliability, security, observability, performance, or acceptance-coverage gaps.",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewStatus": "PASS",
+  "phaseRunId": "398-2026-07-15T0745Z",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-398.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewDurationMs": 900000,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}
