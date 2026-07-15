@@ -85,7 +85,8 @@ describe("Decisions — Recommendations", () => {
 
   it("does not invent a monetary impact for inventory replenishment without a real forecast", () => {
     const replenishment = recommendationFixtures.find(
-      (fixture) => fixture.workflowKey === "replenish_inventory_3",
+      (fixture) =>
+        fixture.workflowKey === "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
     );
 
     expect(replenishment?.expectedImpactLabel).toBe("—");

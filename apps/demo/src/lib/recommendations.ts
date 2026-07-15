@@ -64,7 +64,7 @@ export const recommendationFixtures = [
     risks: "Thay đổi giá sẽ bị chặn nếu thấp hơn mức sàn lợi nhuận đã cấu hình.",
   },
   {
-    workflowKey: "replenish_inventory_3",
+    workflowKey: "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
     toolName: "inventory.replenish",
     title: "Nhập thêm hàng",
     isPriority: false,
