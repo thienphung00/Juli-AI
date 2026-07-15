@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Juli — Main KPI analytics UI kit</title>
+  <meta name="description" content="Four-destination Juli UI with a six-Main-KPI Analytics selector and approval-gated Decisions workflow." />
+  <link rel="stylesheet" href="../../colors_and_type.css" />
+  <style>
+    body { margin: 0; }
+    button { font: inherit; }
+    .app-main { max-width: 1120px; margin: 0 auto; padding: 20px 16px; }
+    .analytics-layout { display: grid; gap: 20px; }
+    .analytics-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+    .range-control { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; }
+    .range-control button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+    .range-control button[aria-pressed="true"] { background: var(--secondary); color: var(--foreground); font-weight: 700; }
+    .range-control button:focus-visible, .info-button:focus-visible, .comparison-toggle input:focus-visible { outline: none; box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color); }
+    .metric-hero { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr); overflow: hidden; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+    .metric-hero-summary, .metric-hero-chart { padding: 24px; }
+    .metric-hero-chart { display: grid; align-content: center; min-width: 0; background: color-mix(in srgb, var(--secondary) 45%, var(--card)); border-left: 1px solid var(--border); }
+    .hero-heading, .metric-card-content { position: relative; z-index: 1; display: flex; gap: 12px; align-items: flex-start; }
+    .hero-heading h2, .metric-card-content h3 { margin: 0; }
+    .hero-heading h2:focus { outline: none; }
+    .hero-heading p:last-child, .metric-card-content p { color: var(--muted-foreground); font-size: 13px; margin: 5px 0 0; }
+    .metric-icon { flex: 0 0 auto; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--secondary); color: var(--primary); font-weight: 800; }
+    .metric-category { margin: 0 0 4px !important; color: var(--muted-foreground); font-size: 11px !important; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .hero-value { margin: 24px 0 8px; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .hero-value span, .selector-value span { color: var(--success); font-size: 13px; }
+    .hero-signal { padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--info) 6%, transparent); border: 1px solid color-mix(in srgb, var(--info) 24%, var(--border)); font-size: 13px; line-height: 1.5; }
+    .provenance { display: grid; gap: 8px; margin: 16px 0; font-size: 12px; }
+    .provenance div { display: flex; justify-content: space-between; gap: 12px; }
+    .provenance dt { color: var(--muted-foreground); }
+    .provenance dd { margin: 0; text-align: right; }
+    .comparison-toggle { display: inline-flex; align-items: center; min-height: 44px; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .comparison-toggle input { width: 18px; height: 18px; accent-color: var(--primary); }
+    .metric-chart { display: block; width: 100%; max-width: 560px; margin: auto; overflow: visible; }
+    .chart-legend { display: flex; justify-content: center; gap: 20px; color: var(--muted-foreground); font-size: 11px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .metric-selector { position: relative; min-height: 210px; padding: 16px; overflow: visible; text-align: left; color: var(--foreground); }
+    .available-card { width: 100%; cursor: pointer; }
+    .metric-preview { position: absolute; inset: auto 8px 0; opacity: .24; pointer-events: none; overflow: hidden; }
+    .metric-card-content { min-height: 118px; padding: 2px; border-radius: 12px; background: color-mix(in srgb, var(--card) 88%, transparent); }
+    .selector-value { position: relative; z-index: 1; display: block; margin-top: 14px; font-size: 17px; font-variant-numeric: tabular-nums; }
+    .unavailable-card { background: color-mix(in srgb, var(--muted-foreground) 3%, var(--card)); }
+    .availability-row { position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+    .availability-row > .badge { background: var(--secondary); color: var(--muted-foreground); padding: 5px 10px; }
+    .availability-control { position: relative; }
+    .info-button { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 50%; background: var(--card); color: var(--foreground); font-weight: 800; cursor: pointer; }
+    .availability-popover { position: absolute; right: 0; bottom: 50px; z-index: 20; width: min(280px, calc(100vw - 48px)); padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-md); }
+    .availability-popover h4 { margin: 0 0 10px; }
+    .availability-popover h4:focus { outline: none; }
+    .availability-popover p { margin: 8px 0; color: var(--muted-foreground); font-size: 13px; line-height: 1.45; }
+    .availability-popover .btn-secondary { min-height: 44px; margin-top: 6px; }
+    @media (max-width: 760px) {
+      .app-main { max-width: 520px; }
+      .analytics-toolbar { align-items: flex-start; flex-direction: column; }
+      .range-control { width: calc(100% - 10px); }
+      .range-control button { flex: 1; }
+      .metric-hero { grid-template-columns: minmax(0, 1fr); }
+      .metric-hero-chart { border-left: 0; border-top: 1px solid var(--border); }
+      .metric-grid { grid-template-columns: minmax(0, 1fr); }
+      .availability-popover { position: fixed; right: 16px; bottom: 92px; left: 16px; width: auto; }
+    }
+    @media (min-width: 761px) and (max-width: 980px) {
+      .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .metric-selector, .range-control button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="components/NavBar.jsx"></script>
+  <script type="text/babel" src="components/HomeAiRecommendationCard.jsx"></script>
+  <script type="text/babel" src="components/ReportMetricChart.jsx"></script>
+  <script type="text/babel" src="components/InProgressDecisionCard.jsx"></script>
+  <script type="text/babel" src="components/App.jsx"></script>
+
+  <script type="text/babel">
+    const { App } = window;
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

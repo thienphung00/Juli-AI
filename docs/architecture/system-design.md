@@ -272,7 +272,7 @@ served at the **08:00 UTC** daily batch in **Phase 2 MVP** (after TikTok API app
 
 | Tier | Purpose | Vet gate |
 |------|---------|----------|
-| **Display-grade** | Powers Home KPI charts + one-line advisory signals; never executes | Lightweight; maps to ≥1 workflow; constraint #3 + ADR-011 |
+| **Display-grade** | Powers Analytics KPI charts + one-line advisory signals; never executes | Lightweight; maps to ≥1 workflow; constraint #3 + ADR-011 + ADR-023 |
 | **Decision-grade** | Gates a money-moving action behind the approval gate | Explicit vetting + promotion thresholds (#142) |
 
 The former "three vetted suites" framing is **retired** — logic is recycled into

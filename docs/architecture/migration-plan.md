@@ -5,8 +5,10 @@
 > **Does not own:** as-built module registry (`map.md`), deploy domain details (`phase-2.5-deployment.md`).
 
 **Status:** Phase 2.5 complete (App Review sign-off 2026-07-03). Runtime code lives under
-`backend/`; deploy entrypoint is `backend.api.api.main:app`. Legacy frontends remain in
-`web/` and `ios/` until Phase 3 / 3.5 migration.
+`backend/`; deploy entrypoint is `backend.api.api.main:app`. `web/` has already been
+renamed to `apps/dashboard/` (see `apps/README.md`) and serves the legacy App Review
+placeholder at `app-juli.com` until Phase 3 repoints that domain to `apps/landing`.
+`ios/` remains legacy until its Phase 4+ `apps/mobile` migration.
 
 ---
 
@@ -22,9 +24,9 @@ juli-ai-v2/
 │   ├── integrations/     # Domain modules
 │   ├── ai/               # ML trainers, features, artifacts
 │   └── database/         # SQLAlchemy, repos, Alembic migrations
-├── web/                  # Next.js seller dashboard (legacy; live at app-juli.com for App Review)
 ├── ios/                  # SwiftUI mobile app (legacy)
-├── apps/                 # Product deployables (scaffold — Phase 2.5-a)
+├── apps/
+│   └── dashboard/        # Next.js seller dashboard (legacy ADR-014 IA; live at app-juli.com for App Review)
 ├── packages/             # Shared libraries (scaffold — Phase 2.5-b)
 ├── infra/                # CI/CD + deploy config (live App Review runbooks)
 ├── docs/
@@ -74,9 +76,9 @@ juli-ai-v2/
 | `alembic/` | `backend/database/migrations/` | DB migrations |
 | `requirements.txt` | `backend/requirements.txt` or `pyproject.toml` | Python deps |
 | `tests/` | `backend/tests/` | Python unit/integration tests |
-| `web/` | `apps/dashboard/` (Phase 3.5) | Current seller dashboard |
-| — | `apps/demo/` (Phase 3) | New mock storytelling app |
-| — | `apps/landing/` (Phase 3) | New marketing site |
+| `web/` (renamed) | `apps/dashboard/` (done; ADR-023 IA rebuild is Phase 3.5) | Legacy seller dashboard, App Review placeholder |
+| — | `apps/demo/` (Phase 2.6) | New ADR-023 IA demo app, mock data |
+| — | `apps/landing/` (Phase 2.7) | New marketing site |
 | `ios/` | `apps/mobile/` | Mobile app |
 | `web/src/components/` | `packages/ui/` | Shared components (incremental) |
 | `web/src/lib/` types | `packages/types/` | Shared TS types |
@@ -108,9 +110,18 @@ Each PR must pass the full test suite before and after. No opportunistic refacto
 | **2.5-review** | VPS/Nginx/HTTPS deploy of legacy frontend/API for TikTok App Review | **Complete** — sign-off 2026-07-03 |
 | **2.5-c** | Move `src/` → `backend/` with import rewrites | `pytest` green |
 | **2.5-d** | Split deploy config into `infra/` | CI green; review runbook retained |
-| **3-a** | Scaffold `apps/landing` + `apps/demo` | New apps build independently |
-| **3.5-a** | Extract `packages/ui`, `packages/theme` from `web/` | `web/` + new apps consume packages |
-| **3.5-b** | Move `web/` → `apps/dashboard` | Dashboard deploys to `dashboard.app-juli.com` |
+| **2.6** | Scaffold `apps/demo` (ADR-023 IA, mock data); extract `packages/ui`, `packages/theme` | `apps/demo` builds independently on mock data |
+| **2.7** | Scaffold `apps/landing` (mock/static content); consumes `packages/ui`/`packages/theme` | `apps/landing` builds independently on mock data |
+| **3** | Wire `apps/demo` + `apps/landing` to real backend; enable Demo Sign-in mode; deploy both | Both apps deployed on real data end-to-end |
+| **3.5** | Rebuild `apps/dashboard` to the ADR-023 IA with multi-tenant auth | Dashboard deploys to `dashboard.app-juli.com` |
+
+> **Superseded (2026-07-15, [ADR-024](../adr/024-phase-2.6-2.7-frontend-resequencing.md)):**
+> the previous `3-a` (scaffold apps/landing+demo together) and `3.5-a` (extract
+> packages/ui after both apps exist) rows are replaced by the `2.6`/`2.7`/`3` rows above —
+> `apps/demo` and `apps/landing` now scaffold separately, in that order, with package
+> extraction starting at `2.6` instead of `3.5-a`. `web/` was already renamed to
+> `apps/dashboard/` ahead of this plan (see `apps/README.md`); `3.5-b` now means
+> "rebuild its IA," not "move the directory."
 
 `2.5-review` is allowed to deploy from legacy paths because TikTok review only needs public access,
 not the final monorepo runtime layout. It must not introduce production-only dependencies such as

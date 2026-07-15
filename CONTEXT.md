@@ -27,7 +27,7 @@ _Avoid_: data migration (when meaning Alembic auto-preserves rows), assuming
 project
 
 **Layered model**:
-The product's three-layer structure — **visual layer** (Home KPI charts + one-line
+The product's three-layer structure — **visual layer** (Analytics KPI charts + one-line
 advisory signals), **ML layer** (T1–T8 advisory techniques), and **execution layer**
 (the workflow → action taxonomy a signal links to). Authoritative docs:
 `docs/ml/visual_layer.md`, `docs/ml/ml_layer.md`, `docs/product/execution_layer.md`
@@ -57,9 +57,16 @@ The lightweight ML layer that powers the visual layer — a small set of reusabl
 techniques (T1–T8: ETS forecaster, recycled ads regressor, policy rules,
 statistical anomaly, deadline rule, recycled return-fraud detector, weighted
 ranker, recycled router classifier) applied across all KPIs. Charts plus one-line
-"what changed / risk / action" signals on Home; advisory only, never executes
+"what changed / risk / action" signals in Analytics; advisory only, never executes
 ([ADR-005](docs/adr/011-display-grade-analytics-layer.md)).
 _Avoid_: per-KPI models (implies ~19 separate trained models)
+
+**Main KPI**:
+The representative KPI marked `(main)` for each visual-layer category. Analytics
+shows the six Main KPIs—SPS, Net Revenue, ROAS, Inventory Turnover, Fulfillment
+Accuracy Rate, and CSAT—as one selected hero plus five selector cards.
+_Avoid_: primary KPI, featured metric, headline metric (when referring to this
+canonical six-KPI set)
 
 **Decision-grade ML**:
 Trained techniques (T2, T6, T8) that must pass backtest promotion gates before
@@ -86,6 +93,41 @@ built in MVP/Phase 2, which stays single-store Supabase Postgres
 ([ADR-012](docs/adr/012-architecture-reconciliation-mvp-vs-target.md) — corrected
 citation, was mis-cited as ADR-006).
 _Avoid_: target architecture (overloaded term — use Phase 3 polyglot target or `phase-2-mvp.md`)
+
+## Frontend surfaces
+
+**`apps/demo`**:
+The public Interactive Demo product (`demo.app-juli.com`), implementing the ADR-023
+four-destination IA (Home, Decisions, Analytics, Settings) as one responsive Next.js
+codebase covering web + mobile-web breakpoints. Built with mock data in Phase 2.6; wired
+to real backend data in Phase 3 ([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)).
+Distinct from `apps/dashboard` (legacy App Review placeholder today; real, authenticated
+production app in Phase 3.5).
+_Avoid_: the Demo (ambiguous with the retired two-screen Home+Actions IA from the original
+`phase-3-landing-demo.md`, superseded by ADR-024)
+
+**`apps/landing`**:
+The public marketing site product (`app-juli.com`, replacing the legacy App Review
+placeholder once deployed), one responsive Next.js codebase covering web + mobile-web
+breakpoints. Own IA defined per its Phase 2.7 PRD — not part of `docs/product/design`'s
+scope (that package's root authorities cover the four-destination app only); reuses its
+visual tokens and brand voice for consistency.
+_Avoid_: Landing Page IA living inside `docs/product/design/Screens/`
+
+**Mock/Sign-in mode toggle**:
+`apps/demo`'s UI switch between **Mock mode** (default, no auth required, hardcoded/mock
+data — shipped Phase 2.6) and **Sign-in mode** (real TikTok OAuth connect + real backend
+data for one pre-connected reference shop — enabled Phase 3). The Sign-in entry point
+exists in the UI from Phase 2.6 onward but is a disabled stub until Phase 3 implements it.
+_Avoid_: assuming Sign-in mode requires per-visitor onboarding/multi-tenant account
+management (that stays Phase 3.5 scope)
+
+**Reference shop**:
+The one pre-connected TikTok shop (already authenticated via Phase 2's pipeline
+validation, e.g. Fujiwa/SANDBOX_VN) whose real data powers `apps/demo`'s Sign-in mode in
+Phase 3. Phase 3 does not add per-visitor/self-serve TikTok shop connection — that is
+Phase 3.5 scope.
+_Avoid_: implying Phase 3 opens self-serve TikTok OAuth to arbitrary public visitors
 
 ## Seller workspace
 
@@ -200,7 +242,7 @@ Fulfillment ship/label/tracking actions use **Fulfillment API**; order reads use
 _Avoid_: "Ads API" on Shop Partner host (no campaign writes); Internal engine names with no implemented client or ADR
 
 **Ads KPI workflow routing**:
-Home Ads KPIs (ROAS, CAC, CTR) link to **Promotion** workflows from
+Analytics Ads KPIs (ROAS, CAC, CTR) link to **Promotion** workflows from
 `execution_layer.md` — Create Activity (7a), Update Activity (7c), Delete Activity (7b)
 — not Shop Ads Marketing API budget/bid writes (out of Phase 2 Partner scope).
 _Avoid_: Increase Ad Budget, Reduce Ad Spend, Budget Optimization (P1.8 catalog labels — retired)
@@ -211,7 +253,7 @@ not a standalone workflow in `execution_layer.md`.
 _Avoid_: Create Product Bundle (phantom workflow — use Optimize Product (2))
 
 **Shop Status KPI routing**:
-SPS / AHR / Violation Points render on Home from mock/fixture data in Phase 2 because
+SPS / AHR / Violation Points render in Analytics from mock/fixture data in Phase 2 because
 Partner API shop-health fields are not available to retrieve. They emit advisory
 display only — **no execution_layer workflow mapping** until a live source exists.
 _Avoid_: mapping Shop Status KPIs to Process Order / Prevent Cancellation / Resolve

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Juli recommendation actions and states",
+  "entry": "preview/components-buttons.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-15T04:16:47.844Z",
+  "updatedAt": "2026-07-15T05:30:00.000Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true,
+    "source": "preview/components-buttons.html",
+    "model": "Phê duyệt/Từ chối/Mở rộng"
+  }
+}

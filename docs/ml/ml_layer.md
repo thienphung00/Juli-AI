@@ -15,13 +15,13 @@ baselines in [`src/modules/ml/artifacts/thresholds.py`](../src/modules/ml/artifa
 
 | Proposal | Verdict | Authority |
 |----------|---------|-----------|
-| One trained model per Home KPI (~19) | **Reject** | ADR-005 — sprawl, vetting cost, collides with explainability |
+| One trained model per Analytics KPI (~19) | **Reject** | ADR-005 — sprawl, vetting cost, collides with explainability |
 | Prophet / LSTM / heavy holiday forecasters | **Reject** | ADR-005 — marginal benefit at ~90d bounded history |
 | XGBoost / LightGBM / neural nets as default | **Defer** | `RandomForest*` sufficient at current backtest N; revisit with live volume |
 | Learned-to-rank (T7) | **Reject** | ADR-005 — deterministic ranker for seller transparency |
 | Isolation Forest / autoencoder (T4) | **Reject** | EWMA/z-score adequate for display-grade advisory |
 | Sentiment / CSAT model | **Defer Phase 3** | No legal buyer text source (`data-sources.md` #17) |
-| sklearn for T1 Home KPI forecasts | **Reject** | T1 is statsmodels ETS — shared across KPI series, not per-KPI RF |
+| sklearn for T1 Analytics KPI forecasts | **Reject** | T1 is statsmodels ETS — shared across KPI series, not per-KPI RF |
 | ML dynamic pricing model | **Defer** | T9 is deterministic rule engine for MVP; ML pricing requires price-elasticity data at scale |
 | ML demand-based reorder quantity | **Defer** | T10 is deterministic ROP/EOQ for MVP; T1 ETS covers the display-grade demand signal |
 
@@ -31,7 +31,7 @@ where tabular labels exist.
 
 ## Display-grade vs promotion gates
 
-Every technique here is **display-grade**: it powers Home charts and advisory copy;
+Every technique here is **display-grade**: it powers Analytics charts and advisory copy;
 nothing in this layer executes a workflow. T2, T6, and T8 are **recycled** from the
 former decision suites — they remain `sklearn` artifacts with backtest promotion
 gates before Phase 2 MVP Milestone B inference load (Product sign-off #142).
@@ -58,10 +58,10 @@ Every KPI is powered by one of these shared building blocks.
 | T9 | **Pricing Engine** | Deterministic rule engine — inputs: Revenue by SKU delta, Conversion Rate by Category delta, competitor price signal (optional), configured margin floor. Rule set: (1) if conversion rate drops > threshold while session traffic is stable AND margin > floor → recommend price reduction (direction + Δ%); (2) if conversion rate + revenue rising → recommend price hold or marginal increase. No training. | SKU-level conversion rate trend (≥7d); revenue delta (≥7d); configured margin floor; competitor price signal (optional) | Never ML | `src/modules/ml/pricing/` *(planned)* |
 | T10 | **Inventory Reorder Engine** | Deterministic reorder rule — Reorder Point (ROP) = (average daily sales × lead time days) + safety stock; recommended order quantity = EOQ or configured multiple. No training. | Average daily sales velocity (≥14d); configured lead time (days); configured safety stock; current inventory level | Never ML | `src/modules/ml/inventory_reorder/` *(planned)* |
 
-> **Workflow-scoped techniques (T9, T10):** Unlike T1–T8, which power Home KPI
+> **Workflow-scoped techniques (T9, T10):** Unlike T1–T8, which power Analytics KPI
 > tiles, T9 and T10 generate advisory output *inside* an execution workflow
 > (pre-execution recommendation step). They do not appear in the per-KPI mapping
-> table and do not render a Home chart.
+> table and do not render an Analytics chart.
 
 **Outputs (common):**
 
@@ -120,7 +120,7 @@ CSAT renders as a deterministic proxy or "unavailable", never a model.
 ## Intelligence track (not T1–T8)
 
 Post-stream livestream and SKU depletion heuristics live under
-`src/modules/catalog/domain/intelligence/` — **not** the Home KPI ML layer.
+`src/modules/catalog/domain/intelligence/` — **not** the Analytics KPI ML layer.
 
 | Module | Method | Data | Notes |
 |--------|--------|------|-------|
@@ -152,7 +152,7 @@ traceability.
 | T1 Forecaster (`statsmodels`) | 🔲 Not started | *Add slice before Milestone B* |
 | T4 EWMA / z-score serving | 🔲 Not started | *Add slice before Milestone B* |
 | T7 Deterministic ranker config | 🔲 Not started | *Add slice before Milestone B* |
-| T3 / T5 rules wiring to Home KPIs | 🔲 Partial (orchestration mocks shipped pre-MVP) | pre-MVP |
+| T3 / T5 rules wiring to Analytics KPIs | 🔲 Partial (orchestration mocks shipped pre-MVP) | pre-MVP |
 | T9 Pricing Engine (deterministic rules) | 🔲 Not started | *Add slice before Milestone B* |
 | T10 Inventory Reorder Engine (deterministic rules) | 🔲 Not started | *Add slice before Milestone B* |
 

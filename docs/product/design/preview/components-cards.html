@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Juli — Recommendation and execution cards</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  body { margin: 0; padding: 40px; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+  h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  .sub { color: var(--muted-foreground); font-size: 0.875rem; margin: 0 0 28px; }
+  .stack { display: flex; flex-direction: column; gap: 16px; max-width: 420px; }
+  section { margin-bottom: 24px; }
+  h2 { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); margin: 0 0 12px; }
+
+  .ai-card { padding: 16px; }
+  .ai-card h3 { display:flex; align-items:center; gap:6px; font-size:0.875rem; font-weight:600; color: var(--primary); margin: 0; }
+  .ai-card p { margin: 8px 0 12px; font-size: 0.875rem; font-weight: 500; }
+  .ai-actions { display: flex; gap: 8px; }
+  .ai-actions .btn-primary, .ai-actions .btn-secondary { flex: 1; text-align: center; }
+  .reasoning { margin: 10px 0; padding: 12px; border: 1px solid color-mix(in srgb, var(--info) 24%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--info) 6%, transparent); font-size: .8125rem; }
+
+  .status-card { padding: 16px; }
+  .status-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .status-row h4 { font-size: 1rem; font-weight: 600; margin: 0; }
+  .pill { border-radius: 100px; padding: 2px 10px; font-size: 0.75rem; font-weight: 500; background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); white-space: nowrap; }
+  .impact { color: var(--muted-foreground); font-size: 0.875rem; margin: 8px 0 12px; }
+
+  .metric-card { padding: 12px; }
+  .metric-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .metric-label { font-size: 0.875rem; font-weight: 600; }
+  .metric-value { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .metric-delta { font-size: 0.75rem; font-weight: 600; color: var(--success); }
+  .real-estimated { margin-top: 8px; height: 10px; border-radius: 100px; background: color-mix(in srgb, var(--pink-main) 14%, transparent); overflow: hidden; display: flex; }
+  .real-seg { background: var(--success); }
+  .est-seg { background: color-mix(in srgb, var(--success) 45%, transparent); }
+</style>
+</head>
+<body>
+  <h1>Thẻ đề xuất và thực thi</h1>
+  <p class="sub">Current demonstration source: Components/cards.md. Files in source_examples/ are non-authoritative historical evidence.</p>
+
+  <div class="stack">
+    <section>
+      <h2>Đề xuất (recommendation) — .card</h2>
+      <div class="card ai-card">
+        <h3>✦ Đề xuất</h3>
+        <p>Xử lý ba đơn hàng sắp quá hạn giao.</p>
+        <p class="impact">Tác động dự kiến: giảm 3 đơn trễ hạn · Độ tin cậy: Cao</p>
+        <div class="reasoning"><strong style="color:var(--info)">Lý do đề xuất</strong><br />Ba đơn còn dưới 6 giờ để bàn giao; danh sách được điền sẵn để người bán kiểm tra.</div>
+        <div class="ai-actions">
+          <button class="btn-primary" type="button">Phê duyệt</button>
+          <button class="btn-secondary" type="button">Từ chối</button>
+        </div>
+        <button class="btn-secondary" type="button" style="width:100%;margin-top:8px" aria-expanded="true">Mở rộng</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Đang thực hiện (in-progress) — .card</h2>
+      <div class="card status-card">
+        <div class="status-row">
+          <h4>Xử lý ba đơn hàng sắp quá hạn giao</h4>
+          <span class="pill">Cần thêm thông tin</span>
+        </div>
+        <p class="impact">Tác động dự kiến: giảm 3 đơn trễ hạn</p>
+        <label for="orders" style="display:block;font-size:.8125rem;font-weight:600;margin-bottom:6px">Số lượng xử lý</label>
+        <input id="orders" class="field-input" value="3 đơn hàng" readonly style="box-sizing:border-box;width:100%;margin-bottom:8px" />
+        <button class="btn-primary" type="button" style="width:100%">Bắt đầu thực thi</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Analytics metric tile — .card, real vs. estimated</h2>
+      <div class="card metric-card">
+        <div class="metric-head">
+          <div>
+            <div class="metric-label">Doanh thu</div>
+            <div class="metric-value">12,4tr₫</div>
+          </div>
+          <span class="metric-delta">+8,2%</span>
+        </div>
+        <div class="real-estimated">
+          <div class="real-seg" style="width:62%"></div>
+          <div class="est-seg" style="width:23%"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

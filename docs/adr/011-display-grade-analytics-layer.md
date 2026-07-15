@@ -5,6 +5,7 @@ Accepted
 
 **Amends:** `system-design.md` § Architecture constraints #3.  
 **Supersedes:** Closed-catalog / Copilot-surface workflow framing.  
+**IA ownership amended by:** [ADR-023](023-four-destination-analytics-ownership.md).
 **Reaffirms:** [ADR-008](008-buyer-behavior-anomaly-scope.md), [ADR-010](010-ml-module-tree-and-trainers.md),
 [ADR-013](013-operations-pipeline-spine.md), [ADR-014](014-decision-copilot-app-structure-and-journey.md),
 [ADR-012](012-architecture-reconciliation-mvp-vs-target.md).
@@ -41,9 +42,14 @@ needs were conflated:
 
 5. **Layered model is authoritative:**
    - **Visual layer** → [`visual_layer.md`](../ml/visual_layer.md)
-   - **ML layer** → [`ml_layer.md`](../ml_layer.md)
-   - **Execution layer** → [`execution_layer.md`](../execution_layer.md)
+   - **ML layer** → [`ml_layer.md`](../ml/ml_layer.md)
+   - **Execution layer** → [`execution_layer.md`](../product/execution_layer.md)
    - T8 router selects rule set per shop profile; not a UI grouping.
+
+6. **Analytics owns the visual layer.** All display-grade KPI values, charts,
+   comparisons, forecasts, provenance, and one-line advisory signals render in
+   Analytics, never on Home. The representative KPI marked `(main)` in each
+   visual-layer category is called its **Main KPI**.
 
 ## Rationale
 
@@ -53,3 +59,5 @@ Consolidates seller-money rescope: keeps enforcement aligned with TikTok VN poli
 
 - Phase 2 MVP serves display-grade techniques at 08:00 UTC daily batch after API approval.
 - Reviewers must enforce advisory-only boundary — display techniques never gate executed actions.
+- Home remains a two-card launcher; visual-layer reporting and unavailable
+  source disclosure remain inside Analytics.
