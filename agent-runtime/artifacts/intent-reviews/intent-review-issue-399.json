@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-399",
+  "issue": 399,
+  "timestamp": "2026-07-15T10:18:53Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #399 implements all nine mock recommendation workflows in fixed specification order without live ranking. Review blockers were corrected: rejection persists until Manual Refresh, error and touch states are tested, replenishment does not invent monetary impact, keyboard focus is restored after rejection, and contextual assistance receives active workflow evidence and risks.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "399-2026-07-15T0955Z"
+}
