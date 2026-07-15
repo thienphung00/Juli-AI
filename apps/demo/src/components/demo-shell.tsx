@@ -34,10 +34,20 @@ const assistanceByPath = {
 function DemoShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { feedback, mode, requestSignIn, resetMockState } = useDemoState();
+  const {
+    feedback,
+    mode,
+    recommendationContext,
+    requestSignIn,
+    resetMockState,
+  } = useDemoState();
   const assistance =
     assistanceByPath[pathname as keyof typeof assistanceByPath] ??
     assistanceByPath["/"];
+  const assistanceMessage =
+    pathname === "/decisions" && recommendationContext
+      ? `${recommendationContext.title}: ${recommendationContext.evidence} Rủi ro: ${recommendationContext.risks}`
+      : assistance.message;
 
   const handleManualRefresh = () => {
     resetMockState();
@@ -100,7 +110,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
       >
         <p className="demo-assistance__eyebrow">{assistance.destination}</p>
         <h2 id="demo-assistance-title">Gợi ý từ Juli</h2>
-        <p>{assistance.message}</p>
+        <p>{assistanceMessage}</p>
         <p className="demo-assistance__boundary">
           Juli chỉ giải thích trong ngữ cảnh này. Mọi quyết định và thao tác vẫn
           do bạn kiểm soát.

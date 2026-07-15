@@ -1,0 +1,106 @@
+{
+  "id": "review-issue-399",
+  "issue": 399,
+  "timestamp": "2026-07-15T10:21:18Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #399 adds all nine deterministic recommendation workflows with stable ordering, truthful mock states, accessible interactions, persistent rejection, error recovery, and active-workflow assistance.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/demo",
+    "packages/theme",
+    "packages/ui"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "apps/demo",
+      "interface": "/decisions Recommendations view",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Replaces the placeholder with the mock recommendation list and interaction states."
+    },
+    {
+      "module": "packages/ui",
+      "interface": "RecommendationCard, Badge, and Button",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds reusable accessible recommendation presentation primitives."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Workflow 1 is Priority and Workflows 2 through 9 remain in stable specification order",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::renders Workflow 1 as the Priority Card first, followed by 2-9 in stable spec order"
+        },
+        {
+          "criterion": "No expected-impact ranking calculation changes mock ordering",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::never re-ranks by expected impact \u2014 order stays 1..9 regardless of differing impact values"
+        },
+        {
+          "criterion": "Every card shows workflow name, signal, expected impact, confidence, capability, and reasoning",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::shows title, signal, expected impact, confidence, capability, and reasoning on every card"
+        },
+        {
+          "criterion": "Expand reveals reasoning, evidence, eligibility, known limits, and risks inline",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::Expand reveals evidence, eligibility, known limits, and risks; collapsing hides them again"
+        },
+        {
+          "criterion": "Reject removes a card until Manual Refresh",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::persists rejection until Manual Refresh instead of restoring it on remount"
+        },
+        {
+          "criterion": "Unsupported Approve actions are disabled with a meaningful explanation",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::renders Approve as a real disabled button with an associated, meaningful explanation"
+        },
+        {
+          "criterion": "The highlight workflow query focuses and visibly marks a real card",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::focuses and visibly marks the matching card for ?highlight=<workflow_key>"
+        },
+        {
+          "criterion": "Empty, error, keyboard, touch, and reduced-motion states are tested",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::tests empty, error, keyboard, touch, and reduced-motion states"
+        },
+        {
+          "criterion": "Contextual assistance receives active recommendation evidence and risks without decision authority",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::supplies active recommendation evidence and risks to contextual assistance"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 33,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed after remediation; Guardrails found no remaining blocking reliability, security, observability, performance, or acceptance-coverage gaps.",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewStatus": "PASS",
+  "phaseRunId": "399-2026-07-15T0955Z",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-399.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewDurationMs": 1500000,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}

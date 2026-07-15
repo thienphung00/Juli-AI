@@ -287,6 +287,93 @@ a {
   font-size: 0.8rem;
 }
 
+.demo-decisions__tabs {
+  display: inline-flex;
+  min-height: var(--juli-touch-target);
+  margin-top: var(--juli-space-6);
+  border: 1px solid var(--juli-border);
+  border-radius: 999px;
+  background: var(--juli-surface);
+  padding: var(--juli-space-1);
+}
+
+.demo-decisions__tab {
+  min-height: var(--juli-touch-target);
+  min-width: var(--juli-touch-target);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--juli-muted-foreground);
+  padding: 0 var(--juli-space-4);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.demo-decisions__tab[aria-pressed="true"] {
+  background: var(--juli-primary-soft);
+  color: var(--juli-foreground);
+}
+
+.demo-decisions__tab:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
+.demo-decisions__list {
+  display: grid;
+  gap: var(--juli-space-4);
+  margin: var(--juli-space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demo-decisions__empty {
+  max-width: 38rem;
+  margin-top: var(--juli-space-6);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-large);
+  background: var(--juli-surface);
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  box-shadow: var(--juli-shadow-small);
+}
+
+.demo-decisions__empty h2 {
+  margin: 0 0 var(--juli-space-3);
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  letter-spacing: -0.03em;
+}
+
+.demo-decisions__empty p {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.7;
+}
+
+.demo-decisions__status:empty {
+  display: none;
+}
+
+.demo-decisions__retry {
+  min-height: var(--juli-touch-target);
+  min-width: var(--juli-touch-target);
+  margin-top: var(--juli-space-4);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: 999px;
+  background: var(--juli-primary-soft);
+  color: var(--juli-foreground);
+  padding: 0 var(--juli-space-4);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.demo-decisions__retry:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
 @media (max-width: 35rem) {
   .demo-header {
     padding-block: var(--juli-space-3);

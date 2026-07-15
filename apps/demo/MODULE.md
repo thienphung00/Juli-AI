@@ -12,6 +12,8 @@ dependency.
 - `/decisions`, `/analytics`, `/settings` — discoverable shell destinations;
   content is delivered by later vertical slices.
 - `DemoShell` — responsive four-destination application frame.
+- `DemoStateProvider` / `useDemoState` — single owner for mutable mock state,
+  persisted Mock mode, disabled Sign-in feedback, and deterministic reset.
 - `homeDestinations` / `demoSnapshot` — deterministic mock contracts used by Home.
 
 ## Dependencies
@@ -25,6 +27,12 @@ dependency.
 - Home contains no KPI, recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
 - The app performs no network requests and requires no backend/API environment variables.
+- Mock is the only enabled mode; Sign-in remains focusable for truthful
+  coming-soon feedback but never routes or requests data.
+- Manual Refresh resets every mutable mock-state category and returns to
+  `/decisions`, whose default view is Recommendations.
+- Contextual Juli assistance explains the active destination and never
+  authorizes approval, rejection, or execution.
 - Every navigation target is keyboard accessible with a visible focus state and
   at least a 44×44px target.
 - The app never imports a sibling app.

@@ -9,6 +9,12 @@
   --juli-border: #f8d4dc;
   --juli-border-accent: rgba(248, 107, 165, 0.32);
   --juli-focus-ring: rgba(232, 90, 148, 0.58);
+  --juli-success: #16a34a;
+  --juli-success-tint: rgba(22, 163, 74, 0.14);
+  --juli-warning: #f59e0b;
+  --juli-warning-tint: rgba(245, 158, 11, 0.14);
+  --juli-destructive: #e5484d;
+  --juli-destructive-tint: rgba(229, 72, 77, 0.14);
   --juli-radius: 1rem;
   --juli-radius-large: 1.5rem;
   --juli-shadow-small: 0 1px 2px rgba(0, 0, 0, 0.06),

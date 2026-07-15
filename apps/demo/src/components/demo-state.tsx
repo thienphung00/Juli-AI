@@ -5,6 +5,7 @@ import {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -12,6 +13,14 @@ import {
 } from "react";
 
 export const DEMO_MODE_STORAGE_KEY = "juli_demo_mode";
+export const DEMO_MUTABLE_STATE_STORAGE_KEY = "juli_demo_mutable_state";
+
+export interface RecommendationAssistanceContext {
+  evidence: string;
+  risks: string;
+  title: string;
+  workflowKey: string;
+}
 
 export interface MutableMockState {
   rejectedRecommendationIds: string[];
@@ -42,8 +51,12 @@ interface DemoStateValue {
   feedback: string | null;
   mode: "mock";
   mutableState: MutableMockState;
+  recommendationContext: RecommendationAssistanceContext | null;
   requestSignIn: () => void;
   resetMockState: () => void;
+  setRecommendationContext: (
+    context: RecommendationAssistanceContext | null,
+  ) => void;
   updateMutableState: Dispatch<SetStateAction<MutableMockState>>;
 }
 
@@ -62,12 +75,64 @@ function createDefaultMutableState(): MutableMockState {
 
 export function DemoStateProvider({ children }: { children: ReactNode }) {
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [mutableState, updateMutableState] = useState<MutableMockState>(
+  const [mutableState, setMutableState] = useState<MutableMockState>(
     createDefaultMutableState,
   );
+  const [recommendationContext, setRecommendationContext] =
+    useState<RecommendationAssistanceContext | null>(null);
 
   useEffect(() => {
     localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
+    const persistedState = localStorage.getItem(DEMO_MUTABLE_STATE_STORAGE_KEY);
+    let restoreTimer: number | undefined;
+
+    if (persistedState) {
+      try {
+        const restoredState = {
+          ...createDefaultMutableState(),
+          ...(JSON.parse(persistedState) as Partial<MutableMockState>),
+        };
+        restoreTimer = window.setTimeout(
+          () => setMutableState(restoredState),
+          0,
+        );
+      } catch {
+        localStorage.removeItem(DEMO_MUTABLE_STATE_STORAGE_KEY);
+      }
+    }
+
+    return () => {
+      if (restoreTimer !== undefined) {
+        window.clearTimeout(restoreTimer);
+      }
+    };
+  }, []);
+
+  const updateMutableState = useCallback<
+    Dispatch<SetStateAction<MutableMockState>>
+  >((nextState) => {
+    setMutableState((current) => {
+      const resolved =
+        typeof nextState === "function" ? nextState(current) : nextState;
+
+      localStorage.setItem(
+        DEMO_MUTABLE_STATE_STORAGE_KEY,
+        JSON.stringify(resolved),
+      );
+      return resolved;
+    });
+  }, []);
+
+  const resetMockState = useCallback(() => {
+    const defaultState = createDefaultMutableState();
+
+    setMutableState(defaultState);
+    setRecommendationContext(null);
+    localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
+    localStorage.removeItem(DEMO_MUTABLE_STATE_STORAGE_KEY);
+    setFeedback(
+      "Demo đã trở về trạng thái ban đầu tại Quyết định — Đề xuất.",
+    );
   }, []);
 
   const value = useMemo<DemoStateValue>(
@@ -75,22 +140,24 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
       feedback,
       mode: "mock",
       mutableState,
+      recommendationContext,
       requestSignIn: () => {
         localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
         setFeedback(
           "Sign-in sắp ra mắt. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.",
         );
       },
-      resetMockState: () => {
-        updateMutableState(createDefaultMutableState());
-        localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
-        setFeedback(
-          "Demo đã trở về trạng thái ban đầu tại Quyết định — Đề xuất.",
-        );
-      },
+      resetMockState,
+      setRecommendationContext,
       updateMutableState,
     }),
-    [feedback, mutableState],
+    [
+      feedback,
+      mutableState,
+      recommendationContext,
+      resetMockState,
+      updateMutableState,
+    ],
   );
 
   return (

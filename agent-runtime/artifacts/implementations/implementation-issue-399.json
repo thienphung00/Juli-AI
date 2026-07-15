@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 399,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "399-2026-07-15T0955Z",
+  "startedAt": "2026-07-15T09:56:50Z",
+  "completedAt": "2026-07-15T09:56:50Z",
+  "executionDurationMs": 3600000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "ReadFile",
+      "count": 18,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ApplyPatch",
+      "count": 11,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 9,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 38,
+  "contextFilesLoaded": [
+    "docs/product/design/Screens/decisions.md",
+    "docs/product/design/Flows/decisions/recommendations/1-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/2-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/3-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/4-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/5-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/6-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/7-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/8-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/9-workflow.md",
+    "apps/demo/MODULE.md",
+    "packages/ui/MODULE.md",
+    "GitHub issue #399"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/intent-review/SKILL.md",
+    ".cursor/skills/standalone/guardrails/SKILL.md"
+  ],
+  "filesModified": [
+    "apps/demo/MODULE.md",
+    "apps/demo/src/app/decisions/page.tsx",
+    "apps/demo/src/app/globals.css",
+    "apps/demo/src/components/demo-shell.tsx",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/components/recommendations-view.tsx",
+    "apps/demo/src/lib/recommendations.ts",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+    "apps/demo/vitest.setup.ts",
+    "packages/theme/tokens.css",
+    "packages/ui/MODULE.md",
+    "packages/ui/src/index.ts",
+    "packages/ui/src/badge.tsx",
+    "packages/ui/src/button.tsx",
+    "packages/ui/src/recommendation-card.tsx",
+    "packages/ui/styles.css"
+  ],
+  "testsAdded": [
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "The initial Recommendations tests specified all nine cards, stable ordering, disclosures, rejection, disabled approval, highlight focus, keyboard, touch, reduced motion, and no-network behavior before the component implementation was complete.",
+      "passingTestEvidence": "The focused Decisions and shell suites pass 27 tests after implementing cards and interactions.",
+      "refactorEvidence": "Shared recommendation presentation moved into @juli/ui while Demo retains fixtures and state ownership.",
+      "commands": [
+        {
+          "command": "corepack pnpm --filter @juli/demo exec vitest run src/__tests__/decisions-recommendations.test.tsx src/__tests__/demo-shell.test.tsx",
+          "exitCode": 0,
+          "outputSummary": "2 files passed; 27 tests passed."
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Review identified missing error recovery, reload persistence, active-workflow assistance, post-rejection focus, touch coverage, and an invented replenishment impact.",
+      "passingTestEvidence": "Added explicit regression coverage for every identified blocker; the complete Demo suite passes 31 tests.",
+      "refactorEvidence": "Separated highlight focus from list changes, persisted mutable state through the shared provider, and made assistance consume typed workflow context.",
+      "commands": [
+        {
+          "command": "corepack pnpm check:demo",
+          "exitCode": 0,
+          "outputSummary": "Demo lint, type-check, 31 Demo tests, 2 utils tests, and production build passed."
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Builds the Decisions Recommendations tab with all nine mock workflows in stable specification order, Priority Card treatment for Workflow 1, truthful capability and impact states, inline evidence and risk disclosure, persistent rejection until Manual Refresh, recoverable error and empty states, accessible highlight/focus behavior, touch and reduced-motion support, and active-workflow contextual assistance.",
+  "assumptions": [
+    "Mock recommendation ordering is specification order and never computed from expected impact.",
+    "Approve remains disabled until the editable review and execution slice is implemented.",
+    "The shared Demo state provider is the source of truth for rejection persistence and Manual Refresh."
+  ],
+  "risks": [
+    "Recommendation fixtures are deterministic mock content and must be replaced by authoritative data before production execution is enabled."
+  ]
+}
