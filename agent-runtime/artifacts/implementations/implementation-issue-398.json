@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 398,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "398-2026-07-15T0745Z",
+  "startedAt": "2026-07-15T07:43:00Z",
+  "completedAt": "2026-07-15T08:01:00Z",
+  "executionDurationMs": 1080000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "ReadFile",
+      "count": 41,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "rg",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Glob",
+      "count": 9,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ApplyPatch",
+      "count": 18,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 22,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ReadLints",
+      "count": 2,
+      "stage": "refactor"
+    },
+    {
+      "toolName": "cursor-ide-browser",
+      "count": 15,
+      "stage": "refactor"
+    }
+  ],
+  "toolInvocationCount": 112,
+  "contextFilesLoaded": [
+    "EXECUTION.md",
+    "docs/product/phases/phase-2.6/PRD.md",
+    "docs/architecture/map.md",
+    "docs/architecture/data-sources.md",
+    "docs/architecture/migration-plan.md",
+    "docs/adr/023-four-destination-analytics-ownership.md",
+    "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+    "docs/product/design/README.md",
+    "docs/product/design/context.md",
+    "docs/product/design/design.md",
+    "docs/product/design/flows.md",
+    "docs/product/design/soul.md",
+    "docs/product/design/ux_principles.md",
+    "docs/product/design/Screens/decisions.md",
+    "docs/product/design/Screens/analytics.md",
+    "docs/product/design/Screens/settings.md",
+    "docs/product/design/Components/navigation.md",
+    "apps/demo/MODULE.md",
+    "packages/theme/MODULE.md",
+    "packages/ui/MODULE.md",
+    "packages/utils/MODULE.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-398.json"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+    ".cursor/skills/standalone/open-design-system/SKILL.md",
+    "nextjs",
+    "react-best-practices"
+  ],
+  "filesModified": [
+    "apps/demo/MODULE.md",
+    "apps/demo/src/app/globals.css",
+    "apps/demo/src/components/demo-shell.tsx",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/components/destination-placeholder.tsx",
+    "apps/demo/src/__tests__/demo-shell.test.tsx",
+    "agent-runtime/artifacts/implementations/implementation-issue-398.json"
+  ],
+  "testsAdded": [
+    "apps/demo/src/__tests__/demo-shell.test.tsx"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "The test-first shell suite imported the not-yet-existing Demo state provider and specified persisted Mock mode, disabled Sign-in, complete reset, route restoration, and contextual-assistance behavior before implementation.",
+      "passingTestEvidence": "After adding the provider and shell controls, the focused suite passed all eight issue-specific tests.",
+      "refactorEvidence": "Centralized all mutable mock categories and defaults in one typed provider so later destination slices consume the same reset contract.",
+      "commands": [
+        {
+          "command": "corepack pnpm --filter @juli/demo test -- demo-shell.test.tsx",
+          "exitCode": 1,
+          "outputSummary": "RED setup was blocked because the fresh worktree had no installed Vitest binary; dependencies were then installed from the unchanged lockfile."
+        },
+        {
+          "command": "corepack pnpm --filter @juli/demo exec vitest run src/__tests__/demo-shell.test.tsx",
+          "exitCode": 0,
+          "outputSummary": "1 file passed; 8 tests passed."
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "The first executable suite run found an ambiguous status-role query because the state probe output correctly carries an implicit status role.",
+      "passingTestEvidence": "Naming the shell feedback live region made assertions precise while preserving accessible status semantics.",
+      "refactorEvidence": "Kept feedback, preview status, and state output as separate named accessibility surfaces rather than weakening role coverage.",
+      "commands": [
+        {
+          "command": "corepack pnpm --filter @juli/demo test -- demo-shell.test.tsx",
+          "exitCode": 1,
+          "outputSummary": "12 passed, 1 failed across the Demo suite; only the ambiguous test query failed."
+        },
+        {
+          "command": "corepack pnpm --filter @juli/demo exec vitest run src/__tests__/demo-shell.test.tsx",
+          "exitCode": 0,
+          "outputSummary": "8 issue-specific tests passed."
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "Browser verification checked the real production build at desktop and 375px mobile widths, including deferred client navigation after Manual Refresh.",
+      "passingTestEvidence": "Sign-in displayed coming-soon feedback without leaving the route; Manual Refresh moved Settings to /decisions; desktop and mobile layouts preserved four destinations and usable controls.",
+      "refactorEvidence": "Responsive CSS hides only the refresh text label at narrow widths while retaining the accessible name, 44px target, focus ring, and reduced-motion behavior.",
+      "commands": [
+        {
+          "command": "corepack pnpm check:demo",
+          "exitCode": 0,
+          "outputSummary": "Demo lint, type-check, all tests, shared-utils tests, and static production build passed."
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added a shell-owned, typed Demo state provider with Mock persisted as the only enabled mode, a focusable disabled Sign-in control that gives truthful Vietnamese feedback without routing or network access, and a global Manual Refresh that restores every mutable mock-state category before replacing the route with /decisions. Added route-grounded assistive-only Juli guidance, reusable truthful placeholder states with recovery navigation, responsive accessible styling, and eight issue-specific integration tests.",
+  "assumptions": [
+    "The bare /decisions route is the canonical default Recommendations view, matching the Phase 2.6 PRD and issue wording.",
+    "Later Decisions, Analytics, and Settings slices will store their mutable Demo state through useDemoState so the global reset contract remains complete.",
+    "Sign-in uses aria-disabled instead of the native disabled attribute so keyboard and pointer users can receive the required coming-soon explanation."
+  ],
+  "risks": [
+    "Destination feature slices are not implemented yet; their future client components must consume the shared provider rather than introducing private mutable stores.",
+    "The local workflow-cache machinery remains ignored and machine-local by repository policy."
+  ]
+}
