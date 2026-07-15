@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Juli — Typography specimens</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  body { margin: 0; padding: 40px; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+  h1.page-title { font-size: 1.25rem; margin: 0 0 4px; }
+  .sub { color: var(--muted-foreground); font-size: 0.875rem; margin: 0 0 28px; }
+  .specimen { display: flex; align-items: baseline; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--border); max-width: 760px; }
+  .specimen .tag { width: 160px; flex-shrink: 0; font-size: 0.75rem; color: var(--muted-foreground); font-family: ui-monospace, monospace; }
+  .specimen .sample { flex: 1; }
+  .page-title-sample { font-size: var(--text-xl); font-weight: 700; letter-spacing: -0.02em; }
+  .section-heading-sample { font-size: var(--text-base); font-weight: 600; }
+  .card-title-sample { font-size: var(--text-sm); font-weight: 600; }
+  .body-sample { font-size: var(--text-sm); }
+  .caption-sample { font-size: var(--text-xs); color: var(--muted-foreground); }
+  .metric-sample { font-size: var(--text-2xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <h1 class="page-title">Typography specimens</h1>
+  <p class="sub">Single typeface: Inter (400–800), Google Fonts. No serif/display/mono. Hierarchy = size + weight only.</p>
+
+  <div class="specimen"><div class="tag">Page title</div><div class="sample page-title-sample">Quyết định</div></div>
+  <div class="specimen"><div class="tag">Section heading</div><div class="sample section-heading-sample">Lý do đề xuất</div></div>
+  <div class="specimen"><div class="tag">Card title</div><div class="sample card-title-sample">Đề xuất từ Juli</div></div>
+  <div class="specimen"><div class="tag">Body</div><div class="sample body-sample">Doanh thu hôm nay tăng so với hôm qua, chủ yếu nhờ nhóm sản phẩm chăm sóc da.</div></div>
+  <div class="specimen"><div class="tag">Caption / meta</div><div class="sample caption-sample">Cập nhật 5 phút trước</div></div>
+  <div class="specimen"><div class="tag">Metric value</div><div class="sample metric-sample">12,4tr₫</div></div>
+  <div class="specimen"><div class="tag">Weights</div><div class="sample" style="display:flex; gap:16px; font-size:0.9375rem;">
+    <span style="font-weight:400">400 Regular</span>
+    <span style="font-weight:500">500 Medium</span>
+    <span style="font-weight:600">600 SemiBold</span>
+    <span style="font-weight:700">700 Bold</span>
+    <span style="font-weight:800">800 ExtraBold</span>
+  </div></div>
+</body>
+</html>

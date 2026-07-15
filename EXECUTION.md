@@ -51,6 +51,8 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **2** | Why a constraint exists | One ADR from [`decisions/`](docs/adr/README.md) |
 
 **Historical pre-MVP:** [`phase-1-completed.md`](docs/product/phases/phase-1-completed.md)  
+**Phase 2.6 — Demo frontend (mock):** [`phase-2.6/PRD.md`](docs/product/phases/phase-2.6/PRD.md)  
+**Phase 2.7 — Landing frontend (mock):** [`phase-2.7/PRD.md`](docs/product/phases/phase-2.7/PRD.md)  
 **Phase 3 forward:** [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
 
 ---
@@ -61,7 +63,9 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 |-------|-------|-------|-----------|
 | **2 — Pipeline Validation** | End-to-end backend machine | 0 (internal) | Pipeline reliable; execution >95%; outcome tracking works |
 | **2.5 — Deployment Architecture** | Monorepo restructure, independent deploys | 0 (internal) | Frontend and backend independently deployable on intended domains |
-| **3 — Landing + Interactive Demo** | Qualitative feedback, mock-data storytelling | Public (no login) | Users understand Juli within minutes; complete demo unassisted |
+| **2.6 — Demo Frontend (mock)** | `apps/demo` build-out, ADR-023 IA, mock data | 0 (internal) | Demo frontend complete for web + mobile-web; Mock/Sign-in toggle present, Sign-in disabled |
+| **2.7 — Landing Frontend (mock)** | `apps/landing` build-out, mock/static content | 0 (internal) | Landing frontend complete for web + mobile-web |
+| **3 — Landing + Demo real data** | Wire real backend, deploy, prove e2e pipeline | Public (Demo Sign-in adds OAuth) | LP and Demo deployed with working backend on real data; e2e pipeline proven for both |
 | **3.5 — Full Web Application** | Auth, connected shops, real backend | Early adopters | Demo replaced by production web app |
 | **4 — ML + LLM + Cross-Platform** | Intelligence, personalization, sync | Growing base | Production ML pipeline; LLM copy; Web ↔ Mobile sync |
 | **4.5 — Real-Time Infrastructure** | Latency reduction at scale | Growing base | Real-time updates justified by product scale |
@@ -75,8 +79,10 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 |-------|---------------------------|
 | **2** | FastAPI · Postgres (sole mandatory store) · **rules-based signal engine** · **rules-based copy** · Celery executors · manual-refresh trigger (no scheduler — [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)) |
 | **2.5** | Product monorepo (`apps/`, `packages/`, `backend/`, `infra/`) · domain routing · CI/CD |
-| **3** | `apps/landing` · `apps/demo` (mock only) · PostHog behavior analytics |
-| **3.5** | `apps/dashboard` · auth · TikTok connection · real API integration |
+| **2.6** | `apps/demo` (ADR-023 IA, mock data) · `packages/ui` + `packages/theme` extraction begins · Mock/Sign-in toggle (Sign-in disabled) |
+| **2.7** | `apps/landing` (mock/static content) · consumes `packages/ui` + `packages/theme` |
+| **3** | `apps/demo` + `apps/landing` wired to real backend data · Demo Sign-in mode enabled (reference-shop TikTok OAuth) · deploy to `demo.app-juli.com` / `app-juli.com` · PostHog behavior analytics |
+| **3.5** | `apps/dashboard` ADR-023 rebuild · multi-tenant auth · per-seller TikTok connection · real API integration |
 | **4** | Production ML · cloud LLM copy · cross-platform tracking |
 | **4.5** | Webhooks · event-driven processing · real-time updates (when justified) |
 | **5** | Billing · security hardening · production automation |
@@ -103,8 +109,8 @@ produce signals and recommendations. Trained ML (T1–T8) begins in Phase 4.
 
 | Milestone | Focus | Status |
 |-----------|-------|--------|
-| **A — Live data pipeline** | TikTok poll → ETL → Postgres → feature aggregates | In progress |
-| **B — Rules engine + execution** | Rules-based signals → recommendations → rules copy → Celery executors | Pending Milestone A |
+| **A — Live data pipeline** | TikTok poll → ETL → Postgres → feature aggregates | Complete |
+| **B — Rules engine + execution** | Rules-based signals → recommendations → rules copy → Celery executors | Complete (FBS; FBT Phase 5) |
 
 **Pre-A1 progress (App Review, 2.5-review):** TikTok OAuth exchange, encrypted credential
 persistence (`TikTokCredential` in Postgres), and live API connectivity probe are done.
@@ -125,15 +131,17 @@ Scheduled polling, business-entity ETL, and feature aggregates remain pending.
       recommendations → **persisted Action Cards**, [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)).
       _(#303 reopened — pipeline logic done, persistence gap.)_
 - [x] **P2-B2** Rules-based copy layer — deterministic templates from rule signals (no cloud LLM). _(#304)_
-- [ ] **P2-B3** Swap mock → live rules-based signals + policy alerts. _(#374 — Ads KPIs
-      pending Promotion API, tracked separately; other 10 domains live.)_
+- [x] **P2-B3** Swap mock → live rules-based signals + policy alerts. _(#374 — Ads KPIs
+      pending Promotion API, tracked separately; other 10 domains live. Exit gate accepts
+      Ads as known gap.)_
 - [x] **P2-B4** Celery-backed task execution behind approval (never inline in HTTP handler).
       _(#305 — dispatch infra: routing, idempotency, error taxonomy, sandbox guard contract.)_
-- [ ] **P2-B5** Outcome tracking instrumentation. _(#306 open — realtime envelope done,
-      cadence rollups pending.)_
+- [x] **P2-B5** Outcome tracking instrumentation. _(#306 — realtime envelope shipped;
+      daily/weekly/monthly cadence stubs acceptable for Phase 2 exit.)_
 - [x] **P2-B6** Listing approval queue + Products API publish. _(#379)_
-- [ ] **P2-B7** Leakage live executors. _(#380)_
-- [ ] **P2-B8** Live operations pipeline wiring (rules-based classify → health → rank).
+- [x] **P2-B7** Leakage live executors. _(#380 — inventory/promotion + returns 8a/8b/8c FBS
+      + process_order_5; FBT executors deferred Phase 5.)_
+- [x] **P2-B8** Live operations pipeline wiring (rules-based classify → health → rank).
       _(folded into the P2-B1 manual-refresh issue, #303 — no separate slice.)_
 - [x] **P2-B9** Scoped inventory collection. _(#381; hybrid poll Search Inventory + webhook #68.)_
 - [ ] **P2-B10** Deferred workflow executors. _(by design — Affiliate/Livestream/CS/Finance
@@ -152,12 +160,16 @@ Offline backtest / training work completed during pre-MVP — **out of Phase 2 s
 
 ### Exit gate → Phase 2.5
 
-- [ ] **Data** — TikTok → Postgres reliable
-- [ ] **Signals** — Rule-based signal generation stable
-- [ ] **Execution** — Tool execution succeeds >95%
-- [ ] **Tracking** — Outcome measurement works
+- [x] **Data** — TikTok → Postgres reliable _(manual-refresh poll + ETL + inventory;
+      ADR-021)_
+- [x] **Signals** — Rule-based signal generation stable _(Action Cards persisted;
+      Ads KPIs known gap)_
+- [x] **Execution** — Tool execution succeeds >95% _(FBS listing/inventory/promotion/
+      returns/fulfillment registered + contract-tested; FBT deferred Phase 5)_
+- [x] **Tracking** — Outcome measurement works _(realtime envelope; cadence stubs OK)_
 
-Detail: [`phase-2-mvp.md`](docs/product/phases/phase-2-mvp.md)
+Detail: [`phase-2-mvp.md`](docs/product/phases/phase-2-mvp.md) ·
+[`phase-2-exit-gate-report.html`](docs/product/phases/phase-2-exit-gate-report.html)
 
 ---
 
@@ -188,27 +200,79 @@ Detail: [`phase-2.5-deployment.md`](docs/product/phases/phase-2.5-deployment.md)
 
 ---
 
-## Phase 3 — Landing Page + Interactive Demo (brief)
+## Phase 2.6 — Demo Frontend, Mock Data (brief)
 
-**Goal:** Collect qualitative user feedback with minimal friction.
+**Goal:** Build the Interactive Demo's frontend end-to-end on mock data, before any
+backend wiring or public deployment.
 
-Focus: Landing Page (`app-juli.com`) · Interactive Demo (`demo.app-juli.com`) · mock data
-only · hardcoded demo flows · no login · no account creation · no TikTok connection ·
-mobile-first · behavior analytics.
+Focus: new `apps/demo` · ADR-023 four-destination IA (Home, Decisions, Analytics,
+Settings) — **not** the retired two-screen Home+Actions IA · one responsive Next.js
+codebase covering web + mobile-web breakpoints · Mock/Sign-in mode toggle with Sign-in
+**disabled** (stub only) · `packages/ui` + `packages/theme` extraction begins here so
+later apps reuse the same components ([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)).
 
-The demo is **storytelling**, not a miniature dashboard. Two primary screens:
-
-| Screen | Purpose |
-|--------|---------|
-| **Home** | AI Briefing → Analytics (evidence) → Recommendations → Approval → CTA into Actions |
-| **Actions** | Pending Approval · Scheduled · In Progress · Completed · Results / Impact |
-
-User journey: Observe → Understand → Recommend → Approve → Execute → Measure.
+Out of scope: real backend calls, real TikTok OAuth, public deployment (all Phase 3).
 
 ### Exit gate
 
-- [ ] Users understand Juli within minutes
-- [ ] Users complete the demo without assistance
+- [ ] `apps/demo` implements Home, Decisions, Analytics, Settings per
+      `docs/product/design/` on mock data
+- [ ] Mock mode fully interactive with no auth required; Sign-in mode present but disabled
+- [ ] Verified responsive on web and mobile-web breakpoints
+- [ ] `packages/ui` + `packages/theme` populated and consumed by `apps/demo`
+
+Detail: [`phase-2.6/PRD.md`](docs/product/phases/phase-2.6/PRD.md)
+
+---
+
+## Phase 2.7 — Landing Frontend, Mock Data (brief)
+
+**Goal:** Build the marketing Landing Page's frontend end-to-end on mock/static content,
+before public deployment.
+
+Focus: new `apps/landing` · own IA (not part of `docs/product/design`'s four-destination
+scope) defined in the Phase 2.7 PRD · reuses `docs/product/design` visual tokens and
+brand voice (`design.md`, `soul.md`, `colors_and_type.css`) for consistency only · one
+responsive Next.js codebase covering web + mobile-web breakpoints · consumes
+`packages/ui` + `packages/theme` from Phase 2.6.
+
+Out of scope: real backend calls, public deployment (Phase 3).
+
+### Exit gate
+
+- [ ] `apps/landing` sections built (hero, product story, CTA → Demo) on mock/static
+      content
+- [ ] Verified responsive on web and mobile-web breakpoints
+- [ ] Visual tokens/voice consistent with `docs/product/design`
+
+Detail: [`phase-2.7/PRD.md`](docs/product/phases/phase-2.7/PRD.md)
+
+---
+
+## Phase 3 — Landing Page + Demo, Real Data (brief)
+
+**Goal:** Wire the already-built (Phase 2.6/2.7) frontends to a working backend using
+real data, deploy both to their target domains, and prove the end-to-end pipeline for
+both surfaces.
+
+Focus: deploy `apps/landing` to `app-juli.com` (replacing the temporary App Review
+placeholder) and `apps/demo` to `demo.app-juli.com` · enable `apps/demo`'s Sign-in mode
+(real TikTok OAuth connect + real backend data for one pre-connected reference shop,
+per [ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)) · Mock mode remains
+available · behavior analytics (PostHog).
+
+Per-visitor/self-serve TikTok connection and multi-tenant account management remain
+Phase 3.5 scope — Phase 3's Sign-in mode uses one reference shop only.
+
+### Exit gate
+
+- [ ] `apps/landing` and `apps/demo` deployed and publicly reachable on their target
+      domains
+- [ ] `apps/demo` Sign-in mode shows real backend data (Phase 2 pipeline output) for the
+      reference shop end-to-end
+- [ ] End-to-end pipeline (poll/ETL → aggregates → signals → recommendations → Action
+      Cards) proven live for the Demo; Landing Page CTA flow to Demo verified
+- [ ] Engagement and messaging metrics collected via PostHog
 
 Detail: [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
 

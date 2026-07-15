@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Juli — Spacing, radius &amp; elevation</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  body { margin: 0; padding: 40px; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+  h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  .sub { color: var(--muted-foreground); font-size: 0.875rem; margin: 0 0 28px; }
+  section { margin-bottom: 32px; max-width: 760px; }
+  h2 { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); margin: 0 0 12px; }
+  .space-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .space-bar { background: var(--primary); height: 16px; border-radius: 3px; }
+  .space-label { width: 130px; font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--muted-foreground); }
+  .radius-grid, .shadow-grid { display: flex; gap: 20px; flex-wrap: wrap; }
+  .radius-box, .shadow-box { width: 120px; height: 90px; background: var(--card); border: 1px solid var(--border); display: flex; align-items: flex-end; padding: 10px; font-size: 0.75rem; font-family: ui-monospace, monospace; color: var(--muted-foreground); }
+  .touch-target { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.7rem; }
+</style>
+</head>
+<body>
+  <h1>Spacing, radius &amp; elevation</h1>
+  <p class="sub">Source: apps/dashboard/src/app/globals.css :root, Tailwind defaults, ux_principles.md — Juli-AI-v2</p>
+
+  <section>
+    <h2>Spacing scale</h2>
+    <div class="space-row"><div class="space-label">--space-1 · 4px</div><div class="space-bar" style="width:4px"></div></div>
+    <div class="space-row"><div class="space-label">--space-2 · 8px</div><div class="space-bar" style="width:8px"></div></div>
+    <div class="space-row"><div class="space-label">--space-3 · 12px</div><div class="space-bar" style="width:12px"></div></div>
+    <div class="space-row"><div class="space-label">--space-4 · 16px</div><div class="space-bar" style="width:16px"></div></div>
+    <div class="space-row"><div class="space-label">--space-5 · 20px</div><div class="space-bar" style="width:20px"></div></div>
+    <div class="space-row"><div class="space-label">--space-6 · 24px</div><div class="space-bar" style="width:24px"></div></div>
+    <div class="space-row"><div class="space-label">--space-8 · 32px</div><div class="space-bar" style="width:32px"></div></div>
+  </section>
+
+  <section>
+    <h2>Radius</h2>
+    <div class="radius-grid">
+      <div class="radius-box" style="border-radius: var(--radius);">--radius 16px</div>
+      <div class="radius-box" style="border-radius: var(--radius-lg);">--radius-lg 24px</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Elevation</h2>
+    <div class="shadow-grid">
+      <div class="shadow-box" style="box-shadow: var(--shadow-sm); border-radius: var(--radius);">--shadow-sm</div>
+      <div class="shadow-box" style="box-shadow: var(--shadow-md); border-radius: var(--radius);">--shadow-md</div>
+      <div class="shadow-box" style="box-shadow: var(--shadow-lg); border-radius: var(--radius);">--shadow-lg</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Minimum touch target — 44×44px</h2>
+    <div class="touch-target">44</div>
+  </section>
+</body>
+</html>

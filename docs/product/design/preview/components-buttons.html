@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Juli — Buttons, badges &amp; form states</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  body { margin: 0; padding: 40px; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+  h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  .sub { color: var(--muted-foreground); font-size: 0.875rem; margin: 0 0 28px; }
+  section { margin-bottom: 28px; max-width: 720px; }
+  h2 { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); margin: 0 0 12px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+  <h1>Buttons, badges &amp; form states</h1>
+  <p class="sub">Classes copied verbatim from apps/dashboard/src/app/globals.css @layer components — Juli-AI-v2</p>
+
+  <section>
+    <h2>Buttons — .btn-primary / .btn-secondary</h2>
+    <div class="row">
+      <button class="btn-primary">Phê duyệt</button>
+      <button class="btn-secondary">Từ chối</button>
+      <button class="btn-secondary" aria-expanded="false">Mở rộng</button>
+      <button class="btn-primary" disabled>Đang xử lý</button>
+      <button class="btn-secondary" disabled>Không khả dụng</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Badges — .badge-*</h2>
+    <div class="row">
+      <span class="badge badge-success">Tăng trưởng</span>
+      <span class="badge badge-danger">Rủi ro</span>
+      <span class="badge badge-warning">Sắp đạt ngưỡng</span>
+      <span class="badge badge-info">Gợi ý Juli</span>
+      <span class="badge badge-pink">Mới</span>
+      <span class="badge-live">TRỰC TIẾP</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Form field — .field-input</h2>
+    <div class="row" style="flex-direction:column; align-items:stretch; max-width:320px;">
+      <input class="field-input" placeholder="Số điện thoại" />
+      <input class="field-input" placeholder="Không khả dụng" disabled />
+    </div>
+  </section>
+
+  <section>
+    <h2>Loading — .spinner / .skeleton</h2>
+    <div class="row">
+      <div class="spinner"></div>
+      <div class="skeleton" style="width:180px;height:36px;"></div>
+    </div>
+  </section>
+</body>
+</html>

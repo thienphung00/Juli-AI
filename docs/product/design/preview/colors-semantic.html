@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Juli — Semantic color preview</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  body { margin: 0; padding: 40px; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+  h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  .sub { color: var(--muted-foreground); font-size: 0.875rem; margin: 0 0 28px; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; max-width: 640px; background: var(--card); }
+  .dot { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; }
+  .name { font-weight: 600; font-size: 0.875rem; }
+  .hex { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--muted-foreground); margin-left: auto; }
+  .role { font-size: 0.75rem; color: var(--muted-foreground); }
+  .neutrals { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; max-width: 960px; margin-top: 28px; }
+  .swatch { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+  .swatch .fill { height: 72px; }
+  .swatch .label { padding: 8px 12px; background: var(--card); font-size: 0.75rem; }
+</style>
+</head>
+<body>
+  <h1>Semantic &amp; neutral tokens</h1>
+  <p class="sub">Source: apps/dashboard/src/app/globals.css :root — Juli-AI-v2. Never signal status by color alone.</p>
+
+  <div class="row"><div class="dot" style="background:var(--success)"></div><div><div class="name">Success</div><div class="role">Growth, positive delta</div></div><div class="hex">#16A34A</div></div>
+  <div class="row"><div class="dot" style="background:var(--destructive)"></div><div><div class="name">Destructive</div><div class="role">Loss, risk, negative delta</div></div><div class="hex">#E5484D</div></div>
+  <div class="row"><div class="dot" style="background:var(--warning)"></div><div><div class="name">Warning</div><div class="role">Caution, threshold proximity</div></div><div class="hex">#F59E0B</div></div>
+  <div class="row"><div class="dot" style="background:var(--info)"></div><div><div class="name">Info</div><div class="role">Juli-suggestion moments only — never generic AI purple</div></div><div class="hex">#2563EB</div></div>
+
+  <div class="neutrals">
+    <div class="swatch"><div class="fill" style="background:var(--background); border-bottom:1px solid var(--border)"></div><div class="label">--background (seller) #FFFFFF</div></div>
+    <div class="swatch"><div class="fill" style="background:var(--border)"></div><div class="label">--border (pink-tinted) #F8D4DC</div></div>
+    <div class="swatch"><div class="fill" style="background:var(--muted-foreground)"></div><div class="label">--muted-foreground #71717A</div></div>
+    <div class="swatch"><div class="fill" style="background:#050505"></div><div class="label" style="background:#111;color:#fafafa">--background (affiliate/dark) #050505</div></div>
+  </div>
+</body>
+</html>

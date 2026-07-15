@@ -53,7 +53,7 @@ juli-ai-v2/
 | Domain | Product | Phase |
 |--------|---------|-------|
 | `app-juli.com` | App Review frontend (temporary legacy `web/` deploy) | 2.5 |
-| `demo.app-juli.com` | Interactive Demo (mock storytelling) | 3 |
+| `demo.app-juli.com` | Interactive Demo (ADR-023 IA; Mock mode + disabled Sign-in stub built 2.6, mock data; Sign-in mode enabled with real reference-shop data 3) | 2.6 / 3 |
 | `dashboard.app-juli.com` | Full web dashboard | 3.5 |
 | `api.app-juli.com` | Backend API + TikTok OAuth callback | 2.5 (review) / 3.5 (production traffic) |
 

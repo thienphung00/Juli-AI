@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Juli Main KPI analytics and execution UI kit",
+  "entry": "ui_kits/app/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-15T04:18:30.516Z",
+  "updatedAt": "2026-07-15T06:10:00.000Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true,
+    "source": "ui_kits/app/index.html",
+    "model": "four destinations; six Main KPIs; literal hero-card swap; honest unavailable states; recommendation-to-execution"
+  }
+}

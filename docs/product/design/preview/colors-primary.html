@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Juli — Brand color preview</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  body { margin: 0; padding: 40px; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+  h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  .sub { color: var(--muted-foreground); font-size: 0.875rem; margin: 0 0 28px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; max-width: 960px; }
+  .swatch { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+  .swatch .fill { height: 96px; }
+  .swatch .label { padding: 10px 12px; background: var(--card); }
+  .swatch .name { font-size: 0.8125rem; font-weight: 600; }
+  .swatch .hex { font-size: 0.75rem; color: var(--muted-foreground); font-family: ui-monospace, monospace; }
+  .note { margin-top: 32px; max-width: 640px; font-size: 0.8125rem; color: var(--muted-foreground); line-height: 1.6; }
+  .gradient-swatch { height: 96px; background: var(--brand-gradient); }
+</style>
+</head>
+<body>
+  <h1>Brand color — primary ramp</h1>
+  <p class="sub">Source: apps/dashboard/tailwind.config.ts (primary.50–900) &amp; globals.css :root — Juli-AI-v2</p>
+  <div class="grid">
+    <div class="swatch"><div class="fill" style="background:var(--primary-50)"></div><div class="label"><div class="name">primary-50</div><div class="hex">#FEF5F6</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-100)"></div><div class="label"><div class="name">primary-100</div><div class="hex">#FDE8EC</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-200)"></div><div class="label"><div class="name">primary-200</div><div class="hex">#F9C4D4</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-300)"></div><div class="label"><div class="name">primary-300</div><div class="hex">#FBA0BC</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-400)"></div><div class="label"><div class="name">primary-400</div><div class="hex">#F98BA9</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-500)"></div><div class="label"><div class="name">primary-500 (--pink-main)</div><div class="hex">#F86BA5</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-600)"></div><div class="label"><div class="name">primary-600</div><div class="hex">#E85A94</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-700)"></div><div class="label"><div class="name">primary-700</div><div class="hex">#D44983</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-800)"></div><div class="label"><div class="name">primary-800</div><div class="hex">#B0386A</div></div></div>
+    <div class="swatch"><div class="fill" style="background:var(--primary-900)"></div><div class="label"><div class="name">primary-900</div><div class="hex">#8C2D54</div></div></div>
+    <div class="swatch"><div class="gradient-swatch"></div><div class="label"><div class="name">--brand-gradient</div><div class="hex">135deg #F86BA5 → #FAA5C4</div></div></div>
+  </div>
+  <p class="note">Rule: <strong>accent-only</strong>. The brand pink drives CTAs, health/progress state, and the elevated "Juli" nav tab — it is never used as a full-page wash, and <code>--pink-background</code> (#FEF5F6) is a secondary fill surface, not the seller page background.</p>
+</body>
+</html>

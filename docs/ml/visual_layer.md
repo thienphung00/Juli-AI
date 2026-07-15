@@ -1,6 +1,6 @@
 # Visual Layer
 
-> **Tier 1 — Home KPI rendering.** Read [`EXECUTION.md`](../EXECUTION.md) first.  
+> **Tier 1 — Analytics KPI rendering.** Read [`EXECUTION.md`](../../EXECUTION.md) first.
 > **Owns:** chart types, advisory signal format, KPI → workflow links.  
 > **Does not own:** technique definitions (`ml_layer.md`), workflow taxonomy (`execution_layer.md`), IA detail (ADR-014).
 
@@ -12,17 +12,20 @@ Governed by ADR-011.
   an **Actual-vs-Forecast** overlay with the prediction interval band. Ranking KPIs
   (T7) render ordered bars. Comparative KPIs render **Actual-vs-benchmark / peers**.
 - Every KPI shows a one-line signal: **What changed → Risk/Opportunity → Action**,
-  then links to a workflow. Home is read-only — no approvals/execution
-  (ADR-014).
+  then links to a workflow when a real mapping exists. Analytics is
+  advisory-only — no approvals or execution ([ADR-023](../adr/023-four-destination-analytics-ownership.md)).
+- The KPI marked `(main)` in each category is its **Main KPI**. Analytics uses
+  the six Main KPIs as its hero-and-selector entry experience without removing
+  the remaining category KPIs from drill-down reporting.
 - Color is advisory and never the only signal: Growth `#16A34A` / Loss `#E5484D`
-  paired with text + icon ([ADR-007](decisions/015-design-system-token-foundation.md)).
+  paired with text + icon ([ADR-015](../adr/015-design-system-token-foundation.md)).
 
 ## 1. Shop Status
 
 Platform health category. SPS/AHR/VP are **deterministic policy rules** (T3), not ML.
 
 > **Phase 2 data gap:** Shop Status Partner API fields are not available to retrieve or
-> extract. Home renders these KPIs from **mock / fixture data** with **no workflow
+> extract. Analytics renders these KPIs as unavailable with **no workflow
 > mapping** until a live source exists. Do not route SPS/AHR/VP signals to Process Order,
 > Prevent Cancellation, or Customer Service workflows in Phase 2.
 

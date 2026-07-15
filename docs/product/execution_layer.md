@@ -1,6 +1,6 @@
 # Execution Layer
 
-> **Tier 1 — workflow taxonomy.** Read [`EXECUTION.md`](../EXECUTION.md) first.
+> **Tier 1 — workflow taxonomy.** Read [`EXECUTION.md`](../../EXECUTION.md) first.
 > **Owns:** workflow IDs, action ownership, routing rules. **Does not own:** UI tabs (ADR-014), KPI charts (`visual_layer.md`).
 
 Authoritative workflow → action catalog (ADR-011). Approval-gated execution only.
@@ -9,7 +9,8 @@ ML/AI signal generation is never an execution action. Advisory signals from the 
 are surfaced in the Visual layer and referenced via `Pre-workflow ML advisory` notes below;
 they do not appear as rows in action tables.
 
-Endpoint paths and versions are authoritative in [`contract-collection.md`](tiktok_api/contract-collection.md).
+Endpoint paths and versions are authoritative in
+[`contract-collection.md`](../integrations/tiktok_api/contract-collection.md).
 
 ---
 
@@ -312,7 +313,8 @@ supplemented by the lifecycle webhook so the seller doesn't need to poll at all.
 single family baseline — TikTok versions each release by the endpoints it ships, so
 different operations under `/return_refund/*` legitimately carry different version
 tags. `Search Returns` and `Search Cancellations` use **`202602`** (see
-[`contract-collection.md`](tiktok_api/contract-collection.md) §A-6–A-7). Approve/Reject
+[`contract-collection.md`](../integrations/tiktok_api/contract-collection.md)
+§A-6–A-7). Approve/Reject
 Cancellation and Approve/Reject Return use **`202309`**. `Get Reject Reasons` is
 `202309`, cited from a distinct SEA-market changelog entry. The newer endpoints below
 (decision eligibility, aftersale eligibility, RMA search, aftersales review/search) are

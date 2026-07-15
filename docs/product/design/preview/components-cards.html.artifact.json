@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Juli recommendation and execution cards",
+  "entry": "preview/components-cards.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-15T04:17:01.338Z",
+  "updatedAt": "2026-07-15T05:30:00.000Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true,
+    "source": "preview/components-cards.html",
+    "model": "Phê duyệt/Từ chối/Mở rộng with execution handoff"
+  }
+}
