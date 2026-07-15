@@ -1,0 +1,124 @@
+{
+  "id": "review-issue-397",
+  "issue": 397,
+  "timestamp": "2026-07-15T07:34:59Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #397 adds an independently checked mock Demo Home, four-destination shell, shared theme/UI/formatter packages, workspace boundaries, and dedicated PR CI without backend or secret dependencies.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/demo",
+    "packages/theme",
+    "packages/ui",
+    "packages/utils",
+    ".github/workflows/pr.yml",
+    "docs/architecture/map.md"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "apps/demo",
+      "interface": "/, /decisions, /analytics, /settings",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds the standalone mock Demo Home and discoverable destination shell."
+    },
+    {
+      "module": "packages/ui",
+      "interface": "DestinationCard and PrimaryNavigation",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds app-agnostic accessible launcher and navigation primitives."
+    },
+    {
+      "module": "packages/theme",
+      "interface": "@juli/theme/tokens.css",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds semantic product, accessibility, and motion tokens."
+    },
+    {
+      "module": "packages/utils",
+      "interface": "formatVND, formatNumber, formatDate, formatDateTime",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds deterministic Vietnamese locale and ICT formatters."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Demo is a private App Router TypeScript Tailwind app",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_demo_is_private_app_router_typescript_tailwind_app"
+        },
+        {
+          "criterion": "Root declares real pnpm Turbo workspace",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_root_declares_real_pnpm_turbo_workspace"
+        },
+        {
+          "criterion": "Four destinations and exactly two safe Home launchers",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_four_destinations_and_exactly_two_safe_home_launchers"
+        },
+        {
+          "criterion": "Theme and shared Home primitives are consumed by Demo",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_theme_and_shared_home_primitives_are_consumed_by_demo"
+        },
+        {
+          "criterion": "Shared formatters and mock fixtures run without network",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_shared_formatters_and_mock_fixtures_run_without_network"
+        },
+        {
+          "criterion": "Demo CI independently installs lints typechecks tests and builds",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_demo_ci_independently_installs_lints_typechecks_tests_and_builds"
+        },
+        {
+          "criterion": "Workspace import boundaries are acyclic and app isolated",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_workspace_import_boundaries_are_acyclic_and_app_isolated"
+        },
+        {
+          "criterion": "Home responsive focus touch Vietnamese and reduced motion contract",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract"
+        },
+        {
+          "criterion": "Demo source has no backend or secret environment dependency",
+          "test": "tests/unit/test_issue_397_demo_workspace_contract.py::test_demo_source_has_no_backend_or_secret_environment_dependency"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 21,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no blocking reliability, security, observability, performance, or acceptance-coverage gaps.",
+    "timestamp": "2026-07-15T07:35:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewStatus": "PASS",
+  "phaseRunId": "397-2026-07-15T0715Z",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-397.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewDurationMs": 1200000,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}
