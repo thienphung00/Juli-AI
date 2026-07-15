@@ -1,7 +1,8 @@
-"""Doc and config contract tests for Phase 3 frontend consolidation.
+"""Workspace transition contracts across Phase 2.5 and Phase 2.6.
 
-Phase 3 moves the legacy ``web/`` Next.js app to ``apps/dashboard/`` and
-decommissions the unused pnpm/Turborepo workspace scaffolding from Phase 2.5-b.
+Phase 2.5 left ``apps/dashboard`` independently npm-buildable. Phase 2.6
+reintroduces the root pnpm/Turborepo workspace for the new Demo and shared
+packages without changing that dashboard build contract.
 """
 
 from __future__ import annotations
@@ -18,15 +19,13 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def test_pnpm_workspace_removed():
-    """pnpm workspace config is decommissioned in favor of npm in apps/dashboard."""
-    assert not (REPO_ROOT / "pnpm-workspace.yaml").is_file()
-    assert not (REPO_ROOT / "pnpm-lock.yaml").is_file()
-
-
-def test_turbo_json_removed():
-    """Turborepo skeleton is removed — no turbo.json at repo root."""
-    assert not (REPO_ROOT / "turbo.json").is_file()
+def test_phase_2_6_restores_root_workspace_without_removing_dashboard_npm_lock():
+    """New workspace tooling coexists with the independently built dashboard."""
+    assert (REPO_ROOT / "pnpm-workspace.yaml").is_file()
+    assert (REPO_ROOT / "pnpm-lock.yaml").is_file()
+    assert (REPO_ROOT / "turbo.json").is_file()
+    assert not (REPO_ROOT / "package-lock.json").exists()
+    assert (REPO_ROOT / "apps/dashboard/package-lock.json").is_file()
 
 
 def test_dashboard_app_has_runtime_package():
@@ -37,26 +36,30 @@ def test_dashboard_app_has_runtime_package():
         assert task in scripts, f"missing npm script: {task}"
 
 
-def test_removed_scaffold_apps_have_no_package_manifests():
-    """demo, landing, and mobile scaffolds are removed."""
-    for app in ("demo", "landing", "mobile"):
-        assert not (REPO_ROOT / "apps" / app).exists(), f"apps/{app} should be removed"
+def test_only_the_phase_2_6_demo_app_is_added():
+    """Demo exists now; landing and mobile retain their later phase gates."""
+    assert (REPO_ROOT / "apps/demo/package.json").is_file()
+    for deferred_app in ("landing", "mobile"):
+        assert not (
+            REPO_ROOT / "apps" / deferred_app
+        ).exists(), f"apps/{deferred_app} is not in Phase 2.6"
 
 
-def test_removed_package_scaffolds_have_no_manifests():
-    """Empty packages/* workspace members are removed."""
-    packages_dir = REPO_ROOT / "packages"
-    if packages_dir.exists():
-        manifests = list(packages_dir.rglob("package.json"))
-        assert not manifests, f"unexpected package scaffolds: {manifests}"
+def test_phase_2_6_packages_are_real_consumed_workspace_members():
+    """Shared packages are populated for Demo, not empty scaffold directories."""
+    package_names = {
+        _read_json(path)["name"]
+        for path in (REPO_ROOT / "packages").glob("*/package.json")
+    }
+    assert package_names == {"@juli/theme", "@juli/ui", "@juli/utils"}
 
 
-def test_root_package_uses_npm_for_tooling_only():
-    """Root package.json keeps playwright/screenshots scripts without pnpm or turbo."""
+def test_root_package_uses_pinned_pnpm_and_turbo_without_losing_screenshots():
+    """Root owns workspace orchestration and retains existing screenshot tooling."""
     root = _read_json(ROOT_PACKAGE_PATH)
-    assert "packageManager" not in root
+    assert root["packageManager"].startswith("pnpm@10.")
     scripts = root.get("scripts") or {}
-    assert "workspace:baseline" not in scripts
     assert "screenshots" in scripts
+    assert "check:demo" in scripts
     dev_deps = root.get("devDependencies") or {}
-    assert "turbo" not in dev_deps
+    assert "turbo" in dev_deps

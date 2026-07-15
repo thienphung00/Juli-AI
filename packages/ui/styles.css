@@ -1,0 +1,185 @@
+.juli-destination-card {
+  position: relative;
+  display: grid;
+  min-height: 18rem;
+  align-content: end;
+  gap: var(--juli-space-3);
+  overflow: hidden;
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-large);
+  background: var(--juli-surface);
+  color: var(--juli-foreground);
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  text-decoration: none;
+  box-shadow: var(--juli-shadow-small);
+  transition:
+    border-color var(--juli-motion-fast) ease,
+    box-shadow var(--juli-motion-fast) ease,
+    transform var(--juli-motion-fast) ease;
+}
+
+.juli-destination-card::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 85% 12%,
+    var(--juli-primary-soft),
+    transparent 42%
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.juli-destination-card > * {
+  position: relative;
+}
+
+.juli-destination-card:hover {
+  border-color: var(--juli-primary);
+  box-shadow: var(--juli-shadow-medium);
+  transform: translateY(-2px);
+}
+
+.juli-destination-card:active {
+  transform: scale(0.98);
+}
+
+.juli-destination-card:focus-visible,
+.juli-primary-nav__link:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
+.juli-destination-card__icon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border-radius: 1rem;
+  background: var(--juli-primary-soft);
+  color: var(--juli-primary-strong);
+  font-size: 1.5rem;
+}
+
+.juli-destination-card__eyebrow {
+  color: var(--juli-primary-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.juli-destination-card__title {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  letter-spacing: -0.03em;
+}
+
+.juli-destination-card__description {
+  max-width: 34rem;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+.juli-destination-card__action {
+  display: inline-flex;
+  min-height: var(--juli-touch-target);
+  align-items: center;
+  gap: var(--juli-space-2);
+  font-weight: 700;
+}
+
+.juli-primary-nav {
+  position: fixed;
+  z-index: 20;
+  right: var(--juli-space-4);
+  bottom: var(--juli-space-4);
+  left: var(--juli-space-4);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius);
+  background: color-mix(in srgb, var(--juli-surface) 92%, transparent);
+  box-shadow: var(--juli-shadow-medium);
+  backdrop-filter: blur(16px);
+}
+
+.juli-primary-nav__list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: var(--juli-space-2);
+  list-style: none;
+}
+
+.juli-primary-nav__link {
+  position: relative;
+  display: grid;
+  min-height: var(--juli-touch-target);
+  place-items: center;
+  gap: 0.2rem;
+  border-radius: 0.75rem;
+  color: var(--juli-muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.juli-primary-nav__link[aria-current="page"] {
+  background: var(--juli-primary-soft);
+  color: var(--juli-foreground);
+  font-weight: 800;
+}
+
+.juli-primary-nav__link[aria-current="page"]::after {
+  position: absolute;
+  bottom: 0.2rem;
+  width: 1rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--juli-primary);
+  content: "";
+}
+
+.juli-primary-nav__icon {
+  font-size: 1rem;
+}
+
+@media (min-width: 56rem) {
+  .juli-primary-nav {
+    top: 7rem;
+    right: auto;
+    bottom: auto;
+    left: max(2rem, calc((100vw - 76rem) / 2));
+    width: 12rem;
+  }
+
+  .juli-primary-nav__list {
+    grid-template-columns: 1fr;
+    gap: var(--juli-space-1);
+  }
+
+  .juli-primary-nav__link {
+    grid-template-columns: 1.5rem 1fr;
+    justify-items: start;
+    padding: 0 var(--juli-space-3);
+    font-size: 0.875rem;
+  }
+
+  .juli-primary-nav__link[aria-current="page"]::after {
+    top: 50%;
+    right: 0.35rem;
+    bottom: auto;
+    width: 3px;
+    height: 1.25rem;
+    transform: translateY(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .juli-destination-card {
+    transition: none;
+  }
+
+  .juli-destination-card:hover,
+  .juli-destination-card:active {
+    transform: none;
+  }
+}
