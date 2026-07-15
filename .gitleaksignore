@@ -1,3 +1,6 @@
 # Gitleaks ignore — one fingerprint per line (commit:file:rule:line)
 # False positive: UUID-shaped sample idempotency_key in TikTok webhook contract docs
 d302e6b7dae0f4084ce70f67077621e8e2e7aa25:docs/integrations/tiktok_api/webhook-contract-collection.md:generic-api-key:477
+# False positives: documented issue #399 workflow key resembles a generic API key
+c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/__tests__/decisions-recommendations.test.tsx:generic-api-key:88
+c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/lib/recommendations.ts:generic-api-key:67
