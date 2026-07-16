@@ -16,8 +16,8 @@ Before loading feature docs for integration work, consult the project plugin ind
 | New/stale vendor API reference | `api-docs`, `context7-mcp` | `context7` |
 | Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch TikTok Shop University + official policy pages) |
 | Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
-| `web/` Next.js UI (component, page, form) | `ui-ux-design`, `nextjs`, `react-best-practices` | — |
-| `web/` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
+| `web/` / `apps/dashboard` Next.js UI (component, page, form, visual design) | `ui-ux-design`, `nextjs`, `react-best-practices` | — |
+| `web/` / `apps/dashboard` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
 | shadcn registry primitive | `shadcn` (with `ui-ux-design`) | `shadcn` (prefer `user-shadcn`) |
 | Sentry / prod errors | `sentry-workflow` → `sentry-python-sdk` or `sentry-nextjs-sdk` | `plugin-sentry-sentry` |
 | Figma | `figma-use` (required before `use_figma`) | `figma` |
@@ -42,12 +42,16 @@ Before loading feature docs for integration work, consult the project plugin ind
 
 | Code Pattern | Detected Intent | Load |
 |-------------|-----------------|------|
-| `'use client'` | Client component | `ui-ux-design`, `web/MODULE.md` |
-| `web/src/components/` | New/changed UI | `ui-ux-design`, nearest existing component |
+| `'use client'` | Client component | `ui-ux-design`, app `MODULE.md`, `docs/product/design/` (README + roots) |
+| `web/src/components/` or `apps/dashboard/**/components/` | New/changed UI | `ui-ux-design`, nearest existing component, `docs/product/design/Components/<name>.md`, `colors_and_type.css` |
+| Route under Home / Decisions / Analytics / Settings | Destination screen | `docs/product/design/Screens/<dest>.md`, matching `Flows/` if journey changes |
+| Visual / brand / token / copy polish | Product design | `docs/product/design/README.md` then root authorities (`context.md`, `design.md`, `flows.md`, `soul.md`, `ux_principles.md`) |
 | `'use server'` | Server action | security (input validation) |
 | `useQuery`, `useSWR` | Data fetching | caching patterns |
 | `supabase.from` | DB access | Supabase patterns, RLS policies |
-| `<Chart`, `<Recharts` | Visualization | dashboard component library |
+| `<Chart`, `<Recharts` | Visualization | `docs/product/design/Screens/analytics.md`, `Components/charts.md` (Analytics owns metrics) |
+
+**Frontend design authority:** resolve conflicts top-down per `docs/product/design/README.md`. Do not load `preview/`, `ui_kits/`, `source_examples/`, or `context/` unless reconciling evidence — they never override root authorities.
 
 ### Infrastructure Patterns
 

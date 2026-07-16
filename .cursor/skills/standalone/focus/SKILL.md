@@ -76,7 +76,7 @@ When the task touches an external product or MCP integration:
 | TikTok API / webhooks | — | — (use `docs/integrations/tiktok_api/`, MODULE.md) |
 | New vendor API | `api-docs`, `context7-mcp` | `context7` |
 | Seller/creator policy | `platform-docs` | — |
-| `web/` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `shadcn` |
+| `web/` / `apps/dashboard` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `shadcn` |
 | Supabase / migrations / RLS | `supabase`, `supabase-postgres-best-practices` | `supabase` |
 | Production error | `sentry-workflow` → platform SDK | `plugin-sentry-sentry` |
 | Figma design sync | `figma-use` (before `use_figma`) | `figma` |
@@ -98,7 +98,7 @@ Detect what the implementation involves:
 | Python code / FastAPI | → `backend` executor, `python-patterns`, `code-quality.mdc` |
 | Python tests / pytest | → `backend` executor, `python-testing`, `reliability.mdc` |
 | SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
-| Frontend component / page / form | → `ui-ux` executor, `ui-ux-design`, `web/MODULE.md`; `shadcn` only if adding registry primitives |
+| Frontend component / page / form / visual design | → `ui-ux` executor, `ui-ux-design`, app `MODULE.md`, `docs/product/design/` (see Step 4); `shadcn` only if adding registry primitives |
 | Background job | → Celery MCP, reliability, observability |
 | TikTok integration / webhook | → `docs/integrations/tiktok_api/`, `data-sources.md`, affected MODULE.md |
 | Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first |
@@ -134,12 +134,28 @@ LOAD WHEN VENDOR/PLATFORM WORK:
   - docs/<vendor>_api/*.md as needed (auth, webhooks, endpoints, rate-limits)
   - docs/<vendor>_platform/*/implementation-hooks.md (guardrails, alerts, gates)
 
+LOAD WHEN FRONTEND / PRODUCT UI (`web/`, `apps/dashboard`, component, page, form, visual design):
+  - docs/product/design/README.md — authority precedence (always first)
+  - Root authorities (screen/destination work: all five; token/component polish: design.md + ux_principles.md minimum):
+    - docs/product/design/context.md
+    - docs/product/design/design.md
+    - docs/product/design/flows.md
+    - docs/product/design/soul.md
+    - docs/product/design/ux_principles.md
+  - Product structures when the issue touches a destination or journey:
+    - docs/product/design/Screens/<home|decisions|analytics|settings>.md
+    - docs/product/design/Flows/<destination>/… (workflow steps)
+  - Reusable specs when implementing primitives:
+    - docs/product/design/Components/<name>.md
+    - docs/product/design/colors_and_type.css
+
 LOAD IF EXISTS (legacy only):
   - docs/product/features/<feature-name>/*.md — historical attachments; prefer canonical docs
 
 DO NOT load by default:
   - Full EXECUTION.md when a single slice is sufficient
   - Superseded ADRs unless the issue explicitly references them
+  - docs/product/design/preview/, ui_kits/, source_examples/, context/ — evidence/demos only; never override root authorities
 ```
 
 ### Step 5: Load Layer Context
@@ -171,9 +187,11 @@ Intelligence (src/intelligence/scoring):
   - Load: data-sources.md rows #7–#8, edge-cases for post-stream-only
   - Skip: in-stream websocket designs (forbidden)
 
-Interface (web/, ios/):
-  - Load: MODULE.md for target app, ui-ux-design (web) or swift-patterns (ios)
+Interface (web/, apps/dashboard, ios/):
+  - Load (web): MODULE.md, ui-ux-design, docs/product/design/ per Step 4 (README → roots → Screens/Flows → Components)
+  - Load (ios): MODULE.md, swift-patterns
   - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
+  - Skip: design preview/ui_kits/source_examples unless reconciling visual evidence
 
 AI features (post-MVP / OpenAI):
   - Load: guardrails ai-integration checklist, system-design.md ML model sections, issue eval notes
