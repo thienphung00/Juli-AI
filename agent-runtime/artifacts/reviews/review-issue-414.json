@@ -1,0 +1,202 @@
+{
+  "id": "review-issue-414",
+  "issue": 414,
+  "timestamp": "2026-07-16T03:35:48Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #414 adds typed packages/ui feedback, navigation, and chart compositions with theme-token styling, Vietnamese copy, a11y contracts (aria-live, reduced-motion, keyboard/focus-visible, sr-only chart equivalents), and Vitest + import-boundary coverage. Intent-review spec_fidelity=pass. No CRITICAL reliability, security, or client-component gaps for UI-only scope.",
+  "criticalFindings": [
+    {
+      "id": "intent-smell-chart-duplicated-wrapper",
+      "type": "maintainability",
+      "module": "packages/ui/src/chart.tsx",
+      "description": "[intent-review] Duplicated Code: MetricSparkline, TrendAreaChart, TrendLineChart, and ChartExpandableTile each repeat the same ChartTextEquivalent + aria-hidden visual wrapper pattern.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Extract a shared ChartVisualWithEquivalent helper in a follow-up refactor if more chart variants are added."
+    },
+    {
+      "id": "intent-smell-chart-middle-man",
+      "type": "maintainability",
+      "module": "packages/ui/src/chart.tsx",
+      "description": "[intent-review] Middle Man: activateChartTile Enter/Space handler on a native <button> duplicates built-in keyboard activation.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Remove redundant keydown handler; native button already activates on Enter/Space."
+    },
+    {
+      "id": "intent-convention-barrel",
+      "type": "other",
+      "module": "packages/ui/src/index.ts",
+      "description": "[intent-review] packages/ui/MODULE.md append-only barrel pattern: #414-A and #414-B export blocks appended without reordering #397/#412 exports.",
+      "severity": "INFO",
+      "actionRequired": false
+    },
+    {
+      "id": "intent-convention-vitest-css",
+      "type": "other",
+      "module": "packages/ui/src/__tests__/toast.test.tsx",
+      "description": "[intent-review] #412 Vitest CSS contract pattern: composition tests use loadUiStyles() token/reduced-motion assertions consistent with prior ui package tests.",
+      "severity": "INFO",
+      "actionRequired": false
+    }
+  ],
+  "modulesTouched": [
+    "packages/ui",
+    "packages/theme",
+    "apps/demo"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "packages/ui",
+      "interface": "Toast, ToastViewport, LoadingSpinner, LoadingSkeleton, LoadingIndicator, isNavTabActive, PageHeader, MetricSparkline, TrendAreaChart, TrendLineChart, ChartExpandableTile, ChartTextEquivalent, CHART_SERIES_COLORS",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds typed feedback, navigation, and chart compositions with theme CSS variable series colors, Vietnamese defaults, and a11y contracts."
+    },
+    {
+      "module": "packages/ui",
+      "interface": "PrimaryNavigation",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Refines active-route indication via shared isNavTabActive without changing public props."
+    },
+    {
+      "module": "apps/demo",
+      "interface": "ui-feedback-nav.test.ts",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Import-boundary proof that demo can consume all #414 @juli/ui exports."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Each composition exists as a typed packages/ui export, built from #412's elements (no duplicated primitive logic)",
+          "test": "packages/ui/src/__tests__/import-boundary.test.ts::exports #414 feedback, navigation, and chart compositions"
+        },
+        {
+          "criterion": "Toasts and loading indicators respect prefers-reduced-motion and are announced via an accessible live region",
+          "test": "packages/ui/src/__tests__/loading-indicator.test.tsx::announces loading state through a live region with Vietnamese copy"
+        },
+        {
+          "criterion": "Charts use Recharts, series colors from packages/theme CSS variables, keyboard-accessible, with a text equivalent for screen readers",
+          "test": "packages/ui/src/__tests__/chart.test.tsx::renders a Recharts sparkline with an accessible text equivalent"
+        },
+        {
+          "criterion": "Navigation is keyboard-operable with a visible focus-visible state and correct active-route indication",
+          "test": "packages/ui/src/__tests__/primary-navigation.test.tsx::is keyboard-operable across all destinations"
+        },
+        {
+          "criterion": "Vietnamese copy where the composition renders text",
+          "test": "packages/ui/src/__tests__/toast.test.tsx::renders Vietnamese success copy with polite aria-live"
+        },
+        {
+          "criterion": "Import-boundary tests confirm these compositions are importable by apps/demo and do not import from any apps/*",
+          "test": "apps/demo/src/__tests__/ui-feedback-nav.test.ts::imports feedback, navigation, and chart exports from the shared package"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 49,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Extract shared ChartVisualWithEquivalent wrapper to reduce chart.tsx duplication (intent-review smell; non-blocking).",
+    "Plan recharts v3 migration when upstream deprecation guidance stabilizes (implementation risk note)."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no CRITICAL reliability, security, or a11y gaps for UI library scope. Non-blocking intent-review smells recorded as INFO.",
+    "timestamp": "2026-07-16T03:40:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "AC coverage mapped; packages/ui 49 tests and demo import-boundary proof verified.",
+    "timestamp": "2026-07-16T03:40:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent (#414-gates)"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "414-2026-07-16T0315Z",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-414.json",
+  "reviewBasis": "working tree at fixed point 8c707cc7e8bb83cc42988343cbdf31944ef78c14 plus uncommitted #414 compositions",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-414.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "intent-smell-chart-duplicated-wrapper",
+      "type": "maintainability",
+      "module": "packages/ui/src/chart.tsx",
+      "description": "[intent-review] Duplicated Code: MetricSparkline, TrendAreaChart, TrendLineChart, and ChartExpandableTile each repeat the same ChartTextEquivalent + aria-hidden visual wrapper pattern.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Extract a shared ChartVisualWithEquivalent helper in a follow-up refactor if more chart variants are added."
+    },
+    {
+      "id": "intent-smell-chart-middle-man",
+      "type": "maintainability",
+      "module": "packages/ui/src/chart.tsx",
+      "description": "[intent-review] Middle Man: activateChartTile Enter/Space handler on a native <button> duplicates built-in keyboard activation.",
+      "severity": "INFO",
+      "actionRequired": false,
+      "suggestion": "Remove redundant keydown handler; native button already activates on Enter/Space."
+    },
+    {
+      "id": "intent-convention-barrel",
+      "type": "other",
+      "module": "packages/ui/src/index.ts",
+      "description": "[intent-review] packages/ui/MODULE.md append-only barrel pattern: #414-A and #414-B export blocks appended without reordering #397/#412 exports.",
+      "severity": "INFO",
+      "actionRequired": false
+    },
+    {
+      "id": "intent-convention-vitest-css",
+      "type": "other",
+      "module": "packages/ui/src/__tests__/toast.test.tsx",
+      "description": "[intent-review] #412 Vitest CSS contract pattern: composition tests use loadUiStyles() token/reduced-motion assertions consistent with prior ui package tests.",
+      "severity": "INFO",
+      "actionRequired": false
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "id": "intent-convention-barrel",
+      "type": "other",
+      "module": "packages/ui/src/index.ts",
+      "description": "[intent-review] packages/ui/MODULE.md append-only barrel pattern: #414-A and #414-B export blocks appended without reordering #397/#412 exports.",
+      "severity": "INFO",
+      "actionRequired": false
+    },
+    {
+      "id": "intent-convention-vitest-css",
+      "type": "other",
+      "module": "packages/ui/src/__tests__/toast.test.tsx",
+      "description": "[intent-review] #412 Vitest CSS contract pattern: composition tests use loadUiStyles() token/reduced-motion assertions consistent with prior ui package tests.",
+      "severity": "INFO",
+      "actionRequired": false
+    }
+  ],
+  "suggestedRemediation": [
+    "Extract a shared ChartVisualWithEquivalent helper in a follow-up refactor if more chart variants are added.",
+    "Remove redundant keydown handler; native button already activates on Enter/Space."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewDurationMs": 420000
+}

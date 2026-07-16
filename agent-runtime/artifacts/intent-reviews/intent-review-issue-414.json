@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-414",
+  "issue": 414,
+  "timestamp": "2026-07-16T03:33:58Z",
+  "reviewedBy": "intent-review skill (#414-intent)",
+  "fixedPoint": "8c707cc7e8bb83cc42988343cbdf31944ef78c14",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Reviewed uncommitted working tree (three-dot 8c707cc...HEAD empty; no #414 commits) against issue-context-cache-414 AC, scope-alignment-issue-414.md, and design docs (toasts, loading-indicators, navigation, charts). Typed packages/ui exports cover Toast/ToastViewport, LoadingSpinner/Skeleton/Indicator, isNavTabActive, PageHeader, and Recharts chart primitives (MetricSparkline, TrendAreaChart, TrendLineChart, ChartExpandableTile, ChartTextEquivalent) with theme CSS variable series colors, Vietnamese defaults, aria-live/reduced-motion on feedback loaders, keyboard-operable nav links and chart tile button, and import-boundary proof in packages/ui + apps/demo. PrimaryNavigation public API preserved; active-route logic refined via shared isNavTabActive. Scope stays compositions-only\u2014no #413 surface files or destination screens.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "packages/ui/src/chart.tsx",
+      "hunk": "MetricSparkline, TrendAreaChart, TrendLineChart, and ChartExpandableTile each repeat the same ChartTextEquivalent + aria-hidden visual wrapper pattern.",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Middle Man",
+      "path": "packages/ui/src/chart.tsx",
+      "hunk": "activateChartTile Enter/Space handler on a native <button> duplicates built-in keyboard activation.",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "packages/ui/MODULE.md \u2014 append-only barrel pattern",
+      "path": "packages/ui/src/index.ts",
+      "note": "#414-A and #414-B export blocks appended without reordering #397/#412 exports; matches established packages/ui convention."
+    },
+    {
+      "standard": "#412 Vitest CSS contract pattern",
+      "path": "packages/ui/src/__tests__/toast.test.tsx",
+      "note": "Composition tests use loadUiStyles() token/reduced-motion assertions consistent with prior ui package tests."
+    }
+  ],
+  "phaseRunId": "414-2026-07-16T0315Z",
+  "reviewBasis": "working-tree",
+  "reviewBasisNote": "git diff 8c707cc (working tree) plus untracked packages/ui composition sources and tests; git diff 8c707cc...HEAD is empty (uncommitted implementation)."
+}
