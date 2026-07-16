@@ -122,6 +122,24 @@ exists in the UI from Phase 2.6 onward but is a disabled stub until Phase 3 impl
 _Avoid_: assuming Sign-in mode requires per-visitor onboarding/multi-tenant account
 management (that stays Phase 3.5 scope)
 
+**Phase 2.6 optional stretch scope**:
+A Phase 2.6 issue that ships inside the phase's timeline but is explicitly exempted from
+the exit gate — a truthful placeholder (never fabricated data) is sufficient for launch
+if the issue slips. Applies to Settings (#405, [ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md))
+and Analytics (#404, [ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)).
+Home's four-destination shell (ADR-023) is unaffected — the destination stays
+discoverable; only its full content depth is optional.
+_Avoid_: assuming "stretch" means the issue is deferred to a later phase (it ships in
+2.6 if time allows; it just doesn't block sign-off)
+
+**`packages/contracts`**:
+Shared TypeScript fixture/type package consumed by `apps/demo` (and later `apps/landing`,
+`apps/dashboard`) for Decision/Action Card, execution, and KPI mock-data shapes. Kept
+structurally aligned with `docs/api/data-models/` by hand — not code-generated from it —
+so Phase 3's swap to a live API client is a data-source change, not a type rewrite.
+_Avoid_: `data-models/` (that folder owns canonical ML/entity schemas, not
+Demo-ready fixture types); assuming these types are auto-generated
+
 **Reference shop**:
 The one pre-connected TikTok shop (already authenticated via Phase 2's pipeline
 validation, e.g. Fujiwa/SANDBOX_VN) whose real data powers `apps/demo`'s Sign-in mode in

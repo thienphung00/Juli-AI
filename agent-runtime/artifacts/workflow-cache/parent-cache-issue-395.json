@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "parent_cache",
+  "parentIssueId": 395,
+  "cacheBlockVersion": 1,
+  "parentScopeBlock": "# Parent #395 \u2014 Phase 2.6 Demo frontend (constant)\n\n## Product boundary\n- Build `apps/demo` as a standalone responsive Next.js App Router product.\n- Preserve exactly four destinations: Home, Decisions, Analytics, Settings.\n- Use mock fixtures only; no backend, TikTok, OAuth, authentication, or secrets.\n- Mock mode is the only active mode; Sign-in remains a disabled seam for Phase 3.\n\n## Design authority\n- ADR-023 and `docs/product/design/` own IA, Vietnamese terminology, interaction, accessibility, and visual tokens.\n- Home is a sparse launchpad with exactly two cards: Decisions and Analytics.\n- Shared primitives and semantic tokens originate in `packages/ui` and `packages/theme`.\n\n## Epic deferrals\n- Real data, OAuth, and PostHog: Phase 3.\n- `apps/dashboard` rebuild and multi-tenant auth: Phase 3.5.\n- Native mobile: Phase 4+.\n",
+  "sliceId": "P2-6",
+  "handoffPath": "docs/product/phases/phase-2.6/PRD.md",
+  "childIssueIds": [
+    397,
+    412
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "backend/",
+    "ios/",
+    "docs/product/phases/phase-2.7/PRD.md",
+    "Sibling issue context caches"
+  ],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #395",
+      "fingerprint": "3255ac51d5ec506f"
+    },
+    {
+      "path": "docs/product/phases/phase-2.6/PRD.md",
+      "fingerprint": "b42fd0569f47374ffb6e1a55c54b9b7f3e9f0a67"
+    },
+    {
+      "path": "EXECUTION.md",
+      "fingerprint": "dbb10e229a6b75ce214eee6e964d1d4d57e53b6e"
+    }
+  ],
+  "bootstrapRef": {
+    "branch": "origin/main",
+    "commitSha": "f7a1ad23cdc15803972c9a4a76da9d6c80932cc8",
+    "copiedAt": "2026-07-16T03:00:00Z"
+  },
+  "lastValidatedAt": "2026-07-16T03:00:00Z"
+}

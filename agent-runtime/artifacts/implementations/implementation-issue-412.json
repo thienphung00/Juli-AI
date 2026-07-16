@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 412,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "412-2026-07-16T0230Z",
+  "startedAt": "2026-07-16T02:30:00Z",
+  "completedAt": "2026-07-16T02:45:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 18,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 22,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ReadLints",
+      "count": 1,
+      "stage": "refactor"
+    }
+  ],
+  "toolInvocationCount": 55,
+  "contextFilesLoaded": [
+    "packages/ui/MODULE.md",
+    "packages/ui/src/index.ts",
+    "packages/ui/src/destination-card.tsx",
+    "packages/ui/styles.css",
+    "packages/ui/src/button.tsx",
+    "packages/theme/MODULE.md",
+    "packages/theme/tokens.css",
+    "docs/product/design/Components/buttons.md",
+    "docs/product/design/Components/badges.md",
+    "docs/product/design/Components/chips.md",
+    "docs/product/design/Components/health-bars.md",
+    "docs/product/design/Components/progress-bars.md",
+    "docs/product/design/colors_and_type.css",
+    "agent-runtime/artifacts/implementations/implementation-issue-397.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-412.json"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/SKILL.md"
+  ],
+  "filesModified": [
+    "packages/theme/tokens.css",
+    "packages/ui/MODULE.md",
+    "packages/ui/package.json",
+    "packages/ui/tsconfig.json",
+    "packages/ui/styles.css",
+    "packages/ui/vitest.config.ts",
+    "packages/ui/vitest.setup.ts",
+    "packages/ui/src/index.ts",
+    "packages/ui/src/button.tsx",
+    "packages/ui/src/badge.tsx",
+    "packages/ui/src/chip.tsx",
+    "packages/ui/src/progress-bar.tsx",
+    "packages/ui/src/health-bar.tsx",
+    "packages/ui/src/__tests__/button.test.tsx",
+    "packages/ui/src/__tests__/badge.test.tsx",
+    "packages/ui/src/__tests__/chip.test.tsx",
+    "packages/ui/src/__tests__/progress-bar.test.tsx",
+    "packages/ui/src/__tests__/health-bar.test.tsx",
+    "packages/ui/src/__tests__/import-boundary.test.ts",
+    "packages/ui/src/__tests__/test-utils.ts",
+    "apps/demo/src/__tests__/ui-core-elements.test.ts",
+    "pnpm-lock.yaml",
+    "agent-runtime/artifacts/implementations/implementation-issue-412.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-412.json"
+  ],
+  "testsAdded": [
+    "packages/ui/src/__tests__/button.test.tsx",
+    "packages/ui/src/__tests__/badge.test.tsx",
+    "packages/ui/src/__tests__/chip.test.tsx",
+    "packages/ui/src/__tests__/progress-bar.test.tsx",
+    "packages/ui/src/__tests__/health-bar.test.tsx",
+    "packages/ui/src/__tests__/import-boundary.test.ts",
+    "apps/demo/src/__tests__/ui-core-elements.test.ts"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "packages/ui had no Vitest setup; Button/Badge/Chip/ProgressBar/HealthBar tests and import-boundary suite did not exist.",
+      "passingTestEvidence": "22 packages/ui tests passed covering variants, Vietnamese copy, loading/disabled, aria-selected tabs, 44px remove targets, real/estimated segments, health segments, and import boundaries.",
+      "refactorEvidence": "Extracted loadUiStyles test helper; excluded __tests__ from ui tsconfig; extended theme tokens instead of hardcoded colors.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/ui test",
+          "exitCode": 1,
+          "outputSummary": "6 failed before CSS loader and import-boundary path fixes"
+        },
+        {
+          "command": "pnpm --filter @juli/ui test",
+          "exitCode": 0,
+          "outputSummary": "6 files, 22 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "apps/demo lacked proof that new @juli/ui core exports are consumable from the demo app boundary.",
+      "passingTestEvidence": "apps/demo ui-core-elements import-boundary test passed alongside existing home/navigation tests (5 total).",
+      "refactorEvidence": "Kept demo test as import-only proof without composing screens, per issue scope.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test",
+          "exitCode": 0,
+          "outputSummary": "3 files, 5 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "ui type-check failed because __tests__ were included in tsc without jest-dom/node types.",
+      "passingTestEvidence": "pnpm --filter @juli/ui type-check and pnpm --filter @juli/demo type-check both passed after excluding __tests__ from ui tsconfig.",
+      "refactorEvidence": "Preserved strict source compilation while keeping Vitest matchers in test-only files.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/ui type-check",
+          "exitCode": 2,
+          "outputSummary": "jest-dom and node type errors in __tests__"
+        },
+        {
+          "command": "pnpm --filter @juli/ui type-check && pnpm --filter @juli/demo type-check",
+          "exitCode": 0,
+          "outputSummary": "both packages passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Implemented typed packages/ui core elements (Button, Badge, ConfidenceBadge, StatusChip, FilterChip, InputChip, ProgressBar, RealEstimatedProgressBar, HealthBar) with theme-token CSS, Vietnamese labels, 44px touch targets, focus-visible rings, and reduced-motion handling. Added Vitest interaction-state coverage and import-boundary proof for apps/demo consumption while preserving #397 DestinationCard/PrimaryNavigation exports.",
+  "assumptions": [
+    "ConfidenceBadge maps high/medium/low to success/warning/destructive badge variants per design intent.",
+    "HealthBar risk tinting applies to filled segments when value is below atRiskThreshold (default 40).",
+    "Demo import-boundary test remains import-only; screen compositions are deferred to later issues."
+  ],
+  "risks": [
+    "pnpm-lock.yaml updated for new @juli/ui devDependencies; root check:demo does not yet run @juli/ui tests — Review/Validate may want that wired in CI.",
+    "Small visual fidelity vs dashboard globals.css may differ until composition issues consume these primitives in screens."
+  ]
+}

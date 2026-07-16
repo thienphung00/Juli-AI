@@ -126,6 +126,16 @@ Home's two cards stack on narrow screens and may sit side by side on wider
 screens. Analytics may use denser responsive grids; Home must not inherit
 dashboard density.
 
+| Breakpoint | Value | Applies |
+|---|---|---|
+| Mobile-web | below `42rem` (672px) | Single-column layout; mobile-web IA |
+| Transitional | `42rem`–`56rem` (672–896px) | Still uses mobile-web layout behavior |
+| Web | `56rem` (896px) and above | Multi-column layout; fixed side navigation |
+
+(Grill 2026-07-16: promotes the values already shipped in `apps/demo`'s
+`globals.css` into this root authority — see
+[ADR-026](../../adr/026-phase-2.6-analytics-optional-exit-gate.md) grill session.)
+
 ## Motion
 
 All motion respects `prefers-reduced-motion`.

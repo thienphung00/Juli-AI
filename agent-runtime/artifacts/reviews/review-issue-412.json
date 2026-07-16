@@ -1,0 +1,110 @@
+{
+  "id": "review-issue-412",
+  "issue": 412,
+  "timestamp": "2026-07-16T02:55:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #412 adds typed packages/ui core elements (Button, Badge, Chip, ProgressBar, HealthBar) with theme-token styling, Vietnamese copy, a11y contracts, and Vitest coverage. Intent-review spec_fidelity=pass. Root check:demo now includes pnpm --filter @juli/ui test.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "packages/ui",
+    "packages/theme",
+    "apps/demo"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "packages/ui",
+      "interface": "Button, Badge, ConfidenceBadge, StatusChip, FilterChip, InputChip, ProgressBar, RealEstimatedProgressBar, HealthBar",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds typed core UI element primitives with theme-token CSS and Vietnamese defaults."
+    },
+    {
+      "module": "packages/theme",
+      "interface": "@juli/theme/tokens.css",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Adds semantic success/warning/destructive/info and brand gradient tokens for element styling."
+    },
+    {
+      "module": "apps/demo",
+      "interface": "ui-core-elements.test.ts",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Import-boundary proof that demo can consume new @juli/ui core exports."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Each element exists as a typed packages/ui export with render + interaction-state tests (default, hover, pressed, focus-visible, disabled, loading, error, empty — only the states that apply to that element)",
+          "test": "packages/ui/src/__tests__/import-boundary.test.ts::exports the core element families for apps/demo consumption"
+        },
+        {
+          "criterion": "Tokens originate from packages/theme; no hardcoded colors/spacing in the element implementation",
+          "test": "packages/ui/src/__tests__/badge.test.tsx::uses theme tokens and disables live pulse under reduced motion"
+        },
+        {
+          "criterion": "44×44px minimum touch target and visible focus-visible state on every interactive element",
+          "test": "packages/ui/src/__tests__/button.test.tsx::applies size classes and meets the 44px touch-target contract"
+        },
+        {
+          "criterion": "prefers-reduced-motion respected in any element with a transition/animation",
+          "test": "packages/ui/src/__tests__/progress-bar.test.tsx::uses theme tokens and disables estimated glow under reduced motion"
+        },
+        {
+          "criterion": "Vietnamese copy where the element renders text; no English fallback strings",
+          "test": "packages/ui/src/__tests__/badge.test.tsx::renders confidence badges with Vietnamese text labels"
+        },
+        {
+          "criterion": "Import-boundary tests confirm these elements are importable by apps/demo and do not import from any apps/*",
+          "test": "packages/ui/src/__tests__/import-boundary.test.ts::never imports from apps/*"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 27,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Extract shared clampPercent helper if more bar components are added in composition issues."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no CRITICAL reliability, security, or a11y gaps. CI gap closed by adding @juli/ui tests to check:demo.",
+    "timestamp": "2026-07-16T02:55:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "AC coverage mapped; element tests and import-boundary proof verified; check:demo includes @juli/ui.",
+    "timestamp": "2026-07-16T02:55:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "412-2026-07-16T0230Z",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-412.json",
+  "reviewBasis": "working tree at fixed point 35292a1c1c78d63af2f2eaf1100e2b7c886e3c86 plus check:demo wiring",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-412.json"
+}

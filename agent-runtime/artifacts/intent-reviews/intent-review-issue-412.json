@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-412",
+  "issue": 412,
+  "timestamp": "2026-07-16T02:39:32Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "35292a1c1c78d63af2f2eaf1100e2b7c886e3c86",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Reviewed uncommitted working tree (no #412 commits yet) against issue #412, scope-alignment-issue-412.md, and component design docs. All five element families are implemented as typed packages/ui exports (Button, Badge/ConfidenceBadge, StatusChip/FilterChip/InputChip, ProgressBar/RealEstimatedProgressBar, HealthBar) with theme-token CSS, Vietnamese default copy, 44px touch targets, focus-visible rings, and prefers-reduced-motion handling. #397 DestinationCard/PrimaryNavigation exports preserved. Scope stays elements-only\u2014no destination screen compositions.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "location": "packages/ui/src/progress-bar.tsx, packages/ui/src/health-bar.tsx",
+      "description": "clampPercent(value) is duplicated verbatim in both progress and health bar modules.",
+      "severity": "low",
+      "blocksMerge": false
+    },
+    {
+      "name": "Repeated Switches",
+      "location": "packages/ui/src/badge.tsx",
+      "description": "ConfidenceBadge maps confidence level to badge variant via nested ternary; a small lookup map (like CONFIDENCE_LABELS) would be clearer.",
+      "severity": "low",
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    "Matches #397 packages/ui pattern: typed React components, co-located styles.css token classes, public exports in index.ts and MODULE.md.",
+    "Vitest interaction-state coverage uses loadUiStyles() CSS contract checks consistent with existing ui package tests.",
+    "Review basis: git diff 35292a1..working-tree scoped to packages/ui, packages/theme/tokens.css, apps/demo import-boundary test; untracked component sources read in full."
+  ],
+  "phaseRunId": "412-2026-07-16T0230Z"
+}
