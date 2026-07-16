@@ -1,0 +1,100 @@
+{
+  "id": "review-issue-421",
+  "issue": 421,
+  "timestamp": "2026-07-16T06:50:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #421: weekly VPS-local restore drill (restore-drill.sh + systemd timer) proves juli-pre-migrate dumps are restorable. Scratch DB on same Postgres instance; backup filename resolved once at start; ADR-027 off-box constraint honored. Runbook documents schedule, logs, rotation guard, and failure triage.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "infra/scripts/restore-drill.sh",
+    "infra/scripts/safe_alembic_helpers.py",
+    "infra/systemd/juli-restore-drill.service",
+    "infra/systemd/juli-restore-drill.timer",
+    "tests/integration/test_restore_drill.py",
+    "tests/unit/test_restore_drill_contract.py",
+    "docs/runbooks/app-review-runbook.md"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "infra/scripts/restore-drill.sh",
+      "interface": "weekly restore drill",
+      "changeType": "added",
+      "breaking": false,
+      "description": "pg_restore into scratch DB with row-count/token verification and journalctl pass/fail line."
+    },
+    {
+      "module": "infra/scripts/safe_alembic_helpers.py",
+      "interface": "latest-backup / admin-db-url / --url CLI",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Extends helper CLI for restore drill without changing production migration wrapper behavior."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Script runnable manually on throwaway Postgres creates a scratch DB restores into it verifies row counts and decrypt drops the scratch DB and exits correctly for pass cases",
+          "test": "tests/integration/test_restore_drill.py::test_restore_drill_passes_and_cleans_up_scratch_db"
+        },
+        {
+          "criterion": "New integration test exercising dump restore into scratch DB verify drop including a case where the dump is intentionally corrupted and the drill must fail loudly",
+          "test": "tests/integration/test_restore_drill.py::test_restore_drill_fails_on_corrupted_dump"
+        },
+        {
+          "criterion": "systemd unit files follow the same structure as infra/systemd/juli-api.service",
+          "test": "tests/unit/test_restore_drill_contract.py::test_restore_drill_systemd_units_follow_juli_api_service_pattern"
+        },
+        {
+          "criterion": "Runbook documents drill schedule log location and the backup rotation race guard from the constraint",
+          "test": "tests/unit/test_restore_drill_contract.py::test_runbook_documents_restore_drill_schedule_log_and_rotation_guard"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 819,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Manual VPS systemctl start juli-restore-drill.service smoke remains HITL per issue test plan.",
+    "systemd-analyze verify on VPS when available."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no CRITICAL reliability or security gaps. Backup files never leave VPS per ADR-027.",
+    "timestamp": "2026-07-16T06:50:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "AC coverage mapped; integration and contract tests verified.",
+    "timestamp": "2026-07-16T06:50:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "421-2026-07-16T0650Z",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-421.json",
+  "reviewBasis": "commit 3efce150 on feature/issue-421-restore-drill",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-421.json"
+}

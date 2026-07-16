@@ -1,0 +1,20 @@
+# Weekly Postgres backup restore drill — verify pg_dump backups are restorable.
+# Install to /etc/systemd/system/juli-restore-drill.service on the review VPS.
+# Enable the companion timer: systemctl enable --now juli-restore-drill.timer
+#
+# VPS-local only (ADR-027): backup files never leave this host.
+[Unit]
+Description=Juli Postgres backup restore drill (weekly verification)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=RELEASE_DIR=/root/releases/current
+Environment=BACKUP_DIR=/root/backups
+EnvironmentFile=/etc/juli/api.env
+ExecStart=/root/Juli-AI-v2/infra/scripts/restore-drill.sh
+
+[Install]
+WantedBy=multi-user.target
