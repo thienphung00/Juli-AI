@@ -3,7 +3,7 @@
   "artifactType": "parent_cache",
   "parentIssueId": 395,
   "cacheBlockVersion": 1,
-  "parentScopeBlock": "# Parent #395 — Phase 2.6 Demo frontend (constant)\n\n## Product boundary\n- Build `apps/demo` as a standalone responsive Next.js App Router product.\n- Preserve exactly four destinations: Home, Decisions, Analytics, Settings.\n- Use mock fixtures only; no backend, TikTok, OAuth, authentication, or secrets.\n- Mock mode is the only active mode; Sign-in remains a disabled seam for Phase 3.\n\n## Design authority\n- ADR-023 and `docs/product/design/` own IA, Vietnamese terminology, interaction, accessibility, and visual tokens.\n- Home is a sparse launchpad with exactly two cards: Decisions and Analytics.\n- Shared primitives and semantic tokens originate in `packages/ui` and `packages/theme`.\n\n## Epic deferrals\n- Real data, OAuth, and PostHog: Phase 3.\n- `apps/dashboard` rebuild and multi-tenant auth: Phase 3.5.\n- Native mobile: Phase 4+.\n",
+  "parentScopeBlock": "# Parent #395 \u2014 Phase 2.6 Demo frontend (constant)\n\n## Product boundary\n- Build `apps/demo` as a standalone responsive Next.js App Router product.\n- Preserve exactly four destinations: Home, Decisions, Analytics, Settings.\n- Use mock fixtures only; no backend, TikTok, OAuth, authentication, or secrets.\n- Mock mode is the only active mode; Sign-in remains a disabled seam for Phase 3.\n\n## Design authority\n- ADR-023 and `docs/product/design/` own IA, Vietnamese terminology, interaction, accessibility, and visual tokens.\n- Home is a sparse launchpad with exactly two cards: Decisions and Analytics.\n- Shared primitives and semantic tokens originate in `packages/ui` and `packages/theme`.\n\n## Epic deferrals\n- Real data, OAuth, and PostHog: Phase 3.\n- `apps/dashboard` rebuild and multi-tenant auth: Phase 3.5.\n- Native mobile: Phase 4+.\n",
   "sliceId": "P2-6",
   "handoffPath": "docs/product/phases/phase-2.6/PRD.md",
   "childIssueIds": [
@@ -35,7 +35,7 @@
   "bootstrapRef": {
     "branch": "origin/main",
     "commitSha": "f7a1ad23cdc15803972c9a4a76da9d6c80932cc8",
-    "copiedAt": "2026-07-16T02:35:00Z"
+    "copiedAt": "2026-07-16T03:00:00Z"
   },
-  "lastValidatedAt": "2026-07-16T02:35:00Z"
+  "lastValidatedAt": "2026-07-16T03:00:00Z"
 }
