@@ -1,0 +1,214 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 412,
+  "parentIssueId": 395,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+  "phaseRunId": "412-2026-07-16T0230Z",
+  "workflowPhase": "complete",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "P2-6",
+    "handoffPath": "docs/product/phases/phase-2.6/PRD.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "ui-ux",
+    "requiredDocs": [
+      "EXECUTION.md",
+      "docs/product/phases/phase-2.6/PRD.md",
+      "docs/architecture/map.md",
+      "docs/architecture/data-sources.md",
+      "docs/architecture/migration-plan.md",
+      "docs/adr/023-four-destination-analytics-ownership.md",
+      "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+      "docs/product/design/README.md",
+      "docs/product/design/context.md",
+      "docs/product/design/design.md",
+      "docs/product/design/flows.md",
+      "docs/product/design/soul.md",
+      "docs/product/design/ux_principles.md",
+      "docs/product/design/Screens/home.md",
+      "docs/product/design/Components/navigation.md",
+      "docs/product/design/Components/cards.md",
+      "docs/product/design/colors_and_type.css"
+    ],
+    "requiredModules": [
+      "apps/demo/MODULE.md",
+      "packages/theme/MODULE.md",
+      "packages/ui/MODULE.md",
+      "packages/utils/MODULE.md"
+    ],
+    "acceptanceCriteria": [
+      "Each element exists as a typed packages/ui export with render + interaction-state tests (default, hover, pressed, focus-visible, disabled, loading, error, empty — only the states that apply to that element)",
+      "Tokens originate from packages/theme; no hardcoded colors/spacing in the element implementation",
+      "44×44px minimum touch target and visible focus-visible state on every interactive element",
+      "prefers-reduced-motion respected in any element with a transition/animation",
+      "Vietnamese copy where the element renders text; no English fallback strings",
+      "Import-boundary tests confirm these elements are importable by apps/demo and do not import from any apps/*"
+    ],
+    "loadWhenNeeded": [
+      "apps/dashboard/MODULE.md",
+      "apps/dashboard/src/lib/format.ts",
+      "apps/dashboard/src/__tests__/test_responsive_breakpoints.test.tsx",
+      "docs/product/design/ui_kits/app/",
+      "docs/product/design/source_examples/"
+    ]
+  },
+  "authorityChain": [
+    {
+      "rank": 1,
+      "source": "EXECUTION.md",
+      "reason": "Phase/slice law — P2-6"
+    },
+    {
+      "rank": 2,
+      "source": "parent-cache-issue-395",
+      "reason": "Epic constant"
+    },
+    {
+      "rank": 3,
+      "source": "GitHub issue #412",
+      "reason": "Child acceptance criteria"
+    },
+    {
+      "rank": 4,
+      "source": "docs/product/phases/phase-2.6/PRD.md",
+      "reason": "Epic handoff"
+    }
+  ],
+  "resolvedDecisions": [
+    {
+      "topic": "Work surface",
+      "decision": "Implement packages/ui element primitives only; do not build destination screens in this issue.",
+      "conflictingSources": [
+        "GitHub issue #412",
+        "docs/product/phases/phase-2.6/PRD.md"
+      ],
+      "resolvedAt": "2026-07-16T02:30:00Z"
+    },
+    {
+      "topic": "Existing Home primitives",
+      "decision": "Keep #397 DestinationCard/PrimaryNavigation exports; add Button, Badge, Chip, HealthBar, ProgressBar families; do not redesign Home compositions.",
+      "conflictingSources": [
+        "GitHub issue #397",
+        "GitHub issue #412"
+      ],
+      "resolvedAt": "2026-07-16T02:30:00Z"
+    },
+    {
+      "topic": "Blocker",
+      "decision": "Unblocked — #397 CLOSED with PR #409 merged.",
+      "conflictingSources": [
+        "GitHub issue #412"
+      ],
+      "resolvedAt": "2026-07-16T02:30:00Z"
+    },
+    {
+      "topic": "Bootstrap pin refresh",
+      "decision": "Bump parent bootstrapRef from 04cb0416c472 to origin/main HEAD f7a1ad23cdc1 so harnessUtility skills resolve against current main. Architect note: pin advance required for #412 Meta routing after #399/#411 landed; skill set unchanged (ui-ux + ui-ux-design).",
+      "conflictingSources": [
+        "parent-cache-issue-395.bootstrapRef",
+        "origin/main"
+      ],
+      "resolvedAt": "2026-07-16T02:35:00Z"
+    }
+  ],
+  "inScope": [
+    "packages/ui Button (primary/secondary/ghost, sizes, loading/disabled/focus)",
+    "packages/ui Badge (success/destructive/warning/info/live + confidence labels)",
+    "packages/ui Chip (status, filter/toggle, input/closeable as design requires)",
+    "packages/ui HealthBar (5-segment shop health with threshold ticks + text label)",
+    "packages/ui ProgressBar (standard fill + RealEstimated two-segment + reduced-motion)",
+    "Vitest interaction-state coverage and import-boundary tests",
+    "Theme-token-only styling and Vietnamese copy on rendered text"
+  ],
+  "outOfScope": [
+    "Screen/composition components (recommendation cards, shop health cards, analytics layouts)",
+    "Later packages/ui composition library issues",
+    "apps/demo destination content beyond import-boundary proof",
+    "Backend, auth, live data, deploy, apps/dashboard product changes"
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "backend/",
+    "ios/",
+    "Sibling issue context caches",
+    ".cursor/skills/standalone/open-design-system/SKILL.md"
+  ],
+  "promptCacheBlock": "# Issue #412 — packages/ui core elements\n\n## In scope\n- Build typed packages/ui elements: Button, Badge, Chip, HealthBar, ProgressBar.\n- Interaction-state Vitest coverage; theme tokens only; 44×44 + focus-visible; reduced-motion; Vietnamese text; import-boundary proof for apps/demo.\n\n## Out of scope\n- Screen compositions, destination content, backend/auth/deploy, apps/dashboard product edits.\n\n## Edge design docs (load for implementation)\n- docs/product/design/Components/buttons.md\n- docs/product/design/Components/badges.md\n- docs/product/design/Components/chips.md\n- docs/product/design/Components/health-bars.md\n- docs/product/design/Components/progress-bars.md\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #412 — packages/ui core elements\n\nElements-only library work on packages/ui. Preserve #397 Home primitives. Atomic order: elements now; compositions/screens later. Blocker #397 cleared.",
+    "meta": "# Meta — Issue #412\n\n- Executor domain: ui-ux (single_executor).\n- Skills (bootstrap-pinned): domain/ui-ux, standalone/ui-ux-design.\n- Do NOT load open-design-system (absent from parent bootstrapRef pin).\n- Rules: code-quality, reliability, performance.\n- MCPs: none.\n- TDD order (one agent, sequential — maximize focus):\n  1) Button (+ styles/tokens) with state tests\n  2) Badge\n  3) Chip (status → filter → input)\n  4) ProgressBar (standard → RealEstimated)\n  5) HealthBar\n  6) Public exports + MODULE.md + import-boundary tests\n- Reuse packages/ui/styles.css + packages/theme/tokens.css patterns from DestinationCard.\n- Stub packages/ui/src/button.tsx exists but is NOT exported — replace/complete, do not leave orphan stubs.\n- Emit implementation-issue-412.json when done; append phaseCacheBlocks.executor.",
+    "executor": "# Executor — Issue #412\n\nBranch: feature/issue-412-ui-core-elements.\nImplemented Button, Badge, ConfidenceBadge, StatusChip, FilterChip, InputChip, ProgressBar, RealEstimatedProgressBar, HealthBar in packages/ui with theme-token CSS, Vietnamese copy, 44px targets, focus-visible, reduced-motion.\nVitest: pnpm --filter @juli/ui test (22 passed); pnpm --filter @juli/demo test (5 passed); type-check clean.\nArtifact: agent-runtime/artifacts/implementations/implementation-issue-412.json.",
+    "review": "# Review — Issue #412\n\nintent-review: spec_fidelity=pass, 2 low smells (duplicated clampPercent; ConfidenceBadge ternary).\nGuardrails: PASS_WITH_WARNINGS — root check:demo omits @juli/ui tests (22 pass locally); all 6 AC mapped; 27 unit tests passed.\nArtifacts: intent-review-issue-412.json, review-issue-412.json.",
+    "validate": "# Validate — Issue #412\n\nstatus=PASS (13/13 gates). readyForMerge=true, readyForShip=true (warningGated, mergeBlockedByWarnings=false).\nNote: code uncommitted — commit required before PR/ship.\nArtifact: validation-issue-412.json."
+  },
+  "harnessUtility": {
+    "skills": [
+      {
+        "path": ".cursor/skills/standalone/intent-review/SKILL.md",
+        "purpose": "Spec fidelity + smell baseline for #412"
+      },
+      {
+        "path": ".cursor/skills/standalone/guardrails/SKILL.md",
+        "purpose": "Domain gates + ADR-003 review artifact"
+      },
+      {
+        "path": ".cursor/skills/standalone/validate/SKILL.md",
+        "purpose": "Deterministic validation gates + validation artifact"
+      }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc",
+      ".cursor/rules/performance.mdc",
+      ".cursor/rules/code-review.mdc"
+    ],
+    "mcps": [],
+    "tools": [
+      "ReadFile",
+      "rg",
+      "Glob",
+      "Shell",
+      "Write"
+    ]
+  },
+  "glossarySnippets": [
+    {
+      "term": "Phê duyệt",
+      "definition": "Primary recommendation approve CTA label.",
+      "avoid": ["Approve", "OK"]
+    },
+    {
+      "term": "Từ chối",
+      "definition": "Reject recommendation — secondary/ghost, never primary gradient.",
+      "avoid": ["Reject", "Deny"]
+    },
+    {
+      "term": "Mở rộng",
+      "definition": "Expand reasoning tertiary action.",
+      "avoid": ["Expand", "More"]
+    },
+    {
+      "term": "Độ tin cậy",
+      "definition": "Confidence badge prefix; always pair color with text.",
+      "avoid": ["Confidence"]
+    }
+  ],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #412",
+      "fingerprint": "b675e28948174c63"
+    },
+    {
+      "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-412.md",
+      "fingerprint": "676dfa5d54b3a2c9cda31af1d760dee91d383aa1"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-412.md",
+  "lastValidatedAt": "2026-07-16T02:30:00Z",
+  "lastScopeAlignmentAt": "2026-07-16T02:30:00Z"
+}

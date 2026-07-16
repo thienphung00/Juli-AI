@@ -10,10 +10,15 @@ deployables.
 - `DestinationCard` — complete keyboard-operable launcher link.
 - `PrimaryNavigation` — ordered four-destination navigation with text and
   non-color active state.
-- `Button` — primary/secondary/ghost action button with a 44×44px minimum
-  target, visible focus-visible ring, and disabled/reduced-motion states.
-- `Badge` — inline status/label chip; color is always paired with visible
-  text, never color-only.
+- `Button` — primary/secondary/ghost actions with size/loading variants, a
+  44×44px minimum target, visible focus-visible ring, and reduced-motion states.
+- `Badge` / `ConfidenceBadge` — inline status labels (Decision + semantic
+  variants); color is always paired with visible text, never color-only.
+- `StatusChip` / `FilterChip` / `InputChip` — inline status, tab filters, and
+  closeable input tags.
+- `ProgressBar` / `RealEstimatedProgressBar` — standard and real/estimated fill
+  indicators.
+- `HealthBar` — five-segment shop health visualization with threshold ticks.
 - `RecommendationCard` — presentational, app-state-agnostic Decision
   recommendation card (Phê duyệt/Từ chối/Mở rộng trio, forwardRef'd container
   for scroll/focus targeting).

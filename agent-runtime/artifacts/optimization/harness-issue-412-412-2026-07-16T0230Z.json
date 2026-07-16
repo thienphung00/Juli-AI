@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 412,
+  "phaseRunId": "412-2026-07-16T0230Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "ui-ux",
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-412.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-412.json",
+    "agent-runtime/artifacts/reviews/review-issue-412.json",
+    "agent-runtime/artifacts/validation/validation-issue-412.json",
+    "packages/ui/MODULE.md",
+    "docs/product/design/Components/buttons.md"
+  ],
+  "skillsLoaded": [
+    "focus",
+    "prompt-caching",
+    "ui-ux",
+    "ui-ux-design",
+    "intent-review",
+    "guardrails",
+    "validate"
+  ],
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "executionDurationMs": 900000,
+  "reviewFailures": 0,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 2,
+  "toolInvocationCount": 55,
+  "baselineMetrics": {
+    "executionTimeMs": 900000,
+    "tokenUsageTotal": 0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 0.0,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 55
+  },
+  "rootCauseCategory": "review_gap",
+  "rootCause": "review_gap",
+  "proposedOptimization": {
+    "summary": "For P2-6 packages/ui library children, require @juli/ui Vitest in the demo CI path (check:demo or dedicated filter) so Guardrails does not re-discover the same CI gap.",
+    "changeType": "routing_hint",
+    "details": "Issue #412 validated PASS with PASS_WITH_WARNINGS because package.json check:demo omits pnpm --filter @juli/ui test. Local suites passed (27/27). Add a Focus/slice-routing or harness routing hint for packages/ui element issues to treat @juli/ui test wiring as in-scope CI hygiene, or extend check:demo once Architect accepts."
+  },
+  "configTarget": "routing.hints",
+  "expectedMetricImpact": [
+    {
+      "metric": "reviewFailureRate",
+      "direction": "decrease",
+      "magnitude": "low"
+    },
+    {
+      "metric": "retryCount",
+      "direction": "decrease",
+      "magnitude": "low"
+    }
+  ],
+  "predictedImpact": {
+    "summary": "Prevents repeated WARNING findings on packages/ui siblings and keeps CI aligned with local TDD evidence.",
+    "metrics": [
+      {
+        "metric": "reviewFailureRate",
+        "direction": "decrease",
+        "magnitude": "low"
+      }
+    ]
+  },
+  "expectedImpact": "Fewer PASS_WITH_WARNINGS on packages/ui library issues; CI catches element regressions without relying on local-only runs.",
+  "harnessConfigTargets": [
+    "focus_routing",
+    "executor_domain_hints"
+  ],
+  "autoApplyEligible": false,
+  "dryRun": true,
+  "humanApprovalRequired": true,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "implementation": "agent-runtime/artifacts/implementations/implementation-issue-412.json",
+    "review": "agent-runtime/artifacts/reviews/review-issue-412.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-412.json"
+  },
+  "notes": "Pipeline complete for #412. Code remains uncommitted on feature/issue-412-ui-core-elements — commit before PR/ship. No product-development optimization emitted (single-issue CI gap, not repeated planning failure)."
+}
