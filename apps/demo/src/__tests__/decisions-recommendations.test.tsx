@@ -9,6 +9,8 @@ import { DemoShell } from "../components/demo-shell";
 import { RecommendationsView } from "../components/recommendations-view";
 import { recommendationFixtures } from "../lib/recommendations";
 
+const push = vi.fn();
+
 vi.mock("next/navigation", () => ({
   useSearchParams: vi.fn(),
   usePathname: vi.fn(() => "/decisions"),
@@ -16,7 +18,7 @@ vi.mock("next/navigation", () => ({
     back: vi.fn(),
     forward: vi.fn(),
     prefetch: vi.fn(),
-    push: vi.fn(),
+    push,
     refresh: vi.fn(),
     replace: vi.fn(),
   })),
@@ -48,6 +50,7 @@ describe("Decisions — Recommendations", () => {
   beforeEach(() => {
     mockHighlight();
     localStorage.clear();
+    push.mockClear();
   });
 
   afterEach(() => {
@@ -213,10 +216,10 @@ describe("Decisions — Recommendations", () => {
     expect(analyticsLink).toHaveAttribute("href", "/analytics");
   });
 
-  it("renders Approve as a real disabled button with an associated, meaningful explanation", () => {
+  it("renders Approve as disabled for workflows 2-9 with an associated explanation", () => {
     renderView();
 
-    recommendationFixtures.forEach((fixture) => {
+    recommendationFixtures.slice(1).forEach((fixture) => {
       const card = findCard(fixture.workflowKey) as HTMLElement;
       const approveButton = within(card).getByRole("button", {
         name: "Phê duyệt",
@@ -232,6 +235,26 @@ describe("Decisions — Recommendations", () => {
       expect(explanation?.textContent ?? "").toMatch(/Phê duyệt/);
       expect((explanation?.textContent ?? "").length).toBeGreaterThan(20);
     });
+  });
+
+  it("enables Approve for Workflow 1 and routes to the review page", async () => {
+    const user = userEvent.setup();
+    renderView();
+
+    const workflowOne = recommendationFixtures[0];
+    const card = findCard(workflowOne.workflowKey) as HTMLElement;
+    const approveButton = within(card).getByRole("button", {
+      name: "Phê duyệt",
+    });
+
+    expect(approveButton).toBeEnabled();
+    expect(approveButton).not.toHaveAttribute("aria-describedby");
+
+    await user.click(approveButton);
+
+    expect(push).toHaveBeenCalledWith(
+      `/decisions/recommendations/${workflowOne.workflowKey}`,
+    );
   });
 
   it("renders a recoverable error state and retries without leaving Decisions", async () => {
@@ -348,7 +371,7 @@ describe("Decisions — Recommendations", () => {
     expect(expand).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("makes no network calls anywhere in the recommendations flow", async () => {
+  it("makes no backend request or real write anywhere in the recommendations flow", async () => {
     const user = userEvent.setup();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     renderView();

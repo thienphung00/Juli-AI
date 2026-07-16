@@ -13,11 +13,17 @@ dependency.
   content is delivered by later vertical slices.
 - `DemoShell` — responsive four-destination application frame.
 - `DemoStateProvider` / `useDemoState` — single owner for mutable mock state,
-  persisted Mock mode, disabled Sign-in feedback, and deterministic reset.
+  persisted Mock mode, disabled Sign-in feedback, deterministic reset, and
+  `startExecution(workflowKey)` for approved workflow records.
+- `lib/executions.ts` — Workflow 1 timeline fixtures and pure `startExecution`.
+- `lib/reviews.ts` — Workflow 1 five-stage review content and input defaults.
+- `RecommendationsPanel` / `InProgressPanel` — Decisions tab panels composed by
+  `RecommendationsView`.
 - `homeDestinations` / `demoSnapshot` — deterministic mock contracts used by Home.
 
 ## Dependencies
 
+- `@juli/contracts` — execution and review stage types.
 - `@juli/theme` — semantic tokens.
 - `@juli/ui` — accessible destination cards and primary navigation.
 - `@juli/utils` — Vietnamese date/number formatting.

@@ -8,7 +8,7 @@ import { Button } from "./button";
 export type RecommendationConfidenceLevel = "high" | "medium" | "low";
 
 export interface RecommendationCardProps {
-  approveDisabledReason: string;
+  approveDisabledReason?: string;
   capabilityLabel: string;
   confidenceLabel: string;
   confidenceLevel: RecommendationConfidenceLevel;
@@ -18,6 +18,7 @@ export interface RecommendationCardProps {
   isHighlighted?: boolean;
   isPriority?: boolean;
   knownLimits: string;
+  onApprove?: () => void;
   onReject: () => void;
   reasoning: string;
   rejectLabel?: string;
@@ -42,6 +43,7 @@ export const RecommendationCard = forwardRef<
     isHighlighted = false,
     isPriority = false,
     knownLimits,
+    onApprove,
     onReject,
     reasoning,
     rejectLabel = "Từ chối",
@@ -57,6 +59,7 @@ export const RecommendationCard = forwardRef<
   const titleId = `${reactId}-title`;
   const panelId = `${reactId}-panel`;
   const approveNoteId = `${reactId}-approve-note`;
+  const approveEnabled = Boolean(onApprove);
 
   const classNames = [
     "juli-recommendation-card",
@@ -104,8 +107,9 @@ export const RecommendationCard = forwardRef<
 
       <div className="juli-recommendation-card__actions">
         <Button
-          aria-describedby={approveNoteId}
-          disabled
+          aria-describedby={approveEnabled ? undefined : approveNoteId}
+          disabled={!approveEnabled}
+          onClick={onApprove}
           variant="primary"
         >
           Phê duyệt
@@ -123,9 +127,11 @@ export const RecommendationCard = forwardRef<
         </Button>
       </div>
 
-      <p className="juli-recommendation-card__approve-note" id={approveNoteId}>
-        {approveDisabledReason}
-      </p>
+      {!approveEnabled && approveDisabledReason ? (
+        <p className="juli-recommendation-card__approve-note" id={approveNoteId}>
+          {approveDisabledReason}
+        </p>
+      ) : null}
 
       {expanded ? (
         <div className="juli-recommendation-card__panel" id={panelId}>

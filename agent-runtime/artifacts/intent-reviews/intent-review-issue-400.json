@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-400",
+  "issue": 400,
+  "timestamp": "2026-07-16T05:03:50Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "12b8df8c0f4b26a2fc66284c2046d47e1a2d0687",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Re-review after draft\u2192approvedInputs fix. Editable review drafts now merge into ExecutionRecord.approvedInputs via demo-state startExecution \u2192 lib/executions.startExecution(workflowKey, approvedInputs). Approved workflows are removed from Recommendations until Manual Refresh. Five-stage review route, analytics deep-link, workflow/tool recording, In Progress shells, 14-step timeline, mock-only path all match issue #400 + scope-alignment intent.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "apps/demo/src/lib/executions.ts, apps/demo/src/lib/reviews.ts",
+      "hunk": "CREATE_HERO_PRODUCT_WORKFLOW_KEY still exported from both modules",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Duplicated Code",
+      "path": "apps/demo/src/components/demo-state.tsx",
+      "hunk": "executionProgress mirrors ExecutionRecord.lifecycleStatus; unused by UI",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Divergent Change",
+      "path": "apps/demo/src/components/in-progress-panel.tsx",
+      "hunk": "List UI plus exported lifecycle/timeline helpers for detail route",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "code-quality.mdc \u2014 DRY",
+      "path": "apps/demo/src/lib/executions.ts",
+      "note": "defaultApprovedInputs removed; buildReviewInputDefaults is now the shared input baseline (fixes prior parallel-map drift).",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "400-2026-07-16T0500Z"
+}

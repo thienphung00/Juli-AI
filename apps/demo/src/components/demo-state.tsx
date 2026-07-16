@@ -1,5 +1,6 @@
 "use client";
 
+import type { ExecutionRecord } from "@juli/contracts";
 import {
   createContext,
   type Dispatch,
@@ -11,6 +12,9 @@ import {
   useMemo,
   useState,
 } from "react";
+
+import { startExecution as createExecutionRecord } from "../lib/executions";
+import { buildReviewInputDefaults } from "../lib/reviews";
 
 export const DEMO_MODE_STORAGE_KEY = "juli_demo_mode";
 export const DEMO_MUTABLE_STATE_STORAGE_KEY = "juli_demo_mutable_state";
@@ -26,6 +30,8 @@ export interface MutableMockState {
   rejectedRecommendationIds: string[];
   approvedRecommendationIds: string[];
   workflowInputs: Record<string, string>;
+  workflowReviewDrafts: Record<string, Record<string, string>>;
+  executionRecords: Record<string, ExecutionRecord>;
   executionProgress: Record<
     string,
     "needs_input" | "executing" | "completed"
@@ -40,6 +46,8 @@ export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
   rejectedRecommendationIds: [],
   approvedRecommendationIds: [],
   workflowInputs: {},
+  workflowReviewDrafts: {},
+  executionRecords: {},
   executionProgress: {},
   decisionsView: "recommendations",
   analyticsMetric: "net-revenue",
@@ -57,6 +65,7 @@ interface DemoStateValue {
   setRecommendationContext: (
     context: RecommendationAssistanceContext | null,
   ) => void;
+  startExecution: (workflowKey: string) => string;
   updateMutableState: Dispatch<SetStateAction<MutableMockState>>;
 }
 
@@ -68,6 +77,8 @@ function createDefaultMutableState(): MutableMockState {
     rejectedRecommendationIds: [],
     approvedRecommendationIds: [],
     workflowInputs: {},
+    workflowReviewDrafts: {},
+    executionRecords: {},
     executionProgress: {},
     settingsDraft: {},
   };
@@ -135,6 +146,45 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const startExecution = useCallback(
+    (workflowKey: string) => {
+      let executionId = "";
+
+      updateMutableState((current) => {
+        const approvedInputs = {
+          ...buildReviewInputDefaults(),
+          ...(current.workflowReviewDrafts[workflowKey] ?? {}),
+        };
+        const created = createExecutionRecord(workflowKey, approvedInputs);
+        executionId = created.executionId;
+
+        return {
+          ...current,
+          approvedRecommendationIds: current.approvedRecommendationIds.includes(
+            workflowKey,
+          )
+            ? current.approvedRecommendationIds
+            : [...current.approvedRecommendationIds, workflowKey],
+          executionRecords: {
+            ...current.executionRecords,
+            [created.executionId]: created.record,
+          },
+          executionProgress: {
+            ...current.executionProgress,
+            [created.executionId]: created.record.lifecycleStatus,
+          },
+          workflowReviewDrafts: {
+            ...current.workflowReviewDrafts,
+            [workflowKey]: approvedInputs,
+          },
+        };
+      });
+
+      return executionId;
+    },
+    [updateMutableState],
+  );
+
   const value = useMemo<DemoStateValue>(
     () => ({
       feedback,
@@ -149,6 +199,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
       },
       resetMockState,
       setRecommendationContext,
+      startExecution,
       updateMutableState,
     }),
     [
@@ -156,6 +207,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
       mutableState,
       recommendationContext,
       resetMockState,
+      startExecution,
       updateMutableState,
     ],
   );
