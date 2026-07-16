@@ -1,0 +1,210 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 414,
+  "parentIssueId": 395,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+  "phaseRunId": "414-2026-07-16T0315Z",
+  "workflowPhase": "meta",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "P2-6",
+    "handoffPath": "docs/product/phases/phase-2.6/PRD.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "ui-ux",
+    "requiredDocs": [
+      "EXECUTION.md",
+      "docs/product/phases/phase-2.6/PRD.md",
+      "docs/architecture/map.md",
+      "docs/architecture/data-sources.md",
+      "docs/architecture/migration-plan.md",
+      "docs/adr/023-four-destination-analytics-ownership.md",
+      "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+      "docs/product/design/README.md",
+      "docs/product/design/context.md",
+      "docs/product/design/design.md",
+      "docs/product/design/flows.md",
+      "docs/product/design/soul.md",
+      "docs/product/design/ux_principles.md",
+      "docs/product/design/Screens/home.md",
+      "docs/product/design/Components/navigation.md",
+      "docs/product/design/Components/cards.md",
+      "docs/product/design/colors_and_type.css"
+    ],
+    "requiredModules": [
+      "apps/demo/MODULE.md",
+      "packages/theme/MODULE.md",
+      "packages/ui/MODULE.md",
+      "packages/utils/MODULE.md"
+    ],
+    "acceptanceCriteria": [
+      "Each composition exists as a typed packages/ui export, built from #412's elements (no duplicated primitive logic)",
+      "Toasts and loading indicators respect prefers-reduced-motion and are announced via an accessible live region",
+      "Charts use Recharts, series colors from packages/theme CSS variables, keyboard-accessible, with a text equivalent for screen readers",
+      "Navigation is keyboard-operable with a visible focus-visible state and correct active-route indication",
+      "Vietnamese copy where the composition renders text",
+      "Import-boundary tests confirm these compositions are importable by apps/demo and do not import from any apps/*"
+    ],
+    "loadWhenNeeded": [
+      "apps/dashboard/MODULE.md",
+      "apps/dashboard/src/lib/format.ts",
+      "apps/dashboard/src/__tests__/test_responsive_breakpoints.test.tsx",
+      "docs/product/design/ui_kits/app/",
+      "docs/product/design/source_examples/"
+    ]
+  },
+  "authorityChain": [
+    {
+      "rank": 1,
+      "source": "EXECUTION.md",
+      "reason": "Phase/slice law — P2-6"
+    },
+    {
+      "rank": 2,
+      "source": "parent-cache-issue-395",
+      "reason": "Epic constant"
+    },
+    {
+      "rank": 3,
+      "source": "GitHub issue #414",
+      "reason": "Child acceptance criteria"
+    },
+    {
+      "rank": 4,
+      "source": "docs/product/phases/phase-2.6/PRD.md",
+      "reason": "Epic handoff"
+    }
+  ],
+  "resolvedDecisions": [
+    {
+      "topic": "Work surface",
+      "decision": "Implement packages/ui feedback + navigation compositions only (toasts, loaders, navigation, charts); no destination screens.",
+      "conflictingSources": [
+        "GitHub issue #414",
+        "docs/product/phases/phase-2.6/PRD.md"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    },
+    {
+      "topic": "Existing navigation",
+      "decision": "Keep PrimaryNavigation public API; extend/complete navigation compositions per navigation.md without breaking Home shell consumers.",
+      "conflictingSources": [
+        "GitHub issue #397",
+        "GitHub issue #414"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    },
+    {
+      "topic": "Blocker",
+      "decision": "Unblocked — #412 merged via PR #415 onto origin/main.",
+      "conflictingSources": [
+        "GitHub issue #414"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    },
+    {
+      "topic": "Parallel sibling #413",
+      "decision": "Run in parallel with exclusive file ownership; do not edit card/dialog/form/table/popover files owned by #413.",
+      "conflictingSources": [
+        "issue-workflow.mdc module overlap",
+        "user parallel directive"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    }
+  ],
+  "inScope": [
+    "packages/ui Toast (stacking, auto-dismiss, live region, reduced-motion)",
+    "packages/ui LoadingIndicator compositions",
+    "packages/ui navigation compositions (preserve PrimaryNavigation; add secondary as design requires)",
+    "packages/ui Chart primitives via Recharts + theme CSS variables + text equivalent",
+    "Vitest coverage and import-boundary tests",
+    "Vietnamese copy; keyboard + focus-visible; active-route indication"
+  ],
+  "outOfScope": [
+    "Cards, dialogs, forms, tables, popovers (#413)",
+    "apps/demo destination screens beyond import-boundary proof",
+    "Full Analytics destination (#404)",
+    "Backend, auth, live data, deploy, apps/dashboard product changes"
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "backend/",
+    "ios/",
+    "Sibling issue context caches",
+    ".cursor/skills/standalone/open-design-system/SKILL.md"
+  ],
+  "promptCacheBlock": "# Issue #414 — packages/ui feedback + navigation compositions\n\n## In scope\n- Build typed packages/ui compositions: toasts, loading indicators, navigation, charts.\n- Toasts/loaders: prefers-reduced-motion + aria-live.\n- Charts: Recharts + theme CSS variables + keyboard + text equivalent.\n- Navigation: keyboard, focus-visible, active-route.\n- Vietnamese text; import-boundary proof for apps/demo.\n\n## Out of scope\n- #413 cards/dialogs/forms/tables/popovers; destination screens; backend/auth/deploy.\n\n## Edge design docs\n- docs/product/design/Components/toasts.md\n- docs/product/design/Components/loading-indicators.md\n- docs/product/design/Components/navigation.md\n- docs/product/design/Components/charts.md\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #414 — packages/ui feedback + navigation compositions\n\nFeedback/nav/chart composition library work on packages/ui. Preserve PrimaryNavigation API. Atomic order: compositions now; screens later. Blocker #412 cleared (PR #415). Parallel with #413 under partitioned file ownership.",
+    "meta": "# Meta — Issue #414\n\n- Executor domain: ui-ux (single_executor per issue; 2 Composer 2.5 sub-agents).\n- Skills (bootstrap-pinned): domain/ui-ux, standalone/ui-ux-design.\n- Do NOT load open-design-system (absent from parent bootstrapRef pin).\n- Rules: code-quality, reliability, performance.\n- MCPs: none.\n- Worktree: /Users/macos/Juli-AI-v2/.worktrees/issue-414 · branch feature/issue-414-ui-feedback-nav\n- Sub-agent split (Composer 2.5):\n  1) #414-A feedback: Toast + LoadingIndicator (+ tests/styles for those)\n  2) #414-B nav+charts: Navigation compositions + Charts (+ tests); then barrel exports in index.ts, MODULE.md, import-boundary tests for all #414 compositions\n- File ownership: never edit card/dialog/form/table/popover files (#413).\n- Charts may add recharts dependency to packages/ui if not already present — keep theme CSS variable colors.\n- Emit implementation-issue-414.json when done; append phaseCacheBlocks.executor.",
+    "executor": "",
+    "review": "",
+    "validate": ""
+  },
+  "harnessUtility": {
+    "skills": [
+      {
+        "path": ".cursor/skills/domain/ui-ux/SKILL.md",
+        "purpose": "UI Executor TDD for packages/ui feedback/nav compositions"
+      },
+      {
+        "path": ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+        "purpose": "Juli design-system implementation for feedback/nav/charts"
+      }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc",
+      ".cursor/rules/performance.mdc",
+      ".cursor/rules/issue-workflow.mdc"
+    ],
+    "mcps": [],
+    "tools": [
+      "ReadFile",
+      "rg",
+      "Glob",
+      "Shell",
+      "Write",
+      "ApplyPatch"
+    ]
+  },
+  "glossarySnippets": [
+    {
+      "term": "Đã phê duyệt đề xuất",
+      "definition": "Example success toast after approval.",
+      "avoid": ["Approved", "Success"]
+    },
+    {
+      "term": "Đang tải",
+      "definition": "Loading indicator accessible label.",
+      "avoid": ["Loading"]
+    },
+    {
+      "term": "Trang chủ",
+      "definition": "Home destination nav label.",
+      "avoid": ["Home", "Dashboard"]
+    },
+    {
+      "term": "Quyết định",
+      "definition": "Decisions destination nav label.",
+      "avoid": ["Actions", "Recommendations"]
+    }
+  ],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #414",
+      "fingerprint": "19377cd7b1e076f0"
+    },
+    {
+      "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-414.md",
+      "fingerprint": "5846c5d97b8e2b738c432719a482ba8ef43ea21b"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-414.md",
+  "lastValidatedAt": "2026-07-16T03:15:00Z",
+  "lastScopeAlignmentAt": "2026-07-16T03:15:00Z"
+}

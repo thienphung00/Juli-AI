@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 414,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "414-2026-07-16T0315Z",
+  "startedAt": "2026-07-16T03:30:00Z",
+  "completedAt": "2026-07-16T03:45:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 20,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 10,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 5,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 43,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/handoff-414-A.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-414.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-414.md",
+    "docs/handoffs/parallel-status.md",
+    "docs/product/design/Components/navigation.md",
+    "docs/product/design/Components/charts.md",
+    "packages/ui/MODULE.md",
+    "packages/ui/src/index.ts",
+    "packages/ui/src/primary-navigation.tsx",
+    "packages/ui/styles.css",
+    "packages/theme/tokens.css",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/SKILL.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/SKILL.md"
+  ],
+  "filesModified": [
+    "packages/ui/src/navigation-utils.ts",
+    "packages/ui/src/page-header.tsx",
+    "packages/ui/src/chart.tsx",
+    "packages/ui/src/primary-navigation.tsx",
+    "packages/ui/src/__tests__/primary-navigation.test.tsx",
+    "packages/ui/src/__tests__/page-header.test.tsx",
+    "packages/ui/src/__tests__/chart.test.tsx",
+    "packages/ui/src/__tests__/import-boundary.test.ts",
+    "packages/ui/package.json",
+    "packages/ui/styles.css",
+    "packages/ui/src/index.ts",
+    "packages/ui/MODULE.md",
+    "apps/demo/src/__tests__/ui-feedback-nav.test.ts",
+    "pnpm-lock.yaml",
+    "agent-runtime/artifacts/workflow-cache/handoff-414-B.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-414.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-414.json"
+  ],
+  "testsAdded": [
+    "packages/ui/src/__tests__/primary-navigation.test.tsx",
+    "packages/ui/src/__tests__/page-header.test.tsx",
+    "packages/ui/src/__tests__/chart.test.tsx",
+    "apps/demo/src/__tests__/ui-feedback-nav.test.ts"
+  ],
+  "testsUpdated": [
+    "packages/ui/src/__tests__/import-boundary.test.ts"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "No packages/ui tests for navigation keyboard/focus-visible/active-route or chart Recharts/theme/keyboard/text-equivalent behaviors.",
+      "passingTestEvidence": "primary-navigation (5), page-header (3), and chart (4) Vitest suites pass; import-boundary extended for #414 exports.",
+      "refactorEvidence": "Extracted isNavTabActive without changing PrimaryNavigation props; chart SVGs aria-hidden with sr-only ChartTextEquivalent.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/ui test",
+          "exitCode": 0,
+          "outputSummary": "11 files, 49 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "pnpm --filter @juli/ui type-check failed: recharts transitive lodash types missing.",
+      "passingTestEvidence": "Added @types/lodash devDependency; type-check clean.",
+      "refactorEvidence": "Kept recharts as runtime dependency only in packages/ui.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/ui type-check",
+          "exitCode": 2,
+          "outputSummary": "lodash implicit any from recharts types"
+        },
+        {
+          "command": "pnpm --filter @juli/ui type-check",
+          "exitCode": 0,
+          "outputSummary": "clean after @types/lodash"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "apps/demo lacked import-boundary proof for #414 feedback/nav/chart exports.",
+      "passingTestEvidence": "ui-feedback-nav.test.ts passes; full demo suite 6 files, 33 tests.",
+      "refactorEvidence": "Import-only demo test; no destination screen wiring.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test",
+          "exitCode": 0,
+          "outputSummary": "6 files, 33 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Completed issue #414 wave-2 (#414-B): navigation compositions (isNavTabActive, PageHeader, PrimaryNavigation active-route refinement), Recharts chart primitives with theme CSS variable series colors, keyboard-operable ChartExpandableTile, screen-reader text equivalents, append-only barrel/MODULE/import-boundary coverage for all #414 compositions including #414-A toast/loaders.",
+  "assumptions": [
+    "PageHeader shop metadata takes precedence over subtitle per navigation.md header guidance.",
+    "MetricSparkline and area/line chart visuals remain aria-hidden; ChartTextEquivalent carries the accessible value.",
+    "ChartExpandableTile Enter/Space handling mirrors button activation without duplicating chart interaction inside SVG."
+  ],
+  "risks": [
+    "recharts@2.15.4 is deprecated upstream; migration to v3 is a future chore outside #414 scope.",
+    "pnpm-lock.yaml updated for recharts and @types/lodash — merge carefully with parallel #413 worktree."
+  ]
+}

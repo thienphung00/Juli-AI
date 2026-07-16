@@ -71,4 +71,20 @@ describe("packages/ui import boundaries", () => {
     expect(uiExports.TableHeaderCell).toBeTypeOf("function");
     expect(uiExports.TableEmpty).toBeTypeOf("function");
   });
+
+  it("exports #414 feedback, navigation, and chart compositions", () => {
+    expect(uiExports.Toast).toBeTypeOf("function");
+    expect(uiExports.ToastViewport).toBeTypeOf("function");
+    expect(uiExports.LoadingIndicator).toBeTypeOf("function");
+    expect(uiExports.LoadingSpinner).toBeTypeOf("function");
+    expect(uiExports.LoadingSkeleton).toBeTypeOf("function");
+    expect(uiExports.isNavTabActive).toBeTypeOf("function");
+    expect(uiExports.PageHeader).toBeTypeOf("function");
+    expect(uiExports.MetricSparkline).toBeTypeOf("function");
+    expect(uiExports.TrendAreaChart).toBeTypeOf("function");
+    expect(uiExports.TrendLineChart).toBeTypeOf("function");
+    expect(uiExports.ChartExpandableTile).toBeTypeOf("function");
+    expect(uiExports.ChartTextEquivalent).toBeTypeOf("function");
+    expect(uiExports.CHART_SERIES_COLORS.positive).toBe("var(--juli-success)");
+  });
 });

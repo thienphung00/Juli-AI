@@ -10,6 +10,9 @@ deployables.
 - `DestinationCard` — complete keyboard-operable launcher link.
 - `PrimaryNavigation` — ordered four-destination navigation with text and
   non-color active state.
+- `isNavTabActive` — shared active-route matcher for primary destinations.
+- `PageHeader` — sticky banner header with Vietnamese title/subtitle or shop
+  metadata and optional trailing actions.
 - `Button` — primary/secondary/ghost actions with size/loading variants, a
   44×44px minimum target, visible focus-visible ring, and reduced-motion states.
 - `Badge` / `ConfidenceBadge` — inline status labels (Decision + semantic
@@ -32,6 +35,15 @@ deployables.
   navigable form compositions built on shared `Button` submit actions.
 - `Table` — keyboard-navigable data table with sortable headers, empty state,
   and responsive card collapse.
+- `Toast` / `ToastViewport` — stacked feedback toasts with live-region
+  announcements, auto-dismiss, and reduced-motion handling.
+- `LoadingSpinner` / `LoadingSkeleton` / `LoadingIndicator` — accessible loading
+  states with polite live-region labels.
+- `MetricSparkline` / `TrendAreaChart` / `TrendLineChart` — Recharts-based chart
+  primitives using theme CSS variable series colors and screen-reader text
+  equivalents.
+- `ChartExpandableTile` / `ChartTextEquivalent` — keyboard-operable chart tile
+  shell and hidden summary text.
 - `@juli/ui/styles.css` — component styles backed by `@juli/theme` tokens.
 
 ## Invariants

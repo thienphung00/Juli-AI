@@ -1,3 +1,5 @@
+import { isNavTabActive } from "./navigation-utils";
+
 export interface NavigationDestination {
   href: string;
   icon: string;
@@ -19,10 +21,7 @@ export function PrimaryNavigation({
     <nav className="juli-primary-nav" aria-label={label}>
       <ul className="juli-primary-nav__list">
         {destinations.map((destination) => {
-          const isActive =
-            destination.href === "/"
-              ? activePath === "/"
-              : activePath.startsWith(destination.href);
+          const isActive = isNavTabActive(activePath, destination.href);
 
           return (
             <li key={destination.href}>
