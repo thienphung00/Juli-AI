@@ -51,7 +51,12 @@ def test_phase_2_6_packages_are_real_consumed_workspace_members():
         _read_json(path)["name"]
         for path in (REPO_ROOT / "packages").glob("*/package.json")
     }
-    assert package_names == {"@juli/theme", "@juli/ui", "@juli/utils"}
+    assert package_names == {
+        "@juli/contracts",
+        "@juli/theme",
+        "@juli/ui",
+        "@juli/utils",
+    }
 
 
 def test_root_package_uses_pinned_pnpm_and_turbo_without_losing_screenshots():
