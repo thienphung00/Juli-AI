@@ -44,6 +44,9 @@ skip/
 # Local SQLite test databases
 *.db
 
+# Local Alembic pg_dump backups (default ~/.juli-backups; optional repo-local dir)
+.backups/
+
 # AWS Secrets Manager credentials / generated env files (VPS-only runtime
 # state — infra/scripts/fetch-secrets.sh writes these outside the repo at
 # /etc/juli/*, but ignore any local copies too in case someone stages one

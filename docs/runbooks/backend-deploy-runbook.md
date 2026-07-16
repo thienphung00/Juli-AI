@@ -175,6 +175,39 @@ sudo systemctl restart juli-api
 
 Use the **same pooler `DATABASE_URL`** for both Alembic and `juli-api`.
 
+---
+
+## Local development migration gate
+
+For local schema changes, use the safety-gated wrapper instead of a bare
+`alembic upgrade head`:
+
+```bash
+cd ~/Juli-AI-v2
+cp -n .env.example .env   # fill DATABASE_URL
+./infra/scripts/safe-alembic-upgrade-local.sh
+```
+
+Behavior:
+
+- Loads `DATABASE_URL` from the repo-root `.env` (same convention as `runtime.py`).
+- Prints the resolved Supabase project ref (or `local/non-Supabase host: …`) and,
+  when stdin is a TTY, prompts for `yes` before proceeding.
+- Writes a pre-migration `pg_dump` to `~/.juli-backups/` (override with `BACKUP_DIR`).
+- Snapshots protected-table row counts before/after and aborts with a `pg_restore`
+  command on regression — same helpers as the VPS deploy gate
+  (`safe-alembic-upgrade.sh`).
+
+Non-interactive / scripted use: pass `--yes` or set `SAFE_MIGRATE_YES=1`.
+
+Against a disposable local Postgres with zero rows (e.g. a fresh Docker container),
+the gate still runs but completes quickly — backup is small and row-count checks are
+no-ops when counts do not decrease.
+
+Production deploys continue to use `infra/scripts/safe-alembic-upgrade.sh` via
+`deploy-release.sh` (fully non-interactive, no TTY prompt). See
+[ADR-027](../adr/027-database-migration-safety-pipeline.md).
+
 ### /health returns non-2xx over HTTPS but works locally
 
 Nginx upstream or TLS may be misconfigured — re-run [#256](vps-wiring-runbook.md)

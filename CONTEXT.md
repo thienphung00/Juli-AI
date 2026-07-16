@@ -26,6 +26,17 @@ _Avoid_: data migration (when meaning Alembic auto-preserves rows), assuming
 `upgrade head` restores OAuth/commerce data after pointing at a new Supabase
 project
 
+**Migration safety gate**:
+The `pg_dump` backup + row-count invariant + token-decrypt check that wraps every
+`alembic upgrade head` — both the VPS production path (`infra/scripts/deploy-release.sh`
+→ `safe-alembic-upgrade.sh`) and local dev, via shared helpers in
+`safe_alembic_helpers.py` / `safe_alembic_compare.py` ([ADR-027](docs/adr/027-database-migration-safety-pipeline.md)).
+Aborts before cutover/continuation on any protected-table row-count regression or
+decrypt failure. Includes a weekly VPS-local restore drill that proves the backups it
+produces are actually restorable — the drill never transmits a backup off the VPS.
+_Avoid_: safe-alembic wrapper (production-only framing — the gate now covers local dev
+too), backup script (undersells the row-count/decrypt verification, not just pg_dump)
+
 **Layered model**:
 The product's three-layer structure — **visual layer** (Analytics KPI charts + one-line
 advisory signals), **ML layer** (T1–T8 advisory techniques), and **execution layer**

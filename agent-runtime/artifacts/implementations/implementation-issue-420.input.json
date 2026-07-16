@@ -1,0 +1,39 @@
+{
+  "filesModified": [
+    "infra/scripts/safe-alembic-upgrade-local.sh",
+    "infra/scripts/safe_alembic_helpers.py",
+    "tests/unit/test_safe_alembic_helpers.py",
+    "tests/integration/test_safe_alembic_upgrade_local.py",
+    "README.md",
+    "backend/README.md",
+    "docs/runbooks/backend-deploy-runbook.md",
+    "docs/adr/027-database-migration-safety-pipeline.md",
+    "docs/adr/README.md",
+    "CONTEXT.md",
+    ".gitignore"
+  ],
+  "testsAdded": [
+    "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_supabase_pooler_url",
+    "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_supabase_direct_url",
+    "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_localhost",
+    "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_unknown_host",
+    "tests/unit/test_safe_alembic_helpers.py::test_db_identity_cli_subcommand",
+    "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_aborts_on_unallowlisted_delete",
+    "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_succeeds_on_empty_database",
+    "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_non_interactive_without_yes_fails"
+  ],
+  "implementationSummary": "Added safe-alembic-upgrade-local.sh local migration gate with DB-identity resolver, pg_dump backup to ~/.juli-backups, interactive confirmation, and shared row-count verification via safe_alembic_helpers.py. Updated README and backend deploy runbook.",
+  "assumptions": [
+    "Alembic migrations remain schema-only per CONTEXT.md; row-count gate detects accidental data loss, not in-place corruption.",
+    "Local developers have pg_dump available (same requirement as production safe-alembic-upgrade.sh)."
+  ],
+  "risks": [
+    "Local pg_dump adds latency to every local migration run.",
+    "Interactive confirmation may interrupt scripted local workflows unless --yes or SAFE_MIGRATE_YES=1 is set."
+  ],
+  "redGreenRefactorEvidence": [
+    "Red: unit tests for resolve_db_identity and integration tests for local wrapper written before implementation.",
+    "Green: safe_alembic_helpers.resolve_db_identity + safe-alembic-upgrade-local.sh pass 817 pytest tests.",
+    "Refactor: shared helpers reused; production safe-alembic-upgrade.sh unchanged."
+  ]
+}

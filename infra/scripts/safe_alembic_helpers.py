@@ -8,6 +8,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -42,6 +43,64 @@ def migration_db_url() -> str:
             "DATABASE_URL (or DATABASE_DIRECT_URL) must be set for safe migration"
         )
     return sync_database_url(raw)
+
+
+def resolve_db_identity(raw_url: str | None = None) -> dict[str, str]:
+    """Resolve Supabase project ref or local host label from a Postgres URL."""
+    url = (raw_url or migration_db_url()).strip()
+    if not url:
+        raise RuntimeError("DATABASE_URL is required to resolve database identity")
+
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").strip()
+    username = (parsed.username or "").strip()
+
+    if hostname.startswith("db.") and hostname.endswith(".supabase.co"):
+        project_ref = hostname.removeprefix("db.").removesuffix(".supabase.co")
+        return {
+            "kind": "supabase-direct",
+            "project_ref": project_ref,
+            "host": hostname,
+            "display": (
+                f"Supabase project ref: {project_ref} "
+                f"(direct host {hostname})"
+            ),
+        }
+
+    if hostname.endswith(".pooler.supabase.com") and username.startswith("postgres."):
+        project_ref = username.removeprefix("postgres.")
+        return {
+            "kind": "supabase-pooler",
+            "project_ref": project_ref,
+            "host": hostname,
+            "display": (
+                f"Supabase project ref: {project_ref} "
+                f"(pooler {hostname})"
+            ),
+        }
+
+    if not hostname:
+        return {
+            "kind": "unknown",
+            "project_ref": "",
+            "host": "",
+            "display": "local/non-Supabase host: <unparseable connection string>",
+        }
+
+    if hostname in {"localhost", "127.0.0.1", "::1"}:
+        return {
+            "kind": "local",
+            "project_ref": "",
+            "host": hostname,
+            "display": f"local/non-Supabase host: {hostname}",
+        }
+
+    return {
+        "kind": "unknown",
+        "project_ref": "",
+        "host": hostname,
+        "display": f"local/non-Supabase host: {hostname}",
+    }
 
 
 def _engine():
@@ -188,6 +247,12 @@ def main() -> int:
     sub.add_parser("migration-db-url")
     sub.add_parser("verify-token-decrypt")
 
+    p_identity = sub.add_parser("db-identity")
+    p_identity.add_argument(
+        "--url",
+        help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
+    )
+
     p_head = sub.add_parser("head-revision")
     p_head.add_argument("--alembic-ini", required=True)
 
@@ -222,6 +287,9 @@ def main() -> int:
             print(f"decrypt failed: {exc}", file=sys.stderr)
             return 1
         print(json.dumps(result))
+        return 0
+    if args.command == "db-identity":
+        print(json.dumps(resolve_db_identity(args.url)))
         return 0
     if args.command == "head-revision":
         print(head_revision(Path(args.alembic_ini)))
