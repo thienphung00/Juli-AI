@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 400,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "400-2026-07-16T0500Z",
+  "startedAt": "2026-07-16T04:12:00Z",
+  "completedAt": "2026-07-16T05:00:00Z",
+  "executionDurationMs": 2880000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 24,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "ApplyPatch",
+      "count": 14,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Task",
+      "count": 3,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 53,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-400.md",
+    "docs/product/design/Screens/decisions.md",
+    "docs/product/design/Flows/decisions/recommendations/1-workflow.md",
+    "docs/product/execution_layer.md",
+    "apps/demo/MODULE.md",
+    "GitHub issue #400"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/intent-review/SKILL.md",
+    ".cursor/skills/standalone/guardrails/SKILL.md",
+    ".cursor/skills/standalone/validate/SKILL.md"
+  ],
+  "filesModified": [
+    "packages/contracts/src/execution.ts",
+    "packages/contracts/src/review.ts",
+    "packages/contracts/src/index.ts",
+    "apps/demo/src/lib/executions.ts",
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/components/recommendation-review.tsx",
+    "apps/demo/src/components/recommendations-panel.tsx",
+    "apps/demo/src/components/in-progress-panel.tsx",
+    "apps/demo/src/app/decisions/recommendations/[recommendationId]/page.tsx",
+    "apps/demo/src/app/decisions/in-progress/[executionId]/page.tsx",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/__tests__/demo-state-execution.test.tsx",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/__tests__/in-progress.test.tsx"
+  ],
+  "testsAdded": [
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/__tests__/demo-state-execution.test.tsx",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/__tests__/in-progress.test.tsx"
+  ],
+  "testsUpdated": [
+    "apps/demo/src/lib/__tests__/executions.test.ts::records caller-supplied review drafts on the approvedInputs snapshot",
+    "apps/demo/src/__tests__/demo-state-execution.test.tsx::copies workflowReviewDrafts into the execution approvedInputs snapshot"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Initial #400-A/B/C TDD for contracts, five-stage review route, and In Progress shells before green implementation.",
+      "passingTestEvidence": "pnpm check:demo PASS with 62 demo tests across review/execution routes.",
+      "refactorEvidence": "Extracted packages/contracts; split recommendations-view into panels; shared startExecution seam.",
+      "commands": [
+        {
+          "command": "corepack pnpm check:demo",
+          "exitCode": 0,
+          "outputSummary": "lint, type-check, demo/ui/utils tests, and demo build passed."
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Review Agent Spec fail: approvedInputs ignored workflowReviewDrafts. Added executions + demo-state tests asserting draft brand_id/price land on the execution record.",
+      "passingTestEvidence": "Focused vitest 53/53 then full pnpm check:demo PASS after wiring drafts through startExecution and filtering approved cards.",
+      "refactorEvidence": "Removed duplicated defaultApprovedInputs; reuse buildReviewInputDefaults as the single input baseline.",
+      "commands": [
+        {
+          "command": "corepack pnpm --filter @juli/demo exec vitest run src/lib/__tests__/executions.test.ts src/__tests__/demo-state-execution.test.tsx",
+          "exitCode": 0,
+          "outputSummary": "Draft\u2192approvedInputs regression tests passed."
+        },
+        {
+          "command": "corepack pnpm check:demo",
+          "exitCode": 0,
+          "outputSummary": "Full demo gate passed after Spec-fidelity fix."
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Delivers Workflow 1 approval\u2192In Progress tracer: packages/contracts, five-stage review route, shared In Progress list/detail, 14-step timeline, Manual Refresh reset. Post-review fix: startExecution merges workflowReviewDrafts into ExecutionRecord.approvedInputs; recommendations panel hides approved workflows until Manual Refresh.",
+  "assumptions": [
+    "Review drafts and execution snapshots share buildReviewInputDefaults as the baseline.",
+    "Approved recommendations are removed from the Recommendations list until Manual Refresh, matching rejected-id persistence.",
+    "No backend or network calls in the demo mock path."
+  ],
+  "risks": [
+    "Workflow key constant remains duplicated across reviews.ts and executions.ts until a follow-up DRY cleanup.",
+    "executionProgress still mirrors lifecycleStatus and is unused by UI."
+  ]
+}

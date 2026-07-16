@@ -87,7 +87,7 @@ describe("In Progress list and detail shells", () => {
     resetExecutionCountersForTests();
   });
 
-  it("renders lifecycle badges with the exact three Vietnamese labels and workflow title", async () => {
+  it("supports shared In Progress list/detail for needs_input, executing, and completed without a route per step", async () => {
     const executingTimeline = createHeroProductTimeline().map((step, index) =>
       index === 0 ? { ...step, status: "running" as const } : step,
     );
@@ -149,7 +149,7 @@ describe("In Progress list and detail shells", () => {
     });
   });
 
-  it("renders identity, approved inputs, and the full 14-step timeline with kinds and recovery text", async () => {
+  it("renders Workflow 1 action, wait, outcome, recovery, and rollback states on the 14-step timeline", async () => {
     const timeline = createHeroProductTimeline().map((step, index) =>
       index === 0 ? { ...step, status: "running" as const } : step,
     );

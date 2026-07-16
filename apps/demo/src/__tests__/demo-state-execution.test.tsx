@@ -66,6 +66,63 @@ describe("DemoState startExecution", () => {
     ).toBeTruthy();
   });
 
+  it("copies workflowReviewDrafts into the execution approvedInputs snapshot", async () => {
+    const user = userEvent.setup();
+
+    function DraftThenExecuteProbe() {
+      const { mutableState, startExecution, updateMutableState } = useDemoState();
+
+      return (
+        <section>
+          <button
+            type="button"
+            onClick={() =>
+              updateMutableState((current) => ({
+                ...current,
+                workflowReviewDrafts: {
+                  ...current.workflowReviewDrafts,
+                  [CREATE_HERO_PRODUCT_WORKFLOW_KEY]: {
+                    brand_id: "BR-7777",
+                    price: "301000",
+                  },
+                },
+              }))
+            }
+          >
+            Lưu nháp
+          </button>
+          <button
+            type="button"
+            onClick={() => startExecution(CREATE_HERO_PRODUCT_WORKFLOW_KEY)}
+          >
+            Bắt đầu thực thi
+          </button>
+          <output data-testid="mutable-state">
+            {JSON.stringify(mutableState)}
+          </output>
+        </section>
+      );
+    }
+
+    render(
+      <DemoStateProvider>
+        <DraftThenExecuteProbe />
+      </DemoStateProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Lưu nháp" }));
+    await user.click(screen.getByRole("button", { name: "Bắt đầu thực thi" }));
+
+    const state = JSON.parse(
+      screen.getByTestId("mutable-state").textContent ?? "{}",
+    );
+    const record = state.executionRecords["exec-create_hero_product_1-1"];
+
+    expect(record.approvedInputs.brand_id).toBe("BR-7777");
+    expect(record.approvedInputs.price).toBe("301000");
+    expect(record.approvedInputs.category_id).toBe("700648");
+  });
+
   it("clears execution records and review drafts on Manual Refresh reset", async () => {
     const user = userEvent.setup();
 

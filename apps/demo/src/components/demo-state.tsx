@@ -148,31 +148,37 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
 
   const startExecution = useCallback(
     (workflowKey: string) => {
-      const { executionId, record } = createExecutionRecord(workflowKey);
+      let executionId = "";
 
-      updateMutableState((current) => ({
-        ...current,
-        approvedRecommendationIds: current.approvedRecommendationIds.includes(
-          workflowKey,
-        )
-          ? current.approvedRecommendationIds
-          : [...current.approvedRecommendationIds, workflowKey],
-        executionRecords: {
-          ...current.executionRecords,
-          [executionId]: record,
-        },
-        executionProgress: {
-          ...current.executionProgress,
-          [executionId]: record.lifecycleStatus,
-        },
-        workflowReviewDrafts: {
-          ...current.workflowReviewDrafts,
-          [workflowKey]: {
-            ...buildReviewInputDefaults(),
-            ...(current.workflowReviewDrafts[workflowKey] ?? {}),
+      updateMutableState((current) => {
+        const approvedInputs = {
+          ...buildReviewInputDefaults(),
+          ...(current.workflowReviewDrafts[workflowKey] ?? {}),
+        };
+        const created = createExecutionRecord(workflowKey, approvedInputs);
+        executionId = created.executionId;
+
+        return {
+          ...current,
+          approvedRecommendationIds: current.approvedRecommendationIds.includes(
+            workflowKey,
+          )
+            ? current.approvedRecommendationIds
+            : [...current.approvedRecommendationIds, workflowKey],
+          executionRecords: {
+            ...current.executionRecords,
+            [created.executionId]: created.record,
           },
-        },
-      }));
+          executionProgress: {
+            ...current.executionProgress,
+            [created.executionId]: created.record.lifecycleStatus,
+          },
+          workflowReviewDrafts: {
+            ...current.workflowReviewDrafts,
+            [workflowKey]: approvedInputs,
+          },
+        };
+      });
 
       return executionId;
     },

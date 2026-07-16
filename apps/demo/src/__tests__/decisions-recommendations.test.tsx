@@ -371,7 +371,7 @@ describe("Decisions — Recommendations", () => {
     expect(expand).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("makes no network calls anywhere in the recommendations flow", async () => {
+  it("makes no backend request or real write anywhere in the recommendations flow", async () => {
     const user = userEvent.setup();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     renderView();

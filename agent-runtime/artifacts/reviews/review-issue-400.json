@@ -1,0 +1,135 @@
+{
+  "id": "review-issue-400",
+  "issue": 400,
+  "timestamp": "2026-07-16T05:10:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Intent-review spec_fidelity=pass after draft\u2192approvedInputs fix. All 7 ACs mapped to tests. Domain checks clean for mock demo (no network, React-controlled inputs, localStorage persistence with try/catch). Non-blocking smells remain as INFO only.",
+  "criticalFindings": [
+    {
+      "severity": "INFO",
+      "type": "maintainability",
+      "location": "apps/demo/src/lib/executions.ts, apps/demo/src/lib/reviews.ts",
+      "description": "Intent-review smell (non-blocking): CREATE_HERO_PRODUCT_WORKFLOW_KEY still duplicated across modules."
+    },
+    {
+      "severity": "INFO",
+      "type": "maintainability",
+      "location": "apps/demo/src/components/demo-state.tsx",
+      "description": "Intent-review smell (non-blocking): executionProgress unused by UI."
+    }
+  ],
+  "modulesTouched": [
+    "apps/demo",
+    "packages/contracts",
+    "packages/ui"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "packages/contracts",
+      "interface": "ExecutionRecord, ExecutionTimelineStep, ReviewStageContent, deriveLifecycleFromTimeline",
+      "changeType": "added",
+      "breaking": false,
+      "description": "New @juli/contracts package for execution/review types."
+    },
+    {
+      "module": "apps/demo",
+      "interface": "startExecution(workflowKey, approvedInputs?), review + in-progress routes",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Mock approval\u2192In Progress lifecycle; drafts flow into approvedInputs."
+    },
+    {
+      "module": "packages/ui",
+      "interface": "RecommendationCard onApprove/approveDisabledReason",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Optional Approve wiring props."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Approve opens a prefilled, editable five-stage review without executing on first click",
+          "test": "apps/demo/src/__tests__/recommendation-review.test.tsx::does not call startExecution on mount or before Approve is clicked"
+        },
+        {
+          "criterion": "Analytics evidence deep-links to the canonical Analytics metric route rather than duplicating reporting",
+          "test": "apps/demo/src/__tests__/recommendation-review.test.tsx::exposes a navigable analytics deep link on the Analytics stage"
+        },
+        {
+          "criterion": "Final mock approval records the documented workflow/tool key and opens an In Progress execution",
+          "test": "apps/demo/src/__tests__/recommendation-review.test.tsx::calls startExecution and routes to In Progress only on Approve click"
+        },
+        {
+          "criterion": "Shared In Progress list/detail supports needs_input, executing, and completed without creating a route per step",
+          "test": "apps/demo/src/__tests__/in-progress.test.tsx::supports shared In Progress list/detail for needs_input, executing, and completed without a route per step"
+        },
+        {
+          "criterion": "Workflow 1 action, wait, outcome, recovery, and rollback states match its design specification",
+          "test": "apps/demo/src/__tests__/in-progress.test.tsx::renders Workflow 1 action, wait, outcome, recovery, and rollback states on the 14-step timeline"
+        },
+        {
+          "criterion": "Manual Refresh restores Workflow 1 as the Priority Card and clears its execution state",
+          "test": "apps/demo/src/__tests__/demo-state-execution.test.tsx::clears execution records and review drafts on Manual Refresh reset"
+        },
+        {
+          "criterion": "No backend request or real write occurs",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::makes no backend request or real write anywhere in the recommendations flow"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 64,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Optional follow-up: single-source CREATE_HERO_PRODUCT_WORKFLOW_KEY and drop unused executionProgress."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "name": "guardrails skill",
+    "approved": true
+  },
+  "ownerSignoff": {
+    "name": "review-agent",
+    "approved": true
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "findings": [
+    {
+      "severity": "INFO",
+      "type": "maintainability",
+      "location": "apps/demo/src/lib/executions.ts, apps/demo/src/lib/reviews.ts",
+      "description": "Intent-review smell (non-blocking): CREATE_HERO_PRODUCT_WORKFLOW_KEY still duplicated across modules."
+    },
+    {
+      "severity": "INFO",
+      "type": "maintainability",
+      "location": "apps/demo/src/components/demo-state.tsx",
+      "description": "Intent-review smell (non-blocking): executionProgress unused by UI."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewFailures": 0,
+  "reviewDurationMs": 120000,
+  "phaseRunId": "400-2026-07-16T0500Z",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "low",
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-400.json"
+}

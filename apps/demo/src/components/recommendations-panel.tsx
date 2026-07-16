@@ -40,9 +40,15 @@ export function RecommendationsPanel({
         (fixture) =>
           !mutableState.rejectedRecommendationIds.includes(
             fixture.workflowKey,
+          ) &&
+          !mutableState.approvedRecommendationIds.includes(
+            fixture.workflowKey,
           ),
       ),
-    [mutableState.rejectedRecommendationIds],
+    [
+      mutableState.approvedRecommendationIds,
+      mutableState.rejectedRecommendationIds,
+    ],
   );
 
   const activeFixture =

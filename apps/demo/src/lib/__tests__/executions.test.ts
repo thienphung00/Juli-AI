@@ -48,13 +48,25 @@ describe("startExecution", () => {
     expect(record.approvedInputs.price).toBeTruthy();
   });
 
+  it("records caller-supplied review drafts on the approvedInputs snapshot", () => {
+    const { record } = startExecution(CREATE_HERO_PRODUCT_WORKFLOW_KEY, {
+      brand_id: "BR-9999 — Thương hiệu thử",
+      price: "315000",
+    });
+
+    expect(record.approvedInputs.brand_id).toBe("BR-9999 — Thương hiệu thử");
+    expect(record.approvedInputs.price).toBe("315000");
+    expect(record.approvedInputs.category_id).toBe("700648");
+    expect(record.approvedInputs.warehouse_id).toBe("WH-FBS-HCM-01");
+  });
+
   it("rejects unsupported workflow keys", () => {
     expect(() => startExecution("optimize_product_2")).toThrow(/Unsupported workflow key/);
   });
 });
 
 describe("createHeroProductTimeline", () => {
-  it("maps the 14 FBS numbered states with Vietnamese labels", () => {
+  it("maps Workflow 1 action, wait, outcome, recovery, and rollback states to 14 FBS steps", () => {
     const timeline = createHeroProductTimeline();
 
     expect(timeline.map((step) => step.stepNumber)).toEqual([

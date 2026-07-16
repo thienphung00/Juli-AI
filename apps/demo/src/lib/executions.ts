@@ -4,6 +4,8 @@ import {
   type ExecutionTimelineStep,
 } from "@juli/contracts";
 
+import { buildReviewInputDefaults } from "./reviews";
+
 export const CREATE_HERO_PRODUCT_WORKFLOW_KEY = "create_hero_product_1";
 export const CREATE_HERO_PRODUCT_TOOL_NAME = "listing.create_hero_product";
 
@@ -159,18 +161,10 @@ function seedInitialTimeline(
   );
 }
 
-const defaultApprovedInputs: Record<string, string> = {
-  category_id: "700648",
-  brand_id: "BR-1024",
-  warehouse_id: "WH-FBS-HCM-01",
-  price: "289000",
-  seo_title: "Serum dưỡng ẩm chống lão hoá cho da nhạy cảm",
-  seo_description:
-    "Serum dưỡng ẩm giúp cân bằng độ ẩm, hỗ trợ hàng rào da nhạy cảm.",
-  main_images: "uploaded:3",
-};
-
-export function startExecution(workflowKey: string): {
+export function startExecution(
+  workflowKey: string,
+  approvedInputs?: Record<string, string>,
+): {
   executionId: string;
   record: ExecutionRecord;
 } {
@@ -191,7 +185,10 @@ export function startExecution(workflowKey: string): {
     startedAt: now,
     updatedAt: now,
     timeline,
-    approvedInputs: { ...defaultApprovedInputs },
+    approvedInputs: {
+      ...buildReviewInputDefaults(),
+      ...(approvedInputs ?? {}),
+    },
   };
 
   return { executionId, record };
