@@ -13,6 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@juli/contracts": "workspace:*",
     "@juli/theme": "workspace:*",
     "@juli/ui": "workspace:*",
     "@juli/utils": "workspace:*",
