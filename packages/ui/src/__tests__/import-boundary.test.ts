@@ -54,4 +54,21 @@ describe("packages/ui import boundaries", () => {
     expect(uiExports.DestinationCard).toBeTypeOf("function");
     expect(uiExports.PrimaryNavigation).toBeTypeOf("function");
   });
+
+  it("exports #413 surface compositions for apps/demo consumption", () => {
+    expect(uiExports.Card).toBeTypeOf("function");
+    expect(uiExports.InteractiveCard).toBeTypeOf("function");
+    expect(uiExports.Dialog).toBeTypeOf("function");
+    expect(uiExports.ConfirmDialog).toBeTypeOf("function");
+    expect(uiExports.Popover).toBeTypeOf("function");
+    expect(uiExports.UnavailableKpiPopover).toBeTypeOf("function");
+    expect(uiExports.Form).toBeTypeOf("function");
+    expect(uiExports.TextField).toBeTypeOf("function");
+    expect(uiExports.PasswordField).toBeTypeOf("function");
+    expect(uiExports.OtpField).toBeTypeOf("function");
+    expect(uiExports.FormSubmit).toBeTypeOf("function");
+    expect(uiExports.Table).toBeTypeOf("function");
+    expect(uiExports.TableHeaderCell).toBeTypeOf("function");
+    expect(uiExports.TableEmpty).toBeTypeOf("function");
+  });
 });

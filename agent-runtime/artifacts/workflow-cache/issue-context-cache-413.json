@@ -1,0 +1,211 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 413,
+  "parentIssueId": 395,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+  "phaseRunId": "413-2026-07-16T0315Z",
+  "workflowPhase": "meta",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "P2-6",
+    "handoffPath": "docs/product/phases/phase-2.6/PRD.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "ui-ux",
+    "requiredDocs": [
+      "EXECUTION.md",
+      "docs/product/phases/phase-2.6/PRD.md",
+      "docs/architecture/map.md",
+      "docs/architecture/data-sources.md",
+      "docs/architecture/migration-plan.md",
+      "docs/adr/023-four-destination-analytics-ownership.md",
+      "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+      "docs/product/design/README.md",
+      "docs/product/design/context.md",
+      "docs/product/design/design.md",
+      "docs/product/design/flows.md",
+      "docs/product/design/soul.md",
+      "docs/product/design/ux_principles.md",
+      "docs/product/design/Screens/home.md",
+      "docs/product/design/Components/navigation.md",
+      "docs/product/design/Components/cards.md",
+      "docs/product/design/colors_and_type.css"
+    ],
+    "requiredModules": [
+      "apps/demo/MODULE.md",
+      "packages/theme/MODULE.md",
+      "packages/ui/MODULE.md",
+      "packages/utils/MODULE.md"
+    ],
+    "acceptanceCriteria": [
+      "Each composition exists as a typed packages/ui export, built from #412's elements (no duplicated primitive logic)",
+      "Render + interaction-state tests per composition (default, hover, pressed, focus-visible, disabled, loading, error, empty — only the states that apply)",
+      "Dialogs/popovers implement focus trap, Escape dismissal, and outside-click dismissal per ux_principles.md",
+      "Tables and forms are keyboard-navigable with labelled inputs",
+      "44×44px minimum touch target and visible focus-visible state on every interactive composition",
+      "Vietnamese copy where the composition renders text",
+      "Import-boundary tests confirm these compositions are importable by apps/demo and do not import from any apps/*"
+    ],
+    "loadWhenNeeded": [
+      "apps/dashboard/MODULE.md",
+      "apps/dashboard/src/lib/format.ts",
+      "apps/dashboard/src/__tests__/test_responsive_breakpoints.test.tsx",
+      "docs/product/design/ui_kits/app/",
+      "docs/product/design/source_examples/"
+    ]
+  },
+  "authorityChain": [
+    {
+      "rank": 1,
+      "source": "EXECUTION.md",
+      "reason": "Phase/slice law — P2-6"
+    },
+    {
+      "rank": 2,
+      "source": "parent-cache-issue-395",
+      "reason": "Epic constant"
+    },
+    {
+      "rank": 3,
+      "source": "GitHub issue #413",
+      "reason": "Child acceptance criteria"
+    },
+    {
+      "rank": 4,
+      "source": "docs/product/phases/phase-2.6/PRD.md",
+      "reason": "Epic handoff"
+    }
+  ],
+  "resolvedDecisions": [
+    {
+      "topic": "Work surface",
+      "decision": "Implement packages/ui surface compositions only (cards, dialogs, forms, tables, popovers); no destination screens.",
+      "conflictingSources": [
+        "GitHub issue #413",
+        "docs/product/phases/phase-2.6/PRD.md"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    },
+    {
+      "topic": "Existing cards",
+      "decision": "Keep DestinationCard and RecommendationCard; add Standard/Interactive/surface card primitives and missing card compositions per cards.md without rewriting Home launchers.",
+      "conflictingSources": [
+        "GitHub issue #397",
+        "GitHub issue #413"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    },
+    {
+      "topic": "Blocker",
+      "decision": "Unblocked — #412 merged via PR #415 onto origin/main.",
+      "conflictingSources": [
+        "GitHub issue #413"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    },
+    {
+      "topic": "Parallel sibling #414",
+      "decision": "Run in parallel with exclusive file ownership; do not edit toast/loading/chart/nav composition files owned by #414.",
+      "conflictingSources": [
+        "issue-workflow.mdc module overlap",
+        "user parallel directive"
+      ],
+      "resolvedAt": "2026-07-16T03:15:00Z"
+    }
+  ],
+  "inScope": [
+    "packages/ui Card surface primitives (Standard/Interactive) and any missing Decision/execution card compositions per cards.md",
+    "packages/ui Dialog (modal/sheet/confirm/alert patterns as design requires)",
+    "packages/ui Form controls compositions with labelled inputs",
+    "packages/ui Table (keyboard-navigable)",
+    "packages/ui Popover (focus trap, Escape, outside-click)",
+    "Vitest interaction-state coverage and import-boundary tests",
+    "Compose from #412 elements; Vietnamese copy; 44px + focus-visible"
+  ],
+  "outOfScope": [
+    "Toasts, loaders, navigation extensions, charts (#414)",
+    "apps/demo destination screens beyond import-boundary proof",
+    "Backend, auth, live data, deploy, apps/dashboard product changes"
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "backend/",
+    "ios/",
+    "Sibling issue context caches",
+    ".cursor/skills/standalone/open-design-system/SKILL.md"
+  ],
+  "promptCacheBlock": "# Issue #413 — packages/ui surface compositions\n\n## In scope\n- Build typed packages/ui compositions: cards, dialogs, forms, tables, popovers.\n- Compose from #412 elements; focus trap/Escape/outside-click for dialogs/popovers; labelled keyboard forms/tables.\n- Interaction-state Vitest; 44×44 + focus-visible; Vietnamese text; import-boundary proof for apps/demo.\n\n## Out of scope\n- #414 toasts/loaders/navigation/charts; destination screens; backend/auth/deploy.\n\n## Edge design docs\n- docs/product/design/Components/dialogs.md\n- docs/product/design/Components/forms.md\n- docs/product/design/Components/tables.md\n- docs/product/design/Components/popovers.md\n- docs/product/design/Components/cards.md\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #413 — packages/ui surface compositions\n\nSurface-composition library work on packages/ui. Preserve #397/#412 exports. Atomic order: compositions now; screens later. Blocker #412 cleared (PR #415). Parallel with #414 under partitioned file ownership.",
+    "meta": "# Meta — Issue #413\n\n- Executor domain: ui-ux (single_executor per issue; 2 Composer 2.5 sub-agents).\n- Skills (bootstrap-pinned): domain/ui-ux, standalone/ui-ux-design.\n- Do NOT load open-design-system (absent from parent bootstrapRef pin).\n- Rules: code-quality, reliability, performance.\n- MCPs: none.\n- Worktree: /Users/macos/Juli-AI-v2/.worktrees/issue-413 · branch feature/issue-413-ui-surface-compositions\n- Sub-agent split (Composer 2.5):\n  1) #413-A overlays: Card primitives + Dialog + Popover (+ tests/styles for those)\n  2) #413-B data surfaces: Form + Table (+ tests); then barrel exports in index.ts, MODULE.md, import-boundary tests for all #413 compositions\n- File ownership: never edit toast/loading-indicator/chart/primary-navigation rewrite files (#414).\n- Reuse #412 Button/Badge/Chip/ProgressBar/HealthBar; keep DestinationCard/RecommendationCard.\n- Emit implementation-issue-413.json when done; append phaseCacheBlocks.executor.",
+    "executor": "",
+    "review": "",
+    "validate": ""
+  },
+  "harnessUtility": {
+    "skills": [
+      {
+        "path": ".cursor/skills/domain/ui-ux/SKILL.md",
+        "purpose": "UI Executor TDD for packages/ui surface compositions"
+      },
+      {
+        "path": ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+        "purpose": "Juli design-system implementation for compositions"
+      }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc",
+      ".cursor/rules/performance.mdc",
+      ".cursor/rules/issue-workflow.mdc"
+    ],
+    "mcps": [],
+    "tools": [
+      "ReadFile",
+      "rg",
+      "Glob",
+      "Shell",
+      "Write",
+      "ApplyPatch"
+    ]
+  },
+  "glossarySnippets": [
+    {
+      "term": "Phê duyệt",
+      "definition": "Primary recommendation approve CTA label.",
+      "avoid": ["Approve", "OK"]
+    },
+    {
+      "term": "Từ chối",
+      "definition": "Reject recommendation — secondary/ghost, never primary gradient.",
+      "avoid": ["Reject", "Deny"]
+    },
+    {
+      "term": "Đóng",
+      "definition": "Dialog/popover dismiss control label.",
+      "avoid": ["Close", "Dismiss"]
+    },
+    {
+      "term": "Hủy",
+      "definition": "Secondary cancel in confirm dialogs.",
+      "avoid": ["Cancel"]
+    }
+  ],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #413",
+      "fingerprint": "98bef28c48e2432b"
+    },
+    {
+      "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-413.md",
+      "fingerprint": "96751196dd138c3eed1105a2d308f92236923445"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-413.md",
+  "lastValidatedAt": "2026-07-16T03:15:00Z",
+  "lastScopeAlignmentAt": "2026-07-16T03:15:00Z"
+}

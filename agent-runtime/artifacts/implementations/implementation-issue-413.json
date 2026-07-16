@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 413,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "413-2026-07-16T0315Z",
+  "startedAt": "2026-07-16T03:15:00Z",
+  "completedAt": "2026-07-16T03:30:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 14,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 6,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 3,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 31,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/handoff-413-A.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-413.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-413.md",
+    "docs/handoffs/parallel-status.md",
+    "docs/product/design/Components/forms.md",
+    "docs/product/design/Components/tables.md",
+    "packages/ui/MODULE.md",
+    "packages/ui/src/index.ts",
+    "packages/ui/styles.css",
+    "packages/ui/src/button.tsx",
+    "packages/ui/src/card.tsx",
+    "packages/ui/src/dialog.tsx",
+    "packages/ui/src/__tests__/import-boundary.test.ts",
+    "apps/demo/src/__tests__/ui-core-elements.test.ts"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/SKILL.md"
+  ],
+  "filesModified": [
+    "packages/ui/src/form.tsx",
+    "packages/ui/src/table.tsx",
+    "packages/ui/src/__tests__/form.test.tsx",
+    "packages/ui/src/__tests__/table.test.tsx",
+    "packages/ui/styles.css",
+    "packages/ui/src/index.ts",
+    "packages/ui/MODULE.md",
+    "packages/ui/src/__tests__/import-boundary.test.ts",
+    "apps/demo/src/__tests__/ui-surface-compositions.test.ts",
+    "agent-runtime/artifacts/workflow-cache/handoff-413-B.md",
+    "agent-runtime/artifacts/implementations/implementation-issue-413.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-413.json"
+  ],
+  "testsAdded": [
+    "packages/ui/src/__tests__/form.test.tsx",
+    "packages/ui/src/__tests__/table.test.tsx",
+    "apps/demo/src/__tests__/ui-surface-compositions.test.ts"
+  ],
+  "testsUpdated": [
+    "packages/ui/src/__tests__/import-boundary.test.ts"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Form and table composition tests did not exist; import-boundary lacked #413 surface exports.",
+      "passingTestEvidence": "pnpm --filter @juli/ui test → 11 files, 55 tests passed after form/table implementation.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/ui test",
+          "exitCode": 1,
+          "outputSummary": "3 form test assertion fixes (alert role naming, required label query)"
+        },
+        {
+          "command": "pnpm --filter @juli/ui test",
+          "exitCode": 0,
+          "outputSummary": "11 files, 55 tests passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "apps/demo lacked import proof for #413 Card/Dialog/Popover/Form/Table exports.",
+      "passingTestEvidence": "pnpm --filter @juli/demo test → 6 files, 33 tests passed including ui-surface-compositions import proof.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test",
+          "exitCode": 0,
+          "outputSummary": "6 files, 33 tests passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "passingTestEvidence": "pnpm --filter @juli/ui type-check clean; #413-A dialog/popover/card tests remain green.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/ui type-check",
+          "exitCode": 0,
+          "outputSummary": "No type errors"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Completed issue #413 surface compositions: #413-A shipped Card/Dialog/Popover; #413-B added keyboard-navigable Form (TextField, PasswordField, OtpField, FormSubmit composing Button) and Table (sortable headers, arrow-key row nav, empty state, responsive card collapse) with theme-token CSS, Vietnamese copy, Vitest interaction coverage, barrel exports in index.ts, MODULE.md docs, and import-boundary proof for packages/ui and apps/demo.",
+  "assumptions": [
+    "Workflow/settings form layouts beyond labelled field primitives are deferred to destination screen issues.",
+    "Table responsive collapse uses CSS data-label stacking rather than duplicating Card markup per row."
+  ],
+  "risks": [
+    "index.ts and styles.css append-only sections may need careful merge if #414 lands concurrently."
+  ]
+}
