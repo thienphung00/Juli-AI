@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 421,
+  "executorDomain": "data-platform",
+  "phaseRunId": "2026-07-16T0626Z",
+  "startedAt": "2026-07-16T06:26:54Z",
+  "completedAt": "2026-07-16T06:26:54Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "filesModified": [
+    "infra/scripts/restore-drill.sh",
+    "infra/scripts/safe_alembic_helpers.py",
+    "infra/systemd/juli-restore-drill.service",
+    "infra/systemd/juli-restore-drill.timer",
+    "docs/runbooks/app-review-runbook.md",
+    "tests/unit/test_restore_drill_contract.py"
+  ],
+  "testsAdded": [
+    "tests/integration/test_restore_drill.py",
+    "tests/unit/test_restore_drill_contract.py::test_restore_drill_systemd_units_follow_juli_api_service_pattern",
+    "tests/unit/test_restore_drill_contract.py::test_runbook_documents_restore_drill_schedule_log_and_rotation_guard"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": "Red: tests/integration/test_restore_drill.py (pass + corrupted dump fail) written first. Green: restore-drill.sh + helper CLI extensions. Refactor: reused safe_alembic_helpers row_counts/verify_token_decryption with --url instead of duplicating logic.",
+  "implementationSummary": "Adds VPS-local weekly restore drill: resolve latest juli-pre-migrate dump once, pg_restore into scratch DB on same Postgres instance, verify protected-table row counts and token decrypt via safe_alembic_helpers, drop scratch DB with trap cleanup, log RESTORE DRILL PASS/FAIL for journalctl. Systemd timer/service pair mirrors juli-secrets-refresh pattern.",
+  "assumptions": [
+    "Pre-migration dumps remain in ~/backups on VPS per safe-alembic-upgrade.sh; no off-box backup transport (ADR-027).",
+    "Scratch DB CREATE/DROP uses postgres maintenance database on same instance as DATABASE_DIRECT_URL/DATABASE_URL."
+  ],
+  "risks": [
+    "Restore drill adds VPS disk/CPU load on a weekly schedule \u2014 runs Sunday ~03:00 with randomized delay.",
+    "Backup rotation race: drill resolves backup filename once at start; concurrent rotation during long pg_restore could still delete file if drill started before rotation picked a different latest file.",
+    "Failed drill may indicate scratch-DB/disk issues rather than unusable production backups \u2014 runbook documents triage."
+  ]
+}

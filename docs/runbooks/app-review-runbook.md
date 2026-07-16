@@ -123,6 +123,9 @@ flowchart LR
 | [`systemd/juli-web.service`](systemd/juli-web.service) | Frontend systemd unit |
 | [`systemd/juli-secrets-refresh.service`](systemd/juli-secrets-refresh.service) | Daily secret sync (oneshot) |
 | [`systemd/juli-secrets-refresh.timer`](systemd/juli-secrets-refresh.timer) | 24-hour timer for secret sync |
+| [`systemd/juli-restore-drill.service`](systemd/juli-restore-drill.service) | Weekly backup restore drill (oneshot) |
+| [`systemd/juli-restore-drill.timer`](systemd/juli-restore-drill.timer) | Weekly timer for restore drill |
+| [`restore-drill.sh`](scripts/restore-drill.sh) | Restore latest pg_dump into scratch DB, verify, drop |
 | [`fetch-secrets.sh`](fetch-secrets.sh) | Pull secrets → `/etc/juli/*.env` |
 | [`refresh-secrets.sh`](refresh-secrets.sh) | Compare-and-restart secret sync |
 | [`deploy-release.sh`](deploy-release.sh) | CD entrypoint (worktree, migrate, build, cutover) |
@@ -205,6 +208,8 @@ sudo cp infra/systemd/juli-api.service /etc/systemd/system/
 sudo cp infra/systemd/juli-web.service /etc/systemd/system/
 sudo cp infra/systemd/juli-secrets-refresh.service /etc/systemd/system/
 sudo cp infra/systemd/juli-secrets-refresh.timer /etc/systemd/system/
+sudo cp infra/systemd/juli-restore-drill.service /etc/systemd/system/
+sudo cp infra/systemd/juli-restore-drill.timer /etc/systemd/system/
 
 sudo systemctl daemon-reload
 ```
@@ -502,7 +507,10 @@ sudo systemctl enable --now juli-api juli-web
 # 4. Enable daily secret refresh
 sudo systemctl enable --now juli-secrets-refresh.timer
 
-# 5. Smoke test
+# 5. Enable weekly backup restore drill
+sudo systemctl enable --now juli-restore-drill.timer
+
+# 6. Smoke test
 ./infra/scripts/smoke-test.sh
 ```
 
@@ -662,6 +670,8 @@ journalctl -u juli-web --since "7 days ago" -p err --no-pager
 
 # Confirm timer fired
 journalctl -u juli-secrets-refresh.service --since "8 days ago" --no-pager
+systemctl list-timers juli-restore-drill.timer
+journalctl -u juli-restore-drill.service --since "8 days ago" --no-pager
 
 # TLS renewal (certbot timer should handle this; verify)
 sudo certbot renew --dry-run
@@ -723,12 +733,60 @@ sudo chmod 700 /etc/juli
 | `TIKTOK_TOKEN_ENCRYPTION_KEY` | Secure secrets backup separate from AWS (break-glass) |
 | `deploy-history.log` | Included in VPS snapshot or periodic copy |
 | Database | Supabase managed backups |
+| Pre-migration dumps | `safe-alembic-upgrade.sh` writes `~/backups/juli-pre-migrate-*.dump` on every deploy migration |
+
+#### Weekly restore drill (VPS-local)
+
+A **systemd timer** (`juli-restore-drill.timer`) runs weekly (Sunday ~03:00 UTC, with up to
+30 minutes randomized delay) to prove the latest pre-migration dump is restorable. The drill:
+
+1. Resolves the newest `juli-pre-migrate-*.dump` in `BACKUP_DIR` **once at start** (default
+   `~/backups`, matching `safe-alembic-upgrade.sh`) so `BACKUP_RETENTION_DAYS` rotation cannot
+   delete the file mid-restore.
+2. Creates a throwaway database on the **same** Postgres instance (no second server).
+3. `pg_restore`s the dump into that scratch database.
+4. Re-runs protected-table row counts and a `tiktok_credentials` token-decrypt sample against
+   the restored copy.
+5. Drops the scratch database regardless of pass/fail.
+
+**Constraint (ADR-027):** backup files contain OAuth tokens and commerce PII and **never leave
+the VPS** — there is no GitHub Actions job or off-box transfer for this drill.
+
+Manual run (same as the timer invokes):
+
+```bash
+sudo systemctl start juli-restore-drill.service
+# Or directly:
+RELEASE_DIR=/root/releases/current BACKUP_DIR=/root/backups \
+  API_ENV_FILE=/etc/juli/api.env \
+  /root/Juli-AI-v2/infra/scripts/restore-drill.sh
+```
 
 ### Monitoring
 
 - **Uptime:** `.github/workflows/uptime.yml` — 15-minute health poll, Slack alert on failure.
 - **Logs:** `journalctl -u juli-api` / `journalctl -u juli-web`.
+- **Restore drill:** `journalctl -u juli-restore-drill.service` — look for a single summary line:
+  `RESTORE DRILL PASS` or `RESTORE DRILL FAIL`.
 - **AWS:** CloudTrail for Roles Anywhere `CreateSession` and Secrets Manager `GetSecretValue`.
+
+#### Interpreting a failed restore drill
+
+A failed drill **does not automatically mean current production backups are unusable**. Common
+causes:
+
+| Symptom in logs | Likely cause | Does production backup work? |
+|-----------------|--------------|------------------------------|
+| `could not create scratch database` / disk space errors | VPS disk pressure or too many stale scratch DBs | Unknown — investigate disk; backups may still be fine |
+| `pg_restore failed` on a **corrupt/truncated** file | Bad or incomplete dump on disk | **Yes, if newer dumps exist** — check whether rotation removed the only good copy |
+| `pg_restore failed` on the **latest** dump after a recent deploy | Possible dump corruption during deploy | **Treat seriously** — run a manual restore drill after fixing disk/permissions |
+| `token decrypt verification failed after restore` | `TIKTOK_TOKEN_ENCRYPTION_KEY` mismatch or corrupt credential rows in dump | Backups may restore schema/data but tokens need key alignment |
+| `no juli-pre-migrate-*.dump backups found` | Empty `BACKUP_DIR` or rotation deleted all dumps | No recent local dumps — rely on Supabase managed backups until deploy creates a new dump |
+
+To tell drill failure from backup rot: confirm the resolved backup path logged at drill start
+still exists (`ls -la <path>`) and manually `pg_restore` into a scratch DB during a maintenance
+window. If manual restore succeeds, the scheduled failure was likely transient (disk, permissions,
+or scratch DB cleanup).
 
 ---
 
@@ -783,6 +841,8 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.s
 - [ ] `aws sts get-caller-identity` returns `juli-vps-secrets-role`.
 - [ ] `/etc/juli/api.env` and `/etc/juli/web.env` exist (mode 600).
 - [ ] `juli-secrets-refresh.timer` is active.
+- [ ] `juli-restore-drill.timer` is active.
+- [ ] Latest `journalctl -u juli-restore-drill.service` shows `RESTORE DRILL PASS` (or investigate per runbook).
 - [ ] `~/releases/current` points at a healthy release.
 
 ---
@@ -938,6 +998,7 @@ Runtime files (never in git): `/etc/juli/api.env`, `/etc/juli/web.env`.
 sudo journalctl -u juli-api -f
 sudo journalctl -u juli-web -f
 sudo journalctl -u juli-secrets-refresh.service -n 50 --no-pager
+sudo journalctl -u juli-restore-drill.service -n 50 --no-pager
 sudo journalctl -u juli-api --since "1 hour ago" -p err
 ```
 

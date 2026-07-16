@@ -13,6 +13,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from safe_alembic_helpers import (  # noqa: E402
     is_decrease_allowed,
     load_allowlist_file,
+    resolve_db_identity,
     scan_migration_comments,
 )
 
@@ -65,6 +66,60 @@ def test_is_decrease_allowed_from_migration_comment(tmp_path: Path):
         encoding="utf-8",
     )
     assert is_decrease_allowed("orders", ["010_purge"], tmp_path / "missing.txt", tmp_path)
+
+
+def test_resolve_db_identity_supabase_pooler_url():
+    url = (
+        "postgresql://postgres.abcdefghijklmnop:secret@"
+        "aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+    )
+    identity = resolve_db_identity(url)
+    assert identity["kind"] == "supabase-pooler"
+    assert identity["project_ref"] == "abcdefghijklmnop"
+    assert "abcdefghijklmnop" in identity["display"]
+    assert "pooler" in identity["display"]
+
+
+def test_resolve_db_identity_supabase_direct_url():
+    url = (
+        "postgresql://postgres:secret@db.abcdefghijklmnop.supabase.co:5432/postgres"
+    )
+    identity = resolve_db_identity(url)
+    assert identity["kind"] == "supabase-direct"
+    assert identity["project_ref"] == "abcdefghijklmnop"
+    assert "abcdefghijklmnop" in identity["display"]
+
+
+def test_resolve_db_identity_localhost():
+    url = "postgresql://postgres:secret@localhost:5432/juli_dev"
+    identity = resolve_db_identity(url)
+    assert identity["kind"] == "local"
+    assert identity["project_ref"] == ""
+    assert identity["display"] == "local/non-Supabase host: localhost"
+
+
+def test_resolve_db_identity_unknown_host():
+    url = "postgresql://app:secret@10.0.0.5:5432/analytics"
+    identity = resolve_db_identity(url)
+    assert identity["kind"] == "unknown"
+    assert identity["project_ref"] == ""
+    assert identity["display"] == "local/non-Supabase host: 10.0.0.5"
+
+
+def test_db_identity_cli_subcommand():
+    import subprocess
+
+    url = "postgresql://postgres:secret@localhost:5432/juli_dev"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPTS_DIR / "safe_alembic_helpers.py"), "db-identity", "--url", url],
+        capture_output=True,
+        text=True,
+        cwd=str(SCRIPTS_DIR),
+        check=False,
+    )
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["kind"] == "local"
 
 
 def test_compare_script_regression_exit_code():

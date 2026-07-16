@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-421",
+  "issue": 421,
+  "timestamp": "2026-07-16T06:50:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "343472659a2c7157877932b54b44fe97faea7c92",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #421 adds restore-drill.sh with scratch-DB pg_restore, row-count and token-decrypt verification via extended safe_alembic_helpers.py CLI, EXIT trap cleanup, RESTORE DRILL PASS/FAIL journalctl lines, weekly systemd timer/service mirroring juli-secrets-refresh pattern, and app-review-runbook backup drill section. VPS-local only per ADR-027; backup resolved once at drill start.",
+  "smells": [],
+  "convention_notes": [
+    "Extends #420 safe_alembic_helpers.py with --url, latest-backup, admin-db-url CLI subcommands rather than duplicating verification logic.",
+    "Systemd units follow juli-api.service / juli-secrets-refresh structural pattern."
+  ],
+  "phaseRunId": "421-2026-07-16T0650Z"
+}

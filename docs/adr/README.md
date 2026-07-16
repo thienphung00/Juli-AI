@@ -31,3 +31,4 @@
 | [024](024-phase-2.6-2.7-frontend-resequencing.md) | Phase 2.6/2.7 frontend resequencing, Demo mock/sign-in toggle, app boundaries | Accepted |
 | [025](025-demo-workspace-transition.md) | Isolate the Demo dependency graph during workspace transition | Accepted |
 | [026](026-phase-2.6-analytics-optional-exit-gate.md) | Analytics becomes a non-blocking Phase 2.6 exit-gate item (mirrors Settings/#405) | Accepted |
+| [027](027-database-migration-safety-pipeline.md) | Database migration safety pipeline — local dev gate, DB-identity guard, restore drills | Accepted |

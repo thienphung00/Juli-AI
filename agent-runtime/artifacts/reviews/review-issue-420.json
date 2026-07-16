@@ -1,0 +1,115 @@
+{
+  "id": "review-issue-420",
+  "issue": 420,
+  "timestamp": "2026-07-16T06:45:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #420: local safe-alembic-upgrade-local.sh with DB-identity confirmation, pg_dump backup, row-count gate, and shared resolve_db_identity helper. Production path unchanged. ADR-027 added. Reliability: non-interactive fail-fast, regression abort with restore hint. Security: no new secrets; backup dir gitignored. AC coverage mapped to unit/integration/doc contract tests.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "infra/scripts/safe-alembic-upgrade-local.sh",
+    "infra/scripts/safe_alembic_helpers.py",
+    "tests/unit/test_safe_alembic_helpers.py",
+    "tests/integration/test_safe_alembic_upgrade_local.py",
+    "tests/unit/test_safe_alembic_local_docs.py",
+    "docs/runbooks/backend-deploy-runbook.md",
+    "docs/adr/027-database-migration-safety-pipeline.md"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "infra/scripts/safe_alembic_helpers.py",
+      "interface": "resolve_db_identity / db-identity CLI",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Parses Supabase pooler/direct, localhost, and unknown hosts for local migration identity confirmation."
+    },
+    {
+      "module": "infra/scripts/safe-alembic-upgrade-local.sh",
+      "interface": "local migration wrapper",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Local-dev alembic upgrade with backup, identity prompt, and row-count verification."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 8,
+      "mapped": 8,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Running the new local wrapper against a real local Postgres backs up prints the resolved project ref runs alembic upgrade head verifies row counts and cleans up correctly",
+          "test": "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_succeeds_on_empty_database"
+        },
+        {
+          "criterion": "New integration test exercising the local wrapper end-to-end against throwaway Postgres including a forced regression case that must abort",
+          "test": "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_aborts_on_unallowlisted_delete"
+        },
+        {
+          "criterion": "Running with a piped non-interactive stdin does not hang and fails clearly with an actionable message instead of blocking on a prompt",
+          "test": "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_non_interactive_without_yes_fails"
+        },
+        {
+          "criterion": "New unit tests for the project-ref resolver covering Supabase pooler URL",
+          "test": "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_supabase_pooler_url"
+        },
+        {
+          "criterion": "New unit tests for the project-ref resolver covering Supabase direct URL",
+          "test": "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_supabase_direct_url"
+        },
+        {
+          "criterion": "New unit tests for the project-ref resolver covering localhost identity",
+          "test": "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_localhost"
+        },
+        {
+          "criterion": "New unit tests for the project-ref resolver covering an unparseable unknown host",
+          "test": "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_unknown_host"
+        },
+        {
+          "criterion": "README.md and backend/README.md no longer show a bare alembic upgrade head in the local setup steps",
+          "test": "tests/unit/test_safe_alembic_local_docs.py::test_readme_local_setup_uses_safe_alembic_local_wrapper_not_bare_upgrade"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 817,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Manual TTY confirmation smoke on local Postgres remains HITL per issue test plan."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no CRITICAL reliability or security gaps. Local wrapper reuses production helpers without modifying deploy path.",
+    "timestamp": "2026-07-16T06:45:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "AC coverage mapped; unit/integration/doc contract tests verified.",
+    "timestamp": "2026-07-16T06:45:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "420-2026-07-16T0645Z",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-420.json",
+  "reviewBasis": "commit 34347265 on feature/issue-420-local-alembic-safety-gate",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-420.json"
+}

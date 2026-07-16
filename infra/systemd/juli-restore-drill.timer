@@ -1,0 +1,13 @@
+# Run juli-restore-drill.service weekly during a low-traffic window.
+# Install to /etc/systemd/system/juli-restore-drill.timer on the review VPS.
+[Unit]
+Description=Weekly Juli Postgres backup restore drill
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=juli-restore-drill.service
+
+[Install]
+WantedBy=timers.target

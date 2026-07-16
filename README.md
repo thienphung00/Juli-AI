@@ -28,7 +28,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e "./backend[dev]"
 cp .env.example .env   # fill in DATABASE_URL and other secrets
-alembic upgrade head
+./infra/scripts/safe-alembic-upgrade-local.sh
 uvicorn juli_backend.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 

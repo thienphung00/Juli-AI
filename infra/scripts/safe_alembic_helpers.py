@@ -8,6 +8,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -44,13 +45,99 @@ def migration_db_url() -> str:
     return sync_database_url(raw)
 
 
-def _engine():
-    return create_engine(migration_db_url(), pool_pre_ping=True)
+def resolve_db_identity(raw_url: str | None = None) -> dict[str, str]:
+    """Resolve Supabase project ref or local host label from a Postgres URL."""
+    url = (raw_url or migration_db_url()).strip()
+    if not url:
+        raise RuntimeError("DATABASE_URL is required to resolve database identity")
+
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").strip()
+    username = (parsed.username or "").strip()
+
+    if hostname.startswith("db.") and hostname.endswith(".supabase.co"):
+        project_ref = hostname.removeprefix("db.").removesuffix(".supabase.co")
+        return {
+            "kind": "supabase-direct",
+            "project_ref": project_ref,
+            "host": hostname,
+            "display": (
+                f"Supabase project ref: {project_ref} "
+                f"(direct host {hostname})"
+            ),
+        }
+
+    if hostname.endswith(".pooler.supabase.com") and username.startswith("postgres."):
+        project_ref = username.removeprefix("postgres.")
+        return {
+            "kind": "supabase-pooler",
+            "project_ref": project_ref,
+            "host": hostname,
+            "display": (
+                f"Supabase project ref: {project_ref} "
+                f"(pooler {hostname})"
+            ),
+        }
+
+    if not hostname:
+        return {
+            "kind": "unknown",
+            "project_ref": "",
+            "host": "",
+            "display": "local/non-Supabase host: <unparseable connection string>",
+        }
+
+    if hostname in {"localhost", "127.0.0.1", "::1"}:
+        return {
+            "kind": "local",
+            "project_ref": "",
+            "host": hostname,
+            "display": f"local/non-Supabase host: {hostname}",
+        }
+
+    return {
+        "kind": "unknown",
+        "project_ref": "",
+        "host": hostname,
+        "display": f"local/non-Supabase host: {hostname}",
+    }
 
 
-def row_counts() -> dict[str, int]:
+def _engine(url: str | None = None):
+    target = url or migration_db_url()
+    return create_engine(sync_database_url(target), pool_pre_ping=True)
+
+
+def replace_database_name(raw_url: str, database: str) -> str:
+    """Return a copy of raw_url with the database name replaced."""
+    parsed = urlparse(raw_url.strip())
+    return urlunparse(parsed._replace(path=f"/{database}"))
+
+
+def admin_db_url(raw_url: str | None = None) -> str:
+    """Connection URL to the postgres maintenance database on the same instance."""
+    return replace_database_name(raw_url or migration_db_url(), "postgres")
+
+
+def find_latest_backup(backup_dir: Path) -> Path:
+    """Return the newest juli-pre-migrate-*.dump in backup_dir (by mtime)."""
+    if not backup_dir.is_dir():
+        raise RuntimeError(f"backup directory not found: {backup_dir}")
+    candidates = sorted(
+        backup_dir.glob("juli-pre-migrate-*.dump"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
+        raise RuntimeError(
+            f"no juli-pre-migrate-*.dump backups found in {backup_dir}"
+        )
+    return candidates[0]
+
+
+def row_counts(url: str | None = None) -> dict[str, int]:
     counts: dict[str, int] = {}
-    with _engine().connect() as conn:
+    with _engine(url).connect() as conn:
         for table in PROTECTED_TABLES:
             counts[table] = conn.execute(
                 text(f"SELECT count(*) FROM {table}")
@@ -155,9 +242,9 @@ def is_decrease_allowed(
     return any((rev, table) in combined for rev in revisions)
 
 
-def verify_token_decryption() -> dict[str, str | bool]:
+def verify_token_decryption(url: str | None = None) -> dict[str, str | bool]:
     """Return status dict; raises on decrypt failure when rows exist."""
-    with _engine().connect() as conn:
+    with _engine(url).connect() as conn:
         row = conn.execute(
             text(
                 "SELECT access_token FROM tiktok_credentials "
@@ -182,11 +269,39 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="safe-alembic-upgrade helpers")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("row-counts")
+    p_row_counts = sub.add_parser("row-counts")
+    p_row_counts.add_argument(
+        "--url",
+        help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
+    )
+
     sub.add_parser("current-revision")
     sub.add_parser("estimate-db-bytes")
     sub.add_parser("migration-db-url")
-    sub.add_parser("verify-token-decrypt")
+
+    p_verify = sub.add_parser("verify-token-decrypt")
+    p_verify.add_argument(
+        "--url",
+        help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
+    )
+
+    p_latest = sub.add_parser("latest-backup")
+    p_latest.add_argument("--backup-dir", required=True)
+
+    sub.add_parser("admin-db-url")
+
+    p_db_url = sub.add_parser("database-url-with-name")
+    p_db_url.add_argument("--database", required=True)
+    p_db_url.add_argument(
+        "--url",
+        help="Base Postgres URL (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
+    )
+
+    p_identity = sub.add_parser("db-identity")
+    p_identity.add_argument(
+        "--url",
+        help="Postgres URL to inspect (defaults to DATABASE_URL / DATABASE_DIRECT_URL)",
+    )
 
     p_head = sub.add_parser("head-revision")
     p_head.add_argument("--alembic-ini", required=True)
@@ -204,7 +319,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "row-counts":
-        print(json.dumps(row_counts()))
+        print(json.dumps(row_counts(args.url)))
         return 0
     if args.command == "current-revision":
         print(current_revision() or "")
@@ -217,11 +332,24 @@ def main() -> int:
         return 0
     if args.command == "verify-token-decrypt":
         try:
-            result = verify_token_decryption()
+            result = verify_token_decryption(args.url)
         except Exception as exc:
             print(f"decrypt failed: {exc}", file=sys.stderr)
             return 1
         print(json.dumps(result))
+        return 0
+    if args.command == "latest-backup":
+        print(find_latest_backup(Path(args.backup_dir)))
+        return 0
+    if args.command == "admin-db-url":
+        print(admin_db_url())
+        return 0
+    if args.command == "database-url-with-name":
+        base = args.url or migration_db_url()
+        print(replace_database_name(base, args.database))
+        return 0
+    if args.command == "db-identity":
+        print(json.dumps(resolve_db_identity(args.url)))
         return 0
     if args.command == "head-revision":
         print(head_revision(Path(args.alembic_ini)))
