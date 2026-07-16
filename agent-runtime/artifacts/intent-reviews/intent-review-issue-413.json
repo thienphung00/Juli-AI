@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-413",
+  "issue": 413,
+  "timestamp": "2026-07-16T03:34:19Z",
+  "reviewedBy": "intent-review skill (#413-intent)",
+  "fixedPoint": "8c707cc7e8bb83cc42988343cbdf31944ef78c14",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Reviewed uncommitted working tree (0 commits on feature/issue-413-ui-surface-compositions; three-dot 8c707cc...HEAD empty) against GitHub issue #413, scope-alignment-issue-413.md, issue-context-cache AC, and Component design docs. All five surface-composition families ship as typed packages/ui exports: Card/InteractiveCard (+ preserved RecommendationCard/DestinationCard), Dialog/ConfirmDialog, Popover/UnavailableKpiPopover, Form (TextField/PasswordField/OtpField/FormSubmit composing Button), and Table (sortable headers, keyboard row nav, empty state, responsive data-label collapse composing Badge). Dialogs/popovers implement focus trap (overlay-utils), Escape dismissal, and outside-click/backdrop dismissal. Forms/tables are keyboard-navigable with labelled inputs; Vietnamese default copy; 44px touch targets and focus-visible rings documented in CSS tests. Import-boundary proof covers packages/ui and apps/demo. Deferred (not blocking): sheet/alert dialog sub-patterns and execution-workflow card composition per cards.md \u2014 RecommendationCard already covers Decision cards; workflow/screen-specific layouts remain later siblings per scope resolution.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "packages/ui/src/form.tsx",
+      "hunk": "TextField and PasswordField repeat identical describedBy/errorId/helperId/hasError/FormField/FormError structure; only the password toggle wrapper differs.",
+      "judgement": true,
+      "severity": "low",
+      "blocksMerge": false
+    },
+    {
+      "name": "Duplicated Code",
+      "path": "packages/ui/src/dialog.tsx, packages/ui/src/popover.tsx",
+      "hunk": "DialogClose and PopoverContent close buttons duplicate ghost small-button markup (juli-btn classes, aria-label, \u2715 span).",
+      "judgement": true,
+      "severity": "low",
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "packages/ui/MODULE.md \u2014 module boundary",
+      "path": "packages/ui/MODULE.md",
+      "note": "Public interface documents all #413 compositions; package never imports apps/* invariant preserved."
+    },
+    {
+      "standard": "#412 packages/ui pattern \u2014 typed exports, co-located styles, Vitest CSS contract",
+      "path": "packages/ui/src/index.ts",
+      "note": "Append-only #413-A/#413-B export blocks; styles.css token classes; interaction-state tests use loadUiStyles/loadUiStyleRules consistent with #412."
+    },
+    {
+      "standard": "issue-workflow.mdc \u2014 parallel file ownership",
+      "path": "packages/ui/",
+      "note": "Diff touches only #413-partitioned files; no toast/loading/chart/nav (#414) edits."
+    }
+  ],
+  "phaseRunId": "413-2026-07-16T0315Z",
+  "reviewBasis": "working-tree"
+}

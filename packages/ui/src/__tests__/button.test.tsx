@@ -3,9 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "../button";
-import { loadUiStyles } from "./test-utils";
+import { loadUiStyles, loadUiStyleRules } from "./test-utils";
 
 const styles = loadUiStyles();
+const styleRules = loadUiStyleRules();
 
 describe("Button", () => {
   it("renders primary, secondary, and ghost variants with Vietnamese labels", () => {
@@ -81,6 +82,6 @@ describe("Button", () => {
     expect(styles).toContain(".juli-btn:active:not(:disabled)");
     expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
     expect(styles).toContain(".juli-btn__spinner");
-    expect(styles).not.toMatch(/#[0-9a-f]{3,8}/i);
+    expect(styleRules).not.toMatch(/#[0-9a-f]{3,8}/i);
   });
 });

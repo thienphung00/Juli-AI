@@ -22,6 +22,16 @@ deployables.
 - `RecommendationCard` — presentational, app-state-agnostic Decision
   recommendation card (Phê duyệt/Từ chối/Mở rộng trio, forwardRef'd container
   for scroll/focus targeting).
+- `Card` / `InteractiveCard` — Standard and interactive surface cards with
+  header/body/footer regions.
+- `Dialog` / `ConfirmDialog` — modal overlays with focus trap, Escape dismissal,
+  and backdrop click-to-close.
+- `Popover` / `UnavailableKpiPopover` — anchored overlays with keyboard
+  dismissal and Vietnamese copy.
+- `Form` / `TextField` / `PasswordField` / `OtpField` — labelled, keyboard-
+  navigable form compositions built on shared `Button` submit actions.
+- `Table` — keyboard-navigable data table with sortable headers, empty state,
+  and responsive card collapse.
 - `@juli/ui/styles.css` — component styles backed by `@juli/theme` tokens.
 
 ## Invariants

@@ -2,9 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { ProgressBar, RealEstimatedProgressBar } from "../progress-bar";
-import { loadUiStyles } from "./test-utils";
+import { loadUiStyles, loadUiStyleRules } from "./test-utils";
 
 const styles = loadUiStyles();
+const styleRules = loadUiStyleRules();
 
 describe("ProgressBar", () => {
   it("renders a labeled standard progress bar", () => {
@@ -57,6 +58,6 @@ describe("ProgressBar", () => {
     expect(styles).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.juli-progress__fill--estimated[\s\S]*animation: none/,
     );
-    expect(styles).not.toMatch(/\.juli-progress[\s\S]*#[0-9a-f]{3,8}/i);
+    expect(styleRules).not.toMatch(/\.juli-progress[\s\S]*#[0-9a-f]{3,8}/i);
   });
 });
