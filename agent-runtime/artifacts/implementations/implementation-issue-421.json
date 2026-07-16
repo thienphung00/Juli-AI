@@ -21,10 +21,13 @@
     "infra/scripts/safe_alembic_helpers.py",
     "infra/systemd/juli-restore-drill.service",
     "infra/systemd/juli-restore-drill.timer",
-    "docs/runbooks/app-review-runbook.md"
+    "docs/runbooks/app-review-runbook.md",
+    "tests/unit/test_restore_drill_contract.py"
   ],
   "testsAdded": [
-    "tests/integration/test_restore_drill.py"
+    "tests/integration/test_restore_drill.py",
+    "tests/unit/test_restore_drill_contract.py::test_restore_drill_systemd_units_follow_juli_api_service_pattern",
+    "tests/unit/test_restore_drill_contract.py::test_runbook_documents_restore_drill_schedule_log_and_rotation_guard"
   ],
   "testsUpdated": [],
   "redGreenRefactorEvidence": "Red: tests/integration/test_restore_drill.py (pass + corrupted dump fail) written first. Green: restore-drill.sh + helper CLI extensions. Refactor: reused safe_alembic_helpers row_counts/verify_token_decryption with --url instead of duplicating logic.",
