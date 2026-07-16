@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-420",
+  "issue": 420,
+  "timestamp": "2026-07-16T06:45:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "fea24a8ff266ac03bf7793c1fa2f085827295e0b",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #420 adds safe-alembic-upgrade-local.sh with DB-identity resolver, pg_dump to ~/.juli-backups, TTY confirmation/--yes escape hatch, shared row-count verification via safe_alembic_helpers.py, and README/runbook updates. Production safe-alembic-upgrade.sh unchanged. ADR-027 documents migration-safety pipeline from parent #419 grill.",
+  "smells": [],
+  "convention_notes": [
+    "Matches existing infra/scripts safe-alembic-upgrade.sh helper reuse pattern; tests mirror tests/integration/test_safe_alembic_upgrade.py structure.",
+    "resolve_db_identity added to safe_alembic_helpers.py with db-identity CLI subcommand consistent with existing row-counts/compare commands."
+  ],
+  "phaseRunId": "420-2026-07-16T0645Z"
+}

@@ -27,7 +27,8 @@
     "docs/adr/027-database-migration-safety-pipeline.md",
     "docs/adr/README.md",
     "CONTEXT.md",
-    ".gitignore"
+    ".gitignore",
+    "tests/unit/test_safe_alembic_local_docs.py"
   ],
   "testsAdded": [
     "tests/unit/test_safe_alembic_helpers.py::test_resolve_db_identity_supabase_pooler_url",
@@ -37,7 +38,8 @@
     "tests/unit/test_safe_alembic_helpers.py::test_db_identity_cli_subcommand",
     "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_aborts_on_unallowlisted_delete",
     "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_succeeds_on_empty_database",
-    "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_non_interactive_without_yes_fails"
+    "tests/integration/test_safe_alembic_upgrade_local.py::test_local_upgrade_non_interactive_without_yes_fails",
+    "tests/unit/test_safe_alembic_local_docs.py::test_readme_local_setup_uses_safe_alembic_local_wrapper_not_bare_upgrade"
   ],
   "testsUpdated": [],
   "redGreenRefactorEvidence": [
