@@ -1,6 +1,7 @@
 "use client";
 
 import { RecommendationCard } from "@juli/ui";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -150,9 +151,9 @@ export function RecommendationsPanel({
             thêm về shop, hoặc dùng Làm mới Demo để xem lại toàn bộ đề xuất
             mẫu.
           </p>
-          <a className="demo-placeholder__recovery" href="/analytics">
+          <Link className="demo-placeholder__recovery" href="/analytics">
             Mở Phân tích
-          </a>
+          </Link>
         </section>
       ) : (
         <ul className="demo-decisions__list">
