@@ -63,9 +63,9 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 |-------|-------|-------|-----------|
 | **2 — Pipeline Validation** | End-to-end backend machine | 0 (internal) | Pipeline reliable; execution >95%; outcome tracking works |
 | **2.5 — Deployment Architecture** | Monorepo restructure, independent deploys | 0 (internal) | Frontend and backend independently deployable on intended domains |
-| **2.6 — Demo Frontend (mock)** | `apps/demo` build-out, ADR-023 IA, mock data | 0 (internal) | Demo frontend complete for web + mobile-web; Mock/Sign-in toggle present, Sign-in disabled |
+| **2.6 — Demo Frontend (mock)** | `apps/demo` build-out, ADR-023 IA, mock data, public Demo deployment | Public (mock Demo; no auth) | Home + Decisions complete for web + mobile-web and publicly reachable over HTTPS at `demo.app-juli.com`; Mock/Sign-in toggle present (Sign-in non-interactive stub); Analytics (#404) and Settings (#405) non-blocking stretch ([ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)) |
 | **2.7 — Landing Frontend (mock)** | `apps/landing` build-out, mock/static content | 0 (internal) | Landing frontend complete for web + mobile-web |
-| **3 — Landing + Demo real data** | Wire real backend, deploy, prove e2e pipeline | Public (Demo Sign-in adds OAuth) | LP and Demo deployed with working backend on real data; e2e pipeline proven for both |
+| **3 — Landing + Demo real data** | Wire real backend, deploy Landing, prove e2e pipeline | Public (Demo Sign-in adds OAuth) | LP deployed; Demo upgraded in place with working backend on real data; e2e pipeline proven for both |
 | **3.5 — Full Web Application** | Auth, connected shops, real backend | Early adopters | Demo replaced by production web app |
 | **4 — ML + LLM + Cross-Platform** | Intelligence, personalization, sync | Growing base | Production ML pipeline; LLM copy; Web ↔ Mobile sync |
 | **4.5 — Real-Time Infrastructure** | Latency reduction at scale | Growing base | Real-time updates justified by product scale |
@@ -79,9 +79,9 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 |-------|---------------------------|
 | **2** | FastAPI · Postgres (sole mandatory store) · **rules-based signal engine** · **rules-based copy** · Celery executors · manual-refresh trigger (no scheduler — [ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)) |
 | **2.5** | Product monorepo (`apps/`, `packages/`, `backend/`, `infra/`) · domain routing · CI/CD |
-| **2.6** | `apps/demo` (ADR-023 IA, mock data) · `packages/ui` + `packages/theme` extraction begins · Mock/Sign-in toggle (Sign-in disabled) |
+| **2.6** | `apps/demo` (ADR-023 IA, mock data) · `packages/ui` + `packages/theme` + `packages/contracts` · element→composition UI build order · Mock/Sign-in toggle (Sign-in non-interactive stub) · public HTTPS deployment at `demo.app-juli.com` · Analytics + Settings full depth optional ([ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)) |
 | **2.7** | `apps/landing` (mock/static content) · consumes `packages/ui` + `packages/theme` |
-| **3** | `apps/demo` + `apps/landing` wired to real backend data · Demo Sign-in mode enabled (reference-shop TikTok OAuth) · deploy to `demo.app-juli.com` / `app-juli.com` · PostHog behavior analytics |
+| **3** | `apps/demo` + `apps/landing` wired to real backend data · Demo Sign-in mode enabled (reference-shop TikTok OAuth) · deploy Landing to `app-juli.com` · upgrade the existing `demo.app-juli.com` deployment · PostHog behavior analytics |
 | **3.5** | `apps/dashboard` ADR-023 rebuild · multi-tenant auth · per-seller TikTok connection · real API integration |
 | **4** | Production ML · cloud LLM copy · cross-platform tracking |
 | **4.5** | Webhooks · event-driven processing · real-time updates (when justified) |
@@ -202,24 +202,45 @@ Detail: [`phase-2.5-deployment.md`](docs/product/phases/phase-2.5-deployment.md)
 
 ## Phase 2.6 — Demo Frontend, Mock Data (brief)
 
-**Goal:** Build the Interactive Demo's frontend end-to-end on mock data, before any
-backend wiring or public deployment.
+**Goal:** Build the Interactive Demo's frontend end-to-end on mock data and deploy it
+publicly at `demo.app-juli.com`, before any backend wiring or authentication.
 
 Focus: new `apps/demo` · ADR-023 four-destination IA (Home, Decisions, Analytics,
 Settings) — **not** the retired two-screen Home+Actions IA · one responsive Next.js
-codebase covering web + mobile-web breakpoints · Mock/Sign-in mode toggle with Sign-in
-**disabled** (stub only) · `packages/ui` + `packages/theme` extraction begins here so
-later apps reuse the same components ([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)).
+codebase covering web + mobile-web breakpoints (`design.md`: mobile-web below `42rem`,
+web at/above `56rem`) · Mock/Sign-in mode toggle with Sign-in as a **non-interactive,
+always-visible "coming soon" stub** · `packages/ui` + `packages/theme` +
+`packages/contracts` built element→composition-first before consuming screens ·
+independent public deployment with DNS + HTTPS at `demo.app-juli.com`
+([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md),
+[ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)).
 
-Out of scope: real backend calls, real TikTok OAuth, public deployment (all Phase 3).
+Out of scope: real backend calls and real TikTok OAuth (Phase 3); login/onboarding and
+Affiliate/Seller mode switching (`Flows/home/login.md`, `Flows/home/onboarding.md`).
 
 ### Exit gate
 
-- [ ] `apps/demo` implements Home, Decisions, Analytics, Settings per
-      `docs/product/design/` on mock data
-- [ ] Mock mode fully interactive with no auth required; Sign-in mode present but disabled
-- [ ] Verified responsive on web and mobile-web breakpoints
-- [ ] `packages/ui` + `packages/theme` populated and consumed by `apps/demo`
+- [ ] `apps/demo` implements Home and Decisions (all nine workflows) per
+      `docs/product/design/` on mock data; four-destination shell keeps Analytics and
+      Settings discoverable with truthful placeholders if full depth has not shipped
+- [ ] Mock mode fully interactive with no auth required; Sign-in mode present as a
+      non-interactive, always-visible "coming soon" stub (no route/OAuth/backend call)
+- [ ] Workflow 1 is the default Priority Card; Workflows 2–9 remain visible below it in
+      stable specification order; global Manual Refresh resets mock state and returns to
+      Decisions → Recommendations
+- [ ] Verified responsive on web (`56rem`+) and mobile-web (below `42rem`) breakpoints
+      via Playwright for the mandatory Decisions journey
+- [ ] `packages/ui` + `packages/theme` + `packages/contracts` populated and consumed by
+      `apps/demo` (exit checks the subset of primitives actually used by shipped screens)
+- [ ] `https://demo.app-juli.com` publicly resolves, serves `apps/demo` over valid HTTPS,
+      and passes desktop + mobile-web smoke checks on the Decisions route without
+      requests to `backend/`, TikTok, or OAuth endpoints
+
+**Non-blocking stretch goals** (truthful placeholder sufficient; do not block sign-off):
+
+- Full editable Settings templates/thresholds (#405)
+- Full six-KPI Analytics experience (#404,
+  [ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md))
 
 Detail: [`phase-2.6/PRD.md`](docs/product/phases/phase-2.6/PRD.md)
 
@@ -252,11 +273,12 @@ Detail: [`phase-2.7/PRD.md`](docs/product/phases/phase-2.7/PRD.md)
 ## Phase 3 — Landing Page + Demo, Real Data (brief)
 
 **Goal:** Wire the already-built (Phase 2.6/2.7) frontends to a working backend using
-real data, deploy both to their target domains, and prove the end-to-end pipeline for
-both surfaces.
+real data, deploy the Landing Page, upgrade the existing public Demo deployment, and
+prove the end-to-end pipeline for both surfaces.
 
 Focus: deploy `apps/landing` to `app-juli.com` (replacing the temporary App Review
-placeholder) and `apps/demo` to `demo.app-juli.com` · enable `apps/demo`'s Sign-in mode
+placeholder) · upgrade the Phase 2.6 `apps/demo` deployment at `demo.app-juli.com` ·
+enable `apps/demo`'s Sign-in mode
 (real TikTok OAuth connect + real backend data for one pre-connected reference shop,
 per [ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)) · Mock mode remains
 available · behavior analytics (PostHog).
@@ -266,8 +288,8 @@ Phase 3.5 scope — Phase 3's Sign-in mode uses one reference shop only.
 
 ### Exit gate
 
-- [ ] `apps/landing` and `apps/demo` deployed and publicly reachable on their target
-      domains
+- [ ] `apps/landing` deployed and publicly reachable at `app-juli.com`; the existing
+      `demo.app-juli.com` deployment remains healthy through the real-data upgrade
 - [ ] `apps/demo` Sign-in mode shows real backend data (Phase 2 pipeline output) for the
       reference shop end-to-end
 - [ ] End-to-end pipeline (poll/ETL → aggregates → signals → recommendations → Action
