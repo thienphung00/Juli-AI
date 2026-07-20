@@ -52,6 +52,8 @@ from juli_backend.services.scoring.types import (
     WorkflowRecommendations,
 )
 
+COMPUTED_AT = datetime(2026, 7, 12, 8, 0, tzinfo=UTC)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCORING_PKG = REPO_ROOT / "backend/src/juli_backend/services/scoring"
 
@@ -372,8 +374,8 @@ class TestComputedKpisFlipUnavailableSignals:
         session.add_all([user, shop])
         await session.flush()
 
-        now = datetime.now(UTC)
-        payment_time = now - timedelta(days=5)
+        now = COMPUTED_AT
+        payment_time = COMPUTED_AT - timedelta(days=5)
         products = [
             Product(
                 id=uuid.uuid4(),
@@ -488,12 +490,11 @@ class TestComputedKpisFlipUnavailableSignals:
             probation_status="graduated",
             health_data_source=HealthDataSource.PROXY,
         )
-        computed_at = datetime(2026, 7, 12, 8, 0, tzinfo=UTC)
         result = await run_daily_scoring_for_shop(
             session,
             shop_with_computed_kpi_data.id,
             lifecycle=lifecycle,
-            computed_at=computed_at,
+            computed_at=COMPUTED_AT,
         )
 
         live_kpis = {

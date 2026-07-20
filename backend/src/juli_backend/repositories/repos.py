@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -398,9 +399,27 @@ class ShopScopedRepo(Generic[T]):
             return existing
 
         entity = self._model(id=uuid.uuid4(), shop_id=shop_id, **kwargs)
-        self._session.add(entity)
-        await self._session.flush()
-        return entity
+        try:
+            async with self._session.begin_nested():
+                self._session.add(entity)
+                await self._session.flush()
+            return entity
+        except IntegrityError:
+            result = await self._session.execute(stmt)
+            existing = result.scalar_one_or_none()
+            if existing is None:
+                raise
+            incoming_ut = kwargs.get("update_time")
+            if (
+                incoming_ut is not None
+                and getattr(existing, "update_time", None) is not None
+                and incoming_ut <= existing.update_time
+            ):
+                return existing
+            for key, value in kwargs.items():
+                setattr(existing, key, value)
+            await self._session.flush()
+            return existing
 
 
 # ---------------------------------------------------------------------------
@@ -810,7 +829,11 @@ class ProcessedEventsRepo:
         if result.scalar_one_or_none() is not None:
             return False
         self._session.add(ProcessedEvent(event_id=event_id, shop_id=shop_id))
-        await self._session.flush()
+        try:
+            async with self._session.begin_nested():
+                await self._session.flush()
+        except IntegrityError:
+            return False
         return True
 
 
