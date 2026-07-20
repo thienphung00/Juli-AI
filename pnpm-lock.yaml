@@ -88,7 +88,7 @@ importers:
         specifier: ^30.4.1
         version: 30.4.1
       postcss:
-        specifier: ^8.5.16
+        specifier: ^8.5.19
         version: 8.5.19
       tailwindcss:
         specifier: ^3.4.0
