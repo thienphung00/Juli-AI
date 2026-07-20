@@ -12,6 +12,7 @@ swallowing it, so the caller can trigger re-consent flows.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -38,6 +39,18 @@ from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
+
+
+def _inventory_snapshot_event_id(shop_id: str, payload: dict[str, Any]) -> str:
+    """Stable idempotency key for unchanged poll inventory snapshots."""
+    parts = (
+        str(payload.get("sku_id") or ""),
+        str(payload.get("product_id") or ""),
+        str(payload.get("warehouse_id") or ""),
+        str(payload.get("available_quantity") or ""),
+    )
+    digest = hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+    return f"poll-inventory:{shop_id}:{payload.get('sku_id')}:{digest}"
 
 
 async def sync_orders(
@@ -202,6 +215,7 @@ async def sync_inventory(
 
     for row in rows:
         payload = normalize_inventory(row)
+        payload["event_id"] = _inventory_snapshot_event_id(shop_id, payload)
         payload.setdefault("update_time", synced_at)
         await handoff_fn(
             "tiktok.inventory.raw",

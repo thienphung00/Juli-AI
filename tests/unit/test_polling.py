@@ -472,7 +472,39 @@ class TestSyncInventory:
         payload = json.loads(handoff_calls[0]["value"])
         assert payload["sku_id"] == "sku-1"
         assert payload["available_quantity"] == 42
+        assert payload["event_id"].startswith("poll-inventory:shop1:sku-1:")
         assert "inventory_last_sync_at" in sync_state
+
+    @pytest.mark.asyncio
+    async def test_inventory_event_id_stable_for_identical_snapshot(
+        self,
+        mock_inventory_resource,
+        mock_rate_limiter,
+        handoff_fn,
+        handoff_calls,
+        sync_state,
+    ):
+        await sync_inventory(
+            resource=mock_inventory_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+        )
+        first_event_id = json.loads(handoff_calls[0]["value"])["event_id"]
+        handoff_calls.clear()
+
+        await sync_inventory(
+            resource=mock_inventory_resource,
+            rate_limiter=mock_rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id="app1",
+            shop_id="shop1",
+            sync_state=sync_state,
+        )
+        second_event_id = json.loads(handoff_calls[0]["value"])["event_id"]
+        assert second_event_id == first_event_id
 
     @pytest.mark.asyncio
     async def test_skips_when_rate_limited(
