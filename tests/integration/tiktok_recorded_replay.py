@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
@@ -44,7 +45,7 @@ _ITEMS_KEY_BY_PATH: dict[str, str] = {
     # Inventory is a full snapshot — never filter by update_time_ge.
 }
 
-# Empty Analytics envelopes for Fujiwa poll e2e (#424). List endpoints return
+# Empty Analytics envelopes for Fujiwa poll e2e (#424/#425). List endpoints return
 # zero rows so detail GETs are not issued; path patterns cover dated A-37 URLs.
 _ANALYTICS_EXACT_DATA: dict[str, dict[str, Any]] = {
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH: {"skus": [], "total_count": 0},
@@ -52,6 +53,10 @@ _ANALYTICS_EXACT_DATA: dict[str, dict[str, Any]] = {
     ANALYTICS_SHOP_PERFORMANCE_PATH: {"performance": {"intervals": []}},
     ANALYTICS_BESTSELLING_PRODUCTS_PATH: {"products": []},
     ANALYTICS_BESTSELLING_VIDEOS_PATH: {"videos": []},
+    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH: {
+        "live_stream_sessions": [],
+        "total_count": 0,
+    },
 }
 
 _ANALYTICS_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
