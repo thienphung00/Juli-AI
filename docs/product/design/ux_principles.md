@@ -145,7 +145,8 @@ Deep links preserve useful return context and focus the destination target.
 
 ## Vietnamese copy standards
 
-Follow `context.md`:
+Follow `design-context.md` for voice and copy rules; look up product terms in
+repo-root [`dictionary.md`](../../../dictionary.md):
 
 - All user-visible strings use Vietnamese with full diacritics.
 - Errors state the problem and recovery step.

@@ -59,9 +59,43 @@ for Decisions/cards. Target-state design uses Claude Haiku 3.5 with a determinis
 rules fallback (ADR-012 — corrected citation, was mis-cited as ADR-006). **Phase 2
 implementation is rules-only** (deterministic templates, `copy_source: "rules"`) —
 Haiku is deferred to Phase 4 per `EXECUTION.md` and `services/scoring/MODULE.md`.
-Receives computed signals only, never raw financial PII.
+Receives computed signals only, never raw financial PII. Seller-facing wording must
+match the **Copy dictionary**; voice/rules come from **Design context**.
 _Avoid_: LLM layer, summarizer (when referring to the whole stage), describing Phase 2
 copy as LLM-backed (it is not, until Phase 4)
+
+**Design context**:
+Design-package authority for Vietnamese *voice and copy rules only* (address form,
+naming conventions, money/dates/numbers, error/empty-state patterns, governance).
+File: [`docs/product/design/design-context.md`](docs/product/design/design-context.md)
+(renamed from `context.md`). **Must not** contain an EN↔VI glossary or reusable
+phrases — those live only in the **Copy dictionary** (no overlaps). Focus **required**
+load (with `dictionary.md`) for any UI / copy / report / design-surface task
+([ADR-028](docs/adr/028-vietnamese-copy-dictionary-and-design-context.md)).
+_Avoid_: `context.md` (ambiguous — old design path; rewire refs to design-context.md),
+embedding locked product terms here
+
+**Copy dictionary**:
+Repo-root [`dictionary.md`](dictionary.md) — sole EN → VI catalog in two keyed
+sections: **Keywords** (product terms and words) and **Phrases** (full reusable
+sentences). Each entry: stable surface-first key (`nav.home`, `decisions.approve`,
+`common.unavailable`) · EN gloss · VI string · optional `_Avoid_`. v1 migrates the
+design glossary and harvests chrome/report VI **only where already written** in the
+design package; missing strings stay TBD/omitted for human correction. Agents look
+up Vietnamese here; they do not invent translations and do not redefine terms in
+Design context.
+v1 harvests Vietnamese **only** from repo-root `dictionary.md` (migrated glossary) and
+existing VI in Screens/Components/Flows; missing chrome stays TBD or omitted for
+human correction — do not invent VI from live app strings.
+Focus **required** with Design context for UI/copy/report/design work
+([ADR-028](docs/adr/028-vietnamese-copy-dictionary-and-design-context.md)).
+When a needed string is missing from the dictionary, agents may draft Vietnamese for
+UI/frontend, then **immediately add** the new keyed entry to `dictionary.md` so a
+human can correct it — never leave orphan invented copy only in code.
+_Avoid_: `language.md` (rejected name), `CONTEXT.md` (domain glossary, not VI copy),
+duplicating glossary rows inside Design context, unkeyed VI tables, i18n JSON as
+authoring SoT, inventing VI from `apps/dashboard` without design authority,
+shipping invented VI without a matching dictionary key
 
 **Display-grade analytics**:
 The lightweight ML layer that powers the visual layer — a small set of reusable

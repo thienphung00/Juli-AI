@@ -12,7 +12,8 @@ or use native input affordances, but product behavior must not diverge.
 | Layer | Parity rule |
 |---|---|
 | Tokens (`design.md`) | Identical semantic values |
-| Terminology (`context.md`) | Identical Vietnamese product terms |
+| Terminology ([`dictionary.md`](../../../dictionary.md)) | Identical Vietnamese product terms per EN→VI catalog |
+| Copy rules (`design-context.md`) | Voice, error/empty patterns, formatting governance |
 | Destinations | Home, Decisions, Analytics, Settings on every platform |
 | Juli | Contextual assistance, never a standalone destination |
 | Approval gate | Human approval required; no shortcut may skip reasoning or inputs |
