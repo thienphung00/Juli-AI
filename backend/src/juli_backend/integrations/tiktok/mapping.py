@@ -452,10 +452,15 @@ def analytics_snapshot_key(
     )
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _extract_gmv(value: Any) -> tuple[Any, Any]:
     if not isinstance(value, dict):
         return None, None
-    target = value.get("overall") if isinstance(value.get("overall"), dict) else value
+    overall = value.get("overall")
+    target: dict[str, Any] = overall if isinstance(overall, dict) else value
     amount = target.get("amount")
     if amount is None:
         return None, None
@@ -542,10 +547,8 @@ def expand_analytics_shop_performance(
         if not start_date:
             continue
         end_date = interval.get("end_date")
-        sales = interval.get("sales") if isinstance(interval.get("sales"), dict) else {}
-        traffic = (
-            interval.get("traffic") if isinstance(interval.get("traffic"), dict) else {}
-        )
+        sales = _as_dict(interval.get("sales"))
+        traffic = _as_dict(interval.get("traffic"))
         gmv_amount, gmv_currency = _extract_gmv(sales.get("gmv"))
         payload = _base_analytics_payload(
             grain="shop",
@@ -736,10 +739,8 @@ def expand_analytics_product_detail(
         if not start_date:
             continue
         end_date = interval.get("end_date")
-        sales = interval.get("sales") if isinstance(interval.get("sales"), dict) else {}
-        traffic = (
-            interval.get("traffic") if isinstance(interval.get("traffic"), dict) else {}
-        )
+        sales = _as_dict(interval.get("sales"))
+        traffic = _as_dict(interval.get("traffic"))
         gmv_amount, gmv_currency = _extract_gmv(sales.get("gmv"))
         ctr = None
         traffic_breakdowns = traffic.get("breakdowns")
@@ -780,16 +781,8 @@ def expand_analytics_live_session(
     live_id = session.get("id") or session.get("live_id")
     if not live_id:
         return None
-    sales = (
-        session.get("sales_performance")
-        if isinstance(session.get("sales_performance"), dict)
-        else {}
-    )
-    interaction = (
-        session.get("interaction_performance")
-        if isinstance(session.get("interaction_performance"), dict)
-        else {}
-    )
+    sales = _as_dict(session.get("sales_performance"))
+    interaction = _as_dict(session.get("interaction_performance"))
     gmv_amount, gmv_currency = _extract_gmv(sales.get("gmv"))
     payload = _base_analytics_payload(
         grain="live",

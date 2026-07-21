@@ -1,6 +1,6 @@
 """add analytics_performance_intervals for poll ETL (#425)
 
-Revision ID: 017_analytics_performance_intervals
+Revision ID: 017_analytics_perf_intervals
 Revises: 016_webhook_raw_events
 Create Date: 2026-07-21
 """
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "017_analytics_performance_intervals"
+revision: str = "017_analytics_perf_intervals"
 down_revision: str | None = "016_webhook_raw_events"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
