@@ -2,20 +2,40 @@ import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "./recommendations";
 import {
+  buildCreateActivityReviewInputDefaults,
+  CREATE_ACTIVITY_WORKFLOW_KEY,
+  getCreateActivityReviewStages,
+} from "./workflows/create-activity";
+import {
   buildClearExcessReviewInputDefaults,
   CLEAR_EXCESS_WORKFLOW_KEY,
   getClearExcessReviewStages,
 } from "./workflows/clear-excess";
+import {
+  buildDeleteActivityReviewInputDefaults,
+  DELETE_ACTIVITY_WORKFLOW_KEY,
+  getDeleteActivityReviewStages,
+} from "./workflows/delete-activity";
 import {
   buildOptimizeProductReviewInputDefaults,
   OPTIMIZE_PRODUCT_WORKFLOW_KEY,
   getOptimizeProductReviewStages,
 } from "./workflows/optimize-product";
 import {
+  buildProcessOrderReviewInputDefaults,
+  getProcessOrderReviewStages,
+  PROCESS_ORDER_WORKFLOW_KEY,
+} from "./workflows/process-order";
+import {
   buildReplenishInventoryReviewInputDefaults,
   REPLENISH_INVENTORY_WORKFLOW_KEY,
   getReplenishInventoryReviewStages,
 } from "./workflows/replenish-inventory";
+import {
+  buildUpdateActivityReviewInputDefaults,
+  UPDATE_ACTIVITY_WORKFLOW_KEY,
+  getUpdateActivityReviewStages,
+} from "./workflows/update-activity";
 
 export const CREATE_HERO_PRODUCT_WORKFLOW_KEY = "create_hero_product_1";
 
@@ -24,6 +44,10 @@ export const APPROVABLE_WORKFLOW_KEYS = [
   OPTIMIZE_PRODUCT_WORKFLOW_KEY,
   REPLENISH_INVENTORY_WORKFLOW_KEY,
   CLEAR_EXCESS_WORKFLOW_KEY,
+  PROCESS_ORDER_WORKFLOW_KEY,
+  CREATE_ACTIVITY_WORKFLOW_KEY,
+  UPDATE_ACTIVITY_WORKFLOW_KEY,
+  DELETE_ACTIVITY_WORKFLOW_KEY,
 ] as const;
 
 const heroFixtureEntry = recommendationFixtures.find(
@@ -65,6 +89,14 @@ export function buildReviewInputDefaultsForWorkflow(
       return buildReplenishInventoryReviewInputDefaults();
     case CLEAR_EXCESS_WORKFLOW_KEY:
       return buildClearExcessReviewInputDefaults();
+    case PROCESS_ORDER_WORKFLOW_KEY:
+      return buildProcessOrderReviewInputDefaults();
+    case CREATE_ACTIVITY_WORKFLOW_KEY:
+      return buildCreateActivityReviewInputDefaults();
+    case UPDATE_ACTIVITY_WORKFLOW_KEY:
+      return buildUpdateActivityReviewInputDefaults();
+    case DELETE_ACTIVITY_WORKFLOW_KEY:
+      return buildDeleteActivityReviewInputDefaults();
     default:
       return {};
   }
@@ -81,6 +113,14 @@ export function getWorkflowReviewStages(
       return getReplenishInventoryReviewStages(analyticsMetricKey);
     case CLEAR_EXCESS_WORKFLOW_KEY:
       return getClearExcessReviewStages(analyticsMetricKey);
+    case PROCESS_ORDER_WORKFLOW_KEY:
+      return getProcessOrderReviewStages(analyticsMetricKey);
+    case CREATE_ACTIVITY_WORKFLOW_KEY:
+      return getCreateActivityReviewStages(analyticsMetricKey);
+    case UPDATE_ACTIVITY_WORKFLOW_KEY:
+      return getUpdateActivityReviewStages(analyticsMetricKey);
+    case DELETE_ACTIVITY_WORKFLOW_KEY:
+      return getDeleteActivityReviewStages(analyticsMetricKey);
     case CREATE_HERO_PRODUCT_WORKFLOW_KEY:
       break;
     default:

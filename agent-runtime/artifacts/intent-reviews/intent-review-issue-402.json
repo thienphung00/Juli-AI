@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-402",
+  "issue": 402,
+  "timestamp": "2026-07-21T09:01:16Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "a9b6e9075e0d5fc5c608fcb42c97529baf6138bb",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff vs origin/main (a9b6e907) for #402 Phase 2.6. Delivered process_order_5 FBS review+20-step timeline with process_order_5b scaffold-only; promotion create/update/delete (7a/7c/7b) with documented tool keys; Approve enabled for WF1\u20135+7a/7c/7b; returns 8a/8b/8c remain disabled; four review\u2192approve\u2192In Progress integration tests match #401 public-behavior pattern; create card titled for Create branch; mock-only, no backend/TikTok calls. Card-contract test updated after review finding.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md current",
+      "path": "apps/demo/MODULE.md",
+      "note": "MODULE.md documents WF1\u20135 and promotion 7a/7c/7b approve registry and workflow folders.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "code-quality.mdc \u2014 DRY (advisory)",
+      "path": "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+      "note": "Integration harnesses duplicate WF2 mock setup; acceptable per #401 pattern; cleanup optional later.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "402-20260721T084611"
+}

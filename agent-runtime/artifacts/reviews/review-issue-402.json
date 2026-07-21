@@ -1,0 +1,102 @@
+{
+  "id": "review-issue-402",
+  "issue": 402,
+  "timestamp": "2026-07-21T09:01:16Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #402 Phase 2.6 fulfillment/promotion Decision workflows: intent-review spec_fidelity=pass consumed as given. process_order_5 FBS + FBT scaffold; promotion 7a/7c/7b branches and tool keys; shared card Approve contract updated; 5/5 ACs mapped; demo targeted tests green. No CRITICAL reliability/security findings on mock-only Demo surface.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/demo/MODULE.md",
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/lib/executions.ts",
+    "apps/demo/src/lib/recommendations.ts",
+    "apps/demo/src/lib/workflows/process-order/",
+    "apps/demo/src/lib/workflows/create-activity/",
+    "apps/demo/src/lib/workflows/update-activity/",
+    "apps/demo/src/lib/workflows/delete-activity/",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+    "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "labels FBT scaffold as unfilled and cites unresolved SLA trigger without inventing thresholds",
+          "test": "apps/demo/src/lib/workflows/process-order/__tests__/review.test.ts::labels FBT scaffold as unfilled and cites unresolved SLA trigger without inventing thresholds"
+        },
+        {
+          "criterion": "returns five stages for workflow 7a with analytics deep-link",
+          "test": "apps/demo/src/lib/workflows/create-activity/__tests__/review.test.ts::returns five stages for workflow 7a with analytics deep-link"
+        },
+        {
+          "criterion": "makes no backend request or real write anywhere in the recommendations flow",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::makes no backend request or real write anywhere in the recommendations flow"
+        },
+        {
+          "criterion": "enables Approve for Workflows 1-5 and promotion 7a/7c/7b and routes to the review page",
+          "test": "apps/demo/src/__tests__/decisions-recommendations.test.tsx::enables Approve for Workflows 1-5 and promotion 7a/7c/7b and routes to the review page"
+        },
+        {
+          "criterion": "completes five-stage review and routes to In Progress on Approve",
+          "test": "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx::completes five-stage review and routes to In Progress on Approve"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 66,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Optional later cleanup: parameterize duplicated workflow-*-review-approve-in-progress harnesses.",
+    "Optional: share FBT_PROMOTION_SCAFFOLD_UNFILLED constant across promotion review modules."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review spec_fidelity=pass; 5/5 ACs mapped; targeted demo tests green. Approve merge for #402.",
+    "timestamp": "2026-07-21T09:02:00Z",
+    "acceptedRisks": true,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "Acknowledged review PASS; WF5 + promotion 7a/7c/7b mock Decision lifecycle verified.",
+    "timestamp": "2026-07-21T09:02:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewStatus": "PASS",
+  "phaseRunId": "402-20260721T084611",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-402.json",
+  "reviewBasis": "origin/main a9b6e907... working tree on feature/fe-issue-402-fulfillment-promotion-workflows",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-402.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "severity": "none",
+  "findings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "suggestedRemediation": []
+}

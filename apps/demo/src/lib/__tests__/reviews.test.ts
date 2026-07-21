@@ -74,7 +74,19 @@ describe("getWorkflowReviewStages", () => {
     ]);
   });
 
+  it("returns five stages for workflow 5 process_order", () => {
+    const stages = getWorkflowReviewStages("process_order_5");
+
+    expect(stages.map((stage) => stage.stage)).toEqual([
+      "why",
+      "analytics",
+      "inputs",
+      "preview",
+      "approve",
+    ]);
+  });
+
   it("returns no stages for unsupported workflow keys", () => {
-    expect(getWorkflowReviewStages("process_order_5")).toEqual([]);
+    expect(getWorkflowReviewStages("prevent_cancellation_8a")).toEqual([]);
   });
 });

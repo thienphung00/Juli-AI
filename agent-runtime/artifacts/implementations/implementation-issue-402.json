@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 402,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "402-20260721T084611",
+  "startedAt": "2026-07-21T08:46:12Z",
+  "completedAt": "2026-07-21T08:58:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Task",
+      "count": 4,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Read",
+      "count": 25,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 22,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 65,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-402.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+    "docs/product/design/Flows/decisions/recommendations/5-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/7-workflow.md",
+    "apps/demo/MODULE.md",
+    "GitHub issue #402"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/issue-workflow.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/MODULE.md",
+    "apps/demo/src/lib/recommendations.ts",
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/lib/executions.ts",
+    "apps/demo/src/lib/workflows/process-order/review.ts",
+    "apps/demo/src/lib/workflows/process-order/execution.ts",
+    "apps/demo/src/lib/workflows/process-order/index.ts",
+    "apps/demo/src/lib/workflows/process-order/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/process-order/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/create-activity/review.ts",
+    "apps/demo/src/lib/workflows/create-activity/execution.ts",
+    "apps/demo/src/lib/workflows/create-activity/index.ts",
+    "apps/demo/src/lib/workflows/create-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/create-activity/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/update-activity/review.ts",
+    "apps/demo/src/lib/workflows/update-activity/execution.ts",
+    "apps/demo/src/lib/workflows/update-activity/index.ts",
+    "apps/demo/src/lib/workflows/update-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/update-activity/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/delete-activity/review.ts",
+    "apps/demo/src/lib/workflows/delete-activity/execution.ts",
+    "apps/demo/src/lib/workflows/delete-activity/index.ts",
+    "apps/demo/src/lib/workflows/delete-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/delete-activity/__tests__/execution.test.ts",
+    "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/lib/__tests__/reviews.test.ts",
+    "apps/demo/src/lib/__tests__/executions.test.ts"
+  ],
+  "testsAdded": [
+    "apps/demo/src/lib/workflows/process-order/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/process-order/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/create-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/create-activity/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/update-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/update-activity/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/delete-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/delete-activity/__tests__/execution.test.ts",
+    "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx"
+  ],
+  "testsUpdated": [
+    "apps/demo/src/lib/__tests__/reviews.test.ts",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "red": "WF5 module unit tests failed — missing process-order modules",
+      "green": "Added process-order review+execution (FBS process_order_5 key, FBT intake scaffold process_order_5b); integration test workflow-5 pass",
+      "refactor": "Documented FBT Unresolved/Unfilled in fixture knownLimits and review stages"
+    },
+    {
+      "cycle": 2,
+      "red": "Promotion 7a module unit tests failed — missing create-activity modules",
+      "green": "Added create-activity review+execution (promotion.create_activity); explicit FBT scaffold; 7a integration test pass",
+      "refactor": "Exported via index.ts; truthful Unresolved capability labels"
+    },
+    {
+      "cycle": 3,
+      "red": "Promotion 7c/7b module unit tests failed — missing update/delete-activity modules",
+      "green": "Added update-activity and delete-activity review+execution with activity_id-bound branches; 7c/7b integration tests pass",
+      "refactor": "Added update_activity_7c and delete_activity_7b recommendation fixtures"
+    },
+    {
+      "cycle": 4,
+      "red": "Shared routers omitted WF5 and promotion keys; Approve disabled for new workflows",
+      "green": "Extended APPROVABLE_WORKFLOW_KEYS and SUPPORTED_WORKFLOWS in reviews/executions/recommendations; 66 targeted tests pass",
+      "refactor": "Updated apps/demo/MODULE.md public interface for WF1–5 and promotion 7a/7c/7b"
+    }
+  ],
+  "implementationSummary": "Extended Phase 2.6 Demo Decision shells for Workflow 5 (process order) and promotion branches 7a/7c/7b (create/update/delete activity): isolated per-workflow review stages and FBS timelines, FBT intake scaffold-only for fulfillment and promotion, explicit Unresolved capability states, shared registry wiring, Approve enabled for process_order_5 and promotion tool keys, and one review→approve→In Progress integration test per workflow/branch.",
+  "assumptions": [
+    "Shared RecommendationReview and In Progress shells remain workflow-agnostic once stages/timelines exist",
+    "FBT intake process_order_5b and promotion FBT paths stay scaffold-only with no fabricated executor steps",
+    "Workflows 6 and 8–9 remain Approve-disabled until later slices"
+  ],
+  "risks": [
+    "Demo timelines are mock screen-states; real TikTok fulfillment/promotion waits remain Phase 3",
+    "update/delete promotion branches require known activity_id — search-by-keyword remains unsupported per design"
+  ]
+}
