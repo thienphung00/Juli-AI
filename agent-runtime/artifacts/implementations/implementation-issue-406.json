@@ -2,7 +2,7 @@
   "schemaVersion": "1.0.0",
   "artifactType": "implementation",
   "issueId": 406,
-  "executorDomain": "infra/deploy",
+  "executorDomain": "backend",
   "phaseRunId": "406-20260721T104932",
   "startedAt": "2026-07-21T10:52:00Z",
   "completedAt": "2026-07-21T10:58:00Z",
@@ -34,6 +34,11 @@
   "skillsLoaded": [
     "ship"
   ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
   "filesModified": [
     "infra/nginx/demo.app-juli.com.conf",
     "infra/systemd/juli-demo.service",
