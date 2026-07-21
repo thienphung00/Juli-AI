@@ -168,19 +168,23 @@ export function SettingsThresholdsPanel() {
         {thresholdFixtures.map((threshold) => {
           const storageKey = buildThresholdStorageKey(threshold.key);
           const value = draftValues[storageKey] ?? threshold.defaultValue;
+          const isUnresolved =
+            "unresolved" in threshold && threshold.unresolved === true;
 
-          if (!threshold.editable || threshold.unresolved) {
+          if (!threshold.editable || isUnresolved) {
             return (
               <div className="settings-field settings-field--readonly" key={threshold.key}>
                 <TextField
                   helperText={
-                    threshold.unresolvedReason ??
+                    ("unresolvedReason" in threshold
+                      ? threshold.unresolvedReason
+                      : undefined) ??
                     "Chưa xác định — không thể chỉnh sửa."
                   }
                   id={`threshold-${threshold.key}`}
                   label={threshold.label}
                   readOnly
-                  value={threshold.unresolved ? "Chưa xác định" : value}
+                  value={isUnresolved ? "Chưa xác định" : value}
                 />
                 <Badge variant="info">Chưa xác định</Badge>
                 <p className="settings-field__impact">

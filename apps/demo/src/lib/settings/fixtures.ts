@@ -55,7 +55,6 @@ export const PRODUCT_DOMAIN_ORDER = [
 ] as const satisfies readonly ProductDomainDefinition[];
 
 const FBS_BADGE = "Có thể thực thi qua FBS";
-const FBT_UNRESOLVED_BADGE = "FBT: Chưa xác định";
 const PARTIAL_BADGE = "Một phần — FBS";
 
 function settingsFieldKey(workflowKey: string, fieldKey: string) {
