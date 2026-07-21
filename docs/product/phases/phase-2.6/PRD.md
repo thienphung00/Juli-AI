@@ -108,7 +108,8 @@ pressure — the Sign-in entry point exists now but is disabled.
   and deployment must not require backend credentials or API availability because Mock
   mode is self-contained.
 - **IA source of truth:** `docs/product/design/` root authorities
-  (`context.md` → `design.md` → `flows.md` → `soul.md` → `ux_principles.md`), then
+  (`design-context.md` → `design.md` → `flows.md` → `soul.md` → `ux_principles.md`;
+  EN→VI terms in repo-root `dictionary.md`), then
   `Screens/` (`home.md`, `decisions.md`, `analytics.md`, `settings.md`) and `Flows/`,
   then `Components/` + `colors_and_type.css`. Follow the
   `.cursor/skills/standalone/open-design-system/SKILL.md` loading sequence.

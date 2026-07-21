@@ -10,18 +10,20 @@ specifications, and supporting evidence.
 Resolve every conflict top-down in this exact order:
 
 1. **Root authorities**
-   - `context.md`
+   - `design-context.md`
    - `design.md`
    - `flows.md`
    - `soul.md`
    - `ux_principles.md`
-2. **Product structures**
+2. **Product terminology** (repo root — sibling authority for VI strings)
+   - [`dictionary.md`](../../../dictionary.md)
+3. **Product structures**
    - `Screens/`
    - `Flows/`
-3. **Reusable specifications**
+4. **Reusable specifications**
    - `Components/`
    - `colors_and_type.css`
-4. **Demonstrations and evidence**
+5. **Demonstrations and evidence**
    - `preview/`
    - `ui_kits/`
    - `source_examples/`
@@ -29,8 +31,9 @@ Resolve every conflict top-down in this exact order:
 
 Lower tiers apply higher-tier decisions; they do not redefine them. Generated
 previews, UI kits, snapshots, and historical implementation examples never
-override the five root authorities. When two files disagree, update the
-lower-precedence file to match the higher-precedence file.
+override the five root authorities or repo-root [`dictionary.md`](../../../dictionary.md).
+When two files disagree, update the lower-precedence file to match the
+higher-precedence file.
 
 ## Locked product model
 
@@ -54,7 +57,7 @@ lower-precedence file to match the higher-precedence file.
 ## Package contents
 
 ```text
-context.md                Vietnamese terminology, copy, and product context
+design-context.md         Vietnamese voice, copy rules, and product context (rules only)
 design.md                 Visual tokens, layout, motion, and component schemas
 flows.md                  Journey, destination ownership, and parity contracts
 soul.md                   Brand personality and product character
@@ -69,6 +72,9 @@ ui_kits/                   Composed runnable demonstrations
 source_examples/           Historical implementation examples
 context/                   Intake notes, evidence, and source snapshots
 ```
+
+EN→VI terminology lives in repo-root [`dictionary.md`](../../../dictionary.md), not in
+this package.
 
 The agent-facing usage skill lives at
 `.cursor/skills/standalone/open-design-system/SKILL.md`.
@@ -106,19 +112,24 @@ observed in source; it does not override canonical product decisions.
 ## Working with this package
 
 1. Read the five root authorities in precedence order:
-   `context.md` → `design.md` → `flows.md` → `soul.md` →
+   `design-context.md` → `design.md` → `flows.md` → `soul.md` →
    `ux_principles.md`.
-2. Read the relevant product structure in `Screens/`, then `Flows/`.
-3. Apply reusable specifications from `Components/` and
+2. Look up EN→VI product terms in repo-root
+   [`dictionary.md`](../../../dictionary.md).
+3. Read the relevant product structure in `Screens/`, then `Flows/`.
+4. Apply reusable specifications from `Components/` and
    `colors_and_type.css`.
-4. Consult `preview/` and `ui_kits/` only as demonstrations.
-5. Consult `source_examples/` and `context/` only as historical evidence.
-6. Use implementation paths under `apps/dashboard/...`.
+5. Consult `preview/` and `ui_kits/` only as demonstrations.
+6. Consult `source_examples/` and `context/` only as historical evidence.
+7. Use implementation paths under `apps/dashboard/...`.
 
 ## Governance
 
 - Update a root authority before propagating a product decision downward.
-- Keep user-visible terminology aligned with `context.md`.
+- Keep user-visible terminology aligned with repo-root
+  [`dictionary.md`](../../../dictionary.md).
+- Keep voice, error/empty patterns, and copy rules aligned with
+  `design-context.md`.
 - Keep destination ownership and approval behavior aligned with
   `ux_principles.md` and `flows.md`.
 - Add reusable specifications without duplicating flow or screen authority.
