@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-429",
+  "issue": 429,
+  "timestamp": "2026-07-21T07:14:33Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "ceecd2e31f17c1f46deedec2f859832e1bcc9158",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Working-tree vs ceecd2e3 (#429). No-op lock-in: existing refresh\u2192scoring\u2192persist already surfaces CTR-ranked Ads workflows; three contract tests cover persistence, GET list, idempotent re-refresh; AC4 freshness via existing metadata.computed_at/updated_at. Minor: AC3 exercises worker path directly not POST\u2192Celery (enqueue covered by #303).",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_action_cards_contract.py",
+      "hunk": "mid_large_shop_with_analytics_ctr fixture mirrors mid_large commerce seed elsewhere",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Middle Man",
+      "path": "tests/unit/test_action_cards_contract.py",
+      "hunk": "skip_poll fixture + poll=False redundancy",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_action_cards_contract.py",
+      "hunk": "GET test reimplements auth overrides; workflow_keys assertions repeated across three tests",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "DRY / modularity",
+      "path": "tests/unit/test_action_cards_contract.py",
+      "note": "Prefer shared mid/large+analytics factory and auth_client reuse on follow-up.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "Readability \u2014 no dead code",
+      "path": "tests/unit/test_action_cards_contract.py",
+      "note": "Unused HealthDataSource / ShopLifecycleContext imports.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "MODULE.md current",
+      "path": "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "note": "CTR ranking + freshness notes match module style.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "429-20260721T070906"
+}

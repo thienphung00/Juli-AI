@@ -30,6 +30,11 @@ Manual-refresh pipeline persistence for **Decision** rows (Action Cards per
 - No Redis; Postgres is the sole store (ADR-021)
 - HTTP handlers never run scoring inline — same pattern as `execution/dispatch.py`
 - `DAILY_SCORING_CRON_UTC` remains unused (manual refresh only)
+- Analytics-backed CTR (#428) ranks mid/large Ads workflows (`create_activity_7a`,
+  `update_activity_7c`) through unchanged `run_action_card_refresh` →
+  `persist_scoring_result`; ROAS/CAC cards appear only when spend ETL supplies denominators
+- List API freshness: `metadata.computed_at` (scoring run) and `updated_at` (row bump);
+  `recommendation.computed_at` duplicates the same timestamp — no separate envelope field (#429)
 
 ## Out of scope
 

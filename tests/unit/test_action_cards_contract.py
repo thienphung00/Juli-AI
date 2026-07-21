@@ -1,9 +1,16 @@
-"""P2-B1 Action Card persistence contract tests — Issue #303 (reopened).
+"""P2-B1 Action Card persistence contract tests — Issues #303, #429.
 
+#303 (reopened)
 AC1 → action_cards table + ActionCardsRepo idempotent upsert
 AC2 → POST /v1/action-cards/refresh returns 202 and enqueues Celery (never blocks)
 AC3 → GET /v1/action-cards returns persisted rows only (no on-the-fly regeneration)
 AC4 → two consecutive refreshes update rows in place (same count, bumped updated_at)
+
+#429 (P2-B1 ext)
+AC1 → refresh path unchanged (poll → scoring → persist)
+AC2 → analytics-backed CTR ranks mid/large Ads workflows into persisted cards
+AC3 → analytics fixtures → refresh → GET lists new/updated cards
+AC4 → freshness via metadata.computed_at + updated_at (no new envelope fields)
 """
 
 from __future__ import annotations
@@ -19,7 +26,16 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from juli_backend.models.models import Order, Product, Return, Shop, User
+from juli_backend.models.models import (
+    AnalyticsPerformanceInterval,
+    Order,
+    Product,
+    Return,
+    Shop,
+    TikTokSyncState,
+    User,
+)
+from juli_backend.services.aggregates.types import HealthDataSource, ShopLifecycleContext
 
 
 @pytest_asyncio.fixture
@@ -70,6 +86,83 @@ async def auth_client(app, authenticated_user, shop):
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def mid_large_shop_with_analytics_ctr(session, user_id):
+    """Mid/large shop with synced commerce + analytics product CTR (#428, #429)."""
+    user = User(id=user_id, phone="+84901429429")
+    shop = Shop(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        shop_name="Analytics CTR Action Cards Shop",
+        tiktok_shop_id="7658073774813611786",
+        created_at=datetime.now(UTC) - timedelta(days=120),
+    )
+    session.add_all([user, shop])
+    now = datetime.now(UTC)
+    session.add_all(
+        [
+            Product(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_product_id="prod-a",
+                name="Widget A",
+                status="ACTIVE",
+                revenue=Decimal("800000"),
+                units_sold=40,
+                update_time=now,
+            ),
+            Order(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_order_id="ord-429-1",
+                status="COMPLETED",
+                total_amount=Decimal("150000"),
+                currency="VND",
+                update_time=now,
+            ),
+            Return(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                tiktok_return_id="ret-429-1",
+                tiktok_order_id="ord-429-1",
+                return_type="refund",
+                refund_amount=Decimal("10000"),
+                status="COMPLETED",
+                update_time=now,
+            ),
+            AnalyticsPerformanceInterval(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                snapshot_key="product:prod-1:2026-07-13:2026-07-14",
+                grain="product",
+                start_date=datetime(2026, 7, 13).date(),
+                end_date=datetime(2026, 7, 14).date(),
+                tiktok_product_id="prod-1",
+                gmv=Decimal("500000.00"),
+                gmv_currency="VND",
+                ctr=Decimal("0.012000"),
+                update_time=now,
+            ),
+            TikTokSyncState(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                endpoint="promotion_activity",
+                last_update_time=1_700_000_000,
+            ),
+        ]
+    )
+    await session.flush()
+    return shop
+
+
+@pytest.fixture
+def skip_poll(monkeypatch):
+    monkeypatch.setattr(
+        "juli_backend.services.action_cards.refresh.maybe_poll_tiktok_data",
+        AsyncMock(),
+    )
 
 
 @pytest.fixture
@@ -315,3 +408,100 @@ def test_execution_p2_b1_checkbox_marked_complete():
     execution_md = Path(__file__).resolve().parents[2] / "EXECUTION.md"
     text = execution_md.read_text(encoding="utf-8")
     assert "- [x] **P2-B1**" in text
+
+
+@pytest.mark.asyncio
+async def test_issue429_analytics_ctr_refresh_persists_ads_workflow_keys(
+    session,
+    mid_large_shop_with_analytics_ctr,
+    skip_poll,
+):
+    """#429 AC2: CTR-ranked Ads workflows appear in persisted action cards."""
+    from juli_backend.services.action_cards.refresh import run_action_card_refresh
+
+    cards = await run_action_card_refresh(
+        session, mid_large_shop_with_analytics_ctr.id, poll=False
+    )
+    await session.flush()
+
+    workflow_keys = {card.workflow_key for card in cards}
+    assert "create_activity_7a" in workflow_keys
+    assert "update_activity_7c" in workflow_keys
+
+    ads_card = next(c for c in cards if c.workflow_key == "create_activity_7a")
+    payload = json.loads(ads_card.recommendation_payload)
+    assert payload["source_kpi_ids"] == ["ctr"]
+    assert "computed_at" in payload
+    metadata = json.loads(ads_card.metadata_json or "{}")
+    assert "computed_at" in metadata
+
+
+@pytest.mark.asyncio
+async def test_issue429_analytics_refresh_then_get_lists_persisted_cards(
+    app,
+    session,
+    mid_large_shop_with_analytics_ctr,
+    skip_poll,
+):
+    """#429 AC3: analytics fixtures → refresh → GET returns persisted Ads cards."""
+    from juli_backend.api.dependencies import get_active_shop
+    from juli_backend.core.security import get_current_user
+    from juli_backend.services.action_cards.refresh import run_action_card_refresh
+
+    shop = mid_large_shop_with_analytics_ctr
+    user = await session.get(User, shop.user_id)
+    assert user is not None
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_active_shop] = lambda: shop
+
+    await run_action_card_refresh(session, shop.id, poll=False)
+    await session.commit()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/v1/action-cards")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    workflow_keys = {item["workflow_key"] for item in data}
+    assert "create_activity_7a" in workflow_keys
+
+    ads_item = next(item for item in data if item["workflow_key"] == "create_activity_7a")
+    assert ads_item["recommendation"]["source_kpi_ids"] == ["ctr"]
+    assert ads_item["metadata"]["computed_at"]
+    assert ads_item["updated_at"]
+
+
+@pytest.mark.asyncio
+async def test_issue429_analytics_ctr_second_refresh_idempotent(
+    session,
+    mid_large_shop_with_analytics_ctr,
+    skip_poll,
+):
+    """#429 AC2/AC4: second refresh upserts same Ads keys with bumped updated_at."""
+    from juli_backend.repositories.repos import ActionCardsRepo
+    from juli_backend.services.action_cards.refresh import run_action_card_refresh
+
+    first = await run_action_card_refresh(
+        session, mid_large_shop_with_analytics_ctr.id, poll=False
+    )
+    await session.flush()
+    repo = ActionCardsRepo(session)
+    after_first = await repo.list_active(mid_large_shop_with_analytics_ctr.id)
+    first_updated = {card.workflow_key: card.updated_at for card in after_first}
+    assert "create_activity_7a" in first_updated
+
+    await session.commit()
+
+    second = await run_action_card_refresh(
+        session, mid_large_shop_with_analytics_ctr.id, poll=False
+    )
+    await session.flush()
+    after_second = await repo.list_active(mid_large_shop_with_analytics_ctr.id)
+
+    assert len(after_second) == len(after_first)
+    assert len(second) == len(first)
+    for card in after_second:
+        assert card.updated_at >= first_updated[card.workflow_key]
