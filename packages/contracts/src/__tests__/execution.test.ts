@@ -59,4 +59,18 @@ describe("deriveLifecycleFromTimeline", () => {
 
     expect(deriveLifecycleFromTimeline(timeline)).toBe("completed");
   });
+
+  it("returns completed when a non-WF1 terminal outcome succeeded", () => {
+    const timeline = [
+      step({
+        id: "live-outcome",
+        stepNumber: 11,
+        kind: "outcome",
+        title: "Đã cập nhật / cần chỉnh",
+        status: "succeeded",
+      }),
+    ];
+
+    expect(deriveLifecycleFromTimeline(timeline)).toBe("completed");
+  });
 });

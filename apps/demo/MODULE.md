@@ -15,8 +15,11 @@ dependency.
 - `DemoStateProvider` / `useDemoState` — single owner for mutable mock state,
   persisted Mock mode, disabled Sign-in feedback, deterministic reset, and
   `startExecution(workflowKey)` for approved workflow records.
-- `lib/executions.ts` — Workflow 1 timeline fixtures and pure `startExecution`.
-- `lib/reviews.ts` — Workflow 1 five-stage review content and input defaults.
+- `lib/executions.ts` — Workflow 1–4 timeline fixtures and pure `startExecution`.
+- `lib/reviews.ts` — Workflow 1–4 five-stage review content and input defaults;
+  `APPROVABLE_WORKFLOW_KEYS` gates card Approve for WF1–4.
+- `lib/workflows/{optimize-product,replenish-inventory,clear-excess}/` — per-workflow
+  review stages and FBS timelines for listing/inventory Decision workflows.
 - `RecommendationsPanel` / `InProgressPanel` — Decisions tab panels composed by
   `RecommendationsView`.
 - `homeDestinations` / `demoSnapshot` — deterministic mock contracts used by Home.

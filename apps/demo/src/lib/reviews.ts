@@ -1,8 +1,30 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "./recommendations";
+import {
+  buildClearExcessReviewInputDefaults,
+  CLEAR_EXCESS_WORKFLOW_KEY,
+  getClearExcessReviewStages,
+} from "./workflows/clear-excess";
+import {
+  buildOptimizeProductReviewInputDefaults,
+  OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+  getOptimizeProductReviewStages,
+} from "./workflows/optimize-product";
+import {
+  buildReplenishInventoryReviewInputDefaults,
+  REPLENISH_INVENTORY_WORKFLOW_KEY,
+  getReplenishInventoryReviewStages,
+} from "./workflows/replenish-inventory";
 
 export const CREATE_HERO_PRODUCT_WORKFLOW_KEY = "create_hero_product_1";
+
+export const APPROVABLE_WORKFLOW_KEYS = [
+  CREATE_HERO_PRODUCT_WORKFLOW_KEY,
+  OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+  REPLENISH_INVENTORY_WORKFLOW_KEY,
+  CLEAR_EXCESS_WORKFLOW_KEY,
+] as const;
 
 const heroFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === CREATE_HERO_PRODUCT_WORKFLOW_KEY,
@@ -31,12 +53,38 @@ export function buildReviewInputDefaults(): Record<string, string> {
   };
 }
 
+export function buildReviewInputDefaultsForWorkflow(
+  workflowKey: string,
+): Record<string, string> {
+  switch (workflowKey) {
+    case CREATE_HERO_PRODUCT_WORKFLOW_KEY:
+      return buildReviewInputDefaults();
+    case OPTIMIZE_PRODUCT_WORKFLOW_KEY:
+      return buildOptimizeProductReviewInputDefaults();
+    case REPLENISH_INVENTORY_WORKFLOW_KEY:
+      return buildReplenishInventoryReviewInputDefaults();
+    case CLEAR_EXCESS_WORKFLOW_KEY:
+      return buildClearExcessReviewInputDefaults();
+    default:
+      return {};
+  }
+}
+
 export function getWorkflowReviewStages(
   workflowKey: string,
   analyticsMetricKey = defaultAnalyticsMetricKey,
 ): ReviewStageContent[] {
-  if (workflowKey !== CREATE_HERO_PRODUCT_WORKFLOW_KEY) {
-    return [];
+  switch (workflowKey) {
+    case OPTIMIZE_PRODUCT_WORKFLOW_KEY:
+      return getOptimizeProductReviewStages(analyticsMetricKey);
+    case REPLENISH_INVENTORY_WORKFLOW_KEY:
+      return getReplenishInventoryReviewStages(analyticsMetricKey);
+    case CLEAR_EXCESS_WORKFLOW_KEY:
+      return getClearExcessReviewStages(analyticsMetricKey);
+    case CREATE_HERO_PRODUCT_WORKFLOW_KEY:
+      break;
+    default:
+      return [];
   }
 
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;

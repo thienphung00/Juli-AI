@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 401,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "401-20260721T080554",
+  "startedAt": "2026-07-21T08:02:58Z",
+  "completedAt": "2026-07-21T08:21:30Z",
+  "executionDurationMs": 1112000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Task",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Read",
+      "count": 40,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 18,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 12,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 15,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 90,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-401.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+    "docs/product/design/Flows/decisions/recommendations/2-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/3-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/4-workflow.md",
+    "apps/demo/MODULE.md",
+    "GitHub issue #401"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/issue-workflow.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "packages/contracts/src/execution.ts",
+    "packages/contracts/src/__tests__/execution.test.ts",
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/lib/executions.ts",
+    "apps/demo/src/lib/workflows/optimize-product/review.ts",
+    "apps/demo/src/lib/workflows/optimize-product/execution.ts",
+    "apps/demo/src/lib/workflows/optimize-product/index.ts",
+    "apps/demo/src/lib/workflows/optimize-product/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/optimize-product/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/review.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/execution.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/index.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/clear-excess/review.ts",
+    "apps/demo/src/lib/workflows/clear-excess/execution.ts",
+    "apps/demo/src/lib/workflows/clear-excess/index.ts",
+    "apps/demo/src/lib/workflows/clear-excess/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/clear-excess/__tests__/execution.test.ts",
+    "apps/demo/src/components/recommendations-panel.tsx",
+    "apps/demo/src/components/recommendation-review.tsx",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/lib/__tests__/reviews.test.ts",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+    "apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx",
+    "apps/demo/MODULE.md"
+  ],
+  "testsAdded": [
+    "apps/demo/src/lib/workflows/optimize-product/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/optimize-product/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/__tests__/execution.test.ts",
+    "apps/demo/src/lib/workflows/clear-excess/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/clear-excess/__tests__/execution.test.ts",
+    "apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx",
+    "packages/contracts/src/__tests__/execution.test.ts::returns completed when a non-WF1 terminal outcome succeeded"
+  ],
+  "testsUpdated": [
+    "apps/demo/src/lib/__tests__/reviews.test.ts",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "red": "WF2 module unit tests failed \u2014 missing optimize-product modules",
+      "green": "Added optimize-product review+execution (11-step timeline, live-outcome); 13/13 pass",
+      "refactor": "Exported via index.ts; truthful FBT/margin-floor labels"
+    },
+    {
+      "cycle": 2,
+      "red": "WF3 module unit tests failed \u2014 missing replenish-inventory modules",
+      "green": "Added replenish-inventory review+execution (9-step timeline, reconciled-outcome); 10/10 pass",
+      "refactor": "Unresolved Supplier/ERP/PO and FBT scaffold labels preserved"
+    },
+    {
+      "cycle": 3,
+      "red": "WF4 module unit tests failed \u2014 missing clear-excess modules",
+      "green": "Added clear-excess review+execution (12-step timeline, cleared-outcome); 9/9 pass",
+      "refactor": "Flash Sale eligibility not fabricated; zero-floor stock explicit later step"
+    },
+    {
+      "cycle": 4,
+      "red": "Shared routers returned [] / threw for WF2\u20134; Approve disabled; lifecycle hardcoded listed-outcome",
+      "green": "Wired reviews/executions/panel/demo-state; generalized deriveLifecycleFromTimeline; 3 integration tests; 80 demo + 4 contracts tests pass",
+      "refactor": "APPROVABLE_WORKFLOW_KEYS registry; per-workflow defaults in review shell"
+    }
+  ],
+  "implementationSummary": "Extended Phase 2.6 Demo Decision shells for Workflows 2\u20134 (optimize product, replenish inventory, clear excess): isolated per-workflow review stages and FBS timelines, shared registry wiring, truthful Unresolved/FBT labels, Approve enabled for WF1\u20134, and one review\u2192approve\u2192In Progress integration test per workflow.",
+  "assumptions": [
+    "Shared RecommendationReview and In Progress shells remain workflow-agnostic once stages/timelines exist",
+    "Terminal lifecycle completion uses last outcome step by stepNumber rather than WF1-only listed-outcome id",
+    "Workflows 5\u20139 remain Approve-disabled until later slices"
+  ],
+  "risks": [
+    "packages/contracts lifecycle generalization is shared-core FE surface \u2014 coordinate if parallel contract PRs land",
+    "Demo timelines are mock screen-states; real TikTok waits/webhooks remain Phase 3"
+  ]
+}

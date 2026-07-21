@@ -216,10 +216,10 @@ describe("Decisions — Recommendations", () => {
     expect(analyticsLink).toHaveAttribute("href", "/analytics");
   });
 
-  it("renders Approve as disabled for workflows 2-9 with an associated explanation", () => {
+  it("renders Approve as disabled for workflows 5-9 with an associated explanation", () => {
     renderView();
 
-    recommendationFixtures.slice(1).forEach((fixture) => {
+    recommendationFixtures.slice(4).forEach((fixture) => {
       const card = findCard(fixture.workflowKey) as HTMLElement;
       const approveButton = within(card).getByRole("button", {
         name: "Phê duyệt",
@@ -237,24 +237,26 @@ describe("Decisions — Recommendations", () => {
     });
   });
 
-  it("enables Approve for Workflow 1 and routes to the review page", async () => {
+  it("enables Approve for Workflows 1-4 and routes to the review page", async () => {
     const user = userEvent.setup();
     renderView();
 
-    const workflowOne = recommendationFixtures[0];
-    const card = findCard(workflowOne.workflowKey) as HTMLElement;
-    const approveButton = within(card).getByRole("button", {
-      name: "Phê duyệt",
-    });
+    for (const fixture of recommendationFixtures.slice(0, 4)) {
+      push.mockClear();
+      const card = findCard(fixture.workflowKey) as HTMLElement;
+      const approveButton = within(card).getByRole("button", {
+        name: "Phê duyệt",
+      });
 
-    expect(approveButton).toBeEnabled();
-    expect(approveButton).not.toHaveAttribute("aria-describedby");
+      expect(approveButton).toBeEnabled();
+      expect(approveButton).not.toHaveAttribute("aria-describedby");
 
-    await user.click(approveButton);
+      await user.click(approveButton);
 
-    expect(push).toHaveBeenCalledWith(
-      `/decisions/recommendations/${workflowOne.workflowKey}`,
-    );
+      expect(push).toHaveBeenCalledWith(
+        `/decisions/recommendations/${fixture.workflowKey}`,
+      );
+    }
   });
 
   it("renders a recoverable error state and retries without leaving Decisions", async () => {
