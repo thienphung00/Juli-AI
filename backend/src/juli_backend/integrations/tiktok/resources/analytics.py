@@ -1,8 +1,8 @@
-"""TikTok Shop Analytics resource — thin GET wrappers (contract-collection A-31–A-39).
+"""TikTok Shop Analytics resource — thin GET wrappers (contract-collection A-28, A-31–A-39).
 
 Date-range queries use Partner API identifier catalog spellings:
 ``start_date_ge``, ``end_date_lt``, ``sku_id``, ``product_id``, ``date``, ``time_slot``.
-LIVE A-26–A-29 are intentionally omitted (reference-tier only).
+LIVE A-26/A-27/A-29 remain deferred; A-28 list is wired for poll ETL (#425).
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_API_VERSION,
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION,
     ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION,
@@ -194,3 +195,41 @@ class AnalyticsResource:
             "time_slot": time_slot,
         }
         return self._client.get(ANALYTICS_BESTSELLING_VIDEOS_PATH, params=params)
+
+    def list_live_performance(
+        self,
+        *,
+        start_date_ge: str,
+        end_date_lt: str,
+        page_size: int | None = None,
+        page_token: str | None = None,
+    ) -> dict[str, Any]:
+        """A-28 Get Shop LIVE Performance List."""
+        params = strip_nones({
+            "version": ANALYTICS_API_VERSION,
+            "start_date_ge": start_date_ge,
+            "end_date_lt": end_date_lt,
+            "page_size": str(page_size) if page_size is not None else None,
+            "page_token": page_token,
+        })
+        return self._client.get(ANALYTICS_LIVE_PERFORMANCE_LIST_PATH, params=params)
+
+    def list_live_performance_all(
+        self,
+        *,
+        start_date_ge: str,
+        end_date_lt: str,
+        page_size: int = 50,
+    ) -> list[dict[str, Any]]:
+        """A-28 paginated LIVE session list."""
+        params = {
+            "version": ANALYTICS_API_VERSION,
+            "start_date_ge": start_date_ge,
+            "end_date_lt": end_date_lt,
+        }
+        return self._client.get_all_pages_get(
+            ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
+            params=params,
+            items_key="live_stream_sessions",
+            page_size=page_size,
+        )

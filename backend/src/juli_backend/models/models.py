@@ -1,8 +1,18 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from juli_backend.orm_base import Base
@@ -395,6 +405,58 @@ class Livestream(Base):
             "shop_id",
             "tiktok_livestream_id",
             unique=True,
+        ),
+    )
+
+
+class AnalyticsPerformanceInterval(Base):
+    """Daily/hourly analytics performance snapshot from Partner API polls (#425)."""
+
+    __tablename__ = "analytics_performance_intervals"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    snapshot_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    grain: Mapped[str] = mapped_column(String(20), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date | None] = mapped_column(Date)
+    hour_index: Mapped[int | None] = mapped_column()
+    tiktok_product_id: Mapped[str | None] = mapped_column(String(100))
+    tiktok_sku_id: Mapped[str | None] = mapped_column(String(100))
+    tiktok_live_id: Mapped[str | None] = mapped_column(String(100))
+    gmv: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    gmv_currency: Mapped[str | None] = mapped_column(String(10))
+    ctr: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    click_through_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    click_order_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    click_to_order_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    sku_orders: Mapped[int | None] = mapped_column()
+    items_sold: Mapped[int | None] = mapped_column()
+    orders_count: Mapped[int | None] = mapped_column()
+    customers: Mapped[int | None] = mapped_column()
+    visitors: Mapped[int | None] = mapped_column()
+    impressions: Mapped[int | None] = mapped_column()
+    conversion_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    update_time: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_analytics_perf_shop_snapshot",
+            "shop_id",
+            "snapshot_key",
+            unique=True,
+        ),
+        Index(
+            "ix_analytics_perf_shop_grain_date",
+            "shop_id",
+            "grain",
+            "start_date",
         ),
     )
 

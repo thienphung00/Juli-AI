@@ -15,6 +15,7 @@ hand off validated payloads directly (no message bus). See [`EXECUTION.md`](../.
 - `ProcessOutcome` — `processed` | `duplicate` | `dlq`
 - `transform_for_channel(channel, payload)` — map payload to entity upsert kwargs
 - `RAW_CHANNELS`, `DLQ_CHANNEL` — routing constants in `channels.py`
+- Analytics ingest channels: `tiktok.analytics.{shop,product,sku,live}.raw` (#425)
 - `make_etl_handoff(consumer)` in `juli_backend.services.ingestion.handoff` — wires producers to
   `EtlConsumer.ingest`
 

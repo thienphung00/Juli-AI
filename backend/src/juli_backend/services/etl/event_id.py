@@ -43,6 +43,7 @@ def extract_event_id(*, channel: str, shop_key: str, payload: dict[str, Any]) ->
         or payload.get("creator_id")
         or payload.get("livestream_id")
         or payload.get("settlement_id")
+        or payload.get("snapshot_key")
     )
     version = payload.get("update_time") or payload.get("updated_at") or ""
     if entity_id is not None:

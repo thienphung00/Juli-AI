@@ -22,6 +22,7 @@ from typing import Any
 from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
@@ -37,6 +38,14 @@ from juli_backend.integrations.tiktok.constants import (
 )
 from juli_backend.integrations.tiktok.exceptions import PermissionDeniedError, TikTokAPIError
 from juli_backend.integrations.tiktok.mapping import (
+    analytics_snapshot_key,
+    expand_analytics_live_session,
+    expand_analytics_product_detail,
+    expand_analytics_product_list_item,
+    expand_analytics_shop_performance,
+    expand_analytics_shop_performance_per_hour,
+    expand_analytics_sku_detail,
+    expand_analytics_sku_list_item,
     expand_inventory_search,
     expand_order_line_items,
     normalize_creator,
@@ -61,6 +70,43 @@ def _inventory_snapshot_event_id(shop_id: str, payload: dict[str, Any]) -> str:
     )
     digest = hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
     return f"poll-inventory:{shop_id}:{payload.get('sku_id')}:{digest}"
+
+
+_ANALYTICS_CHANNEL_BY_GRAIN = {
+    "shop": "tiktok.analytics.shop.raw",
+    "product": "tiktok.analytics.product.raw",
+    "sku": "tiktok.analytics.sku.raw",
+    "live": "tiktok.analytics.live.raw",
+}
+
+
+def _analytics_event_id(shop_id: str, payload: dict[str, Any]) -> str:
+    snapshot_key = payload.get("snapshot_key")
+    if not snapshot_key:
+        snapshot_key = analytics_snapshot_key(
+            grain=str(payload.get("grain") or ""),
+            start_date=str(payload.get("start_date") or ""),
+            end_date=str(payload["end_date"]) if payload.get("end_date") else None,
+            hour_index=payload.get("hour_index"),
+            product_id=str(payload["product_id"]) if payload.get("product_id") else None,
+            sku_id=str(payload["sku_id"]) if payload.get("sku_id") else None,
+            live_id=str(payload["live_id"]) if payload.get("live_id") else None,
+        )
+    update_time = payload.get("update_time", "")
+    return f"poll-analytics:{shop_id}:{snapshot_key}:{update_time}"
+
+
+async def _handoff_analytics_rows(
+    handoff_fn: HandoffFn,
+    shop_id: str,
+    rows: list[dict[str, Any]],
+) -> None:
+    for row in rows:
+        channel = _ANALYTICS_CHANNEL_BY_GRAIN.get(str(row.get("grain")))
+        if channel is None:
+            continue
+        row.setdefault("event_id", _analytics_event_id(shop_id, row))
+        await handoff_fn(channel, shop_id, json.dumps(row).encode())
 
 
 async def sync_orders(
@@ -349,12 +395,11 @@ async def sync_analytics(
     Invokes A-31–A-34, A-36–A-39 with ``start_date_ge`` / ``end_date_lt`` (or
     ``date`` / ``time_slot``) and Redis ``RateLimiter`` acquire per endpoint.
     A-25 Get Activity runs when ``promotion_activity_ids`` is present in
-    ``sync_state``. LIVE A-26–A-29 are not wired.
+    ``sync_state``. LIVE A-28 list sessions hand off via
+    ``expand_analytics_live_session`` (#425).
 
-    Analytics ETL persistence is intentionally out of scope — this worker only
-    updates ``tiktok_sync_state`` watermarks after successful fetches.
+    Analytics ETL persistence hands normalized rows to ingest channels (#425).
     """
-    del handoff_fn  # reserved for downstream Analytics ETL child issue
     start_date_ge, end_date_lt, day = _analytics_date_window(now=now)
     synced_at = int((now or datetime.now(UTC)).timestamp())
 
@@ -388,14 +433,45 @@ async def sync_analytics(
                 if not _acquire(
                     rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
                 ):
+                    list_row = expand_analytics_sku_list_item(
+                        sku,
+                        start_date=start_date_ge,
+                        end_date=end_date_lt,
+                        synced_at=synced_at,
+                    )
+                    if list_row is not None:
+                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                     break
                 try:
-                    resource.get_sku_performance(
+                    detail = resource.get_sku_performance(
                         sku_id=str(sku_id),
                         start_date_ge=start_date_ge,
                         end_date_lt=end_date_lt,
                     )
+                    if isinstance(detail, dict):
+                        await _handoff_analytics_rows(
+                            handoff_fn,
+                            shop_id,
+                            expand_analytics_sku_detail(detail, synced_at=synced_at),
+                        )
+                    else:
+                        list_row = expand_analytics_sku_list_item(
+                            sku,
+                            start_date=start_date_ge,
+                            end_date=end_date_lt,
+                            synced_at=synced_at,
+                        )
+                        if list_row is not None:
+                            await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                 except TikTokAPIError:
+                    list_row = expand_analytics_sku_list_item(
+                        sku,
+                        start_date=start_date_ge,
+                        end_date=end_date_lt,
+                        synced_at=synced_at,
+                    )
+                    if list_row is not None:
+                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                     logger.warning(
                         "sync_analytics_sku_detail_failed",
                         extra={"shop_id": shop_id, "sku_id": sku_id},
@@ -432,14 +508,49 @@ async def sync_analytics(
                 if not _acquire(
                     rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
                 ):
+                    list_row = expand_analytics_product_list_item(
+                        product,
+                        start_date=start_date_ge,
+                        end_date=end_date_lt,
+                        synced_at=synced_at,
+                    )
+                    if list_row is not None:
+                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                     break
                 try:
-                    resource.get_product_performance(
+                    detail = resource.get_product_performance(
                         product_id=str(product_id),
                         start_date_ge=start_date_ge,
                         end_date_lt=end_date_lt,
                     )
+                    if isinstance(detail, dict):
+                        await _handoff_analytics_rows(
+                            handoff_fn,
+                            shop_id,
+                            expand_analytics_product_detail(
+                                detail,
+                                synced_at=synced_at,
+                                product_id=str(product_id),
+                            ),
+                        )
+                    else:
+                        list_row = expand_analytics_product_list_item(
+                            product,
+                            start_date=start_date_ge,
+                            end_date=end_date_lt,
+                            synced_at=synced_at,
+                        )
+                        if list_row is not None:
+                            await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                 except TikTokAPIError:
+                    list_row = expand_analytics_product_list_item(
+                        product,
+                        start_date=start_date_ge,
+                        end_date=end_date_lt,
+                        synced_at=synced_at,
+                    )
+                    if list_row is not None:
+                        await _handoff_analytics_rows(handoff_fn, shop_id, [list_row])
                     logger.warning(
                         "sync_analytics_product_detail_failed",
                         extra={"shop_id": shop_id, "product_id": product_id},
@@ -450,14 +561,57 @@ async def sync_analytics(
         rate_limiter,
         app_id=app_id,
         shop_id=shop_id,
+        endpoint=ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
+    ):
+        try:
+            live_sessions = resource.list_live_performance_all(
+                start_date_ge=start_date_ge,
+                end_date_lt=end_date_lt,
+            )
+        except TikTokAPIError:
+            logger.warning(
+                "sync_analytics_live_list_failed",
+                extra={"shop_id": shop_id},
+                exc_info=True,
+            )
+            live_sessions = None
+        if isinstance(live_sessions, list):
+            live_rows: list[dict[str, Any]] = []
+            for session in live_sessions:
+                if not isinstance(session, dict):
+                    continue
+                row = expand_analytics_live_session(
+                    session,
+                    start_date=start_date_ge,
+                    end_date=end_date_lt,
+                    synced_at=synced_at,
+                )
+                if row is not None:
+                    live_rows.append(row)
+            if live_rows:
+                await _handoff_analytics_rows(handoff_fn, shop_id, live_rows)
+                sync_state["shop_live_performance_last_sync_at"] = synced_at
+
+    if _acquire(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_id,
         endpoint=ANALYTICS_SHOP_PERFORMANCE_PATH,
     ):
         try:
-            resource.get_shop_performance(
+            shop_performance = resource.get_shop_performance(
                 start_date_ge=start_date_ge,
                 end_date_lt=end_date_lt,
             )
             sync_state["shop_performance_last_sync_at"] = synced_at
+            if isinstance(shop_performance, dict):
+                await _handoff_analytics_rows(
+                    handoff_fn,
+                    shop_id,
+                    expand_analytics_shop_performance(
+                        shop_performance, synced_at=synced_at
+                    ),
+                )
         except TikTokAPIError:
             logger.warning(
                 "sync_analytics_shop_performance_failed",
@@ -470,8 +624,16 @@ async def sync_analytics(
         rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path
     ):
         try:
-            resource.get_shop_performance_per_hour(date=day)
+            per_hour = resource.get_shop_performance_per_hour(date=day)
             sync_state["shop_performance_per_hour_last_sync_at"] = synced_at
+            if isinstance(per_hour, dict):
+                await _handoff_analytics_rows(
+                    handoff_fn,
+                    shop_id,
+                    expand_analytics_shop_performance_per_hour(
+                        per_hour, date=day, synced_at=synced_at
+                    ),
+                )
         except TikTokAPIError:
             logger.warning(
                 "sync_analytics_shop_performance_per_hour_failed",

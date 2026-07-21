@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-425",
+  "issue": 425,
+  "timestamp": "2026-07-21T05:16:56Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main (working tree; HEAD has no commits beyond main)",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Re-review after Executor fix pass. Prior CRITICALs resolved: expand_analytics_product_detail includes product_id in snapshot keys; A-28 live list \u2192 expand_analytics_live_session \u2192 tiktok.analytics.live.raw wired. ACs met (idempotent upserts, metrics without fabrication, DLQ taxonomy, integration poll\u2192handoff\u2192Postgres). Residual partials: product grain not in integration test path; A-26/A-27/A-29 unwired (A-28 covers live grain).",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "hunk": "SKU/product detail loops repeat rate-limit / detail-fetch / list-fallback",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Divergent Change",
+      "path": "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "hunk": "Large analytics expander block in commerce mapping module",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Data Clumps",
+      "path": "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "hunk": "grain + date window + entity ids recur; mitigated by _base_analytics_payload",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "database/MODULE.md \u2014 public interface",
+      "path": "backend/src/juli_backend/database/MODULE.md",
+      "note": "AnalyticsPerformanceInterval / AnalyticsPerformanceRepo still omitted from MODULE public API",
+      "blocksMerge": false
+    },
+    {
+      "standard": "polling/MODULE.md \u2014 Key Behaviors",
+      "path": "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "note": "Still says LIVE A-26\u2013A-29 not wired while A-28 is wired in sync.py",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": null
+}
