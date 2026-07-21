@@ -1,6 +1,14 @@
 """Rules-based copy layer — deterministic templates from advisory signals (#304).
 
 Phase 2: rules-only ``copy_source: rules``. Cloud LLM deferred to Phase 4.
+
+Issue #427 (P2-B2 ext): After #428 enables Ads analytics KPI signals (CTR live;
+ROAS/CAC when spend denominators are present), **no additional template branches
+are required**. ``why`` is assembled from linked ``AdvisorySignal.one_line``
+values (visual_layer risk/opportunity text from ``signals.py``); ``next_steps``
+remain static per workflow key — Ads workflows already reference ROAS/CAC.
+Contract coverage: ``TestAdsKpiLinkedCopyContract`` in
+``tests/unit/test_rules_copy_layer_contract.py``.
 """
 
 from __future__ import annotations

@@ -1,7 +1,8 @@
-"""Issue #304 — P2-B2 rules-based copy layer contract tests.
+"""Issue #304 / #427 — P2-B2 rules-based copy layer contract tests.
 
 AC1 → copy generated from rule signals without Ollama/Claude
 AC2 → template catalog documented (MODULE.md + WORKFLOW_COPY_TEMPLATE_KEYS)
+#427 → Ads KPI-linked recommendations emit rules copy with signal one_line in why
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.models.models import Order, Product, Return, Shop, User
+from juli_backend.services.aggregates.computed_kpis import ComputedKpiMetrics
 from juli_backend.services.aggregates.types import (
     FeatureAggregateSnapshot,
     HealthDataSource,
@@ -81,6 +83,84 @@ def _mid_large_snapshot() -> FeatureAggregateSnapshot:
     )
 
 
+def _snapshot_with_computed_kpis(**kpi_overrides: object) -> FeatureAggregateSnapshot:
+    defaults: dict[str, object] = {
+        "total_units_sold_30d": 0,
+        "avg_on_hand_inventory": None,
+        "sku_count_with_inventory": 0,
+        "stockout_sku_count": 0,
+        "orders_with_ship_time_30d": 0,
+        "orders_fulfilled_without_seller_fault_30d": 0,
+        "orders_at_sla_risk_count": 0,
+        "seller_fault_order_count_30d": 0,
+        "order_items_count_30d": 0,
+        "top_category_name": None,
+        "unique_buyers_30d": 10,
+        "repeat_buyers_30d": 0,
+        "return_rate_30d": None,
+        "inventory_turnover": None,
+        "dsi_days": None,
+        "stockout_rate": None,
+        "fulfillment_accuracy_rate": None,
+        "seller_fault_cancellation_rate": None,
+        "conversion_rate_by_category": None,
+        "repeat_purchase_rate": None,
+        "after_sales_handling_time_hours": None,
+        "csat_proxy_score": None,
+        "shop_traffic_conversion_rate": None,
+        "analytics_shop_gmv_30d": None,
+        "analytics_product_gmv_30d": None,
+        "analytics_sku_gmv_30d": None,
+        "analytics_weighted_product_ctr": None,
+        "promotion_activity_partition_present": False,
+        "analytics_revenue_denominator": None,
+        "analytics_spend_denominator": None,
+    }
+    defaults.update(kpi_overrides)
+    return FeatureAggregateSnapshot(
+        shop_id=uuid.uuid4(),
+        shop_profile=ShopProfile.MID_LARGE_SHOP,
+        health_data_source=HealthDataSource.PROXY,
+        sps_score=None,
+        vp_score=None,
+        ahr_score=None,
+        order_count=5,
+        product_count=2,
+        return_count=1,
+        total_order_value=Decimal("450000"),
+        total_product_revenue=Decimal("1000000"),
+        total_units_sold=50,
+        return_rate_proxy=0.2,
+        data_sources=["orders", "products", "returns", "analytics_performance_intervals"],
+        computed_kpis=ComputedKpiMetrics(**defaults),  # type: ignore[arg-type]
+    )
+
+
+_FIXED_AT = datetime(2026, 7, 12, 8, 0, tzinfo=UTC)
+
+
+def _ads_kpi_linked_copy(
+    kpi_id: str,
+    **kpi_overrides: object,
+) -> tuple[WorkflowReasoningCopy, str, str]:
+    """Build rules copy for the first recommendation linked to an Ads KPI."""
+    snapshot = _snapshot_with_computed_kpis(**kpi_overrides)
+    signals = compute_scoring_signals(snapshot, computed_at=_FIXED_AT, products=[])
+    signal = signals.kpis[kpi_id]
+    assert signal.signal_type != "unavailable", f"{kpi_id} must emit live signal"
+
+    recommendations = rank_workflow_recommendations(ShopProfile.MID_LARGE_SHOP, signals)
+    linked = [
+        item
+        for item in recommendations.recommended_workflows
+        if kpi_id in item.source_kpi_ids
+    ]
+    assert linked, f"expected workflow recommendation linked to {kpi_id}"
+
+    copy = build_workflow_reasoning_copy(linked[0], signals)
+    return copy, signal.one_line, linked[0].workflow_key
+
+
 class TestNoLlmImportsInCopyLayer:
     def test_copy_layer_module_has_no_llm_provider_imports(self):
         imports = _import_names_from_module(COPY_LAYER_PATH)
@@ -123,6 +203,84 @@ class TestTemplateCatalogCoverage:
         assert "Template catalog" in text
         for key in sorted(WORKFLOW_COPY_TEMPLATE_KEYS):
             assert key in text
+
+
+class TestAdsKpiLinkedCopyContract:
+    """Issue #427 — live Ads KPI signals produce rules copy without new templates."""
+
+    @pytest.mark.parametrize(
+        ("kpi_id", "kpi_overrides", "why_fragment", "workflow_key"),
+        [
+            (
+                "ctr",
+                {"analytics_weighted_product_ctr": 0.012},
+                "CTR 1.2%",
+                "create_activity_7a",
+            ),
+            (
+                "ctr",
+                {"analytics_weighted_product_ctr": 0.035},
+                "CTR 3.5%",
+                "create_activity_7a",
+            ),
+            (
+                "roas",
+                {
+                    "promotion_activity_partition_present": True,
+                    "analytics_spend_denominator": 1_000_000.0,
+                    "analytics_revenue_denominator": 1_500_000.0,
+                },
+                "ROAS 1.5x",
+                "create_activity_7a",
+            ),
+            (
+                "roas",
+                {
+                    "promotion_activity_partition_present": True,
+                    "analytics_spend_denominator": 1_000_000.0,
+                    "analytics_revenue_denominator": 3_000_000.0,
+                },
+                "ROAS 3.0x",
+                "create_activity_7a",
+            ),
+            (
+                "cac",
+                {
+                    "promotion_activity_partition_present": True,
+                    "analytics_spend_denominator": 6_000_000.0,
+                    "unique_buyers_30d": 10,
+                },
+                "CAC 600,000",
+                "delete_activity_7b",
+            ),
+            (
+                "cac",
+                {
+                    "promotion_activity_partition_present": True,
+                    "analytics_spend_denominator": 2_000_000.0,
+                    "unique_buyers_30d": 10,
+                },
+                "CAC 200,000",
+                "delete_activity_7b",
+            ),
+        ],
+    )
+    def test_ads_kpi_linked_recommendation_emits_rules_copy(
+        self,
+        kpi_id: str,
+        kpi_overrides: dict[str, object],
+        why_fragment: str,
+        workflow_key: str,
+    ):
+        copy, one_line, linked_workflow = _ads_kpi_linked_copy(kpi_id, **kpi_overrides)
+
+        assert copy.copy_source == COPY_SOURCE_RULES
+        assert linked_workflow == workflow_key
+        assert one_line in copy.why
+        assert why_fragment in copy.why
+        assert len(copy.next_steps) >= 2
+        joined_steps = " ".join(copy.next_steps)
+        assert "ROAS" in joined_steps or "CAC" in joined_steps or "quảng cáo" in joined_steps
 
 
 class TestCopyReferencesOnlySourceSignals:

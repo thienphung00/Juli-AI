@@ -1,0 +1,148 @@
+{
+  "reviewedBy": "guardrails skill",
+  "phaseRunId": "427-20260721T065303",
+  "status": "PASS_WITH_WARNINGS",
+  "summary": "Issue #427 Ads copy templates (P2-B2 ext): intent-review spec_fidelity=pass consumed as given. Documented no-op \u2014 existing rules copy already satisfies Ads KPI advisory via linked one_line + static workflow next_steps; no template branches added. 13/13 contract tests pass (6 new parametrized Ads KPI cases). No CRITICAL reliability/security/observability/performance gaps in deterministic scoring copy paths. Non-blocking intent-review smells (duplicated test fixture, dual doc surfaces) acknowledged ship-as-is.",
+  "criticalFindings": [
+    {
+      "id": "427-smell-duplicated-test-fixture",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "tests/unit/test_rules_copy_layer_contract.py",
+      "description": "Intent-review smell (non-blocking): _snapshot_with_computed_kpis duplicates helpers in test_daily_batch_scoring_contract.py.",
+      "suggestion": "Extract shared computed-KPI snapshot fixture to conftest on next scoring test touch.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Local helper keeps #427 contract tests self-contained; duplication is test-only and does not affect production copy_layer behavior."
+    },
+    {
+      "id": "427-smell-dual-doc-surfaces",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "description": "Intent-review smell (non-blocking): Divergent Change \u2014 #427 no-op rationale documented in both copy_layer module docstring and MODULE.md.",
+      "suggestion": "Prefer MODULE.md as authority; keep module docstring to a one-line pointer if doc drift becomes noisy.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Both surfaces currently aligned on the same no-op decision; MODULE.md is the module authority per convention note; acceptable for a documentation-only slice."
+    },
+    {
+      "id": "427-convention-dry-fixtures",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_rules_copy_layer_contract.py",
+      "description": "Intent-review convention note: Nearly identical _snapshot_with_computed_kpis already in test_daily_batch_scoring_contract.py; prefer shared conftest later.",
+      "suggestion": "Consolidate computed-KPI snapshot builders when either test module is next edited."
+    },
+    {
+      "id": "427-convention-module-authority",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/MODULE.md",
+      "description": "Intent-review convention note: Copy-layer #427 no-op documented in the right MODULE.md section.",
+      "suggestion": "No action required \u2014 documentation placement matches module authority pattern."
+    },
+    {
+      "id": "427-convention-kiss-no-op",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "description": "Intent-review convention note: No new template branches \u2014 correctly defers to one_line + static workflow keys.",
+      "suggestion": "No action required \u2014 KISS no-op decision validated by TestAdsKpiLinkedCopyContract."
+    },
+    {
+      "id": "427-executor-roas-cac-fixture-scope",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_rules_copy_layer_contract.py",
+      "description": "Executor note: ROAS/CAC copy contract paths use unit-level spend denominator fixtures; production ROAS/CAC remain spend-gated per #428 ETL scope.",
+      "suggestion": "Re-run contract tests against production spend ETL fixtures when promotion spend persistence lands."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/scoring/copy_layer.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "tests/unit/test_rules_copy_layer_contract.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "interface": "build_workflow_reasoning_copy (copy_layer module doc)",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Documentation-only #427 no-op rationale; copy generation logic unchanged; copy_source remains rules."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "copy layer module has no llm provider imports rules",
+          "test": "tests/unit/test_rules_copy_layer_contract.py::test_copy_layer_module_has_no_llm_provider_imports"
+        },
+        {
+          "criterion": "ads kpi linked recommendation emits rules copy for roas cac ctr",
+          "test": "tests/unit/test_rules_copy_layer_contract.py::test_ads_kpi_linked_recommendation_emits_rules_copy"
+        },
+        {
+          "criterion": "build workflow reasoning copy returns rules envelope shape",
+          "test": "tests/unit/test_rules_copy_layer_contract.py::test_build_workflow_reasoning_copy_returns_rules_envelope"
+        },
+        {
+          "criterion": "scoring MODULE documents copy layer no-op templates",
+          "test": "backend/src/juli_backend/services/scoring/MODULE.md"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 13,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Extract shared computed-KPI snapshot fixture to conftest when consolidating scoring contract tests.",
+    "Keep MODULE.md and copy_layer docstring aligned on no-op rationale; trim module docstring if dual surfaces drift.",
+    "Re-verify ROAS/CAC copy contracts against production spend ETL when promotion spend persistence lands."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review spec_fidelity=pass; all 4 ACs mapped; 13/13 contract tests pass. Accepted ship-as-is for duplicated test fixture and dual doc surfaces (documentation-only slice).",
+    "timestamp": "2026-07-21T07:05:00Z",
+    "acceptedRisks": true,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "Acknowledged WARNING findings; Ads KPI-linked rules copy verified by parametrized contract tests; no-op decision documented in MODULE.md and copy_layer docstring.",
+    "timestamp": "2026-07-21T07:05:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-427.json",
+  "reviewBasis": "working tree vs 74c4d463 on feature/issue-427-ads-copy-templates",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-427.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 2,
+    "conventionNotesImported": 3,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "severity": "low"
+}
