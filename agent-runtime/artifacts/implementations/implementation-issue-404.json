@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 404,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "404-20260721T104924",
+  "startedAt": "2026-07-21T11:00:22Z",
+  "completedAt": "2026-07-21T11:00:22Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-404.json",
+    "docs/product/design/Screens/analytics.md",
+    "docs/product/design/Flows/analytics/dashboard.md",
+    "docs/ml/visual_layer.md",
+    "dictionary.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/src/app/analytics/page.tsx",
+    "apps/demo/src/app/analytics/[metricKey]/page.tsx",
+    "apps/demo/src/app/globals.css",
+    "apps/demo/src/components/analytics-charts.tsx",
+    "apps/demo/src/components/analytics-dashboard.tsx",
+    "apps/demo/src/components/analytics-kpi-card.tsx",
+    "apps/demo/src/components/demo-shell.tsx",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/lib/analytics/main-kpis.ts",
+    "apps/demo/src/lib/analytics/mock-data.ts"
+  ],
+  "testsAdded": [
+    {
+      "path": "apps/demo/src/lib/analytics/__tests__/main-kpis.test.ts",
+      "acceptanceCriteria": [
+        "Exactly six Main KPIs render as one hero plus five cards; Net Revenue and 30 days are defaults",
+        "SPS, ROAS, and CSAT remain visible, unavailable, non-selectable, and never show fake zero/fixture data",
+        "Available KPI selection performs a literal hero/card swap and updates browser history"
+      ]
+    },
+    {
+      "path": "apps/demo/src/lib/analytics/__tests__/mock-data.test.ts",
+      "acceptanceCriteria": [
+        "Net Revenue, Inventory Turnover, and Fulfillment Accuracy Rate use documented mock charts and values",
+        "Range updates hero and available previews transactionally; comparison affects hero only",
+        "Provenance, freshness, related Decision deep links, invalid deep links, loading, partial, and error states meet the screen contract"
+      ]
+    },
+    {
+      "path": "apps/demo/src/__tests__/analytics-dashboard.test.tsx",
+      "acceptanceCriteria": [
+        "Exactly six Main KPIs render as one hero plus five cards; Net Revenue and 30 days are defaults",
+        "Net Revenue, Inventory Turnover, and Fulfillment Accuracy Rate use documented mock charts and values",
+        "SPS, ROAS, and CSAT remain visible, unavailable, non-selectable, and never show fake zero/fixture data",
+        "Available KPI selection performs a literal hero/card swap and updates browser history",
+        "Range updates hero and available previews transactionally; comparison affects hero only",
+        "Provenance, freshness, related Decision deep links, invalid deep links, loading, partial, and error states meet the screen contract",
+        "Manual Refresh restores Net Revenue, 30 days, and comparison off",
+        "Charts have accessible text equivalents and responsive/reduced-motion behavior"
+      ]
+    }
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "acceptanceCriterion": "Six Main KPI catalog and defaults",
+      "red": "main-kpis.test.ts failed before lib/analytics/main-kpis.ts existed",
+      "green": "MAIN_KPI_ORDER length 6; DEFAULT_METRIC_KEY net-revenue; DEFAULT_ANALYTICS_RANGE 30d",
+      "refactor": "Extracted selector helper getSelectorMetricKeys"
+    },
+    {
+      "acceptanceCriterion": "Mock snapshots for available KPIs",
+      "red": "mock-data.test.ts failed before fixture generators",
+      "green": "Range-scoped snapshots with provenance and workflow deep links",
+      "refactor": "Shared time-series builders for preview/hero parity"
+    },
+    {
+      "acceptanceCriterion": "Analytics dashboard UI and interactions",
+      "red": "analytics-dashboard.test.tsx failed against placeholder pages",
+      "green": "Hero/card swap, range chips, comparison toggle, invalid deep link, error retry",
+      "refactor": "Split charts into analytics-charts.tsx; URL/state sync only on routeMetricKey change"
+    }
+  ],
+  "implementationSummary": "Implemented six-KPI Analytics dashboard in apps/demo with hero/card literal swap, range and comparison controls, unavailable KPI popovers, mock fixture data for three available KPIs, and comprehensive vitest coverage mapped to P2-6 acceptance criteria.",
+  "assumptions": [
+    "Manual Refresh navigation to /decisions unmounts Analytics before URL prop can re-sync mutable analyticsMetric",
+    "Fulfillment Accuracy gauge uses @juli/ui ProgressBar meter per Phase 2.6 demo scope"
+  ],
+  "risks": [
+    "Parallel #405 may append demo-state keys; merge should preserve analyticsComparisonEnabled"
+  ]
+}
