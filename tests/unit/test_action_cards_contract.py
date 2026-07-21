@@ -35,7 +35,6 @@ from juli_backend.models.models import (
     TikTokSyncState,
     User,
 )
-from juli_backend.services.aggregates.types import HealthDataSource, ShopLifecycleContext
 
 
 @pytest_asyncio.fixture
