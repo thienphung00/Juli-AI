@@ -14,7 +14,7 @@ shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 - `sync_products(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `sync_returns(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `sync_inventory(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — Search Inventory full-snapshot backstop; flattens nested SKUs before `tiktok.inventory.raw` handoff
-- `sync_analytics(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state, promotion_resource=None)` — Analytics GET wire set (A-31–A-39) + optional A-25; date-window + pagination; sync_state watermarks only (no ETL)
+- `sync_analytics(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state, promotion_resource=None)` — Analytics GET wire set (A-31–A-39) + optional A-25; date-window + pagination; hands normalized rows to ETL (#425) and updates sync_state watermarks
 - `sync_creators(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `backfill_shop(*, creators_resource, rate_limiter, handoff_fn, app_id, shop_id)`
 

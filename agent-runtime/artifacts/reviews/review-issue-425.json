@@ -1,0 +1,429 @@
+{
+  "id": "review-issue-425",
+  "issue": 425,
+  "timestamp": "2026-07-21T05:18:07Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS_WITH_WARNINGS",
+  "summary": "Issue #425 analytics ETL re-review: intent-review spec_fidelity=pass consumed as given. Prior CRITICAL product_detail snapshot_key collision and live grain unwiring verified fixed. All 4 ACs mapped to tests. No new CRITICAL reliability/security/observability/performance gaps; RLS on new table; DLQ/idempotency paths tested. Non-blocking smells/convention notes and poll fan-out/sync_state warnings imported.",
+  "criticalFindings": [
+    {
+      "id": "425-smell-duplicated-code",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Intent-review smell (non-blocking): SKU and product detail loops repeat rate-limit / detail-fetch / list-fallback blocks.",
+      "suggestion": "Optional: extract shared list+detail handoff helper in a follow-up.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Structural duplication is non-blocking per intent-review; behavior is tested and correct for Fujiwa MVP catalog sizes."
+    },
+    {
+      "id": "425-smell-divergent-change",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "description": "Intent-review smell (non-blocking): large analytics expander block added to commerce mapping module.",
+      "suggestion": "Consider analytics-specific mapping submodule if module grows further.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Co-location with existing TikTok normalizers is acceptable for P2-A2 slice; split deferred."
+    },
+    {
+      "id": "425-smell-data-clumps",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "description": "Intent-review smell (non-blocking): grain + date window + entity ids recur across expanders; mitigated by _base_analytics_payload.",
+      "suggestion": "Keep _base_analytics_payload as shared helper; revisit if more grains added.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "_base_analytics_payload already centralizes snapshot_key construction; acceptable for current grain set."
+    },
+    {
+      "id": "425-convention-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: AnalyticsPerformanceInterval / AnalyticsPerformanceRepo not listed in database MODULE public API.",
+      "suggestion": "Add model/repo to MODULE.md Public Interface after schema stabilizes."
+    },
+    {
+      "id": "425-convention-polling-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "description": "Intent-review convention note: MODULE still says LIVE A-26\u2013A-29 not wired while A-28 live session list is wired in sync.py.",
+      "suggestion": "Update polling MODULE Key Behaviors to reflect A-28 live handoff wiring."
+    },
+    {
+      "id": "425-sync-state-before-handoff",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Reliability: sync_state watermarks (shop_sku_performance_last_sync_at, shop_product_performance_last_sync_at) are set before per-entity detail handoffs complete; mid-cycle rate-limit break skips remaining catalog.",
+      "suggestion": "Advance sync_state only after successful handoff batch; log skipped entity count when rate limit breaks the fan-out loop.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Matches #424 poll watermark pattern; Fujiwa read-only catalog is small; partial progress preferable to stalling entire poll on tail SKU/product failures."
+    },
+    {
+      "id": "425-unbounded-detail-fanout",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Performance: sync_analytics issues one detail GET per SKU/product under 10/min RateLimiter \u2014 large catalogs extend poll duration and may leave tail entities unprocessed when acquire fails.",
+      "suggestion": "Monitor Fujiwa fan-out; consider cursor/resume or capped batch handoffs if catalog size grows.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "RateLimiter + list-row fallback already bound worst-case behavior; list fallback preserves partial metrics for rate-limited entities."
+    },
+    {
+      "id": "425-silent-grain-skip",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Observability: _handoff_analytics_rows silently continues when grain is unknown (no log/metric).",
+      "suggestion": "Log warning with grain value when channel lookup misses.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Expanders only emit known grains today; silent skip is defensive for malformed payloads routed through same helper."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/database/migrations/versions/017_analytics_performance_intervals.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+    "backend/src/juli_backend/services/etl/channels.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "backend/src/juli_backend/services/etl/consumer.py",
+    "backend/src/juli_backend/services/etl/event_id.py",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "tests/integration/test_analytics_poll_etl_upsert.py",
+    "tests/unit/test_analytics_etl_normalizers.py",
+    "tests/unit/test_analytics_poll_cycle.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/models/models.py",
+      "interface": "AnalyticsPerformanceInterval",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Canonical analytics_performance_intervals table with unique (shop_id, snapshot_key) upsert key."
+    },
+    {
+      "module": "backend/src/juli_backend/repositories/repos.py",
+      "interface": "AnalyticsPerformanceRepo",
+      "changeType": "added",
+      "breaking": false,
+      "description": "ShopScopedRepo upsert by snapshot_key with update_time staleness guard."
+    },
+    {
+      "module": "backend/src/juli_backend/services/etl/channels.py",
+      "interface": "ANALYTICS_CHANNELS / tiktok.analytics.*.raw",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Four analytics ingest channels merged into RAW_CHANNELS."
+    },
+    {
+      "module": "backend/src/juli_backend/services/etl/transform.py",
+      "interface": "_transform_analytics / transform_for_channel",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Maps normalized poll payloads to analytics_performance upsert kwargs; DLQ on missing start_date."
+    },
+    {
+      "module": "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+      "interface": "AnalyticsResource.list_live_performance_all",
+      "changeType": "added",
+      "breaking": false,
+      "description": "A-28 live session list pagination helper for sync_analytics handoff."
+    },
+    {
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "interface": "sync_analytics",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Hands off shop/sku/product/live normalized rows to ETL; product_detail passes product_id; A-28 live sessions wired."
+    }
+  ],
+  "moduleDrift": true,
+  "driftDetails": [
+    {
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "note": "AnalyticsPerformanceInterval / AnalyticsPerformanceRepo not in public interface list."
+    },
+    {
+      "module": "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "note": "LIVE wiring docs stale relative to A-28 handoff in sync.py."
+    }
+  ],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Idempotent upserts keyed by shop + grain + date window (product_id, sku_id, live_id per identifier catalog)",
+          "test": "tests/unit/test_analytics_etl_normalizers.py::test_analytics_snapshot_key_includes_grain_date_and_entity_ids"
+        },
+        {
+          "criterion": "Maps analytics metrics (gmv, ctr, click_through_rate, sku_orders, etc.) without fabricating missing fields",
+          "test": "tests/unit/test_analytics_etl_normalizers.py::test_expand_shop_performance_maps_metrics_without_fabrication"
+        },
+        {
+          "criterion": "DLQ / error taxonomy consistent with existing ETL consumer",
+          "test": "tests/integration/test_analytics_poll_etl_upsert.py::test_analytics_etl_dlq_error_taxonomy"
+        },
+        {
+          "criterion": "Integration test: poll fixture \u2192 handoff \u2192 Postgres row",
+          "test": "tests/integration/test_analytics_poll_etl_upsert.py::test_analytics_poll_handoff_persists_shop_and_sku_rows"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 27,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Update polling/MODULE.md to document A-28 live session handoff wiring.",
+    "Add database/MODULE.md public API entry for AnalyticsPerformanceRepo when schema stabilizes.",
+    "Monitor Fujiwa poll fan-out under RateLimiter; log unknown grains if expanders diverge."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review spec_fidelity=pass; prior product_detail collision and live unwiring verified fixed. Guardrails found no CRITICAL gaps. Accepted ship-as-is for sync_state watermark timing, detail fan-out, silent grain skip, and non-blocking structure smells. Security: RLS on analytics_performance_intervals; logs use platform IDs only.",
+    "timestamp": "2026-07-21T05:20:00Z",
+    "acceptedRisks": true,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "Acknowledged WARNING findings; all four acceptance criteria mapped to unit/integration tests.",
+    "timestamp": "2026-07-21T05:20:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [
+    {
+      "id": "425-product-detail-snapshot-collision",
+      "resolved": true,
+      "resolution": "expand_analytics_product_detail includes product_id in snapshot_key; sync loop passes product_id kwarg; unit test asserts distinct keys for prod-a vs prod-b."
+    },
+    {
+      "id": "425-spec-fidelity-live-unwired",
+      "resolved": true,
+      "resolution": "A-28 list_live_performance_all wired to expand_analytics_live_session \u2192 tiktok.analytics.live.raw; integration test asserts live handoff and Postgres row."
+    }
+  ],
+  "phaseRunId": "425-20260721T050607",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-425.json",
+  "reviewBasis": "working tree on feature/issue-425-analytics-etl-normalizers; fixedPoint origin/main=6fd909bf5096ddad71332c08364a9a0ac55390f3",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-425.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 3,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "425-smell-duplicated-code",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Intent-review smell (non-blocking): SKU and product detail loops repeat rate-limit / detail-fetch / list-fallback blocks.",
+      "suggestion": "Optional: extract shared list+detail handoff helper in a follow-up.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Structural duplication is non-blocking per intent-review; behavior is tested and correct for Fujiwa MVP catalog sizes."
+    },
+    {
+      "id": "425-smell-divergent-change",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "description": "Intent-review smell (non-blocking): large analytics expander block added to commerce mapping module.",
+      "suggestion": "Consider analytics-specific mapping submodule if module grows further.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Co-location with existing TikTok normalizers is acceptable for P2-A2 slice; split deferred."
+    },
+    {
+      "id": "425-smell-data-clumps",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "description": "Intent-review smell (non-blocking): grain + date window + entity ids recur across expanders; mitigated by _base_analytics_payload.",
+      "suggestion": "Keep _base_analytics_payload as shared helper; revisit if more grains added.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "_base_analytics_payload already centralizes snapshot_key construction; acceptable for current grain set."
+    },
+    {
+      "id": "425-convention-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: AnalyticsPerformanceInterval / AnalyticsPerformanceRepo not listed in database MODULE public API.",
+      "suggestion": "Add model/repo to MODULE.md Public Interface after schema stabilizes."
+    },
+    {
+      "id": "425-convention-polling-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "description": "Intent-review convention note: MODULE still says LIVE A-26\u2013A-29 not wired while A-28 live session list is wired in sync.py.",
+      "suggestion": "Update polling MODULE Key Behaviors to reflect A-28 live handoff wiring."
+    },
+    {
+      "id": "425-sync-state-before-handoff",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Reliability: sync_state watermarks (shop_sku_performance_last_sync_at, shop_product_performance_last_sync_at) are set before per-entity detail handoffs complete; mid-cycle rate-limit break skips remaining catalog.",
+      "suggestion": "Advance sync_state only after successful handoff batch; log skipped entity count when rate limit breaks the fan-out loop.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Matches #424 poll watermark pattern; Fujiwa read-only catalog is small; partial progress preferable to stalling entire poll on tail SKU/product failures."
+    },
+    {
+      "id": "425-unbounded-detail-fanout",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Performance: sync_analytics issues one detail GET per SKU/product under 10/min RateLimiter \u2014 large catalogs extend poll duration and may leave tail entities unprocessed when acquire fails.",
+      "suggestion": "Monitor Fujiwa fan-out; consider cursor/resume or capped batch handoffs if catalog size grows.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "RateLimiter + list-row fallback already bound worst-case behavior; list fallback preserves partial metrics for rate-limited entities."
+    },
+    {
+      "id": "425-silent-grain-skip",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Observability: _handoff_analytics_rows silently continues when grain is unknown (no log/metric).",
+      "suggestion": "Log warning with grain value when channel lookup misses.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Expanders only emit known grains today; silent skip is defensive for malformed payloads routed through same helper."
+    }
+  ],
+  "severity": "medium",
+  "securityFindings": [],
+  "architectureFindings": [
+    {
+      "id": "425-convention-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: AnalyticsPerformanceInterval / AnalyticsPerformanceRepo not listed in database MODULE public API.",
+      "suggestion": "Add model/repo to MODULE.md Public Interface after schema stabilizes."
+    },
+    {
+      "id": "425-convention-polling-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "description": "Intent-review convention note: MODULE still says LIVE A-26\u2013A-29 not wired while A-28 live session list is wired in sync.py.",
+      "suggestion": "Update polling MODULE Key Behaviors to reflect A-28 live handoff wiring."
+    }
+  ],
+  "maintainabilityFindings": [
+    {
+      "id": "425-convention-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: AnalyticsPerformanceInterval / AnalyticsPerformanceRepo not listed in database MODULE public API.",
+      "suggestion": "Add model/repo to MODULE.md Public Interface after schema stabilizes."
+    },
+    {
+      "id": "425-convention-polling-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "description": "Intent-review convention note: MODULE still says LIVE A-26\u2013A-29 not wired while A-28 live session list is wired in sync.py.",
+      "suggestion": "Update polling MODULE Key Behaviors to reflect A-28 live handoff wiring."
+    },
+    {
+      "id": "425-sync-state-before-handoff",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Reliability: sync_state watermarks (shop_sku_performance_last_sync_at, shop_product_performance_last_sync_at) are set before per-entity detail handoffs complete; mid-cycle rate-limit break skips remaining catalog.",
+      "suggestion": "Advance sync_state only after successful handoff batch; log skipped entity count when rate limit breaks the fan-out loop.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Matches #424 poll watermark pattern; Fujiwa read-only catalog is small; partial progress preferable to stalling entire poll on tail SKU/product failures."
+    },
+    {
+      "id": "425-unbounded-detail-fanout",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Performance: sync_analytics issues one detail GET per SKU/product under 10/min RateLimiter \u2014 large catalogs extend poll duration and may leave tail entities unprocessed when acquire fails.",
+      "suggestion": "Monitor Fujiwa fan-out; consider cursor/resume or capped batch handoffs if catalog size grows.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "RateLimiter + list-row fallback already bound worst-case behavior; list fallback preserves partial metrics for rate-limited entities."
+    },
+    {
+      "id": "425-silent-grain-skip",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "description": "Observability: _handoff_analytics_rows silently continues when grain is unknown (no log/metric).",
+      "suggestion": "Log warning with grain value when channel lookup misses.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Expanders only emit known grains today; silent skip is defensive for malformed payloads routed through same helper."
+    }
+  ],
+  "suggestedRemediation": [
+    "Optional: extract shared list+detail handoff helper in a follow-up.",
+    "Consider analytics-specific mapping submodule if module grows further.",
+    "Keep _base_analytics_payload as shared helper; revisit if more grains added.",
+    "Add model/repo to MODULE.md Public Interface after schema stabilizes.",
+    "Update polling MODULE Key Behaviors to reflect A-28 live handoff wiring.",
+    "Advance sync_state only after successful handoff batch; log skipped entity count when rate limit breaks the fan-out loop.",
+    "Monitor Fujiwa fan-out; consider cursor/resume or capped batch handoffs if catalog size grows.",
+    "Log warning with grain value when channel lookup misses."
+  ]
+}

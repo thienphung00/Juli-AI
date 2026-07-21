@@ -421,3 +421,394 @@ def normalize_inventory(raw: dict[str, Any]) -> dict[str, Any]:
             result["product_id"] = product_id
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Analytics performance normalizers (#425)
+# ---------------------------------------------------------------------------
+
+
+def analytics_snapshot_key(
+    *,
+    grain: str,
+    start_date: str,
+    end_date: str | None = None,
+    hour_index: int | None = None,
+    product_id: str | None = None,
+    sku_id: str | None = None,
+    live_id: str | None = None,
+) -> str:
+    """Deterministic idempotency key: shop + grain + date window + entity ids."""
+    return "|".join(
+        [
+            grain,
+            start_date,
+            end_date or "",
+            str(hour_index) if hour_index is not None else "",
+            product_id or "",
+            sku_id or "",
+            live_id or "",
+        ]
+    )
+
+
+def _extract_gmv(value: Any) -> tuple[Any, Any]:
+    if not isinstance(value, dict):
+        return None, None
+    target = value.get("overall") if isinstance(value.get("overall"), dict) else value
+    amount = target.get("amount")
+    if amount is None:
+        return None, None
+    currency = target.get("currency")
+    return amount, currency
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_rate(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        cleaned = value.strip().rstrip("%")
+        return cleaned or None
+    return value
+
+
+def _base_analytics_payload(
+    *,
+    grain: str,
+    start_date: str,
+    end_date: str | None,
+    synced_at: int,
+    product_id: str | None = None,
+    sku_id: str | None = None,
+    live_id: str | None = None,
+    hour_index: int | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "grain": grain,
+        "start_date": start_date,
+        "update_time": synced_at,
+        "snapshot_key": analytics_snapshot_key(
+            grain=grain,
+            start_date=start_date,
+            end_date=end_date,
+            hour_index=hour_index,
+            product_id=product_id,
+            sku_id=sku_id,
+            live_id=live_id,
+        ),
+    }
+    if end_date:
+        payload["end_date"] = end_date
+    if product_id:
+        payload["product_id"] = str(product_id)
+    if sku_id:
+        payload["sku_id"] = str(sku_id)
+    if live_id:
+        payload["live_id"] = str(live_id)
+    if hour_index is not None:
+        payload["hour_index"] = hour_index
+    return payload
+
+
+def _merge_metrics(payload: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
+    for key, value in metrics.items():
+        if value is not None:
+            payload[key] = value
+    return payload
+
+
+def expand_analytics_shop_performance(
+    data: dict[str, Any], *, synced_at: int
+) -> list[dict[str, Any]]:
+    performance = data.get("performance") if isinstance(data, dict) else None
+    intervals = performance.get("intervals") if isinstance(performance, dict) else None
+    if not isinstance(intervals, list):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for interval in intervals:
+        if not isinstance(interval, dict):
+            continue
+        start_date = interval.get("start_date")
+        if not start_date:
+            continue
+        end_date = interval.get("end_date")
+        sales = interval.get("sales") if isinstance(interval.get("sales"), dict) else {}
+        traffic = (
+            interval.get("traffic") if isinstance(interval.get("traffic"), dict) else {}
+        )
+        gmv_amount, gmv_currency = _extract_gmv(sales.get("gmv"))
+        payload = _base_analytics_payload(
+            grain="shop",
+            start_date=str(start_date),
+            end_date=str(end_date) if end_date else None,
+            synced_at=synced_at,
+        )
+        _merge_metrics(
+            payload,
+            {
+                "gmv": gmv_amount,
+                "gmv_currency": gmv_currency,
+                "orders_count": _optional_int(sales.get("orders_count")),
+                "sku_orders": _optional_int(sales.get("sku_orders_count")),
+                "items_sold": _optional_int(sales.get("items_sold")),
+                "visitors": _optional_int(traffic.get("avg_visitors")),
+                "conversion_rate": _optional_rate(traffic.get("avg_conversation_rate")),
+            },
+        )
+        rows.append(payload)
+    return rows
+
+
+def expand_analytics_shop_performance_per_hour(
+    data: dict[str, Any], *, date: str, synced_at: int
+) -> list[dict[str, Any]]:
+    performance = data.get("performance") if isinstance(data, dict) else None
+    intervals = performance.get("intervals") if isinstance(performance, dict) else None
+    if not isinstance(intervals, list):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for interval in intervals:
+        if not isinstance(interval, dict):
+            continue
+        hour_index = _optional_int(interval.get("index"))
+        if hour_index is None:
+            continue
+        gmv_amount, gmv_currency = _extract_gmv(interval.get("gmv"))
+        payload = _base_analytics_payload(
+            grain="shop",
+            start_date=date,
+            end_date=None,
+            synced_at=synced_at,
+            hour_index=hour_index,
+        )
+        _merge_metrics(
+            payload,
+            {
+                "gmv": gmv_amount,
+                "gmv_currency": gmv_currency,
+                "items_sold": _optional_int(interval.get("items_sold")),
+                "visitors": _optional_int(interval.get("visitors")),
+                "customers": _optional_int(interval.get("customers")),
+            },
+        )
+        rows.append(payload)
+    return rows
+
+
+def expand_analytics_sku_list_item(
+    item: dict[str, Any],
+    *,
+    start_date: str,
+    end_date: str,
+    synced_at: int,
+) -> dict[str, Any] | None:
+    sku_id = item.get("id") or item.get("sku_id")
+    if not sku_id:
+        return None
+    gmv_amount, gmv_currency = _extract_gmv(item.get("gmv"))
+    payload = _base_analytics_payload(
+        grain="sku",
+        start_date=start_date,
+        end_date=end_date,
+        synced_at=synced_at,
+        sku_id=str(sku_id),
+        product_id=str(item["product_id"]) if item.get("product_id") else None,
+    )
+    return _merge_metrics(
+        payload,
+        {
+            "gmv": gmv_amount,
+            "gmv_currency": gmv_currency,
+            "sku_orders": _optional_int(item.get("sku_orders")),
+            "items_sold": _optional_int(item.get("units_sold") or item.get("items_sold")),
+        },
+    )
+
+
+def expand_analytics_sku_detail(
+    data: dict[str, Any], *, synced_at: int
+) -> list[dict[str, Any]]:
+    performance = data.get("performance") if isinstance(data, dict) else None
+    if not isinstance(performance, dict):
+        return []
+    sku_id = performance.get("sku_id") or performance.get("id")
+    product_id = performance.get("product_id")
+    intervals = performance.get("intervals")
+    if not isinstance(intervals, list):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for interval in intervals:
+        if not isinstance(interval, dict):
+            continue
+        start_date = interval.get("start_date")
+        if not start_date:
+            continue
+        end_date = interval.get("end_date")
+        gmv_amount, gmv_currency = _extract_gmv(interval.get("gmv"))
+        payload = _base_analytics_payload(
+            grain="sku",
+            start_date=str(start_date),
+            end_date=str(end_date) if end_date else None,
+            synced_at=synced_at,
+            sku_id=str(sku_id) if sku_id else None,
+            product_id=str(product_id) if product_id else None,
+        )
+        _merge_metrics(
+            payload,
+            {
+                "gmv": gmv_amount,
+                "gmv_currency": gmv_currency,
+                "sku_orders": _optional_int(interval.get("sku_orders")),
+                "items_sold": _optional_int(interval.get("items_sold")),
+            },
+        )
+        rows.append(payload)
+    return rows
+
+
+def expand_analytics_product_list_item(
+    item: dict[str, Any],
+    *,
+    start_date: str,
+    end_date: str,
+    synced_at: int,
+) -> dict[str, Any] | None:
+    product_id = item.get("id") or item.get("product_id")
+    if not product_id:
+        return None
+    total = item.get("total_performance")
+    if not isinstance(total, dict):
+        return None
+    gmv_amount, gmv_currency = _extract_gmv(total.get("gmv"))
+    payload = _base_analytics_payload(
+        grain="product",
+        start_date=start_date,
+        end_date=end_date,
+        synced_at=synced_at,
+        product_id=str(product_id),
+    )
+    return _merge_metrics(
+        payload,
+        {
+            "gmv": gmv_amount,
+            "gmv_currency": gmv_currency,
+            "orders_count": _optional_int(total.get("orders")),
+            "sku_orders": _optional_int(total.get("sku_orders")),
+            "items_sold": _optional_int(total.get("items_sold")),
+            "customers": _optional_int(total.get("estimated_customers")),
+            "ctr": _optional_rate(total.get("ctr")),
+            "click_order_rate": _optional_rate(total.get("click_order_rate")),
+        },
+    )
+
+
+def expand_analytics_product_detail(
+    data: dict[str, Any], *, synced_at: int, product_id: str | None = None
+) -> list[dict[str, Any]]:
+    performance = data.get("performance") if isinstance(data, dict) else None
+    intervals = performance.get("intervals") if isinstance(performance, dict) else None
+    if not isinstance(intervals, list):
+        return []
+
+    resolved_product_id = product_id
+    if resolved_product_id is None and isinstance(performance, dict):
+        raw_product_id = performance.get("product_id")
+        if raw_product_id:
+            resolved_product_id = str(raw_product_id)
+
+    rows: list[dict[str, Any]] = []
+    for interval in intervals:
+        if not isinstance(interval, dict):
+            continue
+        start_date = interval.get("start_date")
+        if not start_date:
+            continue
+        end_date = interval.get("end_date")
+        sales = interval.get("sales") if isinstance(interval.get("sales"), dict) else {}
+        traffic = (
+            interval.get("traffic") if isinstance(interval.get("traffic"), dict) else {}
+        )
+        gmv_amount, gmv_currency = _extract_gmv(sales.get("gmv"))
+        ctr = None
+        traffic_breakdowns = traffic.get("breakdowns")
+        if isinstance(traffic_breakdowns, list) and traffic_breakdowns:
+            first = traffic_breakdowns[0]
+            if isinstance(first, dict):
+                nested = first.get("traffic")
+                if isinstance(nested, dict):
+                    ctr = _optional_rate(nested.get("ctr"))
+        payload = _base_analytics_payload(
+            grain="product",
+            start_date=str(start_date),
+            end_date=str(end_date) if end_date else None,
+            synced_at=synced_at,
+            product_id=resolved_product_id,
+        )
+        _merge_metrics(
+            payload,
+            {
+                "gmv": gmv_amount,
+                "gmv_currency": gmv_currency,
+                "orders_count": _optional_int(sales.get("orders")),
+                "items_sold": _optional_int(sales.get("items_sold")),
+                "ctr": ctr,
+            },
+        )
+        rows.append(payload)
+    return rows
+
+
+def expand_analytics_live_session(
+    session: dict[str, Any],
+    *,
+    start_date: str,
+    end_date: str,
+    synced_at: int,
+) -> dict[str, Any] | None:
+    live_id = session.get("id") or session.get("live_id")
+    if not live_id:
+        return None
+    sales = (
+        session.get("sales_performance")
+        if isinstance(session.get("sales_performance"), dict)
+        else {}
+    )
+    interaction = (
+        session.get("interaction_performance")
+        if isinstance(session.get("interaction_performance"), dict)
+        else {}
+    )
+    gmv_amount, gmv_currency = _extract_gmv(sales.get("gmv"))
+    payload = _base_analytics_payload(
+        grain="live",
+        start_date=start_date,
+        end_date=end_date,
+        synced_at=synced_at,
+        live_id=str(live_id),
+    )
+    return _merge_metrics(
+        payload,
+        {
+            "gmv": gmv_amount,
+            "gmv_currency": gmv_currency,
+            "sku_orders": _optional_int(sales.get("sku_orders")),
+            "items_sold": _optional_int(sales.get("items_sold")),
+            "customers": _optional_int(sales.get("customers")),
+            "click_through_rate": _optional_rate(interaction.get("click_through_rate")),
+            "click_to_order_rate": _optional_rate(sales.get("click_to_order_rate")),
+            "impressions": _optional_int(interaction.get("product_impressions")),
+            "visitors": _optional_int(interaction.get("viewers")),
+        },
+    )

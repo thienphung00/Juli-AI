@@ -19,6 +19,7 @@ from juli_backend.models.models import (
     ActionCard,
     AlertConfig,
     AlertHistory,
+    AnalyticsPerformanceInterval,
     Campaign,
     Creator,
     GraphEdge,
@@ -597,6 +598,11 @@ class CreatorsRepo(ShopScopedRepo[Creator]):
 class LivestreamsRepo(ShopScopedRepo[Livestream]):
     _model = Livestream
     _lookup_attr = "tiktok_livestream_id"
+
+
+class AnalyticsPerformanceRepo(ShopScopedRepo[AnalyticsPerformanceInterval]):
+    _model = AnalyticsPerformanceInterval
+    _lookup_attr = "snapshot_key"
 
 
 class AlertConfigsRepo(ShopScopedRepo[AlertConfig]):

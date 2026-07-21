@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 425,
+  "executorDomain": "backend",
+  "phaseRunId": "425-20260721T050607",
+  "startedAt": "2026-07-21T05:00:00Z",
+  "completedAt": "2026-07-21T05:45:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 24, "stage": "implementation"},
+    {"toolName": "Grep", "count": 12, "stage": "implementation"},
+    {"toolName": "Glob", "count": 3, "stage": "implementation"},
+    {"toolName": "Write", "count": 5, "stage": "green"},
+    {"toolName": "StrReplace", "count": 32, "stage": "green"},
+    {"toolName": "Shell", "count": 8, "stage": "green"},
+    {"toolName": "UpdateCurrentStep", "count": 6, "stage": "other"}
+  ],
+  "toolInvocationCount": 90,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-425.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-425.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/workflow-cache/meta-prepare-issue-425.json",
+    "agent-runtime/artifacts/intent-reviews/intent-review-issue-425.json",
+    "agent-runtime/artifacts/reviews/review-issue-425.json",
+    "agent-runtime/artifacts/validation/validation-issue-425.json",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "backend/src/juli_backend/database/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "docs/integrations/tiktok_api/contract-collection.md",
+    "tests/integration/test_inventory_poll_etl_upsert.py",
+    "tests/unit/test_analytics_resource.py"
+  ],
+  "skillsLoaded": [
+    "backend"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/database/migrations/versions/017_analytics_performance_intervals.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+    "backend/src/juli_backend/services/etl/channels.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "backend/src/juli_backend/services/etl/consumer.py",
+    "backend/src/juli_backend/services/etl/event_id.py",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "tests/integration/test_analytics_poll_etl_upsert.py",
+    "tests/unit/test_analytics_etl_normalizers.py",
+    "tests/unit/test_analytics_poll_cycle.py"
+  ],
+  "testsAdded": [
+    "tests/integration/test_analytics_poll_etl_upsert.py",
+    "tests/unit/test_analytics_etl_normalizers.py"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_analytics_poll_etl_upsert.py",
+    "tests/unit/test_analytics_etl_normalizers.py",
+    "tests/unit/test_analytics_poll_cycle.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ImportError: AnalyticsPerformanceRepo missing; no analytics handoff channels",
+      "passingTestEvidence": "Integration test poll fixture → shop+sku handoff → Postgres rows",
+      "commands": [
+        {
+          "command": "python -m pytest tests/integration/test_analytics_poll_etl_upsert.py::test_analytics_poll_handoff_persists_shop_and_sku_rows -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "AssertionError: duplicate event_id when list+detail handoffs shared snapshot_key",
+      "passingTestEvidence": "Prefer detail handoff; list fallback only on rate-limit/API failure",
+      "commands": [
+        {
+          "command": "python -m pytest tests/integration/test_analytics_poll_etl_upsert.py -q",
+          "exitCode": 0,
+          "outputSummary": "3 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — idempotency + DLQ behaviors added while green",
+      "passingTestEvidence": "Duplicate ingest → ProcessOutcome.DUPLICATE; missing start_date → DLQ",
+      "commands": [
+        {
+          "command": "python -m pytest tests/integration/test_analytics_poll_etl_upsert.py tests/unit/test_analytics_etl_normalizers.py -q",
+          "exitCode": 0,
+          "outputSummary": "8 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A — regression sweep while green",
+      "passingTestEvidence": "Existing analytics poll + ETL suites remain green",
+      "commands": [
+        {
+          "command": "python -m pytest tests/integration/test_analytics_poll_etl_upsert.py tests/unit/test_analytics_etl_normalizers.py tests/unit/test_analytics_poll_cycle.py tests/unit/test_etl.py -q",
+          "exitCode": 0,
+          "outputSummary": "25 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 5,
+      "failingTestEvidence": "AssertionError: product_detail rows for prod-a vs prod-b shared snapshot_key; missing product_id",
+      "passingTestEvidence": "expand_analytics_product_detail accepts product_id kwarg; sync_analytics passes product_id from poll loop",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_analytics_etl_normalizers.py::test_expand_product_detail_includes_product_id_in_snapshot_key -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 6,
+      "failingTestEvidence": "Integration test expected tiktok.analytics.live.raw handoff + live Postgres row; sync_analytics had no LIVE wiring",
+      "passingTestEvidence": "A-28 list_live_performance_all → expand_analytics_live_session → tiktok.analytics.live.raw; AnalyticsResource list methods added",
+      "commands": [
+        {
+          "command": "python -m pytest tests/integration/test_analytics_poll_etl_upsert.py tests/unit/test_analytics_etl_normalizers.py tests/unit/test_analytics_poll_cycle.py tests/unit/test_etl.py -q",
+          "exitCode": 0,
+          "outputSummary": "27 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #425 fix pass: product_detail snapshot keys now include product_id (from performance payload or sync loop kwarg) preventing upsert collisions. LIVE A-28 poll wired via list_live_performance_all → expand_analytics_live_session → tiktok.analytics.live.raw with sync_state watermark after successful handoff. Prior shop/sku/product ETL + idempotent upserts unchanged.",
+  "assumptions": [
+    "A-26 minute, A-27 live-product, and A-29 overview endpoints remain unwired — A-28 session list satisfies live grain handoff AC via expand_analytics_live_session",
+    "Bestselling A-38/A-39 responses are rank snapshots, not interval performance — excluded from analytics_performance_intervals",
+    "end_date_lt from poll window stored as end_date string on handoff rows for idempotency key alignment"
+  ],
+  "risks": [
+    "LIVE A-28 paths still rejected by production-read allowlist (#424) — Fujiwa poll may not call live APIs until allowlist updated",
+    "Large SKU/product catalogs may produce many detail handoffs per poll cycle under the 10/min rate limiter",
+    "Shop per-hour rows share grain=shop with daily rows but differ by hour_index in snapshot_key — consumers must filter by hour_index when querying"
+  ]
+}

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
 from juli_backend.integrations.tiktok.mapping import (
+    analytics_snapshot_key,
     normalize_creator,
     normalize_inventory,
     normalize_livestream,
@@ -15,7 +16,7 @@ from juli_backend.integrations.tiktok.mapping import (
     normalize_return,
     normalize_statement,
 )
-from juli_backend.services.etl.channels import RAW_CHANNELS
+from juli_backend.services.etl.channels import ANALYTICS_CHANNELS, RAW_CHANNELS
 
 TransformError = ValueError
 
@@ -292,6 +293,101 @@ def _transform_settlement(body: dict[str, Any], payload: dict[str, Any]) -> dict
     }
 
 
+def _optional_decimal(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        cleaned = value.strip().rstrip("%")
+        if not cleaned:
+            return None
+        try:
+            return Decimal(cleaned)
+        except (TypeError, ValueError):
+            return None
+    try:
+        return Decimal(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_date(value: Any) -> date:
+    if isinstance(value, date):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError as exc:
+            raise TransformError(f"invalid date: {value}") from exc
+    raise TransformError(f"invalid date type: {type(value)}")
+
+
+def _transform_analytics(body: dict[str, Any]) -> dict[str, Any]:
+    grain = body.get("grain")
+    start_date = body.get("start_date")
+    if not grain or not start_date:
+        raise TransformError("grain and start_date required")
+
+    snapshot_key = body.get("snapshot_key")
+    if not snapshot_key:
+        snapshot_key = analytics_snapshot_key(
+            grain=str(grain),
+            start_date=str(start_date),
+            end_date=str(body["end_date"]) if body.get("end_date") else None,
+            hour_index=body.get("hour_index"),
+            product_id=str(body["product_id"]) if body.get("product_id") else None,
+            sku_id=str(body["sku_id"]) if body.get("sku_id") else None,
+            live_id=str(body["live_id"]) if body.get("live_id") else None,
+        )
+
+    result: dict[str, Any] = {
+        "snapshot_key": snapshot_key,
+        "grain": str(grain),
+        "start_date": _parse_date(start_date),
+        "update_time": _unix_to_datetime(body.get("update_time")),
+    }
+    if body.get("end_date"):
+        result["end_date"] = _parse_date(body["end_date"])
+    if body.get("hour_index") is not None:
+        result["hour_index"] = _coerce_int(body["hour_index"])
+    if body.get("product_id") is not None:
+        result["tiktok_product_id"] = str(body["product_id"])
+    if body.get("sku_id") is not None:
+        result["tiktok_sku_id"] = str(body["sku_id"])
+    if body.get("live_id") is not None:
+        result["tiktok_live_id"] = str(body["live_id"])
+
+    metric_fields = {
+        "gmv": _optional_decimal,
+        "gmv_currency": lambda v: str(v) if v is not None else None,
+        "ctr": _optional_decimal,
+        "click_through_rate": _optional_decimal,
+        "click_order_rate": _optional_decimal,
+        "click_to_order_rate": _optional_decimal,
+        "conversion_rate": _optional_decimal,
+        "sku_orders": _optional_int,
+        "items_sold": _optional_int,
+        "orders_count": _optional_int,
+        "customers": _optional_int,
+        "visitors": _optional_int,
+        "impressions": _optional_int,
+    }
+    for field, parser in metric_fields.items():
+        if field not in body:
+            continue
+        parsed = parser(body[field])
+        if parsed is not None:
+            result[field] = parsed
+    return result
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return _coerce_int(value)
+
+
 def _channel_allowed(channel: str) -> bool:
     return channel in RAW_CHANNELS or channel.startswith("tiktok.")
 
@@ -304,6 +400,9 @@ def transform_for_channel(
         raise TransformError(f"unsupported channel: {channel}")
 
     body = _unwrap_webhook(payload)
+
+    if channel in ANALYTICS_CHANNELS:
+        return "analytics_performance", _transform_analytics(body)
 
     if (
         channel == "tiktok.orders.raw"

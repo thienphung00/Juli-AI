@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import Order, OrderItem
 from juli_backend.repositories.repos import (
+    AnalyticsPerformanceRepo,
     CreatorsRepo,
     InventoryRepo,
     LivestreamsRepo,
@@ -88,6 +89,7 @@ class EtlConsumer:
         self._creators = CreatorsRepo(session)
         self._livestreams = LivestreamsRepo(session)
         self._settlements = SettlementsRepo(session)
+        self._analytics_performance = AnalyticsPerformanceRepo(session)
         self._shop_states: dict[str, _ShopState] = {}
 
     def _shop_state(self, shop_key: str) -> _ShopState:
@@ -208,6 +210,7 @@ class EtlConsumer:
             "creator": self._creators,
             "livestream": self._livestreams,
             "settlement": self._settlements,
+            "analytics_performance": self._analytics_performance,
         }
         repo = repos.get(entity_kind)
         if repo is None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,6 +14,7 @@ from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
@@ -129,6 +129,7 @@ def mock_resources():
     }
     analytics.get_bestselling_products.return_value = {"products": []}
     analytics.get_bestselling_videos.return_value = {"videos": []}
+    analytics.list_live_performance_all.return_value = []
     resources.analytics = analytics
 
     promotion = MagicMock()
@@ -153,6 +154,7 @@ class TestSyncAnalytics:
         resource.get_shop_performance_per_hour.return_value = {"performance": {}}
         resource.get_bestselling_products.return_value = {"products": []}
         resource.get_bestselling_videos.return_value = {"videos": []}
+        resource.list_live_performance_all.return_value = []
         promotion = MagicMock()
         promotion.get_activity.return_value = {"activity_id": "act-1"}
         sync_state: dict = {"promotion_activity_ids": ["act-1"]}
@@ -199,6 +201,10 @@ class TestSyncAnalytics:
             date="2026-07-13",
             time_slot="1D",
         )
+        resource.list_live_performance_all.assert_called_once_with(
+            start_date_ge="2026-07-13",
+            end_date_lt="2026-07-14",
+        )
         promotion.get_activity.assert_called_once_with("act-1")
 
         assert "shop_sku_performance_last_sync_at" in sync_state
@@ -220,6 +226,7 @@ class TestSyncAnalytics:
         assert analytics_shop_performance_per_hour_path("2026-07-13") in acquired_endpoints
         assert ANALYTICS_BESTSELLING_PRODUCTS_PATH in acquired_endpoints
         assert ANALYTICS_BESTSELLING_VIDEOS_PATH in acquired_endpoints
+        assert ANALYTICS_LIVE_PERFORMANCE_LIST_PATH in acquired_endpoints
         assert promotion_activity_path("act-1") in acquired_endpoints
 
     @pytest.mark.asyncio
@@ -244,36 +251,45 @@ class TestSyncAnalytics:
         assert sync_state == {}
 
     @pytest.mark.asyncio
-    async def test_does_not_wire_live_analytics_endpoints(
-        self, mock_rate_limiter, handoff_fn
-    ):
-        from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
-        from juli_backend.workers.services.polling import sync as sync_mod
+    async def test_wires_live_analytics_handoff(self, mock_rate_limiter, handoff_fn):
+        handoffs: list[tuple[str, str, bytes]] = []
+
+        async def capture(channel: str, shop_key: str, value: bytes) -> None:
+            handoffs.append((channel, shop_key, value))
 
         resource = MagicMock()
         resource.list_sku_performance_all.return_value = []
         resource.list_product_performance_all.return_value = []
+        resource.list_live_performance_all.return_value = [
+            {
+                "id": "live-99",
+                "sales_performance": {
+                    "gmv": {"amount": "10.00", "currency": "VND"},
+                    "sku_orders": 1,
+                },
+                "interaction_performance": {"click_through_rate": "1.00%"},
+            }
+        ]
         resource.get_shop_performance.return_value = {}
         resource.get_shop_performance_per_hour.return_value = {}
         resource.get_bestselling_products.return_value = {}
         resource.get_bestselling_videos.return_value = {}
 
+        sync_state: dict = {}
         await sync_analytics(
             resource=resource,
             promotion_resource=MagicMock(),
             rate_limiter=mock_rate_limiter,
-            handoff_fn=handoff_fn,
+            handoff_fn=capture,
             app_id=APP_KEY,
             shop_id=PRODUCTION_AUTH_ID,
-            sync_state={},
+            sync_state=sync_state,
             now=datetime(2026, 7, 14, 12, 0, tzinfo=timezone.utc),
         )
 
-        live_methods = [name for name in dir(AnalyticsResource) if "live" in name.lower()]
-        assert live_methods == []
-        sync_source = Path(sync_mod.__file__).read_text(encoding="utf-8")
-        assert "shop_lives" not in sync_source
-        assert "live_rooms" not in sync_source
+        live_handoffs = [h for h in handoffs if h[0] == "tiktok.analytics.live.raw"]
+        assert len(live_handoffs) == 1
+        assert sync_state.get("shop_live_performance_last_sync_at") is not None
 
 
 class TestRunFujiwaPollCycleAnalytics:
@@ -304,6 +320,7 @@ class TestRunFujiwaPollCycleAnalytics:
         mock_resources.analytics.get_shop_performance.assert_called()
         mock_resources.analytics.get_bestselling_products.assert_called()
         mock_resources.analytics.get_bestselling_videos.assert_called()
+        mock_resources.analytics.list_live_performance_all.assert_called()
 
         # Rate limiter consulted for analytics endpoints (backoff + acquire).
         assert mock_rate_limiter.is_exhausted.called
