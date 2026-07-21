@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-426",
+  "issue": 426,
+  "timestamp": "2026-07-21T06:00:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "8524a37b0c386717aa92a102a87d1324853ec8cf",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Working-tree vs HEAD (#426 scope only). Issue #426 P2-A3: builder reads analytics_performance_intervals + tiktok_sync_state; SYNCED_DATA_SOURCES and snapshot.data_sources updated; A-36 shop conversion, A-34/A-32 GMV+CTR rollups, A-25 promotion watermark join for revenue denominator implemented in computed_kpis.py with inline formula docs; no ML. Null policy returns None when analytics partition missing (test_null_when_analytics_partition_missing). Spend denominator intentionally null until promotion ETL slice — documented in MODULE.md and compute_promotion_efficiency_denominators. types.py listed in issue ownership but ComputedKpiMetrics lives in computed_kpis.py per #374 pattern — acceptable.",
+  "smells": [
+    {
+      "name": "Feature Envy",
+      "path": "backend/src/juli_backend/services/aggregates/builder.py",
+      "hunk": "builder extracts ad_revenue_total from computed_kpis.analytics_revenue_denominator for ShopProfileSignals after compute_all_kpis",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "aggregates/MODULE.md — module doc alignment",
+      "path": "backend/src/juli_backend/services/aggregates/builder.py",
+      "note": "Module-level docstring still says commerce tables only; MODULE.md updated to commerce + analytics",
+      "blocksMerge": false
+    },
+    {
+      "standard": "test naming — commerce-only contract",
+      "path": "tests/unit/test_feature_aggregates_contract.py",
+      "note": "test_builder_module_imports_only_commerce_repos name stale after AnalyticsPerformanceRepo/TikTokSyncStateRepo imports; test still valid (forbids tiktok/etl/ai)",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "426-20260721T054458"
+}

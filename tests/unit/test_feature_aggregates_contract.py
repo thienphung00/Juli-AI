@@ -18,18 +18,22 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.models.models import (
+    AnalyticsPerformanceInterval,
     Order,
     Product,
     Return,
     Shop,
+    TikTokSyncState,
     User,
 )
 from juli_backend.repositories.repos import (
+    AnalyticsPerformanceRepo,
     InventoryRepo,
     OrderItemsRepo,
     OrdersRepo,
     ProductsRepo,
     ReturnsRepo,
+    TikTokSyncStateRepo,
 )
 from juli_backend.services.aggregates.builder import (
     SYNCED_DATA_SOURCES,
@@ -145,7 +149,15 @@ def _import_names_from_module(path: Path) -> set[str]:
 class TestSyncedPostgresSourcesOnly:
     def test_builder_declares_synced_table_sources(self):
         assert SYNCED_DATA_SOURCES == frozenset(
-            {"orders", "products", "returns", "order_items", "inventory_items"}
+            {
+                "orders",
+                "products",
+                "returns",
+                "order_items",
+                "inventory_items",
+                "analytics_performance_intervals",
+                "tiktok_sync_state",
+            }
         )
 
     def test_builder_module_imports_only_commerce_repos(self):
@@ -202,11 +214,13 @@ class TestSyncedPostgresSourcesOnly:
         assert snapshot.product_count == 2
         assert snapshot.return_count == 1
         assert snapshot.data_sources == [
+            "analytics_performance_intervals",
             "inventory_items",
             "order_items",
             "orders",
             "products",
             "returns",
+            "tiktok_sync_state",
         ]
         assert snapshot.computed_kpis is not None
 
@@ -334,3 +348,172 @@ class TestShopProfileClassifier:
     )
     def test_golden_boundary_fixtures(self, fixture_id, signals, expected):
         assert classify_shop_profile(signals) == expected
+
+
+ANCHOR = datetime(2026, 7, 14, 12, 0, tzinfo=UTC)
+
+
+@pytest_asyncio.fixture
+async def shop_with_analytics_data(session, user_id):
+    user = User(id=user_id, phone="+84901113344")
+    shop = Shop(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        shop_name="Analytics Aggregate Shop",
+        tiktok_shop_id="7658073774813611785",
+        created_at=datetime.now(UTC) - timedelta(days=120),
+    )
+    session.add_all([user, shop])
+    await session.flush()
+
+    now = datetime.now(UTC)
+    analytics_rows = [
+        AnalyticsPerformanceInterval(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            snapshot_key="shop:2026-07-13:2026-07-14",
+            grain="shop",
+            start_date=datetime(2026, 7, 13).date(),
+            end_date=datetime(2026, 7, 14).date(),
+            gmv=Decimal("6408074.00"),
+            gmv_currency="VND",
+            conversion_rate=Decimal("0.0759"),
+            visitors=303,
+            update_time=now,
+        ),
+        AnalyticsPerformanceInterval(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            snapshot_key="product:prod-1:2026-07-13:2026-07-14",
+            grain="product",
+            start_date=datetime(2026, 7, 13).date(),
+            end_date=datetime(2026, 7, 14).date(),
+            tiktok_product_id="prod-1",
+            gmv=Decimal("500000.00"),
+            gmv_currency="VND",
+            ctr=Decimal("0.042000"),
+            update_time=now,
+        ),
+        AnalyticsPerformanceInterval(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            snapshot_key="product:prod-2:2026-07-13:2026-07-14",
+            grain="product",
+            start_date=datetime(2026, 7, 13).date(),
+            end_date=datetime(2026, 7, 14).date(),
+            tiktok_product_id="prod-2",
+            gmv=Decimal("300000.00"),
+            gmv_currency="VND",
+            ctr=Decimal("0.058000"),
+            update_time=now,
+        ),
+        AnalyticsPerformanceInterval(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            snapshot_key="sku:sku-1:2026-07-13:2026-07-14",
+            grain="sku",
+            start_date=datetime(2026, 7, 13).date(),
+            end_date=datetime(2026, 7, 14).date(),
+            tiktok_sku_id="sku-1",
+            tiktok_product_id="prod-1",
+            gmv=Decimal("250000.00"),
+            gmv_currency="VND",
+            update_time=now,
+        ),
+    ]
+    session.add_all(analytics_rows)
+    session.add(
+        TikTokSyncState(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            endpoint="promotion_activity",
+            last_update_time=1_700_000_000,
+        )
+    )
+    await session.flush()
+    return shop
+
+
+class TestAnalyticsBackedAggregates:
+    @pytest.mark.asyncio
+    async def test_build_feature_aggregates_reads_analytics_sources(
+        self, session, shop_with_analytics_data, monkeypatch
+    ):
+        shop = shop_with_analytics_data
+        calls: list[str] = []
+
+        original_analytics_list = AnalyticsPerformanceRepo.list
+        original_sync_load = TikTokSyncStateRepo.load
+
+        async def analytics_wrapped(self, shop_id, **kwargs):
+            calls.append("analytics_performance_intervals")
+            return await original_analytics_list(self, shop_id, **kwargs)
+
+        async def sync_wrapped(self, shop_id):
+            calls.append("tiktok_sync_state")
+            return await original_sync_load(self, shop_id)
+
+        monkeypatch.setattr(AnalyticsPerformanceRepo, "list", analytics_wrapped)
+        monkeypatch.setattr(TikTokSyncStateRepo, "load", sync_wrapped)
+
+        snapshot = await build_feature_aggregates(session, shop.id, computed_at=ANCHOR)
+
+        assert "analytics_performance_intervals" in calls
+        assert "tiktok_sync_state" in calls
+        assert "analytics_performance_intervals" in snapshot.data_sources
+        assert "tiktok_sync_state" in snapshot.data_sources
+
+    @pytest.mark.asyncio
+    async def test_analytics_shop_traffic_conversion_from_a36(
+        self, session, shop_with_analytics_data
+    ):
+        snapshot = await build_feature_aggregates(
+            session, shop_with_analytics_data.id, computed_at=ANCHOR
+        )
+        kpis = snapshot.computed_kpis
+        assert kpis is not None
+        assert kpis.shop_traffic_conversion_rate == pytest.approx(0.0759)
+        assert kpis.analytics_shop_gmv_30d == Decimal("6408074.00")
+
+    @pytest.mark.asyncio
+    async def test_analytics_product_gmv_and_ctr_rollups(
+        self, session, shop_with_analytics_data
+    ):
+        snapshot = await build_feature_aggregates(
+            session, shop_with_analytics_data.id, computed_at=ANCHOR
+        )
+        kpis = snapshot.computed_kpis
+        assert kpis is not None
+        assert kpis.analytics_product_gmv_30d == Decimal("800000.00")
+        assert kpis.analytics_sku_gmv_30d == Decimal("250000.00")
+        assert kpis.analytics_weighted_product_ctr == pytest.approx(0.05)
+
+    @pytest.mark.asyncio
+    async def test_promotion_activity_join_for_revenue_denominator(
+        self, session, shop_with_analytics_data
+    ):
+        snapshot = await build_feature_aggregates(
+            session, shop_with_analytics_data.id, computed_at=ANCHOR
+        )
+        kpis = snapshot.computed_kpis
+        assert kpis is not None
+        assert kpis.promotion_activity_partition_present is True
+        assert kpis.analytics_revenue_denominator == Decimal("6408074.00")
+        assert kpis.analytics_spend_denominator is None
+
+    @pytest.mark.asyncio
+    async def test_null_when_analytics_partition_missing(
+        self, session, shop_with_synced_data
+    ):
+        snapshot = await build_feature_aggregates(
+            session, shop_with_synced_data.id, computed_at=ANCHOR
+        )
+        kpis = snapshot.computed_kpis
+        assert kpis is not None
+        assert kpis.shop_traffic_conversion_rate is None
+        assert kpis.analytics_shop_gmv_30d is None
+        assert kpis.analytics_product_gmv_30d is None
+        assert kpis.analytics_sku_gmv_30d is None
+        assert kpis.analytics_weighted_product_ctr is None
+        assert kpis.analytics_revenue_denominator is None
+        assert kpis.promotion_activity_partition_present is False

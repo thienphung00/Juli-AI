@@ -11,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.database.exceptions import NotFound
 from juli_backend.models.models import Shop
 from juli_backend.repositories.repos import (
+    AnalyticsPerformanceRepo,
     InventoryRepo,
     OrderItemsRepo,
     OrdersRepo,
     ProductsRepo,
     ReturnsRepo,
+    TikTokSyncStateRepo,
 )
 from juli_backend.services.aggregates.computed_kpis import compute_all_kpis
 from juli_backend.services.aggregates.health_source import resolve_health_snapshot
@@ -27,7 +29,15 @@ from juli_backend.services.aggregates.types import (
 )
 
 SYNCED_DATA_SOURCES = frozenset(
-    {"orders", "products", "returns", "order_items", "inventory_items"}
+    {
+        "orders",
+        "products",
+        "returns",
+        "order_items",
+        "inventory_items",
+        "analytics_performance_intervals",
+        "tiktok_sync_state",
+    }
 )
 
 
@@ -39,6 +49,11 @@ def _shop_age_days(created_at: datetime | None) -> int:
     return max(delta.days, 0)
 
 
+def _promotion_activity_partition_present(sync_state: dict) -> bool:
+    """True when A-25 promotion activity watermark exists in persisted sync state."""
+    return sync_state.get("promotion_activity_last_sync_at") is not None
+
+
 async def build_feature_aggregates(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -47,7 +62,7 @@ async def build_feature_aggregates(
     list_limit: int = 10_000,
     computed_at: datetime | None = None,
 ) -> FeatureAggregateSnapshot:
-    """Roll up KPIs from synced commerce tables; rules-only profile and health."""
+    """Roll up KPIs from synced commerce + analytics Postgres tables; rules-only profile."""
     lifecycle = lifecycle or ShopLifecycleContext()
     anchor = computed_at or datetime.now(UTC)
 
@@ -60,6 +75,11 @@ async def build_feature_aggregates(
     returns = await ReturnsRepo(session).list(shop_id, limit=list_limit)
     order_items = await OrderItemsRepo(session).list(shop_id, limit=list_limit)
     inventory_items = await InventoryRepo(session).list(shop_id, limit=list_limit)
+    analytics_intervals = await AnalyticsPerformanceRepo(session).list(
+        shop_id, limit=list_limit
+    )
+    sync_state = await TikTokSyncStateRepo(session).load(shop_id)
+    promotion_activity_present = _promotion_activity_partition_present(sync_state)
 
     order_count = len(orders)
     product_count = len(products)
@@ -73,11 +93,31 @@ async def build_feature_aggregates(
     if order_count > 0:
         return_rate_proxy = float(Decimal(return_count) / Decimal(order_count))
 
+    computed_kpis = compute_all_kpis(
+        shop_id=shop_id,
+        orders=orders,
+        order_items=order_items,
+        products=products,
+        inventory_items=inventory_items,
+        returns=returns,
+        anchor=anchor,
+        analytics_intervals=analytics_intervals,
+        promotion_activity_partition_present=promotion_activity_present,
+    )
+
+    ad_revenue_total = Decimal("0")
+    if (
+        promotion_activity_present
+        and computed_kpis.analytics_revenue_denominator is not None
+    ):
+        ad_revenue_total = computed_kpis.analytics_revenue_denominator
+
     profile_signals = ShopProfileSignals(
         probation_status=lifecycle.probation_status,
         shop_age_days=_shop_age_days(shop.created_at),
         product_gmv_total=total_product_revenue,
         product_units_sold_total=total_units_sold,
+        ad_revenue_total=ad_revenue_total,
     )
     shop_profile = classify_shop_profile(profile_signals)
 
@@ -89,16 +129,6 @@ async def build_feature_aggregates(
         order_count=order_count,
         return_count=return_count,
         product_count=product_count,
-    )
-
-    computed_kpis = compute_all_kpis(
-        shop_id=shop_id,
-        orders=orders,
-        order_items=order_items,
-        products=products,
-        inventory_items=inventory_items,
-        returns=returns,
-        anchor=anchor,
     )
 
     return FeatureAggregateSnapshot(
