@@ -145,6 +145,27 @@ describe("Demo shell controls", () => {
     ).toHaveTextContent("Demo đã trở về trạng thái ban đầu");
   });
 
+  it("manual refresh clears unsaved settings edits and restores defaults", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DemoShell>
+        <MutableStateProbe />
+      </DemoShell>,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Thay đổi dữ liệu mẫu" }),
+    );
+    expect(screen.getByTestId("mutable-state")).toHaveTextContent("threshold");
+
+    await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
+
+    expect(JSON.parse(screen.getByTestId("mutable-state").textContent ?? "{}")).toEqual(
+      DEFAULT_MUTABLE_MOCK_STATE,
+    );
+  });
+
   it("grounds contextual assistance in the active destination without decision or execution authority", () => {
     render(<DemoShell>Nội dung</DemoShell>);
 

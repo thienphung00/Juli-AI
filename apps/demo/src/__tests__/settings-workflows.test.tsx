@@ -42,7 +42,7 @@ describe("Settings — workflow templates", () => {
     }
   });
 
-  it("uses Vietnamese section labels for templates and thresholds", () => {
+  it("uses Vietnamese terminology with responsive accessibility contracts for settings tabs", () => {
     renderSettings();
 
     expect(
@@ -52,5 +52,13 @@ describe("Settings — workflow templates", () => {
       screen.getByRole("tab", { name: "Ngưỡng", selected: false }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Cài đặt" })).toBeInTheDocument();
+  });
+
+  it("does not block decisions approval because settings remain separate from Quyết định", () => {
+    renderSettings();
+
+    expect(
+      screen.getByText(/không thay thế việc phê duyệt tại Quyết định/i),
+    ).toBeInTheDocument();
   });
 });

@@ -16,6 +16,13 @@
     { "toolName": "Glob", "count": 4, "stage": "implementation" }
   ],
   "toolInvocationCount": 54,
+  "tokenUsage": {
+    "total": 0,
+    "input": 0,
+    "output": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0
+  },
   "contextFilesLoaded": [
     "agent-runtime/artifacts/workflow-cache/issue-context-cache-405.json",
     "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
