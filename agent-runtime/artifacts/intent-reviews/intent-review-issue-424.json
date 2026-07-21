@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-424",
+  "issue": 424,
+  "timestamp": "2026-07-21T04:12:36Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "5c765ae46dcceab2c76deb4b7d1b9a3a199d3300",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #424 / scope-alignment / grill lock: wire A-25 + A-31\u2013A-39 only into Fujiwa production-read polling. Diff adds AnalyticsResource (date-window + pagination), GET-only allowlist paths/patterns, sync_analytics + run_fujiwa_poll_cycle hook (shared with ADR-021 manual refresh), tiktok_sync_state endpoint keys, and contract tests from contract-collection. LIVE A-26\u2013A-29 remain reference-tier (path constants + allowlist rejection; no poll/resources/ETL). A-30/A-35 skipped. Analytics ETL deferred (handoff unused). RateLimiter module untouched. No intent gaps, contradicting creep, or wrong-vs-intent findings.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "backend/src/juli_backend/workers/services/polling/sync.py",
+      "hunk": "sync_analytics SKU list+detail loop and product list+detail loop share the same acquire \u2192 fetch \u2192 watermark \u2192 per-id detail acquire shape.",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "polling/MODULE.md + tiktok/MODULE.md \u2014 public API / resource inventory",
+      "path": "backend/src/juli_backend/workers/services/polling/MODULE.md",
+      "note": "MODULE docs updated for sync_analytics, analytics allowlist, and AnalyticsResource; matches existing resource + worker documentation pattern."
+    },
+    {
+      "standard": "patterns.mdc \u2014 repository interfaces",
+      "path": "backend/src/juli_backend/repositories/repos.py",
+      "note": "New analytics sync-state keys registered on TikTokSyncStateRepo _ENDPOINT_STATE_KEYS rather than ad-hoc persistence."
+    },
+    {
+      "standard": "code-quality.mdc \u2014 naming (repo Python override)",
+      "path": "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+      "note": "Uses snake_case per backend Python convention; code-quality camelCase does not apply to this layer."
+    }
+  ],
+  "phaseRunId": "424-20260721T040009"
+}
