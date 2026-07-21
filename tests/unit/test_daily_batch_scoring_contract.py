@@ -17,14 +17,17 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.models.models import (
+    AnalyticsPerformanceInterval,
     InventoryItem,
     Order,
     OrderItem,
     Product,
     Return,
     Shop,
+    TikTokSyncState,
     User,
 )
+from juli_backend.services.aggregates.computed_kpis import ComputedKpiMetrics
 from juli_backend.services.aggregates.types import (
     FeatureAggregateSnapshot,
     HealthDataSource,
@@ -53,6 +56,67 @@ from juli_backend.services.scoring.types import (
 )
 
 COMPUTED_AT = datetime(2026, 7, 12, 8, 0, tzinfo=UTC)
+
+_ANALYTICS_CTR_UNAVAILABLE = "Chưa đồng bộ Analytics product CTR"
+_PROMOTION_SPEND_UNAVAILABLE = "Chờ đồng bộ chi phí Promotion (spend)"
+
+
+def _computed_kpis(**overrides: object) -> ComputedKpiMetrics:
+    defaults: dict[str, object] = {
+        "total_units_sold_30d": 0,
+        "avg_on_hand_inventory": None,
+        "sku_count_with_inventory": 0,
+        "stockout_sku_count": 0,
+        "orders_with_ship_time_30d": 0,
+        "orders_fulfilled_without_seller_fault_30d": 0,
+        "orders_at_sla_risk_count": 0,
+        "seller_fault_order_count_30d": 0,
+        "order_items_count_30d": 0,
+        "top_category_name": None,
+        "unique_buyers_30d": 0,
+        "repeat_buyers_30d": 0,
+        "return_rate_30d": None,
+        "inventory_turnover": None,
+        "dsi_days": None,
+        "stockout_rate": None,
+        "fulfillment_accuracy_rate": None,
+        "seller_fault_cancellation_rate": None,
+        "conversion_rate_by_category": None,
+        "repeat_purchase_rate": None,
+        "after_sales_handling_time_hours": None,
+        "csat_proxy_score": None,
+        "shop_traffic_conversion_rate": None,
+        "analytics_shop_gmv_30d": None,
+        "analytics_product_gmv_30d": None,
+        "analytics_sku_gmv_30d": None,
+        "analytics_weighted_product_ctr": None,
+        "promotion_activity_partition_present": False,
+        "analytics_revenue_denominator": None,
+        "analytics_spend_denominator": None,
+    }
+    defaults.update(overrides)
+    return ComputedKpiMetrics(**defaults)  # type: ignore[arg-type]
+
+
+def _snapshot_with_computed_kpis(**kpi_overrides: object) -> FeatureAggregateSnapshot:
+    return FeatureAggregateSnapshot(
+        shop_id=uuid.uuid4(),
+        shop_profile=ShopProfile.MID_LARGE_SHOP,
+        health_data_source=HealthDataSource.PROXY,
+        sps_score=None,
+        vp_score=None,
+        ahr_score=None,
+        order_count=5,
+        product_count=2,
+        return_count=1,
+        total_order_value=Decimal("450000"),
+        total_product_revenue=Decimal("1000000"),
+        total_units_sold=50,
+        return_rate_proxy=0.2,
+        data_sources=["orders", "products", "returns", "analytics_performance_intervals"],
+        computed_kpis=_computed_kpis(**kpi_overrides),
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCORING_PKG = REPO_ROOT / "backend/src/juli_backend/services/scoring"
@@ -223,6 +287,58 @@ class TestVisualLayerAdvisorySignals:
         assert signals.kpis["roas"].signal_type == "unavailable"
         assert signals.kpis["roas"].action_hint == "Chờ đồng bộ Promotion API"
         assert signals.kpis["csat"].signal_type == "unavailable"
+        assert signals.kpis["ctr"].signal_type == "unavailable"
+        assert signals.kpis["ctr"].action_hint == _ANALYTICS_CTR_UNAVAILABLE
+
+
+class TestAdsKpiSignals:
+    def test_ctr_emits_rules_proxy_when_analytics_product_ctr_present(self):
+        snapshot = _snapshot_with_computed_kpis(analytics_weighted_product_ctr=0.027)
+        signals = compute_scoring_signals(
+            snapshot,
+            computed_at=COMPUTED_AT,
+            products=[],
+        )
+        ctr = signals.kpis["ctr"]
+        assert ctr.signal_type in {"risk", "opportunity"}
+        assert ctr.technique == "rules_proxy"
+        assert "2.7%" in ctr.change_text
+
+    def test_ctr_unavailable_when_analytics_product_ctr_missing(self):
+        snapshot = _snapshot_with_computed_kpis(analytics_weighted_product_ctr=None)
+        signals = compute_scoring_signals(
+            snapshot,
+            computed_at=COMPUTED_AT,
+            products=[],
+        )
+        assert signals.kpis["ctr"].signal_type == "unavailable"
+        assert signals.kpis["ctr"].action_hint == _ANALYTICS_CTR_UNAVAILABLE
+
+    def test_roas_cac_unavailable_when_promotion_partition_missing(self):
+        snapshot = _snapshot_with_computed_kpis(promotion_activity_partition_present=False)
+        signals = compute_scoring_signals(
+            snapshot,
+            computed_at=COMPUTED_AT,
+            products=[],
+        )
+        for ads_kpi in ("roas", "cac"):
+            assert signals.kpis[ads_kpi].signal_type == "unavailable"
+            assert signals.kpis[ads_kpi].action_hint == "Chờ đồng bộ Promotion API"
+
+    def test_roas_cac_unavailable_with_spend_reason_when_partition_present(self):
+        snapshot = _snapshot_with_computed_kpis(
+            promotion_activity_partition_present=True,
+            analytics_revenue_denominator=Decimal("6408074"),
+            analytics_spend_denominator=None,
+        )
+        signals = compute_scoring_signals(
+            snapshot,
+            computed_at=COMPUTED_AT,
+            products=[],
+        )
+        for ads_kpi in ("roas", "cac"):
+            assert signals.kpis[ads_kpi].signal_type == "unavailable"
+            assert signals.kpis[ads_kpi].action_hint == _PROMOTION_SPEND_UNAVAILABLE
 
 
 class TestDeterministicRulesProduceRankedRecommendations:
@@ -481,6 +597,43 @@ class TestComputedKpisFlipUnavailableSignals:
             ),
         ]
         session.add_all([*products, *orders, *order_items, *inventory_items, *returns])
+        analytics_rows = [
+            AnalyticsPerformanceInterval(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                snapshot_key="product:prod-a:2026-07-10:2026-07-11",
+                grain="product",
+                start_date=datetime(2026, 7, 10).date(),
+                end_date=datetime(2026, 7, 11).date(),
+                tiktok_product_id="prod-a",
+                gmv=Decimal("500000.00"),
+                gmv_currency="VND",
+                ctr=Decimal("0.042000"),
+                update_time=now,
+            ),
+            AnalyticsPerformanceInterval(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                snapshot_key="product:prod-b:2026-07-10:2026-07-11",
+                grain="product",
+                start_date=datetime(2026, 7, 10).date(),
+                end_date=datetime(2026, 7, 11).date(),
+                tiktok_product_id="prod-b",
+                gmv=Decimal("300000.00"),
+                gmv_currency="VND",
+                ctr=Decimal("0.058000"),
+                update_time=now,
+            ),
+        ]
+        session.add_all(analytics_rows)
+        session.add(
+            TikTokSyncState(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                endpoint="promotion_activity",
+                last_update_time=1_700_000_000,
+            )
+        )
         await session.flush()
         return shop
 
@@ -516,11 +669,15 @@ class TestComputedKpisFlipUnavailableSignals:
             assert signal.signal_type in {"risk", "opportunity", "healthy"}, kpi_id
             assert signal.technique == "rules_proxy", kpi_id
 
-        for ads_kpi in ("roas", "cac", "ctr"):
+        for ads_kpi in ("roas", "cac"):
             assert result.signals.kpis[ads_kpi].signal_type == "unavailable"
             assert (
-                result.signals.kpis[ads_kpi].action_hint == "Chờ đồng bộ Promotion API"
+                result.signals.kpis[ads_kpi].action_hint == _PROMOTION_SPEND_UNAVAILABLE
             )
+
+        ctr = result.signals.kpis["ctr"]
+        assert ctr.signal_type in {"risk", "opportunity"}
+        assert ctr.technique == "rules_proxy"
 
         assert result.signals.kpis["csat"].workflow_keys == ()
         assert result.aggregates.computed_kpis is not None

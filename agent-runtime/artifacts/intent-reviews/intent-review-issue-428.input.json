@@ -1,0 +1,37 @@
+{
+  "fixedPoint": "30fd6c89c2e531146d4ec1afa98d22f5f16ef8fe",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Working-tree vs 30fd6c89 (#428). CTR live from analytics_weighted_product_ctr with Analytics unavailable reason; ROAS/CAC stay unavailable with Promotion vs spend-reason ladder until analytics_spend_denominator present; live formula paths wired but untested without spend; kpi_catalog unchanged; scoring contract tests extended; exit-gate documents Ads gap as partial (CTR closed, ROAS/CAC spend-blocked). Non-blocking: ROAS/CAC happy-path untested; rules_proxy thresholds not issue-specified.",
+  "smells": [
+    {
+      "name": "Mysterious Name",
+      "path": "backend/src/juli_backend/services/scoring/signals.py",
+      "hunk": "_compute_roas: analytics_revenue_denominator is None → _PROMOTION_SPEND_UNAVAILABLE_REASON",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Mysterious Name",
+      "path": "backend/src/juli_backend/services/scoring/signals.py",
+      "hunk": "_compute_cac: unique_buyers_30d <= 0 → _PROMOTION_SPEND_UNAVAILABLE_REASON",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "code-quality.mdc — UPPER_SNAKE_CASE constants",
+      "path": "backend/src/juli_backend/services/scoring/signals.py",
+      "note": "CTR exposes CTR_RISK/HEALTHY_THRESHOLD; ROAS (2.0) and CAC (500_000) remain inline literals.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "MODULE.md — signal contract accuracy",
+      "path": "backend/src/juli_backend/services/scoring/MODULE.md",
+      "note": "Doc says ROAS/CAC stay unavailable until spend ETL; code also has live rules_proxy paths when denominators exist — spend-gated, not permanent stub.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "428-20260721T061330",
+  "reviewedBy": "intent-review skill"
+}

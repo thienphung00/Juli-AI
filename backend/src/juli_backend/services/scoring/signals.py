@@ -36,8 +36,13 @@ FULFILLMENT_ACCURACY_RISK_THRESHOLD = 0.95
 SELLER_FAULT_CANCEL_RISK_THRESHOLD = 0.03
 AFTER_SALES_HANDLING_RISK_HOURS = 20.0
 CSAT_RISK_THRESHOLD = 70.0
+# Product CTR rules_proxy: below 1.5% = weak creative; at/above 2.5% = scale winners.
+CTR_RISK_THRESHOLD = 0.015
+CTR_HEALTHY_THRESHOLD = 0.025
 
 _PROMOTION_UNAVAILABLE_REASON = "Chờ đồng bộ Promotion API"
+_ANALYTICS_CTR_UNAVAILABLE_REASON = "Chưa đồng bộ Analytics product CTR"
+_PROMOTION_SPEND_UNAVAILABLE_REASON = "Chờ đồng bộ chi phí Promotion (spend)"
 
 _SHOP_STATUS_ACTION = "investigate fulfillment/cancellation/CS"
 _RETURN_ACTION = "review return drivers by SKU"
@@ -530,6 +535,113 @@ def _compute_csat(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
     )
 
 
+def _compute_ctr(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or metrics.analytics_weighted_product_ctr is None:
+        return _unavailable_kpi("ctr", reason=_ANALYTICS_CTR_UNAVAILABLE_REASON)
+
+    ctr = metrics.analytics_weighted_product_ctr
+    pct = ctr * 100
+    change = f"CTR {pct:.1f}% (product analytics mean)"
+    if ctr < CTR_RISK_THRESHOLD:
+        return _make_signal(
+            "ctr",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="creative underperforming · refresh listing/ad assets",
+            severity="warning",
+        )
+    if ctr >= CTR_HEALTHY_THRESHOLD:
+        return _make_signal(
+            "ctr",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="opportunity",
+            action_hint="scale winners · expand budget on top SKUs",
+            severity="healthy",
+        )
+    return _make_signal(
+        "ctr",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="CTR moderate · test creatives on growth SKUs",
+        severity="warning",
+    )
+
+
+def _compute_roas(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or not metrics.promotion_activity_partition_present:
+        return _unavailable_kpi("roas", reason=_PROMOTION_UNAVAILABLE_REASON)
+    if metrics.analytics_spend_denominator is None:
+        return _unavailable_kpi("roas", reason=_PROMOTION_SPEND_UNAVAILABLE_REASON)
+    if metrics.analytics_revenue_denominator is None:
+        return _unavailable_kpi("roas", reason=_PROMOTION_SPEND_UNAVAILABLE_REASON)
+
+    spend = float(metrics.analytics_spend_denominator)
+    if spend <= 0:
+        return _unavailable_kpi("roas", reason=_PROMOTION_SPEND_UNAVAILABLE_REASON)
+
+    revenue = float(metrics.analytics_revenue_denominator)
+    roas = revenue / spend
+    change = f"ROAS {roas:.1f}x (GMV/spend 30d)"
+    if roas < 2.0:
+        return _make_signal(
+            "roas",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="campaign efficiency low · pause or rebalance spend",
+            severity="warning",
+        )
+    return _make_signal(
+        "roas",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="scale profitable campaigns",
+        severity="healthy",
+    )
+
+
+def _compute_cac(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
+    metrics = _computed(snapshot)
+    if metrics is None or not metrics.promotion_activity_partition_present:
+        return _unavailable_kpi("cac", reason=_PROMOTION_UNAVAILABLE_REASON)
+    if metrics.analytics_spend_denominator is None:
+        return _unavailable_kpi("cac", reason=_PROMOTION_SPEND_UNAVAILABLE_REASON)
+
+    spend = float(metrics.analytics_spend_denominator)
+    if spend <= 0:
+        return _unavailable_kpi("cac", reason=_PROMOTION_SPEND_UNAVAILABLE_REASON)
+
+    buyers = metrics.unique_buyers_30d
+    if buyers <= 0:
+        return _unavailable_kpi("cac", reason=_PROMOTION_SPEND_UNAVAILABLE_REASON)
+
+    cac = spend / buyers
+    change = f"CAC {cac:,.0f} VND/buyer (spend/unique buyers 30d)"
+    if cac > 500_000:
+        return _make_signal(
+            "cac",
+            technique="rules_proxy",
+            change_text=change,
+            signal_type="risk",
+            action_hint="acquisition cost elevated · trim low-ROAS campaigns",
+            severity="warning",
+        )
+    return _make_signal(
+        "cac",
+        technique="rules_proxy",
+        change_text=change,
+        signal_type="opportunity",
+        action_hint="acquisition efficiency stable",
+        severity="healthy",
+    )
+
+
 def compute_scoring_signals(
     snapshot: FeatureAggregateSnapshot,
     *,
@@ -550,9 +662,9 @@ def compute_scoring_signals(
         "return_request_rate": _compute_return_request_rate(snapshot),
         "conversion_rate_by_category": _compute_conversion_rate_by_category(snapshot),
         "repeat_purchase_rate": _compute_repeat_purchase_rate(snapshot),
-        "roas": _unavailable_kpi("roas", reason=_PROMOTION_UNAVAILABLE_REASON),
-        "cac": _unavailable_kpi("cac", reason=_PROMOTION_UNAVAILABLE_REASON),
-        "ctr": _unavailable_kpi("ctr", reason=_PROMOTION_UNAVAILABLE_REASON),
+        "roas": _compute_roas(snapshot),
+        "cac": _compute_cac(snapshot),
+        "ctr": _compute_ctr(snapshot),
         "inventory_turnover": _compute_inventory_turnover(snapshot),
         "dsi": _compute_dsi(snapshot),
         "stockout_rate": _compute_stockout_rate(snapshot),

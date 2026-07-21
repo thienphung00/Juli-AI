@@ -1,0 +1,156 @@
+{
+  "reviewedBy": "guardrails skill",
+  "phaseRunId": "428-20260721T061330",
+  "status": "PASS_WITH_WARNINGS",
+  "summary": "Issue #428 Ads KPI signals: intent-review spec_fidelity=pass consumed as given. CTR live via rules_proxy from analytics_weighted_product_ctr; ROAS/CAC unavailable with explicit Promotion vs spend reasons; kpi_catalog workflow routing unchanged. 15/15 contract tests pass. No CRITICAL reliability/security/observability/performance gaps in pure scoring signal paths. Non-blocking intent-review smells and spend-null ROAS/CAC product limitation acknowledged ship-as-is (inherits #426 ETL scope).",
+  "criticalFindings": [
+    {
+      "id": "428-smell-roas-revenue-reason",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "Intent-review smell (non-blocking): _compute_roas maps analytics_revenue_denominator None to _PROMOTION_SPEND_UNAVAILABLE_REASON \u2014 spend-oriented reason for a revenue gap.",
+      "suggestion": "Optional follow-up: split revenue vs spend unavailable reasons when spend ETL lands.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Revenue denominator absent only when spend path is also blocked in current ETL; behavior tested via spend-unavailable contract tests."
+    },
+    {
+      "id": "428-smell-cac-buyers-reason",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "Intent-review smell (non-blocking): _compute_cac maps unique_buyers_30d <= 0 to _PROMOTION_SPEND_UNAVAILABLE_REASON \u2014 spend reason for buyer-count gap.",
+      "suggestion": "Optional follow-up: dedicated buyer-denominator unavailable reason if product copy requires it.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Buyer count zero is edge case on spend-blocked path; CAC stays unavailable with explicit hint; acceptable for P2 Ads slice."
+    },
+    {
+      "id": "428-spend-denominator-null",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "Product/reliability note: analytics_spend_denominator remains None per #426 ETL scope \u2014 ROAS/CAC efficiency KPIs stay unavailable in scoring despite wired live formulas; only CTR emits advisory today.",
+      "suggestion": "Wire spend denominator when promotion activity ETL persistence lands; add contract tests for ROAS/CAC rules_proxy happy paths then.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Explicitly out of scope per #426/#428 MODULE.md and Executor assumption; null policy correct; spend-unavailable reasons tested; no zero fabrication."
+    },
+    {
+      "id": "428-convention-inline-thresholds",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "description": "Intent-review convention note: CTR exposes CTR_RISK/HEALTHY_THRESHOLD constants; ROAS (2.0) and CAC (500_000) remain inline literals.",
+      "suggestion": "Extract ROAS/CAC threshold constants on next touch for consistency with CTR."
+    },
+    {
+      "id": "428-convention-module-doc",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md states ROAS/CAC stay unavailable until spend ETL; code also has live rules_proxy paths when denominators exist \u2014 spend-gated, not permanent stub.",
+      "suggestion": "Doc already updated in this slice; no action required unless spend ETL changes availability semantics."
+    },
+    {
+      "id": "428-roas-cac-live-path-untested",
+      "type": "test_gap",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_daily_batch_scoring_contract.py",
+      "description": "AC coverage note: ROAS/CAC rules_proxy advisory paths wired in signals.py but untested without analytics_spend_denominator fixture (blocked on spend ETL).",
+      "suggestion": "Add happy-path contract tests when spend denominator persistence lands."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/scoring/signals.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "tests/unit/test_daily_batch_scoring_contract.py",
+    "docs/product/phases/phase-2-exit-gate-report.html"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/scoring/signals.py",
+      "interface": "compute_scoring_signals (ads KPIs: roas, cac, ctr)",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "CTR emits rules_proxy advisory from analytics_weighted_product_ctr; ROAS/CAC compute functions replace hardcoded unavailable stubs with spend-gated live paths and explicit unavailable reasons."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "ctr emit rules_proxy advisory when analytics product ctr present",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_ctr_emits_rules_proxy_when_analytics_product_ctr_present"
+        },
+        {
+          "criterion": "unavailable with spend reason when promotion partition present",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_roas_cac_unavailable_with_spend_reason_when_partition_present"
+        },
+        {
+          "criterion": "execution layer workflow keys for mid large shop",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_mid_large_shop_returns_execution_layer_workflow_keys"
+        },
+        {
+          "criterion": "ctr unavailable when analytics product ctr missing",
+          "test": "tests/unit/test_daily_batch_scoring_contract.py::test_ctr_unavailable_when_analytics_product_ctr_missing"
+        },
+        {
+          "criterion": "exit gate ads gap field map report",
+          "test": "docs/product/phases/phase-2-exit-gate-report.html"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 15,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Wire analytics_spend_denominator when promotion spend ETL persistence lands; add ROAS/CAC happy-path contract tests.",
+    "Extract ROAS/CAC threshold constants for parity with CTR_RISK/HEALTHY_THRESHOLD.",
+    "Consider distinct unavailable reasons for revenue vs buyer denominators when spend ETL arrives."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review spec_fidelity=pass; all 5 ACs mapped; 15/15 contract tests pass. Accepted ship-as-is for spend-null ROAS/CAC (inherits #426) and non-blocking Mysterious Name smells.",
+    "timestamp": "2026-07-21T06:45:00Z",
+    "acceptedRisks": true,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "Acknowledged WARNING findings; CTR live path and explicit unavailable reasons verified by contract tests; exit-gate field map documents partial Ads closure.",
+    "timestamp": "2026-07-21T06:45:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-428.json",
+  "reviewBasis": "working tree vs 30fd6c89 on feature/issue-428-ads-kpi-signals",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-428.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 2,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "severity": "medium"
+}

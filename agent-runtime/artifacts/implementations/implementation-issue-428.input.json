@@ -1,0 +1,77 @@
+{
+  "phaseRunId": "428-20260721T061330",
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-428.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-428.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "backend/src/juli_backend/services/scoring/signals.py",
+    "backend/src/juli_backend/services/scoring/kpi_catalog.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/testing-patterns/python-testing.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "StrReplace", "Write"],
+  "toolInvocationCount": 25,
+  "filesModified": [
+    "backend/src/juli_backend/services/scoring/signals.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "tests/unit/test_daily_batch_scoring_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_daily_batch_scoring_contract.py::TestAdsKpiSignals::test_ctr_emits_rules_proxy_when_analytics_product_ctr_present",
+    "tests/unit/test_daily_batch_scoring_contract.py::TestAdsKpiSignals::test_ctr_unavailable_when_analytics_product_ctr_missing",
+    "tests/unit/test_daily_batch_scoring_contract.py::TestAdsKpiSignals::test_roas_cac_unavailable_when_promotion_partition_missing",
+    "tests/unit/test_daily_batch_scoring_contract.py::TestAdsKpiSignals::test_roas_cac_unavailable_with_spend_reason_when_partition_present"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_daily_batch_scoring_contract.py::TestVisualLayerAdvisorySignals::test_proxy_tier_emits_available_revenue_and_return_signals",
+    "tests/unit/test_daily_batch_scoring_contract.py::TestComputedKpisFlipUnavailableSignals::test_daily_batch_flips_previously_unavailable_kpis"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "behavior": "CTR live when analytics_weighted_product_ctr present",
+      "red": "python -m pytest tests/unit/test_daily_batch_scoring_contract.py::TestAdsKpiSignals::test_ctr_emits_rules_proxy_when_analytics_product_ctr_present -q --tb=short → FAILED (ctr signal_type unavailable)",
+      "green": "Implemented _compute_ctr with rules_proxy thresholds; same command → PASSED"
+    },
+    {
+      "behavior": "CTR unavailable with Analytics reason when product CTR missing",
+      "red": "python -m pytest tests/unit/test_daily_batch_scoring_contract.py::TestAdsKpiSignals::test_ctr_unavailable_when_analytics_product_ctr_missing -q --tb=short → FAILED (Promotion API reason)",
+      "green": "_ANALYTICS_CTR_UNAVAILABLE_REASON wired; same command → PASSED"
+    },
+    {
+      "behavior": "ROAS/CAC unavailable with spend reason when promotion partition present but spend null",
+      "red": "python -m pytest tests/unit/test_daily_batch_scoring_contract.py::TestAdsKpiSignals::test_roas_cac_unavailable_with_spend_reason_when_partition_present -q --tb=short → FAILED",
+      "green": "_compute_roas/_compute_cac emit _PROMOTION_SPEND_UNAVAILABLE_REASON; same command → PASSED"
+    },
+    {
+      "behavior": "Daily batch integration: CTR live, ROAS/CAC spend-unavailable",
+      "red": "python -m pytest tests/unit/test_daily_batch_scoring_contract.py::TestComputedKpisFlipUnavailableSignals::test_daily_batch_flips_previously_unavailable_kpis -q --tb=short → FAILED (all ads KPIs unavailable)",
+      "green": "Fixture extended with analytics product CTR + promotion watermark; full file 15 passed"
+    }
+  ],
+  "implementationSummary": "Replaced hardcoded unavailable Ads KPI stubs in signals.py. CTR now emits rules_proxy advisory from analytics_weighted_product_ctr (A-34) with 1.5%/2.5% thresholds. ROAS/CAC remain unavailable: Promotion API reason when partition missing; explicit spend-sync reason when partition present but analytics_spend_denominator is null. Live ROAS/CAC formulas wired for future spend ETL (revenue/spend, spend/unique_buyers) without fabricating denominators.",
+  "assumptions": [
+    "analytics_spend_denominator intentionally None per #426 — no spend fabrication",
+    "CTR thresholds (1.5% risk / 2.5% healthy) are rules_proxy stand-ins until T2 models land",
+    "KPI_WORKFLOW_KEYS unchanged in kpi_catalog.py",
+    "Sibling docs agent owns phase-2-exit-gate-report.html field map"
+  ],
+  "risks": [
+    "ROAS/CAC stay unavailable until promotion spend ETL persists analytics_spend_denominator",
+    "CAC live formula uses unique_buyers_30d proxy when spend arrives — may need order-count denominator per product spec",
+    "CTR unweighted mean when product rows lack impressions (inherits #426 rollup behavior)"
+  ],
+  "cacheHits": [
+    "parent-cache-issue-278.json",
+    "issue-context-cache-428.json"
+  ]
+}

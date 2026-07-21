@@ -27,6 +27,7 @@ Each KPI emits an `AdvisorySignal`:
 - Six domains: shop_status, revenue, ads, inventory, operations, customer_service
 - Phase 2: T3 policy rules (SPS/AHR/VP) + deterministic proxies from synced Postgres
 - Shop Status KPIs render mock/fixture advisory only — **no workflow_keys** until Partner API fields exist
+- Ads CTR from analytics product-grain CTR rollup (#428); ROAS/CAC stay `unavailable` until promotion spend ETL
 - KPIs without ETL fields emit `signal_type: unavailable` (never fabricated)
 
 ## Copy layer (#304)
