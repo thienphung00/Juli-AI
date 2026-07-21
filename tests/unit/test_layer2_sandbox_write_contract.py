@@ -131,9 +131,16 @@ class TestSandboxWriteClientFactoryResources:
     ):
         prod_resources = ProductionReadClientFactory().create_resources(production_config)
         assert not hasattr(prod_resources, "fulfillment")
-        assert not hasattr(prod_resources, "promotion")
+        # Promotion is on production-read for A-25 Get Activity (#424); writes stay blocked.
+        assert prod_resources.promotion is not None
         # Inventory search is Layer 1 (P2-B9); write update remains sandbox-guarded.
         assert prod_resources.inventory is not None
+
+        client = prod_resources.promotion._client
+        client._session = MagicMock()
+        with pytest.raises(TransportGuardError):
+            prod_resources.promotion.create_activity(body={"title": "x"})
+        client._session.post.assert_not_called()
 
 
 class TestInventoryUpdateContract:

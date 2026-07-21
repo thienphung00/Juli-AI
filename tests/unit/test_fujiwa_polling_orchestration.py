@@ -120,6 +120,13 @@ def mock_resources():
             ]
         },
     }
+    resources.analytics.list_sku_performance_all.return_value = []
+    resources.analytics.list_product_performance_all.return_value = []
+    resources.analytics.get_shop_performance.return_value = {}
+    resources.analytics.get_shop_performance_per_hour.return_value = {}
+    resources.analytics.get_bestselling_products.return_value = {}
+    resources.analytics.get_bestselling_videos.return_value = {}
+    resources.promotion.get_activity.return_value = {}
     return resources
 
 

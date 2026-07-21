@@ -10,6 +10,9 @@ def strip_nones(d: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in d.items() if v is not None}
 
 
+from juli_backend.integrations.tiktok.resources.analytics import (  # noqa: E402
+    AnalyticsResource,
+)
 from juli_backend.integrations.tiktok.resources.authorization import (  # noqa: E402
     AuthorizationResource,
 )
@@ -25,6 +28,7 @@ from juli_backend.integrations.tiktok.resources.settlements import SettlementsRe
 
 __all__ = [
     "strip_nones",
+    "AnalyticsResource",
     "AuthorizationResource",
     "OrdersResource",
     "ProductsResource",

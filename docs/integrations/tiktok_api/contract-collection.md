@@ -12,7 +12,8 @@
 > **Sanitization applied in this pass:** all `access_token`, `sign`, and `app_key` values in
 > cURL samples have been replaced with `{access_token}` / `{sign}` / `{app_key}` placeholders.
 > All response-body sample arrays have been truncated to a single representative item. Buyer
-> PII (name, phone, email, full address) has been replaced with `"[REDACTED]"`.
+> PII (name, phone, email, full address) has been replaced with `"[REDACTED]"`. Product titles,
+> live session titles, and seller usernames use `[PRODUCT_NAME]`, `[LIVE_TITLE]`, `[USERNAME]`.
 
 **Merchant credentials (placeholders — real values live in `.env` / Partner Center only)**
 
@@ -70,8 +71,57 @@ been sandbox-verified, so don't drop Search RMA yet on this assumption alone.
 | Prevent Cancellation (8a) | Return/Refund | Search Cancellations → Get Decision Eligibility → Get Reject Reasons → Approve Cancellation or Reject Cancellation | `cancel_id` from search, `order_id` for traceability |
 | Prevent Return (8b) | Return/Refund + Products | Search Returns → Get Aftersale Eligibility → ~~Search RMA~~ *(deferred)* → Review Aftersales → Get Reject Reasons → Approve Return or Reject Return → Update Inventory | `return_id`, `order_id` for traceability |
 | Prevent Refund (8c) | Return/Refund | ~~Search Aftersales Request~~ *(deferred)* → Calculate Refund → Get Reject Reasons → Approve Refund or Reject Refund | `return_id` |
-| Create / Delete / Update Activity | Promotion | Create Activity → Update Activity Product → **Get Activity** → Deactivate Activity → Update Activity | `activity_id`, `product_id`, `sku_id` |
+| Create / Delete / Update Activity | Promotion | Create Activity → Update Activity Product → **Get Promotion Activity** → Deactivate Activity → Update Activity | `activity_id`, `product_id`, `sku_id` |
 | ~~Create Voucher / Coupon~~ — REMOVED | Promotion | No seller-facing create-coupon operation exists; not implemented | — |
+
+---
+
+## Partner API identifier catalog
+
+Authoritative list of **path, query, and request-body identifiers** referenced across
+Section A/B contracts. Use these exact spellings in poll workers, ETL normalizers,
+client resources, and issue acceptance criteria — do not invent aliases.
+
+| Identifier | Role | Example endpoints | Maps to (Juli) |
+|------------|------|-------------------|----------------|
+| `shop_cipher` | Shop-scoped auth context | All shop endpoints | `Shop` lookup |
+| `shop_id` | TikTok shop key (query; sometimes empty) | Analytics, Promotion | `Shop.tiktok_shop_id` |
+| `product_id` | Product grain / path param | A-3, A-33, A-34, B-1, B-4–B-6 | `Product.tiktok_product_id` |
+| `product_ids` | Batch product filter (query/body) | A-23, A-24, A-8 | `Product.tiktok_product_id[]` |
+| `sku_id` | SKU grain / path param | A-31, A-8, B-1, B-7 | `OrderItem` / inventory rows |
+| `sku_ids` | Batch SKU filter (body) | A-8 Inventory Search | inventory poll input |
+| `order_id` | Order grain | A-5, B-3–B-6, B-13–B-14 | `Order.tiktok_order_id` |
+| `order_line_item_ids` | Line-item scope for aftersales | A-19, B-11 | `OrderItem` |
+| `package_id` | Fulfillment package grain | A-12, A-13, B-3–B-6, B-13–B-14 | fulfillment executor |
+| `package_ids` | Batch package ops | B-6 Batch Ship | fulfillment executor |
+| `warehouse_id` | FBS warehouse grain | A-8, B-1 | `InventoryItem.warehouse_id` |
+| `category_id` | Listing category | A-9, A-21, B-4–B-5 | `Product.category_id` |
+| `brand_id` | Listing brand (when required) | A-22a, B-4 | product metadata |
+| `activity_id` | Promotion activity grain | A-25, B-5–B-8 | promotion executor |
+| `cancel_id` | Cancellation request grain | A-7, B-9–B-10 | post-sales 8a |
+| `return_id` | Return/refund request grain | A-6, B-11–B-12 | post-sales 8b/8c |
+| `aftersales_request_id` | Aftersales umbrella id | A-18 (deferred) | post-sales 8c |
+| `live_id` | Shop live-session grain | A-26, A-27, A-28 | analytics reference tier |
+| `live_room_id` | Live-room grain (doc-sample) | A-30, A-35 | analytics reference tier |
+| `video_id` | Video content grain | A-39 | analytics reference tier |
+| `start_date_ge` | Analytics window start (YYYY-MM-DD) | A-26–A-39 (range queries) | ETL date partition |
+| `end_date_lt` | Analytics window end (exclusive) | A-26–A-39 (range queries) | ETL date partition |
+| `date` | Single-day analytics | A-37, A-38, A-39 | ETL date partition |
+| `time_slot` | Bestseller window (e.g. `1D`) | A-38, A-39 | analytics query param |
+| `page_token` | Cursor pagination | Most list/search endpoints | poll sync state |
+| `page_size` | Page size | Search/list endpoints | poll config |
+| `idempotency_key` | Write dedup | All Section B writes | executor idempotency |
+| `image` `uri` | Uploaded image handle | B-2, B-4 | listing executor |
+| `file` `uri` | Uploaded document handle | B-2a, B-4 | listing executor |
+
+**Analytics metrics surfaced in verified responses** (not path identifiers — map in ETL/aggregates):
+`gmv`, `ctr`, `click_through_rate`, `click_order_rate`, `click_to_order_rate`, `sku_orders`,
+`items_sold`, `orders`, `impressions`, `views`, `viewers`, `customers`, `avg_price`,
+`conversion_rate` (shop traffic), `gpm`, `direct_gmv`.
+
+> **Scope note:** Identifiers for deferred rows (A-17, A-18) and doc-sample-only rows
+> (A-30, A-35) stay catalogued for workflow completeness but must not be wired until
+> verification promotes them. See `CONTEXT.md` § **Analytics reference tier**.
 
 ---
 
@@ -628,7 +678,7 @@ curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
 
 ---
 
-## A-25. Get Activity (Promotion lifecycle read)
+## A-25. Get Promotion Activity (Promotion lifecycle read)
 
 Replaces Search Promotion Activity — no list/search endpoint exists. Use `activity_id`
 from B-5 Create Activity response or webhook #39 (`PROMOTION_ACTIVITY_STATUS_CHANGE`).
@@ -650,6 +700,350 @@ curl -X GET \
 **Sanitized response**
 ```json
 {"code":0,"data":{"activity_id":"7136104329798256386","title":"FlashSale 20230707","activity_type":"FIXED_PRICE","duration_type":"INDEFINITE","begin_time":1661756811,"end_time":1661856811,"participation_limit":[{"type":"NO_LIMIT"}],"products":[{"id":"7136011254174631686","activity_price":{"amount":"70500","currency":"IDR"},"quantity_limit":-1,"quantity_per_user":-1,"discount":"10","skus":[{"id":"7136382541418366725","discount":"10","quantity_limit":-1,"quantity_per_user":-1,"activity_price":{"amount":"70500","currency":"IDR"}}]}],"status":"ONGOING","create_time":1661750811,"update_time":1661750811,"product_level":"PRODUCT","activity_commands":"IMMUTABLE","target_user_info":{"user_type":"ALL_USER"}},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## Analytics endpoints (Section A — Fujiwa)
+
+TikTok Shop **Analytics API** read endpoints verified on Fujiwa production. Date-range queries use
+`start_date_ge` / `end_date_lt` (YYYY-MM-DD). Live-scoped endpoints require `live_id` from
+**A-28 Get Shop LIVE Performance List** (`live_stream_sessions[].id`).
+
+---
+
+## A-26. Get Shop LIVE Minute Performance
+
+Per-minute traffic, interaction, conversion, and sales for a single live session.
+
+| Field | Value |
+|-------|-------|
+| Version | `202510` |
+| Method / path | `GET /analytics/202510/shop_lives/{live_id}/performance_per_minutes` |
+| Required | `live_id`; query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`; header `x-tts-access-token` |
+| Optional query | `page_token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202510/shop_lives/{live_id}/performance_per_minutes?access_token={access_token}&app_key={app_key}&shop_cipher={shop_cipher}&shop_id=&sign={sign}&timestamp=1784191296&version=202510'
+```
+
+**Sanitized response** (`intervals[]` truncated to one minute bucket; `overall` summarizes the session)
+```json
+{"code":0,"data":{"next_page_token":"{page_token}","performance":{"intervals":[{"start_time":1783927800,"end_time":1783927860,"traffic":{"impressions":9,"views":2,"viewers":0,"product_impressions":0,"product_clicks":0,"ctr":"0.00","enter_room_rate":"0.22"},"interactions":{"likes":0,"comments":0,"shares":0,"new_followers":0},"conversion":{"created_sku_orders":0,"sku_order_rate":"0.00","avg_price":{"amount":"0.00","currency":"VND"}},"sales":{"gmv":{"amount":"0.00","currency":"VND"},"sku_orders":0,"customers":0,"items_sold":0}}],"overall":{"live_title":"[LIVE_TITLE]","start_time":1783927829,"end_time":1783931297,"duration":3468,"impressions":270,"unique_viewers":244,"items_sold":7,"gmv":{"amount":"1575824.00","currency":"VND"}}},"total_count":104},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-27. Get Shop LIVE Products Performance List
+
+Product-level sales and traffic for products shown during a live session.
+
+| Field | Value |
+|-------|-------|
+| Version | `202512` |
+| Method / path | `GET /analytics/202512/shop/{live_id}/products_performance` |
+| Required | `live_id`; query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202512/shop/{live_id}/products_performance?access_token={access_token}&app_key={app_key}&shop_cipher={shop_cipher}&shop_id=&sign={sign}&timestamp=1784191526&version=202512'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"products":[{"id":"{product_id}","name":"[PRODUCT_NAME]","sales":{"direct_gmv":{"amount":"1575823.99","currency":"VND"},"sku_orders":7,"items_sold":7,"customers":4,"avg_price":{"amount":"225117.71","currency":"VND"}},"traffic":{"product_impressions":328,"ctr":"0.17","gpm":{"watch_gpm":"4804341.45"}}}]},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-28. Get Shop LIVE Performance List
+
+Lists live sessions in a date range. Use returned `live_stream_sessions[].id` as `{live_id}` for A-26 and A-27.
+
+| Field | Value |
+|-------|-------|
+| Version | `202509` |
+| Method / path | `GET /analytics/202509/shop_lives/performance` |
+| Required | query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `start_date_ge`, `end_date_lt`; header `x-tts-access-token` |
+| Optional query | `page_token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202509/shop_lives/performance?access_token={access_token}&app_key={app_key}&end_date_lt=2026-07-14&shop_cipher={shop_cipher}&shop_id=&sign={sign}&start_date_ge=2026-07-13&timestamp=1784190858&version=202509'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"latest_available_date":"2026-07-15","live_stream_sessions":[{"id":"{live_id}","title":"[LIVE_TITLE]","username":"[USERNAME]","start_time":1783927832,"end_time":1783931297,"interaction_performance":{"viewers":245,"views":271,"likes":3526,"product_clicks":113,"product_impressions":1134,"click_through_rate":"9.96%"},"sales_performance":{"gmv":{"amount":"1575824","currency":"VND"},"sku_orders":7,"items_sold":7,"customers":4,"click_to_order_rate":"6.19%"}}],"next_page_token":"{page_token}","total_count":10},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-29. Get Shop LIVE Performance Overview
+
+Shop-wide live commerce rollup for a date range (daily intervals).
+
+| Field | Value |
+|-------|-------|
+| Version | `202509` |
+| Method / path | `GET /analytics/202509/shop_lives/overview_performance` |
+| Required | query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `start_date_ge`, `end_date_lt`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202509/shop_lives/overview_performance?access_token={access_token}&app_key={app_key}&end_date_lt=2026-07-14&shop_cipher={shop_cipher}&shop_id=&sign={sign}&start_date_ge=2026-07-13&timestamp=1784191681&version=202509'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"latest_available_date":"2026-07-15","performance":{"intervals":[{"start_date":"2026-07-13","end_date":"2026-07-14","gmv":{"amount":"2110729.00","currency":"VND"},"sku_orders":9,"items_sold":10,"customers":4,"click_through_rate":"0.08","click_to_order_rate":"0.07"}]}},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-30. Get Live Room Core Stats
+
+> **Note:** Not capturable via Partner Center API testing tool — doc-sample only.
+
+Real-time core stats for a live room (`live_room_id` may differ from shop `live_id`).
+
+| Field | Value |
+|-------|-------|
+| Version | `202502` |
+| Method / path | `GET /analytics/202502/live_rooms/{live_room_id}/core_stats` |
+| Required | `live_room_id`; query `app_key`, `sign`, `timestamp`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -X GET \
+'https://open-api.tiktokglobalshop.com/analytics/202502/live_rooms/{live_room_id}/core_stats?app_key={app_key}&sign={sign}&timestamp=1623812664' \
+-H 'x-tts-access-token: {access_token}' \
+-H 'content-type: application/json'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"stats":{"sales":123,"local_gmv":{"amount":"123.45","currency":"USD"},"created_order_count":123,"paid_order_count":123,"current_visitor_count":123,"watch_pv":123,"product_reach_count":123,"local_unit_price":{"amount":"12.34","currency":"USD"},"click_through_rate":"0.11","buyer_count":123}},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-31. Get Shop SKU Performance Detail
+
+Daily performance for a single SKU over a date range.
+
+| Field | Value |
+|-------|-------|
+| Version | `202509` |
+| Method / path | `GET /analytics/202509/shop_skus/{sku_id}/performance` |
+| Required | `sku_id`; query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `start_date_ge`, `end_date_lt`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202509/shop_skus/{sku_id}/performance?access_token={access_token}&app_key={app_key}&end_date_lt=2026-07-14&shop_cipher={shop_cipher}&shop_id=&sign={sign}&start_date_ge=2026-07-13&timestamp=1784191834&version=202509'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"latest_available_date":"2026-07-15","performance":{"sku_id":"{sku_id}","product_id":"{product_id}","intervals":[{"start_date":"2026-07-13","end_date":"2026-07-14","gmv":{"amount":"0","currency":"VND"},"sku_orders":0,"items_sold":0}]}},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-32. Get Shop SKU Performance List
+
+Ranked SKU performance list for a date range.
+
+| Field | Value |
+|-------|-------|
+| Version | `202509` |
+| Method / path | `GET /analytics/202509/shop_skus/performance` |
+| Required | query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `start_date_ge`, `end_date_lt`; header `x-tts-access-token` |
+| Optional query | `page_token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202509/shop_skus/performance?access_token={access_token}&app_key={app_key}&end_date_lt=2026-07-14&shop_cipher={shop_cipher}&shop_id=&sign={sign}&start_date_ge=2026-07-13&timestamp=1784191925&version=202509'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"latest_available_date":"2026-07-15","next_page_token":"{page_token}","skus":[{"id":"{sku_id}","product_id":"{product_id}","gmv":{"amount":"916678.00","currency":"VND"},"sku_orders":4,"units_sold":4}],"total_count":12},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-33. Get Shop Product Performance Detail
+
+Daily product performance with channel breakdowns (LIVE / VIDEO / PRODUCT_CARD).
+
+| Field | Value |
+|-------|-------|
+| Version | `202509` |
+| Method / path | `GET /analytics/202509/shop_products/{product_id}/performance` |
+| Required | `product_id`; query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `start_date_ge`, `end_date_lt`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202509/shop_products/{product_id}/performance?access_token={access_token}&app_key={app_key}&end_date_lt=2026-07-14&shop_cipher={shop_cipher}&shop_id=&sign={sign}&start_date_ge=2026-07-13&timestamp=1784192031&version=202509'
+```
+
+**Sanitized response** (`ratings[]`, `top_contents[]`, `top_creators[]` omitted when empty)
+```json
+{"code":0,"data":{"latest_available_date":"2026-07-15","performance":{"intervals":[{"start_date":"2026-07-13","end_date":"2026-07-14","sales":{"gmv":{"amount":"1881780.00","currency":"VND"},"items_sold":11,"orders":10,"breakdowns":[{"content_type":"VIDEO","sales":{"gmv":{"amount":"1292003.00","currency":"VND"},"items_sold":8}},{"content_type":"PRODUCT_CARD","sales":{"gmv":{"amount":"589777.00","currency":"VND"},"items_sold":3}}]},"traffic":{"breakdowns":[{"content_type":"VIDEO","traffic":{"impressions":4060,"ctr":"0.05"}}]}}]}},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-34. Get Shop Product Performance List
+
+Paginated product performance list with seller/affiliate channel metrics.
+
+| Field | Value |
+|-------|-------|
+| Version | `202605` |
+| Method / path | `GET /analytics/202605/shop_products/performance` |
+| Required | query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `start_date_ge`, `end_date_lt`; header `x-tts-access-token` |
+| Optional query | `page_token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202605/shop_products/performance?access_token={access_token}&app_key={app_key}&end_date_lt=2026-07-14&shop_cipher={shop_cipher}&shop_id=&sign={sign}&start_date_ge=2026-07-13&timestamp=1784190344&version=202605'
+```
+
+**Sanitized response** (per-product channel blocks truncated to `total_performance` only)
+```json
+{"code":0,"data":{"latest_available_date":"2026-07-14","next_page_token":"{page_token}","products":[{"id":"{product_id}","total_performance":{"gmv":{"amount":"2430217.00","currency":"VND"},"orders":9,"sku_orders":10,"items_sold":10,"estimated_customers":6,"ctr":"0.0759","click_order_rate":"0.1064"}}],"total_count":34},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-35. Get Live Room GMV Trend
+
+> **Note:** Not capturable via Partner Center API testing tool — doc-sample only.
+
+GMV trend data points for a live room.
+
+| Field | Value |
+|-------|-------|
+| Version | `202502` |
+| Method / path | `GET /analytics/202502/live_rooms/{live_room_id}/gmv_trend_performances` |
+| Required | `live_room_id`; query `app_key`, `sign`, `timestamp`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -X GET \
+'https://open-api.tiktokglobalshop.com/analytics/202502/live_rooms/{live_room_id}/gmv_trend_performances?app_key={app_key}&sign={sign}&timestamp=1623812664' \
+-H 'x-tts-access-token: {access_token}' \
+-H 'content-type: application/json'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"gmv_trend_performances":[{"stats_type":"TREND_GMV","data_points":[{"timestamp":1623812664,"order_count":123,"gmv":{"amount":"123.45","currency":"USD"}}]}]},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-36. Get Shop Performance
+
+Shop-level sales and traffic rollup with GMV breakdown by content type.
+
+| Field | Value |
+|-------|-------|
+| Version | `202509` |
+| Method / path | `GET /analytics/202509/shop/performance` |
+| Required | query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `start_date_ge`, `end_date_lt`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202509/shop/performance?access_token={access_token}&app_key={app_key}&end_date_lt=2026-07-14&shop_cipher={shop_cipher}&shop_id=&sign={sign}&start_date_ge=2026-07-13&timestamp=1784192160&version=202509'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"latest_available_date":"2026-07-14","performance":{"intervals":[{"start_date":"2026-07-13","end_date":"2026-07-14","sales":{"gmv":{"overall":{"amount":"6408074.00","currency":"VND"},"breakdowns":[{"type":"LIVE","gmv":{"amount":"2110729.00","currency":"VND"}},{"type":"VIDEO","gmv":{"amount":"2424536.00","currency":"VND"}}]},"orders_count":26,"sku_orders_count":29,"items_sold":32},"traffic":{"avg_visitors":303,"avg_page_views":609,"avg_conversation_rate":"0.0759"}}]}},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-37. Get Shop Performance Per Hour
+
+Hourly shop performance for a single calendar date.
+
+| Field | Value |
+|-------|-------|
+| Version | `202510` |
+| Method / path | `GET /analytics/202510/shop/performance/{date}/performance_per_hour` |
+| Required | `date` (YYYY-MM-DD); query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`; header `x-tts-access-token` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202510/shop/performance/2026-07-13/performance_per_hour?access_token={access_token}&app_key={app_key}&shop_cipher={shop_cipher}&shop_id=&sign={sign}&timestamp=1784192270&version=202510'
+```
+
+**Sanitized response** (`intervals[]` truncated to one hour bucket)
+```json
+{"code":0,"data":{"performance":{"latest_available_timestamp":1784192270,"overall":{"visitors":303,"customers":23,"gmv":{"amount":"6408074.00","currency":"VND"},"items_sold":32},"intervals":[{"index":12,"visitors":38,"customers":4,"gmv":{"amount":"661750.00","currency":"VND"},"items_sold":4}]}},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-38. Get Bestselling Products
+
+Top-selling products for a date and time slot.
+
+| Field | Value |
+|-------|-------|
+| Version | `202511` |
+| Method / path | `GET /analytics/202511/products/bestselling` |
+| Required | query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `date`, `time_slot`; header `x-tts-access-token` |
+| `time_slot` | e.g. `1D` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202511/products/bestselling?access_token={access_token}&app_key={app_key}&date=2026-07-07&shop_cipher={shop_cipher}&shop_id=&sign={sign}&time_slot=1D&timestamp=1784192669&version=202511'
+```
+
+**Sanitized response** (`product_image.urls[]` truncated)
+```json
+{"code":0,"data":{"products":[{"id":"{product_id}","name":"[PRODUCT_NAME]","rank":1,"gmv_range":"VND{min}~VND{max}","rating":"4.8","shop_id":"{shop_id}","shop_name":"[SHOP_NAME]","product_image":{"uri":"tos-alisg-i-aphluv4xwc-sg/{image_uri}","thumb_urls":["https://..."]}}]},"message":"Success","request_id":"{request_id}"}
+```
+
+---
+
+## A-39. Get Bestselling Videos
+
+Top-performing videos for a date and time slot.
+
+| Field | Value |
+|-------|-------|
+| Version | `202511` |
+| Method / path | `GET /analytics/202511/videos/bestselling` |
+| Required | query `app_key`, `sign`, `timestamp`, `shop_cipher`, `version`, `date`, `time_slot`; header `x-tts-access-token` |
+| `time_slot` | e.g. `1D` |
+
+**cURL**
+```bash
+curl -k -X 'GET' -H 'x-tts-access-token: {access_token}' \
+'https://open-api.tiktokglobalshop.com/analytics/202511/videos/bestselling?access_token={access_token}&app_key={app_key}&date=2026-07-07&shop_cipher={shop_cipher}&shop_id=&sign={sign}&time_slot=1D&timestamp=1784193095&version=202511'
+```
+
+**Sanitized response**
+```json
+{"code":0,"data":{"videos":[{"id":"{video_id}","rank":1,"duration":29,"views":1929879,"likes":7092,"comments":0,"shares":3796,"gmv_range":"VND{min}~VND{max}","nick_name":"[NICK_NAME]","publish_time":1783348436,"product_infos":[{"product_id":"{product_id}","product_name":"[PRODUCT_NAME]"}]}]},"message":"Success","request_id":"{request_id}"}
 ```
 
 ---
@@ -1132,7 +1526,8 @@ API surface. Re-add only if a verified create-coupon contract is found in a futu
 - B-2 (Upload Product Image) and B-2a (Upload Product File) have sanitized Partner Center doc cURLs, but still need direct SANDBOX_VN multipart response captures. Upload Product File is for category-required supporting documents/certificates, not a replacement for `main_images[].uri`.
 - B-15 (Confirm Package Shipment) still needs a first capture — no sample exists yet
 - **KEEP Search Aftersales Request endpoint** A-17 (Search RMA) vs A-18 (Search Aftersales Request) — **deferred** until Fujiwa sandbox capture
-- **Get Activity replaces Search** A-25 verified — `GET /promotion/202309/activities/{activity_id}`; B-5–B-8 promotion writes verified
+- **Get Promotion Activity replaces Search** A-25 verified — `GET /promotion/202309/activities/{activity_id}`; B-5–B-8 promotion writes verified
+  (_Avoid_ informal "Get Activity" / "Search Activity" for this operation)
 - **Use version 202309** A-2 (Search Products) re-captured at `202502` per execution_layer.md
 - **Verify this, credentials will be store in supabase** No secrets in any cURL — all tokens/signs are placeholders in this file; real values only in `.env` / secrets manager
 

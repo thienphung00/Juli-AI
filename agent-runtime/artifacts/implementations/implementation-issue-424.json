@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 424,
+  "executorDomain": "backend",
+  "phaseRunId": "424-20260721T040009",
+  "startedAt": "2026-07-21T04:01:00Z",
+  "completedAt": "2026-07-21T04:20:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell",
+    "UpdateCurrentStep"
+  ],
+  "toolInvocationCount": 55,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-424.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-424.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/testing-patterns/python-testing.md",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "docs/integrations/tiktok_api/contract-collection.md",
+    "docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "backend/src/juli_backend/integrations/tiktok/constants.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py"
+  ],
+  "skillsLoaded": [
+    "backend",
+    "python-testing"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/observability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/integrations/tiktok/constants.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/__init__.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/workers/services/polling/__init__.py",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "backend/src/juli_backend/repositories/repos.py",
+    "tests/unit/test_analytics_production_read_allowlist.py",
+    "tests/unit/test_analytics_resource.py",
+    "tests/unit/test_analytics_poll_cycle.py",
+    "tests/unit/test_fujiwa_polling_orchestration.py",
+    "tests/unit/test_layer1_read_resources.py",
+    "tests/unit/test_layer2_sandbox_write_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_production_read_allowlist.py",
+    "tests/unit/test_analytics_resource.py",
+    "tests/unit/test_analytics_poll_cycle.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_fujiwa_polling_orchestration.py",
+    "tests/unit/test_layer1_read_resources.py",
+    "tests/unit/test_layer2_sandbox_write_contract.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ImportError: ANALYTICS_* path constants missing from constants.py",
+      "passingTestEvidence": "Allowlist accepts A-25/A-31\u2013A-39 GET paths; rejects LIVE/doc-sample/non-GET",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_analytics_production_read_allowlist.py tests/unit/test_tiktok_capability_factories.py -q",
+          "exitCode": 0,
+          "outputSummary": "33 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "ModuleNotFoundError: juli_backend.integrations.tiktok.resources.analytics",
+      "passingTestEvidence": "AnalyticsResource date-window + pagination contracts from sanitized fixtures",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_analytics_resource.py -q",
+          "exitCode": 0,
+          "outputSummary": "11 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "ImportError: sync_analytics missing from polling.sync",
+      "passingTestEvidence": "sync_analytics + run_fujiwa_poll_cycle invoke analytics steps, update sync_state, use RateLimiter; no LIVE executors",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_analytics_poll_cycle.py tests/unit/test_fujiwa_polling_orchestration.py tests/unit/test_layer1_read_resources.py tests/unit/test_analytics_resource.py tests/unit/test_analytics_production_read_allowlist.py tests/unit/test_polling.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_layer2_sandbox_write_contract.py -q",
+          "exitCode": 0,
+          "outputSummary": "110 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A \u2014 refactor while green (MODULE.md, unused imports, layer2 production promotion assertion)",
+      "passingTestEvidence": "Same suite remains green after MODULE docs + layer2 test update",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_analytics_poll_cycle.py tests/unit/test_fujiwa_polling_orchestration.py tests/unit/test_layer1_read_resources.py tests/unit/test_analytics_resource.py tests/unit/test_analytics_production_read_allowlist.py tests/unit/test_polling.py tests/unit/test_tiktok_capability_factories.py tests/unit/test_layer2_sandbox_write_contract.py -q",
+          "exitCode": 0,
+          "outputSummary": "110 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #424: wired Analytics API poll targets (A-31\u2013A-39 + A-25) into Fujiwa production-read polling. Added AnalyticsResource with start_date_ge/end_date_lt + pagination, production-read GET allowlist paths, sync_analytics worker + orchestrate hook (shared with ADR-021 manual refresh), and tiktok_sync_state endpoint keys. LIVE A-26\u2013A-29 and Analytics ETL left unwired.",
+  "assumptions": [
+    "Manual refresh poll hook is covered by maybe_poll_tiktok_data \u2192 run_fujiwa_poll_cycle (no separate analytics entrypoint)",
+    "A-25 Get Activity runs only when sync_state.promotion_activity_ids is populated (webhook/create flows)",
+    "Analytics ETL handoff deferred to downstream child \u2014 sync updates watermarks only",
+    "One-day UTC date window (yesterday \u2192 today exclusive) is the default poll window"
+  ],
+  "risks": [
+    "Detail fetches (A-31/A-33) for large list pages may exhaust the 10/min RateLimiter bucket mid-cycle",
+    "promotion_activity_ids is in-memory-only until a persistence path exists for activity id catalogs"
+  ]
+}

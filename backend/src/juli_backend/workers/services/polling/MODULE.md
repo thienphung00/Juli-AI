@@ -8,12 +8,13 @@ shop. Fujiwa production-read orchestration is the Phase 2 P2-A1 entry point.
 
 ## Public API
 
-- `run_fujiwa_poll_cycle(*, session, config, oauth_service, rate_limiter, handoff_fn)` — Fujiwa-only scheduled poll for orders, products, returns, and inventory; refreshes tokens, persists sync state, backs off on rate limits
+- `run_fujiwa_poll_cycle(*, session, config, oauth_service, rate_limiter, handoff_fn)` — Fujiwa-only scheduled poll for orders, products, returns, inventory, and analytics; refreshes tokens, persists sync state, backs off on rate limits (also the ADR-021 manual-refresh poll hook)
 - `FujiwaPollConfig(app_key, app_secret)` — app credentials for poll cycles
 - `sync_orders(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `sync_products(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `sync_returns(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `sync_inventory(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)` — Search Inventory full-snapshot backstop; flattens nested SKUs before `tiktok.inventory.raw` handoff
+- `sync_analytics(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state, promotion_resource=None)` — Analytics GET wire set (A-31–A-39) + optional A-25; date-window + pagination; sync_state watermarks only (no ETL)
 - `sync_creators(*, resource, rate_limiter, handoff_fn, app_id, shop_id, sync_state)`
 - `backfill_shop(*, creators_resource, rate_limiter, handoff_fn, app_id, shop_id)`
 
@@ -32,8 +33,9 @@ Out-of-scope workers removed (Phase 2 cleanup): `sync_livestreams`,
 
 - `run_fujiwa_poll_cycle` resolves Fujiwa `production_read` credentials only; rejects SANDBOX_VN
 - Token refresh via `refresh_merchant_tokens` before each cycle
-- Sync cursors persisted in `tiktok_sync_state` per shop + endpoint (`orders`, `products`, `returns`, `inventory`)
+- Sync cursors persisted in `tiktok_sync_state` per shop + endpoint (`orders`, `products`, `returns`, `inventory`, analytics keys)
 - Inventory uses `inventory_last_sync_at` watermark only (Search Inventory has no `update_time` filter)
+- Analytics uses `start_date_ge` / `end_date_lt` (YYYY-MM-DD) one-day UTC windows; LIVE A-26–A-29 not wired
 - Rate-limit backoff waits for Redis TTL via `RateLimiter.is_exhausted` / `time_until_reset`; cycle completes without raising
 - `handoff_fn: Callable[[str, str, bytes], Awaitable[None]]` — invoked with
   `(channel, shop_key, payload_bytes)` per record

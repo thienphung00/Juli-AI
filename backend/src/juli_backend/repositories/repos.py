@@ -248,6 +248,14 @@ _ENDPOINT_STATE_KEYS: dict[str, str] = {
     "products": "products_last_update_time",
     "returns": "returns_last_update_time",
     "inventory": "inventory_last_sync_at",
+    # Analytics wire set (#424) — LIVE A-26–A-29 intentionally omitted.
+    "shop_sku_performance": "shop_sku_performance_last_sync_at",
+    "shop_product_performance": "shop_product_performance_last_sync_at",
+    "shop_performance": "shop_performance_last_sync_at",
+    "shop_performance_per_hour": "shop_performance_per_hour_last_sync_at",
+    "bestselling_products": "bestselling_products_last_sync_at",
+    "bestselling_videos": "bestselling_videos_last_sync_at",
+    "promotion_activity": "promotion_activity_last_sync_at",
 }
 
 _STATE_KEY_ENDPOINTS = {value: key for key, value in _ENDPOINT_STATE_KEYS.items()}

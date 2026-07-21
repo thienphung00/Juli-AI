@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,11 @@ from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
 from juli_backend.integrations.tiktok.constants import (
+    ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+    ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_SHOP_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
@@ -37,6 +43,37 @@ _ITEMS_KEY_BY_PATH: dict[str, str] = {
     RETURN_SEARCH_PATH: "return_orders",
     # Inventory is a full snapshot — never filter by update_time_ge.
 }
+
+# Empty Analytics envelopes for Fujiwa poll e2e (#424). List endpoints return
+# zero rows so detail GETs are not issued; path patterns cover dated A-37 URLs.
+_ANALYTICS_EXACT_DATA: dict[str, dict[str, Any]] = {
+    ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH: {"skus": [], "total_count": 0},
+    ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH: {"products": [], "total_count": 0},
+    ANALYTICS_SHOP_PERFORMANCE_PATH: {"performance": {"intervals": []}},
+    ANALYTICS_BESTSELLING_PRODUCTS_PATH: {"products": []},
+    ANALYTICS_BESTSELLING_VIDEOS_PATH: {"videos": []},
+}
+
+_ANALYTICS_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^/analytics/\d+/shop_skus/[^/]+/performance$"),
+    re.compile(r"^/analytics/\d+/shop_products/[^/]+/performance$"),
+    re.compile(r"^/analytics/\d+/shop/performance/\d{4}-\d{2}-\d{2}/performance_per_hour$"),
+    re.compile(r"^/promotion/\d+/activities/[^/]+$"),
+)
+
+
+def _analytics_envelope(path: str) -> dict[str, Any] | None:
+    data = _ANALYTICS_EXACT_DATA.get(path)
+    if data is None and any(pattern.match(path) for pattern in _ANALYTICS_PATH_PATTERNS):
+        data = {"performance": {"intervals": []}}
+    if data is None:
+        return None
+    return {
+        "code": 0,
+        "message": "Success",
+        "data": copy.deepcopy(data),
+        "request_id": "replay-analytics-424",
+    }
 
 
 def load_sample(name: str) -> dict[str, Any]:
@@ -106,7 +143,10 @@ def recorded_tiktok_replay(*, fail_paths: frozenset[str] | None = None):
 
         fixture = responses_by_path.get(path)
         if fixture is None:
-            raise AssertionError(f"Unexpected TikTok replay request: {method} {path}")
+            analytics = _analytics_envelope(path)
+            if analytics is None:
+                raise AssertionError(f"Unexpected TikTok replay request: {method} {path}")
+            return _mock_http_response(analytics)
 
         body = kwargs.get("json") or {}
         update_from = body.get("update_time_ge")

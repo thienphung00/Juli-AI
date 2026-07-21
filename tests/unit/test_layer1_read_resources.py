@@ -15,10 +15,12 @@ from juli_backend.integrations.tiktok.factories import (
     SandboxWriteClientFactory,
     SandboxWriteResources,
 )
+from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
 from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
+from juli_backend.integrations.tiktok.resources.promotion import PromotionResource
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
 
 SAMPLES_DIR = Path(__file__).resolve().parents[2] / "docs/integrations/tiktok_api/samples"
@@ -143,8 +145,9 @@ def test_fujiwa_production_read_factory_only():
     assert isinstance(resources.products, ProductsResource)
     assert isinstance(resources.returns, ReturnsResource)
     assert isinstance(resources.inventory, InventoryResource)
+    assert isinstance(resources.analytics, AnalyticsResource)
+    assert isinstance(resources.promotion, PromotionResource)
     assert not hasattr(resources, "fulfillment")
-    assert not hasattr(resources, "promotion")
     sandbox_resources = SandboxWriteClientFactory().create_resources(
         ClientFactoryConfig(
             app_key="app-key",
