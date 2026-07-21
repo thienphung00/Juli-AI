@@ -16,7 +16,7 @@ import hashlib
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from juli_backend.integrations.tiktok.constants import (
@@ -312,9 +312,9 @@ def _analytics_date_window(
 
     ``end_date_lt`` is exclusive (Partner API identifier catalog).
     """
-    current = now or datetime.now(timezone.utc)
+    current = now or datetime.now(UTC)
     if current.tzinfo is None:
-        current = current.replace(tzinfo=timezone.utc)
+        current = current.replace(tzinfo=UTC)
     end = current.date()
     start = end - timedelta(days=1)
     day = start.isoformat()
@@ -356,7 +356,7 @@ async def sync_analytics(
     """
     del handoff_fn  # reserved for downstream Analytics ETL child issue
     start_date_ge, end_date_lt, day = _analytics_date_window(now=now)
-    synced_at = int((now or datetime.now(timezone.utc)).timestamp())
+    synced_at = int((now or datetime.now(UTC)).timestamp())
 
     if _acquire(
         rate_limiter,

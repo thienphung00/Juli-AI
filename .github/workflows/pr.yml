@@ -198,6 +198,10 @@ jobs:
         run: |
           issue="${ISSUE_NUMBER}"
           failed=0
+          # Workflow caches are gitignored (machine-local). Bootstrap before gates
+          # so check_workflow_cache_* / issue_load_profile can run in CI.
+          echo "==> agent-runtime/scripts/meta_prepare_executor.py --issue $issue"
+          python agent-runtime/scripts/meta_prepare_executor.py --issue "$issue" || failed=1
           for script in agent-runtime/scripts/validate/check_*.py; do
             echo "==> $script"
             python "$script" --issue "$issue" || failed=1
