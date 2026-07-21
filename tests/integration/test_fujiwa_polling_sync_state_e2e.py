@@ -201,7 +201,10 @@ class TestFujiwaPollingSyncStateE2E:
             assert after_second[key] == after_first[key]
         assert "inventory_last_sync_at" in after_second
         assert after_second["inventory_last_sync_at"] >= after_first["inventory_last_sync_at"]
-        assert row_count_after_second == row_count_after_first == 4
+        # orders + products + returns + inventory + 6 analytics watermarks (#424)
+        assert row_count_after_second == row_count_after_first == 10
+        assert "shop_sku_performance_last_sync_at" in after_second
+        assert "bestselling_videos_last_sync_at" in after_second
 
     @pytest.mark.asyncio
     async def test_partial_endpoint_failure_preserves_existing_sync_state(
