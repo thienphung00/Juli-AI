@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 406,
+  "executorDomain": "infra/deploy",
+  "phaseRunId": "406-20260721T104932",
+  "startedAt": "2026-07-21T10:52:00Z",
+  "completedAt": "2026-07-21T10:58:00Z",
+  "executionDurationMs": 360000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 45,
+  "contextFilesLoaded": [
+    ".cursor/skills/standalone/ship/SKILL.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-406.json",
+    "docs/product/phases/phase-2.6/PRD.md",
+    "tests/unit/test_phase_2_5_deploy_config.py",
+    "tests/unit/test_phase_2_5_frontend_deploy.py",
+    "infra/scripts/deploy-release.sh",
+    "infra/scripts/rollback-release.sh",
+    "infra/deploy/README.md"
+  ],
+  "skillsLoaded": [
+    "ship"
+  ],
+  "filesModified": [
+    "infra/nginx/demo.app-juli.com.conf",
+    "infra/systemd/juli-demo.service",
+    "infra/scripts/env/demo.env.example",
+    "infra/scripts/build-demo.sh",
+    "infra/scripts/provision-demo.sh",
+    "infra/scripts/deploy-demo-release.sh",
+    "infra/scripts/rollback-demo-release.sh",
+    "infra/scripts/smoke-test-demo.sh",
+    "infra/scripts/provision-nginx.sh",
+    "infra/deploy/README.md",
+    "docs/runbooks/demo-deploy-runbook.md",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py",
+    "tests/unit/test_phase_2_6_demo_deploy.py",
+    ".github/workflows/pr.yml",
+    "docs/handoffs/parallel-status.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_demo_topology",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_nginx_demo_vhost_routes_to_independent_upstream",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_app_and_api_nginx_configs_unchanged_for_demo_independence",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_systemd_demo_unit_is_independent_service",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_systemd_demo_uses_demo_release_symlink",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_deploy_demo_script_builds_and_restarts_demo_only",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_build_demo_script_targets_monorepo_demo_app",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_independent_demo_restart",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_rollback_demo_script_restarts_demo_only",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_demo_rollback",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_dns_tls_and_provisioning_without_secrets",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_env_demo_example_has_no_backend_credentials",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_env_demo_example_do_not_contain_real_secrets",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_smoke_demo_script_exists_and_is_executable",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_smoke_demo_covers_dns_tls_and_decisions_route",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_deploy_readme_documents_demo_ci_validation",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_ci_validation_command",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_build_demo_script_does_not_require_api_env",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_systemd_demo_does_not_fetch_backend_secrets",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_mock_mode_without_backend",
+    "tests/unit/test_phase_2_6_demo_deploy_config.py::test_demo_deploy_excludes_out_of_scope_services",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_demo_runbook_documents_build_without_api_credentials",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_build_script_validates_decisions_route",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_systemd_unit_binds_demo_to_loopback_port",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_provision_script_installs_juli_demo_and_runs_build",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_smoke_demo_covers_public_domain_and_decisions_route",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_demo_runbook_documents_public_urls_and_smoke",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_provision_nginx_installs_demo_vhost",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_demo_runbook_documents_nginx_vhost_path",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_demo_scripts_are_executable_and_have_shebang",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_provision_demo_does_not_reference_forbidden_services",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_env_demo_example_documents_mock_only_runtime",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_prd_records_demo_public_deployment_target",
+    "tests/unit/test_phase_2_6_demo_deploy.py::test_deploy_readme_records_phase_2_6_demo_deploy_slice"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_phase_2_6_demo_deploy_config.py and test_phase_2_6_demo_deploy.py did not exist — 27 failed, 9 errors on first run",
+      "passingTestEvidence": "Added demo nginx/systemd/scripts/runbook/CI; 38 contract tests pass; phase 2.5 regressions pass",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_6_demo_deploy_config.py tests/unit/test_phase_2_6_demo_deploy.py -q",
+          "exitCode": 0,
+          "outputSummary": "38 passed"
+        },
+        {
+          "command": "bash -n infra/scripts/build-demo.sh && bash -n infra/scripts/provision-demo.sh && bash -n infra/scripts/deploy-demo-release.sh && bash -n infra/scripts/rollback-demo-release.sh && bash -n infra/scripts/smoke-test-demo.sh",
+          "exitCode": 0,
+          "outputSummary": "bash syntax OK"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_5_deploy_config.py tests/unit/test_phase_2_5_vps_wiring.py -q",
+          "exitCode": 0,
+          "outputSummary": "no regressions"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Phase 2.6 P2-6 (#406) Demo deploy automation: independent juli-demo systemd (127.0.0.1:3001), demo.app-juli.com nginx vhost, mock-only build/provision/deploy/rollback scripts with demo-current symlink and demo-deploy-history.log, HITL runbook without secrets, 38 CI contract tests, and demo-deploy-contracts job in pr.yml. Decision 4A — no live VPS/DNS/TLS.",
+  "acceptanceCriteria": {
+    "demo_independent_systemd_nginx": "PASS — juli-demo on :3001; demo.app-juli.com.conf; app/api vhosts unchanged",
+    "release_automation": "PASS — deploy-demo-release.sh builds apps/demo, flips demo-current, restarts juli-demo only, local /decisions health",
+    "independent_rollback": "PASS — rollback-demo-release.sh restores prior demo-current without touching juli-api/juli-web",
+    "documented_without_secrets": "PASS — docs/runbooks/demo-deploy-runbook.md covers DNS/TLS/provision/rollback",
+    "contract_tests": "PASS — 38 pytest contracts for domain, service, paths, ports, release integration, secret hygiene",
+    "ci_validation": "PASS — demo-deploy-contracts job + existing demo-frontend check:demo",
+    "mock_mode_no_backend": "PASS — no fetch-secrets, no api.env, no NEXT_PUBLIC_API_URL in demo env template"
+  },
+  "assumptions": [
+    "Decision 4A — repo/CI only; live VPS/DNS/certbot remain HITL for operator",
+    "Demo shares ~/releases/<sha> worktrees with App Review but uses separate demo-current symlink",
+    "pnpm/corepack available on VPS (matches monorepo demo-frontend CI job)",
+    "Executor domain note: infra/deploy (cache labeled ui-ux ignored per Meta instruction)"
+  ],
+  "risks": [
+    "Operator must run provision-demo.sh and certbot for demo.app-juli.com on VPS before public smoke passes",
+    "First Demo deploy requires juli-demo.service installed via provision-demo.sh",
+    "Shared release worktree pruning skips dirs referenced by either current or demo-current symlink"
+  ],
+  "blockers": []
+}
