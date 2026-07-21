@@ -1,0 +1,73 @@
+{
+  "phaseRunId": "427-20260721T065303",
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-427.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-427.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "backend/src/juli_backend/services/scoring/copy_layer.py",
+    "backend/src/juli_backend/services/scoring/signals.py",
+    "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+    "backend/src/juli_backend/services/scoring/recommendations.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "toolsUsed": ["Read", "Grep", "Glob", "Shell", "StrReplace", "Write"],
+  "toolInvocationCount": 20,
+  "filesModified": [
+    "backend/src/juli_backend/services/scoring/copy_layer.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "tests/unit/test_rules_copy_layer_contract.py",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-427.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_rules_copy_layer_contract.py::TestAdsKpiLinkedCopyContract::test_ads_kpi_linked_recommendation_emits_rules_copy"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "CTR live signal → rules copy with signal one_line in why and Ads workflow next_steps",
+      "redCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestAdsKpiLinkedCopyContract -k ctr -q --tb=short",
+      "redResult": "6 tests not yet present (new class)",
+      "greenCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestAdsKpiLinkedCopyContract -k ctr -q --tb=short",
+      "greenResult": "2 passed — existing copy_layer passes without template changes (no-op)"
+    },
+    {
+      "cycle": 2,
+      "behavior": "ROAS/CAC live signals (mocked spend denominators) → rules copy with KPI advisory in why",
+      "redCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestAdsKpiLinkedCopyContract -k 'roas or cac' -q --tb=short",
+      "redResult": "4 tests not yet present",
+      "greenCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestAdsKpiLinkedCopyContract -q --tb=short",
+      "greenResult": "6 passed — why from linked one_line; next_steps already mention ROAS/CAC"
+    },
+    {
+      "cycle": 3,
+      "behavior": "No LLM imports in copy_layer after #427 documentation",
+      "redCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestNoLlmImportsInCopyLayer -q",
+      "redResult": "n/a — regression guard",
+      "greenCommand": "pytest tests/unit/test_rules_copy_layer_contract.py::TestNoLlmImportsInCopyLayer -q",
+      "greenResult": "1 passed"
+    }
+  ],
+  "implementationSummary": "Issue #427 P2-B2 ext: probed live CTR/ROAS/CAC signals (#428) against build_workflow_reasoning_copy — existing architecture already satisfies AC2. why assembles linked AdvisorySignal.one_line (risk/opportunity severity text from signals.py); static Ads workflow next_steps already reference ROAS/CAC. Documented no-op in copy_layer.py module docstring and scoring MODULE.md; added TestAdsKpiLinkedCopyContract parametrized contract tests (6 cases). No template branches added.",
+  "assumptions": [
+    "B3 (#428) severity one_line text from signals.py is the authoritative Ads KPI advisory copy for why — no KPI-specific next_steps branches needed",
+    "ROAS/CAC live paths tested with unit-level spend denominator fixtures only; production ROAS/CAC remain unavailable until promotion spend ETL per #428",
+    "CTR moderate branch (1.5%–2.5%) covered implicitly by risk/healthy parametrized cases; no separate template wiring required"
+  ],
+  "risks": [
+    "If product later requires Vietnamese next_steps differentiated by Ads KPI severity, copy_layer would need KPI-aware template branches — out of scope for #427 no-op decision",
+    "English action_hint strings in signal one_line flow into why unchanged (inherited from #428 visual_layer format)"
+  ],
+  "cacheHits": [
+    "parent-cache-issue-278.json",
+    "issue-context-cache-427.json"
+  ]
+}

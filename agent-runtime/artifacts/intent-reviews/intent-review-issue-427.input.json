@@ -1,0 +1,43 @@
+{
+  "fixedPoint": "74c4d46339c99de0001ee2f9ee17f97e701d6047",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Working-tree vs 74c4d463 (#427). Documented template no-op: why from linked AdvisorySignal.one_line covers ctr/roas/cac risk/opportunity; Ads workflow next_steps already mention ROAS/CAC; copy_source remains rules; TestAdsKpiLinkedCopyContract (6 cases) + MODULE.md/copy_layer docstring document decision. No copy-layer logic drift.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_rules_copy_layer_contract.py",
+      "hunk": "_snapshot_with_computed_kpis duplicates helpers in test_daily_batch_scoring_contract.py",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Divergent Change",
+      "path": "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "hunk": "module docstring (#427 no-op rationale) alongside MODULE.md",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "DRY / shared test fixtures",
+      "path": "tests/unit/test_rules_copy_layer_contract.py",
+      "note": "Nearly identical _snapshot_with_computed_kpis already in test_daily_batch_scoring_contract.py; prefer shared conftest later.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "MODULE.md as module authority",
+      "path": "backend/src/juli_backend/services/scoring/MODULE.md",
+      "note": "Copy-layer #427 no-op documented in the right section.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "KISS / no speculative generality",
+      "path": "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "note": "No new template branches — correctly defers to one_line + static workflow keys.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "427-20260721T065303",
+  "reviewedBy": "intent-review skill"
+}

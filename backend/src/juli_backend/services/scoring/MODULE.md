@@ -27,12 +27,16 @@ Each KPI emits an `AdvisorySignal`:
 - Six domains: shop_status, revenue, ads, inventory, operations, customer_service
 - Phase 2: T3 policy rules (SPS/AHR/VP) + deterministic proxies from synced Postgres
 - Shop Status KPIs render mock/fixture advisory only — **no workflow_keys** until Partner API fields exist
-- Ads CTR from analytics product-grain CTR rollup (#428); ROAS/CAC stay `unavailable` until promotion spend ETL
+- Ads CTR from analytics product-grain CTR rollup (#428); ROAS/CAC stay `unavailable` until promotion spend ETL (live formulas wired when spend denominators exist)
 - KPIs without ETL fields emit `signal_type: unavailable` (never fabricated)
 
-## Copy layer (#304)
+## Copy layer (#304, #427)
 
 Rules-only templates from advisory signals. Envelope per `system-design.md` § LLM reasoning:
+
+**#427 no-op:** When Ads KPIs emit live `rules_proxy` signals (#428), severity-specific
+advisory text flows into `why` via linked `one_line` values; static Ads workflow
+`next_steps` already mention ROAS/CAC — no KPI-specific template branches added.
 
 | Field | Source |
 |-------|--------|
