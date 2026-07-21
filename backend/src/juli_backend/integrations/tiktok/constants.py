@@ -69,10 +69,11 @@ ANALYTICS_BESTSELLING_VIDEOS_PATH = (
     f"/analytics/{ANALYTICS_BESTSELLING_API_VERSION}/videos/bestselling"
 )
 
-# LIVE / doc-sample analytics paths — reference-tier only (do not allowlist for poll).
+# LIVE analytics — A-28 is allowlisted for poll ETL (#425); A-26/A-27/A-29 remain deferred.
 ANALYTICS_LIVE_PERFORMANCE_LIST_PATH = (
     f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/performance"
 )
+# Doc-sample / deferred LIVE paths (do not allowlist for poll).
 ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH = (
     f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/overview_performance"
 )

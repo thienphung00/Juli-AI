@@ -23,7 +23,7 @@ from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "016_webhook_raw_events"
+LATEST_REVISION = "017_analytics_perf_intervals"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -51,6 +51,7 @@ REVISION_013_TABLE = "workflow_outcome_records"
 REVISION_014_TABLE = "action_cards"
 REVISION_015_COLUMNS = ("idempotency_key", "error_category")
 REVISION_016_TABLE = "webhook_raw_events"
+REVISION_017_TABLE = "analytics_performance_intervals"
 
 
 def _database_url() -> str:
@@ -299,23 +300,26 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_016_table(postgres_at_head: Engine):
-    """Downgrading head removes webhook_raw_events; 015 columns remain."""
+def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine):
+    """Downgrading head removes analytics_performance_intervals; 016 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     for column in REVISION_015_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
 
     command.downgrade(cfg, "-1")
 
-    assert not _table_exists(postgres_at_head, REVISION_016_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_017_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     assert _table_exists(postgres_at_head, REVISION_014_TABLE)
     for column in REVISION_015_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
 
     command.upgrade(cfg, "head")
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
 
 
@@ -354,6 +358,7 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
     for column in REVISION_015_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
 
 
 @requires_postgres

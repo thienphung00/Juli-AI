@@ -1,8 +1,8 @@
-"""TikTok Shop Analytics resource — thin GET wrappers (contract-collection A-31–A-39).
+"""TikTok Shop Analytics resource — thin GET wrappers (contract-collection A-28, A-31–A-39).
 
 Date-range queries use Partner API identifier catalog spellings:
 ``start_date_ge``, ``end_date_lt``, ``sku_id``, ``product_id``, ``date``, ``time_slot``.
-LIVE A-26–A-29 are intentionally omitted (reference-tier only).
+LIVE A-26/A-27/A-29 remain deferred; A-28 list is wired for poll ETL (#425).
 """
 
 from __future__ import annotations
