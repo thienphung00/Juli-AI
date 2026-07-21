@@ -70,8 +70,28 @@ describe("startExecution", () => {
     expect(record.approvedInputs.warehouse_id).toBe("WH-FBS-HCM-01");
   });
 
+  it("starts workflow 2 with optimize_product tool and eleven-step timeline", () => {
+    const { executionId, record } = startExecution("optimize_product_2");
+
+    expect(executionId).toBe("exec-optimize_product_2-1");
+    expect(record.toolName).toBe("listing.optimize_product");
+    expect(record.lifecycleStatus).toBe("executing");
+    expect(record.timeline).toHaveLength(11);
+    expect(record.timeline[0]?.status).toBe("running");
+  });
+
+  it("starts workflow 5 with fulfillment.process_order tool and twenty-step timeline", () => {
+    const { executionId, record } = startExecution("process_order_5");
+
+    expect(executionId).toBe("exec-process_order_5-1");
+    expect(record.toolName).toBe("fulfillment.process_order");
+    expect(record.lifecycleStatus).toBe("executing");
+    expect(record.timeline).toHaveLength(20);
+    expect(record.timeline[0]?.status).toBe("running");
+  });
+
   it("rejects unsupported workflow keys including FBT intake scaffold", () => {
-    expect(() => startExecution("optimize_product_2")).toThrow(
+    expect(() => startExecution("not_a_real_workflow_key")).toThrow(
       /Unsupported workflow key/,
     );
     expect(() => startExecution(PREVENT_RETURN_FBT_INTAKE_KEY)).toThrow(

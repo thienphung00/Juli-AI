@@ -221,6 +221,13 @@ describe("Decisions — Recommendations", () => {
 
     const executableKeys = new Set([
       "create_hero_product_1",
+      "optimize_product_2",
+      "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
+      "clear_excess_4",
+      "process_order_5",
+      "create_activity_7a",
+      "update_activity_7c",
+      "delete_activity_7b",
       "prevent_cancellation_8a",
       "prevent_return_8b",
       "prevent_refund_8c",
@@ -253,6 +260,13 @@ describe("Decisions — Recommendations", () => {
     const executableFixtures = recommendationFixtures.filter((fixture) =>
       [
         "create_hero_product_1",
+        "optimize_product_2",
+        "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
+        "clear_excess_4",
+        "process_order_5",
+        "create_activity_7a",
+        "update_activity_7c",
+        "delete_activity_7b",
         "prevent_cancellation_8a",
         "prevent_return_8b",
         "prevent_refund_8c",

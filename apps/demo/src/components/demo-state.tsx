@@ -14,7 +14,7 @@ import {
 } from "react";
 
 import { startExecution as createExecutionRecord } from "../lib/executions";
-import { buildReviewInputDefaults } from "../lib/reviews";
+import { buildReviewInputDefaultsForWorkflow } from "../lib/reviews";
 
 export const DEMO_MODE_STORAGE_KEY = "juli_demo_mode";
 export const DEMO_MUTABLE_STATE_STORAGE_KEY = "juli_demo_mutable_state";
@@ -152,7 +152,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
 
       updateMutableState((current) => {
         const approvedInputs = {
-          ...buildReviewInputDefaults(workflowKey),
+          ...buildReviewInputDefaultsForWorkflow(workflowKey),
           ...(current.workflowReviewDrafts[workflowKey] ?? {}),
         };
         const created = createExecutionRecord(workflowKey, approvedInputs);

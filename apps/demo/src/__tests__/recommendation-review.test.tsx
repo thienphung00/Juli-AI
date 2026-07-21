@@ -256,7 +256,7 @@ describe("RecommendationReview", () => {
   });
 
   it("renders a recoverable not-found state for unsupported workflow keys", () => {
-    renderReview("optimize_product_2");
+    renderReview("prevent_return_8b_fbt");
 
     expect(
       screen.getByRole("status", { name: "Không tìm thấy quy trình" }),
