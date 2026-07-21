@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-406",
+  "issue": 406,
+  "timestamp": "2026-07-21T11:00:42Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #406 intent fully implemented: independent juli-demo systemd/nginx on :3001, deploy/rollback automation with demo-current symlink and local /decisions health, HITL runbook without secrets, 38 contract tests, demo-deploy-contracts CI job. Decision 4A respected \u2014 no live VPS/DNS/TLS in slice.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "406-20260721T104932"
+}
