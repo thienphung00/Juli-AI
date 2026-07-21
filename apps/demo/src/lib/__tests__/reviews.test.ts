@@ -3,9 +3,14 @@ import { describe, expect, it } from "vitest";
 import { recommendationFixtures } from "../recommendations";
 import {
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+  PREVENT_REFUND_WORKFLOW_KEY,
+  PREVENT_RETURN_FBT_INTAKE_KEY,
+  PREVENT_RETURN_WORKFLOW_KEY,
   defaultAnalyticsMetricKey,
   getReviewStage,
   getWorkflowReviewStages,
+  isReviewExecutableWorkflow,
 } from "../reviews";
 
 describe("getWorkflowReviewStages", () => {
@@ -62,31 +67,36 @@ describe("getWorkflowReviewStages", () => {
     );
   });
 
-  it("returns five stages for workflow 2 optimize_product", () => {
-    const stages = getWorkflowReviewStages("optimize_product_2");
+  it("returns five-stage review flows for workflows 7–9 with no Approve/Reject default", () => {
+    for (const workflowKey of [
+      PREVENT_CANCELLATION_WORKFLOW_KEY,
+      PREVENT_RETURN_WORKFLOW_KEY,
+      PREVENT_REFUND_WORKFLOW_KEY,
+    ]) {
+      const stages = getWorkflowReviewStages(workflowKey);
+      expect(stages.map((stage) => stage.stage)).toEqual([
+        "why",
+        "analytics",
+        "inputs",
+        "preview",
+        "approve",
+      ]);
 
-    expect(stages.map((stage) => stage.stage)).toEqual([
-      "why",
-      "analytics",
-      "inputs",
-      "preview",
-      "approve",
-    ]);
+      const inputs = getReviewStage(workflowKey, "inputs");
+      const decision = inputs?.inputFields?.find(
+        (field) => field.key === "seller_decision",
+      );
+      expect(decision?.prefillValue).toBe("");
+      expect(decision?.editable).toBe(true);
+      expect(decision?.required).toBe(true);
+    }
   });
 
-  it("returns five stages for workflow 5 process_order", () => {
-    const stages = getWorkflowReviewStages("process_order_5");
-
-    expect(stages.map((stage) => stage.stage)).toEqual([
-      "why",
-      "analytics",
-      "inputs",
-      "preview",
-      "approve",
-    ]);
-  });
-
-  it("returns no stages for unsupported workflow keys", () => {
-    expect(getWorkflowReviewStages("prevent_cancellation_8a")).toEqual([]);
+  it("returns no stages for unsupported workflow keys including FBT intake scaffold", () => {
+    expect(getWorkflowReviewStages("optimize_product_2")).toEqual([]);
+    expect(getWorkflowReviewStages(PREVENT_RETURN_FBT_INTAKE_KEY)).toEqual([]);
+    expect(isReviewExecutableWorkflow(PREVENT_RETURN_FBT_INTAKE_KEY)).toBe(
+      false,
+    );
   });
 });

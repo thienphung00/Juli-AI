@@ -3,7 +3,17 @@ import { describe, expect, it, beforeEach } from "vitest";
 import {
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
   CREATE_HERO_PRODUCT_TOOL_NAME,
+  PREVENT_CANCELLATION_TOOL_NAME,
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+  PREVENT_REFUND_TOOL_NAME,
+  PREVENT_REFUND_WORKFLOW_KEY,
+  PREVENT_RETURN_FBT_INTAKE_KEY,
+  PREVENT_RETURN_TOOL_NAME,
+  PREVENT_RETURN_WORKFLOW_KEY,
   createHeroProductTimeline,
+  createPreventCancellationTimeline,
+  createPreventRefundTimeline,
+  createPreventReturnTimeline,
   resetExecutionCountersForTests,
   startExecution,
 } from "../executions";
@@ -60,31 +70,44 @@ describe("startExecution", () => {
     expect(record.approvedInputs.warehouse_id).toBe("WH-FBS-HCM-01");
   });
 
-  it("starts workflow 2 with optimize_product tool and eleven-step timeline", () => {
-    const { executionId, record } = startExecution("optimize_product_2");
-
-    expect(executionId).toBe("exec-optimize_product_2-1");
-    expect(record.toolName).toBe("listing.optimize_product");
-    expect(record.lifecycleStatus).toBe("executing");
-    expect(record.timeline).toHaveLength(11);
-    expect(record.timeline[0]?.status).toBe("running");
-  });
-
-  it("starts workflow 5 with fulfillment.process_order tool and twenty-step timeline", () => {
-    const { executionId, record } = startExecution("process_order_5");
-
-    expect(executionId).toBe("exec-process_order_5-1");
-    expect(record.toolName).toBe("fulfillment.process_order");
-    expect(record.lifecycleStatus).toBe("executing");
-    expect(record.timeline).toHaveLength(20);
-    expect(record.timeline[0]?.status).toBe("running");
-  });
-
-  it("rejects unsupported workflow keys", () => {
-    expect(() => startExecution("prevent_cancellation_8a")).toThrow(
+  it("rejects unsupported workflow keys including FBT intake scaffold", () => {
+    expect(() => startExecution("optimize_product_2")).toThrow(
+      /Unsupported workflow key/,
+    );
+    expect(() => startExecution(PREVENT_RETURN_FBT_INTAKE_KEY)).toThrow(
       /Unsupported workflow key/,
     );
   });
+
+  it.each([
+    {
+      workflowKey: PREVENT_CANCELLATION_WORKFLOW_KEY,
+      toolName: PREVENT_CANCELLATION_TOOL_NAME,
+      stepCount: 10,
+    },
+    {
+      workflowKey: PREVENT_RETURN_WORKFLOW_KEY,
+      toolName: PREVENT_RETURN_TOOL_NAME,
+      stepCount: 15,
+    },
+    {
+      workflowKey: PREVENT_REFUND_WORKFLOW_KEY,
+      toolName: PREVENT_REFUND_TOOL_NAME,
+      stepCount: 10,
+    },
+  ])(
+    "seeds $workflowKey with executing lifecycle and correct tool_name",
+    ({ workflowKey, toolName, stepCount }) => {
+      const { executionId, record } = startExecution(workflowKey);
+
+      expect(executionId).toBe(`exec-${workflowKey}-1`);
+      expect(record.toolName).toBe(toolName);
+      expect(record.lifecycleStatus).toBe("executing");
+      expect(record.timeline).toHaveLength(stepCount);
+      expect(record.timeline[0].status).toBe("running");
+      expect(record.approvedInputs.seller_decision).toBe("");
+    },
+  );
 });
 
 describe("createHeroProductTimeline", () => {
@@ -97,5 +120,19 @@ describe("createHeroProductTimeline", () => {
     expect(timeline[11].kind).toBe("wait");
     expect(timeline[13].kind).toBe("outcome");
     expect(timeline.every((step) => step.title.length > 0)).toBe(true);
+  });
+});
+
+describe("post-sales timelines", () => {
+  it("maps cancellation, return, and refund evidence/wait/outcome/recovery states", () => {
+    expect(createPreventCancellationTimeline()).toHaveLength(10);
+    expect(createPreventReturnTimeline()).toHaveLength(15);
+    expect(createPreventRefundTimeline()).toHaveLength(10);
+
+    expect(createPreventCancellationTimeline()[8].kind).toBe("wait");
+    expect(createPreventReturnTimeline()[11].title).toMatch(/nhập lại kho/i);
+    expect(createPreventRefundTimeline()[8].recoveryText).toMatch(
+      /Không xác nhận tiền đã chuyển/,
+    );
   });
 });

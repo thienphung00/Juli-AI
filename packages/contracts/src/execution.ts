@@ -36,17 +36,11 @@ export interface ExecutionRecord {
 export function deriveLifecycleFromTimeline(
   timeline: ExecutionTimelineStep[],
 ): ExecutionLifecycleStatus {
-  const terminalOutcome = timeline
-    .filter((step) => step.kind === "outcome")
-    .reduce<ExecutionTimelineStep | undefined>(
-      (latest, step) =>
-        latest === undefined || step.stepNumber > latest.stepNumber
-          ? step
-          : latest,
-      undefined,
-    );
-
-  if (terminalOutcome?.status === "succeeded") {
+  const terminalStep = timeline.at(-1);
+  if (
+    terminalStep?.kind === "outcome" &&
+    terminalStep.status === "succeeded"
+  ) {
     return "completed";
   }
 

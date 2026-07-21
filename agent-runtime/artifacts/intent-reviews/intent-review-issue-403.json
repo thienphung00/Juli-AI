@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-403",
+  "issue": 403,
+  "timestamp": "2026-07-21T10:12:35Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "f1859ac42c076c01ab76ccb4f27a68f529ebf653",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff vs origin/main (f1859ac4) for #403 Phase 2.6. Workflows 7\u20139 (prevent_cancellation_8a, prevent_return_8b, prevent_refund_8c) each have five-stage prefilled/fillable review with workflow-keyed input defaults; Approve enabled via isReviewExecutableWorkflow; FBT prevent_return_8b_fbt stays scaffold-only (non-executable, empty review stages); mock execution keys and FBS timelines (10/15/10 steps) include waits, outcomes, and recovery copy per design flows; shared card Reject/Expand contract preserved; deriveLifecycleFromTimeline generalized for any terminal succeeded outcome. No intent creep contradicting specs.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md current",
+      "path": "apps/demo/MODULE.md",
+      "note": "MODULE.md documents workflows 7\u20139 approve registry, executable keys, and FBT intake boundary.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "403-20260721T095420"
+}
