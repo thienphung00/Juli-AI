@@ -10,6 +10,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import TypedDict
 
 from juli_backend.models.models import (
     AnalyticsPerformanceInterval,
@@ -335,12 +336,25 @@ def compute_promotion_efficiency_denominators(
     return revenue_denominator, spend_denominator
 
 
+class AnalyticsKpiRollup(TypedDict):
+    """Typed analytics KPI rollup for feature aggregates (#426)."""
+
+    shop_traffic_conversion_rate: float | None
+    analytics_shop_gmv_30d: Decimal | None
+    analytics_product_gmv_30d: Decimal | None
+    analytics_sku_gmv_30d: Decimal | None
+    analytics_weighted_product_ctr: float | None
+    promotion_activity_partition_present: bool
+    analytics_revenue_denominator: Decimal | None
+    analytics_spend_denominator: Decimal | None
+
+
 def compute_analytics_kpis(
     intervals: list[AnalyticsPerformanceInterval],
     *,
     anchor: datetime,
     promotion_activity_partition_present: bool,
-) -> dict[str, float | Decimal | bool | None]:
+) -> AnalyticsKpiRollup:
     """Roll up analytics ETL outputs (#425) for feature aggregates (#426)."""
     shop_gmv = _sum_gmv_by_grain(intervals, grain="shop", anchor=anchor)
     product_gmv = _sum_gmv_by_grain(intervals, grain="product", anchor=anchor)
