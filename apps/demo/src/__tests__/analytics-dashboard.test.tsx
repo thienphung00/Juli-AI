@@ -217,6 +217,17 @@ describe("Analytics dashboard", () => {
     ).toBeInTheDocument();
   });
 
+  it("AC6: shows stable hero and five-card loading skeletons", () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard initialLoadState="loading" metricKey="net-revenue" />
+      </DemoShell>,
+    );
+
+    expect(screen.getByLabelText("Đang tải KPI chính")).toBeInTheDocument();
+    expect(document.querySelectorAll(".analytics-skeleton--card")).toHaveLength(5);
+  });
+
   it("AC7: Manual Refresh restores Net Revenue, 30 days, and comparison off", async () => {
     const user = userEvent.setup();
 
