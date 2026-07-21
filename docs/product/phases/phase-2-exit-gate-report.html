@@ -347,7 +347,7 @@
     <header>
       <h1>Phase 2 — Pipeline Validation Exit Gate Report</h1>
       <p class="meta">
-        Generated 2026-07-13 · Authority: <code>EXECUTION.md</code> ·
+        Generated 2026-07-21 (Ads KPI field map #428) · prior baseline 2026-07-13 · Authority: <code>EXECUTION.md</code> ·
         Scope: KPI → Rule-based Recommendations → Execution (Webhooks + Endpoints)
       </p>
       <div class="verdict">
@@ -385,7 +385,7 @@
         <div class="card">
           <h3>KPI coverage</h3>
           <div class="value">20</div>
-          <div class="sub">17 computable from ETL · 3 Ads KPIs unavailable (Promotion API)</div>
+          <div class="sub">18 computable from synced ETL · Ads partial: CTR closed · ROAS/CAC spend blocked</div>
         </div>
       </div>
     </section>
@@ -568,6 +568,66 @@
       </div>
     </section>
 
+    <!-- Ads KPI gap (#428) -->
+    <section>
+      <h2>Ads KPI gap — field map (#428)</h2>
+      <div class="card" style="margin-bottom:1rem;">
+        <span class="badge badge-partial">Partial — 1 of 3 closed</span>
+        <p style="margin-top:0.75rem;font-size:0.875rem;">
+          <strong>Verdict:</strong> The Ads domain gap is <em>partially</em> closed. CTR can flow
+          end-to-end from Analytics A-34 once product performance is synced; ROAS and CAC remain
+          blocked on promotion <strong>spend</strong> persistence — revenue denominators are ready
+          when the A-25 promotion watermark and A-36 shop GMV are present, but
+          <code>analytics_spend_denominator</code> stays <code>null</code> by design until a future
+          ETL slice persists spend. Do not mark ROAS/CAC closed while spend is missing.
+        </p>
+        <ul style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted);padding-left:1.25rem;">
+          <li>A-27 (live-session product CTR) is reference-tier analytics — not the Phase 2 Ads KPI source for these three signals.</li>
+          <li>Contract refs: <a href="../../integrations/tiktok_api/contract-collection.md">contract-collection.md</a> A-25, A-34, A-36.</li>
+        </ul>
+      </div>
+      <div class="card" style="padding:0;overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>KPI</th>
+              <th>Contract endpoint</th>
+              <th>ETL / persistence</th>
+              <th>Aggregate field</th>
+              <th>Signal behavior (#428)</th>
+              <th>Gap</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>ctr</code></td>
+              <td><strong>A-34</strong> Get Shop Product Performance List<br /><span style="color:var(--muted);font-size:0.75rem;"><code>products[].total_performance.ctr</code></span></td>
+              <td>Poll → <code>expand_analytics_product_list_item</code> → ETL <code>analytics_performance_intervals</code> (<code>grain=product</code>, <code>ctr</code>, optional <code>impressions</code> for weighting)</td>
+              <td><code>analytics_weighted_product_ctr</code> — 30d rolling impression-weighted mean of product-grain CTR (unweighted mean when impressions absent)</td>
+              <td>Live <code>rules_proxy</code> when aggregate non-null; <code>unavailable</code> when no product CTR rows in window (missing analytics partition — not a Promotion API block)</td>
+              <td><span class="badge badge-pass">Closed</span></td>
+            </tr>
+            <tr>
+              <td><code>roas</code></td>
+              <td><strong>A-25</strong> partition gate + <strong>A-36</strong> shop GMV for revenue<br /><span style="color:var(--muted);font-size:0.75rem;">Spend: promotion ETL — not persisted</span></td>
+              <td>A-25 poll sets <code>tiktok_sync_state.promotion_activity_last_sync_at</code> watermark (activity metadata only). A-36 shop intervals → <code>analytics_performance_intervals</code> (<code>grain=shop</code>, <code>gmv</code>).</td>
+              <td><code>analytics_revenue_denominator</code> = <code>analytics_shop_gmv_30d</code> when <code>promotion_activity_partition_present</code>; <code>analytics_spend_denominator</code> = <code>null</code> (intentional — no spend fabrication)</td>
+              <td><code>unavailable</code> until both revenue and spend denominators non-null; revenue side ready when A-25 watermark + A-36 GMV synced; spend side blocked</td>
+              <td><span class="badge badge-partial">Partial</span></td>
+            </tr>
+            <tr>
+              <td><code>cac</code></td>
+              <td>Same as ROAS — spend denominator required<br /><span style="color:var(--muted);font-size:0.75rem;">Customer counts from A-34 optional; spend not persisted</span></td>
+              <td>Same A-25 watermark + A-36/A-34 analytics rows as ROAS; no promotion spend column in Postgres yet</td>
+              <td>Same denominators as ROAS; CAC ratio cannot be computed while <code>analytics_spend_denominator</code> is <code>null</code></td>
+              <td><code>unavailable</code> with Promotion/spend reason until spend ETL lands; do not emit proxy CAC from revenue alone</td>
+              <td><span class="badge badge-partial">Partial</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Slice detail table -->
     <section>
       <h2>Slice implementation detail</h2>
@@ -616,7 +676,7 @@
               <td><code>P2-B3</code></td>
               <td>Live signals + alerts</td>
               <td><span class="badge badge-partial">Partial</span></td>
-              <td>10 proxy KPIs · Ads unavailable · #374</td>
+              <td>CTR live when A-34 synced · ROAS/CAC partial · #428</td>
             </tr>
             <tr>
               <td><code>P2-B4</code></td>
@@ -781,7 +841,7 @@
           <h3>Important (should fix)</h3>
           <ol style="font-size:0.875rem;padding-left:1.25rem;color:var(--text);">
             <li style="margin-bottom:0.5rem;">Inventory polling (P2-B9) for stockout KPI accuracy</li>
-            <li style="margin-bottom:0.5rem;">Promotion API integration for Ads KPIs (ROAS, CAC, CTR)</li>
+            <li style="margin-bottom:0.5rem;">Persist promotion spend in ETL to close ROAS/CAC (CTR closed via A-34 — see field map above)</li>
             <li style="margin-bottom:0.5rem;">Connect alerts engine to daily scoring batch</li>
             <li style="margin-bottom:0.5rem;">Outcome cadence rollups (daily/weekly/monthly)</li>
             <li style="margin-bottom:0.5rem;">Update EXECUTION.md checkboxes to reflect actual progress</li>
@@ -836,12 +896,17 @@
         datasets: [
           {
             label: "Available (rules/proxy)",
-            data: [3, 5, 0, 3, 3, 3],
+            data: [3, 5, 1, 3, 3, 3],
             backgroundColor: "#22c55e",
           },
           {
+            label: "Partial (spend / denominator gap)",
+            data: [0, 0, 2, 0, 0, 0],
+            backgroundColor: "#f59e0b",
+          },
+          {
             label: "Unavailable (API gap)",
-            data: [0, 0, 3, 0, 0, 0],
+            data: [0, 0, 0, 0, 0, 0],
             backgroundColor: "#ef4444",
           },
         ],
