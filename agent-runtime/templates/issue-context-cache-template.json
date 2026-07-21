@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 301,
+  "parentIssueId": 278,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+  "phaseRunId": "YYYY-MM-DDTHHMMZ",
+  "workflowPhase": "scope_alignment",
+  "cacheStatus": "partial",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "P2-A3",
+    "handoffPath": "docs/handoffs/phase-2-tiktok-implementation.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "backend",
+    "requiredDocs": [
+      "docs/integrations/tiktok_api/endpoints.md",
+      "docs/integrations/tiktok_api/contract-collection.md"
+    ],
+    "requiredModules": [
+      "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+    ],
+    "acceptanceCriteria": [
+      "Layer 2 sandbox write validation"
+    ],
+    "loadWhenNeeded": [
+      "docs/integrations/tiktok_api/samples/"
+    ]
+  },
+  "authorityChain": [
+    { "rank": 1, "source": "EXECUTION.md", "reason": "Phase/slice law" },
+    { "rank": 2, "source": "parent-cache-issue-278", "reason": "Epic constant" },
+    { "rank": 3, "source": "GitHub issue #301", "reason": "Child acceptance criteria" },
+    { "rank": 4, "source": "docs/handoffs/phase-2-tiktok-implementation.md", "reason": "Epic handoff" }
+  ],
+  "resolvedDecisions": [],
+  "inScope": [],
+  "outOfScope": [],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/"
+  ],
+  "promptCacheBlock": "# Issue #301 — Child scope (unique)\n\n## In scope\n- Layer 2 sandbox writes only\n\n## Out of scope\n- Layer 1 reads (done in #297)\n- ETL (#299)\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #301 — Child scope (unique)\n",
+    "meta": "# Meta — #301\n\n- Domain: backend\n- Docs: endpoints.md, contract-collection.md\n",
+    "executor": "# Executor — #301\n\n- MODULE: integrations/tiktok\n",
+    "review": "# Review — #301\n\n- Acceptance: sandbox write validation\n",
+    "validate": "# Validate — #301\n"
+  },
+  "harnessUtility": {
+    "skills": [
+      { "path": ".cursor/skills/domain/backend/SKILL.md", "purpose": "Sandbox write TDD" }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/reliability.mdc",
+      ".cursor/rules/security.mdc"
+    ],
+    "mcps": [],
+    "tools": ["Read", "Grep", "Glob", "Shell", "StrReplace"]
+  },
+  "glossarySnippets": [],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    { "path": "GitHub issue #301", "fingerprint": "<sha256-body-first-16>" },
+    { "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-301.md", "fingerprint": "<git-blob-sha>" }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-301.md",
+  "lastValidatedAt": "2026-07-11T00:00:00Z",
+  "lastScopeAlignmentAt": "2026-07-11T00:00:00Z"
+}

@@ -1,0 +1,361 @@
+# Focus slice → issueLoadProfile derivation rules.
+# Consumed by issue_load_profile.py and validated against Focus SKILL table.
+# Add a row here before relying on a new slice in workflow cache.
+
+P2-A1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/endpoints.md
+    - backend/src/juli_backend/workers/services/polling/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/workers/services/polling/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/authentication.md
+    - docs/architecture/system-design.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-A2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/product/execution_layer.md
+    - docs/api/data-models/canonical-entities.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/webhooks.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/services/webhook/MODULE.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/webhook/MODULE.md
+    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/models/models.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/architecture/system-design.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-A3:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/api/data-models/canonical-entities.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/endpoints.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - apps/dashboard/src/lib/operations/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/models/models.py
+    - apps/dashboard/src/lib/operations/MODULE.md
+  loadWhenNeeded:
+    - apps/dashboard/src/lib/operations/classification.ts
+    - apps/dashboard/src/lib/operations/thresholds.ts
+    - docs/architecture/system-design.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-B3:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/ml/visual_layer.md
+    - docs/ml/ml_layer.md
+    - docs/architecture/data-sources.md
+    - docs/api/data-models/feature-store-schema.md
+    - docs/integrations/tiktok_platform/seller/operational-limits.md
+    - backend/src/juli_backend/services/aggregates/MODULE.md
+    - backend/src/juli_backend/services/scoring/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/aggregates/MODULE.md
+    - backend/src/juli_backend/services/scoring/MODULE.md
+    - backend/src/juli_backend/services/aggregates/computed_kpis.py
+    - backend/src/juli_backend/services/scoring/signals.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/architecture/system-design.md
+    - CONTEXT.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/dashboard/src/lib/mock-data/operations/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-B5:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/architecture/system-design.md
+    - docs/adr/013-operations-pipeline-spine.md
+    - backend/src/juli_backend/services/execution/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/execution/worker.py
+    - backend/src/juli_backend/services/operations/outcome_tracking.py
+    - backend/src/juli_backend/services/operations/MODULE.md
+    - backend/src/juli_backend/api/routes/workflow_outcomes.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - apps/dashboard/src/lib/operations/outcome-metrics.ts
+    - docs/architecture/map.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-B4:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/architecture/system-design.md
+    - docs/product/execution_layer.md
+    - backend/src/juli_backend/workers/README.md
+    - backend/src/juli_backend/services/execution/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/workers/tasks/tool_execution.py
+    - backend/src/juli_backend/services/execution/dispatch.py
+    - backend/src/juli_backend/api/routes/executions.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+    - docs/architecture/data-sources.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/dashboard/src/lib/mock-data/operations/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-B2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/architecture/system-design.md
+    - docs/ml/visual_layer.md
+    - docs/product/execution_layer.md
+    - backend/src/juli_backend/services/scoring/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/scoring/MODULE.md
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+    - backend/src/juli_backend/services/scoring/pipeline.py
+  loadWhenNeeded:
+    - docs/architecture/data-sources.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/dashboard/src/lib/mock-data/operations/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-B6:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/product/execution_layer.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - docs/integrations/tiktok_api/endpoints.md
+    - backend/src/juli_backend/services/execution/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/execution/runner.py
+    - backend/src/juli_backend/services/execution/tool_routing.py
+    - backend/src/juli_backend/services/execution/sandbox_guard.py
+    - backend/src/juli_backend/integrations/tiktok/resources/products.py
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/samples/
+    - backend/src/juli_backend/api/routes/executions.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-B1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/ml/visual_layer.md
+    - docs/ml/ml_layer.md
+    - docs/product/execution_layer.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/services/aggregates/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/aggregates/MODULE.md
+    - backend/src/juli_backend/services/scoring/MODULE.md
+    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - docs/adr/011-display-grade-analytics-layer.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/dashboard/src/lib/mock-data/operations/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-B9:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/phase-2-mvp.md
+    - docs/architecture/data-sources.md
+    - docs/adr/013-operations-pipeline-spine.md
+    - docs/product/execution_layer.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/integrations/tiktok_api/webhooks.md
+    - docs/integrations/tiktok_api/webhook-contract-collection.md
+    - backend/src/juli_backend/workers/services/polling/MODULE.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/services/aggregates/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/workers/services/polling/orchestrate.py
+    - backend/src/juli_backend/workers/services/polling/sync.py
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+    - backend/src/juli_backend/integrations/tiktok/resources/inventory.py
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - backend/src/juli_backend/services/etl/transform.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/services/aggregates/builder.py
+    - backend/src/juli_backend/services/aggregates/computed_kpis.py
+    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/samples/inventory-search-response.json
+    - docs/architecture/system-design.md
+    - CONTEXT.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - src/modules/ml/
+
+P2-6:
+  executorDomain: ui-ux
+  # Tiered: epic constants only in requiredDocs; component/screen docs in loadWhenNeeded.
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/architecture/map.md
+    - docs/adr/023-four-destination-analytics-ownership.md
+    - docs/adr/024-phase-2.6-2.7-frontend-resequencing.md
+    - docs/product/design/soul.md
+    - docs/product/design/ux_principles.md
+    - docs/product/design/colors_and_type.css
+  requiredModules:
+    - apps/demo/MODULE.md
+    - packages/theme/MODULE.md
+    - packages/ui/MODULE.md
+    - packages/utils/MODULE.md
+  loadWhenNeeded:
+    - docs/architecture/data-sources.md
+    - docs/architecture/migration-plan.md
+    - docs/product/design/README.md
+    - docs/product/design/context.md
+    - docs/product/design/design.md
+    - docs/product/design/flows.md
+    - docs/product/design/Screens/home.md
+    - docs/product/design/Screens/decisions.md
+    - docs/product/design/Screens/analytics.md
+    - docs/product/design/Components/navigation.md
+    - docs/product/design/Components/cards.md
+    - docs/product/design/Components/buttons.md
+    - docs/product/design/Components/badges.md
+    - docs/product/design/Components/chips.md
+    - docs/product/design/Components/dialogs.md
+    - docs/product/design/Components/forms.md
+    - docs/product/design/Components/tables.md
+    - docs/product/design/Components/empty-states.md
+    - docs/product/design/Components/loading-indicators.md
+    - docs/product/design/Components/toasts.md
+    - docs/product/design/Components/health-bars.md
+    - docs/product/design/Components/progress-bars.md
+    - docs/product/design/Flows/decisions/README.md
+    - docs/product/execution_layer.md
+    - apps/dashboard/MODULE.md
+    - packages/contracts/MODULE.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - Sibling issue context caches
+
+P2-OPS-1:
+  executorDomain: backend
+  requiredDocs:
+    - docs/adr/027-database-migration-safety-pipeline.md
+    - docs/adr/020-vps-ssh-continuous-delivery-and-secrets-manager.md
+    - CONTEXT.md
+    - docs/runbooks/backend-deploy-runbook.md
+    - docs/runbooks/app-review-runbook.md
+    - README.md
+    - backend/README.md
+  requiredModules:
+    - infra/scripts/safe_alembic_helpers.py
+    - infra/scripts/safe-alembic-upgrade.sh
+  loadWhenNeeded:
+    - infra/scripts/safe-alembic-upgrade-local.sh
+    - infra/scripts/restore-drill.sh
+    - infra/systemd/juli-restore-drill.service
+    - infra/systemd/juli-restore-drill.timer
+    - tests/unit/test_safe_alembic_helpers.py
+    - tests/integration/test_safe_alembic_upgrade.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - docs/integrations/tiktok_api/
+    - web/
+    - ios/
+    - apps/demo/
+    - Sibling issue context caches

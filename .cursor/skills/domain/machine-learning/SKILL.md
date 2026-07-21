@@ -57,7 +57,8 @@ python agent-runtime/agent-runtime/scripts/ci/generate_implementation_artifact.p
 ```
 
 Record golden-dataset tests, metric evidence, and promotion status in
-`implementationSummary` and `redGreenRefactorEvidence`.
+`implementationSummary` and `redGreenRefactorEvidence`. Include `contextFilesLoaded`,
+`skillsLoaded`, `rulesLoaded`, `mcpsUsed` from the session.
 
 Schema: [`agent-runtime/docs/schemas/implementation-artifact.schema.json`](../../../agent-runtime/docs/schemas/implementation-artifact.schema.json)
 

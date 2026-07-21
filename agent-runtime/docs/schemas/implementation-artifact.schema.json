@@ -18,6 +18,8 @@
     "toolInvocationCount",
     "contextFilesLoaded",
     "skillsLoaded",
+    "rulesLoaded",
+    "mcpsUsed",
     "filesModified",
     "testsAdded",
     "testsUpdated",
@@ -96,6 +98,16 @@
     "skillsLoaded": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "rulesLoaded": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Tier-2 .cursor/rules/*.mdc paths actually loaded."
+    },
+    "mcpsUsed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "MCP server ids actually used; empty when none."
     },
     "filesModified": {
       "type": "array",

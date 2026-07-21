@@ -56,7 +56,8 @@ python agent-runtime/agent-runtime/scripts/ci/generate_implementation_artifact.p
 ```
 
 Include migration paths in `filesModified`, migration/repo tests in `testsAdded`, and
-data risks in `risks`. Note applicable `data-sources.md` rows in `assumptions`.
+data risks in `risks`. Record `contextFilesLoaded`, `skillsLoaded`, `rulesLoaded`,
+`mcpsUsed` from the session. Note applicable `data-sources.md` rows in `assumptions`.
 
 Schema: [`agent-runtime/docs/schemas/implementation-artifact.schema.json`](../../../agent-runtime/docs/schemas/implementation-artifact.schema.json)
 

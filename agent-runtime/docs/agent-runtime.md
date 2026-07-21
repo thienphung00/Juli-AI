@@ -120,15 +120,50 @@ pipeline.
 **Must**
 
 - Run `focus` before Implementation to produce a Context Plan.
-- Select exactly one primary executor domain unless the issue clearly spans domains.
+- **Before assigning Executor**, run the workflow-cache prepare entrypoint (no human
+  reminder required):
+
+  ```bash
+  python agent-runtime/scripts/meta_prepare_executor.py --issue <N>
+  ```
+
+  This ensures parent + child caches exist (`ensure_workflow_cache`), runs the gate
+  chain (staleness → scope precedence → bootstrap pin → issueLoadProfile), and
+  unlocks Executor only when `cacheStatus == valid` and `readyForExecutor: true`.
+- Select exactly one primary executor domain (from `issueLoadProfile.executorDomain`
+  / `slice-routing.yml`) — never dual-load backend + data-platform skills.
+- Inject only Executor-phase skills in `harnessUtility`; defer intent-review /
+  guardrails / validate to their phase blocks.
 - Record routing decisions and execution signals for optimization.
 
 **Must not**
 
+- Assign Executor or start TDD when `meta_prepare_executor.py` exits non-zero.
 - Implement features, review its own routing decisions, or bypass Review Agent / Validate.
 - Automatically edit skills, rules, architecture docs, PRDs, ADRs, or product scope.
   Safe auto-apply is limited to harness configuration, benchmark thresholds, context
   budget hints, and executor routing hints (Phase 6+).
+
+Config: `workflow_prompt_cache.requireValidCacheBeforeExecutor` and
+`agents.meta.pre_executor_command` in
+[`agent-runtime.config.yml`](../config/agent-runtime.config.yml).
+
+#### Composer sub-agents
+
+Parent agents may delegate path-disjoint work via Task subagents. Full policy:
+[`.cursor/rules/core-orchestration.mdc`](../../.cursor/rules/core-orchestration.mdc) § Composer sub-agents.
+Always `model: composer-2.5-fast`; prefer several small parallel Composers over one parent doing
+everything; **≤3 concurrent** — ask the user before more. Parent keeps grill/alignment, Meta gates,
+security, and final synthesis.
+
+#### Quick commit / skip artifact gates (`scratch/debug`)
+
+Declarative policy: [`agent-runtime.config.yml`](../config/agent-runtime.config.yml) →
+`artifact_gates.quickCommitSkip`. When the session is under `.worktrees/debug` and the
+branch name lacks `issue-<N>`, agents skip ADR-003 artifact emit; CI already skips
+`validate-artifacts` for those branch names (`pr.yml`). **Do not** change `pr.yml` or
+Tier-1 rules from the debug slot (it resets to `main`); promote harness/config edits via
+`agent/runtime`.
 
 ---
 
@@ -143,8 +178,11 @@ pipeline.
 
 **Must**
 
+- Refuse to start if Meta did not produce `readyForExecutor: true` (valid workflow cache).
 - Write a failing test first (Red), make it pass with minimal code (Green), then
   refactor while keeping tests green (Refactor).
+- Populate `contextFilesLoaded` (non-empty) and `tokenUsage.total` on the
+  implementation artifact for harness optimization telemetry.
 - Obey structure authority ([ADR-022](../adr/022-intent-review-guardrails-split.md)):
 
   > Executor MAY clean up structure during GREEN (refactor step). Only intent-review MAY block merge on structure.
@@ -185,11 +223,16 @@ The standalone `tdd` skill was removed in Phase 2.
 - Treat intent-review `spec_fidelity` as given inside Guardrails (see
   [BOUNDARY.md](../../.cursor/skills/standalone/intent-review/BOUNDARY.md)).
 - Emit structured findings consumable by Validate and Meta Agent.
+- For parallel (or any long-lived) PRs: enforce **sync-before-merge** — rebase/merge
+  onto current `origin/main` immediately before merge, re-green CI, then merge
+  ([`issue-workflow.mdc`](../../.cursor/rules/issue-workflow.mdc), `ship` skill).
+  Individual PRs only; no batched parallel landings.
 
 **Must not**
 
 - Route context, assign executors, or ship before validation passes.
 - Re-judge Spec intent-match or re-run smell-baseline inside Guardrails.
+- Merge a branch tip that is behind `origin/main` when sibling work may have landed.
 
 ---
 
@@ -340,6 +383,37 @@ Full rollout details: [`agent-runtime-migration.md`](agent-runtime-migration.md)
 
 ---
 
+## Context hierarchy (efficiency)
+
+Canonical load order for **issue implementation**. Machine-readable twin:
+[`agent-runtime.config.yml`](../config/agent-runtime.config.yml) → `context_hierarchy`.
+Focus must follow this; do not paste the full table into every Context Plan.
+
+| Layer | Component | Role |
+|-------|-----------|------|
+| **L0** | Tier-1 rules | Always-on, tiny |
+| **L1** | Workflow cache (`parent` + `issue-context`) | Planned scope, DO NOT Load; local, gitignored; **highest reuse** |
+| **L1b** | `harnessUtility` (in child cache) | Index of skills / Tier-2 rules / MCPs / tools for this issue |
+| **L2** | Focus Context Plan | Session filter over L1 — Load / If Needed / DO NOT Load |
+| **L3** | One domain skill → selected Tier-2 rules → `issueLoadProfile` docs/MODULE → code | Model payload; code is majority of the window |
+| **L4** | Implementation artifact | **Observed** telemetry (`contextFilesLoaded`, `skillsLoaded`, `rulesLoaded`, `mcpsUsed`, `toolsUsed`, `tokenUsage`) |
+| **L5** | Review / validation / harness-optimization artifacts | CI gates + Meta input — **not** default next-turn prompt filler |
+
+**Cache injection order** (stable → volatile): `workflow_prompt_cache.injectionOrder` in config
+(parentScopeBlock → parentDoNotLoad → harnessUtility → issueLoadProfile → phaseCacheBlocks →
+promptCacheBlock → requiredModules code/MODULE.md).
+
+**Pass-through**
+
+- Docs/issues → **distilled into cache** (not full bodies every turn).
+- Cache → Focus → only selected skills/rules/docs/code enter the model.
+- Session → L4 lists what was **actually** loaded; Meta reads L4+L5 for optimization.
+
+**Anti-patterns:** load all Tier-2 rules or all skills; inject sibling issue caches; paste prior
+artifacts into the next turn; ignore `doNotLoad`.
+
+---
+
 ## Related documents
 
 | Document | Owns |
@@ -355,3 +429,4 @@ Full rollout details: [`agent-runtime-migration.md`](agent-runtime-migration.md)
 | [`schemas/`](schemas/) | JSON Schema definitions |
 | [`.cursor/skills/standalone/focus/SKILL.md`](../../.cursor/skills/standalone/focus/SKILL.md) | Context Plan router |
 | [`docs/handoffs/context-plan-template.md`](../handoffs/context-plan-template.md) | Context Plan output template |
+| This file § Context hierarchy | Efficiency layers L0–L5; pairs with `context_hierarchy` in config |

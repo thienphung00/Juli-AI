@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/parent-cache-artifact.schema.json",
+  "title": "Parent Issue Workflow Cache",
+  "description": "Constant prompt cache for all child issues under one parent/PRD issue. Holds epic scope only — not per-child harnessUtility or phase blocks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactType",
+    "parentIssueId",
+    "cacheBlockVersion",
+    "parentScopeBlock",
+    "doNotLoad",
+    "upstreamFingerprints",
+    "lastValidatedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "artifactType": {
+      "const": "parent_cache"
+    },
+    "parentIssueId": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Parent/PRD GitHub issue (e.g. #278). The only constant across child issues."
+    },
+    "cacheBlockVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "parentScopeBlock": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Epic-level scope: phase deferrals, north star, data-source policy, shared handoff decisions."
+    },
+    "sliceId": {
+      "type": "string",
+      "description": "EXECUTION.md slice metadata (informational; not a cache key)."
+    },
+    "handoffPath": {
+      "type": "string",
+      "description": "Active handoff doc for this parent epic (e.g. docs/handoffs/phase-2-tiktok-implementation.md)."
+    },
+    "childIssueIds": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "description": "Child issues that have run under this parent cache."
+    },
+    "doNotLoad": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Epic-wide exclusions. Child issues may add more in their own issue context cache."
+    },
+    "upstreamFingerprints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "fingerprint"],
+        "properties": {
+          "path": { "type": "string" },
+          "fingerprint": { "type": "string" }
+        }
+      },
+      "description": "Fingerprints for parent issue body and epic handoff — not child issue bodies."
+    },
+    "bootstrapRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["branch", "commitSha", "copiedAt"],
+      "properties": {
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Branch name bootstrap sources were copied from (informational; pin is commitSha)."
+        },
+        "commitSha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "Immutable git commit SHA for skills, schemas, templates, and config copied into sibling runs."
+        },
+        "copiedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When bootstrapRef was last set or verified."
+        },
+        "architectNote": {
+          "type": "string",
+          "description": "Required when bumping commitSha after branch HEAD advanced."
+        }
+      },
+      "description": "Pins harness bootstrap source so sibling runs do not drift on a floating branch head."
+    },
+    "lastValidatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

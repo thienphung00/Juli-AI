@@ -25,6 +25,8 @@ REQUIRED_FIELDS = (
     "tokenUsage",
     "contextFilesLoaded",
     "skillsLoaded",
+    "rulesLoaded",
+    "mcpsUsed",
 )
 
 
@@ -47,10 +49,38 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     if domain not in {"ui-ux", "backend", "data-platform", "machine-learning"}:
         return False, f"Invalid executorDomain: {domain}", {}
 
+    context_files = artifact.get("contextFilesLoaded")
+    if not isinstance(context_files, list) or len(context_files) < 1:
+        return False, "contextFilesLoaded must be a non-empty list (context telemetry)", {
+            "contextFilesLoaded": context_files,
+        }
+
+    rules_loaded = artifact.get("rulesLoaded")
+    if not isinstance(rules_loaded, list):
+        return False, "rulesLoaded must be a list (Tier-2 rule telemetry)", {
+            "rulesLoaded": rules_loaded,
+        }
+
+    mcps_used = artifact.get("mcpsUsed")
+    if not isinstance(mcps_used, list):
+        return False, "mcpsUsed must be a list (MCP telemetry)", {
+            "mcpsUsed": mcps_used,
+        }
+
+    token_usage = artifact.get("tokenUsage") or {}
+    if not isinstance(token_usage, dict) or "total" not in token_usage:
+        return False, "tokenUsage.total required for harness baseline metrics", {
+            "tokenUsage": token_usage,
+        }
+
     return True, f"Implementation artifact present; domain {domain}", {
         "executorDomain": domain,
         "phaseRunId": artifact.get("phaseRunId"),
         "executionDurationMs": artifact.get("executionDurationMs"),
+        "contextFileCount": len(context_files),
+        "rulesLoadedCount": len(rules_loaded),
+        "mcpsUsedCount": len(mcps_used),
+        "tokenUsageTotal": token_usage.get("total"),
     }
 
 

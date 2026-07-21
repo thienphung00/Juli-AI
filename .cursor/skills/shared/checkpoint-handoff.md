@@ -227,4 +227,4 @@ Templates live in `docs/templates/handoffs/` — load the specific file only whe
 - **Standalone skills** (`to-prd`, `to-issues`, `focus`, `review`, `validate`, `ship`, `qa`): each links here for persistence rules
 - **Validate gate:** `agent-runtime/scripts/validate/check_handoff.py` skips when no legacy handoff on branch;
   `docs/handoffs/issue-*-{phase}.md` files are the continuity source alongside `EXECUTION.md`
-- **Parallel agents:** `docs/handoffs/_bootstrap.md` — each window reads its issue checkpoint first
+- **Parallel agents:** [`docs/handoffs/worktree-branch-topology.md`](../../../docs/handoffs/worktree-branch-topology.md) + [`.cursor/rules/issue-workflow.mdc`](../../../.cursor/rules/issue-workflow.mdc) — each window reads its issue checkpoint first; update [`docs/handoffs/parallel-status.md`](../../../docs/handoffs/parallel-status.md) when coordinating a run

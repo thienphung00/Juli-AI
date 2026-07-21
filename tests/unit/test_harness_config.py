@@ -84,33 +84,41 @@ def test_preview_change_rejects_forbidden_field() -> None:
 def test_build_runtime_includes_cross_layer_hints() -> None:
     runtime = build_runtime(load_simple_yaml(AGENT_RUNTIME_CONFIG))
     ui = runtime["executorRoutingTable"]["ui-ux"]["crossLayer"]
-    assert "apps/dashboard" in ui["related_paths"]
+    assert "apps/demo" in ui["related_paths"]
+    assert "packages/ui" in ui["related_paths"]
     assert runtime["context"]["retrieval_depth"] == 3
 
 
 def test_optimizer_dry_run_artifact_includes_config_diff() -> None:
     config = load_simple_yaml(AGENT_RUNTIME_CONFIG)
+    # Trigger context_overloaded (auto-apply eligible), not wrong_executor_domain
+    # (advisory-only; prefer_slice is not in harness-editable.yml).
+    overloaded_files = [f"context/file-{i}.md" for i in range(40)]
     implementation = {
         "issueId": 123,
-        "executorDomain": "backend",
+        "executorDomain": "ui-ux",
         "phaseRunId": "123-test",
         "executionDurationMs": 100,
         "tokenUsage": {"input": 10, "output": 5, "total": 15},
         "toolInvocationCount": 2,
-        "contextFilesLoaded": ["a.md", "b.md", "c.md", "d.md", "e.md", "f.md"],
-        "skillsLoaded": ["backend"],
+        "contextFilesLoaded": overloaded_files,
+        "skillsLoaded": ["ui-ux"],
+        "filesModified": ["apps/demo/src/page.tsx"],
     }
     review = {
         "issue": 123,
         "status": "PASS",
         "criticalFindings": [],
-        "modulesTouched": ["web"],
+        "modulesTouched": ["apps/demo"],
         "testCoverage": {"acceptance": {"total": 1, "mapped": 1}, "unit": {"passed": 1, "failed": 0}},
     }
     validation = {"issue": 123, "status": "PASS", "checks": [], "readyForMerge": True}
     metrics = collect_metrics(implementation, review, validation, config)
     root_cause, fix = detect_root_cause(metrics)
-    diff = preview_change(fix.config_target, fix.value) if fix.value is not None else None
+    assert root_cause == "context_overloaded"
+    assert fix.auto_apply_eligible is True
+    assert fix.value is not None
+    diff = preview_change(fix.config_target, fix.value)
     artifact = build_optimization_artifact(
         metrics,
         root_cause,
