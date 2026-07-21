@@ -216,32 +216,53 @@ describe("Decisions — Recommendations", () => {
     expect(analyticsLink).toHaveAttribute("href", "/analytics");
   });
 
-  it("renders Approve as disabled for workflows 5-9 with an associated explanation", () => {
+  it("renders Approve as disabled for remaining returns workflows with an associated explanation", () => {
     renderView();
 
-    recommendationFixtures.slice(4).forEach((fixture) => {
-      const card = findCard(fixture.workflowKey) as HTMLElement;
-      const approveButton = within(card).getByRole("button", {
-        name: "Phê duyệt",
+    const deferredKeys = new Set([
+      "prevent_cancellation_8a",
+      "prevent_return_8b",
+      "prevent_refund_8c",
+    ]);
+
+    recommendationFixtures
+      .filter((fixture) => deferredKeys.has(fixture.workflowKey))
+      .forEach((fixture) => {
+        const card = findCard(fixture.workflowKey) as HTMLElement;
+        const approveButton = within(card).getByRole("button", {
+          name: "Phê duyệt",
+        });
+
+        expect(approveButton).toBeDisabled();
+
+        const describedBy = approveButton.getAttribute("aria-describedby");
+        expect(describedBy).toBeTruthy();
+
+        const explanation = card.querySelector(`#${describedBy}`);
+        expect(explanation).not.toBeNull();
+        expect(explanation?.textContent ?? "").toMatch(/Phê duyệt/);
+        expect((explanation?.textContent ?? "").length).toBeGreaterThan(20);
       });
-
-      expect(approveButton).toBeDisabled();
-
-      const describedBy = approveButton.getAttribute("aria-describedby");
-      expect(describedBy).toBeTruthy();
-
-      const explanation = card.querySelector(`#${describedBy}`);
-      expect(explanation).not.toBeNull();
-      expect(explanation?.textContent ?? "").toMatch(/Phê duyệt/);
-      expect((explanation?.textContent ?? "").length).toBeGreaterThan(20);
-    });
   });
 
-  it("enables Approve for Workflows 1-4 and routes to the review page", async () => {
+  it("enables Approve for Workflows 1-5 and promotion 7a/7c/7b and routes to the review page", async () => {
     const user = userEvent.setup();
     renderView();
 
-    for (const fixture of recommendationFixtures.slice(0, 4)) {
+    const approvables = recommendationFixtures.filter((fixture) =>
+      [
+        "create_hero_product_1",
+        "optimize_product_2",
+        "replenish_inventory_3",
+        "clear_excess_4",
+        "process_order_5",
+        "create_activity_7a",
+        "update_activity_7c",
+        "delete_activity_7b",
+      ].includes(fixture.workflowKey),
+    );
+
+    for (const fixture of approvables) {
       push.mockClear();
       const card = findCard(fixture.workflowKey) as HTMLElement;
       const approveButton = within(card).getByRole("button", {

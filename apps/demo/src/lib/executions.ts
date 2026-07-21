@@ -9,20 +9,40 @@ import {
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
 } from "./reviews";
 import {
+  CREATE_ACTIVITY_TOOL_NAME,
+  CREATE_ACTIVITY_WORKFLOW_KEY,
+  createCreateActivityTimeline,
+} from "./workflows/create-activity";
+import {
   CLEAR_EXCESS_TOOL_NAME,
   CLEAR_EXCESS_WORKFLOW_KEY,
   createClearExcessTimeline,
 } from "./workflows/clear-excess";
+import {
+  DELETE_ACTIVITY_TOOL_NAME,
+  DELETE_ACTIVITY_WORKFLOW_KEY,
+  createDeleteActivityTimeline,
+} from "./workflows/delete-activity";
 import {
   createOptimizeProductTimeline,
   OPTIMIZE_PRODUCT_TOOL_NAME,
   OPTIMIZE_PRODUCT_WORKFLOW_KEY,
 } from "./workflows/optimize-product";
 import {
+  createProcessOrderTimeline,
+  PROCESS_ORDER_TOOL_NAME,
+  PROCESS_ORDER_WORKFLOW_KEY,
+} from "./workflows/process-order";
+import {
   createReplenishInventoryTimeline,
   REPLENISH_INVENTORY_TOOL_NAME,
   REPLENISH_INVENTORY_WORKFLOW_KEY,
 } from "./workflows/replenish-inventory";
+import {
+  createUpdateActivityTimeline,
+  UPDATE_ACTIVITY_TOOL_NAME,
+  UPDATE_ACTIVITY_WORKFLOW_KEY,
+} from "./workflows/update-activity";
 
 export { CREATE_HERO_PRODUCT_WORKFLOW_KEY };
 export const CREATE_HERO_PRODUCT_TOOL_NAME = "listing.create_hero_product";
@@ -51,6 +71,22 @@ const SUPPORTED_WORKFLOWS: Record<
   [CLEAR_EXCESS_WORKFLOW_KEY]: {
     toolName: CLEAR_EXCESS_TOOL_NAME,
     createTimeline: createClearExcessTimeline,
+  },
+  [PROCESS_ORDER_WORKFLOW_KEY]: {
+    toolName: PROCESS_ORDER_TOOL_NAME,
+    createTimeline: createProcessOrderTimeline,
+  },
+  [CREATE_ACTIVITY_WORKFLOW_KEY]: {
+    toolName: CREATE_ACTIVITY_TOOL_NAME,
+    createTimeline: createCreateActivityTimeline,
+  },
+  [UPDATE_ACTIVITY_WORKFLOW_KEY]: {
+    toolName: UPDATE_ACTIVITY_TOOL_NAME,
+    createTimeline: createUpdateActivityTimeline,
+  },
+  [DELETE_ACTIVITY_WORKFLOW_KEY]: {
+    toolName: DELETE_ACTIVITY_TOOL_NAME,
+    createTimeline: createDeleteActivityTimeline,
   },
 };
 

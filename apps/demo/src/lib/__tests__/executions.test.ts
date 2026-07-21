@@ -70,8 +70,18 @@ describe("startExecution", () => {
     expect(record.timeline[0]?.status).toBe("running");
   });
 
+  it("starts workflow 5 with fulfillment.process_order tool and twenty-step timeline", () => {
+    const { executionId, record } = startExecution("process_order_5");
+
+    expect(executionId).toBe("exec-process_order_5-1");
+    expect(record.toolName).toBe("fulfillment.process_order");
+    expect(record.lifecycleStatus).toBe("executing");
+    expect(record.timeline).toHaveLength(20);
+    expect(record.timeline[0]?.status).toBe("running");
+  });
+
   it("rejects unsupported workflow keys", () => {
-    expect(() => startExecution("process_order_5")).toThrow(
+    expect(() => startExecution("prevent_cancellation_8a")).toThrow(
       /Unsupported workflow key/,
     );
   });
