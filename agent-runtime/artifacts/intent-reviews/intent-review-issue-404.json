@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-404",
+  "issue": 404,
+  "timestamp": "2026-07-21T11:01:58Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "19fb61892eb33d30abd06167086c7300f9880546",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff vs origin/main (19fb6189) for #404 P2-6 six-KPI Analytics: six Main KPI catalog with Net Revenue/30d defaults; hero plus five-card literal swap with router.push history; unavailable SPS/ROAS/CSAT with neutral pattern and UnavailableKpiPopover (no fixture values); mock snapshots for three available KPIs with range-scoped values, provenance, decision deep links; hero-only comparison toggle via analyticsComparisonEnabled; invalid deep link recovery; loading/partial/error screen states; Manual Refresh resets analytics state via DEFAULT_MUTABLE_MOCK_STATE; accessible sr-only chart labels and responsive/reduced-motion CSS. Aligns with docs/product/design/Screens/analytics.md and dashboard flow. No contradicting intent creep.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "404-20260721T104924"
+}

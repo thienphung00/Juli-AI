@@ -1,0 +1,25 @@
+# Demo frontend service — Next.js (apps/demo) on 127.0.0.1:3001
+#
+# Independent of App Review frontend and API services: restart with
+# `sudo systemctl restart juli-demo`.
+# Install to /etc/systemd/system/juli-demo.service on the review VPS.
+#
+# VPS layout (continuous delivery, see deploy-demo-release.sh):
+#   ~/releases/demo-current -> ~/releases/<sha>   symlink flipped on every Demo deploy
+#   Mock mode is self-contained — no backend env files required.
+[Unit]
+Description=Juli Demo frontend (apps/demo, mock mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/releases/demo-current
+# Production Next.js server bound to the loopback upstream Nginx proxies to.
+ExecStart=/usr/bin/corepack pnpm --filter @juli/demo run start -- --port 3001 --hostname 127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

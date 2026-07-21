@@ -42,8 +42,10 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     resetMockState,
   } = useDemoState();
   const assistance =
-    assistanceByPath[pathname as keyof typeof assistanceByPath] ??
-    assistanceByPath["/"];
+    pathname.startsWith("/analytics")
+      ? assistanceByPath["/analytics"]
+      : assistanceByPath[pathname as keyof typeof assistanceByPath] ??
+        assistanceByPath["/"];
   const assistanceMessage =
     pathname === "/decisions" && recommendationContext
       ? `${recommendationContext.title}: ${recommendationContext.evidence} Rủi ro: ${recommendationContext.risks}`

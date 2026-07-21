@@ -17,9 +17,9 @@
 
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
-| #404 | Six-KPI Analytics | `apps/demo/src/app/analytics/**`, analytics lib/components/tests; `analytics*` keys in demo-state | Executing (wave1) | `feature/issue-404-analytics` | `.worktrees/issue-404` | per-issue (5B) |
 | #405 | Editable Settings | `apps/demo/src/app/settings/**`, settings lib/components/tests; `settings*` keys in demo-state | PR open / CI green — [#461](https://github.com/thienphung00/Juli-AI/pull/461) | `feature/issue-405-settings` | `.worktrees/issue-405` | per-issue (5B) |
-| #406 | Demo deploy automation | `infra/nginx\|systemd\|scripts` demo assets, runbooks, deploy contract tests/CI | Executing (wave1) | `feature/issue-406-demo-deploy` | `.worktrees/issue-406` | per-issue (5B) |
+| #404 | Six-KPI Analytics | `apps/demo/src/app/analytics/**`, analytics lib/components/tests; `analytics*` keys in demo-state | PR open / CI green | `feature/issue-404-analytics` | `.worktrees/issue-404` | [PR #460](https://github.com/thienphung00/Juli-AI/pull/460) |
+| #406 | Demo deploy automation | `infra/nginx\|systemd\|scripts` demo assets, runbooks, deploy contract tests/CI | PR open / CI green | `feature/issue-406-demo-deploy` | `.worktrees/issue-406` | [PR #459](https://github.com/thienphung00/Juli-AI/pull/459) |
 
 ## Module disjointness (ownership)
 
@@ -43,7 +43,9 @@
 
 | Time (UTC) | Agent | Command | Issue |
 |------------|-------|---------|-------|
-| 2026-07-21T11:04Z | Review #405 | `git push -u origin feature/issue-405-settings`; `gh pr create` | #405 → PR [#461](https://github.com/thienphung00/Juli-AI/pull/461) |
+| 2026-07-21T11:04Z | Review #404 | `git push -u origin feature/issue-404-analytics`; `gh pr create` | #404 → PR #460 |
+| 2026-07-21T11:06Z | Review #406 | `git push -u origin feature/issue-406-demo-deploy` | #406 |
+| 2026-07-21T11:06Z | Review #406 | `gh pr create` → https://github.com/thienphung00/Juli-AI/pull/459 | #406 |
 
 ## References
 
