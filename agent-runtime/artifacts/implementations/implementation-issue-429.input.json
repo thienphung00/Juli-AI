@@ -1,0 +1,63 @@
+{
+  "phaseRunId": "429-20260721T070906",
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-429.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-429.md",
+    "docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md",
+    "backend/src/juli_backend/services/action_cards/MODULE.md",
+    "backend/src/juli_backend/services/action_cards/refresh.py",
+    "backend/src/juli_backend/services/action_cards/persist.py",
+    "backend/src/juli_backend/api/routes/action_cards.py",
+    "backend/src/juli_backend/services/scoring/MODULE.md",
+    "backend/src/juli_backend/services/scoring/kpi_catalog.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/services/action_cards/MODULE.md",
+    "tests/unit/test_action_cards_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_action_cards_contract.py::test_issue429_analytics_ctr_refresh_persists_ads_workflow_keys",
+    "tests/unit/test_action_cards_contract.py::test_issue429_analytics_refresh_then_get_lists_persisted_cards",
+    "tests/unit/test_action_cards_contract.py::test_issue429_analytics_ctr_second_refresh_idempotent"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "behavior": "Analytics CTR refresh persists Ads workflow keys (create_activity_7a, update_activity_7c)",
+      "red": "PYTHONPATH=backend/src pytest tests/unit/test_action_cards_contract.py::test_issue429_analytics_ctr_refresh_persists_ads_workflow_keys -q --tb=short → FAILED (test did not exist)",
+      "green": "Probe confirmed existing run_action_card_refresh → persist_scoring_result path; test added → PASSED (no production code change)"
+    },
+    {
+      "behavior": "Analytics fixtures → refresh → GET /v1/action-cards lists Ads cards with CTR source_kpi_ids",
+      "red": "PYTHONPATH=backend/src pytest tests/unit/test_action_cards_contract.py::test_issue429_analytics_refresh_then_get_lists_persisted_cards -q --tb=short → FAILED (test did not exist)",
+      "green": "Integration test via GET list envelope; metadata.computed_at + updated_at exposed → PASSED"
+    },
+    {
+      "behavior": "Second analytics-backed refresh idempotent (same keys, bumped updated_at)",
+      "red": "PYTHONPATH=backend/src pytest tests/unit/test_action_cards_contract.py::test_issue429_analytics_ctr_second_refresh_idempotent -q --tb=short → FAILED (test did not exist)",
+      "green": "Idempotent upsert verified for CTR-ranked Ads cards → PASSED"
+    }
+  ],
+  "implementationSummary": "No-op lock-in: existing POST /v1/action-cards/refresh → run_daily_scoring_for_shop → persist_scoring_result already surfaces mid/large Ads workflows when #428 CTR signals rank them. Added three contract tests with analytics product-grain CTR fixtures proving create_activity_7a/update_activity_7c persistence, GET list integration, and idempotent re-refresh. Documented freshness via metadata.computed_at (AC4 skip for new envelope fields).",
+  "assumptions": [
+    "P2-B3 workflow ranking from KPI signals is satisfied by existing scoring.recommendations + kpi_catalog KPI_WORKFLOW_KEYS (no persist.py changes needed)",
+    "ROAS/CAC Ads cards remain absent until analytics_spend_denominator ETL (#426 scope)",
+    "List freshness for UI uses metadata.computed_at and updated_at — no new top-level envelope field (cache issue owns read-through if needed)",
+    "Cards for workflows no longer ranked are not tombstoned — upsert-only model per ADR-021"
+  ],
+  "risks": [
+    "Stale active cards may linger if a workflow drops out of rankings until explicit status lifecycle is added",
+    "Mid/large profile gating requires shop age ≥90d or graduation signals — new shops never see Ads workflow cards even with CTR data"
+  ],
+  "cacheHits": [
+    "issue-context-cache-429.json",
+    "parent-cache-issue-278.json"
+  ]
+}

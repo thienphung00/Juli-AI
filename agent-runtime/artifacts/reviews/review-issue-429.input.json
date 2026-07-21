@@ -1,0 +1,320 @@
+{
+  "reviewedBy": "guardrails skill",
+  "phaseRunId": "429-20260721T070906",
+  "status": "PASS_WITH_WARNINGS",
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "summary": "Issue #429 P2-B1 ext (Ads KPI workflow rankings): intent-review spec_fidelity=pass consumed as given. No-op lock-in — existing run_action_card_refresh → persist_scoring_result already surfaces CTR-ranked mid/large Ads workflows; three contract tests prove persistence, GET list integration, and idempotent re-refresh; MODULE.md documents freshness via metadata.computed_at/updated_at. 10/10 contract tests pass. No CRITICAL reliability/security/observability/performance gaps in test-only + documentation slice. Non-blocking intent-review smells (duplicated fixture, skip_poll middle man, GET auth duplication) acknowledged ship-as-is.",
+  "criticalFindings": [
+    {
+      "id": "429-smell-duplicated-fixture",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review smell (non-blocking): mid_large_shop_with_analytics_ctr fixture mirrors mid/large commerce seed elsewhere.",
+      "suggestion": "Extract shared mid/large+analytics factory to conftest on next action_cards test touch.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Local fixture keeps #429 contract tests self-contained; duplication is test-only and does not affect refresh/persist production paths."
+    },
+    {
+      "id": "429-smell-middle-man-skip-poll",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review smell (non-blocking): skip_poll fixture plus poll=False on run_action_card_refresh is redundant middle-man wiring.",
+      "suggestion": "Pick one poll bypass (fixture monkeypatch or poll=False kwarg) on follow-up.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Redundant but harmless test setup; both paths disable TikTok poll for deterministic analytics CTR fixtures."
+    },
+    {
+      "id": "429-smell-duplicated-get-auth",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review smell (non-blocking): GET integration test reimplements auth overrides; workflow_keys assertions repeated across three #429 tests.",
+      "suggestion": "Reuse auth_client fixture and shared workflow_keys assertion helper when consolidating #429 tests.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Explicit dependency overrides document GET path integration; repetition is test-only and does not affect API auth behavior."
+    },
+    {
+      "id": "429-convention-dry-factory",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review convention note: Prefer shared mid/large+analytics factory and auth_client reuse on follow-up.",
+      "suggestion": "Consolidate analytics CTR seed builders when either action_cards or scoring contract module is next edited."
+    },
+    {
+      "id": "429-convention-unused-imports",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review convention note: Unused HealthDataSource / ShopLifecycleContext imports.",
+      "suggestion": "Remove dead imports on next test file edit."
+    },
+    {
+      "id": "429-convention-module-md-current",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "description": "Intent-review convention note: CTR ranking + freshness notes match module style.",
+      "suggestion": "No action required — documentation placement matches module authority pattern."
+    },
+    {
+      "id": "429-executor-stale-cards-risk",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/action_cards/persist.py",
+      "description": "Executor note: Stale active cards may linger if a workflow drops out of rankings until explicit status lifecycle is added (upsert-only model per ADR-021).",
+      "suggestion": "Track tombstone/inactive lifecycle in a follow-up if card drift becomes user-visible."
+    },
+    {
+      "id": "429-executor-mid-large-gating",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+      "description": "Executor note: Mid/large profile gating requires shop age ≥90d or graduation signals — new shops never see Ads workflow cards even with CTR data.",
+      "suggestion": "Document gating in product copy if merchants expect Ads cards immediately after analytics sync."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/action_cards/MODULE.md",
+    "tests/unit/test_action_cards_contract.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "post refresh returns enqueues without inline run",
+          "test": "tests/unit/test_action_cards_contract.py::test_ac2_post_refresh_returns_202_and_enqueues_without_inline_run"
+        },
+        {
+          "criterion": "analytics refresh persists ads workflow keys",
+          "test": "tests/unit/test_action_cards_contract.py::test_issue429_analytics_ctr_refresh_persists_ads_workflow_keys"
+        },
+        {
+          "criterion": "analytics refresh then get lists persisted cards",
+          "test": "tests/unit/test_action_cards_contract.py::test_issue429_analytics_refresh_then_get_lists_persisted_cards"
+        },
+        {
+          "criterion": "action cards MODULE freshness computed_at metadata",
+          "test": "backend/src/juli_backend/services/action_cards/MODULE.md"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 10,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Extract shared mid/large+analytics CTR fixture to conftest when consolidating action_cards contract tests.",
+    "Remove skip_poll vs poll=False redundancy and dead imports on next test touch.",
+    "Reuse auth_client fixture for GET integration path when refactoring #429 tests."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review spec_fidelity=pass; all 4 ACs mapped; 10/10 contract tests pass. Accepted ship-as-is for duplicated fixture, skip_poll middle man, and GET auth duplication (test-only slice).",
+    "timestamp": "2026-07-21T07:20:00Z",
+    "acceptedRisks": true,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "Acknowledged WARNING findings; CTR-ranked Ads workflow persistence verified by contract tests; freshness documented in action_cards MODULE.md.",
+    "timestamp": "2026-07-21T07:20:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-429.json",
+  "reviewBasis": "working tree vs ceecd2e3 on feature/issue-429-action-cards-kpi-rankings",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-429.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 3,
+    "conventionNotesImported": 3,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "severity": "low",
+  "findings": [
+    {
+      "id": "429-smell-duplicated-fixture",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review smell (non-blocking): mid_large_shop_with_analytics_ctr fixture mirrors mid/large commerce seed elsewhere.",
+      "suggestion": "Extract shared mid/large+analytics factory to conftest on next action_cards test touch.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Local fixture keeps #429 contract tests self-contained; duplication is test-only and does not affect refresh/persist production paths."
+    },
+    {
+      "id": "429-smell-middle-man-skip-poll",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review smell (non-blocking): skip_poll fixture plus poll=False on run_action_card_refresh is redundant middle-man wiring.",
+      "suggestion": "Pick one poll bypass (fixture monkeypatch or poll=False kwarg) on follow-up.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Redundant but harmless test setup; both paths disable TikTok poll for deterministic analytics CTR fixtures."
+    },
+    {
+      "id": "429-smell-duplicated-get-auth",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review smell (non-blocking): GET integration test reimplements auth overrides; workflow_keys assertions repeated across three #429 tests.",
+      "suggestion": "Reuse auth_client fixture and shared workflow_keys assertion helper when consolidating #429 tests.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Explicit dependency overrides document GET path integration; repetition is test-only and does not affect API auth behavior."
+    },
+    {
+      "id": "429-convention-dry-factory",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review convention note: Prefer shared mid/large+analytics factory and auth_client reuse on follow-up.",
+      "suggestion": "Consolidate analytics CTR seed builders when either action_cards or scoring contract module is next edited."
+    },
+    {
+      "id": "429-convention-unused-imports",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review convention note: Unused HealthDataSource / ShopLifecycleContext imports.",
+      "suggestion": "Remove dead imports on next test file edit."
+    },
+    {
+      "id": "429-convention-module-md-current",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "description": "Intent-review convention note: CTR ranking + freshness notes match module style.",
+      "suggestion": "No action required — documentation placement matches module authority pattern."
+    },
+    {
+      "id": "429-executor-stale-cards-risk",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/action_cards/persist.py",
+      "description": "Executor note: Stale active cards may linger if a workflow drops out of rankings until explicit status lifecycle is added (upsert-only model per ADR-021).",
+      "suggestion": "Track tombstone/inactive lifecycle in a follow-up if card drift becomes user-visible."
+    },
+    {
+      "id": "429-executor-mid-large-gating",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+      "description": "Executor note: Mid/large profile gating requires shop age ≥90d or graduation signals — new shops never see Ads workflow cards even with CTR data.",
+      "suggestion": "Document gating in product copy if merchants expect Ads cards immediately after analytics sync."
+    }
+  ],
+  "architectureFindings": [
+    {
+      "id": "429-convention-dry-factory",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review convention note: Prefer shared mid/large+analytics factory and auth_client reuse on follow-up.",
+      "suggestion": "Consolidate analytics CTR seed builders when either action_cards or scoring contract module is next edited."
+    },
+    {
+      "id": "429-convention-module-md-current",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "description": "Intent-review convention note: CTR ranking + freshness notes match module style.",
+      "suggestion": "No action required — documentation placement matches module authority pattern."
+    }
+  ],
+  "maintainabilityFindings": [
+    {
+      "id": "429-convention-dry-factory",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review convention note: Prefer shared mid/large+analytics factory and auth_client reuse on follow-up.",
+      "suggestion": "Consolidate analytics CTR seed builders when either action_cards or scoring contract module is next edited."
+    },
+    {
+      "id": "429-convention-unused-imports",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_action_cards_contract.py",
+      "description": "Intent-review convention note: Unused HealthDataSource / ShopLifecycleContext imports.",
+      "suggestion": "Remove dead imports on next test file edit."
+    },
+    {
+      "id": "429-convention-module-md-current",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "description": "Intent-review convention note: CTR ranking + freshness notes match module style.",
+      "suggestion": "No action required — documentation placement matches module authority pattern."
+    },
+    {
+      "id": "429-executor-stale-cards-risk",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/action_cards/persist.py",
+      "description": "Executor note: Stale active cards may linger if a workflow drops out of rankings until explicit status lifecycle is added (upsert-only model per ADR-021).",
+      "suggestion": "Track tombstone/inactive lifecycle in a follow-up if card drift becomes user-visible."
+    },
+    {
+      "id": "429-executor-mid-large-gating",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/scoring/kpi_catalog.py",
+      "description": "Executor note: Mid/large profile gating requires shop age ≥90d or graduation signals — new shops never see Ads workflow cards even with CTR data.",
+      "suggestion": "Document gating in product copy if merchants expect Ads cards immediately after analytics sync."
+    }
+  ],
+  "suggestedRemediation": [
+    "Extract shared mid/large+analytics CTR fixture to conftest on next action_cards test touch.",
+    "Pick one poll bypass (fixture monkeypatch or poll=False kwarg) on follow-up.",
+    "Reuse auth_client fixture and shared workflow_keys assertion helper when consolidating #429 tests.",
+    "Remove dead imports on next test file edit.",
+    "No action required — documentation placement matches module authority pattern.",
+    "Track tombstone/inactive lifecycle in a follow-up if card drift becomes user-visible.",
+    "Document gating in product copy if merchants expect Ads cards immediately after analytics sync."
+  ]
+}
