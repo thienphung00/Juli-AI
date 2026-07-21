@@ -374,7 +374,8 @@ def fix_wrong_executor_domain(metrics: dict[str, Any]) -> ProposedFix:
         ],
         harness_config_targets=["agent_runtime_config", "executor_domain_hints"],
         auto_apply_eligible=False,
-        value=True,
+        # Advisory only — not in harness-editable.yml; Meta/Architect update slice-routing.
+        value=None,
     )
 
 
