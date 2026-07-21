@@ -62,7 +62,19 @@ describe("getWorkflowReviewStages", () => {
     );
   });
 
+  it("returns five stages for workflow 2 optimize_product", () => {
+    const stages = getWorkflowReviewStages("optimize_product_2");
+
+    expect(stages.map((stage) => stage.stage)).toEqual([
+      "why",
+      "analytics",
+      "inputs",
+      "preview",
+      "approve",
+    ]);
+  });
+
   it("returns no stages for unsupported workflow keys", () => {
-    expect(getWorkflowReviewStages("optimize_product_2")).toEqual([]);
+    expect(getWorkflowReviewStages("process_order_5")).toEqual([]);
   });
 });

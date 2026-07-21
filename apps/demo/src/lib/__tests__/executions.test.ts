@@ -60,8 +60,20 @@ describe("startExecution", () => {
     expect(record.approvedInputs.warehouse_id).toBe("WH-FBS-HCM-01");
   });
 
+  it("starts workflow 2 with optimize_product tool and eleven-step timeline", () => {
+    const { executionId, record } = startExecution("optimize_product_2");
+
+    expect(executionId).toBe("exec-optimize_product_2-1");
+    expect(record.toolName).toBe("listing.optimize_product");
+    expect(record.lifecycleStatus).toBe("executing");
+    expect(record.timeline).toHaveLength(11);
+    expect(record.timeline[0]?.status).toBe("running");
+  });
+
   it("rejects unsupported workflow keys", () => {
-    expect(() => startExecution("optimize_product_2")).toThrow(/Unsupported workflow key/);
+    expect(() => startExecution("process_order_5")).toThrow(
+      /Unsupported workflow key/,
+    );
   });
 });
 

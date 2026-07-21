@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useId, useState } from "react";
 
 import {
-  buildReviewInputDefaults,
+  buildReviewInputDefaultsForWorkflow,
   getWorkflowReviewStages,
 } from "../lib/reviews";
 import { useDemoState } from "./demo-state";
@@ -40,7 +40,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
   const announcementId = useId();
 
   const previewDraftValues = {
-    ...buildReviewInputDefaults(),
+    ...buildReviewInputDefaultsForWorkflow(workflowKey),
     ...(mutableState.workflowReviewDrafts[workflowKey] ?? {}),
   };
 
@@ -51,7 +51,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
         workflowReviewDrafts: {
           ...current.workflowReviewDrafts,
           [workflowKey]: {
-            ...buildReviewInputDefaults(),
+            ...buildReviewInputDefaultsForWorkflow(workflowKey),
             ...(current.workflowReviewDrafts[workflowKey] ?? {}),
             [fieldKey]: value,
           },

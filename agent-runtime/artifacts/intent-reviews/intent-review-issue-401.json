@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-401",
+  "issue": 401,
+  "timestamp": "2026-07-21T08:33:08Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "843b54fe43792ba5729ab43323c403a399056c09",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff vs origin/main (843b54fe) for #401 Phase 2.6. Delivered WF2\u20134 five-stage review + FBS timelines (11/9/12), shared registry wiring, Approve for WF1\u20134, truthful Unresolved/FBT labels, generalized lifecycle terminal detection, and three review\u2192approve\u2192In Progress integration tests. Matches issue AC and design flows 2/3/4-workflow.md without inventing FBT/PO/Flash Sale executors.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md current",
+      "path": "apps/demo/MODULE.md",
+      "note": "MODULE.md updated to document WF1\u20134 approve registry and per-workflow modules.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "401-20260721T080554"
+}

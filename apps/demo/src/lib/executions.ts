@@ -4,12 +4,55 @@ import {
   type ExecutionTimelineStep,
 } from "@juli/contracts";
 
-import { buildReviewInputDefaults } from "./reviews";
+import {
+  buildReviewInputDefaultsForWorkflow,
+  CREATE_HERO_PRODUCT_WORKFLOW_KEY,
+} from "./reviews";
+import {
+  CLEAR_EXCESS_TOOL_NAME,
+  CLEAR_EXCESS_WORKFLOW_KEY,
+  createClearExcessTimeline,
+} from "./workflows/clear-excess";
+import {
+  createOptimizeProductTimeline,
+  OPTIMIZE_PRODUCT_TOOL_NAME,
+  OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+} from "./workflows/optimize-product";
+import {
+  createReplenishInventoryTimeline,
+  REPLENISH_INVENTORY_TOOL_NAME,
+  REPLENISH_INVENTORY_WORKFLOW_KEY,
+} from "./workflows/replenish-inventory";
 
-export const CREATE_HERO_PRODUCT_WORKFLOW_KEY = "create_hero_product_1";
+export { CREATE_HERO_PRODUCT_WORKFLOW_KEY };
 export const CREATE_HERO_PRODUCT_TOOL_NAME = "listing.create_hero_product";
 
 const executionCounters = new Map<string, number>();
+
+const SUPPORTED_WORKFLOWS: Record<
+  string,
+  {
+    toolName: string;
+    createTimeline: () => ExecutionTimelineStep[];
+  }
+> = {
+  [CREATE_HERO_PRODUCT_WORKFLOW_KEY]: {
+    toolName: CREATE_HERO_PRODUCT_TOOL_NAME,
+    createTimeline: createHeroProductTimeline,
+  },
+  [OPTIMIZE_PRODUCT_WORKFLOW_KEY]: {
+    toolName: OPTIMIZE_PRODUCT_TOOL_NAME,
+    createTimeline: createOptimizeProductTimeline,
+  },
+  [REPLENISH_INVENTORY_WORKFLOW_KEY]: {
+    toolName: REPLENISH_INVENTORY_TOOL_NAME,
+    createTimeline: createReplenishInventoryTimeline,
+  },
+  [CLEAR_EXCESS_WORKFLOW_KEY]: {
+    toolName: CLEAR_EXCESS_TOOL_NAME,
+    createTimeline: createClearExcessTimeline,
+  },
+};
 
 export function resetExecutionCountersForTests(): void {
   executionCounters.clear();
@@ -168,25 +211,27 @@ export function startExecution(
   executionId: string;
   record: ExecutionRecord;
 } {
-  if (workflowKey !== CREATE_HERO_PRODUCT_WORKFLOW_KEY) {
+  const config = SUPPORTED_WORKFLOWS[workflowKey];
+
+  if (!config) {
     throw new Error(`Unsupported workflow key: ${workflowKey}`);
   }
 
   const executionId = nextExecutionId(workflowKey);
   const now = "2026-07-16T04:12:00.000Z";
-  const timeline = seedInitialTimeline(createHeroProductTimeline());
+  const timeline = seedInitialTimeline(config.createTimeline());
   const lifecycleStatus = deriveLifecycleFromTimeline(timeline);
 
   const record: ExecutionRecord = {
     executionId,
     workflowKey,
-    toolName: CREATE_HERO_PRODUCT_TOOL_NAME,
+    toolName: config.toolName,
     lifecycleStatus,
     startedAt: now,
     updatedAt: now,
     timeline,
     approvedInputs: {
-      ...buildReviewInputDefaults(),
+      ...buildReviewInputDefaultsForWorkflow(workflowKey),
       ...(approvedInputs ?? {}),
     },
   };
@@ -197,9 +242,11 @@ export function startExecution(
 export function getWorkflowTimeline(
   workflowKey: string,
 ): ExecutionTimelineStep[] {
-  if (workflowKey === CREATE_HERO_PRODUCT_WORKFLOW_KEY) {
-    return createHeroProductTimeline();
+  const config = SUPPORTED_WORKFLOWS[workflowKey];
+
+  if (!config) {
+    return [];
   }
 
-  return [];
+  return config.createTimeline();
 }

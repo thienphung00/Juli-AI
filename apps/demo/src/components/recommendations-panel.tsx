@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { recommendationFixtures } from "../lib/recommendations";
-import { CREATE_HERO_PRODUCT_WORKFLOW_KEY } from "../lib/reviews";
+import { APPROVABLE_WORKFLOW_KEYS } from "../lib/reviews";
 import { useDemoState } from "./demo-state";
 
 const APPROVE_DISABLED_REASON =
@@ -165,8 +165,9 @@ export function RecommendationsPanel({
         <ul className="demo-decisions__list">
           {visibleFixtures.map((fixture) => {
             const isHighlighted = fixture.workflowKey === highlightKey;
-            const approveEnabled =
-              fixture.workflowKey === CREATE_HERO_PRODUCT_WORKFLOW_KEY;
+            const approveEnabled = APPROVABLE_WORKFLOW_KEYS.includes(
+              fixture.workflowKey as (typeof APPROVABLE_WORKFLOW_KEYS)[number],
+            );
 
             return (
               <li key={fixture.workflowKey}>
