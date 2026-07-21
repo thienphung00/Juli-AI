@@ -40,6 +40,9 @@ export interface MutableMockState {
   analyticsMetric: string;
   analyticsRange: "7d" | "30d" | "90d";
   settingsDraft: Record<string, string>;
+  settingsSaved: Record<string, string>;
+  settingsLastSavedAt: string | null;
+  settingsActiveSection: "templates" | "thresholds";
 }
 
 export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
@@ -53,6 +56,9 @@ export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
   analyticsMetric: "net-revenue",
   analyticsRange: "30d",
   settingsDraft: {},
+  settingsSaved: {},
+  settingsLastSavedAt: null,
+  settingsActiveSection: "templates",
 };
 
 interface DemoStateValue {
@@ -81,6 +87,9 @@ function createDefaultMutableState(): MutableMockState {
     executionRecords: {},
     executionProgress: {},
     settingsDraft: {},
+    settingsSaved: {},
+    settingsLastSavedAt: null,
+    settingsActiveSection: "templates",
   };
 }
 
