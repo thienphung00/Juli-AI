@@ -23,6 +23,8 @@ def test_build_implementation_artifact_includes_required_runtime_fields() -> Non
     assert artifact["toolInvocationCount"] == 0
     assert artifact["contextFilesLoaded"] == []
     assert artifact["skillsLoaded"] == []
+    assert artifact["rulesLoaded"] == []
+    assert artifact["mcpsUsed"] == []
 
 
 def test_build_implementation_artifact_merges_overrides_without_clobbering_domain() -> None:

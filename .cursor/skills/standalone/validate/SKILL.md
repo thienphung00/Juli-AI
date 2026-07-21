@@ -96,7 +96,9 @@ all pass. Warnings live in `criticalFindings[*].severity == "WARNING"` with
 ## Handoff to `ship`
 
 Ship **requires** `readyForMerge: true` on the validation artifact. Do not hand off
-when `status` is `FAIL` or `readyForMerge` is `false`.
+when `status` is `FAIL` or `readyForMerge` is `false`. After handoff, `ship` still
+owes **sync-before-merge** (rebase onto current `origin/main` + CI re-green) before
+merge — validate does not replace that gate.
 
 ```markdown
 ## Handoff: validate -> ship

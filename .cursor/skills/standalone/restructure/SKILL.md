@@ -1,23 +1,25 @@
 ---
-name: refactor
+name: restructure
 description: >-
-  Safely restructures the codebase while preserving all existing behaviour — the
-  invariant is that the same tests pass before and after every issue. Use when the
-  user says "restructure", "v1A to v1B", "leaner codebase", or when
-  invoked by the refactor pipeline in core-orchestration.mdc.
+  Execute mechanical codebase moves when target structure is already decided — same tests
+  must pass before and after every issue. Use when the user says "restructure", "v1A to v1B",
+  or when invoked by the refactor pipeline in core-orchestration.mdc. For architecture
+  discovery or "leaner codebase" exploration, use improve-codebase-architecture instead.
 ---
 
-# Refactor
+# Restructure
 
-Safely restructure the codebase from one form to another while preserving
-all existing behaviour. The invariant is: the same tests pass before and after every issue.
+Execute mechanical codebase moves from one structure to another while preserving all
+existing behaviour. The invariant is: the same tests pass before and after every issue.
 
 ## Entry
 
-1. Invoke `grill-with-docs` to answer: what must be preserved? what is allowed to change?
+1. **Architecture not yet decided?** Use `improve-codebase-architecture` first — it discovers
+   structural friction and proposes target shape. This skill executes mechanical moves only
+   after current structure, target structure, and gating tests are explicit.
+2. Invoke `grill-with-docs` to answer: what must be preserved? what is allowed to change?
    Produce explicit answers to both before writing any code.
-2. Read `CONTEXT.md` and `docs/adr/` before invoking `improve-codebase-arch`.
-   Pass any relevant ADRs to `improve-codebase-arch` as constraints — it must not re-suggest
+3. Read `CONTEXT.md` and `docs/adr/` — pass relevant ADRs as constraints; do not re-open
    decisions already recorded there.
 
 ## Issue creation

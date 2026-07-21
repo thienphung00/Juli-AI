@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/promotion-candidate-artifact.schema.json",
+  "title": "Harness Promotion Candidate Artifact",
+  "description": "Meta Agent output proposing reusable harness pattern promotion from recorded optimization signals.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactType",
+    "id",
+    "triggerType",
+    "sourceIssueIds",
+    "detectedPattern",
+    "proposedChanges",
+    "evidenceArtifacts",
+    "appliedStatus",
+    "humanApprovalRequired",
+    "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "artifactType": {
+      "const": "harness_promotion_candidate"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^promotion-candidate-[a-z0-9-]+$",
+      "description": "Stable identifier, e.g. promotion-candidate-recurring-context-overloaded"
+    },
+    "triggerType": {
+      "type": "string",
+      "enum": [
+        "context_deviation",
+        "recurring_root_cause",
+        "recurring_harness_utility"
+      ]
+    },
+    "sourceIssueIds": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "integer", "minimum": 1 }
+    },
+    "detectedPattern": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rootCauseCategory": {
+      "type": "string",
+      "enum": [
+        "context_underloaded",
+        "context_overloaded",
+        "wrong_executor_domain",
+        "insufficient_tdd_evidence",
+        "review_gap",
+        "validation_failure",
+        "tool_overuse",
+        "phase_loop",
+        "artifact_incomplete",
+        "architecture_unclear"
+      ]
+    },
+    "proposedChanges": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "targetId",
+          "targetFile",
+          "changeType",
+          "summary",
+          "autoApplyEligible",
+          "humanApprovalRequired"
+        ],
+        "properties": {
+          "targetId": { "type": "string", "minLength": 1 },
+          "targetFile": { "type": "string", "minLength": 1 },
+          "field": { "type": "string" },
+          "changeType": {
+            "type": "string",
+            "enum": ["context_budget", "routing_hint", "documentation", "template", "other"]
+          },
+          "summary": { "type": "string", "minLength": 1 },
+          "proposedValue": {},
+          "proposedFields": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "sectionHint": { "type": "string" },
+          "proposedDiff": { "type": "string" },
+          "autoApplyEligible": {
+            "type": "boolean",
+            "description": "True when the change targets a harness-editable.yml YAML scalar. Does not skip human approval."
+          },
+          "humanApprovalRequired": {
+            "type": "boolean",
+            "description": "True for all promotion proposals until Architect accepts."
+          }
+        }
+      }
+    },
+    "productDevelopmentCandidate": {
+      "type": "object",
+      "description": "Optional embedded product-development optimization when recurring root cause detected."
+    },
+    "evidenceArtifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "appliedStatus": {
+      "type": "string",
+      "enum": ["proposed", "accepted", "rejected", "applied", "measured"]
+    },
+    "humanApprovalRequired": { "type": "boolean" },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": { "type": "string" }
+  }
+}

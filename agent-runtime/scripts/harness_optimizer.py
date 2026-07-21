@@ -145,15 +145,64 @@ def coverage_percentage(validation: dict[str, Any] | None, review: dict[str, Any
     return round((mapped / total) * 100, 2)
 
 
-def expected_executor_from_review(review: dict[str, Any] | None) -> str | None:
+def expected_executor_from_paths(
+    paths: list[str],
+    *,
+    domain_mappings: dict[str, Any],
+) -> str | None:
+    """Score path prefixes from routing.domain_mappings (longest match wins)."""
+    scores: dict[str, int] = {}
+    for domain, prefixes in (domain_mappings or {}).items():
+        if not isinstance(prefixes, list):
+            continue
+        for path in paths:
+            normalized = str(path).replace("\\", "/")
+            for prefix in prefixes:
+                pref = str(prefix).replace("\\", "/").rstrip("/")
+                if not pref:
+                    continue
+                if normalized == pref or normalized.startswith(pref + "/"):
+                    scores[domain] = scores.get(domain, 0) + max(1, len(pref) // 8)
+    if not scores:
+        return None
+    return max(scores.items(), key=lambda item: item[1])[0]
+
+
+def expected_executor_from_review(
+    review: dict[str, Any] | None,
+    *,
+    implementation: dict[str, Any] | None = None,
+    config: dict[str, Any] | None = None,
+) -> str | None:
+    """Prefer filesModified path scoring; fall back to modulesTouched tokens."""
+    cfg = config or {}
+    routing = cfg.get("routing") or {}
+    files_modified = list((implementation or {}).get("filesModified") or [])
+    if files_modified:
+        from_paths = expected_executor_from_paths(
+            [str(p) for p in files_modified],
+            domain_mappings=routing.get("domain_mappings") or {},
+        )
+        if from_paths:
+            return from_paths
+
     modules = set(str(item) for item in (review or {}).get("modulesTouched", []))
-    if modules & {"web", "ios", "ui", "frontend"}:
+    # Path-like module tokens (packages/ui, apps/demo) — never default bare lists to backend.
+    module_paths = [m for m in modules if "/" in m]
+    if module_paths:
+        from_modules = expected_executor_from_paths(
+            module_paths,
+            domain_mappings=routing.get("domain_mappings") or {},
+        )
+        if from_modules:
+            return from_modules
+    if modules & {"web", "ios", "ui", "frontend", "apps/demo", "packages/ui"}:
         return "ui-ux"
-    if modules & {"data", "database", "migrations"}:
+    if modules & {"data", "database", "migrations", "alembic"}:
         return "data-platform"
     if modules & {"ml", "machine-learning", "intelligence"}:
         return "machine-learning"
-    if modules:
+    if modules & {"api", "services", "workers", "integrations", "infra"}:
         return "backend"
     return None
 
@@ -201,7 +250,9 @@ def collect_metrics(
             or "unknown"
         ),
         "executorAssigned": str((implementation or {}).get("executorDomain") or "none"),
-        "expectedExecutor": expected_executor_from_review(review),
+        "expectedExecutor": expected_executor_from_review(
+            review, implementation=implementation, config=config
+        ),
         "contextFilesLoaded": context_files,
         "skillsLoaded": skills,
         "tokenUsage": usage,
@@ -301,27 +352,29 @@ def detect_wrong_executor_domain(metrics: dict[str, Any]) -> bool:
 
 def fix_wrong_executor_domain(metrics: dict[str, Any]) -> ProposedFix:
     expected = metrics.get("expectedExecutor") or "backend"
-    threshold_key = {
-        "backend": "routing.backend_threshold",
-        "ui-ux": "routing.ui_threshold",
-        "data-platform": "routing.data_threshold",
-        "machine-learning": "routing.ml_threshold",
-    }[expected]
-    current = nested_get(metrics["config"], threshold_key, 0.7)
-    new_value = max(0.5, round(as_float(current, 0.7) - 0.05, 2))
+    assigned = metrics.get("executorAssigned")
+    # Threshold nudges are disabled until path-prefix detector is measured — propose
+    # domain_mappings / slice precedence instead (not auto-apply).
     return ProposedFix(
-        summary=f"Lower {expected} routing threshold to make executor assignment less brittle.",
+        summary=(
+            f"Prefer slice-routing executorDomain and path-prefix scoring "
+            f"(assigned {assigned}, path evidence → {expected})."
+        ),
         change_type="routing_hint",
-        details=f"Assigned {metrics['executorAssigned']} but review signals point to {expected}.",
-        config_target=threshold_key,
-        expected_impact="Expected to reduce wrong executor assignments and retries.",
+        details=(
+            f"Assigned {assigned} but filesModified/domain_mappings score {expected}. "
+            "Do not auto-lower routing thresholds; extend domain_mappings and prefer "
+            "workflow_prompt_cache / slice-routing.yml executorDomain at Meta assignment."
+        ),
+        config_target="routing.prefer_slice_executor_domain",
+        expected_impact="Expected to reduce false wrong_executor_domain flags and true misroutes.",
         metric_impacts=[
             {"metric": "retryCount", "direction": "decrease", "magnitude": "medium"},
             {"metric": "reviewFailureRate", "direction": "decrease", "magnitude": "low"},
         ],
         harness_config_targets=["agent_runtime_config", "executor_domain_hints"],
-        auto_apply_eligible=True,
-        value=new_value,
+        auto_apply_eligible=False,
+        value=True,
     )
 
 

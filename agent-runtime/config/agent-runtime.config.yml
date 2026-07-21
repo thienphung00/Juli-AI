@@ -25,18 +25,31 @@ routing:
   ui_threshold: 0.6
   data_threshold: 0.7
   ml_threshold: 0.7
+  # Prefer slice-routing.yml executorDomain when focusSlice / parentLinkage.sliceId is set.
+  prefer_slice_executor_domain: true
+  # Never dual-load backend + data-platform skills in harnessUtility.
+  single_primary_domain_skill: true
   domain_mappings:
     backend:
       - backend/src/juli_backend/api
       - backend/src/juli_backend/core
       - backend/src/juli_backend/services
       - backend/src/juli_backend/workers
+      - backend/src/juli_backend/integrations
+      - infra/scripts
+      - infra/systemd
     ui-ux:
       - apps/dashboard
+      - apps/demo
+      - packages/ui
+      - packages/theme
+      - packages/utils
+      - packages/contracts
       - ios
     data-platform:
       - backend/src/juli_backend/database
       - backend/src/juli_backend/database/migrations
+      - alembic/
     machine-learning:
       - backend/src/juli_backend/ai
   cross_layer_hints:
@@ -48,11 +61,12 @@ routing:
       note: API and persistence context often required beyond backend/src/juli_backend/api
     ui-ux:
       related_paths:
-        - apps/dashboard
-        - ios
-        - backend/src/juli_backend/api
+        - apps/demo
+        - packages/ui
+        - packages/theme
+        - docs/product/design/soul.md
         - docs/architecture/map.md
-      note: UI tasks frequently depend on API contracts one layer beyond apps/dashboard/
+      note: Demo/UI library tasks use packages/* and design soul — not apps/dashboard product code
     data-platform:
       related_paths:
         - backend/src/juli_backend/database
@@ -116,17 +130,22 @@ agents:
     consumes_artifacts: "[implementation-artifact, review-artifact, validation-artifact]"
     emits_artifacts: "[harness-optimization-artifact, product-development-optimization-artifact]"
     must_not: "[implement-features, bypass-review-agent, auto-edit-skills-rules-adrs]"
+    # Hard gate before Executor — no manual "prepare parent cache" prompt required.
+    pre_executor_command: "python agent-runtime/scripts/meta_prepare_executor.py --issue {n}"
   executor:
     phase: implementation
     tdd: red-green-refactor
     domain_skills: "[ui-ux, backend, data-platform, machine-learning]"
     emits_artifacts: "[implementation-artifact]"
-    must_not: "[ship, validate, optimize-harness]"
+    must_not: "[ship, validate, optimize-harness, start-without-valid-workflow-cache]"
+    # Unless artifact_gates.quickCommitSkip applies (.worktrees/debug + no issue-<N>).
+    skip_artifacts_when: artifact_gates.quickCommitSkip
   review:
     phase: review-and-testing
     sequence: "[intent-review, guardrails, validate, ship-ready]"
     emits_artifacts: "[intent-review-artifact, review-artifact, validation-artifact]"
     must_not: "[route-context, assign-executors, ship-before-validation]"
+    skip_artifacts_when: artifact_gates.quickCommitSkip
 agent_structure:
   mode: single_executor
 baseline_metrics:
@@ -183,8 +202,77 @@ benchmark:
     execution_time_regression_ratio: 0.1
     token_usage_regression_ratio: 0.1
     failure_regression_count: 0
+# ADR-003 issue artifacts vs quick GitHub commits (scratch/debug).
+# Source of truth for agent behavior. CI mirror lives in .github/workflows/pr.yml
+# (skips validate-artifacts when branch lacks issue-<N>). Do NOT teach agents to
+# edit pr.yml or Tier-1 rules from .worktrees/debug — that slot resets to main;
+# promote config changes via agent/runtime → PR like any harness change.
+artifact_gates:
+  issueBranchPattern: "issue-([0-9]+)"
+  requireIssueArtifactsWhenBranchMatchesIssue: true
+  quickCommitSkip:
+    enabled: true
+    worktreePathContains: ".worktrees/debug"
+    branchNames:
+      - scratch/debug
+    # Both local signals above AND branch must lack issue-<N> (matches CI).
+    requireBranchLacksIssueSuffix: true
+    recommendedBranchPrefixes:
+      - "fix/"
+      - "chore/"
+      - "docs/"
+    skipEmit:
+      - implementation-artifact
+      - intent-review-artifact
+      - review-artifact
+      - validation-artifact
+      - harness-optimization-artifact
+    # Still expected on GitHub for non-issue PRs (pr.yml always-on jobs).
+    ciStillRuns:
+      - lint-and-typecheck
+      - bandit
+      - gitleaks
+    # Simple YAML loader: one-line string only (no >- blocks).
+    agentBehavior: "When cwd contains .worktrees/debug (or branch is scratch/debug) and the working branch name does not match issue-<N>: skip Meta workflow-cache gate, skip Executor/Review ADR-003 artifact emit, open a short PR, merge, reset scratch/debug to origin/main. Never use this path for issue-<N> work."
+# Context load efficiency — layers from cheapest/reuse to heaviest.
+# Prose SSOT: agent-runtime/docs/agent-runtime.md § Context hierarchy (efficiency).
+# Injection prefix order for cache hits: workflow_prompt_cache.injectionOrder below.
+context_hierarchy:
+  layers:
+    - id: L0_tier1_rules
+      role: always_on
+      note: core-safety, core-orchestration, mcp-usage, git-baseline
+    - id: L1_workflow_cache
+      role: planned_reusable
+      note: parent-cache + issue-context-cache (local, gitignored); highest prefix reuse
+    - id: L1b_harnessUtility
+      role: routing_index
+      note: skills / rulesTier2 / mcps / tools index inside child cache
+    - id: L2_focus_context_plan
+      role: session_filter
+      note: Load / If Needed / DO NOT Load — do not ignore parentDoNotLoad
+    - id: L3_skills_tier2_docs_code
+      role: model_payload
+      note: one primary domain skill; Tier-2 rules only when selected; docs from issueLoadProfile; code majority of window
+    - id: L4_implementation_artifact
+      role: observed_telemetry
+      note: contextFilesLoaded, skillsLoaded, rulesLoaded, mcpsUsed, toolsUsed, tokenUsage — fill after run
+    - id: L5_review_validation_harness
+      role: gates_and_optimize
+      note: ADR-003 CI artifacts + harness-optimization; not default session prompt filler
+  antiPatterns:
+    - load_all_tier2_rules
+    - load_all_skills
+    - inject_sibling_issue_caches
+    - paste_prior_artifacts_into_next_turn
+    - ignore_doNotLoad
 workflow_prompt_cache:
   artifactsDir: agent-runtime/artifacts/workflow-cache
+  # Meta must not assign Executor unless child cacheStatus == valid.
+  requireValidCacheBeforeExecutor: true
+  # meta_prepare_executor.py bootstraps missing parent/child caches automatically.
+  ensureOnMetaEntry: true
+  # Stable blocks first → volatile last (KV prefix reuse across Meta/Executor/Review ticks).
   injectionOrder:
     - parentScopeBlock
     - parentDoNotLoad
@@ -193,7 +281,56 @@ workflow_prompt_cache:
     - phaseCacheBlocks
     - promptCacheBlock
     - requiredModulesCodeAndModuleMd
+  # Review/Validate skills stay out of Executor harnessUtility (phase-scoped).
+  executorSkillsOnly:
+    - domain/backend
+    - domain/ui-ux
+    - domain/data-platform
+    - domain/machine-learning
+    - standalone/ui-ux-design
+  reviewSkillsDeferred:
+    - standalone/intent-review
+    - standalone/guardrails
+    - standalone/validate
   bootstrap:
+    pinBranch: HEAD
     sourcePaths:
       - .cursor/skills
       - agent-runtime/docs
+  # Known epics — ensure_workflow_cache uses these when Parent/#slice missing from CLI.
+  # parentScopeBlock uses \n escapes (simple YAML loader; no literal | blocks).
+  epicRegistry:
+    278:
+      defaultSliceId: P2-A1
+      handoffPath: docs/handoffs/phase-2-tiktok-implementation.md
+      parentScopeBlock: "# Parent #278 — Phase 2 TikTok (constant)\\n## Epic deferrals\\n- T8 router / ML inference: Phase 4\\n- web/, ios/: out of P2 product scope unless slice says otherwise\\n## Merchants\\n- Fujiwa: read only\\n- SANDBOX_VN: write validation only\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - web/
+        - ios/
+        - src/modules/ml/
+        - Sibling issue context caches
+    395:
+      defaultSliceId: P2-6
+      handoffPath: docs/product/phases/phase-2.6/PRD.md
+      parentScopeBlock: "# Parent #395 — Phase 2.6 Demo frontend (constant)\\n## Product boundary\\n- apps/demo mock-only; four destinations; packages/ui + packages/theme\\n## Design authority\\n- ADR-023/024 + docs/product/design/ soul + ux_principles\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - backend/
+        - ios/
+        - Sibling issue context caches
+    419:
+      defaultSliceId: P2-OPS-1
+      handoffPath: docs/adr/027-database-migration-safety-pipeline.md
+      parentScopeBlock: "# Parent #419 — Database migration safety pipeline (constant)\\n## Decision\\n- Extend safe-alembic gate; local-dev + restore drill; no Slack alerting\\n## Constraints\\n- ADR-020: VPS/SSH, no Docker for drills; backups never leave VPS\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - web/
+        - ios/
+        - apps/demo/
+        - docs/product/design/
+        - docs/integrations/tiktok_api/
+        - Sibling issue context caches

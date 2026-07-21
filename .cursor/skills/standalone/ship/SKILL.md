@@ -43,6 +43,18 @@ Code Ready → Pre-Merge Validation → Merge → Staging Deploy → Canary → 
 
 Before any PR merges:
 
+### Sync-before-merge (parallel / long-lived PRs)
+
+**Required** when any other PR may have merged since this branch was cut or last rebased (always assume yes during parallel runs):
+
+1. `git fetch origin main`
+2. Rebase onto `origin/main` (or merge `origin/main` if rebase is unsuitable)
+3. Resolve conflicts on the branch — do not merge a stale tip into `main`
+4. Push (`--force-with-lease` after rebase)
+5. Wait for CI green on the **updated** tip, then merge
+
+Sync-at-PR-open is not enough: `main` moves when sibling PRs land. This gate is owned by Review Agent `ship` (ops lock holder executes). See [`.cursor/rules/issue-workflow.mdc`](../../../.cursor/rules/issue-workflow.mdc).
+
 ### Automated Checks (CI)
 
 ```yaml

@@ -27,6 +27,11 @@ where `slug` = 2–4 word kebab-case summary of the session topic.
 5. **Open questions** (unresolved decisions that still need the user's input)
 6. **Files changed** (`git diff --name-only` summary)
 
+## Issue-phase checkpoints
+
+For work inside the full issue cycle (Planning → Implementation → Review), use
+[`../../shared/checkpoint-handoff.md`](../../shared/checkpoint-handoff.md) for mandatory checkpoint and per-phase handoff files (`docs/handoffs/issue-{N}-{phase}.md`). Do not restate phase tables here — that doc is the source of truth.
+
 ## Constraints
 
 - Never include seller financial data (revenue, ROAS, ad spend, inventory values).

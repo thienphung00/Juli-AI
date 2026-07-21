@@ -62,35 +62,8 @@ releases/
 # built, never committed as part of Juli AI's own tree.
 /reference/
 
-# Agent loop optimization & prompt caching (local machine only — not source control)
+# Workflow prompt cache *artifacts* stay local (per-machine fingerprints / issue bodies).
+# Gate scripts, slice-routing, schemas, templates, and prompt-caching skill are tracked
+# so Meta can auto-ensure caches without a human reminder (meta_prepare_executor.py).
 agent-runtime/artifacts/workflow-cache/
 agent-runtime/artifacts/grill-cache/
-.cursor/skills/standalone/prompt-caching/
-agent-runtime/config/slice-routing.yml
-agent-runtime/scripts/promote_harness_patterns.py
-agent-runtime/scripts/ci/harness_bootstrap_pin.py
-agent-runtime/scripts/ci/issue_load_profile.py
-agent-runtime/scripts/ci/scope_precedence.py
-agent-runtime/scripts/ci/upstream_fingerprints.py
-agent-runtime/scripts/ci/workflow_cache_linkage.py
-agent-runtime/scripts/ci/workflow_cache_store.py
-agent-runtime/scripts/validate/check_harness_bootstrap_pin.py
-agent-runtime/scripts/validate/check_issue_load_profile.py
-agent-runtime/scripts/validate/check_scope_precedence.py
-agent-runtime/scripts/validate/check_workflow_cache.py
-agent-runtime/scripts/validate/check_workflow_cache_staleness.py
-agent-runtime/templates/issue-context-cache-template.json
-agent-runtime/templates/parent-cache-template.json
-agent-runtime/templates/scope-alignment-issue-template.md
-agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json
-agent-runtime/docs/schemas/parent-cache-artifact.schema.json
-agent-runtime/docs/schemas/promotion-candidate-artifact.schema.json
-tests/unit/test_harness_bootstrap_pin.py
-tests/unit/test_issue_load_profile.py
-tests/unit/test_promote_harness_patterns.py
-tests/unit/test_prompt_cache_injection_order.py
-tests/unit/test_scope_precedence.py
-tests/unit/test_slice_routing_config.py
-tests/unit/test_token_usage_by_phase.py
-tests/unit/test_workflow_cache_gate_order.py
-tests/unit/test_workflow_cache_staleness.py

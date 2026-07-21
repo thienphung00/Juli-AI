@@ -28,9 +28,6 @@ Load via Focus for `web/` UI work. Companion skill: `.cursor/skills/standalone/u
 | Product-tile mosaic (bordered cards, 12px radius) | Use `.card` (`--radius: 16px`), consistent `p-4` padding, `space-y-4` rhythm |
 | Typography hierarchy from size, not weight overload | Headings 700; body 400–500; labels `text-muted` / `text-xs uppercase tracking-wide` |
 | Inline form validation below field | Mirror `LoginForm`: error text under input, `aria-describedby`, disable submit while loading |
-| Card-wrapped forms; primary right, cancel left | `TaskDismissModal`, workflow modals: destructive/dismiss left, primary right |
-| AI as agent panel, not gimmick | `AiChatPage`: sticky input, suggested prompts, conversational cards — no decorative gradients |
-| Design-in-code with real tokens | Use `var(--*)` and `@layer components` utilities — never one-off hex for theme surfaces |
 
 ## Information hierarchy (seller copilot)
 
@@ -41,64 +38,7 @@ Load via Focus for `web/` UI work. Companion skill: `.cursor/skills/standalone/u
 
 Do not bury the primary action below equal-weight secondary links. Ramp surfaces "review flagged" first; Juli surfaces "Phê duyệt" / workflow CTA first.
 
-## Layout
-
-```
-Mobile (<768px):  max-w-lg mx-auto px-4, pb-24 for NavBar
-Tablet (768px+):  two-column where useful (summary | tasks) — break out of mobile-only centering
-Desktop (1024px+): sidebar or split pane for copilot + queue; do not only stretch max-w-lg
-```
-
-- Shell: `PageHeader` (sticky) → `main` → `NavBar` (fixed bottom, `safe-area-bottom`)
-- Workflow content: one template (`SellerHomeShell`) with swappable panels (`NewSellerCopilotPanel`, `LeakageCopilotPanel`, `GrowthCopilotPanel`)
-- Header chrome: mode switcher + alerts only in production; demo controls (`PersonaSwitcher`) belong in dev/settings, not crowded title row
-
-## Component usage (prefer existing primitives)
-
-| Need | Use |
-|------|-----|
-| Panel | `.card` |
-| Sticky header | `.app-header` / `PageHeader` |
-| Primary CTA | `.btn-primary` + `disabled:opacity-50` when loading |
-| Secondary | `.btn-secondary` |
-| Status | `.badge`, `.badge-success`, `.badge-live` + text label (never color-only) |
-| Input | `.field-input` + `<label htmlFor>` |
-| Empty | `CollectingDataEmpty` pattern: why empty + what to do |
-| Modal workflow | `TaskDismissModal`, `LeakageWorkflowPanel` — focus trap, `aria-modal`, labelled title |
-| Loading | `.spinner` or skeleton; avoid blank flash on home/chat bootstrap |
-
-## Copy & locale
-
-- Vietnamese with full diacritics; problem + recovery in errors
-- Money: `formatVND`; dates: `formatDate` / `formatDateTime` (ICT)
-- `data-testid` on primary actions, empty states, modals (kebab-case, role-oriented)
-
-## Responsive & touch
-
-- Minimum text: **12px** for chips/labels (not `text-[9px]` / `text-[10px]`)
-- Touch targets: **44×44px** minimum (`AlertBell`, nav items, overflow menus)
-- Workflow steppers: vertical or dot+tooltip on narrow widths — avoid 6-label horizontal rows that wrap
-
-## Accessibility & motion
-
-- WCAG AA: 4.5:1 text contrast on `var(--foreground)` / `var(--muted-foreground)`
-- Visible `focus-visible:ring-2 focus-visible:ring-[var(--primary)]`; never remove focus outlines
-- `prefers-reduced-motion`: disable non-essential animation (e.g. `.badge-live`)
-- Semantic HTML: `header`, `nav`, `main`, `article`, `button` — not `div` click handlers for actions
-
-## States (required)
-
-Every interactive surface needs all of these (mirror `LoginForm` / `TaskCard` first):
-
-| State | Treatment |
-|-------|-----------|
-| Default | Base color, full opacity, standard border |
-| Hover | Subtle color shift **or** shadow lift (elevation) |
-| Active / pressed | Darker fill + scale `0.98` |
-| Focus-visible | 3px visible ring + offset (`focus-visible:ring-2`+ offset); never removed |
-| Disabled | Muted fill, reduced contrast, `cursor-not-allowed` |
-| Loading | Inline spinner + disabled (label stays, e.g. "Đang xử lý…") |
-| Error / empty | Inline error under field (`aria-describedby`); empty = why + what to do |
+Implementation checklist + states: companion skill.
 
 ## Anti-patterns
 

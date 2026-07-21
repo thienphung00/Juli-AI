@@ -5,27 +5,29 @@ alwaysApply: false
 
 # Issue Workflow
 
+Topology (slots, ephemeral `feature/*`, shared-core): [`docs/handoffs/worktree-branch-topology.md`](../../docs/handoffs/worktree-branch-topology.md).
+
 | Condition | Workflow |
 |-----------|----------|
-| `Modules` overlaps any other **ready** issue (`Unblocked` or `Isolate`) | **Isolate** — one issue at a time |
-| `Unblocked` and disjoint `Modules` from all other ready issues | **Parallel** — one worktree per issue |
+| Modules overlap another **ready** issue, or change touches **shared core** | **Isolate** — one issue at a time |
+| Unblocked and path-disjoint from other ready issues | **Parallel** — one worktree per **task** (not a permanent FE/BE lane) |
 
-- Bootstrap prompts: `docs/handoffs/tiktok-mvp-issues-01.md` § Bootstrap prompts
-- Locks: `docs/handoffs/parallel-status.md` (module rows + GitHub ops lock)
-- Steps: `docs/handoffs/_bootstrap.md`
+**Shared core** (never bundle into a feature PR): `packages/contracts`, root workspace/CI config, canonical `docs/architecture/*`, `CONTEXT.md`. Land a dedicated PR first. `packages/contracts` is FE-owned until an OpenAPI/codegen ADR.
+
+## Parallel pipeline (no blocked)
+
+Per issue, independently:
+
+`implement` → Review Agent (`intent-review` → `guardrails` → `validate`) → commit → open **individual** PR → CI green → **sync-before-merge** → merge
+
+Do **not** batch parallel work into one PR. Path-disjoint issues stay on separate branches/PRs.
+
+### Sync-before-merge (required)
+
+Rebase (or merge) onto **current** `origin/main` **immediately before merge**, not only at branch cut or first PR open. Sibling PR #1 can land while #2 is still in review — that is when conflicts appear. After sync: push (`--force-with-lease` if rebased), confirm CI green again, then merge. Owned by Review Agent `ship` + ops lock holder.
 
 ## GitHub ops (parallel runs)
 
-When multiple agents run in parallel:
-
-- **One agent** holds the GitHub ops lock in `parallel-status.md` — it alone runs
-  `git push`, `gh pr create`, `gh pr merge`, `gh pr checks`, and status-registry
-  updates on `main`.
-- **All other agents** commit locally only; hand off push/PR/merge to the ops owner.
-- **Stagger** remote GitHub commands by at least **30 seconds** between operations
-  (update `Last remote op` in the registry after each one).
-
-See `docs/handoffs/_bootstrap.md` § GitHub ops coordination.
-
-After each merge, update Status (`Done` / `Blocked` / `Unblocked` / `Isolate`) in the handoff registry.
-
+- One agent holds the ops lock in the active `docs/handoffs/parallel-status.md` (create/update per parallel run).
+- Ops owner alone: `git push`, `gh pr create|merge|checks`, issue close on `main`.
+- Others: commit locally; stagger remote ops ≥ **30s**.

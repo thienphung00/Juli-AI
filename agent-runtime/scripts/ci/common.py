@@ -480,6 +480,8 @@ def implementation_artifact_template(
         "toolInvocationCount": 0,
         "contextFilesLoaded": [],
         "skillsLoaded": [],
+        "rulesLoaded": [],
+        "mcpsUsed": [],
         "filesModified": [],
         "testsAdded": [],
         "testsUpdated": [],

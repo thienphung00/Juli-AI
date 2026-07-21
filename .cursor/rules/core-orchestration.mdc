@@ -16,7 +16,7 @@ For every non-trivial task, read and follow [`.cursor/skills/standalone/focus/SK
 - **Harness optimization:** Meta Agent consumes execution artifacts after validation.
 - **MCP/plugin skills:** load only what Focus selects via [skill-catalog](../skills/skill-catalog/SKILL.md); read MCP tool schemas after selection, not at startup.
 
-Canonical agent phase model: [`docs/architecture/agent-runtime.md`](../../docs/architecture/agent-runtime.md).
+Canonical agent phase model: [`agent-runtime/docs/agent-runtime.md`](../../agent-runtime/docs/agent-runtime.md).
 
 ## Meta Agent
 
@@ -24,13 +24,32 @@ Central optimization node built on `focus`. Owns context routing, skill routing,
 domain assignment, and harness optimization. Consumes execution artifacts after Review
 Agent completes validation. Must not implement features or bypass Review Agent / Validate.
 
+**Before Executor:** always run
+`python agent-runtime/scripts/meta_prepare_executor.py --issue <N>`
+(auto-ensures parent/child workflow caches). Do not ask the user to prepare caches.
+Halt Executor unless the command prints `readyForExecutor: true`.
+
 ## Agent delegation
 
 - **Planning & decomposition** when a task spans modules or requirements are unclear.
 - **Review** after non-trivial code changes.
 - **Security pass** when touching auth, PII, billing, secrets, or external integrations.
 - **Test/CI triage** for build/test failures.
-- Run independent tasks in parallel; avoid serial work without a hard dependency.
+- Parallel product/agent work: [`.cursor/rules/issue-workflow.mdc`](issue-workflow.mdc) + [`docs/handoffs/worktree-branch-topology.md`](../../docs/handoffs/worktree-branch-topology.md).
+
+### Composer sub-agents (Task tool)
+
+Always launch Task subagents with `model: composer-2.5-fast` (Composer). Prefer several small Composer sub-agents over one advanced/parent model doing all combined work. **Hard cap: ≤3 concurrent Composer sub-agents** — ask the user before spawning more.
+
+When the parent would otherwise serialize multiple **independent** edits or explores, delegate to Composer. Parent keeps grill/alignment, Meta gates, security judgment, and final synthesis.
+
+| Delegate to Composer | Keep on parent |
+|----------------------|----------------|
+| Path-disjoint file/doc edits in parallel | Architect grill / scope decisions |
+| Explore or shell batches on separate trees | `meta_prepare_executor` + Executor start |
+| Mechanical cleanup / archive / formatting slices | Shared-core or auth/PII changes |
+
+One clear prompt per subagent; disjoint write paths; do not spawn Composer for a single tiny edit.
 
 ## Skills governance
 

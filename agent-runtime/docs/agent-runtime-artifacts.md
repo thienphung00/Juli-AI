@@ -129,7 +129,7 @@ Executor → Review + Meta execution signal.
 
 **Required:** `schemaVersion`, `artifactType`, `issueId`, `executorDomain`, `phaseRunId`,
 `startedAt`, `completedAt`, `executionDurationMs`, `toolsUsed`, `toolInvocationCount`,
-`contextFilesLoaded`, `skillsLoaded`, `filesModified`, `testsAdded`, `testsUpdated`,
+`contextFilesLoaded`, `skillsLoaded`, `rulesLoaded`, `mcpsUsed`, `filesModified`, `testsAdded`, `testsUpdated`,
 `redGreenRefactorEvidence`, `implementationSummary`, `assumptions`, `risks`.
 
 **Optional:** `tokenUsage` (input/output/total when available).
@@ -182,7 +182,7 @@ Captures the **eight baseline metrics:**
 | Tool Invocation Count | `toolInvocationCount`, `baselineMetrics.toolInvocationCount` |
 
 **Required:** `schemaVersion`, `artifactType`, `issueId`, `phaseRunId`, `phasePath`,
-`executorAssigned`, `contextFilesLoaded`, `skillsLoaded`, `tokenUsage`, `executionDurationMs`,
+`executorAssigned`, `contextFilesLoaded`, `skillsLoaded`, `rulesLoaded`, `mcpsUsed`, `tokenUsage`, `executionDurationMs`,
 `reviewFailures`, `validationFailures`, `retryCount`, `contextTransferCount`,
 `toolInvocationCount`, `baselineMetrics`, `rootCauseCategory`, `proposedOptimization`,
 `expectedMetricImpact`, `harnessConfigTargets`, `autoApplyEligible`, `appliedStatus`,

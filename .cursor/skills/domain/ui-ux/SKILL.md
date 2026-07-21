@@ -54,7 +54,8 @@ python agent-runtime/agent-runtime/scripts/ci/generate_implementation_artifact.p
 ```
 
 Document TDD cycles in `redGreenRefactorEvidence`, list UI files in `filesModified`,
-and map `testsAdded` to acceptance criteria. Use the same `phaseRunId` across
+and map `testsAdded` to acceptance criteria. Record `contextFilesLoaded`, `skillsLoaded`,
+`rulesLoaded`, `mcpsUsed` from the session. Use the same `phaseRunId` across
 implementation, review, and validation artifacts.
 
 Schema: [`agent-runtime/docs/schemas/implementation-artifact.schema.json`](../../../agent-runtime/docs/schemas/implementation-artifact.schema.json)

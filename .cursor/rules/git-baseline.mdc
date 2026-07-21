@@ -7,7 +7,8 @@ alwaysApply: true
 
 ## Version control
 
-- Use feature branches; never push directly to `main`/`master`.
+- Use short-lived `feature/<short-desc>` (optional `feature/be-…` / `feature/fe-…`) cut from `main`; delete branch + worktree after merge. Never push directly to `main`/`master`.
+- Persistent helper slots only: `agent/runtime`, `scratch/debug`, `local/adhoc` — see [`docs/handoffs/worktree-branch-topology.md`](../../docs/handoffs/worktree-branch-topology.md). Never push `local/adhoc`.
 - Keep commits small and atomic — one logical change per commit.
 - Conventional commits: `<type>: <description>` — types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`.
 - Tag releases and maintain a changelog.
@@ -38,4 +39,4 @@ alwaysApply: true
 
 ## Parallel issues
 
-When running multiple issues: load [`.cursor/rules/issue-workflow.mdc`](issue-workflow.mdc) and `docs/handoffs/parallel-status.md`.
+Load [`.cursor/rules/issue-workflow.mdc`](issue-workflow.mdc) (and the topology handoff it links).

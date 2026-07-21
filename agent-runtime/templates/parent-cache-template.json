@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "parent_cache",
+  "parentIssueId": 278,
+  "cacheBlockVersion": 1,
+  "parentScopeBlock": "# Parent #278 — Phase 2 TikTok (constant for all children)\n\n## Epic deferrals\n- T8 router / ML inference: Phase 4\n- web/, ios/: out of P2-A1 scope\n- Marketing API: out of Shop Partner scope\n\n## Merchants\n- Fujiwa: read only\n- SANDBOX_VN: write validation only\n\n## Data sources\n- TikTok Partner API per data-sources.md\n",
+  "sliceId": "P2-A1",
+  "handoffPath": "docs/handoffs/phase-2-tiktok-implementation.md",
+  "childIssueIds": [294, 297, 298, 299, 301],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "web/",
+    "ios/",
+    "src/modules/ml/"
+  ],
+  "upstreamFingerprints": [
+    { "path": "GitHub issue #278", "fingerprint": "<sha256-body-first-16>" },
+    { "path": "docs/handoffs/phase-2-tiktok-implementation.md", "fingerprint": "<git-blob-sha>" },
+    { "path": "EXECUTION.md", "fingerprint": "<git-blob-sha-of-slice-section>" }
+  ],
+  "bootstrapRef": {
+    "branch": "main",
+    "commitSha": "<40-char-git-sha>",
+    "copiedAt": "2026-07-12T00:00:00Z"
+  },
+  "lastValidatedAt": "2026-07-11T00:00:00Z"
+}

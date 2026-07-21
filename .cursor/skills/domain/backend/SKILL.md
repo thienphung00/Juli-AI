@@ -99,7 +99,7 @@ Fill in from the implementation session:
 
 - `redGreenRefactorEvidence` — one entry per TDD cycle (failing/passing commands)
 - `filesModified`, `testsAdded`, `testsUpdated`
-- `contextFilesLoaded`, `skillsLoaded`, `toolsUsed`, `toolInvocationCount`
+- `contextFilesLoaded`, `skillsLoaded`, `rulesLoaded`, `mcpsUsed`, `toolsUsed`, `toolInvocationCount`
 - `implementationSummary`, `assumptions`, `risks`
 - `phaseRunId` — shared with review/validation artifacts for this run
 

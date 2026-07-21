@@ -51,12 +51,15 @@ User message
 |-------------|-------------|------|
 | New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) Planning section; canonical docs; `grill-with-docs` → `to-prd` path |
 | Spec from conversation | Planning | `grill-with-docs` (if scope open) → `to-prd` → `to-issues` |
-| GitHub issue implementation | Implementation | Meta routing; domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
+| GitHub issue implementation | Implementation | Meta routing → **`meta_prepare_executor.py --issue N`** (ensure parent/child cache) → domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
 | Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
 | Post-implementation quality gate | Review + Testing | `intent-review` → `guardrails` → `validate` → `ship` |
 | Branch / PR / "review since X" | Review + Testing | `intent-review` (Spec fidelity × structure); then `guardrails` when emitting ADR-003 artifact |
-| Architecture review / deepen modules / safe refactor | Ad-hoc (explore → report → grill → execute) | `improve-codebase-architecture`, `codebase-design`, `CONTEXT.md`, `docs/adr/`, `docs/architecture/map.md` |
-| Parallel issues / worktrees | Implementation | `issue-workflow.mdc` + `docs/handoffs/` |
+| Architecture review / deepen modules | Ad-hoc (explore → report → grill → execute) | `improve-codebase-architecture`, `codebase-design`, `CONTEXT.md`, `docs/adr/`, `docs/architecture/map.md` |
+| Mechanical file/module moves (structure already decided) | Ad-hoc | `restructure` (test-invariant moves only) |
+| Parallel issues / worktrees | Implementation | `issue-workflow.mdc` + [`docs/handoffs/worktree-branch-topology.md`](../../../docs/handoffs/worktree-branch-topology.md) |
+| Quick GitHub commit / hotfix in `.worktrees/debug` (no `issue-<N>` branch) | Ad-hoc | Skip ADR-003 artifacts per [`agent-runtime.config.yml`](../../../agent-runtime/config/agent-runtime.config.yml) `artifact_gates.quickCommitSkip` — do not edit `pr.yml`/rules from this slot |
+| Multiple independent edits/explores in one session | Ad-hoc or Implementation | Task subagents always `model: composer-2.5-fast`; ≤3 concurrent (ask if more); prefer small parallel tasks per [`core-orchestration.mdc`](../../../rules/core-orchestration.mdc) § Composer sub-agents; parent synthesizes |
 
 Domain executor skills live under `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning}/`.
 
@@ -228,6 +231,8 @@ Explicitly DO NOT load:
 
 Target: **60-70% of context window for actual code and task**. Context docs should use 20-30%. Reserve 10% for agent reasoning.
 
+**Issue implementation hierarchy (do not restate):** cache → harnessUtility → this Context Plan → Tier-1 → one domain skill → Tier-2 → docs/MODULE → code. Artifacts are post-run telemetry/CI, not prompt filler. Full layers + anti-patterns: [`agent-runtime.md` § Context hierarchy](../../../agent-runtime/docs/agent-runtime.md#context-hierarchy-efficiency); machine-readable: [`agent-runtime.config.yml`](../../../agent-runtime/config/agent-runtime.config.yml) → `context_hierarchy` + `workflow_prompt_cache.injectionOrder`.
+
 | Priority | Content | Budget |
 |----------|---------|--------|
 | 1 (Critical) | Current file + immediate dependencies | 30% |
@@ -295,63 +300,19 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 | Agent | Uses Navigator For |
 |-------|-------------------|
 | Architect Agent | Planning context; canonical docs; `grill-with-docs` → `to-prd` / `to-issues` handoffs |
-| Meta Agent | Context routing, skill routing, executor domain assignment (IS built on focus) |
-| Executor Agent | Precisely scoped implementation context; built-in TDD |
+| Meta Agent | Context routing, skill routing, executor domain assignment (IS built on focus). Before Executor: see [`core-orchestration.mdc`](../../../rules/core-orchestration.mdc) + [`prompt-caching`](../prompt-caching/SKILL.md). Single primary domain skill only. |
+| Executor Agent | Precisely scoped implementation context from injection plan; built-in TDD. Must not start without valid cache. |
 | Review Agent | `intent-review` (Spec + structure) + `guardrails` (domains + review artifact) + issue |
+
+## Meta → Executor hard gate
+
+Always-on one-liner lives in [`.cursor/rules/core-orchestration.mdc`](../../../rules/core-orchestration.mdc). Session procedure: [`prompt-caching`](../prompt-caching/SKILL.md). Do **not** ask the user to prepare caches. Halt Executor unless `readyForExecutor: true`.
 
 ## Meta Agent — Harness Optimization (post-validation)
 
-After `validate` completes (PASS or FAIL), Meta Agent consumes execution artifacts
-and emits optimization output. This is a **Focus-routed** step — not a separate skill.
+Focus-routed after `validate` (PASS or FAIL). Full procedure, schemas, and must-not list: [`agent-runtime/docs/agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) (§ Harness optimization / Product-development optimization). Handoff template: [`docs/templates/handoffs/validation-meta.md`](../../../docs/templates/handoffs/validation-meta.md). Benchmarks: [`agent-runtime-benchmarks.md`](../../../agent-runtime/docs/agent-runtime-benchmarks.md).
 
-### When to run
-
-| Trigger | Action |
-|---------|--------|
-| Validation artifact written | Read all three execution artifacts; emit harness optimization |
-| Repeated failure pattern (2+ issues) | Consider product-development optimization |
-| Benchmark rerun (Phase 6) | Compare `baselineMetrics` per [`agent-runtime-benchmarks.md`](../../../agent-runtime/docs/agent-runtime-benchmarks.md) |
-
-### Inputs (required)
-
-| Artifact | Path |
-|----------|------|
-| Implementation | `agent-runtime/artifacts/implementations/implementation-issue-<n>.json` |
-| Review | `agent-runtime/artifacts/reviews/review-issue-<n>.json` |
-| Validation | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
-
-### Harness optimization output (every run)
-
-Write `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json`:
-
-1. Copy signals from source artifacts (`tokenUsage`, `toolInvocationCount`, `reviewFailures`, `validationFailures`, `retryCount`, `contextFilesLoaded`, `skillsLoaded`).
-2. Populate `baselineMetrics` with all eight metrics (see [`agent-runtime-artifacts.md`](../../../agent-runtime/docs/agent-runtime-artifacts.md)).
-3. Set `rootCauseCategory` from the initial enum set (`context_overloaded`, `wrong_executor_domain`, etc.).
-4. Propose one concrete `proposedOptimization` with `expectedMetricImpact`.
-5. Set `autoApplyEligible: true` only for safe harness-config changes (context budget, routing hints) — never for skills, rules, or product scope.
-6. Set `appliedStatus: "proposed"` until Architect approves and a benchmark rerun marks `"measured"`.
-
-Schema: [`agent-runtime/docs/schemas/harness-optimization-artifact.schema.json`](../../../agent-runtime/docs/schemas/harness-optimization-artifact.schema.json)
-
-### Product-development optimization (occasional)
-
-Emit only when repeated evidence indicates planning or architecture process failure
-(e.g. same module fails review 3+ times, recurring executor domain mismatch, missing
-acceptance criteria across issues).
-
-Write `agent-runtime/artifacts/optimization/product-development-<id>.json` with `acceptedByArchitect: "pending"`.
-
-Schema: [`agent-runtime/docs/schemas/product-development-optimization-artifact.schema.json`](../../../agent-runtime/docs/schemas/product-development-optimization-artifact.schema.json)
-
-Handoff template: [`docs/templates/handoffs/validation-meta.md`](../../../docs/templates/handoffs/validation-meta.md)
-
-Benchmark protocol: [`agent-runtime/docs/agent-runtime-benchmarks.md`](../../../agent-runtime/docs/agent-runtime-benchmarks.md)
-
-### Must not (Meta Agent)
-
-- Implement features or bypass Review Agent / Validate
-- Auto-edit skills, rules, ADRs, PRDs, or architecture docs
-- Ship or merge PRs
+Meta must not: implement features; bypass Review/Validate; auto-edit skills/rules/ADRs/PRDs/architecture docs; ship or merge PRs.
 
 ## Anti-Patterns
 
