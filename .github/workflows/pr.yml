@@ -187,6 +187,8 @@ jobs:
       ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
       GITHUB_BASE_REF: ${{ github.base_ref }}
       GITHUB_HEAD_REF: ${{ github.head_ref }}
+      # Required for meta_prepare_executor / fingerprint gates (gh issue view).
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
