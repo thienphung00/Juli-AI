@@ -37,7 +37,6 @@ export function AnalyticsDashboard({
   const heroRef = useRef<HTMLElement>(null);
   const { mutableState, updateMutableState } = useDemoState();
   const [loadState, setLoadState] = useState<AnalyticsLoadState>(initialLoadState);
-  const [retryToken, setRetryToken] = useState(0);
 
   const heroMetricKey = isAvailableMetricKey(mutableState.analyticsMetric)
     ? mutableState.analyticsMetric
@@ -68,19 +67,13 @@ export function AnalyticsDashboard({
   }, [routeMetricKey, updateMutableState]);
 
   useEffect(() => {
-    if (retryToken > 0) {
-      setLoadState("ready");
+    if (initialLoadState !== "loading") {
       return;
     }
 
-    if (initialLoadState === "loading") {
-      setLoadState("loading");
-      const timer = window.setTimeout(() => setLoadState("ready"), 0);
-      return () => window.clearTimeout(timer);
-    }
-
-    setLoadState(initialLoadState);
-  }, [initialLoadState, retryToken]);
+    const timer = window.setTimeout(() => setLoadState("ready"), 0);
+    return () => window.clearTimeout(timer);
+  }, [initialLoadState]);
 
   const heroDefinition = getMainKpiDefinition(heroMetricKey);
   const snapshot =
@@ -217,10 +210,7 @@ export function AnalyticsDashboard({
               </p>
               <button
                 className="demo-decisions__retry"
-                onClick={() => {
-                  setLoadState("ready");
-                  setRetryToken((current) => current + 1);
-                }}
+                onClick={() => setLoadState("ready")}
                 type="button"
               >
                 Thử lại
