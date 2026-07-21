@@ -41,6 +41,9 @@ export interface MutableMockState {
   analyticsRange: "7d" | "30d" | "90d";
   analyticsComparisonEnabled: boolean;
   settingsDraft: Record<string, string>;
+  settingsSaved: Record<string, string>;
+  settingsLastSavedAt: string | null;
+  settingsActiveSection: "templates" | "thresholds";
 }
 
 export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
@@ -55,6 +58,9 @@ export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
   analyticsRange: "30d",
   analyticsComparisonEnabled: false,
   settingsDraft: {},
+  settingsSaved: {},
+  settingsLastSavedAt: null,
+  settingsActiveSection: "templates",
 };
 
 interface DemoStateValue {
@@ -83,6 +89,9 @@ function createDefaultMutableState(): MutableMockState {
     executionRecords: {},
     executionProgress: {},
     settingsDraft: {},
+    settingsSaved: {},
+    settingsLastSavedAt: null,
+    settingsActiveSection: "templates",
   };
 }
 
