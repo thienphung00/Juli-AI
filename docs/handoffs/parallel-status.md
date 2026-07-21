@@ -18,7 +18,7 @@
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
 | #404 | Six-KPI Analytics | `apps/demo/src/app/analytics/**`, analytics lib/components/tests; `analytics*` keys in demo-state | Executing (wave1) | `feature/issue-404-analytics` | `.worktrees/issue-404` | per-issue (5B) |
-| #405 | Editable Settings | `apps/demo/src/app/settings/**`, settings lib/components/tests; `settings*` keys in demo-state | PR open / CI pending | `feature/issue-405-settings` | `.worktrees/issue-405` | per-issue (5B) |
+| #405 | Editable Settings | `apps/demo/src/app/settings/**`, settings lib/components/tests; `settings*` keys in demo-state | PR open / CI pending — [#461](https://github.com/thienphung00/Juli-AI/pull/461) | `feature/issue-405-settings` | `.worktrees/issue-405` | per-issue (5B) |
 | #406 | Demo deploy automation | `infra/nginx\|systemd\|scripts` demo assets, runbooks, deploy contract tests/CI | Executing (wave1) | `feature/issue-406-demo-deploy` | `.worktrees/issue-406` | per-issue (5B) |
 
 ## Module disjointness (ownership)
@@ -43,7 +43,7 @@
 
 | Time (UTC) | Agent | Command | Issue |
 |------------|-------|---------|-------|
-| — | — | — | — |
+| 2026-07-21T11:04Z | Review #405 | `git push -u origin feature/issue-405-settings`; `gh pr create` | #405 → PR [#461](https://github.com/thienphung00/Juli-AI/pull/461) |
 
 ## References
 
