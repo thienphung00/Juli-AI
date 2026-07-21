@@ -60,17 +60,30 @@ describe("deriveLifecycleFromTimeline", () => {
     expect(deriveLifecycleFromTimeline(timeline)).toBe("completed");
   });
 
-  it("returns completed when a non-WF1 terminal outcome succeeded", () => {
-    const timeline = [
-      step({
-        id: "live-outcome",
-        stepNumber: 11,
-        kind: "outcome",
-        title: "Đã cập nhật / cần chỉnh",
-        status: "succeeded",
-      }),
-    ];
+  it("returns completed for post-sales terminal outcomes on the last timeline step", () => {
+    for (const id of [
+      "cancellation-outcome",
+      "return-outcome",
+      "refund-outcome",
+    ]) {
+      const timeline = [
+        step({
+          id: "intake",
+          stepNumber: 1,
+          kind: "wait",
+          title: "Intake",
+          status: "succeeded",
+        }),
+        step({
+          id,
+          stepNumber: 2,
+          kind: "outcome",
+          title: "Kết quả cuối",
+          status: "succeeded",
+        }),
+      ];
 
-    expect(deriveLifecycleFromTimeline(timeline)).toBe("completed");
+      expect(deriveLifecycleFromTimeline(timeline)).toBe("completed");
+    }
   });
 });

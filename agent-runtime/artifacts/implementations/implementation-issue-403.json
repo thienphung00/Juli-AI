@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 403,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "403-20260721T095420",
+  "startedAt": "2026-07-21T09:59:00Z",
+  "completedAt": "2026-07-21T10:07:30Z",
+  "executionDurationMs": 510000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 20,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 8,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 4,
+      "stage": "red"
+    },
+    {
+      "toolName": "Write",
+      "count": 3,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 12,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 10,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 57,
+  "contextFilesLoaded": [
+    "EXECUTION.md",
+    "docs/product/phases/phase-2.6/PRD.md",
+    "docs/product/design/Flows/decisions/recommendations/7-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/8-workflow.md",
+    "docs/product/design/Flows/decisions/recommendations/9-workflow.md",
+    "docs/product/execution_layer.md",
+    "apps/demo/MODULE.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-403.json"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/prompt-caching/SKILL.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/lib/executions.ts",
+    "apps/demo/src/components/recommendations-panel.tsx",
+    "apps/demo/src/components/recommendation-review.tsx",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/MODULE.md",
+    "packages/contracts/src/execution.ts",
+    "packages/contracts/src/__tests__/execution.test.ts",
+    "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/lib/__tests__/reviews.test.ts",
+    "apps/demo/src/lib/__tests__/executions.test.ts"
+  ],
+  "testsAdded": [
+    "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx \u2014 one integration path per workflow 7\u20139 (review \u2192 approve \u2192 In Progress) plus FBT scaffold-only and shared Reject contract"
+  ],
+  "testsUpdated": [
+    "apps/demo/src/lib/__tests__/reviews.test.ts",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "red": "Added workflows-7-9-review-execution integration tests and extended reviews/executions unit expectations for prevent_cancellation_8a / prevent_return_8b / prevent_refund_8c before implementations existed.",
+      "green": "Extended shared review stages, input defaults, timelines, startExecution, and Approve enablement for workflows 7\u20139; FBT prevent_return_8b_fbt remains non-executable.",
+      "refactor": "Centralized isReviewExecutableWorkflow + workflow-keyed buildReviewInputDefaults; demo-state and recommendation-review use per-workflow defaults."
+    }
+  ],
+  "implementationSummary": "Extended apps/demo shared recommendation review and In Progress shells for workflows 7\u20139 (cancel/return/refund). Each workflow has five-stage prefilled/fillable review, mock execution keys, and FBS timelines with wait/outcome/recovery. Prevent-return FBT intake key stays scaffold-only. Card Reject/Expand/Manual Refresh contract unchanged; Approve enabled for executable keys only. Generalized deriveLifecycleFromTimeline so any last-step succeeded outcome marks completed (not Workflow-1 listed-outcome only).",
+  "assumptions": [
+    "Design Flows numbering 7\u20139 maps to workflow keys prevent_cancellation_8a, prevent_return_8b, prevent_refund_8c (not create_activity_7a).",
+    "FBT return behavior is enforced by non-executable key prevent_return_8b_fbt plus FBS knownLimits/timeline copy, without adding a new recommendation card (preserves stable card order)."
+  ],
+  "risks": [
+    "Seller decision fields are free-text in Demo review; production would use constrained Approve/Reject controls.",
+    "Mutually exclusive approve/reject timeline branches both appear as pending steps in the mock timeline."
+  ]
+}

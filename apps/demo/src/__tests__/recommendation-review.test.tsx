@@ -256,7 +256,7 @@ describe("RecommendationReview", () => {
   });
 
   it("renders a recoverable not-found state for unsupported workflow keys", () => {
-    renderReview("prevent_cancellation_8a");
+    renderReview("prevent_return_8b_fbt");
 
     expect(
       screen.getByRole("status", { name: "Không tìm thấy quy trình" }),
@@ -264,6 +264,17 @@ describe("RecommendationReview", () => {
     expect(screen.getByRole("link", { name: "Về Quyết định" })).toHaveAttribute(
       "href",
       "/decisions",
+    );
+  });
+
+  it("renders review stages for prevent_cancellation_8a", () => {
+    const stages = getWorkflowReviewStages("prevent_cancellation_8a");
+    expect(stages).toHaveLength(5);
+
+    renderReview("prevent_cancellation_8a");
+
+    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
+      stages[0].title,
     );
   });
 

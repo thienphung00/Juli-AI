@@ -1,0 +1,113 @@
+{
+  "id": "review-issue-403",
+  "issue": 403,
+  "timestamp": "2026-07-21T10:13:44Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #403 Phase 2.6 cancellation/return/refund Decision workflows: intent-review spec_fidelity=pass consumed as given. Workflows 7\u20139 five-stage review + mock execution timelines; FBT prevent_return_8b_fbt scaffold-only; shared card Approve/Reject contract; 6/6 ACs mapped; demo + contracts targeted tests green. No CRITICAL reliability/security findings on mock-only Demo surface.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/demo/MODULE.md",
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/lib/executions.ts",
+    "apps/demo/src/components/recommendation-review.tsx",
+    "apps/demo/src/components/recommendations-panel.tsx",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/lib/__tests__/reviews.test.ts",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "packages/contracts/src/execution.ts",
+    "packages/contracts/src/__tests__/execution.test.ts"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "packages/contracts",
+      "interface": "deriveLifecycleFromTimeline",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Generalized terminal succeeded outcome detection beyond Workflow-1 listed-outcome only."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Workflows 7\u20139 each complete their documented prefilled/fillable review flow",
+          "test": "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx::completes prevent_cancellation_8a review and creates the correct mock execution"
+        },
+        {
+          "criterion": "Final approval creates the correct mock execution key and lifecycle detail",
+          "test": "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx::completes prevent_return_8b review and creates the correct mock execution"
+        },
+        {
+          "criterion": "Prevent-return FBT behavior remains intake/scaffold-only and is not presented as executable",
+          "test": "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx::keeps prevent-return FBT intake scaffold-only and not executable"
+        },
+        {
+          "criterion": "Evidence, waits, outcomes, recovery, and rollback states match each workflow specification",
+          "test": "apps/demo/src/lib/__tests__/executions.test.ts::maps cancellation, return, and refund evidence/wait/outcome/recovery states"
+        },
+        {
+          "criterion": "Reject/Expand/Manual Refresh behavior remains consistent with the shared card contract",
+          "test": "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx::enables Approve for workflows 7\u20139 while keeping Reject on the shared card contract"
+        },
+        {
+          "criterion": "One integration test per workflow covers review \u2192 approve \u2192 In Progress public behavior",
+          "test": "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx::one integration test per workflow covers review approve In Progress public behavior"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 55,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Optional later: extract shared review\u2192approve harness from workflows-7-9 integration test."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review spec_fidelity=pass; 6/6 ACs mapped; targeted demo + contracts tests green. Approve merge for #403.",
+    "timestamp": "2026-07-21T10:15:00Z",
+    "acceptedRisks": true,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "Acknowledged review PASS; workflows 7\u20139 mock Decision lifecycle verified.",
+    "timestamp": "2026-07-21T10:15:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "403-20260721T095420",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-403.json",
+  "reviewBasis": "origin/main f1859ac4... feature/fe-403-cancel-return-refund-workflows",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-403.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "severity": "none",
+  "findings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "suggestedRemediation": []
+}

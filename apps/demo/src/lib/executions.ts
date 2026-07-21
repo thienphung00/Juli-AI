@@ -43,8 +43,42 @@ import {
   UPDATE_ACTIVITY_TOOL_NAME,
   UPDATE_ACTIVITY_WORKFLOW_KEY,
 } from "./workflows/update-activity";
+import {
+  createPreventCancellationTimeline,
+  PREVENT_CANCELLATION_TOOL_NAME,
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+} from "./workflows/prevent-cancellation";
+import {
+  createPreventRefundTimeline,
+  PREVENT_REFUND_TOOL_NAME,
+  PREVENT_REFUND_WORKFLOW_KEY,
+} from "./workflows/prevent-refund";
+import {
+  createPreventReturnTimeline,
+  PREVENT_RETURN_TOOL_NAME,
+  PREVENT_RETURN_WORKFLOW_KEY,
+} from "./workflows/prevent-return";
 
 export { CREATE_HERO_PRODUCT_WORKFLOW_KEY };
+export {
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+  PREVENT_REFUND_WORKFLOW_KEY,
+  PREVENT_RETURN_FBT_INTAKE_KEY,
+  PREVENT_RETURN_WORKFLOW_KEY,
+} from "./reviews";
+export {
+  createPreventCancellationTimeline,
+  PREVENT_CANCELLATION_TOOL_NAME,
+} from "./workflows/prevent-cancellation";
+export {
+  createPreventRefundTimeline,
+  PREVENT_REFUND_TOOL_NAME,
+} from "./workflows/prevent-refund";
+export {
+  createPreventReturnTimeline,
+  PREVENT_RETURN_TOOL_NAME,
+} from "./workflows/prevent-return";
+
 export const CREATE_HERO_PRODUCT_TOOL_NAME = "listing.create_hero_product";
 
 const executionCounters = new Map<string, number>();
@@ -87,6 +121,18 @@ const SUPPORTED_WORKFLOWS: Record<
   [DELETE_ACTIVITY_WORKFLOW_KEY]: {
     toolName: DELETE_ACTIVITY_TOOL_NAME,
     createTimeline: createDeleteActivityTimeline,
+  },
+  [PREVENT_CANCELLATION_WORKFLOW_KEY]: {
+    toolName: PREVENT_CANCELLATION_TOOL_NAME,
+    createTimeline: createPreventCancellationTimeline,
+  },
+  [PREVENT_RETURN_WORKFLOW_KEY]: {
+    toolName: PREVENT_RETURN_TOOL_NAME,
+    createTimeline: createPreventReturnTimeline,
+  },
+  [PREVENT_REFUND_WORKFLOW_KEY]: {
+    toolName: PREVENT_REFUND_TOOL_NAME,
+    createTimeline: createPreventRefundTimeline,
   },
 };
 

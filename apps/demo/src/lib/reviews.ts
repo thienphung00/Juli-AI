@@ -36,8 +36,31 @@ import {
   UPDATE_ACTIVITY_WORKFLOW_KEY,
   getUpdateActivityReviewStages,
 } from "./workflows/update-activity";
+import {
+  buildPreventCancellationReviewInputDefaults,
+  getPreventCancellationReviewStages,
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+} from "./workflows/prevent-cancellation";
+import {
+  buildPreventRefundReviewInputDefaults,
+  getPreventRefundReviewStages,
+  PREVENT_REFUND_WORKFLOW_KEY,
+} from "./workflows/prevent-refund";
+import {
+  buildPreventReturnReviewInputDefaults,
+  getPreventReturnReviewStages,
+  PREVENT_RETURN_FBT_INTAKE_KEY,
+  PREVENT_RETURN_WORKFLOW_KEY,
+} from "./workflows/prevent-return";
 
 export const CREATE_HERO_PRODUCT_WORKFLOW_KEY = "create_hero_product_1";
+
+export {
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+  PREVENT_REFUND_WORKFLOW_KEY,
+  PREVENT_RETURN_FBT_INTAKE_KEY,
+  PREVENT_RETURN_WORKFLOW_KEY,
+};
 
 export const APPROVABLE_WORKFLOW_KEYS = [
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
@@ -48,7 +71,14 @@ export const APPROVABLE_WORKFLOW_KEYS = [
   CREATE_ACTIVITY_WORKFLOW_KEY,
   UPDATE_ACTIVITY_WORKFLOW_KEY,
   DELETE_ACTIVITY_WORKFLOW_KEY,
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+  PREVENT_RETURN_WORKFLOW_KEY,
+  PREVENT_REFUND_WORKFLOW_KEY,
 ] as const;
+
+export function isReviewExecutableWorkflow(workflowKey: string): boolean {
+  return (APPROVABLE_WORKFLOW_KEYS as readonly string[]).includes(workflowKey);
+}
 
 const heroFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === CREATE_HERO_PRODUCT_WORKFLOW_KEY,
@@ -97,6 +127,12 @@ export function buildReviewInputDefaultsForWorkflow(
       return buildUpdateActivityReviewInputDefaults();
     case DELETE_ACTIVITY_WORKFLOW_KEY:
       return buildDeleteActivityReviewInputDefaults();
+    case PREVENT_CANCELLATION_WORKFLOW_KEY:
+      return buildPreventCancellationReviewInputDefaults();
+    case PREVENT_RETURN_WORKFLOW_KEY:
+      return buildPreventReturnReviewInputDefaults();
+    case PREVENT_REFUND_WORKFLOW_KEY:
+      return buildPreventRefundReviewInputDefaults();
     default:
       return {};
   }
@@ -121,6 +157,12 @@ export function getWorkflowReviewStages(
       return getUpdateActivityReviewStages(analyticsMetricKey);
     case DELETE_ACTIVITY_WORKFLOW_KEY:
       return getDeleteActivityReviewStages(analyticsMetricKey);
+    case PREVENT_CANCELLATION_WORKFLOW_KEY:
+      return getPreventCancellationReviewStages(analyticsMetricKey);
+    case PREVENT_RETURN_WORKFLOW_KEY:
+      return getPreventReturnReviewStages(analyticsMetricKey);
+    case PREVENT_REFUND_WORKFLOW_KEY:
+      return getPreventRefundReviewStages(analyticsMetricKey);
     case CREATE_HERO_PRODUCT_WORKFLOW_KEY:
       break;
     default:

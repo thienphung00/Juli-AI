@@ -216,17 +216,25 @@ describe("Decisions — Recommendations", () => {
     expect(analyticsLink).toHaveAttribute("href", "/analytics");
   });
 
-  it("renders Approve as disabled for remaining returns workflows with an associated explanation", () => {
+  it("renders Approve as disabled for workflows without a review shell, with an associated explanation", () => {
     renderView();
 
-    const deferredKeys = new Set([
+    const executableKeys = new Set([
+      "create_hero_product_1",
+      "optimize_product_2",
+      "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
+      "clear_excess_4",
+      "process_order_5",
+      "create_activity_7a",
+      "update_activity_7c",
+      "delete_activity_7b",
       "prevent_cancellation_8a",
       "prevent_return_8b",
       "prevent_refund_8c",
     ]);
 
     recommendationFixtures
-      .filter((fixture) => deferredKeys.has(fixture.workflowKey))
+      .filter((fixture) => !executableKeys.has(fixture.workflowKey))
       .forEach((fixture) => {
         const card = findCard(fixture.workflowKey) as HTMLElement;
         const approveButton = within(card).getByRole("button", {
@@ -245,24 +253,27 @@ describe("Decisions — Recommendations", () => {
       });
   });
 
-  it("enables Approve for Workflows 1-5 and promotion 7a/7c/7b and routes to the review page", async () => {
+  it("enables Approve for Workflow 1 and workflows 7–9 and routes to the review page", async () => {
     const user = userEvent.setup();
     renderView();
 
-    const approvables = recommendationFixtures.filter((fixture) =>
+    const executableFixtures = recommendationFixtures.filter((fixture) =>
       [
         "create_hero_product_1",
         "optimize_product_2",
-        "replenish_inventory_3",
+        "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
         "clear_excess_4",
         "process_order_5",
         "create_activity_7a",
         "update_activity_7c",
         "delete_activity_7b",
+        "prevent_cancellation_8a",
+        "prevent_return_8b",
+        "prevent_refund_8c",
       ].includes(fixture.workflowKey),
     );
 
-    for (const fixture of approvables) {
+    for (const fixture of executableFixtures) {
       push.mockClear();
       const card = findCard(fixture.workflowKey) as HTMLElement;
       const approveButton = within(card).getByRole("button", {
