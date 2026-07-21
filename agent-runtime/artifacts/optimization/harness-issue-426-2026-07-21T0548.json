@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 426,
+  "phaseRunId": "2026-07-21T0548Z",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "data-platform",
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-426.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-426.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-300.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-374.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-425.json",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "docs/architecture/data-sources.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/data-platform/SKILL.md"
+  ],
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "executionDurationMs": 0,
+  "reviewFailures": 0,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 0,
+  "baselineMetrics": {
+    "executionTimeMs": 0,
+    "tokenUsageTotal": 0,
+    "testPassRate": 1.0,
+    "coveragePercentage": 0.0,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 0
+  },
+  "rootCauseCategory": "wrong_executor_domain",
+  "rootCause": "wrong_executor_domain",
+  "proposedOptimization": {
+    "summary": "Prefer slice-routing executorDomain and path-prefix scoring (assigned data-platform, path evidence \u2192 backend).",
+    "changeType": "routing_hint",
+    "details": "Assigned data-platform but filesModified/domain_mappings score backend. Do not auto-lower routing thresholds; extend domain_mappings and prefer workflow_prompt_cache / slice-routing.yml executorDomain at Meta assignment."
+  },
+  "configTarget": "routing.prefer_slice_executor_domain",
+  "expectedMetricImpact": [
+    {
+      "metric": "retryCount",
+      "direction": "decrease",
+      "magnitude": "medium"
+    },
+    {
+      "metric": "reviewFailureRate",
+      "direction": "decrease",
+      "magnitude": "low"
+    }
+  ],
+  "predictedImpact": {
+    "summary": "Expected to reduce false wrong_executor_domain flags and true misroutes.",
+    "metrics": [
+      {
+        "metric": "retryCount",
+        "direction": "decrease",
+        "magnitude": "medium"
+      },
+      {
+        "metric": "reviewFailureRate",
+        "direction": "decrease",
+        "magnitude": "low"
+      }
+    ]
+  },
+  "expectedImpact": "Expected to reduce false wrong_executor_domain flags and true misroutes.",
+  "harnessConfigTargets": [
+    "agent_runtime_config",
+    "executor_domain_hints"
+  ],
+  "autoApplyEligible": false,
+  "dryRun": true,
+  "humanApprovalRequired": false,
+  "appliedStatus": "proposed",
+  "sourceArtifacts": {
+    "implementation": "agent-runtime/artifacts/implementations/implementation-issue-426.json",
+    "review": "agent-runtime/artifacts/reviews/review-issue-426.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-426.json"
+  },
+  "notes": "Meta Agent optimization is limited to declarative harness configuration."
+}

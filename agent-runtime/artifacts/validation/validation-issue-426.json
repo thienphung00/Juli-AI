@@ -1,0 +1,170 @@
+{
+  "id": "validation-issue-426",
+  "issue": 426,
+  "timestamp": "2026-07-21T05:54:43Z",
+  "validatedBy": "validate skill",
+  "status": "PASS",
+  "passedChecks": 13,
+  "failedChecks": 0,
+  "checks": [
+    {
+      "name": "review_artifact_present",
+      "status": "PASS",
+      "description": "Review artifact present; status PASS_WITH_WARNINGS (2 gating warning(s))",
+      "details": {
+        "status": "PASS_WITH_WARNINGS",
+        "derivedStatus": "PASS_WITH_WARNINGS",
+        "warningCount": 2
+      }
+    },
+    {
+      "name": "implementation_artifact_present",
+      "status": "PASS",
+      "description": "Implementation artifact present; domain data-platform",
+      "details": {
+        "executorDomain": "data-platform",
+        "phaseRunId": "2026-07-21T0548Z",
+        "executionDurationMs": 0,
+        "contextFileCount": 11,
+        "rulesLoadedCount": 2,
+        "mcpsUsedCount": 0,
+        "tokenUsageTotal": 0
+      }
+    },
+    {
+      "name": "acceptance_criteria_mapped",
+      "status": "PASS",
+      "description": "All acceptance criteria mapped to tests",
+      "details": {
+        "total": 4,
+        "mapped": 4,
+        "unmapped": [],
+        "problems": []
+      }
+    },
+    {
+      "name": "module_boundaries",
+      "status": "PASS",
+      "description": "Module boundaries respected",
+      "details": {
+        "violations": [],
+        "cycles": [],
+        "modulesTouched": 0,
+        "warning": null
+      }
+    },
+    {
+      "name": "module_md_sync",
+      "status": "PASS",
+      "description": "MODULE.md in sync for touched modules",
+      "details": {
+        "drift": [],
+        "missingInterfaces": []
+      }
+    },
+    {
+      "name": "handoff_structure",
+      "status": "PASS",
+      "description": "No handoff on branch (skipped)",
+      "details": {
+        "required": false,
+        "missingFields": []
+      }
+    },
+    {
+      "name": "adr_requirement",
+      "status": "PASS",
+      "description": "No architectural change detected",
+      "details": {
+        "architecturalChange": false,
+        "adrPresent": false,
+        "adrs": [],
+        "adrProblems": {}
+      }
+    },
+    {
+      "name": "done_md_completion",
+      "status": "PASS",
+      "description": "done.md required checklist complete",
+      "details": {
+        "unchecked": []
+      }
+    },
+    {
+      "name": "critical_findings_resolved",
+      "status": "PASS",
+      "description": "No blocking CRITICAL findings or mandatory fail triggers",
+      "details": {
+        "status": "PASS_WITH_WARNINGS",
+        "derivedStatus": "PASS_WITH_WARNINGS",
+        "criticalCount": 0,
+        "mandatoryFailReasons": [],
+        "effectiveMandatoryFailReasons": [],
+        "overriddenMerge": null,
+        "mergeOverrideActive": false,
+        "problems": []
+      }
+    },
+    {
+      "name": "findings_acknowledged",
+      "status": "PASS",
+      "description": "All 2 WARNING finding(s) acknowledged",
+      "details": {
+        "warningCount": 2,
+        "unacknowledgedCount": 0,
+        "unacknowledged": []
+      }
+    },
+    {
+      "name": "reviewer_signoff_present",
+      "status": "PASS",
+      "description": "Reviewer signoff present",
+      "details": {
+        "required": true,
+        "hasStatement": true,
+        "hasTimestamp": true,
+        "acceptedRisks": true
+      }
+    },
+    {
+      "name": "owner_signoff_present",
+      "status": "PASS",
+      "description": "Owner signoff present",
+      "details": {
+        "required": true,
+        "hasStatement": true,
+        "hasTimestamp": true,
+        "acknowledged": true
+      }
+    },
+    {
+      "name": "ml_gates_enforced",
+      "status": "PASS",
+      "description": "No ML modules touched (skipped)",
+      "details": {
+        "skipped": true,
+        "mlModules": []
+      }
+    }
+  ],
+  "overallSummary": "All 13 validation checks passed; review has 2 gating warning(s) with explicit signoff (PASS_WITH_WARNINGS).",
+  "readyForMerge": true,
+  "warningGated": true,
+  "mergeBlockedByWarnings": false,
+  "mergeOverrideActive": false,
+  "reviewStatus": "PASS_WITH_WARNINGS",
+  "reviewWarningCount": 2,
+  "schemaVersion": "1.0.0",
+  "artifactType": "validation",
+  "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-426.json",
+  "validationFailures": 0,
+  "readyForShip": true,
+  "retryCount": 0,
+  "testsExecuted": 29,
+  "testsPassed": 29,
+  "testsFailed": 0,
+  "coveragePercentage": 0,
+  "benchmarkStatus": "not_run",
+  "executionDurationMs": 0,
+  "phaseRunId": "426-20260721T054458"
+}

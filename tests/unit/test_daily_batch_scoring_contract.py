@@ -351,11 +351,13 @@ class TestBatchJobRunsOnSyncedAggregates:
         assert calls == ["build_feature_aggregates"]
         assert len(results) == 1
         assert results[0].aggregates.data_sources == [
+            "analytics_performance_intervals",
             "inventory_items",
             "order_items",
             "orders",
             "products",
             "returns",
+            "tiktok_sync_state",
         ]
         assert results[0].recommendations.recommended_workflows
 

@@ -1,0 +1,73 @@
+{
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-426.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-426.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-278.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-300.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-374.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-425.json",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "docs/architecture/data-sources.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/data-platform/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/aggregates/builder.py",
+    "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "tests/unit/test_feature_aggregates_contract.py",
+    "tests/unit/test_daily_batch_scoring_contract.py"
+  ],
+  "testsAdded": [],
+  "testsUpdated": [
+    "tests/unit/test_feature_aggregates_contract.py",
+    "tests/unit/test_daily_batch_scoring_contract.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "behavior": "Analytics-backed data_sources and repo reads",
+      "red": "SYNCED_DATA_SOURCES lacked analytics_performance_intervals; builder skipped AnalyticsPerformanceRepo",
+      "green": "test_builder_declares_synced_table_sources + test_build_feature_aggregates_reads_analytics_sources pass"
+    },
+    {
+      "behavior": "A-36 shop traffic conversion + GMV rollups",
+      "red": "ComputedKpiMetrics missing shop_traffic_conversion_rate and analytics GMV fields",
+      "green": "test_analytics_shop_traffic_conversion_from_a36 + product/sku rollup tests pass"
+    },
+    {
+      "behavior": "Null policy when analytics partition missing",
+      "red": "No contract for null analytics KPIs without fabricated zeros",
+      "green": "test_null_when_analytics_partition_missing passes (18/18 feature aggregate contract tests)"
+    },
+    {
+      "behavior": "A-25 promotion partition join for revenue denominator",
+      "red": "No promotion_activity watermark join for efficiency denominators",
+      "green": "test_promotion_activity_join_for_revenue_denominator passes; spend denominator stays None"
+    }
+  ],
+  "implementationSummary": "Extended build_feature_aggregates to read analytics_performance_intervals and tiktok_sync_state (A-25 promotion watermark). Added analytics KPI formulas in computed_kpis.py: shop traffic conversion (A-36), product/sku GMV and weighted CTR rollups (A-34/A-32), promotion-joined revenue denominator with null spend until promotion ETL persists. Null policy: missing analytics partition yields None, never fabricated zeros.",
+  "assumptions": [
+    "analytics_performance_intervals populated by P2-A2 ETL (#425) poll handoffs",
+    "A-25 promotion activity spend not yet persisted — analytics_spend_denominator stays null",
+    "Promotion revenue denominator uses shop-grain GMV only when promotion_activity sync watermark exists",
+    "data-sources.md allows TikTok Promotion API live polling in P2 for ROAS threshold rules"
+  ],
+  "risks": [
+    "Promotion spend denominator unavailable until promotion activity ETL persistence lands — ROAS/CAC remain unavailable in scoring signals",
+    "Product CTR rollup uses unweighted mean when impressions absent on product list rows",
+    "Review should confirm null policy for analytics_spend_denominator vs future promotion ETL slice"
+  ],
+  "cacheHits": [
+    "parent-cache-issue-278.json",
+    "issue-context-cache-426.json"
+  ]
+}

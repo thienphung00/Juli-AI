@@ -1,0 +1,141 @@
+{
+  "reviewedBy": "guardrails skill",
+  "status": "PASS_WITH_WARNINGS",
+  "summary": "Issue #426 analytics-backed aggregates: intent-review spec_fidelity=pass consumed as given. All 4 ACs mapped to contract tests (29/29 pass). Null policy verified — analytics KPI fields None when partition missing, no zero fabrication. No CRITICAL reliability/security/observability/performance gaps in aggregates layer. Non-blocking Feature Envy smell and convention notes imported. analytics_spend_denominator stays None until promotion spend ETL — expected out-of-scope product limitation.",
+  "criticalFindings": [
+    {
+      "id": "426-smell-feature-envy",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/aggregates/builder.py",
+      "description": "Intent-review smell (non-blocking): builder re-reads analytics_revenue_denominator from computed_kpis to populate ShopProfileSignals.ad_revenue_total.",
+      "suggestion": "Optional follow-up: expose ad_revenue_total from compute_all_kpis or a profile-signals helper to keep builder thin.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Single-field bridge for shop profile classifier; behavior tested; acceptable for P2-A3 slice."
+    },
+    {
+      "id": "426-convention-builder-docstring",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/aggregates/builder.py",
+      "description": "Intent-review convention note: module docstring still says commerce-only while MODULE.md documents analytics sources.",
+      "suggestion": "Align builder.py module docstring with MODULE.md on next touch."
+    },
+    {
+      "id": "426-convention-test-name",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_feature_aggregates_contract.py",
+      "description": "Intent-review convention note: test_builder_module_imports_only_commerce_repos name no longer reflects analytics repo imports.",
+      "suggestion": "Rename to test_builder_module_imports_no_tiktok_etl_or_ai on follow-up."
+    },
+    {
+      "id": "426-spend-denominator-null",
+      "type": "other",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+      "description": "Product/reliability note: analytics_spend_denominator always None — promotion spend not yet persisted by ETL; ROAS/CAC efficiency KPIs remain unavailable in scoring signals.",
+      "suggestion": "Wire spend denominator when promotion activity ETL persistence lands (future slice); null policy correct until then.",
+      "acceptanceByReviewer": true,
+      "ownerAck": true,
+      "shipAsIsReason": "Explicitly out of scope per issue MODULE.md and Executor assumption; revenue denominator join tested; no zero fabrication."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/aggregates/builder.py",
+    "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "tests/unit/test_feature_aggregates_contract.py",
+    "tests/unit/test_daily_batch_scoring_contract.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+      "interface": "ComputedKpiMetrics",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Added analytics KPI fields: shop_traffic_conversion_rate, analytics_*_gmv_30d, analytics_weighted_product_ctr, promotion_activity_partition_present, analytics_revenue_denominator, analytics_spend_denominator."
+    },
+    {
+      "module": "backend/src/juli_backend/services/aggregates/builder.py",
+      "interface": "build_feature_aggregates / SYNCED_DATA_SOURCES",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Reads AnalyticsPerformanceRepo + TikTokSyncStateRepo; extends data_sources with analytics tables."
+    },
+    {
+      "module": "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+      "interface": "compute_analytics_kpis",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Pure analytics grain rollups from ETL intervals with null policy."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "build_feature_aggregates reads new Postgres sources; data_sources list updated",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_build_feature_aggregates_reads_analytics_sources"
+        },
+        {
+          "criterion": "analytics product gmv and ctr rollups formulas documented inline; no trained ML features in phase2 aggregates paths",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_analytics_product_gmv_and_ctr_rollups"
+        },
+        {
+          "criterion": "Contract tests extend test_feature_aggregates_contract analytics backed aggregates",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_analytics_shop_traffic_conversion_from_a36"
+        },
+        {
+          "criterion": "Null policy when analytics partition missing (no zero-fabrication)",
+          "test": "tests/unit/test_feature_aggregates_contract.py::test_null_when_analytics_partition_missing"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 29,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Align builder.py module docstring with MODULE.md analytics sources.",
+    "Rename commerce-only import test when convenient.",
+    "Wire analytics_spend_denominator when promotion spend ETL persistence lands."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review spec_fidelity=pass; all ACs mapped; 29/29 contract tests pass. Accepted ship-as-is for spend denominator null (out-of-scope ETL) and non-blocking Feature Envy smell.",
+    "timestamp": "2026-07-21T06:01:00Z",
+    "acceptedRisks": true,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "Acknowledged WARNING findings; null policy and analytics source reads verified by contract tests.",
+    "timestamp": "2026-07-21T06:01:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-426.json",
+  "reviewBasis": "working tree vs HEAD 8524a37b0c386717aa92a102a87d1324853ec8cf on feature/issue-425-analytics-etl-normalizers (#426 uncommitted)",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-426.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 1,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "426-20260721T054458"
+}
