@@ -40,7 +40,10 @@ API plus OAuth lifecycle management.
 - `OrdersResource(client)` — search / search_all / get_details
 - `ProductsResource(client)` — search / search_all / get_details / create / edit
 - `InventoryResource(client)` — Product API inventory search / update
+- `AnalyticsResource(client)` — shop/SKU/product performance + bestselling GETs
+  (A-31–A-39; `start_date_ge` / `end_date_lt` / pagination; no LIVE A-26–A-29)
 - `FulfillmentResource(client)` — combine / ship / batch_ship / split / uncombine / confirm_shipment
+- `PromotionResource(client)` — get_activity (A-25) + sandbox write lifecycle
 - `CreatorsResource(client)` — list / list_all / get (Affiliate API, requires
   per-seller scope approval)
 - `LivestreamsResource(client)` — list / list_all / get (post-stream summaries

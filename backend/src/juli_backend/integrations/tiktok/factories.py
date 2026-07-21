@@ -15,6 +15,7 @@ from juli_backend.integrations.tiktok.guards import (
     ReadOnlyTransportGuard,
     SandboxOnlyWriteGuard,
 )
+from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
 from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentResource
 from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
@@ -48,6 +49,8 @@ class ProductionReadResources:
     products: ProductsResource
     returns: ReturnsResource
     inventory: InventoryResource
+    analytics: AnalyticsResource
+    promotion: PromotionResource
 
 @dataclass(frozen=True)
 class SandboxWriteResources:
@@ -91,6 +94,8 @@ class ProductionReadClientFactory:
             products=ProductsResource(client),
             returns=ReturnsResource(client),
             inventory=InventoryResource(client),
+            analytics=AnalyticsResource(client),
+            promotion=PromotionResource(client),
         )
 
 

@@ -6,6 +6,11 @@ import re
 from enum import Enum
 
 from juli_backend.integrations.tiktok.constants import (
+    ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+    ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_SHOP_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     AUTHORIZED_SHOPS_PATH,
     CANCELLATION_SEARCH_PATH,
     CREATOR_CONTENT_DETAILS_PATH,
@@ -45,12 +50,28 @@ PRODUCTION_READ_GET_EXACT: frozenset[str] = frozenset({
     ORDER_DETAIL_PATH,
     CREATOR_CONTENT_DETAILS_PATH,
     FINANCE_STATEMENTS_PATH,
+    # Analytics wire set (#424) — GET only; LIVE A-26–A-29 / A-30 / A-35 excluded.
+    ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_PERFORMANCE_PATH,
+    ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+    ANALYTICS_BESTSELLING_VIDEOS_PATH,
 })
 
 # Layer 1 production-read GET path patterns (dynamic segments).
 PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^/product/\d+/products/\d+$"),
     re.compile(r"^/affiliate_seller/\d+/marketplace_creators/[^/]+$"),
+    # A-31 SKU performance detail
+    re.compile(r"^/analytics/\d+/shop_skus/[^/]+/performance$"),
+    # A-33 product performance detail
+    re.compile(r"^/analytics/\d+/shop_products/[^/]+/performance$"),
+    # A-37 shop performance per hour
+    re.compile(
+        r"^/analytics/\d+/shop/performance/\d{4}-\d{2}-\d{2}/performance_per_hour$"
+    ),
+    # A-25 Get Promotion Activity (production-read)
+    re.compile(r"^/promotion/\d+/activities/[^/]+$"),
 )
 
 # Known write path patterns — used by CI/static checks.

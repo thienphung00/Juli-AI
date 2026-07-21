@@ -16,14 +16,24 @@ import hashlib
 import json
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from juli_backend.integrations.tiktok.constants import (
+    ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+    ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_SHOP_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
     MARKETPLACE_CREATORS_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
+    analytics_shop_performance_per_hour_path,
+    analytics_shop_product_performance_path,
+    analytics_shop_sku_performance_path,
+    promotion_activity_path,
 )
 from juli_backend.integrations.tiktok.exceptions import PermissionDeniedError, TikTokAPIError
 from juli_backend.integrations.tiktok.mapping import (
@@ -292,3 +302,233 @@ async def backfill_shop(
     )
 
     return sync_state
+
+
+def _analytics_date_window(
+    *,
+    now: datetime | None = None,
+) -> tuple[str, str, str]:
+    """Return ``(start_date_ge, end_date_lt, day)`` for a one-day UTC window.
+
+    ``end_date_lt`` is exclusive (Partner API identifier catalog).
+    """
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    end = current.date()
+    start = end - timedelta(days=1)
+    day = start.isoformat()
+    return start.isoformat(), end.isoformat(), day
+
+
+def _acquire(
+    rate_limiter: RateLimiter,
+    *,
+    app_id: str,
+    shop_id: str,
+    endpoint: str,
+) -> bool:
+    return rate_limiter.acquire(
+        app_id, shop_id, endpoint, max_requests=10, window_seconds=60
+    )
+
+
+async def sync_analytics(
+    *,
+    resource: Any,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    app_id: str,
+    shop_id: str,
+    sync_state: dict[str, Any],
+    promotion_resource: Any | None = None,
+    now: datetime | None = None,
+) -> None:
+    """Fetch Analytics GET targets for the current date window (#424).
+
+    Invokes A-31–A-34, A-36–A-39 with ``start_date_ge`` / ``end_date_lt`` (or
+    ``date`` / ``time_slot``) and Redis ``RateLimiter`` acquire per endpoint.
+    A-25 Get Activity runs when ``promotion_activity_ids`` is present in
+    ``sync_state``. LIVE A-26–A-29 are not wired.
+
+    Analytics ETL persistence is intentionally out of scope — this worker only
+    updates ``tiktok_sync_state`` watermarks after successful fetches.
+    """
+    del handoff_fn  # reserved for downstream Analytics ETL child issue
+    start_date_ge, end_date_lt, day = _analytics_date_window(now=now)
+    synced_at = int((now or datetime.now(timezone.utc)).timestamp())
+
+    if _acquire(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_id,
+        endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+    ):
+        try:
+            skus = resource.list_sku_performance_all(
+                start_date_ge=start_date_ge,
+                end_date_lt=end_date_lt,
+            )
+        except TikTokAPIError:
+            logger.warning(
+                "sync_analytics_sku_list_failed",
+                extra={"shop_id": shop_id},
+                exc_info=True,
+            )
+            skus = None
+        if isinstance(skus, list):
+            sync_state["shop_sku_performance_last_sync_at"] = synced_at
+            for sku in skus:
+                if not isinstance(sku, dict):
+                    continue
+                sku_id = sku.get("id")
+                if not sku_id:
+                    continue
+                detail_path = analytics_shop_sku_performance_path(str(sku_id))
+                if not _acquire(
+                    rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
+                ):
+                    break
+                try:
+                    resource.get_sku_performance(
+                        sku_id=str(sku_id),
+                        start_date_ge=start_date_ge,
+                        end_date_lt=end_date_lt,
+                    )
+                except TikTokAPIError:
+                    logger.warning(
+                        "sync_analytics_sku_detail_failed",
+                        extra={"shop_id": shop_id, "sku_id": sku_id},
+                        exc_info=True,
+                    )
+
+    if _acquire(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_id,
+        endpoint=ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
+    ):
+        try:
+            products = resource.list_product_performance_all(
+                start_date_ge=start_date_ge,
+                end_date_lt=end_date_lt,
+            )
+        except TikTokAPIError:
+            logger.warning(
+                "sync_analytics_product_list_failed",
+                extra={"shop_id": shop_id},
+                exc_info=True,
+            )
+            products = None
+        if isinstance(products, list):
+            sync_state["shop_product_performance_last_sync_at"] = synced_at
+            for product in products:
+                if not isinstance(product, dict):
+                    continue
+                product_id = product.get("id")
+                if not product_id:
+                    continue
+                detail_path = analytics_shop_product_performance_path(str(product_id))
+                if not _acquire(
+                    rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
+                ):
+                    break
+                try:
+                    resource.get_product_performance(
+                        product_id=str(product_id),
+                        start_date_ge=start_date_ge,
+                        end_date_lt=end_date_lt,
+                    )
+                except TikTokAPIError:
+                    logger.warning(
+                        "sync_analytics_product_detail_failed",
+                        extra={"shop_id": shop_id, "product_id": product_id},
+                        exc_info=True,
+                    )
+
+    if _acquire(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_id,
+        endpoint=ANALYTICS_SHOP_PERFORMANCE_PATH,
+    ):
+        try:
+            resource.get_shop_performance(
+                start_date_ge=start_date_ge,
+                end_date_lt=end_date_lt,
+            )
+            sync_state["shop_performance_last_sync_at"] = synced_at
+        except TikTokAPIError:
+            logger.warning(
+                "sync_analytics_shop_performance_failed",
+                extra={"shop_id": shop_id},
+                exc_info=True,
+            )
+
+    per_hour_path = analytics_shop_performance_per_hour_path(day)
+    if _acquire(
+        rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path
+    ):
+        try:
+            resource.get_shop_performance_per_hour(date=day)
+            sync_state["shop_performance_per_hour_last_sync_at"] = synced_at
+        except TikTokAPIError:
+            logger.warning(
+                "sync_analytics_shop_performance_per_hour_failed",
+                extra={"shop_id": shop_id},
+                exc_info=True,
+            )
+
+    if _acquire(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_id,
+        endpoint=ANALYTICS_BESTSELLING_PRODUCTS_PATH,
+    ):
+        try:
+            resource.get_bestselling_products(date=day, time_slot="1D")
+            sync_state["bestselling_products_last_sync_at"] = synced_at
+        except TikTokAPIError:
+            logger.warning(
+                "sync_analytics_bestselling_products_failed",
+                extra={"shop_id": shop_id},
+                exc_info=True,
+            )
+
+    if _acquire(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_id,
+        endpoint=ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ):
+        try:
+            resource.get_bestselling_videos(date=day, time_slot="1D")
+            sync_state["bestselling_videos_last_sync_at"] = synced_at
+        except TikTokAPIError:
+            logger.warning(
+                "sync_analytics_bestselling_videos_failed",
+                extra={"shop_id": shop_id},
+                exc_info=True,
+            )
+
+    activity_ids = sync_state.get("promotion_activity_ids") or []
+    if promotion_resource is not None and activity_ids:
+        fetched_any = False
+        for activity_id in activity_ids:
+            path = promotion_activity_path(str(activity_id))
+            if not _acquire(
+                rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=path
+            ):
+                break
+            try:
+                promotion_resource.get_activity(str(activity_id))
+                fetched_any = True
+            except TikTokAPIError:
+                logger.warning(
+                    "sync_analytics_promotion_activity_failed",
+                    extra={"shop_id": shop_id, "activity_id": activity_id},
+                    exc_info=True,
+                )
+        if fetched_any:
+            sync_state["promotion_activity_last_sync_at"] = synced_at
+

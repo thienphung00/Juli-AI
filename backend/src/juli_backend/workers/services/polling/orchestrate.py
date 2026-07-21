@@ -19,6 +19,7 @@ from juli_backend.core.security.credential_resolver import (
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok.constants import (
+    ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
@@ -38,6 +39,7 @@ from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
 from juli_backend.workers.services.polling.sync import (
+    sync_analytics,
     sync_inventory,
     sync_orders,
     sync_products,
@@ -206,5 +208,24 @@ async def run_fujiwa_poll_cycle(
             sync_state=sync_state,
             sleep=sleep,
         )
+
+    # Analytics wire set (#424): A-25 + A-31–A-39. Manual refresh (ADR-021) shares
+    # this entrypoint via maybe_poll_tiktok_data → run_fujiwa_poll_cycle.
+    await _backoff_if_rate_limited(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_key,
+        endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+        sleep=sleep,
+    )
+    await sync_analytics(
+        resource=resources.analytics,
+        promotion_resource=resources.promotion,
+        rate_limiter=rate_limiter,
+        handoff_fn=handoff_fn,
+        app_id=app_id,
+        shop_id=shop_key,
+        sync_state=sync_state,
+    )
 
     await repo.save(credential.shop_id, sync_state)

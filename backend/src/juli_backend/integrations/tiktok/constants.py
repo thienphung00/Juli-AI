@@ -16,6 +16,10 @@ AFFILIATE_SELLER_API_VERSION = "202406"
 AFFILIATE_CONTENT_API_VERSION = "202412"
 FINANCE_API_VERSION = "202309"
 PROMOTION_API_VERSION = "202309"
+ANALYTICS_API_VERSION = "202509"
+ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION = "202510"
+ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION = "202605"
+ANALYTICS_BESTSELLING_API_VERSION = "202511"
 
 ORDER_SEARCH_PATH = f"/order/{ORDER_API_VERSION}/orders/search"
 ORDER_DETAIL_PATH = f"/order/{ORDER_DETAIL_API_VERSION}/orders"
@@ -50,9 +54,50 @@ FINANCE_STATEMENTS_PATH = f"/finance/{FINANCE_API_VERSION}/statements"
 
 PROMOTION_CREATE_PATH = f"/promotion/{PROMOTION_API_VERSION}/activities"
 
+# Analytics GET paths — contract-collection.md §A-31–A-39 (wire set for #424).
+ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH = (
+    f"/analytics/{ANALYTICS_API_VERSION}/shop_skus/performance"
+)
+ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH = (
+    f"/analytics/{ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION}/shop_products/performance"
+)
+ANALYTICS_SHOP_PERFORMANCE_PATH = f"/analytics/{ANALYTICS_API_VERSION}/shop/performance"
+ANALYTICS_BESTSELLING_PRODUCTS_PATH = (
+    f"/analytics/{ANALYTICS_BESTSELLING_API_VERSION}/products/bestselling"
+)
+ANALYTICS_BESTSELLING_VIDEOS_PATH = (
+    f"/analytics/{ANALYTICS_BESTSELLING_API_VERSION}/videos/bestselling"
+)
+
+# LIVE / doc-sample analytics paths — reference-tier only (do not allowlist for poll).
+ANALYTICS_LIVE_PERFORMANCE_LIST_PATH = (
+    f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/performance"
+)
+ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH = (
+    f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/overview_performance"
+)
+
 
 def promotion_activity_path(activity_id: str) -> str:
     return f"/promotion/{PROMOTION_API_VERSION}/activities/{activity_id}"
+
+
+def analytics_shop_sku_performance_path(sku_id: str) -> str:
+    """A-31 Get Shop SKU Performance Detail."""
+    return f"/analytics/{ANALYTICS_API_VERSION}/shop_skus/{sku_id}/performance"
+
+
+def analytics_shop_product_performance_path(product_id: str) -> str:
+    """A-33 Get Shop Product Performance Detail."""
+    return f"/analytics/{ANALYTICS_API_VERSION}/shop_products/{product_id}/performance"
+
+
+def analytics_shop_performance_per_hour_path(date: str) -> str:
+    """A-37 Get Shop Performance Per Hour (`date` = YYYY-MM-DD)."""
+    return (
+        f"/analytics/{ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION}/shop/performance/"
+        f"{date}/performance_per_hour"
+    )
 
 
 def promotion_activity_products_path(activity_id: str) -> str:
