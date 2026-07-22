@@ -37,7 +37,7 @@
   ],
   "mcpsUsed": [],
   "filesModified": [
-    "backend/src/juli_backend/database/migrations/versions/019_analytics_backfill_partitions.py",
+    "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
     "backend/src/juli_backend/models/models.py",
     "backend/src/juli_backend/repositories/repos.py",
     "backend/src/juli_backend/database/MODULE.md",

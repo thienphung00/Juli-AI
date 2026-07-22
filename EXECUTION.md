@@ -53,6 +53,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 **Historical pre-MVP:** [`phase-1-completed.md`](docs/product/phases/phase-1-completed.md)  
 **Phase 2.6 — Demo frontend (mock):** [`phase-2.6/PRD.md`](docs/product/phases/phase-2.6/PRD.md)  
 **Phase 2.7 — Landing frontend (mock):** [`phase-2.7/PRD.md`](docs/product/phases/phase-2.7/PRD.md)  
+**Phase 2.9 — Analytics historical backfill:** [`phase-2.9/PRD.md`](docs/product/phases/phase-2.9/PRD.md)  
 **Phase 3 forward:** [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
 
 ---
@@ -65,6 +66,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **2.5 — Deployment Architecture** | Monorepo restructure, independent deploys | 0 (internal) | Frontend and backend independently deployable on intended domains |
 | **2.6 — Demo Frontend (mock)** | `apps/demo` build-out, ADR-023 IA, mock data, public Demo deployment | Public (mock Demo; no auth) | Home + Decisions complete for web + mobile-web and publicly reachable over HTTPS at `demo.app-juli.com`; Mock/Sign-in toggle present (Sign-in non-interactive stub); Analytics (#404) and Settings (#405) non-blocking stretch ([ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)) |
 | **2.7 — Landing Frontend (mock)** | `apps/landing` build-out, mock/static content | 0 (internal) | Landing frontend complete for web + mobile-web |
+| **2.9 — Analytics historical backfill** | Idempotent Partner Analytics → shared Supabase schema (Fujiwa; parallel to 2.6/2.7) | 0 (internal) | ≥95% days A-36+A-29 and ≥90% days A-34 for 2026-03-16→`latest_available_date`; resumable partitions; no UI ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)) |
 | **3 — Landing + Demo real data** | Wire real backend, deploy Landing, prove e2e pipeline | Public (Demo Sign-in adds OAuth) | LP deployed; Demo upgraded in place with working backend on real data; e2e pipeline proven for both |
 | **3.5 — Full Web Application** | Auth, connected shops, real backend | Early adopters | Demo replaced by production web app |
 | **4 — ML + LLM + Cross-Platform** | Intelligence, personalization, sync | Growing base | Production ML pipeline; LLM copy; Web ↔ Mobile sync |
@@ -81,6 +83,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **2.5** | Product monorepo (`apps/`, `packages/`, `backend/`, `infra/`) · domain routing · CI/CD |
 | **2.6** | `apps/demo` (ADR-023 IA, mock data) · `packages/ui` + `packages/theme` + `packages/contracts` · element→composition UI build order · Mock/Sign-in toggle (Sign-in non-interactive stub) · public HTTPS deployment at `demo.app-juli.com` · Analytics + Settings full depth optional ([ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)) |
 | **2.7** | `apps/landing` (mock/static content) · consumes `packages/ui` + `packages/theme` |
+| **2.9** | Historical Analytics backfill (A-2/A-36/A-34/A-28/A-29/A-37) → shared `analytics_performance_intervals` · idempotent partitions · ~400-call runs · Fujiwa first ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)) — **parallel / non-blocking vs 2.6/2.7** |
 | **3** | `apps/demo` + `apps/landing` wired to real backend data · Demo Sign-in mode enabled (reference-shop TikTok OAuth) · deploy Landing to `app-juli.com` · upgrade the existing `demo.app-juli.com` deployment · PostHog behavior analytics |
 | **3.5** | `apps/dashboard` ADR-023 rebuild · multi-tenant auth · per-seller TikTok connection · real API integration |
 | **4** | Production ML · cloud LLM copy · cross-platform tracking |
@@ -267,6 +270,37 @@ Out of scope: real backend calls, public deployment (Phase 3).
 - [ ] Visual tokens/voice consistent with `docs/product/design`
 
 Detail: [`phase-2.7/PRD.md`](docs/product/phases/phase-2.7/PRD.md)
+
+---
+
+## Phase 2.9 — Analytics Historical Backfill (brief)
+
+**Goal:** Backfill Fujiwa Partner Analytics history (2026-03-16 → `latest_available_date`)
+into the **shared** Supabase analytics schema so Phase 2.6 shape and Phase 3 real data
+reuse one table — without UI wiring or a pricing-model fit in this phase.
+
+Focus: idempotent, resumable partitions `(shop_id, bucket, date)` · soft-cap ~350–400
+Partner calls per run (may span hours or multiple days) · endpoints **A-2, A-36, A-34,
+A-28, A-29, A-37** · GMV (TikTok) not Net Revenue · Ads and Product Impressions/Views
+out · additive nullable columns as needed ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)).
+
+**Parallel / non-blocking** vs Phase 2.6 and 2.7 exit gates. Fujiwa for exit;
+`shop_id`-parameterized for later shops.
+
+### Slices (wave 1 — foundation)
+
+- [ ] **P2-9-1** Additive nullable columns on `analytics_performance_intervals` (#463)
+- [ ] **P2-9-2** Partition progress store for resumable backfill (#464)
+- [ ] **P2-9-3** Soft call-budget governor (~350–400 / hard stop before 500) (#465)
+
+### Exit gate
+
+- [ ] Resumable backfill job; completed partitions never re-fetched
+- [ ] ≥95% calendar days with A-36 + A-29 rows; ≥90% with A-34 in the window
+- [ ] Coverage report + documented gaps; schema columns added if required
+- [ ] No Demo/Dashboard UI or pricing-model export required for sign-off
+
+Detail: [`phase-2.9/PRD.md`](docs/product/phases/phase-2.9/PRD.md)
 
 ---
 

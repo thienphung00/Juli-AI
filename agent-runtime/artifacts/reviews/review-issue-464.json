@@ -20,7 +20,7 @@
       "type": "other",
       "severity": "INFO",
       "actionRequired": false,
-      "module": "backend/src/juli_backend/database/migrations/versions/019_analytics_backfill_partitions.py",
+      "module": "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
       "description": "Executor note: Alembic 019 down_revision=017 creates parallel head with #463 until rebase to 018_analytics_interval_backfill_cols after #463 merges.",
       "suggestion": "Rebase down_revision on sync-before-merge per parallel-status merge order (#463 \u2192 #464)."
     },
@@ -36,7 +36,7 @@
   ],
   "modulesTouched": [
     "backend/src/juli_backend/database/MODULE.md",
-    "backend/src/juli_backend/database/migrations/versions/019_analytics_backfill_partitions.py",
+    "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
     "backend/src/juli_backend/models/models.py",
     "backend/src/juli_backend/repositories/repos.py",
     "tests/unit/test_analytics_backfill_partitions_repo.py"
@@ -120,7 +120,7 @@
       "type": "other",
       "severity": "INFO",
       "actionRequired": false,
-      "module": "backend/src/juli_backend/database/migrations/versions/019_analytics_backfill_partitions.py",
+      "module": "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
       "description": "Executor note: Alembic 019 down_revision=017 creates parallel head with #463 until rebase to 018_analytics_interval_backfill_cols after #463 merges.",
       "suggestion": "Rebase down_revision on sync-before-merge per parallel-status merge order (#463 \u2192 #464)."
     },
@@ -160,7 +160,7 @@
       "type": "other",
       "severity": "INFO",
       "actionRequired": false,
-      "module": "backend/src/juli_backend/database/migrations/versions/019_analytics_backfill_partitions.py",
+      "module": "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
       "description": "Executor note: Alembic 019 down_revision=017 creates parallel head with #463 until rebase to 018_analytics_interval_backfill_cols after #463 merges.",
       "suggestion": "Rebase down_revision on sync-before-merge per parallel-status merge order (#463 \u2192 #464)."
     },
