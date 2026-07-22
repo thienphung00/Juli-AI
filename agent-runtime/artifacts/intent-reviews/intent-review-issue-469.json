@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-469",
+  "issue": 469,
+  "timestamp": "2026-07-22T09:32:59Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "c1c4af7cf6144e4f0444481299b728cc4382f424",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff c1c4af7..2853c15 (#469). catalog_partition.py implements A-2 search_all-only catalog bucket with ACTIVATE active allowlist, trailing-7-day New for DAILY strategy, explicit CatalogCountStrategy.POINT_IN_TIME fallback (New since BACKFILL_WINDOW_START 2026-03-16, grain catalog_point_in_time), persistence of active_products/new_products via AnalyticsPerformanceRepo, and partition progress skip/complete/failed via AnalyticsBackfillPartitionsRepo bucket catalog. MODULE.md documents strategies and A-2 limitation. Nine pytest cases with fixture; no A-3 fan-out; no live Partner. Matches issue #469 and ADR-029 catalog slice intent.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md \u2014 module authority",
+      "path": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "note": "Catalog partition API, strategies, and partition contract documented alongside budget governor.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "patterns.mdc \u2014 repository layer",
+      "path": "backend/src/juli_backend/services/analytics_backfill/catalog_partition.py",
+      "note": "Uses AnalyticsBackfillPartitionsRepo and AnalyticsPerformanceRepo consistently with sibling partition modules.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "469-20260722T093000"
+}
