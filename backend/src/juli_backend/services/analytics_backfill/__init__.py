@@ -15,10 +15,6 @@ from juli_backend.services.analytics_backfill.catalog_partition import (
     compute_catalog_counts,
     run_catalog_partition,
 )
-from juli_backend.services.analytics_backfill.live_partition import (
-    LivePartitionResult,
-    run_live_partition,
-)
 from juli_backend.services.analytics_backfill.coverage import (
     PRODUCT_COVERAGE_THRESHOLD,
     REVENUE_LIVE_COVERAGE_THRESHOLD,
@@ -29,6 +25,10 @@ from juli_backend.services.analytics_backfill.coverage import (
     coverage_report_to_markdown,
     generate_coverage_report,
     meets_coverage_threshold,
+)
+from juli_backend.services.analytics_backfill.live_partition import (
+    LivePartitionResult,
+    run_live_partition,
 )
 from juli_backend.services.analytics_backfill.orchestrator import (
     ALLOWED_BUCKETS,
@@ -49,12 +49,13 @@ __all__ = [
     "ACTIVE_PRODUCT_STATUSES",
     "ALLOWED_BUCKETS",
     "BACKFILL_WINDOW_START",
+    "BudgetExhaustedError",
     "BucketCoverageResult",
+    "CATALOG_BUCKET",
+    "CallBudgetGovernor",
     "CoverageReport",
     "PRODUCT_COVERAGE_THRESHOLD",
     "REVENUE_LIVE_COVERAGE_THRESHOLD",
-    "CATALOG_BUCKET",
-    "CallBudgetGovernor",
     "CatalogCountStrategy",
     "CatalogCounts",
     "CatalogPartitionResult",
