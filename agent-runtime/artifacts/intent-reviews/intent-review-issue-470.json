@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-470",
+  "issue": 470,
+  "timestamp": "2026-07-22T11:06:06Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "e4a1a6ba864440fc26284b42ff90bc4c6f016374",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff e4a1a6ba..bd9a9696 (#470). backfill_analytics_history walks revenue\u2192live\u2192product\u2192catalog by ascending date, skips completed partitions via AnalyticsBackfillPartitionsRepo.is_complete, pauses on should_stop() with stopped_reason=budget and finish('budget') without mark_complete on in-flight partition. validate_buckets rejects Ads/A-26/A-27/A-33; shop_id required UUID on orchestrator + CLI. Two-run mocked-partner test proves budget mid-window resume without re-fetching completed dates. MODULE.md operator command documented; multi-day A-36/A-29 batching deferred to one-day primitives per issue assumption.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md operator command (#470)",
+      "path": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "note": "Operator CLI snippet and programmatic backfill_analytics_history entry documented with budget\u2260complete caller contract.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "470-20260722T105327"
+}
