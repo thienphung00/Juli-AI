@@ -570,3 +570,68 @@ P2-9-7:
     - web/
     - ios/
     - Sibling issue context caches
+
+P2-9-8:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+    - backend/src/juli_backend/services/analytics_backfill/budget.py
+    - backend/src/juli_backend/services/analytics_backfill/revenue_partition.py
+    - backend/src/juli_backend/services/analytics_backfill/product_partition.py
+    - backend/src/juli_backend/services/analytics_backfill/live_partition.py
+    - backend/src/juli_backend/services/analytics_backfill/catalog_partition.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+    - backend/src/juli_backend/ai/seller_stage/cli.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
+
+P2-9-9:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+    - backend/src/juli_backend/services/analytics_backfill/cli.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/models/models.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - docs/api/data-models/canonical-entities.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - backend/src/juli_backend/integrations/tiktok/
+    - Sibling issue context caches

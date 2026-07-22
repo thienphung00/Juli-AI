@@ -295,10 +295,18 @@ out · additive nullable columns as needed ([ADR-029](docs/adr/029-phase-2.9-ana
 
 ### Slices (wave 2 — bucket partition E2E)
 
-- [ ] **P2-9-4** Revenue partition — A-36 + A-37 → GMV/orders/customers (#466)
-- [ ] **P2-9-5** Product funnel partition — A-34 daily list (#467)
-- [ ] **P2-9-6** LIVE partition — A-28 list + A-29 overview (#468)
-- [ ] **P2-9-7** Catalog Active/New via A-2 Search Products (#469)
+- [x] **P2-9-4** Revenue partition — A-36 + A-37 → GMV/orders/customers (#466)
+- [x] **P2-9-5** Product funnel partition — A-34 daily list (#467)
+- [x] **P2-9-6** LIVE partition — A-28 list + A-29 overview (#468)
+- [x] **P2-9-7** Catalog Active/New via A-2 Search Products (#469)
+
+### Slices (wave 3 — orchestrator)
+
+- [x] **P2-9-8** Budgeted multi-day orchestrator (#470)
+
+### Slices (wave 4 — coverage)
+
+- [x] **P2-9-9** Coverage reporter + exit thresholds (≥95% A-36+A-29, ≥90% A-34) (#471)
 
 ### Exit gate
 
