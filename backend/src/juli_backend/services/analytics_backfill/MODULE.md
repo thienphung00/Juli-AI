@@ -4,7 +4,7 @@
 
 Phase 2.9 analytics historical backfill helpers. Owns the per-run Partner HTTP
 call-budget governor (ADR-029) — additive to Redis ``RateLimiter``, not a
-replacement.
+replacement. Also hosts bucket partition runners (#466–#469).
 
 ## Public API
 
@@ -18,9 +18,11 @@ replacement.
   ``failures``, ``rate_limited``, ``stopped_reason`` (`budget` | `complete` | `error`)
 - ``BudgetExhaustedError`` — hard limit would be exceeded
 - ``backfill_revenue_partition(...)`` → ``skipped`` | ``complete`` | ``failed`` — one-day revenue bucket (#466)
+- ``backfill_product_partition(...)`` — one-day A-34 product funnel partition (#467)
 - ``run_live_partition(...)`` — LIVE bucket E2E for one calendar day (#468): A-29
   overview + A-28 session list → shop rollup + optional per-session rows; skips
   completed partitions; respects call budget; marks complete only after upserts
+- ``run_catalog_partition(...)`` — Active/New via A-2 Search Products (#469)
 
 ## Caller contract
 
@@ -34,8 +36,8 @@ replacement.
 
 ## Dependencies
 
-None for budget (pure in-memory counter for one run). Partition runners depend on
-TikTok analytics resources, ETL transform, and repos.
+Budget governor is pure in-memory. Partition runners depend on TikTok resources,
+ETL transform, and repos.
 
 ## Product partition (#467)
 
@@ -44,7 +46,18 @@ TikTok analytics resources, ETL transform, and repos.
   ``product`` bucket complete only when every page succeeds.
 - Product Impressions/Views deferred (no A-33 fan-out).
 
+## Catalog partition (#469)
+
+- ``run_catalog_partition(session, shop_id, partition_date, products, ...)`` — A-2
+  ``search_all`` → ``active_products`` / ``new_products`` on shop-grain interval row
+- ``CatalogCountStrategy.DAILY`` — trailing-7-day New; Active from current status allowlist
+  (``ACTIVATE`` minimum)
+- ``CatalogCountStrategy.POINT_IN_TIME`` — fallback: Active now + New since
+  ``2026-03-16``; grain ``catalog_point_in_time``
+- Respects ``AnalyticsBackfillPartitionsRepo`` for bucket ``catalog`` (skip complete,
+  ``mark_complete`` on success)
+
 ## Out of scope
 
-- LIVE/catalog partitions (#468/#469), orchestrator loop (#470)
-- Live Partner HTTP client wiring
+- Orchestrator loop (#470), coverage reporter (#471)
+- Live Partner HTTP client wiring in unit tests
