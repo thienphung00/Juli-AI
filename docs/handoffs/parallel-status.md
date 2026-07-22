@@ -19,9 +19,11 @@
 
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
-| #472 | HITL — wire live backfill CLI + Fujiwa run path | `analytics_backfill/cli.py` (+ thin wiring helper if needed) + unit tests + MODULE.md | **Review** | `feature/issue-472-hitl-backfill-cli` | `.worktrees/issue-472` | Meta holds |
+| #472 | HITL — wire live backfill CLI + Fujiwa run path | `analytics_backfill/cli.py` (+ thin wiring helper if needed) + unit tests + MODULE.md | **PR open** | `feature/issue-472-hitl-backfill-cli` | `.worktrees/issue-472` | [PR #483](https://github.com/thienphung00/Juli-AI/pull/483) |
 
-Base SHA: `origin/main` (includes #471 merge).
+Base SHA: `origin/main` @ `71ee5ec2` (includes #471 merge).
+
+Implementation SHA: `8a9bb220` · Review artifacts SHA: `d9c8254d`
 
 ## Module ownership
 
@@ -37,9 +39,10 @@ Base SHA: `origin/main` (includes #471 merge).
 
 | Field | Value |
 |-------|-------|
-| **Owner** | Meta holds until Review ships |
+| **Owner** | Review Agent (PR open; await CI green + sync-before-merge) |
+| **PR** | https://github.com/thienphung00/Juli-AI/pull/483 |
 | **AFK code** | Yes — wire CLI with mocked unit tests |
-| **HITL live** | Operator after PR; attach coverage to #462 |
+| **HITL live** | Operator after merge; attach coverage to #462 |
 
 ## References
 
