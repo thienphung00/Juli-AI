@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-471",
+  "issue": 471,
+  "timestamp": "2026-07-22T11:25:40Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "985ca86b",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff f5f2877a vs origin/main@985ca86b on feature/issue-471-analytics-coverage. Implements P2-9-9 coverage reporter: calendar-day buckets for revenue/live/revenue_live/product, exact-fraction gates (\u226595% combined revenue+live, \u226590% product), exit_ready boolean, missing_dates merged with AnalyticsBackfillPartitionsRepo incomplete rows (#464), JSON+markdown CLI subcommand, ADR-029 scope notes (Ads/Impressions out, GMV\u2260Net Revenue). All issue ACs addressed in unit tests; no Partner HTTP.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "Public API export consistency",
+      "path": "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+      "note": "BudgetExhaustedError remains imported but was dropped from __all__ when coverage symbols were added; direct import still works.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "471-20260722T111723"
+}

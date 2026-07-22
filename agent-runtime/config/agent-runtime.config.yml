@@ -303,7 +303,7 @@ workflow_prompt_cache:
     278:
       defaultSliceId: P2-A1
       handoffPath: docs/handoffs/phase-2-tiktok-implementation.md
-      parentScopeBlock: "# Parent #278 — Phase 2 TikTok (constant)\\n## Epic deferrals\\n- T8 router / ML inference: Phase 4\\n- web/, ios/: out of P2 product scope unless slice says otherwise\\n## Merchants\\n- Fujiwa: read only\\n- SANDBOX_VN: write validation only\\n"
+      parentScopeBlock: "# Parent #278 — Phase 2 TikTok (constant)\n## Epic deferrals\n- T8 router / ML inference: Phase 4\n- web/, ios/: out of P2 product scope unless slice says otherwise\n## Merchants\n- Fujiwa: read only\n- SANDBOX_VN: write validation only\n"
       doNotLoad:
         - docs/handoffs/archive/
         - docs/product/features/
@@ -346,7 +346,9 @@ workflow_prompt_cache:
         "467": P2-9-5
         "468": P2-9-6
         "469": P2-9-7
-      parentScopeBlock: "# Parent #462 — Phase 2.9 Analytics historical backfill (constant)\\n## Product boundary\\n- Idempotent resumable Partner Analytics → shared analytics_performance_intervals (Fujiwa first)\\n- Soft-cap ~350–400 Partner calls/run; hard stop before 500; partition by (shop_id, bucket, date)\\n- Persist GMV (TikTok) never Net Revenue; Ads out; no Demo/Dashboard UI\\n## Schema law\\n- Shared schema only (ADR-029); additive nullable columns OK; no parallel mart\\n## Slices (wave 1 — merged)\\n- P2-9-1 schema columns · P2-9-2 partition progress · P2-9-3 call-budget governor\\n## Slices (wave 2 — bucket partition E2E)\\n- P2-9-4 revenue (#466) · P2-9-5 product (#467) · P2-9-6 LIVE (#468) · P2-9-7 catalog (#469)\\n## Epic deferrals\\n- Orchestrator (#470), coverage (#471), HITL (#472)\\n- Pricing-model export/fit; Product Impressions/Views; A-33 fan-out\\n"
+        "470": P2-9-8
+        "471": P2-9-9
+      parentScopeBlock: "# Parent #462 — Phase 2.9 Analytics historical backfill (constant)\\n## Product boundary\\n- Idempotent resumable Partner Analytics → shared analytics_performance_intervals (Fujiwa first)\\n- Soft-cap ~350–400 Partner calls/run; hard stop before 500; partition by (shop_id, bucket, date)\\n- Persist GMV (TikTok) never Net Revenue; Ads out; no Demo/Dashboard UI\\n## Schema law\\n- Shared schema only (ADR-029); additive nullable columns OK; no parallel mart\\n## Slices (wave 1 — merged)\\n- P2-9-1 schema columns · P2-9-2 partition progress · P2-9-3 call-budget governor\\n## Slices (wave 2 — bucket partition E2E — merged)\\n- P2-9-4 revenue (#466) · P2-9-5 product (#467) · P2-9-6 LIVE (#468) · P2-9-7 catalog (#469)\\n## Slices (wave 3 — merged)\\n- P2-9-8 orchestrator (#470)\\n## Slice (wave 4)\\n- P2-9-9 coverage reporter (#471)\\n## Epic deferrals\\n- HITL (#472)\\n- Pricing-model export/fit; Product Impressions/Views; A-33 fan-out\\n"
       doNotLoad:
         - docs/handoffs/archive/
         - docs/product/features/

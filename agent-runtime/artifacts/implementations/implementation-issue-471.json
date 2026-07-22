@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 471,
+  "executorDomain": "backend",
+  "phaseRunId": "471-20260722T111723",
+  "startedAt": "2026-07-22T11:18:00Z",
+  "completedAt": "2026-07-22T11:45:00Z",
+  "executionDurationMs": 1620000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 12, "stage": "implementation"},
+    {"toolName": "Grep", "count": 4, "stage": "implementation"},
+    {"toolName": "Write", "count": 3, "stage": "green"},
+    {"toolName": "StrReplace", "count": 8, "stage": "green"},
+    {"toolName": "Shell", "count": 6, "stage": "green"}
+  ],
+  "toolInvocationCount": 33,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-471.json",
+    "agent-runtime/artifacts/workflow-cache/meta-prepare-issue-471.json",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/repositories/repos.py",
+    "docs/product/phases/phase-2.9/PRD.md",
+    "docs/adr/029-phase-2.9-analytics-historical-backfill.md",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": ["backend"],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/coverage.py",
+    "backend/src/juli_backend/services/analytics_backfill/cli.py",
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_coverage.py",
+    "agent-runtime/config/slice-routing.yml",
+    "EXECUTION.md",
+    "docs/handoffs/parallel-status.md"
+  ],
+  "testsAdded": ["tests/unit/test_analytics_backfill_coverage.py"],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: juli_backend.services.analytics_backfill.coverage",
+      "passingTestEvidence": "TestCoverageThresholdRounding — exact fraction 950/1000 pass, 949/1000 fail",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_coverage.py::TestCoverageThresholdRounding -q",
+          "exitCode": 0,
+          "outputSummary": "3 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A — generate_coverage_report integration",
+      "passingTestEvidence": "test_exit_ready_when_revenue_live_and_product_gates_pass — exit_ready true at 100%",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_coverage.py::TestGenerateCoverageReport::test_exit_ready_when_revenue_live_and_product_gates_pass -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — partition merge",
+      "passingTestEvidence": "test_missing_dates_include_incomplete_partitions — gap_date from #464 repo in missing_dates",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_coverage.py -q",
+          "exitCode": 0,
+          "outputSummary": "9 passed in 1.04s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added analytics backfill coverage reporter (coverage.py) with exact-fraction exit gates (≥95% revenue+live, ≥90% product), missing-date merge with incomplete partitions (#464), JSON/markdown serializers, CLI coverage subcommand with exit code on exit_ready, MODULE.md operator snippet, and 9 unit tests on synthetic DB.",
+  "acceptanceCriteria": {
+    "synthetic_db_coverage_pct_exit_ready": "pass — TestGenerateCoverageReport exit_ready cases",
+    "949_vs_950_revenue_live_gate": "pass — TestCoverageThresholdRounding + 949/950 integration tests",
+    "product_gate_independent_90pct": "pass — test_product_gate_passes_independently_when_revenue_live_fails",
+    "missing_dates_align_incomplete_partitions": "pass — test_missing_dates_include_incomplete_partitions",
+    "no_live_partner_in_ci": "pass — synthetic AnalyticsPerformanceInterval + partitions repo only"
+  },
+  "assumptions": [
+    "Catalog bucket reported as informational stub (days_present=0) until catalog coverage rules land in a follow-up slice.",
+    "Gate comparison uses exact fraction; coverage_pct display rounds to one decimal only."
+  ],
+  "risks": [
+    "CLI requires DATABASE_URL; operators must use documented PYTHONPATH=backend/src invocation."
+  ]
+}

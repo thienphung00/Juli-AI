@@ -27,6 +27,12 @@ replacement. Also hosts bucket partition runners (#466–#469).
   revenue → live → product → catalog by ascending date; skips completed partitions;
   pauses on ``should_stop()`` with ``stopped_reason=budget`` (exit code 0)
 - ``validate_buckets(...)`` — rejects Ads / A-26 / A-27 / A-33 buckets
+- ``generate_coverage_report(session, shop_id=..., end_date=..., start_date=...)`` →
+  ``CoverageReport`` — Phase 2.9 exit coverage (#471)
+- ``meets_coverage_threshold(days_present, days_total, threshold)`` — exact fraction
+  gate (``days_present / days_total >= threshold``; no rounding before compare)
+- ``coverage_report_to_json(report)`` / ``coverage_report_to_markdown(report)`` —
+  operator-facing report serializers
 
 ## Operator command (#470)
 
@@ -40,6 +46,25 @@ PYTHONPATH=src python -m juli_backend.services.analytics_backfill.cli \
   --end 2026-07-21 \
   --buckets revenue,live,product,catalog
 ```
+
+## Operator command (#471)
+
+Coverage report (requires ``DATABASE_URL``; exit code 0 when ``exit_ready``):
+
+```bash
+cd backend
+PYTHONPATH=src DATABASE_URL="$DATABASE_URL" \
+  python -m juli_backend.services.analytics_backfill.cli coverage \
+  --shop-id "<shop-uuid>" \
+  --start 2026-03-16 \
+  --end 2026-07-21 \
+  --output /tmp/analytics-coverage.json
+```
+
+Thresholds (ADR-029): combined Revenue (A-36) **and** LIVE overview (A-29-derived)
+≥ **95%** of calendar days; Product list (A-34) ≥ **90%**. Rounding: ``coverage_pct``
+is displayed to one decimal; gate uses exact fraction ``qualifying_days / total_days
+>= threshold`` (e.g. 949/1000 fails, 950/1000 passes at 95%).
 
 Programmatic entry (worker-style): ``backfill_analytics_history(session, shop_id=...,
 start_date=..., end_date=..., run_partition=...)`` with injected partition runners
@@ -83,5 +108,5 @@ ETL transform, and repos.
 
 ## Out of scope
 
-- Orchestrator loop (#470), coverage reporter (#471)
+- HITL operator tooling (#472)
 - Live Partner HTTP client wiring in unit tests

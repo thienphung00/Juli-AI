@@ -1,53 +1,65 @@
-# Parallel status — Phase 2.6 stretch + Demo deploy (#404–#406)
+# Parallel status — Phase 2.9 wave 4 coverage (#471)
 
-**Started:** 2026-07-21 · **Parent PRD:** [#395](https://github.com/thienphung00/Juli-AI/issues/395) · **AFK run** · Meta orchestrates only
+**Started:** 2026-07-22 · **Parent PRD:** [#462](https://github.com/thienphung00/Juli-AI/issues/462) · Meta prepares; Executor → Review
 
 ## Locked decisions
 
 | # | Decision |
 |---|----------|
-| 1 | Parallel with file-ownership partition |
-| 2 | Open PRs + CI green; **do not merge** |
-| 3 | Hard failure: retry ×2, then **stop that issue** (siblings continue) |
-| 4 | **4A** — repo config + contract tests + CI only (no live VPS deploy) |
-| 5 | Per-issue review agents may push/PR (stagger ≥30s) |
-| 6 | **No** `packages/contracts` edits |
+| 1 | **Isolate** (single issue) — coverage reporter is path-disjoint from HITL (#472) but Isolate for ops clarity |
+| 2 | Open individual PR + CI green; sync-before-merge before merge |
+| 3 | Hard failure: retry ×2, then stop |
+| 4 | Waves 1–3 (#463–#470) on `origin/main` — do not re-land schema/budget/partitions/orchestrator |
+| 5 | Review agent may push/PR |
+| 6 | **No** `packages/contracts`, migrations, or shared `mapping.py` edits |
+| 7 | Read partition progress (#464) + shared intervals; do not rewrite sibling partition runners |
 
 ## Current run
 
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
-| #405 | Editable Settings | `apps/demo/src/app/settings/**`, settings lib/components/tests; `settings*` keys in demo-state | PR open / CI green — [#461](https://github.com/thienphung00/Juli-AI/pull/461) | `feature/issue-405-settings` | `.worktrees/issue-405` | per-issue (5B) |
-| #404 | Six-KPI Analytics | `apps/demo/src/app/analytics/**`, analytics lib/components/tests; `analytics*` keys in demo-state | PR open / CI green | `feature/issue-404-analytics` | `.worktrees/issue-404` | [PR #460](https://github.com/thienphung00/Juli-AI/pull/460) |
-| #406 | Demo deploy automation | `infra/nginx\|systemd\|scripts` demo assets, runbooks, deploy contract tests/CI | PR open / CI green | `feature/issue-406-demo-deploy` | `.worktrees/issue-406` | [PR #459](https://github.com/thienphung00/Juli-AI/pull/459) |
+| #471 | Coverage reporter + exit thresholds | `analytics_backfill/coverage.py` (+ optional CLI subcommand) + unit test/fixtures + MODULE.md | **PR open** | `feature/issue-471-analytics-coverage` | `.worktrees/issue-471` | Review holds |
 
-## Module disjointness (ownership)
+Base SHA: `985ca86b` (`origin/main` — includes #463–#470 merges).
+
+## Module ownership
 
 | Path family | Owner |
 |-------------|-------|
-| `apps/demo/src/app/analytics/**`, analytics-only components/lib/tests | #404 |
-| `apps/demo/src/app/settings/**`, settings-only components/lib/tests | #405 |
-| `infra/**` demo nginx/systemd/scripts, deploy runbooks, deploy contract tests, CI deploy contracts | #406 |
-| `demo-state.tsx` / `demo-shell.tsx` | Append-only: #404 may add `analytics*` keys / `/analytics` assistance; #405 may add `settings*` keys / `/settings` assistance; neither restructures the other’s keys |
-| `packages/contracts`, root lockfile/CI unrelated to demo deploy contracts | **Forbidden** |
+| `services/analytics_backfill/coverage.py` + `tests/unit/test_analytics_backfill_coverage.py` + optional CLI/report helpers | #471 |
+| `MODULE.md` coverage operator snippet | #471 |
+| `budget.py`, `*_partition.py`, `orchestrator.py`, partition repo/model/migrations | **Read-only** |
+| HITL (#472), Demo/UI | **Forbidden** |
+
+## Meta caches
+
+| Artifact | Path |
+|----------|------|
+| Parent | `agent-runtime/artifacts/workflow-cache/parent-cache-issue-462.json` |
+| Child | `issue-context-cache-471.json` |
+| Gate dump | `meta-prepare-issue-471.json` — `readyForExecutor: true` |
+
+Slice: P2-9-9 in `slice-routing.yml` + `epicRegistry.462.childSlices`.
 
 ## GitHub ops
 
 | Field | Value |
 |-------|-------|
-| **Owner** | Per-issue Review/ship agents (5B); stagger ≥30s |
-| **Merge** | **Forbidden** this run (2B) |
-| **Sync-before-merge** | N/A for merge; still rebase onto `origin/main` before final CI if siblings push |
+| **Owner** | Review holds ops lock (#471) |
+| **PR** | https://github.com/thienphung00/Juli-AI/pull/482 |
+| **Merge** | Individual PR; **sync-before-merge** onto current `origin/main` |
+| **AFK** | Yes — synthetic DB/partitions pytest, no live Partner |
 
 ### Remote op log
 
 | Time (UTC) | Agent | Command | Issue |
 |------------|-------|---------|-------|
-| 2026-07-21T11:04Z | Review #404 | `git push -u origin feature/issue-404-analytics`; `gh pr create` | #404 → PR #460 |
-| 2026-07-21T11:06Z | Review #406 | `git push -u origin feature/issue-406-demo-deploy` | #406 |
-| 2026-07-21T11:06Z | Review #406 | `gh pr create` → https://github.com/thienphung00/Juli-AI/pull/459 | #406 |
+| 2026-07-22T11:17Z | Meta | `git worktree add` + `meta_prepare_executor.py --slice-id P2-9-9 --force` → ready | #471 |
+| 2026-07-22T11:30Z | Review | `git push -u origin feature/issue-471-analytics-coverage` + `gh pr create` → https://github.com/thienphung00/Juli-AI/pull/482 | #471 |
 
 ## References
 
 - Topology: [`worktree-branch-topology.md`](worktree-branch-topology.md)
 - Isolate vs parallel: [`.cursor/rules/issue-workflow.mdc`](../../.cursor/rules/issue-workflow.mdc)
+- PRD: [`docs/product/phases/phase-2.9/PRD.md`](../product/phases/phase-2.9/PRD.md)
+- ADR: [`docs/adr/029-phase-2.9-analytics-historical-backfill.md`](../adr/029-phase-2.9-analytics-historical-backfill.md)
