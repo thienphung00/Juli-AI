@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-465",
+  "issue": 465,
+  "timestamp": "2026-07-22T08:01:43Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "19fb61892eb33d30abd06167086c7300f9880546",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff 19fb6189..64eb78b4 (#465). CallBudgetGovernor implements begin_run (400/499 ADR defaults), record_attempt with BudgetExhaustedError at hard limit, should_stop/remaining soft cap, outcome counters, structured_log_fields, and documented caller contract (budget pause must not mark partition complete). Seven pure unit tests; no RateLimiter or migration changes; path-disjoint from #463/#464. Soft cap allows attempts between max_attempts and hard_limit until orchestrator honors should_stop \u2014 matches issue behavioral interface and executor assumptions.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md current",
+      "path": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "note": "Public API, caller contract, and RateLimiter coexistence documented per module authority pattern.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "465-20260722T073822"
+}
