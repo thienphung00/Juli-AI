@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-472",
+  "issue": 472,
+  "timestamp": "2026-07-22T11:53:35Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "71ee5ec2",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff 71ee5ec2..8a9bb220 matches #472 wiring intent: live_runner resolves Fujiwa production_read credential, refreshes OAuth, builds ProductionReadClientFactory Section-A resources, dispatches partition runners into backfill_analytics_history with CallBudgetGovernor; cli.py exposes backfill_main with --dry-run and structured summary; exit 0 on stopped_reason complete/budget; unit tests mock Partner (no live HTTP in CI). MODULE.md documents operator env, shop UUID lookup, dry-run and live commands. No Section B writes, migrations, or UI scope creep.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "patterns.mdc \u2014 mirror Fujiwa poll wiring",
+      "path": "backend/src/juli_backend/services/analytics_backfill/live_runner.py",
+      "note": "Credential resolve + OAuth refresh + ProductionReadClientFactory follows run_fujiwa_poll_cycle recipe; injectable deps aid unit testing."
+    }
+  ],
+  "phaseRunId": "472-20260722T120000"
+}

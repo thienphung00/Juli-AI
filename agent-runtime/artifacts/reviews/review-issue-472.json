@@ -1,0 +1,101 @@
+{
+  "id": "review-issue-472",
+  "issue": 472,
+  "timestamp": "2026-07-22T11:54:25Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #472 wires live Fujiwa analytics backfill CLI with credential resolve, OAuth refresh, ProductionReadClientFactory Section-A resources, partition dispatcher, budgeted orchestrator integration, --dry-run, and exit-code semantics. Intent-review spec_fidelity=pass. Security: summary_to_text and structured logs exclude tokens; tests assert no token leakage. Reliability: partition failures rollback session; budget pause commits prior progress with exit 0. All code-spec acceptance criteria mapped to unit tests; issue operator HITL ACs deferred post-merge per locked decision #8.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/analytics_backfill",
+    "tests/unit",
+    "docs/handoffs",
+    "agent-runtime/artifacts"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/analytics_backfill",
+      "interface": "execute_live_backfill",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Live operator wiring for budgeted analytics backfill via ProductionReadClientFactory."
+    },
+    {
+      "module": "backend/src/juli_backend/services/analytics_backfill",
+      "interface": "backfill_main",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "CLI now runs live backfill path with --dry-run instead of validate-only stub."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Complete run returns exit ready summary via live backfill orchestrator wiring",
+          "test": "tests/unit/test_analytics_backfill_cli_live.py::test_complete_run_returns_exit_ready_summary"
+        },
+        {
+          "criterion": "Parser accepts dry run flag for env credential validation without Partner HTTP",
+          "test": "tests/unit/test_analytics_backfill_cli_live.py::test_parser_accepts_dry_run_flag"
+        },
+        {
+          "criterion": "Backfill main returns exit code zero when stopped reason is budget",
+          "test": "tests/unit/test_analytics_backfill_cli_live.py::test_backfill_main_budget_exit_code"
+        },
+        {
+          "criterion": "Dispatcher maps revenue live product catalog buckets to partition functions",
+          "test": "tests/unit/test_analytics_backfill_cli_live.py::test_dispatcher_maps_buckets_to_partition_functions"
+        },
+        {
+          "criterion": "Dry run validates without partner calls keeping live Partner out of CI",
+          "test": "tests/unit/test_analytics_backfill_cli_live.py::test_dry_run_validates_without_partner_calls"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 14,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Mid-partition budget pause reports zero completed/skipped in synthetic OrchestratorResult \u2014 operator should rely on budget_fields and re-run until complete (documented in MODULE.md).",
+    "REDIS_URL optional; omitting increases 429 risk \u2014 operator should export REDIS_URL for live HITL runs."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; no CRITICAL reliability, security, observability, or performance gaps for CLI wiring slice.",
+    "timestamp": "2026-07-22T12:00:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": {
+    "statement": "All five code-spec acceptance criteria mapped to unit tests; operator HITL checklist on #462 is post-merge.",
+    "timestamp": "2026-07-22T12:00:00Z",
+    "acknowledged": true,
+    "owner": "Review Agent"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-472.json",
+  "reviewBasis": "git diff 71ee5ec2..8a9bb220 on feature/issue-472-hitl-backfill-cli",
+  "phaseRunId": "472-20260722T120000",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-472.json",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "findings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "severity": "none",
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}
