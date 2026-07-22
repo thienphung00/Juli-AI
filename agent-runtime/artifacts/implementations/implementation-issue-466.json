@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 466,
+  "executorDomain": "backend",
+  "phaseRunId": "466-20260722T092700",
+  "startedAt": "2026-07-22T09:00:00Z",
+  "completedAt": "2026-07-22T09:20:00Z",
+  "executionDurationMs": 1200000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 15, "stage": "implementation"},
+    {"toolName": "Grep", "count": 6, "stage": "implementation"},
+    {"toolName": "Write", "count": 4, "stage": "green"},
+    {"toolName": "Shell", "count": 8, "stage": "green"}
+  ],
+  "toolInvocationCount": 33,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-466.json",
+    "docs/adr/029-phase-2.9-analytics-historical-backfill.md",
+    "docs/integrations/tiktok_api/contract-collection.md",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/services/analytics_backfill/budget.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py"
+  ],
+  "skillsLoaded": ["backend"],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/services/analytics_backfill/revenue_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_revenue_partition.py",
+    "tests/fixtures/analytics_backfill/revenue/a36_shop_performance.json",
+    "tests/fixtures/analytics_backfill/revenue/a37_shop_performance_per_hour.json",
+    "EXECUTION.md",
+    "agent-runtime/config/agent-runtime.config.yml",
+    "agent-runtime/config/slice-routing.yml"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_backfill_revenue_partition.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: revenue_partition module absent",
+      "passingTestEvidence": "test_fixture_backfill_upserts_shop_grain_row — A-36+A-37 fixtures → shop-grain row with gmv/orders/customers",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_revenue_partition.py::TestBackfillRevenuePartition::test_fixture_backfill_upserts_shop_grain_row -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A — skip-when-complete test added while green",
+      "passingTestEvidence": "test_skips_partner_calls_when_partition_complete — no Partner calls when partition complete",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_revenue_partition.py::TestBackfillRevenuePartition::test_skips_partner_calls_when_partition_complete -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — failure-path test added while green",
+      "passingTestEvidence": "test_partner_rate_limit_leaves_partition_incomplete — RateLimitError 100005 leaves partition failed/incomplete",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_revenue_partition.py::TestBackfillRevenuePartition::test_partner_rate_limit_leaves_partition_incomplete -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A — idempotency + Section B + AOV tests added while green",
+      "passingTestEvidence": "Full suite 6 passed including idempotent upsert, Section B guard, derive_aov",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_revenue_partition.py -q",
+          "exitCode": 0,
+          "outputSummary": "6 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added backfill_revenue_partition for one-day revenue bucket: skip when complete, A-36 shop performance + A-37 per-hour customers (overall preferred, hourly sum fallback), transform/upsert to analytics_performance_intervals, mark_complete only after upsert, budget attempt/success/failure accounting. Six fixture-based unit tests; no live Partner calls; GMV labeling via existing transform path.",
+  "assumptions": [
+    "Orchestrator (#470) invokes backfill_revenue_partition per (shop, date) and honors budget.should_stop() before scheduling partitions",
+    "expand_analytics_shop_performance maps A-36 GMV/orders per contract-collection field map",
+    "A-37 hourly customers sum fallback is exercised in production when overall absent; primary path covered by fixture test"
+  ],
+  "risks": [
+    "No dedicated pytest for A-37 hourly-sum fallback when performance.overall.customers absent",
+    "BudgetExhaustedError from record_attempt propagates uncaught — orchestrator must handle"
+  ]
+}
