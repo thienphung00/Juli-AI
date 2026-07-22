@@ -1,0 +1,142 @@
+{
+  "id": "review-issue-465",
+  "issue": 465,
+  "timestamp": "2026-07-22T08:03:25Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #465 P2-9-3 CallBudgetGovernor: intent-review spec_fidelity=pass consumed as given. Pure in-memory per-run Partner HTTP attempt counter with ADR-029 defaults (400 soft / 499 hard), BudgetExhaustedError before 500, retry counting via record_attempt, structured log fields, and documented budget\u2260partition-complete contract. Seven unit tests pass; no live Partner calls; RateLimiter and migrations untouched; path-disjoint from #463/#464.",
+  "criticalFindings": [
+    {
+      "id": "465-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents public API, caller contract, and RateLimiter coexistence.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    },
+    {
+      "id": "465-executor-orchestrator-contract",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/budget.py",
+      "description": "Executor note: implies_partition_complete enforcement deferred to orchestrator (#470); between soft cap and hard limit record_attempt still succeeds if caller ignores should_stop().",
+      "suggestion": "Orchestrator must exit at should_stop() and call finish('budget') without mark_complete."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/services/analytics_backfill/budget.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_budget.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "after N soft-cap attempts, should_stop() is true",
+          "test": "tests/unit/test_analytics_backfill_budget.py::test_should_stop_after_soft_cap_attempts"
+        },
+        {
+          "criterion": "hard stop prevents reaching 500 attempts",
+          "test": "tests/unit/test_analytics_backfill_budget.py::test_hard_stop_prevents_reaching_five_hundred_attempts"
+        },
+        {
+          "criterion": "exhausted budget does not imply partition success (document contract)",
+          "test": "tests/unit/test_analytics_backfill_budget.py::test_budget_exhaust_does_not_imply_partition_complete"
+        },
+        {
+          "criterion": "transient failure + retry increments attempt counter",
+          "test": "tests/unit/test_analytics_backfill_budget.py::test_transient_failure_retry_increments_attempt_counter"
+        },
+        {
+          "criterion": "no live Partner calls in CI",
+          "test": "tests/unit/test_analytics_backfill_budget.py::test_no_live_partner_http_in_unit_tests"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "securityFindings": [],
+  "architectureFindings": [
+    {
+      "id": "465-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents public API, caller contract, and RateLimiter coexistence.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    }
+  ],
+  "maintainabilityFindings": [
+    {
+      "id": "465-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents public API, caller contract, and RateLimiter coexistence.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    },
+    {
+      "id": "465-executor-orchestrator-contract",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/budget.py",
+      "description": "Executor note: implies_partition_complete enforcement deferred to orchestrator (#470); between soft cap and hard limit record_attempt still succeeds if caller ignores should_stop().",
+      "suggestion": "Orchestrator must exit at should_stop() and call finish('budget') without mark_complete."
+    }
+  ],
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "465-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents public API, caller contract, and RateLimiter coexistence.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    },
+    {
+      "id": "465-executor-orchestrator-contract",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/budget.py",
+      "description": "Executor note: implies_partition_complete enforcement deferred to orchestrator (#470); between soft cap and hard limit record_attempt still succeeds if caller ignores should_stop().",
+      "suggestion": "Orchestrator must exit at should_stop() and call finish('budget') without mark_complete."
+    }
+  ],
+  "reviewDurationMs": 120000,
+  "phaseRunId": "465-20260722T073822",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "low",
+  "suggestedRemediation": [
+    "No action required \u2014 documentation matches module style.",
+    "Orchestrator must exit at should_stop() and call finish('budget') without mark_complete."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-465.json"
+}

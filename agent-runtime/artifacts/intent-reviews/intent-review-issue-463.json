@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-463",
+  "issue": 463,
+  "timestamp": "2026-07-22T08:01:53Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "19fb61892eb33d30abd06167086c7300f9880546",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff 19fb6189..882b4642 matches issue #463 / P2-9-1 intent: Alembic 018 adds exactly four nullable columns (live_hours Numeric(12,4), live_sessions, active_products, new_products) on analytics_performance_intervals with reversible DDL-only upgrade/downgrade; AnalyticsPerformanceInterval model fields appended; unique (shop_id, snapshot_key) index and RLS pattern untouched; unit contract + integration migration tests prove columns at head and downgrade; one-line shared Phase 2.6/2.9/3 contract notes in ADR-029 and phase-2.9 PRD. No parallel mart, ETL writers, Partner HTTP, or UI scope creep. Issue narrative mentions repo/ETL write paths, but AC and out-of-scope defer ETL to later slices; nullable additive DDL satisfies NULL-default invariant without writer changes.",
+  "smells": [],
+  "convention_notes": [
+    "Migration 018 follows established op.add_column/op.drop_column pattern from revisions 015/017; integration tests mirror existing test_migrations.py head/downgrade conventions.",
+    "Append-only AnalyticsPerformanceInterval field placement matches models.py conventions; Numeric(12,4) for live_hours aligns with issue column spec."
+  ],
+  "phaseRunId": "463-20260722T080000"
+}

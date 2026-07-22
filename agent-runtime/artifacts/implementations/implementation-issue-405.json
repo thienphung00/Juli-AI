@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 405,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "405-20260721T104928",
+  "startedAt": "2026-07-21T10:52:00Z",
+  "completedAt": "2026-07-21T11:00:00Z",
+  "executionDurationMs": 480000,
+  "toolsUsed": [
+    { "toolName": "Read", "count": 18, "stage": "implementation" },
+    { "toolName": "Write", "count": 12, "stage": "green" },
+    { "toolName": "StrReplace", "count": 10, "stage": "green" },
+    { "toolName": "Shell", "count": 4, "stage": "implementation" },
+    { "toolName": "Grep", "count": 6, "stage": "implementation" },
+    { "toolName": "Glob", "count": 4, "stage": "implementation" }
+  ],
+  "toolInvocationCount": 54,
+  "tokenUsage": {
+    "total": 0,
+    "input": 0,
+    "output": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0
+  },
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-405.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-395.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-405.md",
+    "docs/product/phases/phase-2.6/PRD.md",
+    "docs/product/design/Screens/settings.md",
+    "docs/product/design/Flows/settings/workflow-configuration.md",
+    "docs/product/design/Components/forms.md",
+    "docs/product/design/Components/dialogs.md",
+    "dictionary.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/components/demo-shell.tsx",
+    "apps/demo/src/lib/recommendations.ts",
+    "packages/ui/src/form.tsx",
+    "packages/ui/src/dialog.tsx"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/src/app/settings/page.tsx",
+    "apps/demo/src/app/settings/workflows/[workflowKey]/page.tsx",
+    "apps/demo/src/app/globals.css",
+    "apps/demo/src/components/demo-state.tsx",
+    "apps/demo/src/components/settings-view.tsx",
+    "apps/demo/src/components/settings-workflow-list.tsx",
+    "apps/demo/src/components/settings-thresholds-panel.tsx",
+    "apps/demo/src/components/settings-workflow-detail.tsx",
+    "apps/demo/src/lib/settings/fixtures.ts",
+    "apps/demo/src/lib/settings/validation.ts",
+    "apps/demo/src/lib/settings/save.ts",
+    "apps/demo/src/lib/settings/index.ts",
+    "apps/demo/src/__tests__/settings-workflows.test.tsx",
+    "apps/demo/src/__tests__/settings-workflow-detail.test.tsx",
+    "apps/demo/src/lib/settings/__tests__/validation.test.ts",
+    "docs/handoffs/parallel-status.md"
+  ],
+  "testsAdded": [
+    "apps/demo/src/__tests__/settings-workflows.test.tsx — AC: domain grouping, stable workflow keys, capability badges, Vietnamese labels",
+    "apps/demo/src/__tests__/settings-workflow-detail.test.tsx — AC: range validation, save/retry/saved states, unsaved navigation, FBT read-only",
+    "apps/demo/src/lib/settings/__tests__/validation.test.ts — AC: allowed-range validation and effective value merge"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "settings-workflows.test.tsx and settings-workflow-detail.test.tsx failed before components existed",
+      "passingTestEvidence": "8/8 settings tests pass after SettingsView, workflow detail, fixtures, and validation lib implemented",
+      "refactorEvidence": "Removed duplicate top-level field error alerts; extracted commitSave in thresholds panel",
+      "commands": [
+        {
+          "command": "cd apps/demo && pnpm exec vitest run src/__tests__/settings-workflows.test.tsx src/__tests__/settings-workflow-detail.test.tsx src/lib/settings/__tests__/validation.test.ts",
+          "exitCode": 0,
+          "outputSummary": "3 files, 8 tests passed"
+        },
+        {
+          "command": "cd apps/demo && pnpm exec vitest run src/__tests__/demo-shell.test.tsx",
+          "exitCode": 0,
+          "outputSummary": "Manual Refresh reset still passes with settings* keys"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Replaced the Settings placeholder with editable workflow templates grouped by product domain, a thresholds panel, and per-workflow detail routes. Mock settings state uses append-only settings* keys on MutableMockState with Save/Discard, validation, unsaved navigation warnings, save retry, and read-only FBT/unresolved fields.",
+  "assumptions": [
+    "Manual Refresh reset coverage for settings edits remains in demo-shell.test.tsx via settingsDraft in DEFAULT_MUTABLE_MOCK_STATE",
+    "Pre-existing timeout failures in unrelated workflow review tests are out of scope for #405"
+  ],
+  "risks": [
+    "Full vitest suite reports 3 unrelated timeout failures in decisions workflow tests on this worktree"
+  ]
+}

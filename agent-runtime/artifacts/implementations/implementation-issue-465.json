@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 465,
+  "executorDomain": "backend",
+  "phaseRunId": "465-20260722T073822",
+  "startedAt": "2026-07-22T07:40:00Z",
+  "completedAt": "2026-07-22T07:52:00Z",
+  "executionDurationMs": 720000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 12, "stage": "implementation"},
+    {"toolName": "Grep", "count": 4, "stage": "implementation"},
+    {"toolName": "Glob", "count": 3, "stage": "implementation"},
+    {"toolName": "Write", "count": 5, "stage": "green"},
+    {"toolName": "StrReplace", "count": 1, "stage": "green"},
+    {"toolName": "Shell", "count": 6, "stage": "green"},
+    {"toolName": "UpdateCurrentStep", "count": 4, "stage": "other"}
+  ],
+  "toolInvocationCount": 35,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-465.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-465.md",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-462.json",
+    "docs/adr/029-phase-2.9-analytics-historical-backfill.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "backend/src/juli_backend/integrations/tiktok/rate_limiter.py",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "backend/src/juli_backend/services/aggregates/MODULE.md",
+    "agent-runtime/docs/schemas/implementation-artifact.schema.json"
+  ],
+  "skillsLoaded": [
+    "backend"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/observability.mdc",
+    ".cursor/rules/performance.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/services/analytics_backfill/budget.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_budget.py",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-465.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_backfill_budget.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: juli_backend.services.analytics_backfill",
+      "passingTestEvidence": "Soft cap: after max_attempts record_attempt calls, should_stop() true and remaining() == 0",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_budget.py::test_should_stop_after_soft_cap_attempts -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A — hard-limit test added after cycle-1 green",
+      "passingTestEvidence": "BudgetExhaustedError at hard_limit; attempts never reach 500 with defaults (499 max)",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_budget.py::test_record_attempt_refuses_at_hard_limit ../tests/unit/test_analytics_backfill_budget.py::test_hard_stop_prevents_reaching_five_hundred_attempts -q",
+          "exitCode": 0,
+          "outputSummary": "2 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — partition contract test added while green",
+      "passingTestEvidence": "finish('budget') sets stopped_reason; implies_partition_complete is False",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_budget.py::test_budget_exhaust_does_not_imply_partition_complete -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A — retry counting test added while green",
+      "passingTestEvidence": "Two failure retries → attempts == 2, failures == 2",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_budget.py::test_transient_failure_retry_increments_attempt_counter -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 5,
+      "failingTestEvidence": "N/A — structured log + defaults tests added while green",
+      "passingTestEvidence": "structured_log_fields returns attempts/successes/failures/rate_limited/stopped_reason; begin_run defaults 400/499",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_budget.py -q",
+          "exitCode": 0,
+          "outputSummary": "7 passed"
+        },
+        {
+          "command": "cd backend && PYTHONPATH=src ruff check src/juli_backend/services/analytics_backfill/ ../tests/unit/test_analytics_backfill_budget.py",
+          "exitCode": 0,
+          "outputSummary": "All checks passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added CallBudgetGovernor in services/analytics_backfill/budget.py with begin_run (400/499 defaults), per-HTTP record_attempt with BudgetExhaustedError at hard limit, soft-cap should_stop/remaining, outcome counters, structured log fields, and documented caller contract that budget pause must not mark partitions complete. Seven pure unit tests; no live Partner calls.",
+  "assumptions": [
+    "Orchestrator (#470) will call record_attempt before each outbound HTTP try and finish('budget') on soft-cap pause",
+    "Soft-cap should_stop allows continued attempts until hard_limit unless orchestrator exits at soft cap",
+    "RateLimiter remains unchanged; budget governor is additive only"
+  ],
+  "risks": [
+    "Orchestrator must enforce implies_partition_complete contract — not enforced in this module",
+    "Between soft cap and hard limit, attempts can continue if caller ignores should_stop()"
+  ]
+}

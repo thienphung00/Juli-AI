@@ -1,0 +1,95 @@
+{
+  "id": "review-issue-406",
+  "issue": 406,
+  "timestamp": "2026-07-21T11:02:02Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Issue #406 adds independent Demo deploy automation: juli-demo systemd on 127.0.0.1:3001, demo.app-juli.com nginx vhost, mock-only build/deploy/rollback scripts, HITL runbook, 38 contract tests, and demo-deploy-contracts CI job. No backend secrets; App Review services untouched.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "infra/nginx",
+    "infra/systemd",
+    "infra/scripts",
+    "docs/runbooks",
+    "tests/unit",
+    ".github/workflows/pr.yml"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "infra",
+      "interface": "demo.app-juli.com deploy surface",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Adds independent Demo nginx vhost, systemd unit, and deploy/rollback scripts."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Demo has its own systemd service/upstream and Nginx vhost without changing app-juli.com or api.app-juli.com ownership",
+          "test": "tests/unit/test_phase_2_6_demo_deploy_config.py::test_nginx_demo_vhost_routes_to_independent_upstream"
+        },
+        {
+          "criterion": "Release automation installs/builds apps/demo, switches releases safely, restarts only the required service, and verifies local health before success",
+          "test": "tests/unit/test_phase_2_6_demo_deploy_config.py::test_deploy_demo_script_builds_and_restarts_demo_only"
+        },
+        {
+          "criterion": "Rollback can restore the previous healthy Demo release independently",
+          "test": "tests/unit/test_phase_2_6_demo_deploy_config.py::test_rollback_demo_script_restarts_demo_only"
+        },
+        {
+          "criterion": "Nginx/DNS/TLS/provisioning and rollback steps are documented without secrets",
+          "test": "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_dns_tls_and_provisioning_without_secrets"
+        },
+        {
+          "criterion": "Deploy contract tests verify domain, service, paths, ports/upstreams, release integration, and secret hygiene",
+          "test": "tests/unit/test_phase_2_6_demo_deploy_config.py::test_demo_deploy_excludes_out_of_scope_services"
+        },
+        {
+          "criterion": "CI validates the production Demo build and deployment contracts",
+          "test": "tests/unit/test_phase_2_6_demo_deploy.py::test_prd_records_demo_public_deployment_target"
+        },
+        {
+          "criterion": "Runtime requires no backend credentials or API availability in Mock mode",
+          "test": "tests/unit/test_phase_2_6_demo_deploy_config.py::test_runbook_documents_mock_mode_without_backend"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 38,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no blocking reliability, security, observability, performance, or acceptance-coverage gaps.",
+    "timestamp": "2026-07-21T11:05:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "reviewStatus": "PASS",
+  "phaseRunId": "406-20260721T104932",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-406.json",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewDurationMs": 900000,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}

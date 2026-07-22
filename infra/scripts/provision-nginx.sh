@@ -19,7 +19,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-for conf in app-juli.com.conf api.app-juli.com.conf; do
+for conf in app-juli.com.conf api.app-juli.com.conf demo.app-juli.com.conf; do
     src="${NGINX_SRC}/${conf}"
     if [ ! -f "${src}" ]; then
         echo "Missing nginx config: ${src}" >&2

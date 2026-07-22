@@ -1,11 +1,8 @@
 """add analytics_backfill_partitions for resumable backfill (#464)
 
 Revision ID: 019_backfill_partitions
-Revises: 017_analytics_perf_intervals
+Revises: 018_interval_backfill_cols
 Create Date: 2026-07-22
-
-NOTE: When #463 (018_interval_backfill_cols) merges first, rebase down_revision
-to 018 before merge so Alembic head stays linear.
 """
 
 from collections.abc import Sequence
@@ -14,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "019_backfill_partitions"
-down_revision: str | None = "017_analytics_perf_intervals"
+down_revision: str | None = "018_interval_backfill_cols"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

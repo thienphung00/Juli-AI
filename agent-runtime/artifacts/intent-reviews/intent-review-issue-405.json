@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-405",
+  "issue": 405,
+  "timestamp": "2026-07-21T11:05:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "19fb61892eb33d30abd06167086c7300f9880546",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff vs origin/main (19fb6189) for #405 replaces the Settings placeholder with domain-grouped workflow templates, editable thresholds, validation, Save/Discard, unsaved navigation dialog, save retry, and read-only FBT/unresolved fields. settings* keys append to MutableMockState; Manual Refresh reset covered via demo-shell DEFAULT_MUTABLE_MOCK_STATE. Vietnamese labels, tablist/tabpanel a11y, and touch-target CSS follow demo conventions. Optional contextual-assistance checkbox (dynamic template/threshold context in shell host) is only static path copy today — not in numbered ACs and does not contradict stretch scope.",
+  "smells": [
+    {
+      "name": "Large Class",
+      "path": "apps/demo/src/lib/settings/fixtures.ts",
+      "hunk": "~500 lines of workflow template + threshold fixture records in one module",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "apps/demo/MODULE.md invariants — Vietnamese copy, touch targets, focus-visible",
+      "path": "apps/demo/src/app/globals.css",
+      "note": "Settings styles reuse --juli-touch-target, :focus-visible, and responsive breakpoints consistent with demo-shell contract tests.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "405-20260721T104928"
+}
