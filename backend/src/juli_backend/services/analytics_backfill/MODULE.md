@@ -37,7 +37,14 @@ replacement.
 None for budget (pure in-memory counter for one run). Partition runners depend on
 TikTok analytics resources, ETL transform, and repos.
 
+## Product partition (#467)
+
+- ``backfill_product_partition(session, shop_id, partition_date, resource, budget, ...)``
+  — one calendar-day A-34 paginated fetch; upserts ``grain=product`` rows; marks
+  ``product`` bucket complete only when every page succeeds.
+- Product Impressions/Views deferred (no A-33 fan-out).
+
 ## Out of scope
 
-- Product/catalog partitions (#467/#469), orchestrator loop (#470)
-- Live Partner HTTP client wiring in CI
+- LIVE/catalog partitions (#468/#469), orchestrator loop (#470)
+- Live Partner HTTP client wiring
