@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-464",
+  "issue": 464,
+  "timestamp": "2026-07-22T08:02:01Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "19fb61892eb33d30abd06167086c7300f9880546",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff vs 19fb6189 on feature/issue-464-backfill-partitions. Implements durable analytics_backfill_partitions table (019), AnalyticsBackfillPartition model, AnalyticsBackfillPartitionsRepo with mark_complete, mark_failed, list_incomplete, is_complete. All issue ACs covered by 4 pure SQLite pytest cases; no Partner HTTP. AnalyticsPerformanceInterval untouched (#463 ownership). Alembic down_revision=017 documented for sync-before-merge rebase after #463 018 merges.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md current",
+      "path": "backend/src/juli_backend/database/MODULE.md",
+      "note": "Backfill model/repo API documented alongside existing database module entries.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "464-20260722T074800"
+}
