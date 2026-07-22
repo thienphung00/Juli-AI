@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 472,
+  "executorDomain": "backend",
+  "phaseRunId": "472-20260722T114500",
+  "startedAt": "2026-07-22T11:30:00Z",
+  "completedAt": "2026-07-22T11:50:00Z",
+  "executionDurationMs": 1200000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 18, "stage": "implementation"},
+    {"toolName": "Write", "count": 4, "stage": "green"},
+    {"toolName": "StrReplace", "count": 8, "stage": "green"},
+    {"toolName": "Shell", "count": 4, "stage": "green"}
+  ],
+  "toolInvocationCount": 34,
+  "contextFilesLoaded": [
+    "backend/src/juli_backend/services/analytics_backfill/cli.py",
+    "backend/src/juli_backend/services/analytics_backfill/orchestrator.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/core/security/credential_resolver.py",
+    "backend/src/juli_backend/integrations/tiktok/factories.py",
+    "tests/unit/test_analytics_backfill_orchestrator.py",
+    "tests/unit/test_fujiwa_polling_orchestration.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": ["backend"],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/security.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/live_runner.py",
+    "backend/src/juli_backend/services/analytics_backfill/cli.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_cli_live.py",
+    "docs/handoffs/parallel-status.md",
+    "agent-runtime/artifacts/implementations/implementation-issue-472.json"
+  ],
+  "testsAdded": ["tests/unit/test_analytics_backfill_cli_live.py"],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: juli_backend.services.analytics_backfill.live_runner",
+      "passingTestEvidence": "test_dispatcher_maps_buckets_to_partition_functions — revenue/live/product/catalog mocks invoked",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-472 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_cli_live.py::TestPartitionDispatcher::test_dispatcher_maps_buckets_to_partition_functions -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A — added with live_runner shop guard",
+      "passingTestEvidence": "test_shop_id_mismatch_exits_non_zero — SystemExit on credential/shop mismatch",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-472 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_cli_live.py::TestExecuteLiveBackfill::test_shop_id_mismatch_exits_non_zero -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — added CLI exit-code wiring",
+      "passingTestEvidence": "test_backfill_main_budget_exit_code + test_backfill_main_partition_failure_exit_code",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-472 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_cli_live.py tests/unit/test_analytics_backfill_orchestrator.py -q",
+          "exitCode": 0,
+          "outputSummary": "23 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Wired live Fujiwa analytics backfill CLI: live_runner resolves production-read credential, refreshes OAuth, builds ProductionReadClientFactory resources, dispatches partition runners into backfill_analytics_history with budget governor, commits on complete/budget, and exposes --dry-run HITL validation. MODULE.md documents operator env vars and shop UUID lookup.",
+  "assumptions": [
+    "REDIS_URL optional for backfill CLI; 429 risk documented but not wired to RateLimiter in this slice",
+    "Mid-partition budget pause returns stopped_reason=budget with commit of prior partition progress"
+  ],
+  "risks": [
+    "Live partition paused mid-flight reports zero completed/skipped in synthetic budget result",
+    "Operator must re-run until stopped_reason=complete before coverage gate"
+  ]
+}

@@ -12,10 +12,17 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from juli_backend.core.config.runtime import async_database_url
 from juli_backend.services.analytics_backfill.coverage import (
     coverage_report_to_json,
     coverage_report_to_markdown,
     generate_coverage_report,
+)
+from juli_backend.services.analytics_backfill.live_runner import (
+    BackfillPartitionFailed,
+    execute_live_backfill,
+    orchestrator_result_to_exit_code,
+    summary_to_text,
 )
 from juli_backend.services.analytics_backfill.orchestrator import (
     BACKFILL_WINDOW_START,
@@ -51,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--buckets",
         default=",".join(DEFAULT_BUCKET_ORDER),
         help="Comma-separated bucket allowlist (default: revenue,live,product,catalog)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate env, credential, and shop-id match without Partner calls",
     )
     return parser
 
@@ -129,7 +141,7 @@ def coverage_main(argv: list[str] | None = None) -> int:
     output_path = Path(args.output) if args.output else None
 
     async def _main() -> int:
-        engine = create_async_engine(database_url)
+        engine = create_async_engine(async_database_url(database_url))
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with session_factory() as session:
@@ -146,8 +158,27 @@ def coverage_main(argv: list[str] | None = None) -> int:
     return asyncio.run(_main())
 
 
+async def _run_live_backfill_session(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    start_date: date,
+    end_date: date,
+    buckets: tuple[str, ...],
+    dry_run: bool,
+):
+    return await execute_live_backfill(
+        session,
+        shop_id=shop_id,
+        start_date=start_date,
+        end_date=end_date,
+        buckets=buckets,
+        dry_run=dry_run,
+    )
+
+
 def backfill_main(argv: list[str] | None = None) -> int:
-    """Validate operator args; partition wiring invokes ``backfill_analytics_history``."""
+    """Run live Fujiwa analytics backfill via DATABASE_URL and TikTok env vars."""
     args = build_parser().parse_args(argv)
     try:
         shop_id = uuid.UUID(args.shop_id)
@@ -156,17 +187,44 @@ def backfill_main(argv: list[str] | None = None) -> int:
 
     start_date = _parse_date(args.start, arg_name="--start")
     end_date = _parse_date(args.end, arg_name="--end")
-    buckets = validate_buckets([b.strip() for b in args.buckets.split(",") if b.strip()])
+    try:
+        buckets = validate_buckets([b.strip() for b in args.buckets.split(",") if b.strip()])
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
-    print(
-        f"Validated analytics backfill: shop_id={shop_id} "
-        f"start={start_date} end={end_date} buckets={','.join(buckets)}"
-    )
-    print(
-        "Run programmatically via backfill_analytics_history() with a DB session "
-        "and partition runner wiring (see MODULE.md)."
-    )
-    return 0
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise SystemExit("DATABASE_URL is required for analytics backfill")
+
+    async def _main() -> int:
+        engine = create_async_engine(async_database_url(database_url))
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with session_factory() as session:
+                try:
+                    summary = await _run_live_backfill_session(
+                        session,
+                        shop_id=shop_id,
+                        start_date=start_date,
+                        end_date=end_date,
+                        buckets=buckets,
+                        dry_run=args.dry_run,
+                    )
+                except BackfillPartitionFailed as exc:
+                    await session.rollback()
+                    print(f"analytics_backfill_error stopped_reason=error error={exc}")
+                    return 1
+                except Exception as exc:
+                    await session.rollback()
+                    print(f"analytics_backfill_error stopped_reason=error error={exc}")
+                    return 1
+
+                print(summary_to_text(summary))
+                return orchestrator_result_to_exit_code(summary.result)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_main())
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -33,8 +33,65 @@ replacement. Also hosts bucket partition runners (#466–#469).
   gate (``days_present / days_total >= threshold``; no rounding before compare)
 - ``coverage_report_to_json(report)`` / ``coverage_report_to_markdown(report)`` —
   operator-facing report serializers
+- ``execute_live_backfill(...)`` — live CLI wiring (#472): credential resolve,
+  OAuth refresh, ``ProductionReadClientFactory`` resources, partition dispatcher
+- ``build_partition_dispatcher(...)`` — maps orchestrator buckets to partition runners
+- ``load_backfill_cli_config()`` / ``summary_to_text(summary)`` — operator env + output
 
-## Operator command (#470)
+## Operator command (#472 — live Fujiwa backfill)
+
+Required env: ``DATABASE_URL``, ``TIKTOK_APP_KEY``, ``TIKTOK_APP_SECRET``,
+``TIKTOK_REDIRECT_URI``, ``TIKTOK_TOKEN_ENCRYPTION_KEY``. Recommended:
+``REDIS_URL`` (RateLimiter backoff during Partner calls — omitting it increases
+429 risk; backfill still runs).
+
+Resolve the Fujiwa ``--shop-id`` from production DB (must match the
+``production_read`` credential for merchant ``7658073774813611784``):
+
+```sql
+SELECT s.id
+FROM shops s
+JOIN tiktok_credentials c ON c.shop_id = s.id
+WHERE c.merchant_authorization_id = '7658073774813611784'
+  AND c.capability = 'production_read';
+```
+
+HITL checklist step 1 — validate env + credential + shop match (no Partner HTTP):
+
+```bash
+cd backend
+export DATABASE_URL=... TIKTOK_APP_KEY=... TIKTOK_APP_SECRET=...
+export TIKTOK_REDIRECT_URI=... TIKTOK_TOKEN_ENCRYPTION_KEY=...
+# optional: export REDIS_URL=...
+PYTHONPATH=src python -m juli_backend.services.analytics_backfill.cli \
+  --shop-id "<fujiwa-juli-shop-uuid>" \
+  --start 2026-03-16 \
+  --end <YYYY-MM-DD> \
+  --buckets revenue,live,product,catalog \
+  --dry-run
+```
+
+Live budgeted run (~400 soft / 499 hard Partner attempts per invocation):
+
+```bash
+cd backend
+export DATABASE_URL=... TIKTOK_APP_KEY=... TIKTOK_APP_SECRET=...
+export TIKTOK_REDIRECT_URI=... TIKTOK_TOKEN_ENCRYPTION_KEY=...
+# optional: export REDIS_URL=...
+PYTHONPATH=src python -m juli_backend.services.analytics_backfill.cli \
+  --shop-id "<fujiwa-juli-shop-uuid>" \
+  --start 2026-03-16 \
+  --end <YYYY-MM-DD> \
+  --buckets revenue,live,product,catalog
+```
+
+Re-run the same command until ``stopped_reason=complete`` (or resume after
+``stopped_reason=budget``). Then run the coverage subcommand below.
+
+Exit codes: **0** when ``stopped_reason`` is ``complete`` or ``budget``; **1**
+on partition failure or missing env.
+
+## Operator command (#470 — validate-only, superseded by #472)
 
 Validate CLI flags (partition wiring is programmatic today):
 
@@ -108,5 +165,4 @@ ETL transform, and repos.
 
 ## Out of scope
 
-- HITL operator tooling (#472)
 - Live Partner HTTP client wiring in unit tests
