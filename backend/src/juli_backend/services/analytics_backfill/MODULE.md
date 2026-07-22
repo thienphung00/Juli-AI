@@ -23,6 +23,30 @@ replacement. Also hosts bucket partition runners (#466–#469).
   overview + A-28 session list → shop rollup + optional per-session rows; skips
   completed partitions; respects call budget; marks complete only after upserts
 - ``run_catalog_partition(...)`` — Active/New via A-2 Search Products (#469)
+- ``backfill_analytics_history(...)`` — multi-bucket orchestrator loop (#470): walks
+  revenue → live → product → catalog by ascending date; skips completed partitions;
+  pauses on ``should_stop()`` with ``stopped_reason=budget`` (exit code 0)
+- ``validate_buckets(...)`` — rejects Ads / A-26 / A-27 / A-33 buckets
+
+## Operator command (#470)
+
+Validate CLI flags (partition wiring is programmatic today):
+
+```bash
+cd backend
+PYTHONPATH=src python -m juli_backend.services.analytics_backfill.cli \
+  --shop-id "<shop-uuid>" \
+  --start 2026-03-16 \
+  --end 2026-07-21 \
+  --buckets revenue,live,product,catalog
+```
+
+Programmatic entry (worker-style): ``backfill_analytics_history(session, shop_id=...,
+start_date=..., end_date=..., run_partition=...)`` with injected partition runners
+composing ``backfill_revenue_partition``, ``run_live_partition``,
+``backfill_product_partition``, and ``run_catalog_partition``. Multi-day A-36/A-29
+batching is deferred — orchestrator calls existing one-day primitives per calendar
+day and marks each day complete individually.
 
 ## Caller contract
 

@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 470,
+  "executorDomain": "backend",
+  "phaseRunId": "470-20260722T105327",
+  "startedAt": "2026-07-22T10:54:00Z",
+  "completedAt": "2026-07-22T11:01:00Z",
+  "executionDurationMs": 420000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 14, "stage": "implementation"},
+    {"toolName": "Grep", "count": 6, "stage": "implementation"},
+    {"toolName": "Glob", "count": 4, "stage": "implementation"},
+    {"toolName": "Write", "count": 4, "stage": "green"},
+    {"toolName": "StrReplace", "count": 10, "stage": "green"},
+    {"toolName": "Shell", "count": 8, "stage": "green"},
+    {"toolName": "UpdateCurrentStep", "count": 4, "stage": "other"}
+  ],
+  "toolInvocationCount": 50,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-470.json",
+    "agent-runtime/artifacts/workflow-cache/meta-prepare-issue-470.json",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/services/analytics_backfill/budget.py",
+    "backend/src/juli_backend/services/analytics_backfill/revenue_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/product_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/catalog_partition.py",
+    "tests/unit/test_analytics_backfill_revenue_partition.py",
+    "tests/unit/test_analytics_backfill_live_partition.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": ["backend"],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/orchestrator.py",
+    "backend/src/juli_backend/services/analytics_backfill/cli.py",
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_orchestrator.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-470.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-470.json"
+  ],
+  "testsAdded": ["tests/unit/test_analytics_backfill_orchestrator.py"],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: juli_backend.services.analytics_backfill.orchestrator",
+      "passingTestEvidence": "test_skips_completed_partitions_without_partner_calls — zero run_partition calls when partition marked complete",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-470 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_orchestrator.py::TestOrchestratorSkipComplete -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A — added with orchestrator loop",
+      "passingTestEvidence": "test_two_run_simulation_resumes_without_refetching_completed — run1 stopped_reason=budget after 5 calls; run2 completes 12 unique bucket/date pairs",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-470 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_orchestrator.py::TestOrchestratorBudgetResume -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — shop isolation test",
+      "passingTestEvidence": "test_second_shop_does_not_skip_first_shops_partitions — other shop still invokes revenue runner",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-470 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_orchestrator.py::TestOrchestratorShopIsolation -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A — allowlist validation",
+      "passingTestEvidence": "validate_buckets rejects ads and a26; DEFAULT_BUCKET_ORDER matches ALLOWED_BUCKETS",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-470 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_orchestrator.py::TestOrchestratorBucketAllowlist -q",
+          "exitCode": 0,
+          "outputSummary": "3 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 5,
+      "failingTestEvidence": "N/A — CLI + docs",
+      "passingTestEvidence": "build_parser requires --shop-id; MODULE.md operator command snippet added",
+      "commands": [
+        {
+          "command": "cd .worktrees/issue-470 && PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_backfill_orchestrator.py -q",
+          "exitCode": 0,
+          "outputSummary": "9 passed in 1.46s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added budgeted multi-bucket analytics backfill orchestrator (revenue→live→product→catalog) with injectable run_partition callback, skip-complete via AnalyticsBackfillPartitionsRepo, clean budget pause (stopped_reason=budget), bucket allowlist excluding Ads/A-26/A-27/A-33, CLI arg validation, and MODULE.md operator command. Multi-day A-36/A-29 batching deferred to existing one-day partition primitives.",
+  "acceptanceCriteria": {
+    "two_run_resume_mocked_partner": "pass — TestOrchestratorBudgetResume",
+    "shop_id_required_and_isolation": "pass — CLI parser + TestOrchestratorShopIsolation",
+    "allowlist_excludes_ads_forbidden_paths": "pass — TestOrchestratorBucketAllowlist",
+    "operator_command_documented": "pass — MODULE.md snippet",
+    "no_live_partner_in_ci": "pass — test_no_live_partner_http_in_unit_tests"
+  },
+  "assumptions": [
+    "Production partition wiring remains programmatic via injected run_partition callback until TikTok resource factory is attached to CLI.",
+    "Multi-day Partner batching (A-36/A-29) deferred — orchestrator calls one-day primitives per calendar date."
+  ],
+  "risks": [
+    "CLI validates args only; operators must invoke backfill_analytics_history with session and runners until worker wiring lands."
+  ]
+}
