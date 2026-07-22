@@ -67,7 +67,9 @@ def _create_date(create_time: int | None) -> date | None:
     return datetime.fromtimestamp(create_time, tz=UTC).date()
 
 
-def _trailing_window_end(partition_date: date, *, days: int = TRAILING_NEW_DAYS) -> tuple[date, date]:
+def _trailing_window_end(
+    partition_date: date, *, days: int = TRAILING_NEW_DAYS
+) -> tuple[date, date]:
     window_start = partition_date - timedelta(days=days - 1)
     return window_start, partition_date
 
