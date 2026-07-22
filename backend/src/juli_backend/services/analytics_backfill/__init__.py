@@ -19,6 +19,13 @@ from juli_backend.services.analytics_backfill.live_partition import (
     LivePartitionResult,
     run_live_partition,
 )
+from juli_backend.services.analytics_backfill.orchestrator import (
+    ALLOWED_BUCKETS,
+    DEFAULT_BUCKET_ORDER,
+    OrchestratorResult,
+    backfill_analytics_history,
+    validate_buckets,
+)
 from juli_backend.services.analytics_backfill.product_partition import (
     ProductPartitionResult,
     backfill_product_partition,
@@ -29,6 +36,7 @@ from juli_backend.services.analytics_backfill.revenue_partition import (
 
 __all__ = [
     "ACTIVE_PRODUCT_STATUSES",
+    "ALLOWED_BUCKETS",
     "BACKFILL_WINDOW_START",
     "BudgetExhaustedError",
     "CATALOG_BUCKET",
@@ -36,12 +44,16 @@ __all__ = [
     "CatalogCountStrategy",
     "CatalogCounts",
     "CatalogPartitionResult",
+    "DEFAULT_BUCKET_ORDER",
     "LivePartitionResult",
+    "OrchestratorResult",
     "ProductPartitionResult",
+    "backfill_analytics_history",
     "backfill_product_partition",
     "backfill_revenue_partition",
     "begin_run",
     "compute_catalog_counts",
     "run_catalog_partition",
     "run_live_partition",
+    "validate_buckets",
 ]
