@@ -1,0 +1,16 @@
+{
+  "products": [
+    {
+      "id": "prod-2",
+      "total_performance": {
+        "gmv": {"amount": "500.00", "currency": "VND"},
+        "orders": 2,
+        "sku_orders": 3,
+        "estimated_customers": 1,
+        "ctr": "0.0500",
+        "click_order_rate": "0.0200"
+      }
+    }
+  ],
+  "total_count": 2
+}

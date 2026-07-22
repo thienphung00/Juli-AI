@@ -33,8 +33,14 @@ replacement.
 
 None (pure in-memory counter for one run).
 
+## Product partition (#467)
+
+- ``backfill_product_partition(session, shop_id, partition_date, resource, budget, ...)``
+  — one calendar-day A-34 paginated fetch; upserts ``grain=product`` rows; marks
+  ``product`` bucket complete only when every page succeeds.
+- Product Impressions/Views deferred (no A-33 fan-out).
+
 ## Out of scope
 
-- Partition progress table (#464), schema columns (#463)
-- ETL mappers, orchestrator loop (#466–#470)
+- LIVE/catalog partitions (#468/#469), orchestrator loop (#470)
 - Live Partner HTTP client wiring

@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 467,
+  "executorDomain": "backend",
+  "phaseRunId": "467-20260722T092700",
+  "startedAt": "2026-07-22T09:10:00Z",
+  "completedAt": "2026-07-22T09:25:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 14, "stage": "implementation"},
+    {"toolName": "Grep", "count": 5, "stage": "implementation"},
+    {"toolName": "Glob", "count": 3, "stage": "implementation"},
+    {"toolName": "Write", "count": 4, "stage": "green"},
+    {"toolName": "Shell", "count": 5, "stage": "green"}
+  ],
+  "toolInvocationCount": 31,
+  "contextFilesLoaded": [
+    "docs/adr/029-phase-2.9-analytics-historical-backfill.md",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/services/analytics_backfill/budget.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/repositories/repos.py"
+  ],
+  "skillsLoaded": ["backend"],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/services/analytics_backfill/product_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_product_partition.py",
+    "tests/fixtures/analytics_backfill/product/a34_page1.json",
+    "tests/fixtures/analytics_backfill/product/a34_page2.json",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml",
+    "EXECUTION.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_backfill_product_partition.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: product_partition",
+      "passingTestEvidence": "Multi-page A-34 fixture upserts 2 product rows with GMV/CTR/orders mapped",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_product_partition.py::test_multi_page_a34_upserts_product_rows_with_mapped_metrics -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A — skip/resume test added while green",
+      "passingTestEvidence": "Completed partition skips Partner; zero budget attempts",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_product_partition.py::test_completed_partition_skips_partner_on_resume -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — mid-pagination failure test added while green",
+      "passingTestEvidence": "Page-2 TikTokAPIError leaves partition failed/incomplete; 1 row persisted",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_product_partition.py::test_mid_pagination_failure_leaves_partition_incomplete -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A — no-live-partner guard test added while green",
+      "passingTestEvidence": "FakeProductPerformanceResource stub only; full suite 4 passed",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_product_partition.py -q",
+          "exitCode": 0,
+          "outputSummary": "4 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added backfill_product_partition in product_partition.py: one calendar-day A-34 paginated fetch (start_date_ge/end_date_lt window), budget-governed Partner calls, grain=product upserts via expand_analytics_product_list_item + transform_for_channel, mark_complete only after all pages succeed, mark_failed on mid-pagination TikTokAPIError. Module docstring and MODULE.md defer Impressions/Views (no A-33). Four fixture-based unit tests; no live Partner HTTP.",
+  "assumptions": [
+    "A-34 list payload uses total_performance window totals per product (not daily intervals)",
+    "Budget exhaustion returns early without mark_complete; orchestrator resumes on next run",
+    "Wave-2 slice-routing entries for #466–#469 are additive harness metadata"
+  ],
+  "risks": [
+    "BudgetExhaustedError path does not call mark_failed — partition stays pending (safe retry)",
+    "Slice-routing wave-2 blocks include sibling issue keys beyond #467 core code"
+  ]
+}
