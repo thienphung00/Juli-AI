@@ -33,3 +33,4 @@
 | [026](026-phase-2.6-analytics-optional-exit-gate.md) | Analytics becomes a non-blocking Phase 2.6 exit-gate item (mirrors Settings/#405) | Accepted |
 | [027](027-database-migration-safety-pipeline.md) | Database migration safety pipeline — local dev gate, DB-identity guard, restore drills | Accepted |
 | [028](028-vietnamese-copy-dictionary-and-design-context.md) | Vietnamese copy dictionary + design-context split (no EN↔VI overlap) | Accepted |
+| [029](029-phase-2.9-analytics-historical-backfill.md) | Phase 2.9 analytics historical backfill — shared schema, call budget, GMV buckets | Accepted |

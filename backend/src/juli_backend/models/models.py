@@ -439,6 +439,10 @@ class AnalyticsPerformanceInterval(Base):
     visitors: Mapped[int | None] = mapped_column()
     impressions: Mapped[int | None] = mapped_column()
     conversion_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    live_hours: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    live_sessions: Mapped[int | None] = mapped_column()
+    active_products: Mapped[int | None] = mapped_column()
+    new_products: Mapped[int | None] = mapped_column()
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 463,
+  "executorDomain": "data-platform",
+  "phaseRunId": "463-20260722T074950",
+  "startedAt": "2026-07-22T07:50:01Z",
+  "completedAt": "2026-07-22T07:50:01Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-463.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-462.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-463.md",
+    ".cursor/skills/domain/data-platform/SKILL.md",
+    "backend/src/juli_backend/database/migrations/versions/017_analytics_perf_intervals.py",
+    "backend/src/juli_backend/database/migrations/versions/015_tool_execution_fields.py",
+    "backend/src/juli_backend/models/models.py",
+    "tests/integration/test_migrations.py"
+  ],
+  "skillsLoaded": [
+    "data-platform"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/performance.mdc",
+    ".cursor/rules/security.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/database/migrations/versions/018_interval_backfill_cols.py",
+    "backend/src/juli_backend/models/models.py",
+    "tests/integration/test_migrations.py",
+    "tests/unit/test_analytics_interval_backfill_cols_contract.py",
+    "docs/adr/029-phase-2.9-analytics-historical-backfill.md",
+    "docs/product/phases/phase-2.9/PRD.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_interval_backfill_cols_contract.py",
+    "tests/integration/test_migrations.py::test_analytics_interval_backfill_columns_exist_at_head",
+    "tests/integration/test_migrations.py::test_latest_downgrade_drops_only_revision_018_columns"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_migrations.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "behavior": "analytics_performance_intervals exposes nullable backfill columns at head",
+      "red": "test_analytics_interval_backfill_columns_exist_at_head / model contract asserted four columns before migration 018 existed",
+      "green": "018_interval_backfill_cols upgrade adds columns; AnalyticsPerformanceInterval fields appended; unit contract tests pass",
+      "refactor": "Adjusted revision-017 downgrade integration test to target 016 explicitly now that 018 is head; kept DDL-only reversible op.add_column/op.drop_column pattern from 015"
+    }
+  ],
+  "implementationSummary": "Added Alembic revision 018_interval_backfill_cols with four nullable DDL columns (live_hours Numeric(12,4), live_sessions, active_products, new_products) on analytics_performance_intervals; appended matching SQLAlchemy fields on AnalyticsPerformanceInterval; migration integration tests updated for head/downgrade paths; unit contract tests prove model + migration source; one-line shared-contract notes in ADR-029 and phase-2.9 PRD.",
+  "assumptions": [
+    "analytics_performance_intervals remains shared schema per ADR-029; no parallel mart",
+    "GMV persisted as gmv/gmv_currency only; new columns are sparse nullable rollups",
+    "Integration migration tests require reachable Postgres DATABASE_URL (skip locally when absent)"
+  ],
+  "risks": [
+    "Issue #464 must rebase its Alembic down_revision to 018_interval_backfill_cols before merge",
+    "Integration migration round-trip tests skipped without local Postgres; validate phase should run with DATABASE_URL"
+  ]
+}

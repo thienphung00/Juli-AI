@@ -359,3 +359,88 @@ P2-OPS-1:
     - ios/
     - apps/demo/
     - Sibling issue context caches
+
+P2-9-1:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/versions/017_analytics_perf_intervals.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - docs/api/data-models/canonical-entities.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - backend/src/juli_backend/integrations/tiktok/
+    - Sibling issue context caches
+
+P2-9-2:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/database/migrations/versions/009_tiktok_sync_state.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+    - backend/src/juli_backend/database/migrations/versions/017_analytics_perf_intervals.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - backend/src/juli_backend/integrations/tiktok/
+    - Sibling issue context caches
+
+P2-9-3:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - docs/architecture/data-sources.md
+  requiredModules:
+    - backend/src/juli_backend/integrations/tiktok/rate_limiter.py
+    - backend/src/juli_backend/workers/services/polling/MODULE.md
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/workers/services/polling/orchestrate.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
