@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 469,
+  "executorDomain": "backend",
+  "phaseRunId": "469-20260722T093000",
+  "startedAt": "2026-07-22T09:10:00Z",
+  "completedAt": "2026-07-22T09:25:00Z",
+  "executionDurationMs": 900000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 14,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Glob",
+      "count": 3,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 4,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "UpdateCurrentStep",
+      "count": 3,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 37,
+  "contextFilesLoaded": [
+    "docs/adr/029-phase-2.9-analytics-historical-backfill.md",
+    "docs/product/phases/phase-2.9/PRD.md",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/integrations/tiktok/resources/products.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": [
+    "backend"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/observability.mdc",
+    ".cursor/rules/performance.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/catalog_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "tests/unit/test_analytics_backfill_catalog_partition.py",
+    "tests/fixtures/analytics_backfill/catalog/mixed_products.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_backfill_catalog_partition.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: catalog_partition",
+      "passingTestEvidence": "compute_catalog_counts daily strategy returns active=3 new=4 from mixed fixture",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_catalog_partition.py::TestComputeCatalogCounts::test_daily_strategy_counts_active_and_new_from_fixture -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A \u2014 integration tests added while green",
+      "passingTestEvidence": "run_catalog_partition persists columns, respects skip/complete, A-2 search_all only",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_catalog_partition.py -q",
+          "exitCode": 0,
+          "outputSummary": "9 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added catalog_partition.py with CatalogCountStrategy DAILY (trailing-7d New, ACTIVATE Active allowlist) and POINT_IN_TIME fallback (New since 2026-03-16); run_catalog_partition fetches via A-2 search_all, upserts active_products/new_products on analytics_performance_intervals, and uses AnalyticsBackfillPartitionsRepo bucket catalog. Nine unit tests with fixture JSON; MagicMock ProductsResource \u2014 no live Partner HTTP.",
+  "assumptions": [
+    "ProductsResource.search_all paginates A-2 POST /product/202309/products/search",
+    "Orchestrator (#470) wires ProductsResource and optional CallBudgetGovernor",
+    "Coverage report (#471) will surface catalog_point_in_time grain for fallback honesty"
+  ],
+  "risks": [
+    "DAILY Active counts use current A-2 status snapshot \u2014 cannot reconstruct historical listing status",
+    "Budget governor records one attempt per search_all call, not per pagination page"
+  ]
+}
