@@ -23,7 +23,7 @@ from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "017_analytics_perf_intervals"
+LATEST_REVISION = "018_analytics_interval_backfill_cols"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -52,6 +52,12 @@ REVISION_014_TABLE = "action_cards"
 REVISION_015_COLUMNS = ("idempotency_key", "error_category")
 REVISION_016_TABLE = "webhook_raw_events"
 REVISION_017_TABLE = "analytics_performance_intervals"
+REVISION_018_COLUMNS = (
+    "live_hours",
+    "live_sessions",
+    "active_products",
+    "new_products",
+)
 
 
 def _database_url() -> str:
@@ -300,17 +306,27 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
 
 
 @requires_postgres
+def test_analytics_interval_backfill_columns_exist_at_head(postgres_at_head: Engine):
+    """Revision 018 adds nullable live/catalog rollup columns (#463)."""
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
+    for column in REVISION_018_COLUMNS:
+        assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
+
+
+@requires_postgres
 def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine):
-    """Downgrading head removes analytics_performance_intervals; 016 table remains."""
+    """Downgrading past 017 removes analytics_performance_intervals; 016 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
+    for column in REVISION_018_COLUMNS:
+        assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
     for column in REVISION_015_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "016_webhook_raw_events")
 
     assert not _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
@@ -321,6 +337,29 @@ def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
+    for column in REVISION_018_COLUMNS:
+        assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_018_columns(postgres_at_head: Engine):
+    """Downgrading head removes 018 columns; analytics_performance_intervals remains."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
+    for column in REVISION_018_COLUMNS:
+        assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
+
+    command.downgrade(cfg, "-1")
+
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
+    for column in REVISION_018_COLUMNS:
+        assert not _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
+
+    command.upgrade(cfg, "head")
+    for column in REVISION_018_COLUMNS:
+        assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
 
 @requires_postgres
