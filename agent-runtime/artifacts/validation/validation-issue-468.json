@@ -1,0 +1,163 @@
+{
+  "id": "validation-issue-468",
+  "issue": 468,
+  "timestamp": "2026-07-22T09:29:14Z",
+  "validatedBy": "validate skill",
+  "status": "PASS",
+  "passedChecks": 13,
+  "failedChecks": 0,
+  "checks": [
+    {
+      "name": "review_artifact_present",
+      "status": "PASS",
+      "description": "Review artifact present; status PASS",
+      "details": {
+        "status": "PASS",
+        "derivedStatus": "PASS",
+        "warningCount": 0
+      }
+    },
+    {
+      "name": "implementation_artifact_present",
+      "status": "PASS",
+      "description": "Implementation artifact present; domain backend",
+      "details": {
+        "executorDomain": "backend",
+        "phaseRunId": "468-20260722T092700",
+        "executionDurationMs": 1500000,
+        "contextFileCount": 6,
+        "rulesLoadedCount": 4,
+        "mcpsUsedCount": 0,
+        "tokenUsageTotal": 0
+      }
+    },
+    {
+      "name": "acceptance_criteria_mapped",
+      "status": "PASS",
+      "description": "All acceptance criteria mapped to tests",
+      "details": {
+        "total": 5,
+        "mapped": 5,
+        "unmapped": [],
+        "problems": []
+      }
+    },
+    {
+      "name": "module_boundaries",
+      "status": "PASS",
+      "description": "Module boundaries respected",
+      "details": {
+        "violations": [],
+        "cycles": [],
+        "modulesTouched": 0,
+        "warning": null
+      }
+    },
+    {
+      "name": "module_md_sync",
+      "status": "PASS",
+      "description": "MODULE.md in sync for touched modules",
+      "details": {
+        "drift": [],
+        "missingInterfaces": []
+      }
+    },
+    {
+      "name": "handoff_structure",
+      "status": "PASS",
+      "description": "No handoff on branch (skipped)",
+      "details": {
+        "required": false,
+        "missingFields": []
+      }
+    },
+    {
+      "name": "adr_requirement",
+      "status": "PASS",
+      "description": "No architectural change detected",
+      "details": {
+        "architecturalChange": false,
+        "adrPresent": false,
+        "adrs": [],
+        "adrProblems": {}
+      }
+    },
+    {
+      "name": "done_md_completion",
+      "status": "PASS",
+      "description": "done.md required checklist complete",
+      "details": {
+        "unchecked": []
+      }
+    },
+    {
+      "name": "critical_findings_resolved",
+      "status": "PASS",
+      "description": "No blocking CRITICAL findings or mandatory fail triggers",
+      "details": {
+        "status": "PASS",
+        "derivedStatus": "PASS",
+        "criticalCount": 0,
+        "mandatoryFailReasons": [],
+        "effectiveMandatoryFailReasons": [],
+        "overriddenMerge": null,
+        "mergeOverrideActive": false,
+        "problems": []
+      }
+    },
+    {
+      "name": "findings_acknowledged",
+      "status": "PASS",
+      "description": "No gating warnings (signoff not required)",
+      "details": {
+        "warningCount": 0,
+        "required": false
+      }
+    },
+    {
+      "name": "reviewer_signoff_present",
+      "status": "PASS",
+      "description": "Reviewer signoff not required (no gating warnings)",
+      "details": {
+        "required": false
+      }
+    },
+    {
+      "name": "owner_signoff_present",
+      "status": "PASS",
+      "description": "Owner signoff not required (no gating warnings)",
+      "details": {
+        "required": false
+      }
+    },
+    {
+      "name": "ml_gates_enforced",
+      "status": "PASS",
+      "description": "No ML modules touched (skipped)",
+      "details": {
+        "skipped": true,
+        "mlModules": []
+      }
+    }
+  ],
+  "overallSummary": "All validation checks passed.",
+  "readyForMerge": true,
+  "warningGated": false,
+  "mergeBlockedByWarnings": false,
+  "mergeOverrideActive": false,
+  "reviewStatus": "PASS",
+  "reviewWarningCount": 0,
+  "schemaVersion": "1.0.0",
+  "artifactType": "validation",
+  "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-468.json",
+  "validationFailures": 0,
+  "readyForShip": true,
+  "retryCount": 0,
+  "testsExecuted": 0,
+  "testsPassed": 0,
+  "testsFailed": 0,
+  "coveragePercentage": 0,
+  "benchmarkStatus": "not_run",
+  "executionDurationMs": 0,
+  "phaseRunId": "468-20260722T092700"
+}

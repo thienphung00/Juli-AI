@@ -11,6 +11,7 @@ from juli_backend.integrations.tiktok.capabilities import (
 from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
+    ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,
     ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
@@ -21,7 +22,7 @@ from juli_backend.integrations.tiktok.constants import (
     promotion_activity_path,
 )
 
-# Verified wire set — A-25, A-28, A-31–A-34, A-36–A-39 (not A-26/A-27/A-29 / A-30 / A-35).
+# Verified wire set — A-25, A-28, A-29, A-31–A-34, A-36–A-39 (not A-26/A-27 / A-30 / A-35).
 _ALLOWED_GET_CASES = [
     (
         "A-32",
@@ -63,6 +64,10 @@ _ALLOWED_GET_CASES = [
         "A-28",
         ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
     ),
+    (
+        "A-29",
+        ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,
+    ),
 ]
 
 _REJECTED_CASES = [
@@ -72,11 +77,6 @@ _REJECTED_CASES = [
         "LIVE A-26 minute performance",
         "GET",
         "/analytics/202510/shop_lives/abc123/performance_per_minutes",
-    ),
-    (
-        "LIVE A-29 overview",
-        "GET",
-        "/analytics/202509/shop_lives/overview_performance",
     ),
     (
         "doc-sample A-30",

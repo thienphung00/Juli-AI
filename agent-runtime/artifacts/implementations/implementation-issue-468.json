@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 468,
+  "executorDomain": "backend",
+  "phaseRunId": "468-20260722T092700",
+  "startedAt": "2026-07-22T09:00:00Z",
+  "completedAt": "2026-07-22T09:25:00Z",
+  "executionDurationMs": 1500000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 18, "stage": "implementation"},
+    {"toolName": "Grep", "count": 6, "stage": "implementation"},
+    {"toolName": "Glob", "count": 4, "stage": "implementation"},
+    {"toolName": "Write", "count": 8, "stage": "green"},
+    {"toolName": "StrReplace", "count": 5, "stage": "green"},
+    {"toolName": "Shell", "count": 10, "stage": "green"},
+    {"toolName": "UpdateCurrentStep", "count": 5, "stage": "other"}
+  ],
+  "toolInvocationCount": 56,
+  "contextFilesLoaded": [
+    "docs/adr/029-phase-2.9-analytics-historical-backfill.md",
+    "docs/integrations/tiktok_api/contract-collection.md",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": [
+    "backend"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/observability.mdc",
+    ".cursor/rules/performance.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "tests/fixtures/analytics_backfill/live/a28_sessions.json",
+    "tests/fixtures/analytics_backfill/live/a29_overview.json",
+    "tests/unit/test_analytics_backfill_live_partition.py",
+    "tests/unit/test_analytics_production_read_allowlist.py",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml",
+    "EXECUTION.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_backfill_live_partition.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_analytics_production_read_allowlist.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: live_partition",
+      "passingTestEvidence": "A-28+A-29 fixtures populate live_hours=3.0000 and live_sessions=2 on shop rollup",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_live_partition.py::TestLivePartitionRollup::test_a28_a29_populate_live_hours_and_sessions_on_rollup -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A — views/impressions mapping test added while green",
+      "passingTestEvidence": "visitors=300 (sum views), impressions=1500 (sum product_impressions)",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_live_partition.py::TestLivePartitionRollup::test_a28_maps_views_and_impressions_on_rollup -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A — resume skip test added while green",
+      "passingTestEvidence": "Completed partition returns skipped; no A-28/A-29 calls; budget attempts=0",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_live_partition.py::TestLivePartitionResume::test_skips_completed_live_partition -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "N/A — allowlist unit tests added while green",
+      "passingTestEvidence": "backfill_live_allowed_get_paths is A-28+A-29 only; A-26/A-27 paths raise AssertionError",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_live_partition.py::TestLivePartitionAllowlist -q",
+          "exitCode": 0,
+          "outputSummary": "2 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 5,
+      "failingTestEvidence": "N/A — integration allowlist + no-live-partner tests added while green",
+      "passingTestEvidence": "run_live_partition called_paths pass forbidden check; full file 7 passed",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_analytics_backfill_live_partition.py -q",
+          "exitCode": 0,
+          "outputSummary": "7 passed"
+        },
+        {
+          "command": "cd backend && PYTHONPATH=src ruff check src/juli_backend/services/analytics_backfill/live_partition.py ../tests/unit/test_analytics_backfill_live_partition.py",
+          "exitCode": 0,
+          "outputSummary": "All checks passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added live_partition.py E2E for LIVE bucket: skip completed partitions, respect CallBudgetGovernor, fetch A-29 overview + A-28 session list, upsert shop rollup (live_hours, live_sessions, views→visitors, impressions, A-29 GMV/rates) and optional per-session rows via expand_analytics_live_session, mark_complete only after upserts. Additive A-29 allowlist in capabilities/analytics.py. Seven fixture-based unit tests; no live Partner HTTP.",
+  "assumptions": [
+    "Views persist on visitors column per ADR-029 shared schema (no separate views column)",
+    "Orchestrator (#470) wires AnalyticsResource into run_live_partition",
+    "Per-session rows reuse expand_analytics_live_session from poll ETL (#425)"
+  ],
+  "risks": [
+    "Budget pause mid-partition returns paused without mark_complete — orchestrator must resume",
+    "A-29 overview interval match uses start_date equals partition_date only"
+  ]
+}

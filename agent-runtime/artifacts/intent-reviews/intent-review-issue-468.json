@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-468",
+  "issue": 468,
+  "timestamp": "2026-07-22T09:28:44Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "c1c4af7cf6144e4f0444481299b728cc4382f424",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff c1c4af7c..a35e542b (#468). live_partition.py implements LIVE bucket E2E: skip completed (shop_id,live,date), CallBudgetGovernor soft/hard cap, A-29 overview then A-28 session list, shop rollup with live_hours (clipped session durations), live_sessions, views\u2192visitors, product_impressions\u2192impressions, A-29 GMV/orders/rates, optional per-session upserts via expand_analytics_live_session, mark_complete only after upserts. Forbidden A-26/A-27 guarded by allowlist + regex. Additive A-29 in production-read allowlist. mapping.py untouched. Seven fixture unit tests cover all ACs.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md current",
+      "path": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "note": "run_live_partition documented in Public API with skip/budget/complete contract.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "468-20260722T092700"
+}

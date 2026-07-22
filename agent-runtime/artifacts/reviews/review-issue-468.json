@@ -1,0 +1,144 @@
+{
+  "id": "review-issue-468",
+  "issue": 468,
+  "timestamp": "2026-07-22T09:28:44Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #468 P2-9-6 LIVE partition E2E: intent-review spec_fidelity=pass consumed as given. live_partition.py fetches A-29+A-28 for one calendar day, upserts shop rollup and optional per-session rows, skips completed partitions, respects call budget, forbids A-26/A-27 paths. Additive A-29 production-read allowlist. Seven unit tests pass with fixtures; no live Partner calls; mapping.py unchanged.",
+  "criticalFindings": [
+    {
+      "id": "468-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents run_live_partition in Public API with skip/budget/complete contract.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    },
+    {
+      "id": "468-views-visitors-mapping",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+      "description": "A-28 interaction_performance.views summed into visitors column (ADR-029 shared schema has no separate views column on rollup).",
+      "suggestion": "Acceptable per issue derivations table; document if product later adds views column."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+    "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+    "tests/unit/test_analytics_backfill_live_partition.py",
+    "tests/unit/test_analytics_production_read_allowlist.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Fixture pytest: A-28 + A-29 \u2192 live_hours / live_sessions populated on rollup row",
+          "test": "tests/unit/test_analytics_backfill_live_partition.py::test_a28_a29_populate_live_hours_and_sessions_on_rollup"
+        },
+        {
+          "criterion": "Fixture pytest: views and impressions mapped from A-28 fields",
+          "test": "tests/unit/test_analytics_backfill_live_partition.py::test_a28_maps_views_and_impressions_on_rollup"
+        },
+        {
+          "criterion": "Pytest: resume skips completed LIVE partition",
+          "test": "tests/unit/test_analytics_backfill_live_partition.py::test_skips_completed_live_partition"
+        },
+        {
+          "criterion": "Pytest: no calls to A-26/A-27 paths in the backfill code path",
+          "test": "tests/unit/test_analytics_backfill_live_partition.py::test_forbidden_a26_a27_paths_rejected"
+        },
+        {
+          "criterion": "No live Partner in CI",
+          "test": "tests/unit/test_analytics_backfill_live_partition.py::test_no_live_partner_http_in_unit_tests"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "securityFindings": [],
+  "architectureFindings": [
+    {
+      "id": "468-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents run_live_partition in Public API with skip/budget/complete contract.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    }
+  ],
+  "maintainabilityFindings": [
+    {
+      "id": "468-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents run_live_partition in Public API with skip/budget/complete contract.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    },
+    {
+      "id": "468-views-visitors-mapping",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+      "description": "A-28 interaction_performance.views summed into visitors column (ADR-029 shared schema has no separate views column on rollup).",
+      "suggestion": "Acceptable per issue derivations table; document if product later adds views column."
+    }
+  ],
+  "reviewFailures": 0,
+  "reviewDurationMs": 180000,
+  "phaseRunId": "468-20260722T092700",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-468.json",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "findings": [
+    {
+      "id": "468-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "description": "Intent-review convention note: MODULE.md documents run_live_partition in Public API with skip/budget/complete contract.",
+      "suggestion": "No action required \u2014 documentation matches module style."
+    },
+    {
+      "id": "468-views-visitors-mapping",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+      "description": "A-28 interaction_performance.views summed into visitors column (ADR-029 shared schema has no separate views column on rollup).",
+      "suggestion": "Acceptable per issue derivations table; document if product later adds views column."
+    }
+  ],
+  "severity": "low",
+  "suggestedRemediation": [
+    "No action required \u2014 documentation matches module style.",
+    "Acceptable per issue derivations table; document if product later adds views column."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false
+}
