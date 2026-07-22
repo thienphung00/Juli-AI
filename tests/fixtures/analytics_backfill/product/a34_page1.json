@@ -1,0 +1,18 @@
+{
+  "products": [
+    {
+      "id": "prod-1",
+      "total_performance": {
+        "gmv": {"amount": "2430217.00", "currency": "VND"},
+        "orders": 9,
+        "sku_orders": 10,
+        "items_sold": 10,
+        "estimated_customers": 6,
+        "ctr": "0.0759",
+        "click_order_rate": "0.1064"
+      }
+    }
+  ],
+  "next_page_token": "page-2",
+  "total_count": 2
+}
