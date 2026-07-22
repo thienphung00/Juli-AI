@@ -1,0 +1,182 @@
+{
+  "id": "review-issue-464",
+  "issue": 464,
+  "timestamp": "2026-07-22T08:04:17Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #464 P2-9-2 partition progress store: intent-review spec_fidelity=pass consumed as given. AnalyticsBackfillPartitionsRepo exposes mark_complete, mark_failed, list_incomplete, is_complete; migration 019 adds analytics_backfill_partitions with unique (shop_id, bucket, date), RLS, token redaction on last_error. 4/4 unit tests pass (complete excluded, failed retryable, idempotent complete, token redaction). No Partner HTTP. AnalyticsPerformanceInterval columns not modified. No CRITICAL reliability/security/observability/performance gaps.",
+  "criticalFindings": [
+    {
+      "id": "464-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: Backfill model/repo API documented in database MODULE.md.",
+      "suggestion": "No action required \u2014 matches module authority pattern."
+    },
+    {
+      "id": "464-executor-alembic-rebase",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
+      "description": "Executor note: Alembic 019 down_revision=017 creates parallel head with #463 until rebase to 018_analytics_interval_backfill_cols after #463 merges.",
+      "suggestion": "Rebase down_revision on sync-before-merge per parallel-status merge order (#463 \u2192 #464)."
+    },
+    {
+      "id": "464-executor-list-incomplete-semantics",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/repositories/repos.py",
+      "description": "Executor note: list_incomplete returns explicit pending/failed rows only; unattempted dates have no row \u2014 orchestrator must use is_complete() or enumerate dates externally.",
+      "suggestion": "Document in orchestrator slice (#465+) when wiring backfill job."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/database/MODULE.md",
+    "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "tests/unit/test_analytics_backfill_partitions_repo.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Public repo API mark_complete mark_failed list_incomplete is_complete",
+          "test": "tests/unit/test_analytics_backfill_partitions_repo.py::test_failed_partition_remains_incomplete_for_retry"
+        },
+        {
+          "criterion": "completed partition not returned by list_incomplete",
+          "test": "tests/unit/test_analytics_backfill_partitions_repo.py::test_completed_partition_not_in_list_incomplete"
+        },
+        {
+          "criterion": "failed partition remains incomplete for retry",
+          "test": "tests/unit/test_analytics_backfill_partitions_repo.py::test_failed_partition_remains_incomplete_for_retry"
+        },
+        {
+          "criterion": "duplicate mark_complete idempotent stays complete",
+          "test": "tests/unit/test_analytics_backfill_partitions_repo.py::test_duplicate_mark_complete_is_idempotent"
+        },
+        {
+          "criterion": "mark_failed redacts tokens pure persistence no partner http",
+          "test": "tests/unit/test_analytics_backfill_partitions_repo.py::test_mark_failed_redacts_tokens_in_last_error"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 4,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Rebase Alembic 019 down_revision to 018 after #463 merges before merge to main.",
+    "Wire list_incomplete + is_complete semantics in orchestrator when #465+ lands."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-464.json",
+  "reviewBasis": "19fb6189..19b16cc7 on feature/issue-464-backfill-partitions",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-464.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "severity": "low",
+  "phaseRunId": "464-20260722T074800",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "findings": [
+    {
+      "id": "464-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: Backfill model/repo API documented in database MODULE.md.",
+      "suggestion": "No action required \u2014 matches module authority pattern."
+    },
+    {
+      "id": "464-executor-alembic-rebase",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
+      "description": "Executor note: Alembic 019 down_revision=017 creates parallel head with #463 until rebase to 018_analytics_interval_backfill_cols after #463 merges.",
+      "suggestion": "Rebase down_revision on sync-before-merge per parallel-status merge order (#463 \u2192 #464)."
+    },
+    {
+      "id": "464-executor-list-incomplete-semantics",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/repositories/repos.py",
+      "description": "Executor note: list_incomplete returns explicit pending/failed rows only; unattempted dates have no row \u2014 orchestrator must use is_complete() or enumerate dates externally.",
+      "suggestion": "Document in orchestrator slice (#465+) when wiring backfill job."
+    }
+  ],
+  "architectureFindings": [
+    {
+      "id": "464-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: Backfill model/repo API documented in database MODULE.md.",
+      "suggestion": "No action required \u2014 matches module authority pattern."
+    }
+  ],
+  "maintainabilityFindings": [
+    {
+      "id": "464-convention-module-md",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review convention note: Backfill model/repo API documented in database MODULE.md.",
+      "suggestion": "No action required \u2014 matches module authority pattern."
+    },
+    {
+      "id": "464-executor-alembic-rebase",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
+      "description": "Executor note: Alembic 019 down_revision=017 creates parallel head with #463 until rebase to 018_analytics_interval_backfill_cols after #463 merges.",
+      "suggestion": "Rebase down_revision on sync-before-merge per parallel-status merge order (#463 \u2192 #464)."
+    },
+    {
+      "id": "464-executor-list-incomplete-semantics",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/repositories/repos.py",
+      "description": "Executor note: list_incomplete returns explicit pending/failed rows only; unattempted dates have no row \u2014 orchestrator must use is_complete() or enumerate dates externally.",
+      "suggestion": "Document in orchestrator slice (#465+) when wiring backfill job."
+    }
+  ],
+  "suggestedRemediation": [
+    "No action required \u2014 matches module authority pattern.",
+    "Rebase down_revision on sync-before-merge per parallel-status merge order (#463 \u2192 #464).",
+    "Document in orchestrator slice (#465+) when wiring backfill job."
+  ]
+}

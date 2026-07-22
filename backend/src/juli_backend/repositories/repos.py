@@ -1,6 +1,7 @@
 import json
+import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
@@ -19,6 +20,7 @@ from juli_backend.models.models import (
     ActionCard,
     AlertConfig,
     AlertHistory,
+    AnalyticsBackfillPartition,
     AnalyticsPerformanceInterval,
     Campaign,
     Creator,
@@ -1064,3 +1066,138 @@ class WorkflowOutcomeRecordsRepo:
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+
+_BACKFILL_BUCKETS = frozenset({"revenue", "product", "live", "catalog"})
+_BACKFILL_INCOMPLETE_STATUSES = frozenset({"pending", "failed"})
+_TOKEN_REDACT_PATTERNS = (
+    re.compile(r"(?i)(bearer\s+)[^\s]+"),
+    re.compile(r"(?i)(access[_-]?token[=:\s]+)[^\s,;]+"),
+    re.compile(r"(?i)(refresh[_-]?token[=:\s]+)[^\s,;]+"),
+    re.compile(r"(?i)(authorization[=:\s]+)[^\s,;]+"),
+)
+
+
+def _redact_error_message(message: str) -> str:
+    redacted = message
+    for pattern in _TOKEN_REDACT_PATTERNS:
+        redacted = pattern.sub(r"\1[REDACTED]", redacted)
+    return redacted
+
+
+class AnalyticsBackfillPartitionsRepo:
+    """Track resumable analytics backfill progress per (shop_id, bucket, date)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    @staticmethod
+    def _validate_bucket(bucket: str) -> None:
+        if bucket not in _BACKFILL_BUCKETS:
+            msg = (
+                f"Invalid backfill bucket {bucket!r}; "
+                f"expected one of {sorted(_BACKFILL_BUCKETS)}"
+            )
+            raise ValueError(msg)
+
+    async def _get_row(
+        self,
+        shop_id: uuid.UUID,
+        bucket: str,
+        partition_date: date,
+    ) -> AnalyticsBackfillPartition | None:
+        self._validate_bucket(bucket)
+        stmt = select(AnalyticsBackfillPartition).where(
+            AnalyticsBackfillPartition.shop_id == shop_id,
+            AnalyticsBackfillPartition.bucket == bucket,
+            AnalyticsBackfillPartition.partition_date == partition_date,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def mark_complete(
+        self,
+        shop_id: uuid.UUID,
+        bucket: str,
+        partition_date: date,
+    ) -> AnalyticsBackfillPartition:
+        self._validate_bucket(bucket)
+        row = await self._get_row(shop_id, bucket, partition_date)
+        if row is None:
+            row = AnalyticsBackfillPartition(
+                shop_id=shop_id,
+                bucket=bucket,
+                partition_date=partition_date,
+                status="complete",
+                retryable=False,
+            )
+            self._session.add(row)
+        else:
+            row.status = "complete"
+            row.retryable = False
+            row.last_error = None
+        await self._session.flush()
+        return row
+
+    async def mark_failed(
+        self,
+        shop_id: uuid.UUID,
+        bucket: str,
+        partition_date: date,
+        error: str,
+        *,
+        retryable: bool = True,
+    ) -> AnalyticsBackfillPartition:
+        self._validate_bucket(bucket)
+        row = await self._get_row(shop_id, bucket, partition_date)
+        if row is None:
+            row = AnalyticsBackfillPartition(
+                shop_id=shop_id,
+                bucket=bucket,
+                partition_date=partition_date,
+                status="failed",
+                attempt_count=1,
+                last_error=_redact_error_message(error),
+                retryable=retryable,
+            )
+            self._session.add(row)
+        else:
+            row.status = "failed"
+            row.attempt_count += 1
+            row.last_error = _redact_error_message(error)
+            row.retryable = retryable
+        await self._session.flush()
+        return row
+
+    async def is_complete(
+        self,
+        shop_id: uuid.UUID,
+        bucket: str,
+        partition_date: date,
+    ) -> bool:
+        row = await self._get_row(shop_id, bucket, partition_date)
+        return row is not None and row.status == "complete"
+
+    async def list_incomplete(
+        self,
+        shop_id: uuid.UUID,
+        bucket: str,
+        start: date,
+        end: date,
+    ) -> list[AnalyticsBackfillPartition]:
+        self._validate_bucket(bucket)
+        if end < start:
+            return []
+        stmt = (
+            select(AnalyticsBackfillPartition)
+            .where(
+                AnalyticsBackfillPartition.shop_id == shop_id,
+                AnalyticsBackfillPartition.bucket == bucket,
+                AnalyticsBackfillPartition.partition_date >= start,
+                AnalyticsBackfillPartition.partition_date <= end,
+                AnalyticsBackfillPartition.status.in_(_BACKFILL_INCOMPLETE_STATUSES),
+            )
+            .order_by(AnalyticsBackfillPartition.partition_date)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())

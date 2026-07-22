@@ -771,3 +771,43 @@ class GraphEdge(Base):
             unique=True,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Analytics backfill partition progress (P2-9-2 — Issue #464)
+# ---------------------------------------------------------------------------
+
+
+class AnalyticsBackfillPartition(Base):
+    """Durable (shop_id, bucket, date) progress for resumable analytics backfill."""
+
+    __tablename__ = "analytics_backfill_partitions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id"), nullable=False
+    )
+    bucket: Mapped[str] = mapped_column(String(20), nullable=False)
+    partition_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    attempt_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_analytics_backfill_partitions_shop_bucket_date",
+            "shop_id",
+            "bucket",
+            "partition_date",
+        ),
+        UniqueConstraint(
+            "shop_id",
+            "bucket",
+            "partition_date",
+            name="uq_analytics_backfill_partitions_shop_bucket_date",
+        ),
+    )
