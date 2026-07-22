@@ -6,13 +6,18 @@ from workflow_cache_store import DEFAULT_ARTIFACTS_REL
 
 
 def resolve_slice_id(parent_cache: dict, child_cache: dict) -> str | None:
-    parent_slice = parent_cache.get("sliceId")
-    if isinstance(parent_slice, str) and parent_slice.strip():
-        return parent_slice.strip()
+    """Prefer child parentLinkage.sliceId — siblings under one parent may differ.
+
+    Parent.sliceId remains the epic default (or last-written) and must not
+    override a child's unique Focus slice for authority / load-profile gates.
+    """
     linkage = child_cache.get("parentLinkage") or {}
     child_slice = linkage.get("sliceId")
     if isinstance(child_slice, str) and child_slice.strip():
         return child_slice.strip()
+    parent_slice = parent_cache.get("sliceId")
+    if isinstance(parent_slice, str) and parent_slice.strip():
+        return parent_slice.strip()
     return None
 
 
