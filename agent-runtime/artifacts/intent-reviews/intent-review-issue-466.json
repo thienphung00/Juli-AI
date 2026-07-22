@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-466",
+  "issue": 466,
+  "timestamp": "2026-07-22T09:29:03Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "c1c4af7cf6144e4f0444481299b728cc4382f424",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff c1c4af7c..c8af4f97 (#466). backfill_revenue_partition implements one-day revenue bucket E2E: skip when (shop,revenue,date) complete; budget record_attempt/success/failure around A-36 get_shop_performance (single-day window) and A-37 get_shop_performance_per_hour; customers from A-37 overall with hourly-sum fallback (commented); upsert via transform_for_channel to analytics_performance_intervals; mark_complete only after upsert; TikTokAPIError/100005 leaves partition failed. derive_aov helper; GMV persisted not Net Revenue; Section B read-only APIs only. Six pytest cases pass with sanitized fixtures; shared slice-routing/EXECUTION meta in commit for CI only.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md current",
+      "path": "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "note": "Public API backfill_revenue_partition documented with status literals per module authority pattern.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "Issue #466 What to build \u2014 A-37 fallback test",
+      "path": "backend/src/juli_backend/services/analytics_backfill/revenue_partition.py",
+      "note": "_extract_customers_from_per_hour hourly-sum fallback implemented and commented; no dedicated pytest when overall.customers absent (primary overall path covered).",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "466-20260722T092700"
+}

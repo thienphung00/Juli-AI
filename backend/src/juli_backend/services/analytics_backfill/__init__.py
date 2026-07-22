@@ -5,9 +5,13 @@ from juli_backend.services.analytics_backfill.budget import (
     CallBudgetGovernor,
     begin_run,
 )
+from juli_backend.services.analytics_backfill.revenue_partition import (
+    backfill_revenue_partition,
+)
 
 __all__ = [
     "BudgetExhaustedError",
     "CallBudgetGovernor",
+    "backfill_revenue_partition",
     "begin_run",
 ]

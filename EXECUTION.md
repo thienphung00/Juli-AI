@@ -289,9 +289,16 @@ out · additive nullable columns as needed ([ADR-029](docs/adr/029-phase-2.9-ana
 
 ### Slices (wave 1 — foundation)
 
-- [ ] **P2-9-1** Additive nullable columns on `analytics_performance_intervals` (#463)
-- [ ] **P2-9-2** Partition progress store for resumable backfill (#464)
-- [ ] **P2-9-3** Soft call-budget governor (~350–400 / hard stop before 500) (#465)
+- [x] **P2-9-1** Additive nullable columns on `analytics_performance_intervals` (#463)
+- [x] **P2-9-2** Partition progress store for resumable backfill (#464)
+- [x] **P2-9-3** Soft call-budget governor (~350–400 / hard stop before 500) (#465)
+
+### Slices (wave 2 — bucket partition E2E)
+
+- [ ] **P2-9-4** Revenue partition — A-36 + A-37 → GMV/orders/customers (#466)
+- [ ] **P2-9-5** Product funnel partition — A-34 daily list (#467)
+- [ ] **P2-9-6** LIVE partition — A-28 list + A-29 overview (#468)
+- [ ] **P2-9-7** Catalog Active/New via A-2 Search Products (#469)
 
 ### Exit gate
 
