@@ -60,6 +60,15 @@ database session management, and Alembic migrations for the Juli-AI platform.
 - `AlertHistoryRepo` — `.create()`, `.has_recent_for_type()` (cooldown dedup)
 - CRUD-only: `RecommendationsRepo` (add `.create()`)
 
+### Models — Analytics backfill (P2-9-2 / Issue #464)
+- `AnalyticsBackfillPartition` — durable `(shop_id, bucket, date)` backfill progress
+
+### Repositories — Analytics backfill (P2-9-2)
+- `AnalyticsBackfillPartitionsRepo(session).mark_complete(shop_id, bucket, date)` — idempotent complete marker
+- `AnalyticsBackfillPartitionsRepo(session).mark_failed(shop_id, bucket, date, error, retryable=True)` — records retryable failure with redacted `last_error`
+- `AnalyticsBackfillPartitionsRepo(session).list_incomplete(shop_id, bucket, start, end) -> list[AnalyticsBackfillPartition]` — pending/failed partitions in range
+- `AnalyticsBackfillPartitionsRepo(session).is_complete(shop_id, bucket, date) -> bool`
+
 ### Infrastructure
 - `Base` — declarative base for all models
 - `NotFound` — raised when a requested entity does not exist
