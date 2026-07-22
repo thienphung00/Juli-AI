@@ -444,3 +444,129 @@ P2-9-3:
     - web/
     - ios/
     - Sibling issue context caches
+
+P2-9-4:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+    - backend/src/juli_backend/services/analytics_backfill/budget.py
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - backend/src/juli_backend/integrations/tiktok/resources/analytics.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
+
+P2-9-5:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+    - backend/src/juli_backend/services/analytics_backfill/budget.py
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - backend/src/juli_backend/integrations/tiktok/resources/analytics.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
+
+P2-9-6:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+    - backend/src/juli_backend/services/analytics_backfill/budget.py
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - backend/src/juli_backend/integrations/tiktok/resources/analytics.py
+    - backend/src/juli_backend/integrations/tiktok/constants.py
+    - backend/src/juli_backend/integrations/tiktok/capabilities.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
+
+P2-9-7:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - docs/integrations/tiktok_api/contract-collection.md
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+    - backend/src/juli_backend/services/analytics_backfill/budget.py
+    - backend/src/juli_backend/integrations/tiktok/resources/products.py
+    - backend/src/juli_backend/integrations/tiktok/constants.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/models/models.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches

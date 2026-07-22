@@ -17,6 +17,7 @@ replacement.
 - ``CallBudgetGovernor.structured_log_fields()`` — ``attempts``, ``successes``,
   ``failures``, ``rate_limited``, ``stopped_reason`` (`budget` | `complete` | `error`)
 - ``BudgetExhaustedError`` — hard limit would be exceeded
+- ``backfill_revenue_partition(...)`` → ``skipped`` | ``complete`` | ``failed`` — one-day revenue bucket (#466)
 
 ## Caller contract
 

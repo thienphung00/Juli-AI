@@ -1,0 +1,30 @@
+{
+  "latest_available_date": "2026-07-14",
+  "performance": {
+    "intervals": [
+      {
+        "start_date": "2026-07-13",
+        "end_date": "2026-07-14",
+        "sales": {
+          "gmv": {
+            "overall": {"amount": "6408074.00", "currency": "VND"},
+            "breakdowns": [
+              {
+                "type": "LIVE",
+                "gmv": {"amount": "2110729.00", "currency": "VND"}
+              }
+            ]
+          },
+          "orders_count": 26,
+          "sku_orders_count": 29,
+          "items_sold": 32
+        },
+        "traffic": {
+          "avg_visitors": 303,
+          "avg_page_views": 609,
+          "avg_conversation_rate": "0.0759"
+        }
+      }
+    ]
+  }
+}

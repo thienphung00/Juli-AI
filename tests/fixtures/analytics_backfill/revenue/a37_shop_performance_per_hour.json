@@ -1,0 +1,20 @@
+{
+  "performance": {
+    "latest_available_timestamp": 1784192270,
+    "overall": {
+      "visitors": 303,
+      "customers": 23,
+      "gmv": {"amount": "6408074.00", "currency": "VND"},
+      "items_sold": 32
+    },
+    "intervals": [
+      {
+        "index": 12,
+        "visitors": 38,
+        "customers": 4,
+        "gmv": {"amount": "661750.00", "currency": "VND"},
+        "items_sold": 4
+      }
+    ]
+  }
+}
