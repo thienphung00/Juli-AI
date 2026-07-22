@@ -1,0 +1,55 @@
+{
+  "code": 0,
+  "data": {
+    "latest_available_date": "2026-07-15",
+    "live_stream_sessions": [
+      {
+        "id": "live-session-1",
+        "title": "Morning LIVE",
+        "username": "shop_user",
+        "start_time": 1783904400,
+        "end_time": 1783908000,
+        "interaction_performance": {
+          "viewers": 80,
+          "views": 100,
+          "likes": 500,
+          "product_clicks": 20,
+          "product_impressions": 1000,
+          "click_through_rate": "2.00%"
+        },
+        "sales_performance": {
+          "gmv": {"amount": "500000", "currency": "VND"},
+          "sku_orders": 3,
+          "items_sold": 3,
+          "customers": 2,
+          "click_to_order_rate": "5.00%"
+        }
+      },
+      {
+        "id": "live-session-2",
+        "title": "Afternoon LIVE",
+        "username": "shop_user",
+        "start_time": 1783911600,
+        "end_time": 1783918800,
+        "interaction_performance": {
+          "viewers": 150,
+          "views": 200,
+          "likes": 800,
+          "product_clicks": 40,
+          "product_impressions": 500,
+          "click_through_rate": "8.00%"
+        },
+        "sales_performance": {
+          "gmv": {"amount": "1075824", "currency": "VND"},
+          "sku_orders": 4,
+          "items_sold": 4,
+          "customers": 2,
+          "click_to_order_rate": "7.00%"
+        }
+      }
+    ],
+    "total_count": 2
+  },
+  "message": "Success",
+  "request_id": "fixture-a28"
+}

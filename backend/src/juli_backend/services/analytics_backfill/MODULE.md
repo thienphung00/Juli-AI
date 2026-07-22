@@ -18,6 +18,9 @@ replacement.
   ``failures``, ``rate_limited``, ``stopped_reason`` (`budget` | `complete` | `error`)
 - ``BudgetExhaustedError`` — hard limit would be exceeded
 - ``backfill_revenue_partition(...)`` → ``skipped`` | ``complete`` | ``failed`` — one-day revenue bucket (#466)
+- ``run_live_partition(...)`` — LIVE bucket E2E for one calendar day (#468): A-29
+  overview + A-28 session list → shop rollup + optional per-session rows; skips
+  completed partitions; respects call budget; marks complete only after upserts
 
 ## Caller contract
 
@@ -31,10 +34,10 @@ replacement.
 
 ## Dependencies
 
-None (pure in-memory counter for one run).
+None for budget (pure in-memory counter for one run). Partition runners depend on
+TikTok analytics resources, ETL transform, and repos.
 
 ## Out of scope
 
-- Partition progress table (#464), schema columns (#463)
-- ETL mappers, orchestrator loop (#466–#470)
-- Live Partner HTTP client wiring
+- Product/catalog partitions (#467/#469), orchestrator loop (#470)
+- Live Partner HTTP client wiring in CI

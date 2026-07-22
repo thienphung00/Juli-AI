@@ -1,0 +1,22 @@
+{
+  "code": 0,
+  "data": {
+    "latest_available_date": "2026-07-15",
+    "performance": {
+      "intervals": [
+        {
+          "start_date": "2026-07-13",
+          "end_date": "2026-07-14",
+          "gmv": {"amount": "1575824.00", "currency": "VND"},
+          "sku_orders": 7,
+          "items_sold": 7,
+          "customers": 4,
+          "click_through_rate": "0.08",
+          "click_to_order_rate": "0.07"
+        }
+      ]
+    }
+  },
+  "message": "Success",
+  "request_id": "fixture-a29"
+}
