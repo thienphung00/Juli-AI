@@ -1,6 +1,6 @@
 """add live/catalog rollup columns to analytics_performance_intervals (#463)
 
-Revision ID: 018_analytics_interval_backfill_cols
+Revision ID: 018_interval_backfill_cols
 Revises: 017_analytics_perf_intervals
 Create Date: 2026-07-22
 """
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "018_analytics_interval_backfill_cols"
+revision: str = "018_interval_backfill_cols"
 down_revision: str | None = "017_analytics_perf_intervals"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

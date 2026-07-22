@@ -23,8 +23,7 @@ unpublished; Juli calibrates from `100005` and a local ~10 req/min/endpoint buck
   data — no parallel mart.
 - We will: Allow **additive nullable columns** on that table for metrics not yet
   modeled (`live_hours`, `live_sessions`, `active_products`, `new_products`, and
-  similar) via schema-only Alembic migrations — these four names are the shared
-  Phase 2.6 / 2.9 / 3 contract for catalog and LIVE rollups (P2-9-1, #463).
+  similar) via schema-only Alembic migrations.
 - We will: Backfill endpoint set **A-2, A-36, A-34, A-28, A-29, A-37** (Revenue
   core + Product funnel without Impressions/Views + LIVE + shop Customers).
   Active/New from **A-2 Search Products** (not A-3). Persist **GMV (TikTok)** in

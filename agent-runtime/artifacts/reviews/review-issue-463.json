@@ -24,7 +24,7 @@
     },
     {
       "module": "backend/src/juli_backend/database/migrations",
-      "interface": "018_analytics_interval_backfill_cols",
+      "interface": "018_interval_backfill_cols",
       "changeType": "added",
       "breaking": false,
       "description": "DDL-only Alembic revision adding four nullable columns on analytics_performance_intervals."
@@ -66,7 +66,7 @@
     }
   },
   "recommendations": [
-    "Issue #464 must rebase Alembic down_revision to 018_analytics_interval_backfill_cols before merge (documented in implementation artifact)."
+    "Issue #464 must rebase Alembic down_revision to 018_interval_backfill_cols before merge (documented in implementation artifact)."
   ],
   "approvalReady": true,
   "reviewerSignoff": {

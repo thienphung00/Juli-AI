@@ -35,7 +35,7 @@
   ],
   "mcpsUsed": [],
   "filesModified": [
-    "backend/src/juli_backend/database/migrations/versions/018_analytics_interval_backfill_cols.py",
+    "backend/src/juli_backend/database/migrations/versions/018_interval_backfill_cols.py",
     "backend/src/juli_backend/models/models.py",
     "tests/integration/test_migrations.py",
     "tests/unit/test_analytics_interval_backfill_cols_contract.py",
@@ -55,18 +55,18 @@
       "cycle": 1,
       "behavior": "analytics_performance_intervals exposes nullable backfill columns at head",
       "red": "test_analytics_interval_backfill_columns_exist_at_head / model contract asserted four columns before migration 018 existed",
-      "green": "018_analytics_interval_backfill_cols upgrade adds columns; AnalyticsPerformanceInterval fields appended; unit contract tests pass",
+      "green": "018_interval_backfill_cols upgrade adds columns; AnalyticsPerformanceInterval fields appended; unit contract tests pass",
       "refactor": "Adjusted revision-017 downgrade integration test to target 016 explicitly now that 018 is head; kept DDL-only reversible op.add_column/op.drop_column pattern from 015"
     }
   ],
-  "implementationSummary": "Added Alembic revision 018_analytics_interval_backfill_cols with four nullable DDL columns (live_hours Numeric(12,4), live_sessions, active_products, new_products) on analytics_performance_intervals; appended matching SQLAlchemy fields on AnalyticsPerformanceInterval; migration integration tests updated for head/downgrade paths; unit contract tests prove model + migration source; one-line shared-contract notes in ADR-029 and phase-2.9 PRD.",
+  "implementationSummary": "Added Alembic revision 018_interval_backfill_cols with four nullable DDL columns (live_hours Numeric(12,4), live_sessions, active_products, new_products) on analytics_performance_intervals; appended matching SQLAlchemy fields on AnalyticsPerformanceInterval; migration integration tests updated for head/downgrade paths; unit contract tests prove model + migration source; one-line shared-contract notes in ADR-029 and phase-2.9 PRD.",
   "assumptions": [
     "analytics_performance_intervals remains shared schema per ADR-029; no parallel mart",
     "GMV persisted as gmv/gmv_currency only; new columns are sparse nullable rollups",
     "Integration migration tests require reachable Postgres DATABASE_URL (skip locally when absent)"
   ],
   "risks": [
-    "Issue #464 must rebase its Alembic down_revision to 018_analytics_interval_backfill_cols before merge",
+    "Issue #464 must rebase its Alembic down_revision to 018_interval_backfill_cols before merge",
     "Integration migration round-trip tests skipped without local Postgres; validate phase should run with DATABASE_URL"
   ]
 }

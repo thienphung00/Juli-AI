@@ -108,9 +108,7 @@ fit in this phase (owner specifies pricing dataset steps later).
    `analytics_performance_intervals` (and related rows); sparse columns OK; upsert by
    snapshot key.
 5. **Schema migration (DDL-only)** — additive nullable columns for live hours, live
-   sessions, active products, new products as needed ([ADR-029](../../../adr/029-phase-2.9-analytics-historical-backfill.md));
-   `live_hours`, `live_sessions`, `active_products`, and `new_products` on
-   `analytics_performance_intervals` are the shared Phase 2.6 / 2.9 / 3 contract.
+   sessions, active products, new products as needed ([ADR-029](../../../adr/029-phase-2.9-analytics-historical-backfill.md)).
 6. **Coverage reporter** — computes day coverage vs exit thresholds for the PRD gate.
 
 ### Endpoint → bucket map

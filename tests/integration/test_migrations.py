@@ -23,7 +23,7 @@ from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "018_analytics_interval_backfill_cols"
+LATEST_REVISION = "018_interval_backfill_cols"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",

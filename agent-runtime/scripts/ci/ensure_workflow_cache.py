@@ -115,9 +115,16 @@ def resolve_linkage(
         )
 
     epic = epic_registry_entry(config, resolved_parent)
+    child_slices = epic.get("childSlices") or {}
+    registry_child_slice = (
+        child_slices.get(issue_id)
+        or child_slices.get(str(issue_id))
+        or child_slices.get(f'"{issue_id}"')
+    )
     resolved_slice = (
         slice_id
         or parse_slice_id(issue_body)
+        or registry_child_slice
         or epic.get("sliceId")
         or epic.get("defaultSliceId")
     )
@@ -256,7 +263,11 @@ def ensure_parent_cache(
         or "HEAD"
     )
     parent_cache["bootstrapRef"] = bootstrap_ref_from_git(bootstrap_branch, repo_root)
-    parent_cache["sliceId"] = linkage["sliceId"]
+    # Keep epic defaultSliceId on parent; per-child slices live in child parentLinkage.
+    # Only set parent.sliceId when creating or when still empty — do not clobber with
+    # a sibling child's unique slice (breaks multi-slice epics like Phase 2.9).
+    if created or force or not parent_cache.get("sliceId"):
+        parent_cache["sliceId"] = linkage["sliceId"]
     parent_cache["handoffPath"] = linkage["handoffPath"]
     if linkage.get("parentScopeBlock") and (
         created or force or not parent_cache.get("parentScopeBlock")

@@ -334,3 +334,21 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_api/
         - Sibling issue context caches
+    462:
+      defaultSliceId: P2-9-1
+      handoffPath: docs/product/phases/phase-2.9/PRD.md
+      # Per-child Focus slices — CI meta_prepare has no --slice-id; issue bodies may omit Slice.
+      childSlices:
+        "463": P2-9-1
+        "464": P2-9-2
+        "465": P2-9-3
+      parentScopeBlock: "# Parent #462 — Phase 2.9 Analytics historical backfill (constant)\\n## Product boundary\\n- Idempotent resumable Partner Analytics → shared analytics_performance_intervals (Fujiwa first)\\n- Soft-cap ~350–400 Partner calls/run; hard stop before 500; partition by (shop_id, bucket, date)\\n- Persist GMV (TikTok) never Net Revenue; Ads out; no Demo/Dashboard UI\\n## Schema law\\n- Shared schema only (ADR-029); additive nullable columns OK; no parallel mart\\n## Slices (wave 1)\\n- P2-9-1 schema columns · P2-9-2 partition progress · P2-9-3 call-budget governor\\n## Epic deferrals\\n- Bucket ETL mappers (#466–#469), orchestrator (#470), coverage (#471), HITL (#472)\\n- Pricing-model export/fit; Product Impressions/Views; A-33 fan-out\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - apps/demo/
+        - apps/landing/
+        - web/
+        - ios/
+        - docs/product/design/
+        - Sibling issue context caches
