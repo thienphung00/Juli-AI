@@ -18,7 +18,7 @@
 
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
-| #471 | Coverage reporter + exit thresholds | `analytics_backfill/coverage.py` (+ optional CLI subcommand) + unit test/fixtures + MODULE.md | **Review** | `feature/issue-471-analytics-coverage` | `.worktrees/issue-471` | Meta holds |
+| #471 | Coverage reporter + exit thresholds | `analytics_backfill/coverage.py` (+ optional CLI subcommand) + unit test/fixtures + MODULE.md | **PR open** | `feature/issue-471-analytics-coverage` | `.worktrees/issue-471` | Review holds |
 
 Base SHA: `985ca86b` (`origin/main` — includes #463–#470 merges).
 
@@ -45,7 +45,8 @@ Slice: P2-9-9 in `slice-routing.yml` + `epicRegistry.462.childSlices`.
 
 | Field | Value |
 |-------|-------|
-| **Owner** | Meta holds ops lock until Review takes ship |
+| **Owner** | Review holds ops lock (#471) |
+| **PR** | https://github.com/thienphung00/Juli-AI/pull/482 |
 | **Merge** | Individual PR; **sync-before-merge** onto current `origin/main` |
 | **AFK** | Yes — synthetic DB/partitions pytest, no live Partner |
 
@@ -54,6 +55,7 @@ Slice: P2-9-9 in `slice-routing.yml` + `epicRegistry.462.childSlices`.
 | Time (UTC) | Agent | Command | Issue |
 |------------|-------|---------|-------|
 | 2026-07-22T11:17Z | Meta | `git worktree add` + `meta_prepare_executor.py --slice-id P2-9-9 --force` → ready | #471 |
+| 2026-07-22T11:30Z | Review | `git push -u origin feature/issue-471-analytics-coverage` + `gh pr create` → https://github.com/thienphung00/Juli-AI/pull/482 | #471 |
 
 ## References
 
