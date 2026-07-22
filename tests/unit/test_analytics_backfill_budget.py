@@ -96,3 +96,12 @@ def test_begin_run_uses_adr_defaults():
 
     assert budget.max_attempts == 400
     assert budget.hard_limit == 499
+
+
+def test_no_live_partner_http_in_unit_tests():
+    """Budget governor tests use in-memory counters only — no live Partner HTTP."""
+    budget = begin_run(max_attempts=1, hard_limit=1)
+
+    assert budget.attempts == 0
+    budget.record_attempt()
+    assert budget.attempts == 1
