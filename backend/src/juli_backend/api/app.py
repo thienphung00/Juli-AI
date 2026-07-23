@@ -4,6 +4,9 @@ from fastapi import APIRouter, FastAPI
 
 from juli_backend.api.routes.action_cards import router as action_cards_router
 from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
+from juli_backend.api.routes.auth_tiktok_business_advertiser import (
+    router as auth_tiktok_business_advertiser_router,
+)
 from juli_backend.api.routes.creators import router as creators_router
 from juli_backend.api.routes.debug_tiktok import router as debug_tiktok_router
 from juli_backend.api.routes.executions import router as executions_router
@@ -28,6 +31,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
 
     v1_router = APIRouter(prefix="/v1")
     v1_router.include_router(auth_tiktok_router)
+    v1_router.include_router(auth_tiktok_business_advertiser_router)
     v1_router.include_router(shops_router)
     v1_router.include_router(orders_router)
     v1_router.include_router(products_router)
