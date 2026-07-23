@@ -43,7 +43,7 @@
     },
     "executorDomain": {
       "type": "string",
-      "enum": ["ui-ux", "backend", "data-platform", "machine-learning"]
+      "enum": ["ui-ux", "backend", "data-platform", "machine-learning", "integrations"]
     },
     "phaseRunId": {
       "type": "string",

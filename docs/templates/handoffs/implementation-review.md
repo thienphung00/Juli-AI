@@ -7,7 +7,7 @@
 - `{feature|fix}/issue-{N}-{slug}`
 
 ## Executor domain
-- {ui-ux | backend | data-platform | machine-learning}
+- {ui-ux | backend | data-platform | machine-learning | integrations}
 
 ## Implementation artifact (required)
 - Path: `artifacts/implementations/implementation-issue-{N}.json`

@@ -6,13 +6,31 @@ description: >-
   Sentry, Figma, shadcn, library docs, browser/Playwright, Celery, Upstash) or when
   focus/agent phases need to name the right plugin skill to load.
 catalog:
-  updated: "2026-06-09"
+  updated: "2026-07-23"
   projectStack:
     - python-fastapi
     - nextjs-web
     - swiftui-ios
     - supabase-postgres
     - tiktok-shop-api
+  # Context7 is CLI + Skills (ctx7) — NOT an MCP server in this workspace.
+  # Focus/Meta selects it for technical & domain implementation only (never always-on).
+  cliDocs:
+    - id: context7
+      cli: "npx ctx7@latest"
+      rule: .cursor/rules/context7-cli.mdc
+      when:
+        - implementing against a library/framework/SDK API
+        - domain executor recipes needing current framework docs
+        - version-specific migration notes during implementation
+        - api-docs extracting official SDK/OpenAPI-backed references
+      notWhen:
+        - ad-hoc chat without implementation
+        - review-only / refactor-only / product-policy prose
+        - repo MODULE.md / ADR / docs/integrations already sufficient
+      commands:
+        - "npx ctx7@latest library <name> \"<question>\""
+        - "npx ctx7@latest docs <libraryId> \"<question>\""
   mcpServers:
     - id: supabase
       folder: plugin-supabase-supabase
@@ -26,15 +44,6 @@ catalog:
           invoke: /supabase
         - name: supabase-postgres-best-practices
           invoke: /supabase-postgres-best-practices
-    - id: context7
-      folder: plugin-context7-plugin-context7
-      serverName: context7
-      when:
-        - library framework api reference
-        - migration guide version-specific docs
-      skills:
-        - name: context7-mcp
-          invoke: /context7-mcp
     - id: sentry
       folder: plugin-sentry-sentry
       serverName: plugin-sentry-sentry
@@ -212,19 +221,20 @@ Machine-readable index for **focus** and agent-phase routing. Plugin skills ship
 | Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux` executor, `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
 | TikTok API / webhooks | — | `docs/integrations/tiktok_api/`, MODULE.md (no plugin) |
-| New vendor API onboarding | `context7` | `api-docs` → `context7-mcp` |
-| Seller/creator feature guide, policy, account health | — | `platform-docs` (WebFetch TikTok Shop University + `context7-mcp`) |
-| Library “how do I …” | `context7` | `context7-mcp` |
+| New vendor API onboarding | — | `api-docs` (+ Focus-selected **Context7 CLI** for SDK/library refs) |
+| Seller/creator feature guide, policy, account health | — | `platform-docs` (WebFetch University/policy; Context7 CLI only if partner SDK docs) |
+| Library/framework docs during **implementation** | — | Focus selects **Context7 CLI** (`npx ctx7@latest`); not MCP |
 | Production error / Sentry | `plugin-sentry-sentry` | `sentry-workflow` → platform SDK skill |
 | Figma read/write | `figma` | `figma-use` (required before MCP) |
 | E2E / browser verify | `playwright` or `cursor-ide-browser` | — (MCP + `.cursor/rules/mcp-usage.mdc`) |
 
 ## Maintaining this catalog
 
-When the team adds or removes a Cursor marketplace plugin:
+When the team adds or removes a Cursor marketplace plugin **or** a CLI docs tool:
 
-1. Update `catalog.mcpServers` in this file (frontmatter).
-2. Align `.cursor/rules/mcp-usage.mdc` principles if routing behavior changes.
+1. Update `catalog.mcpServers` and/or `catalog.cliDocs` in this file (frontmatter).
+2. Align `.cursor/rules/mcp-usage.mdc` and/or `.cursor/rules/context7-cli.mdc` if
+   routing behavior changes.
 3. Add a row to `focus/routing-rules.md` if new detection patterns are needed.
 
-Plugin skills are **not** copied into this repo; they remain in the plugin install path. This catalog only documents names and routing so agents can invoke `/skill-name` when relevant.
+Plugin skills are **not** copied into this repo; they remain in the plugin install path. This catalog only documents names and routing so agents can invoke `/skill-name` when relevant. Context7 is **CLI-only** in this workspace — do not add it under `mcpServers`.

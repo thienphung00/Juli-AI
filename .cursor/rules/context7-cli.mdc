@@ -1,0 +1,29 @@
+---
+description: >-
+  Context7 CLI (ctx7) for library/framework docs during technical and domain
+  implementation. Focus/Meta selects — never always-on. Not an MCP.
+alwaysApply: false
+---
+
+# Context7 CLI (Focus-selected only)
+
+**Do not use unless Focus/Meta selected Context7** for this turn (Context Plan or
+explicit domain-implementation need). Prefer repo docs (`MODULE.md`, ADRs,
+`docs/integrations/`) when they already answer the question.
+
+**Use for:** library/framework/SDK API syntax, version-specific migration notes,
+and framework recipes while implementing domain executor work (`backend`,
+`integrations`, `data-platform`, `ui-ux`, `machine-learning`).
+
+**Do not use for:** ad-hoc chat, refactor-only, code review, product/policy prose,
+general programming concepts, or when repo docs already suffice.
+
+## Commands
+
+1. `npx ctx7@latest library <name> "<question>"` — resolve `/org/project` id
+2. `npx ctx7@latest docs <libraryId> "<question>"` — one concept per query; ≤3 cmds
+
+Auth: `npx ctx7@latest login` or `CONTEXT7_API_KEY`. On quota failure, tell the user
+— do not silently fall back to training data when docs were required.
+
+Catalog entry: [skill-catalog](../skills/skill-catalog/SKILL.md) `catalog.cliDocs`.

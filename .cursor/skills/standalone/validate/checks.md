@@ -41,7 +41,7 @@ listed below, in this order.
   `executionDurationMs`, `toolInvocationCount`, `tokenUsage`,
   `contextFilesLoaded`, `skillsLoaded`.
 - `issueId` matches the issue under validation.
-- `executorDomain` is one of `ui-ux`, `backend`, `data-platform`, `machine-learning`.
+- `executorDomain` is one of `ui-ux`, `backend`, `data-platform`, `machine-learning`, `integrations`.
 
 **Fails if:** artifact missing — blocks Meta Agent baseline metrics and harness optimization.
 

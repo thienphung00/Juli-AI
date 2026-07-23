@@ -62,7 +62,7 @@ retained skills into standalone and domain categories.
 - `.cursor/skills/standalone/discover/` (removed)
 - `.cursor/skills/standalone/tdd/` (removed)
 - `.cursor/skills/workflow/*` (removed)
-- `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning}/`
+- `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning,integrations}/`
 - `review`, `validate`, `ship`, `focus`, `to-prd`, `to-issues`
 
 **Risks**
