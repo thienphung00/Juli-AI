@@ -70,9 +70,14 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
       `article[data-workflow-key="${PRIORITY_WORKFLOW.workflowKey}"]`,
     );
     await priorityCard.scrollIntoViewIfNeeded();
-    await priorityCard
-      .getByRole("button", { name: "Phê duyệt" })
-      .click({ force: true });
+    await Promise.all([
+      page.waitForURL(
+        new RegExp(
+          `/decisions/recommendations/${PRIORITY_WORKFLOW.workflowKey}$`,
+        ),
+      ),
+      priorityCard.getByRole("button", { name: "Phê duyệt" }).click(),
+    ]);
     await advanceReviewToApproveStage(page);
   });
 

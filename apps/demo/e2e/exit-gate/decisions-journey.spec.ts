@@ -104,12 +104,18 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
         `article[data-workflow-key="${fixture.workflowKey}"]`,
       );
       await expect(card).toBeVisible();
-      await card.getByRole("button", { name: "Phê duyệt" }).click();
-      await expect(page).toHaveURL(
-        new RegExp(`/decisions/recommendations/${fixture.workflowKey}$`),
-      );
+      await card.scrollIntoViewIfNeeded();
+      await Promise.all([
+        page.waitForURL(
+          new RegExp(`/decisions/recommendations/${fixture.workflowKey}$`),
+        ),
+        card.getByRole("button", { name: "Phê duyệt" }).click(),
+      ]);
       await advanceReviewToApproveStage(page);
-      await page.getByRole("button", { name: "Phê duyệt" }).last().click();
+      await page
+        .locator(".demo-review__actions")
+        .getByRole("button", { name: "Phê duyệt" })
+        .click();
       await expect(page).toHaveURL(/\/decisions\/in-progress\//);
       await expect(
         page.getByRole("heading", { name: fixture.title, level: 1 }),
