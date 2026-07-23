@@ -20,6 +20,12 @@ API plus OAuth lifecycle management.
 - `TikTokBusinessAdvertiserAuth.exchange_code(auth_code) -> dict` — auth code →
   access + refresh tokens plus authorized `advertiser_ids`
 
+### Business account-holder OAuth (`business_account_holder_auth.py`)
+- `TikTokBusinessAccountHolderAuth(app_id, app_secret, base_url)` — Marketing
+  API account-holder token exchange (`business-api.tiktok.com`)
+- `TikTokBusinessAccountHolderAuth.exchange_auth_code(auth_code) -> dict` —
+  Business OAuth redirect `auth_code` → access + refresh tokens
+
 ### HTTP Client (`client.py`)
 - `TikTokClient(app_key, app_secret, access_token, base_url, shop_cipher,
   timeout)` — low-level signed HTTP client
