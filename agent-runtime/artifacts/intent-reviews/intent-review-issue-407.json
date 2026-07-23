@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-407",
+  "issue": 407,
+  "timestamp": "2026-07-23T08:50:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "fc571251",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #407 Phase 2.6 exit gate: Playwright suite covers Home→Decisions journey, Manual Refresh, desktop/mobile-web IA parity, axe/a11y, Vietnamese locale, assistance regression, demo-e2e CI job, and contract pytest. ADR-026 honored — no hard dependency on Analytics #404 or Settings #405. Minimal app hooks: ?load=error, sr-only unavailable chart labels, useParams on in-progress detail.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "407-20260723T084000"
+}

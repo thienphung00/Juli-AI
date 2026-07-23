@@ -1,0 +1,387 @@
+{
+  "issueId": 407,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": null,
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 407,
+        "parentIssueId": 395,
+        "sliceId": "P2-6",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #395",
+            "fingerprint": "3255ac51d5ec506f"
+          },
+          {
+            "path": "docs/product/phases/phase-2.6/PRD.md",
+            "fingerprint": "61547801de732d4ddb0b6bb735e8a8a21d2c91ee"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "b727ac3c6bc42d0daea38ef44683af8d6eb070a9"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #407",
+            "fingerprint": "fbbb877dbd9f4272"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-407.md",
+            "fingerprint": "29953804724152b3cc89277342b37c1483aa5ec4"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 407,
+        "parentIssueId": 395,
+        "sliceId": "P2-6",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2-6",
+            "sliceId": "P2-6"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-395",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #407",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.6/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2-6"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-395",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #407",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.6/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to fc571251fd0d on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "fc571251fd0d7701bd9510f023ed94c9accfc21e",
+          "copiedAt": "2026-07-23T07:45:46Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/ui-ux/SKILL.md"
+        ],
+        "branchHeadSha": "fc571251fd0d7701bd9510f023ed94c9accfc21e",
+        "pinnedCommitSha": "fc571251fd0d7701bd9510f023ed94c9accfc21e",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "fc571251fd0d7701bd9510f023ed94c9accfc21e"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 407,
+        "parentIssueId": 395,
+        "sliceId": "P2-6",
+        "derivedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.6/PRD.md",
+            "docs/architecture/map.md",
+            "docs/adr/023-four-destination-analytics-ownership.md",
+            "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+            "docs/product/design/soul.md",
+            "docs/product/design/ux_principles.md",
+            "docs/product/design/colors_and_type.css"
+          ],
+          "requiredModules": [
+            "apps/demo/MODULE.md",
+            "packages/theme/MODULE.md",
+            "packages/ui/MODULE.md",
+            "packages/utils/MODULE.md"
+          ],
+          "acceptanceCriteria": [
+            "E2E covers Home \u2192 Decisions, Priority Workflow 1, all remaining visible cards, and approval \u2192 In Progress for all nine workflows",
+            "Manual Refresh is tested from mutated Home/Decisions state and returns to default Decisions Recommendations state",
+            "Playwright desktop (\u226556rem/896px) and mobile-web (<42rem/672px) viewport suites preserve IA, terminology, and approval behavior for the Decisions journey",
+            "Automated accessibility covers keyboard flow, focus-visible, 44\u00d744 targets, dialog/popover focus, chart equivalents, and reduced motion",
+            "Vietnamese copy/diacritics and truthful empty/loading/error/unavailable states are checked",
+            "Production build and deploy-contract tests run in CI",
+            "Public smoke command verifies DNS, valid TLS, 2xx response, and the Decisions route without requiring backend health",
+            "Exit gate does not depend on optional Settings issue #405",
+            "Exit gate does not depend on optional Analytics issue #404 \u2014 if #404 ships, its E2E coverage (including Decisions \u2194 Analytics deep links) is exercised as a conditional addition to this suite, not a blocking requirement"
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/data-sources.md",
+            "docs/architecture/migration-plan.md",
+            "docs/product/design/README.md",
+            "docs/product/design/context.md",
+            "docs/product/design/design.md",
+            "docs/product/design/flows.md",
+            "docs/product/design/Screens/home.md",
+            "docs/product/design/Screens/decisions.md",
+            "docs/product/design/Screens/analytics.md",
+            "docs/product/design/Components/navigation.md",
+            "docs/product/design/Components/cards.md",
+            "docs/product/design/Components/buttons.md",
+            "docs/product/design/Components/badges.md",
+            "docs/product/design/Components/chips.md",
+            "docs/product/design/Components/dialogs.md",
+            "docs/product/design/Components/forms.md",
+            "docs/product/design/Components/tables.md",
+            "docs/product/design/Components/empty-states.md",
+            "docs/product/design/Components/loading-indicators.md",
+            "docs/product/design/Components/toasts.md",
+            "docs/product/design/Components/health-bars.md",
+            "docs/product/design/Components/progress-bars.md",
+            "docs/product/design/Flows/decisions/README.md",
+            "docs/product/execution_layer.md",
+            "apps/dashboard/MODULE.md",
+            "packages/contracts/MODULE.md"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "backend/",
+            "ios/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.6/PRD.md",
+            "docs/architecture/map.md",
+            "docs/adr/023-four-destination-analytics-ownership.md",
+            "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+            "docs/product/design/soul.md",
+            "docs/product/design/ux_principles.md",
+            "docs/product/design/colors_and_type.css"
+          ],
+          "requiredModules": [
+            "apps/demo/MODULE.md",
+            "packages/theme/MODULE.md",
+            "packages/ui/MODULE.md",
+            "packages/utils/MODULE.md"
+          ],
+          "acceptanceCriteria": [
+            "E2E covers Home \u2192 Decisions, Priority Workflow 1, all remaining visible cards, and approval \u2192 In Progress for all nine workflows",
+            "Manual Refresh is tested from mutated Home/Decisions state and returns to default Decisions Recommendations state",
+            "Playwright desktop (\u226556rem/896px) and mobile-web (<42rem/672px) viewport suites preserve IA, terminology, and approval behavior for the Decisions journey",
+            "Automated accessibility covers keyboard flow, focus-visible, 44\u00d744 targets, dialog/popover focus, chart equivalents, and reduced motion",
+            "Vietnamese copy/diacritics and truthful empty/loading/error/unavailable states are checked",
+            "Production build and deploy-contract tests run in CI",
+            "Public smoke command verifies DNS, valid TLS, 2xx response, and the Decisions route without requiring backend health",
+            "Exit gate does not depend on optional Settings issue #405",
+            "Exit gate does not depend on optional Analytics issue #404 \u2014 if #404 ships, its E2E coverage (including Decisions \u2194 Analytics deep links) is exercised as a conditional addition to this suite, not a blocking requirement"
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/data-sources.md",
+            "docs/architecture/migration-plan.md",
+            "docs/product/design/README.md",
+            "docs/product/design/context.md",
+            "docs/product/design/design.md",
+            "docs/product/design/flows.md",
+            "docs/product/design/Screens/home.md",
+            "docs/product/design/Screens/decisions.md",
+            "docs/product/design/Screens/analytics.md",
+            "docs/product/design/Components/navigation.md",
+            "docs/product/design/Components/cards.md",
+            "docs/product/design/Components/buttons.md",
+            "docs/product/design/Components/badges.md",
+            "docs/product/design/Components/chips.md",
+            "docs/product/design/Components/dialogs.md",
+            "docs/product/design/Components/forms.md",
+            "docs/product/design/Components/tables.md",
+            "docs/product/design/Components/empty-states.md",
+            "docs/product/design/Components/loading-indicators.md",
+            "docs/product/design/Components/toasts.md",
+            "docs/product/design/Components/health-bars.md",
+            "docs/product/design/Components/progress-bars.md",
+            "docs/product/design/Flows/decisions/README.md",
+            "docs/product/execution_layer.md",
+            "apps/dashboard/MODULE.md",
+            "packages/contracts/MODULE.md"
+          ]
+        },
+        "problems": []
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #395 \u2014 Phase 2.6 Demo frontend (constant)\\\n## Product boundary\\\n- apps/demo mock-only; four destinations; packages/ui + packages/theme\\\n## Design authority\\\n- ADR-023/024 + docs/product/design/ soul + ux_principles\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "backend/",
+      "ios/",
+      "Sibling issue context caches"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/ui-ux/SKILL.md",
+          "purpose": "Primary ui-ux Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "ui-ux",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/phase-2.6/PRD.md",
+        "docs/architecture/map.md",
+        "docs/adr/023-four-destination-analytics-ownership.md",
+        "docs/adr/024-phase-2.6-2.7-frontend-resequencing.md",
+        "docs/product/design/soul.md",
+        "docs/product/design/ux_principles.md",
+        "docs/product/design/colors_and_type.css"
+      ],
+      "requiredModules": [
+        "apps/demo/MODULE.md",
+        "packages/theme/MODULE.md",
+        "packages/ui/MODULE.md",
+        "packages/utils/MODULE.md"
+      ],
+      "acceptanceCriteria": [
+        "E2E covers Home \u2192 Decisions, Priority Workflow 1, all remaining visible cards, and approval \u2192 In Progress for all nine workflows",
+        "Manual Refresh is tested from mutated Home/Decisions state and returns to default Decisions Recommendations state",
+        "Playwright desktop (\u226556rem/896px) and mobile-web (<42rem/672px) viewport suites preserve IA, terminology, and approval behavior for the Decisions journey",
+        "Automated accessibility covers keyboard flow, focus-visible, 44\u00d744 targets, dialog/popover focus, chart equivalents, and reduced motion",
+        "Vietnamese copy/diacritics and truthful empty/loading/error/unavailable states are checked",
+        "Production build and deploy-contract tests run in CI",
+        "Public smoke command verifies DNS, valid TLS, 2xx response, and the Decisions route without requiring backend health",
+        "Exit gate does not depend on optional Settings issue #405",
+        "Exit gate does not depend on optional Analytics issue #404 \u2014 if #404 ships, its E2E coverage (including Decisions \u2194 Analytics deep links) is exercised as a conditional addition to this suite, not a blocking requirement"
+      ],
+      "loadWhenNeeded": [
+        "docs/architecture/data-sources.md",
+        "docs/architecture/migration-plan.md",
+        "docs/product/design/README.md",
+        "docs/product/design/context.md",
+        "docs/product/design/design.md",
+        "docs/product/design/flows.md",
+        "docs/product/design/Screens/home.md",
+        "docs/product/design/Screens/decisions.md",
+        "docs/product/design/Screens/analytics.md",
+        "docs/product/design/Components/navigation.md",
+        "docs/product/design/Components/cards.md",
+        "docs/product/design/Components/buttons.md",
+        "docs/product/design/Components/badges.md",
+        "docs/product/design/Components/chips.md",
+        "docs/product/design/Components/dialogs.md",
+        "docs/product/design/Components/forms.md",
+        "docs/product/design/Components/tables.md",
+        "docs/product/design/Components/empty-states.md",
+        "docs/product/design/Components/loading-indicators.md",
+        "docs/product/design/Components/toasts.md",
+        "docs/product/design/Components/health-bars.md",
+        "docs/product/design/Components/progress-bars.md",
+        "docs/product/design/Flows/decisions/README.md",
+        "docs/product/execution_layer.md",
+        "apps/dashboard/MODULE.md",
+        "packages/contracts/MODULE.md"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #407\n\n- sliceId: P2-6\n- executorDomain: ui-ux (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #407 \u2014 P2-6\n\n## Parent\n#395\n\n## Executor domain\nui-ux\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/phase-2.6/PRD.md\n- docs/architecture/map.md\n- docs/adr/023-four-destination-analytics-ownership.md\n- docs/adr/024-phase-2.6-2.7-frontend-resequencing.md\n- docs/product/design/soul.md\n- docs/product/design/ux_principles.md\n- docs/product/design/colors_and_type.css\n",
+    "executorDomain": "ui-ux",
+    "skillsPrimaryOnly": true
+  },
+  "executorDomain": "ui-ux"
+}
