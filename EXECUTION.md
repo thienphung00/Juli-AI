@@ -54,6 +54,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 **Phase 2.6 — Demo frontend (mock):** [`phase-2.6/PRD.md`](docs/product/phases/phase-2.6/PRD.md)  
 **Phase 2.7 — Landing frontend (mock):** [`phase-2.7/PRD.md`](docs/product/phases/phase-2.7/PRD.md)  
 **Phase 2.9 — Analytics historical backfill:** [`phase-2.9/PRD.md`](docs/product/phases/phase-2.9/PRD.md)  
+**Phase 2.9-B — Fujiwa T1 shop GMV experiment:** [`phase-2.9-b/PRD.md`](docs/product/phases/phase-2.9-b/PRD.md)  
 **Phase 3 forward:** [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
 
 ---
@@ -67,6 +68,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **2.6 — Demo Frontend (mock)** | `apps/demo` build-out, ADR-023 IA, mock data, public Demo deployment | Public (mock Demo; no auth) | Home + Decisions complete for web + mobile-web and publicly reachable over HTTPS at `demo.app-juli.com`; Mock/Sign-in toggle present (Sign-in non-interactive stub); Analytics (#404) and Settings (#405) non-blocking stretch ([ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)) |
 | **2.7 — Landing Frontend (mock)** | `apps/landing` build-out, mock/static content | 0 (internal) | Landing frontend complete for web + mobile-web |
 | **2.9 — Analytics historical backfill** | Idempotent Partner Analytics → shared Supabase schema (Fujiwa; parallel to 2.6/2.7) | 0 (internal) | ≥95% days A-36+A-29 and ≥90% days A-34 for 2026-03-16→`latest_available_date`; resumable partitions; no UI ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)) |
+| **2.9-B — Fujiwa T1 shop GMV experiment** | Offline T1 ETS on Fujiwa A-36 GMV (pathfinder for Phase 4; reads 2.9 data) | 0 (internal) | CLI + local artifacts; holdout MAPE vs naive; no product DB writes; no hop-2 ([ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md)) |
 | **3 — Landing + Demo real data** | Wire real backend, deploy Landing, prove e2e pipeline | Public (Demo Sign-in adds OAuth) | LP deployed; Demo upgraded in place with working backend on real data; e2e pipeline proven for both |
 | **3.5 — Full Web Application** | Auth, connected shops, real backend | Early adopters | Demo replaced by production web app |
 | **4 — ML + LLM + Cross-Platform** | Intelligence, personalization, sync | Growing base | Production ML pipeline; LLM copy; Web ↔ Mobile sync |
@@ -84,6 +86,7 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **2.6** | `apps/demo` (ADR-023 IA, mock data) · `packages/ui` + `packages/theme` + `packages/contracts` · element→composition UI build order · Mock/Sign-in toggle (Sign-in non-interactive stub) · public HTTPS deployment at `demo.app-juli.com` · Analytics + Settings full depth optional ([ADR-026](docs/adr/026-phase-2.6-analytics-optional-exit-gate.md)) |
 | **2.7** | `apps/landing` (mock/static content) · consumes `packages/ui` + `packages/theme` |
 | **2.9** | Historical Analytics backfill (A-2/A-36/A-34/A-28/A-29/A-37) → shared `analytics_performance_intervals` · idempotent partitions · ~400-call runs · Fujiwa first ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)) — **parallel / non-blocking vs 2.6/2.7** |
+| **2.9-B** | Fujiwa T1 shop GMV ETS experiment (read A-36; offline CLI artifacts; Design A holdout; soft MAPE bar) ([ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md)) — **separate parent from 2.9; does not change backfill exit** |
 | **3** | `apps/demo` + `apps/landing` wired to real backend data · Demo Sign-in mode enabled (reference-shop TikTok OAuth) · deploy Landing to `app-juli.com` · upgrade the existing `demo.app-juli.com` deployment · PostHog behavior analytics |
 | **3.5** | `apps/dashboard` ADR-023 rebuild · multi-tenant auth · per-seller TikTok connection · real API integration |
 | **4** | Production ML · cloud LLM copy · cross-platform tracking |
@@ -316,6 +319,31 @@ out · additive nullable columns as needed ([ADR-029](docs/adr/029-phase-2.9-ana
 - [ ] No Demo/Dashboard UI or pricing-model export required for sign-off
 
 Detail: [`phase-2.9/PRD.md`](docs/product/phases/phase-2.9/PRD.md)
+
+---
+
+## Phase 2.9-B — Fujiwa T1 Shop GMV Forecast Experiment (brief)
+
+**Goal:** Offline **T1 ETS** pathfinder on Fujiwa daily shop GMV (A-36 from Phase 2.9
+shared schema) — forecast-quality experiment for Phase 4, not Juli ROI and not hop-2
+driver regression.
+
+Focus: Design A ~70/30 holdout · soft MAPE vs naive/mean · local CLI artifacts only ·
+multi-model `forecasting` package (shop GMV beside inventory depletion) ·
+[ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md).
+
+**Separate parent** from Phase 2.9 backfill — does not change backfill exit gates, ETL,
+or Partner budgets. Depends on usable Fujiwa A-36 history for meaningful metrics.
+
+### Exit gate
+
+- [ ] Offline CLI reads A-36; writes daily/monthly + `metrics.json` under `--output-dir`
+- [ ] T1 ETS (+ short-series fallback); no Prophet; inventory forecasts unchanged
+- [ ] Soft quality bar reported; no product DB / `models/` promotion writes
+- [ ] Hop-1 / hop-2 / Value calculator Inventory-CS out of scope
+
+**Parent issue:** [#486](https://github.com/thienphung00/Juli-AI/issues/486)  
+Detail: [`phase-2.9-b/PRD.md`](docs/product/phases/phase-2.9-b/PRD.md)
 
 ---
 

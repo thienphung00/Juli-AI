@@ -34,4 +34,7 @@
 | [027](027-database-migration-safety-pipeline.md) | Database migration safety pipeline — local dev gate, DB-identity guard, restore drills | Accepted |
 | [028](028-vietnamese-copy-dictionary-and-design-context.md) | Vietnamese copy dictionary + design-context split (no EN↔VI overlap) | Accepted |
 | [029](029-phase-2.9-analytics-historical-backfill.md) | Phase 2.9 analytics historical backfill — shared schema, call budget, GMV buckets | Accepted |
+| [030](030-operator-cli-in-memory-secrets.md) | Operator CLI in-memory Secrets Manager inject (no on-disk env for backfill path) | Accepted |
 | [031](031-integrations-executor-domain.md) | Integrations executor domain (platform-agnostic) + domain skill upgrade shape | Accepted |
+| [032](032-fujiwa-t1-gmv-experiment-scope.md) | Fujiwa T1 GMV experiment — single ETS model; defer Product/LIVE driver regression | Accepted |
+| [033](033-weekly-secrets-security-check.md) | Weekly secrets-first security check (report + prepare; VPS + website leak paths) | Accepted |
