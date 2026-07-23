@@ -4,3 +4,5 @@ d302e6b7dae0f4084ce70f67077621e8e2e7aa25:docs/integrations/tiktok_api/webhook-co
 # False positives: documented issue #399 workflow key resembles a generic API key
 c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/__tests__/decisions-recommendations.test.tsx:generic-api-key:88
 c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/lib/recommendations.ts:generic-api-key:67
+# False positive: documented mock workflow key in Playwright exit-gate fixtures (#407)
+5409b63b:apps/demo/e2e/fixtures/workflow-keys.ts:generic-api-key:14
