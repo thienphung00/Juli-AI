@@ -1,0 +1,109 @@
+{
+  "id": "review-issue-490",
+  "issue": 490,
+  "timestamp": "2026-07-23T14:28:03Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #490 TikTok Business Advertiser OAuth callback: intent-review spec_fidelity=pass consumed as given. Public GET /v1/auth/tiktok/business/callback without JWT; missing params\u2192400; HMAC state\u2192401; Marketing API exchange\u2192502 on AuthenticationError; encrypted persist with capability=business_advertiser; TIKTOK_BUSINESS_* env separate from Shop Partner; logs use code_len only (no secrets). 9/9 new unit tests + 9 shop regression tests pass.",
+  "criticalFindings": [
+    {
+      "id": "490-persist-silent-skip",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/tiktok/advertiser_oauth_store.py",
+      "description": "persist_advertiser_oauth_tokens returns early without error when access_token, refresh_token, or advertiser_id missing after exchange; route may return 200 with advertiser_id_present=false.",
+      "suggestion": "Consider 502 when exchange payload lacks required token fields; acceptable deferral for MVP if TikTok always returns complete payloads."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+    "backend/src/juli_backend/integrations/tiktok/business_advertiser_auth.py",
+    "backend/src/juli_backend/services/tiktok/advertiser_oauth_store.py",
+    "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py",
+    "backend/src/juli_backend/api/app.py",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "tests/unit/test_tiktok_business_advertiser_callback.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Route missing required OAuth code param returns 400 not 5xx",
+          "test": "tests/unit/test_tiktok_business_advertiser_callback.py::test_callback_missing_code_returns_400"
+        },
+        {
+          "criterion": "Invalid forged OAuth state rejected with 401",
+          "test": "tests/unit/test_tiktok_business_advertiser_callback.py::test_callback_rejects_invalid_state"
+        },
+        {
+          "criterion": "Successful token exchange persists encrypted credentials bound to user state",
+          "test": "tests/unit/test_tiktok_business_advertiser_callback.py::test_callback_exchanges_code_and_persists_encrypted_credentials"
+        },
+        {
+          "criterion": "Shop OAuth regression missing params returns 400 unchanged",
+          "test": "tests/unit/test_tiktok_auth_callback.py::test_callback_missing_params_returns_400"
+        },
+        {
+          "criterion": "Public callback route does not require JWT authorization",
+          "test": "tests/unit/test_tiktok_business_advertiser_callback.py::test_callback_does_not_require_jwt"
+        },
+        {
+          "criterion": "Token exchange failure response never leaks access tokens",
+          "test": "tests/unit/test_tiktok_business_advertiser_callback.py::test_callback_token_exchange_failure_returns_502"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 18,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 1,
+    "conventionNotesImported": 0,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "d9ab6d4d..a621100d on feature/issue-490-business-advertiser-oauth",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-490.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-490.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "490-20260723T1426Z",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "findings": [
+    {
+      "id": "490-persist-silent-skip",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/tiktok/advertiser_oauth_store.py",
+      "description": "persist_advertiser_oauth_tokens returns early without error when access_token, refresh_token, or advertiser_id missing after exchange; route may return 200 with advertiser_id_present=false.",
+      "suggestion": "Consider 502 when exchange payload lacks required token fields; acceptable deferral for MVP if TikTok always returns complete payloads."
+    }
+  ],
+  "reviewFailures": 0,
+  "reviewStatus": "PASS",
+  "severity": "low",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "suggestedRemediation": [
+    "Consider 502 when exchange payload lacks required token fields; acceptable deferral for MVP if TikTok always returns complete payloads."
+  ]
+}

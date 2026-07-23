@@ -1,0 +1,16 @@
+{
+  "fixedPoint": "d9ab6d4d",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff a621100d vs d9ab6d4d on feature/issue-490-business-advertiser-oauth. Implements issue #490 / ADR-032 Advertiser callback: public GET /v1/auth/tiktok/business/callback (no JWT), 400 on missing code/state, HMAC state→Juli user binding (401 on forged state), Marketing API token exchange via business-api.tiktok.com, encrypted persist with capability=business_advertiser separate from Shop Partner OAuth. Shop callback path and Partner secrets untouched (only app.py router include). Mirrors Shop OAuth prior art for layering and tests.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py",
+      "hunk": "verify_state HMAC/base64 user_id extraction parallels TikTokOAuthInfrastructureService.verify_state in oauth.py",
+      "judgement": false,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [],
+  "phaseRunId": "490-20260723T1426Z"
+}
