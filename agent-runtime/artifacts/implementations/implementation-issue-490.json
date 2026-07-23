@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 490,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-23T1411Z",
+  "startedAt": "2026-07-23T14:05:00Z",
+  "completedAt": "2026-07-23T14:12:00Z",
+  "executionDurationMs": 420000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": ["Shell", "Read", "Write", "StrReplace", "Grep", "Glob", "WebSearch"],
+  "toolInvocationCount": 28,
+  "contextFilesLoaded": [
+    "docs/adr/034-tiktok-business-oauth-redirect-urls.md",
+    "backend/src/juli_backend/api/routes/auth_tiktok.py",
+    "backend/src/juli_backend/integrations/tiktok/auth.py",
+    "backend/src/juli_backend/services/tiktok/app_review_store.py",
+    "backend/src/juli_backend/services/tiktok/oauth.py",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "tests/unit/test_tiktok_auth_callback.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": ["backend-executor", "focus"],
+  "rulesLoaded": ["core-safety", "core-orchestration", "git-baseline"],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+    "backend/src/juli_backend/integrations/tiktok/business_advertiser_auth.py",
+    "backend/src/juli_backend/services/tiktok/advertiser_oauth_store.py",
+    "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py",
+    "backend/src/juli_backend/api/app.py",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "tests/unit/test_tiktok_business_advertiser_callback.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_business_advertiser_callback.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "behavior": "missing code returns 400",
+      "red": "ModuleNotFoundError before route existed",
+      "green": "PYTHONPATH=backend/src pytest tests/unit/test_tiktok_business_advertiser_callback.py::TestBusinessAdvertiserOAuthCallbackRoute::test_callback_missing_code_returns_400 PASSED"
+    },
+    {
+      "behavior": "missing state returns 400",
+      "green": "test_callback_missing_state_returns_400 PASSED"
+    },
+    {
+      "behavior": "invalid state returns 401 without exchange",
+      "green": "test_callback_rejects_invalid_state PASSED"
+    },
+    {
+      "behavior": "successful exchange persists encrypted credentials with business_advertiser capability",
+      "green": "test_callback_exchanges_code_and_persists_encrypted_credentials PASSED"
+    },
+    {
+      "behavior": "exchange failure returns 502 without leaking tokens",
+      "green": "test_callback_token_exchange_failure_returns_502 PASSED"
+    },
+    {
+      "behavior": "missing Business app config returns 503",
+      "green": "test_callback_missing_app_id_returns_503 and test_callback_missing_app_secret_returns_503 PASSED"
+    },
+    {
+      "behavior": "public route without JWT and OpenAPI registration",
+      "green": "test_callback_does_not_require_jwt and test_callback_route_is_listed_in_openapi PASSED"
+    },
+    {
+      "behavior": "Shop OAuth regression guard",
+      "green": "PYTHONPATH=backend/src pytest tests/unit/test_tiktok_auth_callback.py tests/unit/test_tiktok_business_advertiser_callback.py — 18 passed"
+    }
+  ],
+  "implementationSummary": "Added public GET /v1/auth/tiktok/business/callback for TikTok Marketing API advertiser OAuth. Validates code+state, HMAC-verifies state for Juli user binding, exchanges auth_code via business-api.tiktok.com/open_api/v1.3/oauth2/access_token/, and persists encrypted tokens on existing tiktok_credentials with capability=business_advertiser and merchant_authorization_id=advertiser_id. Shop OAuth path untouched.",
+  "assumptions": [
+    "Business OAuth state is always present (unlike Shop App Review flow) because credentials must bind to a Juli user.",
+    "First advertiser_id in token response is the primary merchant_authorization_id key.",
+    "User without shops gets a placeholder TikTok Business shop row for the required shop_id FK.",
+    "Marketing API access token expiry uses access_token_expires_at default when field absent (24h TTL assumption)."
+  ],
+  "risks": [
+    "Multi-advertiser authorizations store only the first advertiser_id; future work may need multi-row or list persistence.",
+    "Placeholder shop creation for users without shops may need UX alignment when Connect Ads UI lands."
+  ]
+}

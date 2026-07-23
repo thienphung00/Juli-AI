@@ -14,6 +14,12 @@ API plus OAuth lifecycle management.
   tokens
 - `TikTokAuth.refresh_access_token(refresh_token) -> dict` — rotate tokens
 
+### Business Advertiser Authentication (`business_advertiser_auth.py`)
+- `TikTokBusinessAdvertiserAuth(app_id, app_secret, base_url)` — Marketing API
+  OAuth client for advertiser authorization (`business-api.tiktok.com`)
+- `TikTokBusinessAdvertiserAuth.exchange_code(auth_code) -> dict` — auth code →
+  access + refresh tokens plus authorized `advertiser_ids`
+
 ### HTTP Client (`client.py`)
 - `TikTokClient(app_key, app_secret, access_token, base_url, shop_cipher,
   timeout)` — low-level signed HTTP client
