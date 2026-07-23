@@ -106,14 +106,20 @@ export function AnalyticsPreviewChart({
   );
 }
 
-export function AnalyticsUnavailableChartPattern() {
+interface AnalyticsUnavailableChartPatternProps {
+  label: string;
+}
+
+export function AnalyticsUnavailableChartPattern({
+  label,
+}: AnalyticsUnavailableChartPatternProps) {
   return (
     <div
-      aria-hidden="true"
       className="analytics-unavailable-chart"
       data-testid="analytics-unavailable-chart"
     >
-      <svg focusable="false" viewBox="0 0 120 40">
+      <p className="juli-sr-only">{label} — biểu đồ chưa khả dụng</p>
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 120 40">
         <line
           stroke="var(--juli-border)"
           strokeDasharray="4 4"

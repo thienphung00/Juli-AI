@@ -22,7 +22,7 @@
 ### Skills
 - [x] `.cursor/skills/domain/ui-ux/SKILL.md`
 - [x] Plugin: `nextjs`, `next-upgrade`, `react-best-practices`
-- [x] Plugin: `context7-mcp` (migration docs on demand)
+- [x] Context7 CLI (Focus-selected; migration docs on demand — not MCP)
 
 ### MCPs
 - [ ] None required (local npm + CI)

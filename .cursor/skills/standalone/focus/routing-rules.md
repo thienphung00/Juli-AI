@@ -2,19 +2,22 @@
 
 Detailed rules for deciding what context to load based on code patterns detected.
 
-## Plugin skills and MCP
+## Plugin skills, MCP, and Context7 CLI
 
 Before loading feature docs for integration work, consult the project plugin index:
 
-- **Catalog:** [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) (`catalog` frontmatter lists MCP servers + `/skill-name` invocations)
+- **Catalog:** [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md)
+  (`catalog.mcpServers` + `catalog.cliDocs`)
 - **MCP routing rule:** [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc)
+- **Context7 CLI rule (not always-on):** [`.cursor/rules/context7-cli.mdc`](../../../rules/context7-cli.mdc) —
+  Focus/Meta selects for technical & domain implementation only
 
-| Task signal | Plugin skill(s) to load | MCP `serverName` |
-|-------------|-------------------------|------------------|
+| Task signal | Plugin skill(s) to load | MCP / CLI |
+|-------------|-------------------------|-----------|
 | Supabase schema, RLS, auth | `supabase`, `supabase-postgres-best-practices` | `supabase` |
-| Framework/library docs | `context7-mcp` | `context7` |
-| New/stale vendor API reference | `api-docs`, `context7-mcp` | `context7` |
-| Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch TikTok Shop University + official policy pages) |
+| Framework/library docs during implementation | — | Context7 **CLI** (`npx ctx7@latest`) |
+| New/stale vendor API reference | `api-docs` | Context7 CLI when SDK/library refs needed |
+| Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
 | `web/` Next.js UI (component, page, form) | `ui-ux-design`, `nextjs`, `react-best-practices` | — |
 | UI / frontend / copy / report / design-surface | **Required:** `dictionary.md`, `docs/product/design/design-context.md` | — |
@@ -25,6 +28,26 @@ Before loading feature docs for integration work, consult the project plugin ind
 | E2E browser | — | `playwright` or `cursor-ide-browser` |
 | Celery / Redis | — | `celery`, `upstash` |
 
+## Meta executor domain — integrations (platform-agnostic)
+
+Assign **`integrations`** when paths or `modulesTouched` indicate vendor I/O (not Juli
+product API or schema work). TikTok docs are issue loads under
+`docs/integrations/<vendor>_api/` — they do not define the domain skill identity.
+
+| Signal | Meta domain | Primary skill |
+|--------|-------------|---------------|
+| `backend/src/juli_backend/integrations/` | `integrations` | `.cursor/skills/domain/integrations/SKILL.md` |
+| `services/webhook/` (verify → ETL handoff) | `integrations` | same |
+| `workers/services/polling/` (cursor/watermark sync) | `integrations` | same |
+| `services/analytics_backfill/` (partition backfill) | `integrations` | same |
+| `modulesTouched`: `integrations`, `webhook`, `polling`, `analytics_backfill` | `integrations` | same |
+| Vendor HTTP client / signing / rate limits | `integrations` | same + vendor `docs/integrations/<vendor>_api/` |
+| ETL consumer durability / migrations | `data-platform` | not `integrations` |
+| Juli `/v1/*` product API | `backend` | not `integrations` |
+
+Path-prefix scoring: `agent-runtime.config.yml` → `routing.domain_mappings.integrations`
+(longest prefix wins over generic `services/` / `workers/` backend prefixes).
+
 ## Detection Patterns → Context Mapping
 
 ### Python/FastAPI Patterns
@@ -34,7 +57,7 @@ Before loading feature docs for integration work, consult the project plugin ind
 | `@app.post`, `@app.get` | New endpoint | api-endpoint checklist, security |
 | `openai.`, `AsyncOpenAI`, rule-based forecast | AI / heuristic call | review (ai-integration), reliability |
 | `celery_app.task` | Background job | reliability (retry/idempotency) |
-| `httpx.get`, `requests.post` | External API | reliability (timeout/retry) |
+| `httpx.get`, `requests.post` | External API | `integrations` executor when under `integrations/` or vendor sync paths; reliability (timeout/retry) |
 | `select(Model).where` | DB query | performance (N+1, indexes) |
 | `alembic.op.` | Migration | db-changes spec, rollback plan |
 | `os.environ`, `settings.` | Config | security (secrets handling) |

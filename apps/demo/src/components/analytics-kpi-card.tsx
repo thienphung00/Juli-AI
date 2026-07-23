@@ -69,7 +69,7 @@ export function AnalyticsKpiCard({
         ) : (
           <>
             <StatusChip variant="neutral">Chưa khả dụng</StatusChip>
-            <AnalyticsUnavailableChartPattern />
+            <AnalyticsUnavailableChartPattern label={definition.name} />
             <UnavailableKpiPopover
               activationRequirement={
                 definition.unavailableReason?.activationRequirement ?? ""

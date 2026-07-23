@@ -25,6 +25,7 @@ routing:
   ui_threshold: 0.6
   data_threshold: 0.7
   ml_threshold: 0.7
+  integrations_threshold: 0.7
   # Prefer slice-routing.yml executorDomain when focusSlice / parentLinkage.sliceId is set.
   prefer_slice_executor_domain: true
   # Never dual-load backend + data-platform skills in harnessUtility.
@@ -35,9 +36,14 @@ routing:
       - backend/src/juli_backend/core
       - backend/src/juli_backend/services
       - backend/src/juli_backend/workers
-      - backend/src/juli_backend/integrations
       - infra/scripts
       - infra/systemd
+    integrations:
+      - backend/src/juli_backend/integrations
+      - backend/src/juli_backend/services/webhook
+      - backend/src/juli_backend/services/analytics_backfill
+      - backend/src/juli_backend/workers/services/polling
+      - infra/scripts/run-analytics-backfill.sh
     ui-ux:
       - apps/dashboard
       - apps/demo
@@ -80,6 +86,13 @@ routing:
         - backend/src/juli_backend/database
         - docs/api/data-models
       note: Feature pipelines depend on canonical data models outside ai/
+    integrations:
+      related_paths:
+        - backend/src/juli_backend/integrations
+        - docs/integrations/
+        - docs/architecture/data-sources.md
+        - backend/src/juli_backend/services/etl
+      note: Vendor HTTP/webhook/polling/backfill; ETL consumer durability stays data-platform
   hints:
     - domain: machine-learning
       signal: synthetic_dataset_small
@@ -93,6 +106,7 @@ executors:
     - ui-ux
     - data-platform
     - machine-learning
+    - integrations
   default: backend
 skills:
   backend:
@@ -108,6 +122,10 @@ skills:
     - postgres-patterns
   machine-learning:
     - machine-learning
+  integrations:
+    - integrations
+    - python-patterns
+    - patterns
 tools:
   enabled:
     - ReadFile
@@ -135,7 +153,7 @@ agents:
   executor:
     phase: implementation
     tdd: red-green-refactor
-    domain_skills: "[ui-ux, backend, data-platform, machine-learning]"
+    domain_skills: "[ui-ux, backend, data-platform, machine-learning, integrations]"
     emits_artifacts: "[implementation-artifact]"
     must_not: "[ship, validate, optimize-harness, start-without-valid-workflow-cache]"
     # Unless artifact_gates.quickCommitSkip applies (.worktrees/debug + no issue-<N>).

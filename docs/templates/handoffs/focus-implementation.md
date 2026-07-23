@@ -4,7 +4,7 @@
 - **#{N}** — {title}
 - **EXECUTION slice:** {slice}
 - **Parent:** #{prd} · **Blocked by:** {deps}
-- **Executor domain:** {ui-ux | backend | data-platform | machine-learning}
+- **Executor domain:** {ui-ux | backend | data-platform | machine-learning | integrations}
 
 ## Branch
 - `{feature|fix}/issue-{N}-{slug}`

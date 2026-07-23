@@ -34,12 +34,12 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 - [ ] `grill-with-docs` / `to-prd` / `to-issues` (Architect planning; `discover` removed)
 - [ ] `intent-review` / `guardrails` / `validate` / `ship` / `qa` (Executor uses built-in TDD; standalone `tdd` removed)
 - [ ] `api-docs` / `platform-docs`
-- [ ] Domain: `python-patterns` / `python-testing` / `postgres-patterns` / `swift-patterns`
+- [ ] Domain executor: `ui-ux` / `backend` / `data-platform` / `machine-learning` / `integrations` (one primary)
+- [ ] Domain patterns: `python-patterns` / `python-testing` / `postgres-patterns` / `swift-patterns`
 - [ ] Plugin: _______________
 
 ### MCPs (read schemas only when checked)
 - [ ] `supabase`
-- [ ] `context7`
 - [ ] `plugin-sentry-sentry`
 - [ ] `figma`
 - [ ] `plugin-vercel-vercel`
@@ -47,6 +47,10 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 - [ ] `cursor-ide-browser` / `playwright`
 - [ ] `celery` / `upstash`
 - [ ] none
+
+### CLI docs (Focus-selected; not MCP)
+- [ ] Context7 CLI (`npx ctx7@latest`) — technical / domain implementation only
+  per `.cursor/rules/context7-cli.mdc`
 
 ### Load (Required)
 -

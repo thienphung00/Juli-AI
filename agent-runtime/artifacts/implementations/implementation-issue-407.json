@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 407,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "407-20260723T084000",
+  "startedAt": "2026-07-23T07:45:00Z",
+  "completedAt": "2026-07-23T08:35:00Z",
+  "executionDurationMs": 3000000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "StrReplace",
+    "Shell"
+  ],
+  "toolInvocationCount": 85,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-407.json",
+    "agent-runtime/artifacts/meta-prepare-issue-407.json",
+    "docs/product/phases/phase-2.6/PRD.md",
+    "docs/adr/026-phase-2.6-analytics-optional-exit-gate.md",
+    "apps/demo/MODULE.md",
+    "infra/scripts/smoke-test-demo.sh",
+    ".github/workflows/pr.yml"
+  ],
+  "skillsLoaded": [
+    "ui-ux"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/e2e/exit-gate/decisions-journey.spec.ts",
+    "apps/demo/e2e/exit-gate/manual-refresh.spec.ts",
+    "apps/demo/e2e/exit-gate/responsive-parity.spec.ts",
+    "apps/demo/e2e/exit-gate/accessibility.spec.ts",
+    "apps/demo/e2e/exit-gate/locale-and-assistance.spec.ts",
+    "apps/demo/e2e/fixtures/workflow-keys.ts",
+    "apps/demo/e2e/fixtures/viewports.ts",
+    "apps/demo/e2e/helpers/demo-navigation.ts",
+    "apps/demo/e2e/helpers/workflow-journey.ts",
+    "apps/demo/playwright.config.ts",
+    "apps/demo/package.json",
+    "apps/demo/src/components/decisions-page-client.tsx",
+    "apps/demo/src/app/decisions/page.tsx",
+    "tests/unit/test_phase_2_6_demo_exit_gate.py",
+    ".github/workflows/pr.yml",
+    "docs/handoffs/parallel-status.md",
+    "pnpm-lock.yaml"
+  ],
+  "testsAdded": [
+    "apps/demo/e2e/exit-gate/decisions-journey.spec.ts",
+    "apps/demo/e2e/exit-gate/manual-refresh.spec.ts",
+    "apps/demo/e2e/exit-gate/responsive-parity.spec.ts",
+    "apps/demo/e2e/exit-gate/accessibility.spec.ts",
+    "apps/demo/e2e/exit-gate/locale-and-assistance.spec.ts",
+    "tests/unit/test_phase_2_6_demo_exit_gate.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Playwright exit-gate specs and contract pytest did not exist",
+      "passingTestEvidence": "50 Playwright tests (desktop + mobile-web) and 10 contract pytest cases pass locally",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test:e2e",
+          "exitCode": 0,
+          "outputSummary": "50 passed"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_phase_2_6_demo_exit_gate.py -q",
+          "exitCode": 0,
+          "outputSummary": "10 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Phase 2.6 P2-6 (#407) Demo exit-gate: five Playwright spec files with helpers/fixtures, playwright.config webServer on production build, demo-e2e CI job, and contract pytest asserting spec wiring. Exit gate independent of optional Analytics/Settings per ADR-026.",
+  "acceptanceCriteria": {
+    "decisions_journey_e2e": "PASS — decisions-journey.spec.ts covers Home→Decisions, priority WF1, card order, all workflows to In Progress",
+    "manual_refresh": "PASS — manual-refresh.spec.ts resets mutated Home/Decisions to Recommendations",
+    "responsive_parity": "PASS — responsive-parity.spec.ts desktop 960px vs mobile-web 390px",
+    "accessibility": "PASS — accessibility.spec.ts axe, 44×44, keyboard, sr-only chart equivalent, reduced motion",
+    "locale_and_truthful_states": "PASS — locale-and-assistance.spec.ts VI diacritics, mock notice, error retry, assistance regression",
+    "production_build_ci": "PASS — demo-e2e job runs build:demo + Playwright; contract tests assert pr.yml wiring",
+    "public_smoke_contract": "PASS — test_public_smoke_script_covers_decisions_route",
+    "no_settings_blocker": "PASS — suite navigates Settings for assistance only; no editable Settings gate",
+    "no_analytics_blocker": "PASS — unavailable KPI sr-only check only; no six-KPI Analytics depth required"
+  },
+  "assumptions": [
+    "Blockers #401–#403 and #406 merged on origin/main before exit-gate PR",
+    "CI installs Playwright chromium only; mobile-web project uses Chromium (Pixel 5 profile)",
+    "Public smoke script remains read-only from #406"
+  ],
+  "risks": [
+    "Live demo.app-juli.com smoke still HITL — CI uses contract tests only",
+    "Conditional Analytics deep-link specs deferred unless #404 behavior lands on branch"
+  ],
+  "blockers": []
+}

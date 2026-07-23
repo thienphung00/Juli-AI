@@ -1,6 +1,6 @@
 # Parallel status — Phase 2.9 HITL wiring (#472)
 
-**Started:** 2026-07-22 · **Parent PRD:** [#462](https://github.com/thienphung00/Juli-AI/issues/462) · Meta prepares; Executor → Review
+**Started:** 2026-07-23 · **Parent PRD:** [#395](https://github.com/thienphung00/Juli-AI/issues/395) · Meta prepares; Executor → Review
 
 ## Locked decisions
 

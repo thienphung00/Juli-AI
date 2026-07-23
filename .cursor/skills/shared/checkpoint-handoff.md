@@ -93,7 +93,7 @@ focus_phase:
 implementation_phase:                # legacy alias: tdd_phase
   status: "✓" | "⏳" | "✗"
   branch: "feature/issue-{N}-{slug}"  # or fix/issue-{N}-{slug}
-  executor_domain: "backend" | "ui-ux" | "data-platform" | "machine-learning"
+  executor_domain: "backend" | "ui-ux" | "data-platform" | "machine-learning" | "integrations"
   tests_written: {number}
   test_summary: ["{file}::{test} — {behavior}"]
   acceptance_criteria_status:

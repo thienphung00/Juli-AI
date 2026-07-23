@@ -307,6 +307,13 @@ def build_runtime(config: dict[str, Any]) -> dict[str, Any]:
             "paths": routing.get("domain_mappings", {}).get("machine-learning", []),
             "crossLayer": routing.get("cross_layer_hints", {}).get("machine-learning", {}),
         },
+        "integrations": {
+            "threshold": float(
+                routing.get("integrations_threshold", routing["backend_threshold"])
+            ),
+            "paths": routing.get("domain_mappings", {}).get("integrations", []),
+            "crossLayer": routing.get("cross_layer_hints", {}).get("integrations", {}),
+        },
     }
 
     return {
