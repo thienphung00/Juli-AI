@@ -1,19 +1,24 @@
 import { expect, type Page } from "@playwright/test";
 
 export async function advanceReviewToApproveStage(page: Page) {
-  const approve = page.getByRole("button", { name: "Phê duyệt" }).last();
   let guard = 0;
 
-  while (!(await approve.isVisible()) && guard < 12) {
+  while (guard < 12) {
+    const approve = page.getByRole("button", { name: "Phê duyệt" }).last();
+    if (await approve.isVisible()) {
+      await expect(approve).toBeVisible();
+      return;
+    }
+
     const next = page.getByRole("button", { name: "Tiếp theo" });
     await expect(next).toBeVisible();
-    await next.scrollIntoViewIfNeeded();
     await next.click({ force: true });
     guard += 1;
   }
 
-  await expect(approve).toBeVisible();
-  await approve.scrollIntoViewIfNeeded();
+  await expect(
+    page.getByRole("button", { name: "Phê duyệt" }).last(),
+  ).toBeVisible();
 }
 
 export async function approveFromRecommendations(
