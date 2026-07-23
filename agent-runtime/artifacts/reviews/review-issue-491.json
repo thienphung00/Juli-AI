@@ -1,0 +1,163 @@
+{
+  "id": "review-issue-491",
+  "issue": 491,
+  "timestamp": "2026-07-23T14:29:28Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #491 TikTok Business account-holder OAuth callback: intent-review spec_fidelity=pass consumed as given. Public GET callback with HMAC state validation, Marketing API token exchange (10s timeout), encrypted persistence under capability business_account_holder with isolation from Shop and Advertiser credential rows. 10/10 unit tests pass; no secrets in response bodies; logs use auth_code_len only.",
+  "criticalFindings": [
+    {
+      "id": "491-convention-silent-persist-skip",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/tiktok/business_account_holder_store.py",
+      "description": "Intent-review convention note: persist_account_holder_tokens no-ops without raising when token payload is incomplete; callback may return 200 without a stored row.",
+      "suggestion": "Consider 502 or structured warning if exchange succeeds but required token fields are absent once live TikTok responses are verified."
+    },
+    {
+      "id": "491-security-state-hmac",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "description": "State verified with HMAC-SHA256 via hmac.compare_digest; forged/tampered state rejected with 401 before token exchange.",
+      "suggestion": null
+    },
+    {
+      "id": "491-security-no-secret-logging",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "description": "Structured logs record auth_code_len and tiktok_error_code only; unit tests assert access/refresh tokens absent from HTTP responses.",
+      "suggestion": null
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+    "backend/src/juli_backend/integrations/tiktok/business_account_holder_auth.py",
+    "backend/src/juli_backend/services/tiktok/business_account_holder_store.py",
+    "backend/src/juli_backend/api/app.py",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "tests/unit/test_tiktok_business_account_holder_callback.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Route reachable without JWT; missing required params return 400",
+          "test": "tests/unit/test_tiktok_business_account_holder_callback.py::test_callback_missing_params_returns_400"
+        },
+        {
+          "criterion": "Invalid/forged state is rejected",
+          "test": "tests/unit/test_tiktok_business_account_holder_callback.py::test_callback_rejects_invalid_state"
+        },
+        {
+          "criterion": "Successful mocked exchange persists encrypted account-holder credentials for Juli user in state",
+          "test": "tests/unit/test_tiktok_business_account_holder_callback.py::test_callback_exchanges_code_and_persists_account_holder_credential"
+        },
+        {
+          "criterion": "Does not write into Shop Partner or Advertiser credential rows incorrectly",
+          "test": "tests/unit/test_tiktok_business_account_holder_callback.py::test_callback_does_not_overwrite_shop_or_advertiser_credentials"
+        },
+        {
+          "criterion": "Unit route tests missing params bad state exchange failure",
+          "test": "tests/unit/test_tiktok_business_account_holder_callback.py::test_callback_token_exchange_failure_returns_502"
+        },
+        {
+          "criterion": "Secrets/auth codes/tokens are never logged",
+          "test": "tests/unit/test_tiktok_business_account_holder_callback.py::test_callback_secrets_never_logged_in_response"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 11,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "d9ab6d4d..a6a7827c on feature/issue-491-business-account-holder-oauth",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-491.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-491.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "491-20260723T142600",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "491-convention-silent-persist-skip",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/tiktok/business_account_holder_store.py",
+      "description": "Intent-review convention note: persist_account_holder_tokens no-ops without raising when token payload is incomplete; callback may return 200 without a stored row.",
+      "suggestion": "Consider 502 or structured warning if exchange succeeds but required token fields are absent once live TikTok responses are verified."
+    },
+    {
+      "id": "491-security-state-hmac",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "description": "State verified with HMAC-SHA256 via hmac.compare_digest; forged/tampered state rejected with 401 before token exchange.",
+      "suggestion": null
+    },
+    {
+      "id": "491-security-no-secret-logging",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "description": "Structured logs record auth_code_len and tiktok_error_code only; unit tests assert access/refresh tokens absent from HTTP responses.",
+      "suggestion": null
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [
+    {
+      "id": "491-security-state-hmac",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "description": "State verified with HMAC-SHA256 via hmac.compare_digest; forged/tampered state rejected with 401 before token exchange.",
+      "suggestion": null
+    },
+    {
+      "id": "491-security-no-secret-logging",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "description": "Structured logs record auth_code_len and tiktok_error_code only; unit tests assert access/refresh tokens absent from HTTP responses.",
+      "suggestion": null
+    }
+  ],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "suggestedRemediation": [
+    "Consider 502 or structured warning if exchange succeeds but required token fields are absent once live TikTok responses are verified."
+  ]
+}

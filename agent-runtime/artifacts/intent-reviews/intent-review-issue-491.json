@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-491",
+  "issue": 491,
+  "timestamp": "2026-07-23T14:27:28Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "d9ab6d4d",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff a6a7827c vs d9ab6d4d on feature/issue-491-business-account-holder-oauth. Implements ADR-032 account-holder callback GET /v1/auth/tiktok/business/account-holder/callback: public (no JWT), auth_code+state validation, HMAC state verification, Marketing API token exchange via business-api.tiktok.com v1.3 oauth2/access_token/, encrypted persistence with capability business_account_holder isolated from Shop Partner and Advertiser rows. Controlled errors mirror Shop callback (400 missing params, 401 bad state, 502 exchange failure, 503 missing config). Account-holder-only file set; no business_advertiser_* paths.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "patterns.mdc \u2014 controlled upstream failure",
+      "path": "backend/src/juli_backend/services/tiktok/business_account_holder_store.py",
+      "note": "persist_account_holder_tokens returns silently when token payload lacks access_token, refresh_token, or merchant subject id; callback still returns 200. Documented assumption; acceptable for slice but worth monitoring in live token-shape validation.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "491-20260723T142600"
+}
