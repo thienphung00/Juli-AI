@@ -445,7 +445,9 @@ def load_implementation_artifact(issue: int) -> dict[str, Any] | None:
     return load_json(path)
 
 
-EXECUTOR_DOMAINS = frozenset({"ui-ux", "backend", "data-platform", "machine-learning"})
+EXECUTOR_DOMAINS = frozenset(
+    {"ui-ux", "backend", "data-platform", "machine-learning", "integrations"}
+)
 
 
 def default_phase_run_id() -> str:

@@ -172,8 +172,8 @@ Tier-1 rules from the debug slot (it resets to `main`); promote harness/config e
 **Responsibilities**
 
 - Own issue implementation with **mandatory built-in TDD**: Red → Green → Refactor.
-- Load exactly one primary domain-specific skill (UI/UX, Backend, Data Platform, or
-  Machine Learning) unless the issue clearly spans domains.
+- Load exactly one primary domain-specific skill (UI/UX, Backend, Data Platform,
+  Machine Learning, or Integrations) unless the issue clearly spans domains.
 - Produce `implementation-artifact` for Review Agent.
 
 **Must**
@@ -197,8 +197,10 @@ Tier-1 rules from the debug slot (it resets to `main`); promote harness/config e
 - Skip TDD for behavior changes (exceptions: pure docs/config with no executable
   surface — note rationale in implementation summary).
 
-TDD rules live in domain executor skills — especially
-[`.cursor/skills/domain/backend/SKILL.md`](../../.cursor/skills/domain/backend/SKILL.md).
+TDD lifecycle (Red → Green → Refactor) and implementation-artifact requirements are
+**authoritative in this document** (§ [TDD lifecycle](#tdd-lifecycle-executor-built-in)).
+Domain executor skills keep a thin stub pointing here plus domain-specific test
+surfaces only — not a second copy of the TDD cycle or artifact handoff rules.
 The standalone `tdd` skill was removed in Phase 2.
 
 ---
@@ -243,9 +245,10 @@ Executor Agent specializes by domain. Skills live under `.cursor/skills/domain/`
 | Domain | Primary surfaces | Required skills / context | Testing | Review focus | Validation |
 |--------|------------------|----------------------------|---------|--------------|------------|
 | **UI/UX** | `web/`, `ios/` UI | [`ui-ux`](../../.cursor/skills/domain/ui-ux/SKILL.md), `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry components | Component/route behavior, a11y, interaction tests | A11y, state/hydration boundaries, visual consistency | Web lint/typecheck/tests, acceptance mapping |
-| **Backend** | `src/apps/`, `src/modules/`, FastAPI | [`backend`](../../.cursor/skills/domain/backend/SKILL.md), `python-patterns`, `patterns.mdc`; security/reliability/observability when APIs or user input touched | API integration tests, service boundary tests, repo tests | Auth/authz, error handling, idempotency, API envelopes | pytest, ruff, mypy, migration checks |
-| **Data Platform** | `src/shared/utils/data/`, migrations, ETL | [`data-platform`](../../.cursor/skills/domain/data-platform/SKILL.md), `postgres-patterns`; Supabase when DB work involved | Migration up/down, repo integration, ETL idempotency | Data-source legality, PII, schema reversibility, indexing | Migration checks, module drift, data-source policy |
-| **Machine Learning** | `src/modules/ml/` | [`machine-learning`](../../.cursor/skills/domain/machine-learning/SKILL.md), ML module docs, feature specs, model artifact thresholds | Golden dataset, metric threshold, artifact schema tests | Leakage, reproducibility, metric validity, promotion rules | pytest, artifact smoke tests, benchmark status |
+| **Backend** | `backend/src/juli_backend/api/`, product domain services | [`backend`](../../.cursor/skills/domain/backend/SKILL.md), `python-patterns`, `patterns.mdc`; security/reliability/observability when APIs or user input touched | API integration tests, service boundary tests, repo tests | Auth/authz, error handling, idempotency, API envelopes | pytest, ruff, mypy, migration checks |
+| **Data Platform** | `backend/src/juli_backend/database/`, migrations, ETL consumer | [`data-platform`](../../.cursor/skills/domain/data-platform/SKILL.md), `postgres-patterns`; Supabase when DB work involved | Migration up/down, repo integration, ETL idempotency | Data-source legality, PII, schema reversibility, indexing | Migration checks, module drift, data-source policy |
+| **Integrations** | `backend/src/juli_backend/integrations/`, `services/webhook`, `services/analytics_backfill`, `workers/services/polling` | [`integrations`](../../.cursor/skills/domain/integrations/SKILL.md), vendor `docs/integrations/<vendor>_api/`, `reliability.mdc`, `observability.mdc` | Client contract tests, webhook verify/handoff tests, polling cursor/idempotency tests, backfill partition tests | Auth/signing, rate limits, webhook verification, ETL handoff boundary (not schema/ETL durability) | pytest, vendor fixture replay, module drift |
+| **Machine Learning** | `backend/ai/`, `backend/src/juli_backend/ai/` | [`machine-learning`](../../.cursor/skills/domain/machine-learning/SKILL.md), ML module docs, feature specs, model artifact thresholds | Golden dataset, metric threshold, artifact schema tests | Leakage, reproducibility, metric validity, promotion rules | pytest, artifact smoke tests, benchmark status |
 
 **Context baseline for all domains:** `EXECUTION.md` slice, `docs/architecture/system-design.md`,
 `docs/architecture/map.md`, `docs/architecture/data-sources.md`, and `MODULE.md` for
@@ -348,7 +351,7 @@ in domain executor and review/validate skills; harness automation lands in Phase
 |---------|-------------|
 | `build-feature` / `fix-bug` orchestrators | Agent phases + ad-hoc Focus routing |
 | `discover` skill | Architect Agent planning responsibilities |
-| Standalone `tdd` skill | Executor built-in TDD + domain executor skills |
+| Standalone `tdd` skill | Executor built-in TDD (authoritative in this doc) + thin domain stubs |
 | `focus → tdd → review → ship` chain language | Meta routing + Review Agent phases |
 | `.cursor/skills/workflow/` folder | Retired — use agent phases |
 
@@ -363,7 +366,7 @@ documented in this file; CI artifact schemas remain in ADR-003 and `docs/deploym
 | Location | Contents |
 |----------|----------|
 | `.cursor/skills/standalone/` | Agent-owned skills: `focus`, `grill-with-docs`, `to-prd`, `to-issues`, `intent-review`, `guardrails`, `validate`, `ship`, utilities |
-| `.cursor/skills/domain/` | Executor domain skills: `ui-ux`, `backend`, `data-platform`, `machine-learning` |
+| `.cursor/skills/domain/` | Executor domain skills: `ui-ux`, `backend`, `data-platform`, `machine-learning`, `integrations` |
 | `.cursor/skills/workflow/` | **Removed** (Phase 2) |
 
 ---

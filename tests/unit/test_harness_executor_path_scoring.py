@@ -50,6 +50,48 @@ def test_database_migrations_map_to_data_platform() -> None:
     )
 
 
+def test_analytics_backfill_maps_to_integrations() -> None:
+    assert (
+        expected_executor_from_paths(
+            ["backend/src/juli_backend/services/analytics_backfill/live_partition.py"],
+            domain_mappings=_maps(),
+        )
+        == "integrations"
+    )
+
+
+def test_run_analytics_backfill_script_maps_to_integrations() -> None:
+    assert (
+        expected_executor_from_paths(
+            ["infra/scripts/run-analytics-backfill.sh"],
+            domain_mappings=_maps(),
+        )
+        == "integrations"
+    )
+
+
+def test_integrations_client_maps_to_integrations() -> None:
+    assert (
+        expected_executor_from_paths(
+            ["backend/src/juli_backend/integrations/tiktok/client.py"],
+            domain_mappings=_maps(),
+        )
+        == "integrations"
+    )
+
+
+def test_modules_touched_integration_tokens_map_to_integrations() -> None:
+    cfg = load_simple_yaml(REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml")
+    assert (
+        expected_executor_from_review(
+            {"modulesTouched": ["analytics_backfill", "integrations"]},
+            implementation={"filesModified": []},
+            config=cfg,
+        )
+        == "integrations"
+    )
+
+
 def test_modules_touched_path_tokens_do_not_default_to_backend() -> None:
     cfg = load_simple_yaml(REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml")
     assert (
@@ -59,4 +101,37 @@ def test_modules_touched_path_tokens_do_not_default_to_backend() -> None:
             config=cfg,
         )
         == "ui-ux"
+    )
+
+
+def test_webhook_service_path_beats_backend_services_prefix() -> None:
+    assert (
+        expected_executor_from_paths(
+            ["backend/src/juli_backend/services/webhook/handler.py"],
+            domain_mappings=_maps(),
+        )
+        == "integrations"
+    )
+
+
+def test_polling_worker_path_maps_to_integrations() -> None:
+    assert (
+        expected_executor_from_paths(
+            ["backend/src/juli_backend/workers/services/polling/job.py"],
+            domain_mappings=_maps(),
+        )
+        == "integrations"
+    )
+
+
+def test_generic_services_paths_remain_backend() -> None:
+    assert (
+        expected_executor_from_paths(
+            [
+                "backend/src/juli_backend/services/scoring/foo.py",
+                "backend/src/juli_backend/services/aggregates/bar.py",
+            ],
+            domain_mappings=_maps(),
+        )
+        == "backend"
     )

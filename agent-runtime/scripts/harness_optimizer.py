@@ -202,7 +202,9 @@ def expected_executor_from_review(
         return "data-platform"
     if modules & {"ml", "machine-learning", "intelligence"}:
         return "machine-learning"
-    if modules & {"api", "services", "workers", "integrations", "infra"}:
+    if modules & {"integrations", "webhook", "polling", "analytics_backfill"}:
+        return "integrations"
+    if modules & {"api", "services", "workers", "infra"}:
         return "backend"
     return None
 

@@ -8,8 +8,9 @@ catalog:
   pluginIndex: skill-catalog
   loadWhen:
     - external mcp or marketplace plugin
-    - supabase sentry figma vercel shadcn context7
+    - supabase sentry figma vercel shadcn
     - browser playwright celery upstash integration
+    - library framework docs during technical domain implementation (context7 CLI)
 ---
 
 # Navigator
@@ -51,7 +52,7 @@ User message
 |-------------|-------------|------|
 | New initiative / rescope / canonical doc updates | Planning (Architect) | [`agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md) Planning section; canonical docs; `grill-with-docs` → `to-prd` path |
 | Spec from conversation | Planning | `grill-with-docs` (if scope open) → `to-prd` → `to-issues` |
-| GitHub issue implementation | Implementation | Meta routing → **`meta_prepare_executor.py --issue N`** (ensure parent/child cache) → domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`); built-in TDD |
+| GitHub issue implementation | Implementation | Meta routing → **`meta_prepare_executor.py --issue N`** (ensure parent/child cache) → domain executor skill (`ui-ux`, `backend`, `data-platform`, `machine-learning`, `integrations`); built-in TDD |
 | Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
 | Post-implementation quality gate | Review + Testing | `intent-review` → `guardrails` → `validate` → `ship` |
 | Branch / PR / "review since X" | Review + Testing | `intent-review` (Spec fidelity × structure); then `guardrails` when emitting ADR-003 artifact |
@@ -61,24 +62,33 @@ User message
 | Quick GitHub commit / hotfix in `.worktrees/debug` (no `issue-<N>` branch) | Ad-hoc | Skip ADR-003 artifacts per [`agent-runtime.config.yml`](../../../agent-runtime/config/agent-runtime.config.yml) `artifact_gates.quickCommitSkip` — do not edit `pr.yml`/rules from this slot |
 | Multiple independent edits/explores in one session | Ad-hoc or Implementation | Task subagents always `model: composer-2.5-fast`; ≤3 concurrent (ask if more); prefer small parallel tasks per [`core-orchestration.mdc`](../../../rules/core-orchestration.mdc) § Composer sub-agents; parent synthesizes |
 
-Domain executor skills live under `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning}/`.
+Domain executor skills live under `.cursor/skills/domain/{ui-ux,backend,data-platform,machine-learning,integrations}/`.
 
-### Step 1: Plugin and MCP routing
+### Step 1: Plugin, MCP, and Context7 CLI routing
 
-When the task touches an external product or MCP integration:
+When the task touches an external product, MCP integration, or library docs needed
+for **technical / domain implementation**:
 
-1. Read [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) — use `catalog` frontmatter for MCP `serverName` values and plugin skill names.
+1. Read [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) —
+   `catalog.mcpServers` for MCP `serverName` values; `catalog.cliDocs` for Context7.
 2. Load **only** matching plugin skills (e.g. `supabase` for migrations, `nextjs` for `web/`).
 3. Read MCP tool schemas from `mcps/<folder>/tools/` **only for selected servers**.
 4. Follow [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc) before calling MCP tools.
+5. **Context7 (CLI only, never always-on):** Meta/Focus selects it when implementing
+   against a library/framework/SDK or when a domain executor needs current framework
+   recipes. Run `npx ctx7@latest library|docs …` per
+   [`.cursor/rules/context7-cli.mdc`](../../../rules/context7-cli.mdc)
+   (`alwaysApply: false`). Do **not** treat Context7 as an MCP or load `context7-mcp`.
+   Skip when repo docs already suffice, or for review-only / ad-hoc chat.
 
 **Lazy-load contract:** Marketplace plugin skills listed in Cursor UI are not authoritative — load only those Focus selects from skill-catalog. Ignore unselected plugin skills even if visible in `available_skills`.
 
-| Task signal | Plugin skill(s) | MCP `serverName` |
-|-------------|-----------------|------------------|
+| Task signal | Plugin skill(s) | MCP / CLI |
+|-------------|-----------------|-----------|
 | TikTok API / webhooks | — | — (use `docs/integrations/tiktok_api/`, MODULE.md) |
-| New vendor API | `api-docs`, `context7-mcp` | `context7` |
-| Seller/creator policy | `platform-docs` | — |
+| New vendor API | `api-docs` | Context7 **CLI** when SDK/library refs needed |
+| Seller/creator policy | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
+| Library/framework during domain implementation | — | Context7 **CLI** (`npx ctx7@latest`) — Focus-selected |
 | `web/` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `shadcn` |
 | Supabase / migrations / RLS | `supabase`, `supabase-postgres-best-practices` | `supabase` |
 | Production error | `sentry-workflow` → platform SDK | `plugin-sentry-sentry` |
@@ -93,7 +103,7 @@ Detect what the implementation involves:
 
 | Detection | Context to Load |
 |-----------|----------------|
-| External API usage | → `guardrails` (reliability section), `.cursor/rules/reliability.mdc` |
+| External API usage | → `integrations` executor (vendor I/O), `guardrails` (reliability section), `.cursor/rules/reliability.mdc` |
 | AI model integration | → `guardrails` (ai-integration checklist), reliability, observability rules |
 | Financial/sensitive data | → `guardrails` (security section), `.cursor/rules/security.mdc` |
 | New API endpoint | → `guardrails` (api-endpoint checklist), security, observability |
@@ -103,7 +113,7 @@ Detect what the implementation involves:
 | SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
 | Frontend component / page / form | → `ui-ux` executor, `ui-ux-design`, `web/MODULE.md`; `shadcn` only if adding registry primitives |
 | Background job | → Celery MCP, reliability, observability |
-| TikTok integration / webhook | → `docs/integrations/tiktok_api/`, `data-sources.md`, affected MODULE.md |
+| TikTok integration / webhook | → `integrations` executor, `docs/integrations/tiktok_api/`, `data-sources.md`, affected MODULE.md |
 | Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first |
 | Marketplace policy / feature guide | → `platform-docs`; `docs/<vendor>_platform/` |
 | Automation / hooks changes | → `.cursor/rules/hooks.mdc` |

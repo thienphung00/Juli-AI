@@ -192,6 +192,20 @@ Phase 3. Phase 3 does not add per-visitor/self-serve TikTok shop connection — 
 Phase 3.5 scope.
 _Avoid_: implying Phase 3 opens self-serve TikTok OAuth to arbitrary public visitors
 
+**Operator Backfill Launcher**:
+The thin #472 wrapper that loads `juli/api/production` from AWS Secrets Manager into the
+child process only (no durable `/etc/juli/*.env` write for this path), optionally defaults
+`--shop-id` from the Fujiwa **production_read credential**, force-refreshes access tokens,
+and invokes the analytics historical backfill CLI. See [ADR-030](docs/adr/030-operator-cli-in-memory-secrets.md).
+_Avoid_: sourcing api.env for backfill; pasting TikTok/DB secrets into the shell; treating
+systemd `EnvironmentFile` fetch as the operator path
+
+**production_read credential**:
+The `tiktok_credentials` row for Fujiwa Partner Section A reads — merchant
+`7658073774813611784` + capability `production_read`. Required by analytics backfill and
+Fujiwa poll; distinct from `seller_connect` OAuth rows (open_id-style merchant ids).
+_Avoid_: using `seller_connect` as a silent fallback for production analytics reads
+
 ## Seller workspace
 
 **Decision**:
@@ -321,3 +335,33 @@ Partner API shop-health fields are not available to retrieve. They emit advisory
 display only — **no execution_layer workflow mapping** until a live source exists.
 _Avoid_: mapping Shop Status KPIs to Process Order / Prevent Cancellation / Resolve
 Recurring Customer Complaints while data remains mock
+
+## Agent runtime (Executor domains)
+
+**Domain executor skill**:
+A Meta-assigned primary skill under `.cursor/skills/domain/<name>/` that steers
+implementation for one Executor run. Each domain uses progressive disclosure:
+short `SKILL.md` (Juli recipes + load map) plus optional `REFERENCE.md` (deeper
+repo recipes and Context7-backed framework guidance). Shared test idioms stay in
+`domain/testing-patterns/`. Harness `executorDomain` must match the skill name.
+_Avoid_: stuffing all guidance into one SKILL.md, treating marketplace plugin skills
+as domain executors
+
+**Integrations domain**:
+Platform-agnostic Executor domain for code that talks to external commerce
+platforms: vendor HTTP clients (auth/signing/rate limits/retries), inbound
+webhooks (verify + ETL handoff), polling/scheduled sync (cursors, shop isolation),
+and analytics fetch/partition backfill. Not vendor-branded — TikTok/Shopee/etc.
+docs are issue-specific loads under `docs/integrations/`. Does **not** own Juli
+product API routes, scoring/copy, or JWT session auth (those are **backend**);
+does **not** own schema/migrations/ETL consumer durability (**data-platform**).
+_Avoid_: TikTok domain, connector skill (vague), overlapping ownership with backend
+for `/v1/*` product routes
+
+**Context7 CLI**:
+Focus/Meta-selected docs fetch via `npx ctx7@latest` for **technical and domain
+implementation** (library/framework/SDK APIs, domain `REFERENCE.md` framework
+recipes). Not an MCP; not always-on (`alwaysApply: false` on
+`.cursor/rules/context7-cli.mdc`). Catalog: skill-catalog `catalog.cliDocs`.
+_Avoid_: Context7 MCP, context7-mcp plugin skill (as required load), always-on
+Context7 for every chat

@@ -15,3 +15,9 @@ alwaysApply: true
 6. **Browser selection** — `cursor-ide-browser` for quick IDE checks; `user-playwright` for E2E flows.
 
 **No MCP is always-on.** GitHub ops use `gh` CLI, not an MCP.
+
+**Context7 is not an MCP in this workspace.** Library docs use the **Context7 CLI**
+(`npx ctx7@latest`) only when Focus/Meta selects it for technical or domain
+implementation — see skill-catalog `catalog.cliDocs` and
+[`.cursor/rules/context7-cli.mdc`](context7-cli.mdc) (`alwaysApply: false`). Do not
+call Context7 MCP tools or treat `context7-mcp` as a required plugin skill.

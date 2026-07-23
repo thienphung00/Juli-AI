@@ -67,7 +67,7 @@
     },
     "executorAssigned": {
       "type": "string",
-      "enum": ["ui-ux", "backend", "data-platform", "machine-learning", "none"]
+      "enum": ["ui-ux", "backend", "data-platform", "machine-learning", "integrations", "none"]
     },
     "contextFilesLoaded": {
       "type": "array",

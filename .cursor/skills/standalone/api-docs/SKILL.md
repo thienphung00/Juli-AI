@@ -10,9 +10,7 @@ catalog:
   loadWhen:
     - library framework api reference
     - official sdk openapi changelog
-  skills:
-    - context7-mcp
-  mcpServers:
+  cliDocs:
     - context7
 ---
 
@@ -38,9 +36,13 @@ source-of-truth material that downstream skills load without re-reading vendor s
 
 **MUST NOT:** write feature PRDs; create GitHub issues; implement clients/webhooks/sync jobs; invent endpoints, fields, or behaviors.
 
-## Primary tool
+## Primary tools
 
-Load **`context7-mcp`** and follow [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc) (read MCP tool schema before calling).
+1. Official vendor API / SDK / OpenAPI pages (`WebFetch` when URLs are known).
+2. **Context7 CLI** (`npx ctx7@latest`) — **only when Focus/Meta selects it** for
+   SDK/library references during this technical extraction. Follow
+   [`.cursor/rules/context7-cli.mdc`](../../../rules/context7-cli.mdc) and
+   skill-catalog `catalog.cliDocs`. **Not an MCP.**
 
 **Source priority:** official API docs → official SDK docs → OpenAPI/JSON Schema → official GitHub + changelogs → community (**only** if no official source; mark `UNVERIFIED`).
 

@@ -13,9 +13,7 @@ catalog:
     - account health violation limit eligibility policy
     - seller feature guide creator feature guide platform docs
     - tiktok shop university feature policy creator seller
-  skills:
-    - context7-mcp
-  mcpServers:
+  cliDocs:
     - context7
 ---
 
@@ -73,7 +71,9 @@ published URLs. Do not rely on search engines or scraped mirrors.
 
 1. **TikTok Shop University** — Feature Guide and Policy Center (use `WebFetch` on the URLs above).
 2. **Official Help Center / Seller Center / Creator Center** — supplementary policy articles.
-3. **`context7-mcp`** — when platform docs are embedded in official partner/SDK references.
+3. **Context7 CLI** — only when Focus/Meta selects it because policy/feature text lives
+   inside an official partner **SDK/library** reference (technical), not for University
+   HTML articles. Not an MCP.
 
 **Source priority:** TikTok Shop University (official) → Help Center / Partner Center policy
 → official blog / changelog announcements → API policy fields (via `api-docs`) →

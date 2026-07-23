@@ -46,7 +46,13 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
         return False, f"issueId mismatch: expected {issue}", {"issueId": artifact.get("issueId")}
 
     domain = artifact.get("executorDomain")
-    if domain not in {"ui-ux", "backend", "data-platform", "machine-learning"}:
+    if domain not in {
+        "ui-ux",
+        "backend",
+        "data-platform",
+        "machine-learning",
+        "integrations",
+    }:
         return False, f"Invalid executorDomain: {domain}", {}
 
     context_files = artifact.get("contextFilesLoaded")

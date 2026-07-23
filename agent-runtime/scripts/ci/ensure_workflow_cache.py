@@ -49,6 +49,7 @@ DOMAIN_SKILL_PATHS: dict[str, str] = {
     "ui-ux": ".cursor/skills/domain/ui-ux/SKILL.md",
     "data-platform": ".cursor/skills/domain/data-platform/SKILL.md",
     "machine-learning": ".cursor/skills/domain/machine-learning/SKILL.md",
+    "integrations": ".cursor/skills/domain/integrations/SKILL.md",
 }
 
 DEFAULT_TOOLS = ["Read", "Grep", "Glob", "Shell", "StrReplace"]

@@ -137,7 +137,7 @@ Executor → Review + Meta execution signal.
 `redGreenRefactorEvidence` is an array of TDD cycles: failing test evidence, passing test
 evidence, refactor notes, and commands/results when available.
 
-`executorDomain` enum: `ui-ux` | `backend` | `data-platform` | `machine-learning`.
+`executorDomain` enum: `ui-ux` | `backend` | `data-platform` | `machine-learning` | `integrations`.
 
 ### review-artifact
 
