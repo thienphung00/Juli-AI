@@ -7,7 +7,7 @@
   "reviewedBy": "intent-review skill",
   "fixedPoint": "d9ab6d4d",
   "spec_fidelity": "pass",
-  "specFidelityNotes": "Diff a621100d vs d9ab6d4d on feature/issue-490-business-advertiser-oauth. Implements issue #490 / ADR-032 Advertiser callback: public GET /v1/auth/tiktok/business/callback (no JWT), 400 on missing code/state, HMAC state\u2192Juli user binding (401 on forged state), Marketing API token exchange via business-api.tiktok.com, encrypted persist with capability=business_advertiser separate from Shop Partner OAuth. Shop callback path and Partner secrets untouched (only app.py router include). Mirrors Shop OAuth prior art for layering and tests.",
+  "specFidelityNotes": "Diff a621100d vs d9ab6d4d on feature/issue-490-business-advertiser-oauth. Implements issue #490 / ADR-034 Advertiser callback: public GET /v1/auth/tiktok/business/callback (no JWT), 400 on missing code/state, HMAC state\u2192Juli user binding (401 on forged state), Marketing API token exchange via business-api.tiktok.com, encrypted persist with capability=business_advertiser separate from Shop Partner OAuth. Shop callback path and Partner secrets untouched (only app.py router include). Mirrors Shop OAuth prior art for layering and tests.",
   "smells": [
     {
       "name": "Duplicated Code",

@@ -15,7 +15,7 @@
   "toolsUsed": ["Shell", "Read", "Write", "StrReplace", "Grep", "Glob", "WebSearch"],
   "toolInvocationCount": 28,
   "contextFilesLoaded": [
-    "docs/adr/032-tiktok-business-oauth-redirect-urls.md",
+    "docs/adr/034-tiktok-business-oauth-redirect-urls.md",
     "backend/src/juli_backend/api/routes/auth_tiktok.py",
     "backend/src/juli_backend/integrations/tiktok/auth.py",
     "backend/src/juli_backend/services/tiktok/app_review_store.py",
