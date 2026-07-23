@@ -1,113 +1,80 @@
 ---
 name: backend-executor
 description: >-
-  Executor Agent domain skill for Python/FastAPI backend work. Use when
-  implementing API endpoints, services, auth, background jobs, or domain logic
-  under backend/.
+  Executor Agent domain skill for Juli product logic and /v1/* FastAPI API.
+  Use when implementing scoring, copy, action cards, aggregates, auth, or
+  product services — not vendor I/O or schema/ETL durability.
 ---
 
 # Backend Executor
 
-Executor Agent domain skill for backend work. Implements issues with **mandatory
-built-in TDD** (Red → Green → Refactor). Canonical requirements:
+Juli product logic and `/v1/*` API. TDD + artifact handoff:
 [`agent-runtime/docs/agent-runtime.md`](../../../agent-runtime/docs/agent-runtime.md).
 
 ## When to load
 
 | Signal | Also load |
 |--------|-----------|
-| FastAPI route, service, repo | `python-patterns`, `patterns.mdc` |
+| FastAPI route, service, dependency | `python-patterns`, `patterns.mdc` |
 | pytest / API tests | `python-testing` |
 | User input, auth, PII | `security.mdc`, `reliability.mdc` |
-| External HTTP / webhooks | `reliability.mdc`, `observability.mdc` |
-| Celery tasks | Celery MCP, `reliability.mdc` |
+| Celery / background jobs | `reliability.mdc`, `observability.mdc` |
+| Vendor HTTP, webhooks, sync | **`integrations`** — not here |
 
-## Required context
+## Owns / Does not own
 
-- `MODULE.md` for each affected module under `backend/`
-- API contracts from issue / `system-design.md`
-- Relevant ADRs for architectural constraints
+**Owns:** `/v1/*` routes (`api/routes/`), Juli JWT/session auth (`core/security/`),
+product services (scoring, copy, action cards, aggregates, execution, alerts,
+feedback, operations), Celery workers for product orchestration.
 
-## TDD lifecycle (built-in)
+**Does not own:** **`integrations`** (vendor I/O), **`data-platform`** (schema/repos/ETL),
+**`machine-learning`** (`backend/src/juli_backend/ai/`), **`ui-ux`** (`apps/dashboard`, `apps/demo`).
 
-### Philosophy
+## Required context + load map
 
-Tests verify **behavior through public interfaces**, not implementation details.
-Avoid mocking internal collaborators by default, testing private methods, or
-asserting incidental call sequences.
+- `MODULE.md` under `backend/src/juli_backend/`; [ADR-031](../../../docs/adr/031-integrations-executor-domain.md)
+- **Load map:** `SKILL.md` → `REFERENCE.md` → `domain/testing-patterns/python-{patterns,testing}.md`
 
-### Anti-pattern: horizontal slices
+## Juli recipes
 
-Do **not** write many tests first then implement everything.
+**App factory** — `api/app.py:create_app()` mounts `/v1/*`; vendor webhooks outside `/v1` when required.
 
-- WRONG: RED = test1..testN, then GREEN = impl1..implN
-- RIGHT: RED→GREEN for **one** behavior at a time (vertical slices)
+**Route** — thin `api/routes/` handler: Pydantic `response_model`, `Depends(get_current_user)`,
+bounded pagination; delegate to repos/services.
 
-### Test surfaces in this repo
+**Auth** — `core/security/dependencies.py:get_current_user`; override via
+`app.dependency_overrides` in tests (`tests/unit/test_api.py`).
 
-- **API (FastAPI):** `httpx.AsyncClient` + `ASGITransport` on `create_app()`;
-  override deps via `app.dependency_overrides`
-- **Repository / domain:** async functions with in-memory SQLite fixtures from
-  `tests/unit/conftest.py`
+**Service** — logic in `services/<domain>/`; public API in `MODULE.md`; no vendor HTTP.
 
-Pick the **lowest-cost public interface** that proves the behavior:
+**Worker** — `workers/tasks/` + `workers/celery_app.py`; shop-scoped, idempotent.
 
-- Pure logic → unit test the function/class
-- Service boundary → integration-style test on public entrypoint
-- API contract → route test: status + response shape + key fields
+Deeper patterns: [`REFERENCE.md`](REFERENCE.md).
 
-### Per-cycle checklist
+## Domain test surfaces
 
-- [ ] Test describes behavior, not implementation
-- [ ] Test uses a public interface only
-- [ ] RED failure matches the missing/buggy behavior
-- [ ] GREEN is minimal for the current test
-- [ ] Refactor only when GREEN; run tests after each step
+- **API:** `httpx.AsyncClient` + `ASGITransport(create_app())`; override `get_session` /
+  `get_current_user`
+- **Service:** async tests + SQLite `session` from `tests/unit/conftest.py`
+- Vertical RED→GREEN; assert status + envelope, not call order
 
-### Workflow
+TDD + artifact: see `agent-runtime/docs/agent-runtime.md` (surfaces above only).
 
-1. **Plan** — confirm public interface and critical behaviors
-2. **Tracer bullet** — one end-to-end RED→GREEN path
-3. **Incremental loop** — one behavior per RED→GREEN cycle
-4. **Refactor implementation** — when GREEN (advisory; see structure authority)
-5. **Refactor tests/fixtures** — still GREEN
+## Implementation artifact
 
-### Structure authority
-
-> Executor MAY clean up structure during GREEN (refactor step). Only intent-review MAY block merge on structure.
-
-Refactor is non-blocking. Do not treat it as merge approval for structure — hand off to Review Agent (`intent-review`).
+```bash
+python agent-runtime/scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain backend
+```
 
 ## Review focus
 
-Auth/authz, error handling, idempotency, timeouts/retries, logging, API envelope
-consistency per `patterns.mdc`. Structure/smells are judged by `intent-review`, not here.
+Auth/authz at service layer, API envelope (`patterns.mdc`), idempotency, safe logging.
+Structure: `intent-review`.
 
 ## Validation
 
-`pytest`, `ruff check .`, `mypy backend/`; migration up/down when schema changes.
-
-## Implementation artifact (required handoff)
-
-Before Review Agent, write `agent-runtime/artifacts/implementations/implementation-issue-<n>.json`.
-
-```bash
-python agent-runtime/agent-runtime/scripts/ci/generate_implementation_artifact.py --issue <n> --executor-domain backend
-```
-
-Fill in from the implementation session:
-
-- `redGreenRefactorEvidence` — one entry per TDD cycle (failing/passing commands)
-- `filesModified`, `testsAdded`, `testsUpdated`
-- `contextFilesLoaded`, `skillsLoaded`, `rulesLoaded`, `mcpsUsed`, `toolsUsed`, `toolInvocationCount`
-- `implementationSummary`, `assumptions`, `risks`
-- `phaseRunId` — shared with review/validation artifacts for this run
-
-Schema: [`agent-runtime/docs/schemas/implementation-artifact.schema.json`](../../../agent-runtime/docs/schemas/implementation-artifact.schema.json)
-
-Commit the artifact on the feature branch with the code changes.
+`pytest`, `ruff check .`, `mypy backend/`; schema changes → `data-platform`.
 
 ## Must not
 
-- Ship or validate — hand off to Review Agent
-- Bypass module public surfaces documented in `MODULE.md`
+Vendor HTTP/webhooks/analytics fetch; migrations/repos/ETL dedup; ship or validate.
