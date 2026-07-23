@@ -318,6 +318,23 @@ Fulfillment ship/label/tracking actions use **Fulfillment API**; order reads use
 (`business-api.tiktok.com`) for Shop Ads campaign/budget/bid writes — not interchangeable.
 _Avoid_: "Ads API" on Shop Partner host (no campaign writes); Internal engine names with no implemented client or ADR
 
+**TikTok Shop OAuth redirect**:
+Production callback for TikTok **Shop Partner** seller consent:
+`https://api.app-juli.com/v1/auth/tiktok/callback` (`GET /v1/auth/tiktok/callback`).
+_Avoid_: reusing this URI for Marketing / Business app registration
+
+**TikTok Business Advertiser redirect**:
+Production callback registered as the Marketing API app **Advertiser redirect URL**:
+`https://api.app-juli.com/v1/auth/tiktok/business/callback`
+([ADR-034](docs/adr/034-tiktok-business-oauth-redirect-urls.md)).
+_Avoid_: Shop OAuth redirect, account-holder redirect (different portal field)
+
+**TikTok Business account-holder redirect**:
+Production callback registered as the Marketing API app **TikTok account holder redirect URL**:
+`https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback`
+([ADR-034](docs/adr/034-tiktok-business-oauth-redirect-urls.md)).
+_Avoid_: Advertiser redirect, Shop OAuth redirect, Login Kit URLs on `app-juli.com`
+
 **Ads KPI workflow routing**:
 Analytics Ads KPIs (ROAS, CAC, CTR) link to **Promotion** workflows from
 `execution_layer.md` — Create Activity (7a), Update Activity (7c), Delete Activity (7b)

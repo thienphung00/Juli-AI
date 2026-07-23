@@ -38,3 +38,4 @@
 | [031](031-integrations-executor-domain.md) | Integrations executor domain (platform-agnostic) + domain skill upgrade shape | Accepted |
 | [032](032-fujiwa-t1-gmv-experiment-scope.md) | Fujiwa T1 GMV experiment — single ETS model; defer Product/LIVE driver regression | Accepted |
 | [033](033-weekly-secrets-security-check.md) | Weekly secrets-first security check (report + prepare; VPS + website leak paths) | Accepted |
+| [034](034-tiktok-business-oauth-redirect-urls.md) | TikTok Business OAuth redirect URL pair (Advertiser + account holder) | Accepted |
