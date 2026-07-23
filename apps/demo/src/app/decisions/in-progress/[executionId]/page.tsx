@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@juli/ui";
 import { formatDateTime } from "@juli/utils";
+import { useParams } from "next/navigation";
 
 import { DestinationPlaceholder } from "../../../../components/destination-placeholder";
 import {
@@ -240,10 +241,8 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
   );
 }
 
-export default function InProgressDetailPage({
-  params,
-}: {
-  params: { executionId: string };
-}) {
-  return <InProgressDetailView executionId={params.executionId} />;
+export default function InProgressDetailPage() {
+  const { executionId } = useParams<{ executionId: string }>();
+
+  return <InProgressDetailView executionId={executionId} />;
 }

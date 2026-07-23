@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 
-import { RecommendationsView } from "../../components/recommendations-view";
+import { DecisionsPageClient } from "../../components/decisions-page-client";
 
 export default function DecisionsPage() {
   return (
     <Suspense fallback={<p className="demo-kicker">Đang tải…</p>}>
-      <RecommendationsView />
+      <DecisionsPageClient />
     </Suspense>
   );
 }

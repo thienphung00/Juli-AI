@@ -29,6 +29,8 @@ def _source_files(path: Path) -> list[Path]:
         and candidate.suffix in SOURCE_EXTENSIONS
         and "node_modules" not in candidate.parts
         and ".next" not in candidate.parts
+        and "e2e" not in candidate.parts
+        and candidate.name != "playwright.config.ts"
     ]
 
 

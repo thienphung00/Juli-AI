@@ -193,6 +193,32 @@ jobs:
           python -m pytest tests/unit/test_phase_2_6_demo_deploy_config.py \
             tests/unit/test_phase_2_6_demo_deploy.py -q
 
+  demo-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Demo dependency graph
+        run: pnpm install --frozen-lockfile --filter @juli/demo...
+      - name: Install Playwright Chromium
+        run: pnpm --filter @juli/demo exec playwright install chromium
+      - name: Phase 2.6 Demo exit-gate Playwright (#407)
+        run: pnpm --filter @juli/demo test:e2e
+      - name: Install Python test dependencies
+        run: pip install -e "./backend[dev]"
+      - name: Demo exit-gate contract tests (#407)
+        run: python -m pytest tests/unit/test_phase_2_6_demo_exit_gate.py -q
+
   validate-artifacts:
     runs-on: ubuntu-latest
     needs: resolve-issue
@@ -261,6 +287,7 @@ jobs:
       - frontend
       - demo-frontend
       - demo-deploy-contracts
+      - demo-e2e
       - validate-artifacts
       - generate-validation-artifact
     if: always()
@@ -275,6 +302,7 @@ jobs:
           fe="${{ needs.frontend.result }}"
           demo="${{ needs.demo-frontend.result }}"
           demo_deploy="${{ needs.demo-deploy-contracts.result }}"
+          demo_e2e="${{ needs.demo-e2e.result }}"
           val="${{ needs.validate-artifacts.result }}"
           gen="${{ needs.generate-validation-artifact.result }}"
           issue='${{ needs.resolve-issue.outputs.issue_number }}'
@@ -289,6 +317,7 @@ jobs:
           [[ "$fe" == "success" ]] || fail "frontend: $fe"
           [[ "$demo" == "success" ]] || fail "demo-frontend: $demo"
           [[ "$demo_deploy" == "success" ]] || fail "demo-deploy-contracts: $demo_deploy"
+          [[ "$demo_e2e" == "success" ]] || fail "demo-e2e: $demo_e2e"
 
           if [[ -n "$issue" ]]; then
             [[ "$val" == "success" ]] || fail "validate-artifacts: $val"
