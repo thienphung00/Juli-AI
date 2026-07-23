@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 491,
+  "executorDomain": "backend",
+  "phaseRunId": "491-20260723T210500",
+  "startedAt": "2026-07-23T21:05:00Z",
+  "completedAt": "2026-07-23T21:15:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-491.json",
+    "agent-runtime/artifacts/workflow-cache/meta-prepare-issue-491.json",
+    "docs/adr/032-tiktok-business-oauth-redirect-urls.md",
+    "backend/src/juli_backend/api/routes/auth_tiktok.py",
+    "backend/src/juli_backend/integrations/tiktok/auth.py",
+    "backend/src/juli_backend/services/tiktok/app_review_store.py",
+    "backend/src/juli_backend/services/tiktok/oauth.py",
+    "tests/unit/test_tiktok_auth_callback.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": [
+    "backend"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+    "backend/src/juli_backend/integrations/tiktok/business_account_holder_auth.py",
+    "backend/src/juli_backend/services/tiktok/business_account_holder_store.py",
+    "backend/src/juli_backend/api/app.py",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "tests/unit/test_tiktok_business_account_holder_callback.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_business_account_holder_callback.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ImportError \u2014 route/module not wired; 10 collection/setup errors before implementation",
+      "passingTestEvidence": "test_callback_missing_params_returns_400 \u2014 400 on empty query",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_tiktok_business_account_holder_callback.py::TestBusinessAccountHolderCallbackRoute::test_callback_missing_params_returns_400 -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "N/A \u2014 state validation + persistence",
+      "passingTestEvidence": "test_callback_exchanges_code_and_persists_account_holder_credential \u2014 encrypted row with capability business_account_holder",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_tiktok_business_account_holder_callback.py::TestBusinessAccountHolderCallbackRoute::test_callback_exchanges_code_and_persists_account_holder_credential -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "N/A \u2014 isolation from shop/advertiser credentials",
+      "passingTestEvidence": "test_callback_does_not_overwrite_shop_or_advertiser_credentials",
+      "commands": [
+        {
+          "command": "cd backend && PYTHONPATH=src python -m pytest ../tests/unit/test_tiktok_business_account_holder_callback.py -q",
+          "exitCode": 0,
+          "outputSummary": "10 passed in 1.54s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added public GET /v1/auth/tiktok/business/account-holder/callback for TikTok Business account-holder OAuth: validates auth_code+state, exchanges via business-api.tiktok.com v1.3 oauth2/access_token/, persists encrypted credentials with capability business_account_holder separate from Shop and Advertiser rows, and mirrors Shop callback error semantics (400/401/502/503).",
+  "assumptions": [
+    "TikTok Business account-holder redirect uses query param auth_code (Marketing API) and the same POST /open_api/v1.3/oauth2/access_token/ endpoint as advertiser/creator flows.",
+    "Token subject key is creator_id when present; merchant_authorization_id stores that value with capability business_account_holder.",
+    "Env: TIKTOK_BUSINESS_APP_ID, TIKTOK_BUSINESS_APP_SECRET, TIKTOK_BUSINESS_ACCOUNT_HOLDER_REDIRECT_URI (redirect URI used at auth initiation; not required for callback handler)."
+  ],
+  "risks": [
+    "Live TikTok account-holder token response field names (creator_id vs open_id, expires_in vs access_token_expire_in) may differ; store normalizes both.",
+    "Account-holder credentials attach to the user's first shop or a placeholder shop because tiktok_credentials requires shop_id FK."
+  ],
+  "acceptanceCriteria": {
+    "public_no_jwt_missing_params_400": "pass \u2014 test_callback_missing_params_returns_400, test_callback_missing_state_returns_400",
+    "invalid_state_rejected": "pass \u2014 test_callback_rejects_invalid_state",
+    "mocked_exchange_persists_encrypted_for_user_in_state": "pass \u2014 test_callback_exchanges_code_and_persists_account_holder_credential",
+    "no_shop_or_advertiser_credential_collision": "pass \u2014 test_callback_does_not_overwrite_shop_or_advertiser_credentials",
+    "unit_tests_success_missing_bad_state_exchange_failure": "pass \u2014 10 route tests",
+    "secrets_never_logged": "pass \u2014 response/body assertions exclude raw tokens; logs use auth_code_len only"
+  }
+}
