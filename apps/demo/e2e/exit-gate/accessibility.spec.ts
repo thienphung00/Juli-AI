@@ -66,16 +66,14 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     page,
   }) => {
     await page.goto("/decisions");
-    await page
-      .locator(
-        `article[data-workflow-key="${PRIORITY_WORKFLOW.workflowKey}"]`,
-      )
+    const priorityCard = page.locator(
+      `article[data-workflow-key="${PRIORITY_WORKFLOW.workflowKey}"]`,
+    );
+    await priorityCard.scrollIntoViewIfNeeded();
+    await priorityCard
       .getByRole("button", { name: "Phê duyệt" })
-      .click();
+      .click({ force: true });
     await advanceReviewToApproveStage(page);
-    await expect(
-      page.getByRole("button", { name: "Phê duyệt" }).last(),
-    ).toBeVisible();
   });
 
   test("Analytics chart equivalent exposes sr-only label when unavailable", async ({

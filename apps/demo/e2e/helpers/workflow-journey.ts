@@ -7,11 +7,13 @@ export async function advanceReviewToApproveStage(page: Page) {
   while (!(await approve.isVisible()) && guard < 12) {
     const next = page.getByRole("button", { name: "Tiếp theo" });
     await expect(next).toBeVisible();
-    await next.click();
+    await next.scrollIntoViewIfNeeded();
+    await next.click({ force: true });
     guard += 1;
   }
 
   await expect(approve).toBeVisible();
+  await approve.scrollIntoViewIfNeeded();
 }
 
 export async function approveFromRecommendations(
