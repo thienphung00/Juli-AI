@@ -1,0 +1,122 @@
+{
+  "id": "review-issue-407",
+  "issue": 407,
+  "timestamp": "2026-07-23T08:52:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #407 Phase 2.6 Demo exit gate: intent-review spec_fidelity=pass consumed as given. Playwright suite (50 tests) covers Decisions journey, Manual Refresh, responsive IA, accessibility, Vietnamese locale, and assistance regression; demo-e2e CI job + 10 contract pytest cases; minimal app fixes for ?load=error, in-progress useParams, unavailable chart sr-only. ADR-026 — Analytics #404 and Settings #405 non-blocking. No CRITICAL reliability/security findings.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/demo/e2e",
+    "apps/demo/playwright.config.ts",
+    "apps/demo/package.json",
+    "apps/demo/src/components/decisions-page-client.tsx",
+    "apps/demo/src/components/analytics-charts.tsx",
+    "apps/demo/src/components/analytics-kpi-card.tsx",
+    "apps/demo/src/app/decisions/in-progress/[executionId]/page.tsx",
+    "tests/unit/test_phase_2_6_demo_exit_gate.py",
+    ".github/workflows/pr.yml"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "apps/demo",
+      "interface": "Decisions ?load=error query hook",
+      "changeType": "added",
+      "breaking": false,
+      "description": "DecisionsPageClient passes initialLoadState from ?load=error for truthful error-state E2E."
+    },
+    {
+      "module": "apps/demo",
+      "interface": "AnalyticsUnavailableChartPattern label prop",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Unavailable KPI cards expose sr-only chart equivalent text for a11y exit gate."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "E2E covers Home → Decisions, Priority Workflow 1, all remaining visible cards, and approval → In Progress for all nine workflows",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_e2e_covers_home_decisions_priority_workflow_cards_approval_in_progress"
+        },
+        {
+          "criterion": "Manual Refresh is tested from mutated Home/Decisions state and returns to default Decisions Recommendations state",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_manual_refresh_returns_default_decisions_recommendations_state"
+        },
+        {
+          "criterion": "Playwright desktop (≥56rem/896px) and mobile-web (<42rem/672px) viewport suites preserve IA, terminology, and approval behavior for the Decisions journey",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_playwright_desktop_and_mobile_web_viewport_suites_preserve_ia"
+        },
+        {
+          "criterion": "Automated accessibility covers keyboard flow, focus-visible, 44×44 targets, dialog/popover focus, chart equivalents, and reduced motion",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_automated_accessibility_keyboard_focus_touch_targets_chart_equivalents"
+        },
+        {
+          "criterion": "Vietnamese copy/diacritics and truthful empty/loading/error/unavailable states are checked",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_vietnamese_copy_diacritics_and_truthful_empty_loading_error_states"
+        },
+        {
+          "criterion": "Production build and deploy-contract tests run in CI",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_production_build_and_deploy_contract_tests_run_in_ci"
+        },
+        {
+          "criterion": "Public smoke command verifies DNS, valid TLS, 2xx response, and the Decisions route without requiring backend health",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_public_smoke_script_covers_decisions_route"
+        },
+        {
+          "criterion": "Exit gate does not depend on optional Settings issue #405",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_exit_gate_does_not_depend_on_optional_settings_issue_405"
+        },
+        {
+          "criterion": "Exit gate does not depend on optional Analytics issue #404 — if #404 ships, its E2E coverage (including Decisions ↔ Analytics deep links) is exercised as a conditional addition to this suite, not a blocking requirement",
+          "test": "tests/unit/test_phase_2_6_demo_exit_gate.py::test_exit_gate_does_not_depend_on_optional_analytics_issue_404"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 60,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "statement": "Intent-review passed; Guardrails found no blocking reliability, security, observability, performance, or acceptance-coverage gaps. 9/9 ACs mapped; 50 Playwright + 10 contract tests green.",
+    "timestamp": "2026-07-23T08:55:00Z",
+    "acceptedRisks": false,
+    "reviewer": "guardrails skill"
+  },
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 0,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "fc571251..HEAD on feature/issue-407-demo-exit-gate",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-407.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-407.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewStatus": "PASS",
+  "phaseRunId": "407-20260723T084000",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewFailures": 0,
+  "findings": [],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "severity": "none",
+  "reviewDurationMs": 1200000
+}
