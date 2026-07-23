@@ -68,3 +68,8 @@ releases/
 # so Meta can auto-ensure caches without a human reminder (meta_prepare_executor.py).
 agent-runtime/artifacts/workflow-cache/
 agent-runtime/artifacts/grill-cache/
+
+# Playwright (apps/demo exit-gate)
+apps/demo/test-results/
+apps/demo/playwright-report/
+apps/demo/blob-report/
