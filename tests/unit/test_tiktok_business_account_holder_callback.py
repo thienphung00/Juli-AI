@@ -211,6 +211,21 @@ class TestBusinessAccountHolderCallbackRoute:
         assert len(holder_count.all()) == 1
 
     @pytest.mark.asyncio
+    async def test_callback_secrets_never_logged_in_response(
+        self, client, user_id, mock_token_exchange
+    ):
+        state = _build_state(user_id)
+        resp = await client.get(
+            CALLBACK_PATH,
+            params={"auth_code": "auth_code_123", "state": state},
+        )
+        assert resp.status_code == 200
+        raw = resp.text
+        assert TOKEN_FIXTURE["access_token"] not in raw
+        assert TOKEN_FIXTURE["refresh_token"] not in raw
+        assert "auth_code_123" not in raw
+
+    @pytest.mark.asyncio
     async def test_callback_token_exchange_failure_returns_502(
         self, client, mock_token_exchange
     ):
