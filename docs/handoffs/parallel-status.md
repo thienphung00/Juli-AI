@@ -17,7 +17,7 @@
 
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
-| #407 | Demo E2E / responsive / a11y / deploy smoke | `apps/demo/e2e/**`, `apps/demo/playwright.config.ts`, `tests/unit/test_phase_2_6_demo_exit_gate.py`, `.github/workflows/pr.yml` (demo-e2e job) | **PR open — Review pushed fixes, babysitting CI** | `feature/issue-407-demo-exit-gate` | `.worktrees/issue-407` | Review holds |
+| #407 | Demo E2E / responsive / a11y / deploy smoke | `apps/demo/e2e/**`, `apps/demo/playwright.config.ts`, `tests/unit/test_phase_2_6_demo_exit_gate.py`, `.github/workflows/pr.yml` (demo-e2e job) | **PR open — CI green** | `feature/issue-407-demo-exit-gate` | `.worktrees/issue-407` | Review holds |
 
 Base SHA: `fc571251` (`origin/main`).
 
@@ -81,6 +81,7 @@ Slice: `P2-6` · executorDomain: `ui-ux`
 | 2026-07-23T07:45Z | Meta | `git worktree add` + `meta_prepare_executor.py --issue 407 --force` → ready | #407 |
 | 2026-07-23T08:35Z | Review | `git push` + `gh pr create` → https://github.com/thienphung00/Juli-AI/pull/488 | #407 |
 | 2026-07-23T09:00Z | Review | fix import/build/e2e selectors + ADR-003 artifacts; push babysit CI | #407 |
+| 2026-07-23T09:45Z | Review | CI all green on PR #488 (50 Playwright + artifact gates) | #407 |
 
 ## References
 
