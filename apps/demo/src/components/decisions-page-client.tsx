@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 
-import { RecommendationsView } from "../../components/recommendations-view";
+import { RecommendationsView } from "./recommendations-view";
 
 export function DecisionsPageClient() {
   const searchParams = useSearchParams();

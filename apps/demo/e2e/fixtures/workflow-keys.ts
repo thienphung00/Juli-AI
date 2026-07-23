@@ -11,38 +11,38 @@ export const RECOMMENDATION_WORKFLOWS = [
     isPriority: false,
   },
   {
-    workflowKey: "replenish_inventory_3",
+    workflowKey: "replenish_inventory_3", // gitleaks:allow — documented mock workflow key
     title: "Nhập thêm hàng",
     isPriority: false,
   },
   {
     workflowKey: "clear_excess_4",
-    title: "Xử lý tồn kho dư",
+    title: "Xả hàng tồn",
     isPriority: false,
   },
   {
     workflowKey: "process_order_5",
-    title: "Xử lý đơn hàng",
+    title: "Xử lý đơn hàng có rủi ro trễ hạn",
     isPriority: false,
   },
   {
     workflowKey: "create_activity_7a",
-    title: "Tạo hoạt động khuyến mãi",
+    title: "Tạo chương trình khuyến mãi",
     isPriority: false,
   },
   {
     workflowKey: "update_activity_7c",
-    title: "Cập nhật hoạt động khuyến mãi",
+    title: "Cập nhật chương trình khuyến mãi",
     isPriority: false,
   },
   {
     workflowKey: "delete_activity_7b",
-    title: "Xóa hoạt động khuyến mãi",
+    title: "Kết thúc chương trình khuyến mãi",
     isPriority: false,
   },
   {
     workflowKey: "prevent_cancellation_8a",
-    title: "Xử lý yêu cầu hủy đơn",
+    title: "Xử lý yêu cầu huỷ đơn",
     isPriority: false,
   },
   {

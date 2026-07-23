@@ -63,3 +63,60 @@ def test_deploy_contract_tests_remain_in_pr_workflow() -> None:
     text = PR_WORKFLOW.read_text(encoding="utf-8")
     assert "demo-deploy-contracts:" in text
     assert "test_phase_2_6_demo_deploy_config.py" in text
+
+
+def test_e2e_covers_home_decisions_priority_workflow_cards_approval_in_progress() -> None:
+    text = (E2E_DIR / "decisions-journey.spec.ts").read_text(encoding="utf-8")
+    assert "Home → Decisions" in text or "Home exposes exactly two destination launchers" in text
+    assert "Priority Workflow 1" in text
+    assert "every executable workflow reaches In Progress" in text
+
+
+def test_manual_refresh_returns_default_decisions_recommendations_state() -> None:
+    text = (E2E_DIR / "manual-refresh.spec.ts").read_text(encoding="utf-8")
+    assert "resetDemo" in text or "Manual Refresh" in text
+    assert "Recommendations" in text
+
+
+def test_playwright_desktop_and_mobile_web_viewport_suites_preserve_ia() -> None:
+    config = PLAYWRIGHT_CONFIG.read_text(encoding="utf-8")
+    assert '"desktop"' in config
+    assert '"mobile-web"' in config
+    text = (E2E_DIR / "responsive-parity.spec.ts").read_text(encoding="utf-8")
+    assert "card order" in text.lower()
+
+
+def test_automated_accessibility_keyboard_focus_touch_targets_chart_equivalents() -> None:
+    text = (E2E_DIR / "accessibility.spec.ts").read_text(encoding="utf-8")
+    assert "AxeBuilder" in text
+    assert "44" in text
+    assert "focus-visible" in text
+    assert "prefers-reduced-motion" in text
+    assert "sr-only" in text or "chart equivalent" in text.lower()
+
+
+def test_vietnamese_copy_diacritics_and_truthful_empty_loading_error_states() -> None:
+    text = (E2E_DIR / "locale-and-assistance.spec.ts").read_text(encoding="utf-8")
+    assert "Vietnamese diacritics" in text
+    assert "load=error" in text
+    assert "Mock mode notice" in text
+
+
+def test_production_build_and_deploy_contract_tests_run_in_ci() -> None:
+    workflow = PR_WORKFLOW.read_text(encoding="utf-8")
+    assert "demo-e2e:" in workflow
+    assert "pnpm --filter @juli/demo test:e2e" in workflow
+    assert "demo-deploy-contracts:" in workflow
+    assert "build:demo" in workflow or "check:demo" in workflow
+
+
+def test_exit_gate_does_not_depend_on_optional_settings_issue_405() -> None:
+    text = (E2E_DIR / "locale-and-assistance.spec.ts").read_text(encoding="utf-8")
+    assert "Settings" not in text or "Cài đặt provides grounded assistance" in text
+    assert "settings/workflows" not in text.lower()
+
+
+def test_exit_gate_does_not_depend_on_optional_analytics_issue_404() -> None:
+    text = (E2E_DIR / "accessibility.spec.ts").read_text(encoding="utf-8")
+    assert "analytics-unavailable-chart" in text or "Chưa khả dụng" in text
+    assert "six-KPI" not in text

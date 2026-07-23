@@ -16,14 +16,21 @@ const DESTINATION_PATHS = [
 test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
   test("Vietnamese diacritics appear on Home and Decisions", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("Quyết định")).toBeVisible();
-    await expect(page.getByText("Phân tích")).toBeVisible();
+    const launchers = page.getByRole("region", { name: "Điểm đến chính" });
+    await expect(
+      launchers.getByRole("link", { name: /Quyết định/ }),
+    ).toBeVisible();
+    await expect(
+      launchers.getByRole("link", { name: /Phân tích/ }),
+    ).toBeVisible();
     await expect(page.getByText("Juli Demo Shop")).toBeVisible();
 
     await page.goto("/decisions");
-    await expect(page.getByText("Đề xuất")).toBeVisible();
-    await expect(page.getByText("Đang thực hiện")).toBeVisible();
-    await expect(page.getByText("Tạo sản phẩm nổi bật")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Đề xuất" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Đang thực hiện" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Tạo sản phẩm nổi bật", level: 3 }),
+    ).toBeVisible();
   });
 
   test("Mock mode notice and Sign-in stub stay truthful", async ({ page }) => {
@@ -56,11 +63,13 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     page,
   }) => {
     await page.goto("/decisions?load=error");
-    await expect(page.getByRole("alert")).toContainText(
-      "Không thể tải đề xuất mẫu",
-    );
+    await expect(
+      page.getByRole("alert", { name: "Lỗi tải đề xuất" }),
+    ).toContainText("Không thể tải đề xuất mẫu");
     await page.getByRole("button", { name: "Thử lại" }).click();
-    await expect(page.getByText("Tạo sản phẩm nổi bật")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Tạo sản phẩm nổi bật", level: 3 }),
+    ).toBeVisible();
   });
 });
 

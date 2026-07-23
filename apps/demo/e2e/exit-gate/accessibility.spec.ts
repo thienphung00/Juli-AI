@@ -43,7 +43,7 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     page,
   }) => {
     await page.keyboard.press("Tab");
-    let focused = page.locator(":focus-visible");
+    const focused = page.locator(":focus-visible");
     await expect(focused).toBeVisible();
 
     for (let i = 0; i < 30; i += 1) {
@@ -82,14 +82,13 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     page,
   }) => {
     await page.goto("/analytics");
-    const unavailable = page.getByTestId("analytics-unavailable-chart");
-    if (await unavailable.count()) {
-      await expect(unavailable).toHaveAttribute("aria-label", /.+/);
-    } else {
-      await expect(
-        page.getByRole("region", { name: /biểu đồ|chart/i }),
-      ).toBeVisible();
-    }
+    const unavailableCard = page.getByTestId("analytics-kpi-card-sps");
+    await expect(
+      unavailableCard.getByText("Chưa khả dụng", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      unavailableCard.locator(".juli-sr-only"),
+    ).toContainText(/biểu đồ chưa khả dụng/i);
   });
 
   test("respects prefers-reduced-motion for scroll-into-view highlight", async ({

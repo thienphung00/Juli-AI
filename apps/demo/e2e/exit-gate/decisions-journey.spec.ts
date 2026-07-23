@@ -29,14 +29,13 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
       .getByRole("region", { name: "Điểm đến chính" })
       .getByRole("link");
     await expect(launchers).toHaveCount(2);
-    await expect(page.getByRole("link", { name: /Quyết định/ })).toHaveAttribute(
-      "href",
-      "/decisions",
-    );
-    await expect(page.getByRole("link", { name: /Phân tích/ })).toHaveAttribute(
-      "href",
-      "/analytics",
-    );
+    const launcherRegion = page.getByRole("region", { name: "Điểm đến chính" });
+    await expect(
+      launcherRegion.getByRole("link", { name: /Quyết định/ }),
+    ).toHaveAttribute("href", "/decisions");
+    await expect(
+      launcherRegion.getByRole("link", { name: /Phân tích/ }),
+    ).toHaveAttribute("href", "/analytics");
     await expect(page.getByTestId("mock-data-notice")).toContainText(
       "Juli Demo Shop",
     );
@@ -45,7 +44,10 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
   test("Home → Decisions preserves four-destination shell and assistance", async ({
     page,
   }) => {
-    await page.getByRole("link", { name: /Quyết định/ }).click();
+    await page
+      .getByRole("region", { name: "Điểm đến chính" })
+      .getByRole("link", { name: /Quyết định/ })
+      .click();
     await expect(page).toHaveURL(/\/decisions$/);
     await expectFourDestinationShell(page);
     await expectContextualAssistance(page);
@@ -88,7 +90,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
       PRIORITY_WORKFLOW.title,
     );
     await expect(
-      page.getByRole("heading", { name: PRIORITY_WORKFLOW.title }),
+      page.getByRole("heading", { name: PRIORITY_WORKFLOW.title, level: 1 }),
     ).toBeVisible();
     await expect(page.getByText("Đang thực hiện")).toBeVisible();
   });
@@ -111,7 +113,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
       await page.getByRole("button", { name: "Phê duyệt" }).last().click();
       await expect(page).toHaveURL(/\/decisions\/in-progress\//);
       await expect(
-        page.getByRole("heading", { name: fixture.title }),
+        page.getByRole("heading", { name: fixture.title, level: 1 }),
       ).toBeVisible();
       await navigatePrimaryDestination(page, "Quyết định");
       await expect(card).toHaveCount(0);
