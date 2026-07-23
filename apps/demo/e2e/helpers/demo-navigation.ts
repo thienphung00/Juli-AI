@@ -34,8 +34,9 @@ export async function navigatePrimaryDestination(
   page: Page,
   label: (typeof PRIMARY_DESTINATIONS)[number],
 ) {
-  await page
+  const link = page
     .getByRole("navigation", { name: "Điều hướng chính" })
-    .getByRole("link", { name: new RegExp(label, "i") })
-    .click();
+    .getByRole("link", { name: new RegExp(label, "i") });
+  await link.scrollIntoViewIfNeeded();
+  await link.click({ force: true });
 }

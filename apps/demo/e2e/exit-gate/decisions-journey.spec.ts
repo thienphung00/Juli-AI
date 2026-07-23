@@ -7,7 +7,6 @@ import {
 import {
   expectContextualAssistance,
   expectFourDestinationShell,
-  navigatePrimaryDestination,
 } from "../helpers/demo-navigation";
 import {
   advanceReviewToApproveStage,
@@ -115,7 +114,10 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
       await expect(
         page.getByRole("heading", { name: fixture.title, level: 1 }),
       ).toBeVisible();
-      await navigatePrimaryDestination(page, "Quyết định");
+      await page.goto("/decisions");
+      await expect(
+        page.getByRole("button", { name: "Đề xuất", pressed: true }),
+      ).toBeVisible();
       await expect(card).toHaveCount(0);
     }
   });
