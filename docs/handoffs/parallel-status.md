@@ -1,49 +1,60 @@
-# Parallel status — Phase 2.9 HITL wiring (#472)
+# Parallel status — TikTok Business OAuth (#489)
 
-**Started:** 2026-07-23 · **Parent PRD:** [#395](https://github.com/thienphung00/Juli-AI/issues/395) · Meta prepares; Executor → Review
+**Started:** 2026-07-23 · **Parent PRD:** [#489](https://github.com/thienphung00/Juli-AI/issues/489) · Meta prepares; Executor → Review → Ship
 
 ## Locked decisions
 
 | # | Decision |
 |---|----------|
-| 1 | **Isolate** — wire live `cli.py` backfill path so operator can run Fujiwa budgeted runs |
-| 2 | Individual PR + CI green; sync-before-merge |
-| 3 | Hard failure: retry ×2, then stop |
-| 4 | Waves 1–4 (#463–#471) on `origin/main` — do not re-land partitions/coverage math |
-| 5 | Review may push/PR |
-| 6 | **No** migrations / `packages/contracts` / Demo UI |
-| 7 | Section A reads only (ProductionReadClientFactory); no Section B writes |
-| 8 | CI: mocked Partner only; live Fujiwa run is operator/HITL after merge |
+| 1 | **Parallel** #490 + #491 — path-disjoint vertical slices |
+| 2 | Shared-core ADR-034 + CONTEXT land first (`feature/adr-032-tiktok-business-oauth-redirects` → renumbered ADR-034) |
+| 3 | Open individual PRs; CI green; **sync-before-merge** onto current `origin/main` |
+| 4 | Hard failure: retry ×2, then stop |
+| 5 | No Marketing API campaign CRUD, Ads ETL, or Connect Ads UI in this wave |
+| 6 | Do **not** edit Shop `auth_tiktok.py` behavior (read-only prior art) |
+| 7 | Prefer existing `tiktok_credentials.capability` over new DDL unless proven necessary |
+| 8 | Ops lock: Meta for sequential ship |
 
 ## Current run
 
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
-| #472 | HITL — wire live backfill CLI + Fujiwa run path | `analytics_backfill/cli.py` (+ thin wiring helper if needed) + unit tests + MODULE.md | **PR open** | `feature/issue-472-hitl-backfill-cli` | `.worktrees/issue-472` | [PR #483](https://github.com/thienphung00/Juli-AI/pull/483) |
-
-Base SHA: `origin/main` @ `fc571251` (includes #471 merge via PR #482).
+| shared-core | ADR-034 + epic #489 registry | `docs/adr/034-*`, CONTEXT, epicRegistry | **Shipping** | `feature/adr-032-tiktok-business-oauth-redirects` | primary | pending PR |
+| #490 | Advertiser OAuth callback | advertiser route + auth client + tests | **Ship-ready** | `feature/issue-490-business-advertiser-oauth` | `.worktrees/issue-490` | pending PR |
+| #491 | Account-holder OAuth callback | account-holder route + auth client + tests | **Ship-ready** | `feature/issue-491-business-account-holder-oauth` | `.worktrees/issue-491` | pending PR |
 
 ## Module ownership
 
 | Path family | Owner |
 |-------------|-------|
-| `services/analytics_backfill/cli.py` (+ optional `cli_wiring.py` / `live_runner.py`) | #472 |
-| Tests for live CLI dispatcher (mocked Partner) | #472 |
-| `MODULE.md` operator live-run command | #472 |
-| Partition runners / orchestrator / coverage / budget / repos | **Read-only** |
-| Demo/UI / pricing | **Forbidden** |
+| `api/routes/auth_tiktok_business_advertiser.py` (+ router wire in `api/app.py` advertiser only) | #490 |
+| `integrations/tiktok/business_advertiser_auth.py` (+ MODULE.md notes for advertiser) | #490 |
+| `services/tiktok/*advertiser*` persistence helpers | #490 |
+| `tests/unit/test_tiktok_business_advertiser_*.py` | #490 |
+| `api/routes/auth_tiktok_business_account_holder.py` (+ router wire in `api/app.py` account-holder only) | #491 |
+| `integrations/tiktok/business_account_holder_auth.py` | #491 |
+| `services/tiktok/*account_holder*` persistence helpers | #491 |
+| `tests/unit/test_tiktok_business_account_holder_*.py` | #491 |
+| Shop `auth_tiktok.py`, Shop OAuth tests | **Read-only** |
 
 ## GitHub ops
 
 | Field | Value |
 |-------|-------|
-| **Owner** | Review Agent (PR open; await CI green + sync-before-merge) |
-| **PR** | https://github.com/thienphung00/Juli-AI/pull/483 |
-| **AFK code** | Yes — wire CLI with mocked unit tests |
-| **HITL live** | Operator after merge; attach coverage to #462 |
+| **Owner** | Meta (sequential ship) |
+| **PR** | Individual — ADR-034 → #490 → #491 |
+| **Merge** | sync-before-merge onto current `origin/main` |
+| **AFK** | Yes — mocked TikTok HTTP |
+
+### Remote op log
+
+| Time (UTC) | Agent | Command | Issue |
+|------------|-------|---------|-------|
+| 2026-07-23T14:01Z | Meta | worktrees + meta_prepare | #489/#490/#491 |
+| 2026-07-23T14:30Z | Meta | rebase ADR→034; sequential PR/CI | shared-core |
 
 ## References
 
-- Explore wiring recipe: Composer explore (mirror `run_fujiwa_poll_cycle`)
-- PRD: `docs/product/phases/phase-2.9/PRD.md`
-- ADR: `docs/adr/029-phase-2.9-analytics-historical-backfill.md`
+- Topology: [`worktree-branch-topology.md`](worktree-branch-topology.md)
+- ADR: [`docs/adr/034-tiktok-business-oauth-redirect-urls.md`](../adr/034-tiktok-business-oauth-redirect-urls.md)
+- PRD: [#489](https://github.com/thienphung00/Juli-AI/issues/489)

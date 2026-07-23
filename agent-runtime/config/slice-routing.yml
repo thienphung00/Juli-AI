@@ -635,3 +635,98 @@ P2-9-9:
     - ios/
     - backend/src/juli_backend/integrations/tiktok/
     - Sibling issue context caches
+
+BIZ-OAUTH-1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - docs/adr/034-tiktok-business-oauth-redirect-urls.md
+    - CONTEXT.md
+    - docs/integrations/tiktok_api/authentication.md
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/core/security/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/integrations/tiktok/auth.py
+    - backend/src/juli_backend/services/tiktok/app_review_store.py
+    - backend/src/juli_backend/api/app.py
+    - tests/unit/test_tiktok_auth_callback.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+    - .cursor/rules/security.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
+
+BIZ-OAUTH-2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - docs/adr/034-tiktok-business-oauth-redirect-urls.md
+    - CONTEXT.md
+    - docs/integrations/tiktok_api/authentication.md
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/core/security/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/integrations/tiktok/auth.py
+    - backend/src/juli_backend/services/tiktok/app_review_store.py
+    - backend/src/juli_backend/api/app.py
+    - tests/unit/test_tiktok_auth_callback.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+    - .cursor/rules/security.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
+
+BIZ-OAUTH-3:
+  executorDomain: backend
+  requiredDocs:
+    - docs/adr/034-tiktok-business-oauth-redirect-urls.md
+    - CONTEXT.md
+    - docs/runbooks/app-review-runbook.md
+    - docs/runbooks/smoke-checklist-runbook.md
+  requiredModules:
+    - docs/runbooks/app-review-runbook.md
+    - docs/runbooks/smoke-checklist-runbook.md
+  loadWhenNeeded:
+    - docs/product/phases/phase-2.5-deployment.md
+  doNotLoad:
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches
+
+BIZ-OAUTH-4:
+  executorDomain: backend
+  requiredDocs:
+    - docs/adr/034-tiktok-business-oauth-redirect-urls.md
+    - CONTEXT.md
+    - docs/runbooks/app-review-runbook.md
+  requiredModules:
+    - docs/runbooks/app-review-runbook.md
+  loadWhenNeeded: []
+  doNotLoad:
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - Sibling issue context caches

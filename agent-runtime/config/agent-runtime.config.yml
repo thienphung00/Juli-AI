@@ -376,3 +376,21 @@ workflow_prompt_cache:
         - ios/
         - docs/product/design/
         - Sibling issue context caches
+    489:
+      defaultSliceId: BIZ-OAUTH-1
+      handoffPath: docs/adr/034-tiktok-business-oauth-redirect-urls.md
+      childSlices:
+        "490": BIZ-OAUTH-1
+        "491": BIZ-OAUTH-2
+        "492": BIZ-OAUTH-3
+        "493": BIZ-OAUTH-4
+      parentScopeBlock: "# Parent #489 — TikTok Business OAuth redirect callbacks (constant)\\n## Product boundary\\n- Two public HTTPS callbacks on api.app-juli.com per ADR-032\\n- Advertiser: /v1/auth/tiktok/business/callback\\n- Account holder: /v1/auth/tiktok/business/account-holder/callback\\n- Do not reuse Shop /v1/auth/tiktok/callback\\n## Parallel wave\\n- #490 Advertiser AFK · #491 account-holder AFK (path-disjoint)\\n- #492 ops docs · #493 HITL live round-trip\\n## Epic deferrals\\n- Marketing API campaign CRUD / Ads ETL / Connect Ads UI\\n- Shop Partner OAuth changes\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - apps/demo/
+        - apps/landing/
+        - web/
+        - ios/
+        - docs/product/design/
+        - Sibling issue context caches
