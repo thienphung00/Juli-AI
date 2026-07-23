@@ -1,4 +1,4 @@
-# Parallel status — Phase 2.9 wave 4 coverage (#471)
+# Parallel status — Phase 2.9 HITL wiring (#472)
 
 **Started:** 2026-07-22 · **Parent PRD:** [#462](https://github.com/thienphung00/Juli-AI/issues/462) · Meta prepares; Executor → Review
 
@@ -6,60 +6,44 @@
 
 | # | Decision |
 |---|----------|
-| 1 | **Isolate** (single issue) — coverage reporter is path-disjoint from HITL (#472) but Isolate for ops clarity |
-| 2 | Open individual PR + CI green; sync-before-merge before merge |
+| 1 | **Isolate** — wire live `cli.py` backfill path so operator can run Fujiwa budgeted runs |
+| 2 | Individual PR + CI green; sync-before-merge |
 | 3 | Hard failure: retry ×2, then stop |
-| 4 | Waves 1–3 (#463–#470) on `origin/main` — do not re-land schema/budget/partitions/orchestrator |
-| 5 | Review agent may push/PR |
-| 6 | **No** `packages/contracts`, migrations, or shared `mapping.py` edits |
-| 7 | Read partition progress (#464) + shared intervals; do not rewrite sibling partition runners |
+| 4 | Waves 1–4 (#463–#471) on `origin/main` — do not re-land partitions/coverage math |
+| 5 | Review may push/PR |
+| 6 | **No** migrations / `packages/contracts` / Demo UI |
+| 7 | Section A reads only (ProductionReadClientFactory); no Section B writes |
+| 8 | CI: mocked Partner only; live Fujiwa run is operator/HITL after merge |
 
 ## Current run
 
 | Issue | Title | Modules (exclusive) | Status | Branch | Worktree | GitHub ops |
 |-------|-------|---------------------|--------|--------|----------|------------|
-| #471 | Coverage reporter + exit thresholds | `analytics_backfill/coverage.py` (+ optional CLI subcommand) + unit test/fixtures + MODULE.md | **PR open** | `feature/issue-471-analytics-coverage` | `.worktrees/issue-471` | Review holds |
+| #472 | HITL — wire live backfill CLI + Fujiwa run path | `analytics_backfill/cli.py` (+ thin wiring helper if needed) + unit tests + MODULE.md | **PR open** | `feature/issue-472-hitl-backfill-cli` | `.worktrees/issue-472` | [PR #483](https://github.com/thienphung00/Juli-AI/pull/483) |
 
-Base SHA: `985ca86b` (`origin/main` — includes #463–#470 merges).
+Base SHA: `origin/main` @ `fc571251` (includes #471 merge via PR #482).
 
 ## Module ownership
 
 | Path family | Owner |
 |-------------|-------|
-| `services/analytics_backfill/coverage.py` + `tests/unit/test_analytics_backfill_coverage.py` + optional CLI/report helpers | #471 |
-| `MODULE.md` coverage operator snippet | #471 |
-| `budget.py`, `*_partition.py`, `orchestrator.py`, partition repo/model/migrations | **Read-only** |
-| HITL (#472), Demo/UI | **Forbidden** |
-
-## Meta caches
-
-| Artifact | Path |
-|----------|------|
-| Parent | `agent-runtime/artifacts/workflow-cache/parent-cache-issue-462.json` |
-| Child | `issue-context-cache-471.json` |
-| Gate dump | `meta-prepare-issue-471.json` — `readyForExecutor: true` |
-
-Slice: P2-9-9 in `slice-routing.yml` + `epicRegistry.462.childSlices`.
+| `services/analytics_backfill/cli.py` (+ optional `cli_wiring.py` / `live_runner.py`) | #472 |
+| Tests for live CLI dispatcher (mocked Partner) | #472 |
+| `MODULE.md` operator live-run command | #472 |
+| Partition runners / orchestrator / coverage / budget / repos | **Read-only** |
+| Demo/UI / pricing | **Forbidden** |
 
 ## GitHub ops
 
 | Field | Value |
 |-------|-------|
-| **Owner** | Review holds ops lock (#471) |
-| **PR** | https://github.com/thienphung00/Juli-AI/pull/482 |
-| **Merge** | Individual PR; **sync-before-merge** onto current `origin/main` |
-| **AFK** | Yes — synthetic DB/partitions pytest, no live Partner |
-
-### Remote op log
-
-| Time (UTC) | Agent | Command | Issue |
-|------------|-------|---------|-------|
-| 2026-07-22T11:17Z | Meta | `git worktree add` + `meta_prepare_executor.py --slice-id P2-9-9 --force` → ready | #471 |
-| 2026-07-22T11:30Z | Review | `git push -u origin feature/issue-471-analytics-coverage` + `gh pr create` → https://github.com/thienphung00/Juli-AI/pull/482 | #471 |
+| **Owner** | Review Agent (PR open; await CI green + sync-before-merge) |
+| **PR** | https://github.com/thienphung00/Juli-AI/pull/483 |
+| **AFK code** | Yes — wire CLI with mocked unit tests |
+| **HITL live** | Operator after merge; attach coverage to #462 |
 
 ## References
 
-- Topology: [`worktree-branch-topology.md`](worktree-branch-topology.md)
-- Isolate vs parallel: [`.cursor/rules/issue-workflow.mdc`](../../.cursor/rules/issue-workflow.mdc)
-- PRD: [`docs/product/phases/phase-2.9/PRD.md`](../product/phases/phase-2.9/PRD.md)
-- ADR: [`docs/adr/029-phase-2.9-analytics-historical-backfill.md`](../adr/029-phase-2.9-analytics-historical-backfill.md)
+- Explore wiring recipe: Composer explore (mirror `run_fujiwa_poll_cycle`)
+- PRD: `docs/product/phases/phase-2.9/PRD.md`
+- ADR: `docs/adr/029-phase-2.9-analytics-historical-backfill.md`

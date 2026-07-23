@@ -336,6 +336,89 @@ display only — **no execution_layer workflow mapping** until a live source exi
 _Avoid_: mapping Shop Status KPIs to Process Order / Prevent Cancellation / Resolve
 Recurring Customer Complaints while data remains mock
 
+## GMV impact measurement
+
+**Fujiwa T1 GMV experiment**:
+A disposable, offline calibration experiment that fits a single **T1 ETS**
+(`statsmodels` Holt-Winters) on Fujiwa daily shop GMV (A-36 from Phase 2.9
+backfill) to produce observed-vs-counterfactual incremental GMV with wide
+intervals and an explicit rough `data_confidence` badge. **Design A:** walk-forward
+/ holdout on A-36 only — no intervention date, no parallel launch-date research.
+Default split: earliest ~70% fit / latest ~30% holdout (CLI-overridable). Quality
+bar is **soft**: report holdout MAPE + beat-vs-naive/mean baseline — not a hard
+promotion threshold; worse-than-naive → reconsider. Pathfinder for Phase 4 T1 —
+not a promoted decision-grade artifact; may be abandoned if forecast quality is
+poor. Lives under `ai/forecasting/shop_gmv` beside inventory depletion. Writes
+**local offline artifacts only** (CLI `--output-dir`: parquet/CSV + `metrics.json`)
+— not product Supabase tables, not `models/` promotion layout. See
+[ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md).
+_Avoid_: Prophet counterfactual, dual Stage-2+Stage-3 as first ship, inventing a
+Product/LIVE or Juli launch date for this experiment, hard MAPE ≤ X% gate for
+this experiment, treating outputs as decision-grade, persisting experiment rows
+into Analytics product tables
+
+**Mediated Juli GMV impact**:
+The intended future way to estimate Juli’s effect on client GMV: compose two
+hops — (1) **Juli → Product/LIVE mediators** (e.g. CTR would have grown ~0.2 pp/month
+without Juli; with Juli it grows ~0.4 pp/month → Juli lift on CTR) and
+(2) **mediators → GMV** via Product/LIVE driver regression (elasticity of GMV to
+CTR/CVR/impressions/live quality). Overall Juli ΔGMV ≈ Juli lift on mediators ×
+mediator→GMV elasticities. Requires shipped end-to-end workflows plus enough
+history for both hops; still calibration-grade until promotion gates exist.
+_Avoid_: direct Juli→GMV as the only story, treating either hop alone as full
+Juli ROI, Value calculator Inventory/CS assumption tabs as measured Juli impact
+
+**Juli → mediator lift**:
+The first hop of mediated Juli GMV impact — how much Product/LIVE metrics
+(CTR, CVR, impressions, live-session quality) change because Juli is deployed,
+versus each metric’s no-Juli baseline trend. Treatment is Juli usage (workflows /
+approved Action Cards), not OAuth-connect alone.
+_Avoid_: attributing all CTR movement to Juli, conflating with mediator→GMV
+elasticity
+
+**Product/LIVE driver regression**:
+The second hop — associates Δ Product/LIVE funnel metrics with ΔGMV/ΔOrders
+(elasticity). Necessary for mediated Juli GMV impact, but **not** Juli impact by
+itself. Deferred until the Fujiwa T1 GMV experiment shows usable forecast quality;
+then revisited as its own model. CTR→GMV pairs must follow **matched CTR–GMV grain**.
+_Avoid_: calling this Juli ROI alone, skipping the Juli→mediator hop, regressing
+product CTR directly onto shop GMV without a grain bridge
+
+**Matched CTR–GMV grain**:
+The rule that a CTR (or click-through) mediator is paired only with GMV at the
+same analytics grain — never cross-wired as if “CTR” were shop-universal. Verified
+Partner shapes (Fujiwa): **A-34** product `ctr` ↔ product `gmv`; **A-28** session
+`click_through_rate` ↔ session `gmv`; **A-29** daily LIVE `click_through_rate` ↔
+daily LIVE `gmv` (aligns with A-36 LIVE breakdown). **A-36 shop performance has
+shop GMV but no shop-level CTR** (traffic is visitors / page views / conversation
+rate). Shop GMV remains the composed headline / T1 sanity ceiling, not the direct
+regression target for product or session CTR.
+_Avoid_: one undifferentiated “CTR”, using A-36 as a CTR source, product CTR → shop
+GMV as the primary elasticity
+
+**Primary mediator→GMV elasticities (target-state hop 2)**:
+When Product/LIVE driver regression is built (after the Fujiwa T1 experiment),
+run **two parallel matched models** — not one blended CTR: (1) A-34 product `ctr`
+→ product `gmv` (listing optimization path); (2) A-29 daily LIVE
+`click_through_rate` → LIVE `gmv` (live path; daily grain preferred over A-28
+session for the first LIVE elasticity). Compose both into shop-level Juli ΔGMV;
+use A-36 overall GMV as sanity check only. A-28 remains available for session
+diagnostics, not the primary monthly elasticity.
+_Avoid_: single shop-level CTR regression, A-28 as the first LIVE elasticity target,
+summing Inventory/CS assumptions into the composed total
+
+**Forecasting package (multi-model)**:
+`backend/src/juli_backend/ai/forecasting/` hosts **more than one forecast model**,
+each with a distinct purpose, algorithm, inputs, outputs, and public API — never
+one overloaded `get_forecast` for unrelated jobs. **Inventory depletion** (SKU
+velocity from orders → stockout horizon; linear / moving-average) stays as-is.
+**T1 shop GMV** (Fujiwa experiment) lands in the same package as a separate
+`shop_gmv` module (ETS counterfactual + short-series fallback), separate result
+types and CLI; shared helpers only for generic series math. See
+[ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md).
+_Avoid_: one generic ForecastResult for inventory + GMV, teaching ETL/backfill to
+train, conflating intelligence-track depletion with display-grade T1
+
 ## Agent runtime (Executor domains)
 
 **Domain executor skill**:
@@ -365,3 +448,16 @@ recipes). Not an MCP; not always-on (`alwaysApply: false` on
 `.cursor/rules/context7-cli.mdc`). Catalog: skill-catalog `catalog.cliDocs`.
 _Avoid_: Context7 MCP, context7-mcp plugin skill (as required load), always-on
 Context7 for every chat
+
+## Security operations
+
+**Weekly Secrets Security Check**:
+The scheduled secrets-first audit (ADR-033): inventory and leak paths across repo,
+VPS, and website; report + prepare rotation or delivery fixes; no live rotate until
+a human has successfully run that rotate path once. Memory family
+`Juli-AI-v2---flagged-secret-findings*.json`; weekly GitHub rollup issue for new
+findings only.
+_Avoid_: weekly full AppSec pentest; auto-rotating prod secrets in phase 1;
+posting secret findings to Slack by default; dumping live secret values into
+issues or memory
+
