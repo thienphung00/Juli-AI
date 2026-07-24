@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 515,
+  "executorDomain": "backend",
+  "phaseRunId": "515-20260724T053540",
+  "releaseEvidencePlanId": "rep-515-meta3-ci-validators",
+  "startedAt": "2026-07-24T05:36:00Z",
+  "completedAt": "2026-07-24T05:45:00Z",
+  "executionDurationMs": 540000,
+  "tokenUsage": {
+    "input": 850000,
+    "output": 120000,
+    "total": 970000
+  },
+  "toolsUsed": [
+    {"toolName": "Shell", "count": 8, "stage": "green"},
+    {"toolName": "Write", "count": 18, "stage": "implementation"},
+    {"toolName": "StrReplace", "count": 6, "stage": "refactor"},
+    {"toolName": "Read", "count": 12, "stage": "implementation"}
+  ],
+  "toolInvocationCount": 44,
+  "contextFilesLoaded": [
+    "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+    "agent-runtime/docs/agent-runtime.md",
+    "agent-runtime/docs/agent-runtime-artifacts.md",
+    "agent-runtime/docs/schemas/implementation-artifact.schema.json",
+    "agent-runtime/scripts/validate/check_implementation_artifact.py",
+    "agent-runtime/scripts/validate/check_public_release_evidence_plan.py",
+    "tests/unit/test_public_release_meta_gates.py",
+    "tests/unit/test_implementation_artifact.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "agent-runtime/scripts/ci/json_schema_validate.py",
+    "agent-runtime/scripts/ci/implementation_schema.py",
+    "agent-runtime/scripts/ci/implementation_tdd.py",
+    "agent-runtime/scripts/ci/release_metadata_honesty.py",
+    "agent-runtime/scripts/validate/check_implementation_schema_valid.py",
+    "agent-runtime/scripts/validate/check_implementation_tdd_evidence.py",
+    "agent-runtime/scripts/validate/check_executor_domain_matches_cache.py",
+    "agent-runtime/scripts/validate/check_phase_run_correlation.py",
+    "agent-runtime/scripts/validate/check_release_evidence_plan_continuity.py",
+    "agent-runtime/scripts/validate/check_release_metadata_honesty.py",
+    "agent-runtime/docs/schemas/implementation-artifact.schema.json",
+    "agent-runtime/docs/schemas/validation-artifact.schema.json",
+    "tests/unit/test_implementation_schema_valid.py",
+    "tests/unit/test_implementation_tdd_evidence.py",
+    "tests/unit/test_executor_domain_matches_cache.py",
+    "tests/unit/test_phase_run_correlation.py",
+    "tests/unit/test_release_evidence_plan_continuity.py",
+    "tests/unit/test_release_metadata_honesty.py",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-515.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_implementation_schema_valid.py",
+    "tests/unit/test_implementation_tdd_evidence.py",
+    "tests/unit/test_executor_domain_matches_cache.py",
+    "tests/unit/test_phase_run_correlation.py",
+    "tests/unit/test_release_evidence_plan_continuity.py",
+    "tests/unit/test_release_metadata_honesty.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_schema_valid_passes_for_valid_artifact RED before check_implementation_schema_valid.py existed",
+      "passingTestEvidence": "26/26 META-3 validator unit tests green after all six checks implemented",
+      "refactorEvidence": "Extracted json_schema_validate, implementation_tdd, release_metadata_honesty helpers; fixed RELEASES_DIR monkeypatch path",
+      "commands": [
+        {
+          "command": "python -m pytest -q tests/unit/test_implementation_schema_valid.py tests/unit/test_implementation_tdd_evidence.py tests/unit/test_executor_domain_matches_cache.py tests/unit/test_phase_run_correlation.py tests/unit/test_release_evidence_plan_continuity.py tests/unit/test_release_metadata_honesty.py",
+          "exitCode": 0,
+          "outputSummary": "26 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added six standalone META-3 CI validators (implementation schema, TDD evidence, executor domain, phaseRunId correlation, releaseEvidencePlan continuity, release metadata honesty) with stdlib JSON Schema validation and a 26-test pass/fail matrix. Additive schema fields for releaseEvidencePlanId. CHECKS wiring deferred to #516.",
+  "assumptions": [
+    "generate_validation_artifact.CHECKS registration is intentionally deferred to issue #516",
+    "Release honesty evidence keys smokeTestResults/healthCheckResults align with ADR-035 actual-results requirement"
+  ],
+  "risks": [
+    "Stdlib JSON Schema subset may need extension if implementation-artifact.schema.json grows draft-2020-12 features",
+    "Phase-run correlation depends on releaseEvidencePlan.requiredArtifacts in child cache"
+  ]
+}

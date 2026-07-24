@@ -158,6 +158,11 @@
     "risks": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "releaseEvidencePlanId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "When publicRelease, must match Meta issueLoadProfile.releaseEvidencePlan.planId."
     }
   }
 }
