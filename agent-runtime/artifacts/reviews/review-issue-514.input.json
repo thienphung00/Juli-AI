@@ -1,0 +1,164 @@
+{
+  "id": "review-issue-514",
+  "issue": 514,
+  "timestamp": "2026-07-24T05:17:08Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #514 META-2: intent-review spec_fidelity=pass. Injection contract injects publicRelease/tddContract/(public) releaseEvidencePlan+Id, filters Review/Validate skills, halts with missingFields, and domain mismatch. Reliability KeyError on absent gate details fixed in review. All seven ACs mapped. 17 related unit tests pass.",
+  "criticalFindings": [
+    {
+      "id": "514-info-tdd-contract-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_meta_prepare_injection_contract.py",
+      "description": "Intent-review smell (non-blocking): TDD_CONTRACT duplicated in tests vs mpe.TDD_CONTRACT.",
+      "suggestion": "Assert against mpe.TDD_CONTRACT to avoid drift."
+    },
+    {
+      "id": "514-info-validate-substring",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/meta_prepare_executor.py",
+      "description": "Intent-review smell (non-blocking): bare 'validate' substring in skill-path filter may over-match.",
+      "suggestion": "Prefer path-segment match for standalone/validate."
+    },
+    {
+      "id": "514-info-reliability-details-halt",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/meta_prepare_executor.py",
+      "description": "Gate-fail KeyError risk when details missing: fixed to use details.get('halt') during Review.",
+      "suggestion": null
+    }
+  ],
+  "modulesTouched": [
+    "agent-runtime/scripts/meta_prepare_executor.py",
+    "tests/unit/test_meta_prepare_injection_contract.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "agent-runtime/scripts/meta_prepare_executor.py",
+      "interface": "injection_plan",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Adds publicRelease, tddContract, and when public full releaseEvidencePlan + releaseEvidencePlanId; filters Review/Validate skills from harnessUtility."
+    },
+    {
+      "module": "agent-runtime/scripts/meta_prepare_executor.py",
+      "interface": "main halt payload",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Failed gates always emit missingFields; domain mismatch halts with executor_domain_alignment."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 7,
+      "mapped": 7,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "public valid plan ready injection matches cache",
+          "test": "tests/unit/test_meta_prepare_injection_contract.py::test_public_valid_plan_ready_injection_matches_cache"
+        },
+        {
+          "criterion": "non public ready omits plan keys and includes tdd contract",
+          "test": "tests/unit/test_meta_prepare_injection_contract.py::test_non_public_ready_omits_plan_keys_and_includes_tdd_contract"
+        },
+        {
+          "criterion": "public valid plan injects full plan and ids",
+          "test": "tests/unit/test_meta_prepare_injection_contract.py::test_public_valid_plan_injects_full_plan_and_ids"
+        },
+        {
+          "criterion": "public missing plan halts with missing fields",
+          "test": "tests/unit/test_meta_prepare_injection_contract.py::test_public_missing_plan_halts_with_missing_fields"
+        },
+        {
+          "criterion": "harness utility excludes review validate skill paths",
+          "test": "tests/unit/test_meta_prepare_injection_contract.py::test_harness_utility_excludes_review_validate_skill_paths"
+        },
+        {
+          "criterion": "domain mismatch halts main",
+          "test": "tests/unit/test_meta_prepare_injection_contract.py::test_domain_mismatch_halts_main"
+        },
+        {
+          "criterion": "ready for executor false halt missing fields",
+          "test": "tests/unit/test_meta_prepare_injection_contract.py::test_public_missing_plan_halts_with_missing_fields"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 17,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Optionally assert mpe.TDD_CONTRACT in tests",
+    "Tighten validate skill-path filter to path segments"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 2,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "edb123fb..working-tree on feature/issue-514-meta-injection-contract",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-514.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-514.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "514-20260724T051200Z",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "514-info-tdd-contract-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_meta_prepare_injection_contract.py",
+      "description": "Intent-review smell (non-blocking): TDD_CONTRACT duplicated in tests vs mpe.TDD_CONTRACT.",
+      "suggestion": "Assert against mpe.TDD_CONTRACT to avoid drift."
+    },
+    {
+      "id": "514-info-validate-substring",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/meta_prepare_executor.py",
+      "description": "Intent-review smell (non-blocking): bare 'validate' substring in skill-path filter may over-match.",
+      "suggestion": "Prefer path-segment match for standalone/validate."
+    },
+    {
+      "id": "514-info-reliability-details-halt",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/meta_prepare_executor.py",
+      "description": "Gate-fail KeyError risk when details missing: fixed to use details.get('halt') during Review.",
+      "suggestion": null
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewDurationMs": 120000,
+  "severity": "low",
+  "suggestedRemediation": [
+    "Assert against mpe.TDD_CONTRACT to avoid drift.",
+    "Prefer path-segment match for standalone/validate."
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 514,
+  "executorDomain": "backend",
+  "phaseRunId": "514-20260724T051200Z",
+  "startedAt": "2026-07-24T05:10:00Z",
+  "completedAt": "2026-07-24T05:13:30Z",
+  "executionDurationMs": 210000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 8,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 2,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 4,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 4,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 18,
+  "contextFilesLoaded": [
+    "agent-runtime/scripts/meta_prepare_executor.py",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-514.json",
+    "tests/unit/test_public_release_meta_gates.py",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "agent-runtime/docs/agent-runtime.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "agent-runtime/scripts/meta_prepare_executor.py",
+    "tests/unit/test_meta_prepare_injection_contract.py",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-514.json",
+    "agent-runtime/artifacts/implementations/implementation-issue-514.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_meta_prepare_injection_contract.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_non_public_ready_omits_plan_keys_and_includes_tdd_contract KeyError: publicRelease",
+      "passingTestEvidence": "injection_plan injects publicRelease=false and tddContract; omits releaseEvidencePlan keys",
+      "refactorEvidence": "Extracted TDD_CONTRACT constant and _filter_executor_harness helper",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_meta_prepare_injection_contract.py::test_non_public_ready_omits_plan_keys_and_includes_tdd_contract -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "public plan injection, harness filter, domain mismatch, and main() halt payload tests added before implementation",
+      "passingTestEvidence": "All injection contract unit + main() payload tests pass",
+      "refactorEvidence": "In-process main() harness with redirect_stdout; reused META-1 cache fixtures",
+      "commands": [
+        {
+          "command": "pytest tests/unit/test_meta_prepare_injection_contract.py tests/unit/test_public_release_meta_gates.py -q",
+          "exitCode": 0,
+          "outputSummary": "17 passed in 0.19s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Extended meta_prepare_executor injection_plan to inject publicRelease, tddContract, and full releaseEvidencePlan (+ releaseEvidencePlanId) when publicRelease is true; filter harnessUtility skills to Executor-phase only; halt on executor_domain_alignment mismatch; enrich failed-gate halt payload with missingFields. Added focused unit tests for all META-2 acceptance paths. Existing agent-runtime docs already forbid Executor start without readyForExecutor — no doc bypass found.",
+  "assumptions": [
+    "META-1 public_release_* gates remain authoritative for plan validity before unlock",
+    "Domain mismatch is detected by comparing injectionPlan.executorDomain to child.issueLoadProfile.executorDomain after plan construction"
+  ],
+  "risks": [
+    "META-3/4 CI validators (#515/#516) still required to enforce tddContract evidence at merge time"
+  ]
+}
