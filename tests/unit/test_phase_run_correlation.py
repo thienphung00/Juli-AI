@@ -97,7 +97,9 @@ def test_phase_run_correlation_fails_on_review_mismatch(tmp_path: Path, monkeypa
     import common
 
     monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    monkeypatch.setattr(common, "INTENT_REVIEWS_DIR", tmp_path / "agent-runtime" / "artifacts" / "intent-reviews")
     monkeypatch.setattr(common, "REVIEWS_DIR", tmp_path / "agent-runtime" / "artifacts" / "reviews")
+    monkeypatch.setattr(common, "VALIDATION_DIR", tmp_path / "agent-runtime" / "artifacts" / "validation")
 
     _write_child_cache(tmp_path, required={"implementation": True, "intentReview": False, "review": True, "validation": False})
     _write_impl(tmp_path)
@@ -119,6 +121,9 @@ def test_phase_run_correlation_skips_optional_missing_artifacts(tmp_path: Path, 
     import common
 
     monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    monkeypatch.setattr(common, "INTENT_REVIEWS_DIR", tmp_path / "agent-runtime" / "artifacts" / "intent-reviews")
+    monkeypatch.setattr(common, "REVIEWS_DIR", tmp_path / "agent-runtime" / "artifacts" / "reviews")
+    monkeypatch.setattr(common, "VALIDATION_DIR", tmp_path / "agent-runtime" / "artifacts" / "validation")
 
     _write_child_cache(
         tmp_path,
@@ -141,6 +146,9 @@ def test_phase_run_correlation_fails_when_required_validation_missing(tmp_path: 
     import common
 
     monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    monkeypatch.setattr(common, "INTENT_REVIEWS_DIR", tmp_path / "agent-runtime" / "artifacts" / "intent-reviews")
+    monkeypatch.setattr(common, "REVIEWS_DIR", tmp_path / "agent-runtime" / "artifacts" / "reviews")
+    monkeypatch.setattr(common, "VALIDATION_DIR", tmp_path / "agent-runtime" / "artifacts" / "validation")
 
     _write_child_cache(tmp_path)
     _write_impl(tmp_path)
