@@ -23,7 +23,36 @@ substitutes for runtime artifacts.
 | **release** *(ADR-003)* | Ship skill, `release.yml` | Rollback / hotfix agents | `agent-runtime/artifacts/releases/release-<version>.json` |
 | **audit** *(ADR-003)* | `architecture-audit.yml` | Triage to GitHub issues | `agent-runtime/artifacts/validation/audit-<type>-<date>.json` |
 
-JSON Schema definitions: [`schemas/`](schemas/).
+JSON Schema definitions: [`schemas/README.md`](schemas/README.md).
+
+---
+
+## Workflow cache — public release (#500 / ADR-035)
+
+Child cache path: `agent-runtime/artifacts/workflow-cache/issue-context-cache-<n>.json`
+(schema: [`issue-context-cache-artifact.schema.json`](schemas/issue-context-cache-artifact.schema.json)).
+
+| Field | Role | Gate / consumer |
+|-------|------|-----------------|
+| `publicRelease` | Meta classifier result persisted on cache | Meta gate `public_release_classification` (#513) |
+| `publicReleaseReasons` | Reason codes (`path:` / `surface:` / `body:` / …) | Audit trail; must match live classifier |
+| `issueLoadProfile.releaseEvidencePlan` | ADR-035 contract object | Meta gate `public_release_evidence_plan` (#513); validated against [`release-evidence-plan.schema.json`](schemas/release-evidence-plan.schema.json) |
+| `injectionPlan.tddContract` | Executor TDD requirements | Emitted by `meta_prepare_executor.py` when `readyForExecutor: true` (#514) |
+| `injectionPlan.releaseEvidencePlan` | Full plan copy for Executor | Present only when `publicRelease: true` (#514) |
+| `implementation.releaseEvidencePlanId` | Plan continuity key | Validate check `release_evidence_plan_continuity` (#515) |
+| `validation.releaseEvidencePlanId` | Echo for ship continuity | Same check (#515) |
+
+Sub-agents must not infer or waive `releaseEvidencePlan`; incomplete plans halt Meta with
+`missingFields` (see [ADR-035](../../docs/adr/035-public-release-evidence-and-automatic-rollback.md)).
+
+### META enforcement ownership (#500 epic)
+
+| Slice | Issue | Owns |
+|-------|-------|------|
+| META-1 | [#513](https://github.com/thienphung00/Juli-AI/issues/513) | `public_release_classification` + `public_release_evidence_plan` Meta gates; classifier/plan unit coverage |
+| META-2 | [#514](https://github.com/thienphung00/Juli-AI/issues/514) | `injectionPlan` contract (`tddContract`, `releaseEvidencePlan` injection); injection unit coverage |
+| META-3 | [#515](https://github.com/thienphung00/Juli-AI/issues/515) | Validate gate scripts under `agent-runtime/scripts/validate/check_*.py`; unit suites `tests/unit/test_implementation_*.py`, `test_executor_domain_matches_cache.py`, `test_phase_run_correlation.py`, `test_release_evidence_plan_continuity.py`, `test_release_metadata_honesty.py` |
+| META-4 | [#516](https://github.com/thienphung00/Juli-AI/issues/516) | E2E harness `tests/harness/test_meta_validate_e2e_public_release.py`; `CHECKS` wiring in `generate_validation_artifact.py`; docs (this slice) |
 
 ---
 
@@ -108,13 +137,21 @@ See [`artifacts/README.md`](../../agent-runtime/artifacts/README.md) for directo
 
 All runtime artifacts include `schemaVersion` (semver string). Current version: **`1.0.0`**.
 
-| Schema file | `artifactType` enum value |
-|-------------|---------------------------|
+| Schema file | `artifactType` / role |
+|-------------|------------------------|
 | `implementation-artifact.schema.json` | `implementation` |
+| `intent-review-artifact.schema.json` | `intent_review` |
 | `review-artifact.schema.json` | `review` |
 | `validation-artifact.schema.json` | `validation` |
 | `harness-optimization-artifact.schema.json` | `harness_optimization` |
 | `product-development-optimization-artifact.schema.json` | `product_development_optimization` |
+| `promotion-candidate-artifact.schema.json` | `harness_promotion_candidate` |
+| `parent-cache-artifact.schema.json` | `parent_cache` (gitignored workflow cache) |
+| `issue-context-cache-artifact.schema.json` | `issue_context_cache` — includes `publicRelease`, `releaseEvidencePlan` |
+| `release-evidence-plan.schema.json` | Embedded object (not a standalone artifact file) |
+| `harness-config.schema.json` | `agent-runtime.config.yml` shape (not an execution artifact) |
+
+Full index: [`schemas/README.md`](schemas/README.md).
 
 Bump `schemaVersion` minor for backward-compatible field additions; major for breaking
 changes to required CI gate fields (requires ADR and gate script updates).
@@ -229,12 +266,32 @@ append it to the filename for uniqueness when multiple runs exist per issue.
 
 ## Validation workflow
 
-1. **CI gates (mandatory):** `agent-runtime/scripts/validate/*.py` — ADR-003 fields only.
+1. **CI gates (mandatory):** `agent-runtime/scripts/validate/*.py` — ADR-003 fields plus
+   META-1/META-3 gates (wired into `CHECKS` by #516):
+
+   | Check name | Script | Notes |
+   |------------|--------|-------|
+   | `public_release_classification` | `check_public_release_classification.py` | Child cache matches live classifier (#513) |
+   | `public_release_evidence_plan` | `check_public_release_evidence_plan.py` | Schema-valid plan when `publicRelease` (#513) |
+   | `implementation_schema_valid` | `check_implementation_schema_valid.py` | JSON Schema for implementation artifact |
+   | `implementation_tdd_evidence` | `check_implementation_tdd_evidence.py` | TDD cycles when code paths touched |
+   | `executor_domain_matches_cache` | `check_executor_domain_matches_cache.py` | Matches child `issueLoadProfile.executorDomain` |
+   | `phase_run_correlation` | `check_phase_run_correlation.py` | Shared `phaseRunId` across phase artifacts |
+   | `release_evidence_plan_continuity` | `check_release_evidence_plan_continuity.py` | Skipped when not `publicRelease`; else `releaseEvidencePlanId` chain |
+   | `release_metadata_honesty` | `check_release_metadata_honesty.py` | No hardcoded release success without evidence |
+
+   Orchestrator: [`generate_validation_artifact.py`](../scripts/ci/generate_validation_artifact.py).
+   Meta session entry also runs `public_release_*` in
+   [`check_workflow_cache.GATE_SEQUENCE`](../scripts/validate/check_workflow_cache.py)
+   before Executor.
 2. **Schema check (advisory):** validate JSON against `schemas/*.schema.json`
    before committing optimization artifacts or during benchmark runs.
 3. **Meta scoring:** derive the eight baseline metrics from `baselineMetrics`
    on harness optimization artifacts; compare across benchmark reruns per
    [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md).
+4. **E2E harness (#516):** `tests/harness/test_meta_validate_e2e_public_release.py` —
+   fixture-driven Meta prepare → Validate for public and non-public issues
+   (complements #513–#515 unit suites).
 
 ---
 

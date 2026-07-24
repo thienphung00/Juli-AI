@@ -134,7 +134,26 @@ pipeline.
 - Persist `publicRelease` / `publicReleaseReasons` on the child cache; when
   `publicRelease: true`, require a schema-valid `issueLoadProfile.releaseEvidencePlan`
   (ADR-035 / [release-evidence-plan.schema.json](schemas/release-evidence-plan.schema.json)).
-  Sub-agents must not infer or waive the plan — halt with `missingFields` instead.
+  Fail closed: sub-agents must not infer or waive the plan — halt with `missingFields`
+  and non-zero exit instead.
+- Treat `readyForExecutor: false` as a hard halt for **all** issues; for public-release
+  work (#500 / ADR-035) there is no manual bypass, inferred plan, or alternate entry
+  that skips `meta_prepare_executor.py`.
+- When gates pass, emit `injectionPlan` for Executor: always include `tddContract`;
+  when `publicRelease: true`, also embed `releaseEvidencePlan` and
+  `releaseEvidencePlanId` from the child cache (see
+  [`meta_prepare_executor.py`](../scripts/meta_prepare_executor.py) `injection_plan`).
+- Wire META-1/META-3 gates into validation `CHECKS`
+  ([`generate_validation_artifact.py`](../scripts/ci/generate_validation_artifact.py)) —
+  owned by META-4 (#516): `public_release_classification`,
+  `public_release_evidence_plan`, `implementation_schema_valid`,
+  `implementation_tdd_evidence`, `executor_domain_matches_cache`,
+  `phase_run_correlation`, `release_evidence_plan_continuity`,
+  `release_metadata_honesty`. Meta session entry still runs
+  `public_release_*` in `check_workflow_cache.GATE_SEQUENCE` before Executor.
+- Regression coverage: `tests/harness/test_meta_validate_e2e_public_release.py`
+  (META-4 / #516) — end-to-end Meta prepare → Validate for public and
+  non-public fixtures (pass/fail matrix).
 - Select exactly one primary executor domain (from `issueLoadProfile.executorDomain`
   / `slice-routing.yml`) — never dual-load backend + data-platform skills.
 - Inject only Executor-phase skills in `harnessUtility`; defer intent-review /
@@ -143,7 +162,9 @@ pipeline.
 
 **Must not**
 
-- Assign Executor or start TDD when `meta_prepare_executor.py` exits non-zero.
+- Assign Executor or start TDD when `meta_prepare_executor.py` exits non-zero or
+  `readyForExecutor: false` (including missing/invalid `releaseEvidencePlan` on
+  public-release issues).
 - Implement features, review its own routing decisions, or bypass Review Agent / Validate.
 - Automatically edit skills, rules, architecture docs, PRDs, ADRs, or product scope.
   Safe auto-apply is limited to harness configuration, benchmark thresholds, context
@@ -434,7 +455,7 @@ artifacts into the next turn; ignore `doNotLoad`.
 | [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md) | Unified benchmark protocol, scoring, task types |
 | [`agent-runtime-migration.md`](agent-runtime-migration.md) | Phase rollout and rollback |
 | [`benchmarks/`](benchmarks/) | Task fixture specs (types A–D) |
-| [`schemas/`](schemas/) | JSON Schema definitions |
+| [`schemas/README.md`](schemas/README.md) | JSON Schema index (artifacts, caches, release-evidence plan) |
 | [`.cursor/skills/standalone/focus/SKILL.md`](../../.cursor/skills/standalone/focus/SKILL.md) | Context Plan router |
 | [`docs/handoffs/context-plan-template.md`](../handoffs/context-plan-template.md) | Context Plan output template |
 | This file § Context hierarchy | Efficiency layers L0–L5; pairs with `context_hierarchy` in config |

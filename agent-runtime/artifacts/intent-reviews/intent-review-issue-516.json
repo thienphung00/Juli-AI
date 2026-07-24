@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-516",
+  "issue": 516,
+  "timestamp": "2026-07-24T06:30:27Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main (7a9f8dce184999cc9c07e57e2da844cb04a0b208)",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "META-4 delivers CHECKS wiring (8 gates), docs (Meta must-list + schemas README + artifacts quick-ref), and E2E harness for public/non-public prepare\u2192validate matrices. Spec subagent flagged matrix as subset of full CHECKS; parent accepts complementary split: AC1 membership unit-tested for all 8; AC2 matrix covers artifact-dependent gates (continuity/phase_run/tdd) with ensure simulated via established _write_caches pattern from #513. No blocking smells.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_validation_checks_wiring.py",
+      "hunk": "REQUIRED_NEW_CHECKS mirrors CHECKS tuples \u2014 intentional drift guard.",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Duplicated Code",
+      "path": "tests/harness/meta_validate_e2e_fixtures.py",
+      "hunk": "load_checker loop parallels generate_validation_artifact for harness isolation.",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "code-quality.mdc \u2014 Consistency",
+      "path": "tests/harness/test_meta_validate_e2e_public_release.py",
+      "note": "E2E matrix scopes 3 artifact-dependent gates; full 8-gate membership covered by test_validation_checks_wiring.py (AC1).",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "516-20260724T061729"
+}

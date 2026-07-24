@@ -37,6 +37,14 @@ CHECKS: list[tuple[str, str]] = [
     ("reviewer_signoff_present", "check_reviewer_signoff.py"),
     ("owner_signoff_present", "check_owner_signoff.py"),
     ("ml_gates_enforced", "check_ml_gates.py"),
+    ("public_release_classification", "check_public_release_classification.py"),
+    ("public_release_evidence_plan", "check_public_release_evidence_plan.py"),
+    ("implementation_schema_valid", "check_implementation_schema_valid.py"),
+    ("implementation_tdd_evidence", "check_implementation_tdd_evidence.py"),
+    ("executor_domain_matches_cache", "check_executor_domain_matches_cache.py"),
+    ("phase_run_correlation", "check_phase_run_correlation.py"),
+    ("release_evidence_plan_continuity", "check_release_evidence_plan_continuity.py"),
+    ("release_metadata_honesty", "check_release_metadata_honesty.py"),
 ]
 
 
