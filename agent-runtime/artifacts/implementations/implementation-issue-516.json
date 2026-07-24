@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 516,
+  "executorDomain": "backend",
+  "phaseRunId": "516-20260724T061729",
+  "startedAt": "2026-07-24T06:18:00Z",
+  "completedAt": "2026-07-24T06:31:49Z",
+  "executionDurationMs": 480000,
+  "tokenUsage": {
+    "input": 95000,
+    "output": 28000,
+    "total": 123000
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Shell",
+      "count": 12,
+      "stage": "green"
+    },
+    {
+      "toolName": "Write",
+      "count": 8,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 6,
+      "stage": "refactor"
+    },
+    {
+      "toolName": "Read",
+      "count": 20,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Task",
+      "count": 6,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 52,
+  "contextFilesLoaded": [
+    "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+    "agent-runtime/docs/agent-runtime.md",
+    "agent-runtime/docs/agent-runtime-artifacts.md",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-516.json",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "agent-runtime/scripts/ci/generate_validation_artifact.py",
+    "agent-runtime/docs/agent-runtime.md",
+    "agent-runtime/docs/agent-runtime-artifacts.md",
+    "agent-runtime/docs/schemas/README.md",
+    "tests/unit/test_validation_checks_wiring.py",
+    "tests/harness/__init__.py",
+    "tests/harness/meta_validate_e2e_fixtures.py",
+    "tests/harness/test_meta_validate_e2e_public_release.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_validation_checks_wiring.py",
+    "tests/harness/test_meta_validate_e2e_public_release.py",
+    "tests/harness/meta_validate_e2e_fixtures.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_checks_include_meta_gate_wiring_from_issues_513_to_515 RED before CHECKS append",
+      "passingTestEvidence": "4/4 test_validation_checks_wiring.py green after wiring 8 gates",
+      "refactorEvidence": "Kept append-after-ml_gates_enforced; fixed VALIDATION_DIR monkeypatch in fail test",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_validation_checks_wiring.py -v",
+          "exitCode": 0,
+          "outputSummary": "4 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "E2E harness RED on repo_root kwarg TypeError before signature-aware invoke",
+      "passingTestEvidence": "14/14 harness E2E tests green for public/non-public matrices",
+      "refactorEvidence": "_invoke_run_check inspects run_check signature; resolved_meta_validate_checks reads CHECKS",
+      "commands": [
+        {
+          "command": "python -m pytest tests/harness/test_meta_validate_e2e_public_release.py -q",
+          "exitCode": 0,
+          "outputSummary": "14 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "META-4 (#516): Wired eight #513\u2013#515 gates into generate_validation_artifact CHECKS; added E2E harness fixtures for public and non-public Meta prepare\u2192Validate pass/fail matrices; updated Meta must-list, schemas README index, and artifacts quick-ref.",
+  "assumptions": [
+    "Issue #516 is publicRelease:false (harness Meta/CI only).",
+    "Blockers #514/#515 merged before worktree cut.",
+    "E2E ensure is simulated via _write_caches (same pattern as #513 unit gates)."
+  ],
+  "risks": [
+    "Adding public_release_* to validation CHECKS may fail older issue branches whose caches lack classification fields."
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "id": "review-issue-516",
+  "issue": 516,
+  "timestamp": "2026-07-24T06:30:27Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #516 META-4: intent-review spec_fidelity=pass. CHECKS wiring + E2E public/non-public fixtures + docs. No reliability/security blockers. All six ACs mapped.",
+  "criticalFindings": [
+    {
+      "id": "516-info-checks-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_validation_checks_wiring.py",
+      "description": "Intent-review smell (non-blocking): REQUIRED_NEW_CHECKS duplicates CHECKS tuples as drift guard.",
+      "suggestion": "Keep as intentional sync test."
+    },
+    {
+      "id": "516-info-harness-load-checker",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/harness/meta_validate_e2e_fixtures.py",
+      "description": "Intent-review smell (non-blocking): harness load_checker parallels generator for isolation.",
+      "suggestion": "Acceptable for tmp_path artifact patching."
+    }
+  ],
+  "modulesTouched": [
+    "agent-runtime/scripts/ci/generate_validation_artifact.py",
+    "tests/unit/test_validation_checks_wiring.py",
+    "tests/harness/meta_validate_e2e_fixtures.py",
+    "tests/harness/test_meta_validate_e2e_public_release.py",
+    "agent-runtime/docs/agent-runtime.md",
+    "agent-runtime/docs/agent-runtime-artifacts.md",
+    "agent-runtime/docs/schemas/README.md"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "checks include meta gate wiring from issues 513 to 515",
+          "test": "tests/unit/test_validation_checks_wiring.py::test_checks_include_meta_gate_wiring_from_issues_513_to_515"
+        },
+        {
+          "criterion": "public full validation matrix passes",
+          "test": "tests/harness/test_meta_validate_e2e_public_release.py::test_public_full_validation_matrix_passes"
+        },
+        {
+          "criterion": "non public meta prepare ready without plan",
+          "test": "tests/harness/test_meta_validate_e2e_public_release.py::test_non_public_meta_prepare_ready_without_plan"
+        },
+        {
+          "criterion": "generator fails when new check fails",
+          "test": "tests/unit/test_validation_checks_wiring.py::test_generator_fails_when_new_check_fails"
+        },
+        {
+          "criterion": "meta validate checks wired in generate validation artifact",
+          "test": "tests/harness/test_meta_validate_e2e_public_release.py::test_meta_validate_checks_wired_in_generate_validation_artifact"
+        },
+        {
+          "criterion": "public missing plan meta prepare halts",
+          "test": "tests/harness/test_meta_validate_e2e_public_release.py::test_public_missing_plan_meta_prepare_halts"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 18,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "516-20260724T061729",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 2,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..working-tree on feature/issue-516-meta-e2e-checks-docs",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-516.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-516.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "516-info-checks-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_validation_checks_wiring.py",
+      "description": "Intent-review smell (non-blocking): REQUIRED_NEW_CHECKS duplicates CHECKS tuples as drift guard.",
+      "suggestion": "Keep as intentional sync test."
+    },
+    {
+      "id": "516-info-harness-load-checker",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/harness/meta_validate_e2e_fixtures.py",
+      "description": "Intent-review smell (non-blocking): harness load_checker parallels generator for isolation.",
+      "suggestion": "Acceptable for tmp_path artifact patching."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewDurationMs": 120000,
+  "severity": "low",
+  "suggestedRemediation": [
+    "Keep as intentional sync test.",
+    "Acceptable for tmp_path artifact patching."
+  ],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}
