@@ -131,6 +131,32 @@ curl -sI "https://api.app-juli.com/health" | head -1
 A **502 Bad Gateway** from Nginx means TLS routing works but the upstream is not running
 yet — acceptable for #256.
 
+### Public OAuth callback paths (API vhost)
+
+Nginx for `api.app-juli.com` proxies `/v1/*` to `juli-api`. After the backend is
+deployed, these production HTTPS callbacks must be reachable and must **not 5xx**
+on missing OAuth query params (full smoke covers this — see
+[`smoke-checklist-runbook.md`](smoke-checklist-runbook.md)):
+
+| Kind | Production URL (exact) |
+|------|------------------------|
+| Shop Partner | `https://api.app-juli.com/v1/auth/tiktok/callback` |
+| Business Advertiser | `https://api.app-juli.com/v1/auth/tiktok/business/callback` |
+| Business account holder | `https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback` |
+
+> **High-risk:** renaming a registered TikTok portal redirect URI breaks in-flight
+> authorizations. Do not change these paths without a coordinated portal + secrets
+> update (ADR-034).
+
+Spot-check (expect non-5xx once `juli-api` is up; 502 is OK during #256-only wiring):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://api.app-juli.com/v1/auth/tiktok/business/callback"
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback"
+```
+
 ---
 
 ## Step 6 — HITL sign-off checklist

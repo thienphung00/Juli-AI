@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 492,
+  "executorDomain": "backend",
+  "phaseRunId": "492-20260724T000230",
+  "startedAt": "2026-07-24T00:03:00Z",
+  "completedAt": "2026-07-24T00:20:00Z",
+  "executionDurationMs": 210000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 2,
+      "stage": "red"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 12,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "other"
+    },
+    {
+      "toolName": "Grep",
+      "count": 8,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Glob",
+      "count": 3,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 43,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-492.json",
+    "docs/adr/034-tiktok-business-oauth-redirect-urls.md",
+    "docs/runbooks/app-review-runbook.md",
+    "docs/runbooks/smoke-checklist-runbook.md",
+    "infra/scripts/env/api.env.example",
+    "infra/scripts/smoke-test.sh",
+    "tests/unit/test_phase_2_5_smoke_checklist.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": [
+    "backend-executor",
+    "focus",
+    "prompt-caching"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "docs/runbooks/app-review-runbook.md",
+    "docs/runbooks/smoke-checklist-runbook.md",
+    "docs/runbooks/vps-wiring-runbook.md",
+    "docs/handoffs/parallel-status.md",
+    "infra/scripts/env/api.env.example",
+    "infra/scripts/smoke-test.sh",
+    "tests/unit/test_biz_oauth_ops_docs.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-492.json",
+    "agent-runtime/artifacts/intent-reviews/intent-review-issue-492.json",
+    "agent-runtime/artifacts/reviews/review-issue-492.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_biz_oauth_ops_docs.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "7 failed \u2014 Business URLs, env keys, smoke probes, and rename-risk note missing from runbooks/env/smoke-test.sh",
+      "passingTestEvidence": "40 passed \u2014 test_biz_oauth_ops_docs + related Phase 2.5 smoke/deploy contract suite",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_biz_oauth_ops_docs.py -q --tb=line",
+          "exitCode": 1,
+          "outputSummary": "7 failed, 1 passed (RED before docs/smoke updates)"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_biz_oauth_ops_docs.py tests/unit/test_phase_2_5_smoke_checklist.py tests/unit/test_phase_2_5_deploy_config.py -q",
+          "exitCode": 0,
+          "outputSummary": "40 passed in 0.16s (GREEN)"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Documented both ADR-034 Business OAuth production redirect URLs and TIKTOK_BUSINESS_* env/Secrets Manager keys in app-review, smoke-checklist, and vps-wiring runbooks plus api.env.example; extended smoke-test.sh with non-5xx GETs for Advertiser and account-holder callbacks; added high-risk portal URI rename notes; locked with test_biz_oauth_ops_docs.py.",
+  "assumptions": [
+    "Business app id/secret keys are TIKTOK_BUSINESS_APP_ID and TIKTOK_BUSINESS_APP_SECRET as used by #490/#491 handlers.",
+    "Smoke checklist AC is satisfied by documenting and scripting non-5xx GETs; live VPS HITL still required to mark checklist items complete.",
+    "vps-wiring-runbook needs no OAuth path edits \u2014 Nginx already proxies /v1/* to juli-api."
+  ],
+  "risks": [
+    "Production Secrets Manager juli/api/production may still lack TIKTOK_BUSINESS_* keys until an operator puts them \u2014 docs alone do not provision secrets.",
+    "Existing #261 sign-off record remains historical; new Business checklist rows stay unchecked until live smoke."
+  ]
+}

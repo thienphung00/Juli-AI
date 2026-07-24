@@ -41,7 +41,9 @@ A new engineer should be able to follow this runbook end-to-end without prior co
 | Backend | `juli-api` → FastAPI/uvicorn on `127.0.0.1:8000` |
 | Frontend domain | `app-juli.com` |
 | Backend domain | `api.app-juli.com` |
-| OAuth callback | `https://api.app-juli.com/v1/auth/tiktok/callback` |
+| Shop OAuth callback | `https://api.app-juli.com/v1/auth/tiktok/callback` |
+| Business Advertiser OAuth callback | `https://api.app-juli.com/v1/auth/tiktok/business/callback` |
+| Business account-holder OAuth callback | `https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback` |
 | TLS | Let's Encrypt (certbot) |
 | AWS region | `us-east-2` |
 | Canonical checkout | `~/Juli-AI-v2` |
@@ -344,8 +346,20 @@ Secrets are stored as **JSON blobs** — one secret per application, not one sec
 | `SUPABASE_JWT_SECRET` | Yes | JWT validation for protected routes |
 | `TIKTOK_APP_KEY` | Yes | TikTok Partner Center app key |
 | `TIKTOK_APP_SECRET` | Yes | TikTok Partner Center app secret |
+| `TIKTOK_BUSINESS_APP_ID` | Yes (Business OAuth) | TikTok for Business / Marketing API app id |
+| `TIKTOK_BUSINESS_APP_SECRET` | Yes (Business OAuth) | TikTok for Business / Marketing API app secret |
+| `TIKTOK_BUSINESS_REDIRECT_URI` | Yes (Business OAuth) | Exact Advertiser redirect: `https://api.app-juli.com/v1/auth/tiktok/business/callback` |
+| `TIKTOK_BUSINESS_ACCOUNT_HOLDER_REDIRECT_URI` | Yes (Business OAuth) | Exact account-holder redirect: `https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback` |
 | `TIKTOK_TOKEN_ENCRYPTION_KEY` | Yes | Master key for encrypted OAuth tokens — see [Token encryption key](#tiktok_token_encryption_key) |
 | `CORS_ALLOW_ORIGINS` | Yes | e.g. `https://app-juli.com` |
+
+> **High-risk — do not rename registered portal URIs.** The Advertiser and
+> account-holder redirect URLs above are registered in the TikTok for Business
+> developer portal (ADR-034). Changing or renaming a registered URI later
+> requires a portal update and can break in-flight authorizations. Keep env
+> values (`TIKTOK_BUSINESS_REDIRECT_URI`,
+> `TIKTOK_BUSINESS_ACCOUNT_HOLDER_REDIRECT_URI`) byte-identical to the portal
+> fields and to the production paths above (no query/fragment).
 
 #### Frontend — `juli/web/production`
 
@@ -371,6 +385,10 @@ cat > /tmp/juli-api-production.json <<'EOF'
   "SUPABASE_JWT_SECRET": "...",
   "TIKTOK_APP_KEY": "...",
   "TIKTOK_APP_SECRET": "...",
+  "TIKTOK_BUSINESS_APP_ID": "...",
+  "TIKTOK_BUSINESS_APP_SECRET": "...",
+  "TIKTOK_BUSINESS_REDIRECT_URI": "https://api.app-juli.com/v1/auth/tiktok/business/callback",
+  "TIKTOK_BUSINESS_ACCOUNT_HOLDER_REDIRECT_URI": "https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback",
   "TIKTOK_TOKEN_ENCRYPTION_KEY": "...",
   "CORS_ALLOW_ORIGINS": "https://app-juli.com"
 }
@@ -836,7 +854,9 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.s
 
 - [ ] `https://app-juli.com/` loads over HTTPS.
 - [ ] `https://api.app-juli.com/health` returns 2xx JSON.
-- [ ] OAuth callback route handles invalid params without 5xx.
+- [ ] Shop OAuth callback route handles invalid params without 5xx.
+- [ ] Business Advertiser OAuth: `https://api.app-juli.com/v1/auth/tiktok/business/callback` handles missing params without 5xx.
+- [ ] Business account-holder OAuth: `https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback` handles missing params without 5xx.
 - [ ] CORS allows `https://app-juli.com`.
 - [ ] `aws sts get-caller-identity` returns `juli-vps-secrets-role`.
 - [ ] `/etc/juli/api.env` and `/etc/juli/web.env` exist (mode 600).

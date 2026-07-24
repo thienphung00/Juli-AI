@@ -22,6 +22,7 @@
 | shared-core | ADR-034 + epic #489 registry | `docs/adr/034-*`, CONTEXT, epicRegistry | **Shipping** | `feature/adr-032-tiktok-business-oauth-redirects` | primary | pending PR |
 | #490 | Advertiser OAuth callback | advertiser route + auth client + tests | **Ship-ready** | `feature/issue-490-business-advertiser-oauth` | `.worktrees/issue-490` | pending PR |
 | #491 | Account-holder OAuth callback | account-holder route + auth client + tests | **Ship-ready** | `feature/issue-491-business-account-holder-oauth` | `.worktrees/issue-491` | pending PR |
+| #492 | Ops docs + smoke for Business OAuth | runbooks, api.env.example, smoke-test.sh | **Ship-ready** | `feature/issue-492-business-oauth-ops-docs` | `.worktrees/issue-492` | pending PR |
 
 ## Module ownership
 

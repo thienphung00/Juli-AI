@@ -26,6 +26,8 @@ done
 APP_DOMAIN="${APP_DOMAIN:-app-juli.com}"
 API_DOMAIN="${API_DOMAIN:-api.app-juli.com}"
 CALLBACK_PATH="/v1/auth/tiktok/callback"
+BUSINESS_ADVERTISER_CALLBACK_PATH="/v1/auth/tiktok/business/callback"
+BUSINESS_ACCOUNT_HOLDER_CALLBACK_PATH="/v1/auth/tiktok/business/account-holder/callback"
 
 pass=0
 fail=0
@@ -77,12 +79,30 @@ else
         bad "/health returned ${health_code}"
     fi
 
-    # 5. OAuth callback route exists and does not 5xx on missing params.
+    # 5. Shop OAuth callback route exists and does not 5xx on missing params.
     cb_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${API_DOMAIN}${CALLBACK_PATH}")"
     if [ "${cb_code}" -lt 500 ]; then
-        ok "OAuth callback ${CALLBACK_PATH} returned ${cb_code} (no 5xx)"
+        ok "Shop OAuth callback ${CALLBACK_PATH} returned ${cb_code} (no 5xx)"
     else
-        bad "OAuth callback ${CALLBACK_PATH} returned ${cb_code}"
+        bad "Shop OAuth callback ${CALLBACK_PATH} returned ${cb_code}"
+    fi
+
+    # 5b. Business Advertiser OAuth callback (ADR-034 / #492).
+    biz_adv_code="$(curl -s -o /dev/null -w '%{http_code}' \
+        "https://${API_DOMAIN}${BUSINESS_ADVERTISER_CALLBACK_PATH}")"
+    if [ "${biz_adv_code}" -lt 500 ]; then
+        ok "Business Advertiser OAuth ${BUSINESS_ADVERTISER_CALLBACK_PATH} returned ${biz_adv_code} (no 5xx)"
+    else
+        bad "Business Advertiser OAuth ${BUSINESS_ADVERTISER_CALLBACK_PATH} returned ${biz_adv_code}"
+    fi
+
+    # 5c. Business account-holder OAuth callback (ADR-034 / #492).
+    biz_ah_code="$(curl -s -o /dev/null -w '%{http_code}' \
+        "https://${API_DOMAIN}${BUSINESS_ACCOUNT_HOLDER_CALLBACK_PATH}")"
+    if [ "${biz_ah_code}" -lt 500 ]; then
+        ok "Business account-holder OAuth ${BUSINESS_ACCOUNT_HOLDER_CALLBACK_PATH} returned ${biz_ah_code} (no 5xx)"
+    else
+        bad "Business account-holder OAuth ${BUSINESS_ACCOUNT_HOLDER_CALLBACK_PATH} returned ${biz_ah_code}"
     fi
 
     # 6. Login page client chunks load and contain demo login markers.
