@@ -71,10 +71,20 @@ APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.s
 | 2 | TLS handshake | Public HTTPS terminates on both domains |
 | 3 | Frontend load | `https://app-juli.com/` returns 2xx |
 | 4 | `/health` | Backend returns 2xx JSON |
-| 5 | OAuth callback | `GET /v1/auth/tiktok/callback` does not 5xx on missing params |
-| 6 | Reviewer login | `/login` chunk contains demo entry markers |
-| 7 | Home chunks | `/` route JS chunks return 200 (no stale partial build) |
-| 8 | CORS | `Access-Control-Allow-Origin` includes `https://app-juli.com` |
+| 5 | Shop OAuth callback | `GET /v1/auth/tiktok/callback` does not 5xx on missing params |
+| 6 | Business Advertiser OAuth | `GET /v1/auth/tiktok/business/callback` does not 5xx on missing params |
+| 7 | Business account-holder OAuth | `GET /v1/auth/tiktok/business/account-holder/callback` does not 5xx on missing params |
+| 8 | Reviewer login | `/login` chunk contains demo entry markers |
+| 9 | Home chunks | `/` route JS chunks return 200 (no stale partial build) |
+| 10 | CORS | `Access-Control-Allow-Origin` includes `https://app-juli.com` |
+
+Production Business redirect URLs (ADR-034 — must match portal registration exactly):
+
+- Advertiser: `https://api.app-juli.com/v1/auth/tiktok/business/callback`
+- Account holder: `https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback`
+
+> **High-risk:** renaming these registered portal URIs is high-risk — coordinate
+> TikTok for Business portal + Secrets Manager / `/etc/juli/api.env` before any path change.
 
 DNS/TLS-only mode (before apps are up, #256):
 
@@ -99,8 +109,13 @@ Operator completes after `smoke-test.sh` passes with zero failures:
 
 - [x] Frontend: `https://app-juli.com/` loads over HTTPS (200)
 - [x] Health: `https://api.app-juli.com/health` returns 2xx JSON (200)
-- [x] OAuth: `https://api.app-juli.com/v1/auth/tiktok/callback` handles missing
+- [x] Shop OAuth: `https://api.app-juli.com/v1/auth/tiktok/callback` handles missing
       params without a 5xx crash (400)
+- [ ] Business Advertiser OAuth: `https://api.app-juli.com/v1/auth/tiktok/business/callback`
+      handles missing params without a 5xx crash
+- [ ] Business account-holder OAuth:
+      `https://api.app-juli.com/v1/auth/tiktok/business/account-holder/callback`
+      handles missing params without a 5xx crash
 - [x] Reviewer login: `https://app-juli.com/login` shows one-click demo entry
       (see [`reviewer-login-runbook.md`](reviewer-login-runbook.md))
 - [x] CORS: `CORS_ALLOW_ORIGINS=https://app-juli.com` on VPS; preflight allows
@@ -120,7 +135,8 @@ Explicitly confirm before closing #261:
 ## CI validation (no live domain)
 
 ```bash
-python -m pytest tests/unit/test_phase_2_5_smoke_checklist.py -q
+python -m pytest tests/unit/test_phase_2_5_smoke_checklist.py \
+  tests/unit/test_biz_oauth_ops_docs.py -q
 ```
 
 Full Phase 2.5 deploy contract suite:
@@ -144,6 +160,7 @@ python -m pytest tests/unit/test_phase_2_5_deploy_config.py \
 | Login missing demo markers | Rebuild with `./infra/scripts/build-frontend-review.sh`; restart `juli-web` |
 | Home chunks return 400 | Stale partial build — run `build-frontend-review.sh` and restart `juli-web` |
 | OAuth callback 5xx | Check `juli-api` logs; verify TikTok env vars on VPS |
+| Business OAuth callback 5xx | Confirm `TIKTOK_BUSINESS_*` keys in `/etc/juli/api.env`; paths must match portal URIs exactly |
 
 See also [`app-review-runbook.md`](app-review-runbook.md) troubleshooting section.
 
@@ -151,19 +168,22 @@ See also [`app-review-runbook.md`](app-review-runbook.md) troubleshooting sectio
 
 ## Operator sign-off record
 
-Completed sign-off (#261 closed 2026-07-03):
+Completed sign-off (#261 closed 2026-07-03) — **historical** (Shop OAuth era; 11 checks).
+After #492, full `smoke-test.sh` also probes both Business OAuth callbacks (**13**
+PASS lines in full mode). Re-run live smoke and tick the Business HITL rows above
+before treating Business OAuth as signed off.
 
 ```
 App Review smoke sign-off (#261)
 Date: 2026-07-03
 Operator: root@juli-product-testing
 VPS: juli-product-testing (5.223.68.27)
-smoke-test.sh result: 11 passed, 0 failed
+smoke-test.sh result: 11 passed, 0 failed  # historical; expect 13 after #492
 CORS_ALLOW_ORIGINS verified: yes
 Review-only confirmed (no prod users/traffic/data): yes
 ```
 
-VPS transcript:
+VPS transcript (historical #261):
 
 ```
 grep CORS_ALLOW_ORIGINS=https://app-juli.com ~/Juli-AI-v2/.env
@@ -171,4 +191,5 @@ grep CORS_ALLOW_ORIGINS=https://app-juli.com ~/Juli-AI-v2/.env
 
 APP_DOMAIN=app-juli.com API_DOMAIN=api.app-juli.com ./infra/scripts/smoke-test.sh
 → 11 passed, 0 failed (DNS, TLS, frontend, /health, OAuth callback, reviewer login, home chunks, CORS)
+# Post-#492: expect Shop + Business Advertiser + Business account-holder callback probes
 ```

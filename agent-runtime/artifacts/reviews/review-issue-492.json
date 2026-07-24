@@ -1,0 +1,128 @@
+{
+  "id": "review-issue-492",
+  "issue": 492,
+  "timestamp": "2026-07-24T00:20:02Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #492 Business OAuth ops docs: intent-review spec_fidelity=pass. App-review, smoke-checklist, and vps-wiring list both ADR-034 production URLs; TIKTOK_BUSINESS_* env/Secrets Manager keys documented; smoke-test.sh non-5xx GETs for Advertiser and account-holder; high-risk portal URI rename noted. Contract tests in test_biz_oauth_ops_docs.py map all ACs.",
+  "criticalFindings": [
+    {
+      "id": "492-info-secrets-hitl",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "docs/runbooks/app-review-runbook.md",
+      "description": "Docs document TIKTOK_BUSINESS_* keys for juli/api/production and /etc/juli/api.env; live Secrets Manager put-secret-value remains HITL.",
+      "suggestion": null
+    },
+    {
+      "id": "492-convention-smoke-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "infra/scripts/smoke-test.sh",
+      "description": "Intent-review convention note: Business callback probes duplicate Shop OAuth curl pattern for readability.",
+      "suggestion": null
+    }
+  ],
+  "modulesTouched": [
+    "docs/runbooks/app-review-runbook.md",
+    "docs/runbooks/smoke-checklist-runbook.md",
+    "docs/runbooks/vps-wiring-runbook.md",
+    "docs/handoffs/parallel-status.md",
+    "infra/scripts/env/api.env.example",
+    "infra/scripts/smoke-test.sh",
+    "tests/unit/test_biz_oauth_ops_docs.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Runbooks list both ADR-032 production URLs exactly",
+          "test": "tests/unit/test_biz_oauth_ops_docs.py::test_vps_wiring_runbook_lists_both_business_redirect_urls"
+        },
+        {
+          "criterion": "Env var names and required VPS/secrets-manager keys are documented",
+          "test": "tests/unit/test_biz_oauth_ops_docs.py::test_env_var_names_and_required_vps_secrets_manager_keys_are_documented"
+        },
+        {
+          "criterion": "Smoke checklist includes GETs that must not 5xx for both Business paths",
+          "test": "tests/unit/test_biz_oauth_ops_docs.py::test_smoke_test_script_probes_both_business_callbacks"
+        },
+        {
+          "criterion": "Explicit note that renaming registered portal URIs is high-risk",
+          "test": "tests/unit/test_biz_oauth_ops_docs.py::test_app_review_warns_that_renaming_portal_uris_is_high_risk"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 10,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "1e72054a..working-tree on feature/issue-492-business-oauth-ops-docs",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-492.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-492.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "492-20260724T000230",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "492-info-secrets-hitl",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "docs/runbooks/app-review-runbook.md",
+      "description": "Docs document TIKTOK_BUSINESS_* keys for juli/api/production and /etc/juli/api.env; live Secrets Manager put-secret-value remains HITL.",
+      "suggestion": null
+    },
+    {
+      "id": "492-convention-smoke-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "infra/scripts/smoke-test.sh",
+      "description": "Intent-review convention note: Business callback probes duplicate Shop OAuth curl pattern for readability.",
+      "suggestion": null
+    }
+  ],
+  "securityFindings": [
+    {
+      "id": "492-info-secrets-hitl",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "docs/runbooks/app-review-runbook.md",
+      "description": "Docs document TIKTOK_BUSINESS_* keys for juli/api/production and /etc/juli/api.env; live Secrets Manager put-secret-value remains HITL.",
+      "suggestion": null
+    }
+  ],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewDurationMs": 0,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "severity": "low",
+  "suggestedRemediation": []
+}

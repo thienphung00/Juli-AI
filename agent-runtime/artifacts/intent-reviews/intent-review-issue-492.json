@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-492",
+  "issue": 492,
+  "timestamp": "2026-07-24T00:20:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "1e72054a7659918f11894df6ac1f8e0b2fa5b6cd",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "After follow-up: app-review, smoke-checklist, and vps-wiring runbooks list both ADR-034 Business production URLs with non-5xx expectations; TIKTOK_BUSINESS_* env/Secrets Manager keys documented in app-review + api.env.example; smoke-test.sh probes both Business callbacks; high-risk portal URI rename noted in app-review, smoke-checklist, api.env.example, and vps-wiring. Historical #261 sign-off labeled as pre-#492 (11 vs 13 checks). Spec + Standards Composer sub-agents: initial wiring gap fixed before PASS.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "Duplicated Code — smoke probe blocks",
+      "path": "infra/scripts/smoke-test.sh",
+      "note": "Advertiser and account-holder curl blocks mirror Shop OAuth probe; acceptable for clarity in bash smoke script.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "492-20260724T000230"
+}
