@@ -83,6 +83,35 @@ def default_fetch_github_issue_body(issue_id: int, repo_root: Path) -> str:
     return output
 
 
+def default_fetch_github_issue_labels(issue_id: int, repo_root: Path) -> list[str]:
+    """Return GitHub issue label names via ``gh`` (empty list if none)."""
+    try:
+        output = subprocess.check_output(
+            [
+                "gh",
+                "issue",
+                "view",
+                str(issue_id),
+                "--json",
+                "labels",
+                "-q",
+                "[.labels[].name]",
+            ],
+            cwd=repo_root,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or str(exc)).strip()
+        raise RuntimeError(f"gh issue view #{issue_id} labels failed: {detail}") from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError("gh CLI not found; required for GitHub issue labels") from exc
+    names = json.loads(output or "[]")
+    if not isinstance(names, list):
+        raise RuntimeError(f"unexpected labels payload for #{issue_id}: {names!r}")
+    return [str(name) for name in names]
+
+
 IssueBodyFetcher = Callable[[int], str]
 
 

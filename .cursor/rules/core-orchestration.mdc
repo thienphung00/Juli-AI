@@ -29,6 +29,13 @@ Agent completes validation. Must not implement features or bypass Review Agent /
 (auto-ensures parent/child workflow caches). Do not ask the user to prepare caches.
 Halt Executor unless the command prints `readyForExecutor: true`.
 
+**Public-release gate:** Before assigning an Executor for a change that affects a public
+app, release workflow, infrastructure, or runtime configuration, Meta must require a
+release-evidence plan: affected public surfaces, candidate-verification journey,
+static-asset checks, migration compatibility, rollback assertion, and required
+implementation/review/validation artifacts. Halt Executor when any item is missing; a
+sub-agent must not infer or waive this plan.
+
 ## Agent delegation
 
 - **Planning & decomposition** when a task spans modules or requirements are unclear.

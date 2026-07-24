@@ -128,8 +128,13 @@ pipeline.
   ```
 
   This ensures parent + child caches exist (`ensure_workflow_cache`), runs the gate
-  chain (staleness → scope precedence → bootstrap pin → issueLoadProfile), and
+  chain (staleness → scope precedence → bootstrap pin → issueLoadProfile →
+  **public_release_classification** → **public_release_evidence_plan**), and
   unlocks Executor only when `cacheStatus == valid` and `readyForExecutor: true`.
+- Persist `publicRelease` / `publicReleaseReasons` on the child cache; when
+  `publicRelease: true`, require a schema-valid `issueLoadProfile.releaseEvidencePlan`
+  (ADR-035 / [release-evidence-plan.schema.json](schemas/release-evidence-plan.schema.json)).
+  Sub-agents must not infer or waive the plan — halt with `missingFields` instead.
 - Select exactly one primary executor domain (from `issueLoadProfile.executorDomain`
   / `slice-routing.yml`) — never dual-load backend + data-platform skills.
 - Inject only Executor-phase skills in `harnessUtility`; defer intent-review /

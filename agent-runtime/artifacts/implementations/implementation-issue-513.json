@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 513,
+  "executorDomain": "backend",
+  "phaseRunId": "513-20260724T042500",
+  "startedAt": "2026-07-24T04:21:00Z",
+  "completedAt": "2026-07-24T04:35:00Z",
+  "executionDurationMs": 840000,
+  "tokenUsage": {
+    "input": 45000,
+    "output": 12000,
+    "total": 57000
+  },
+  "toolsUsed": [
+    { "toolName": "Read", "count": 18, "stage": "implementation" },
+    { "toolName": "Write", "count": 10, "stage": "red" },
+    { "toolName": "StrReplace", "count": 8, "stage": "green" },
+    { "toolName": "Shell", "count": 12, "stage": "other" },
+    { "toolName": "Grep", "count": 10, "stage": "implementation" },
+    { "toolName": "Glob", "count": 4, "stage": "other" }
+  ],
+  "toolInvocationCount": 62,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/meta-prepare-issue-513.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-513.json",
+    "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+    "agent-runtime/docs/agent-runtime.md",
+    ".cursor/rules/core-orchestration.mdc",
+    "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+    "agent-runtime/scripts/meta_prepare_executor.py",
+    "agent-runtime/scripts/validate/check_workflow_cache.py",
+    "agent-runtime/scripts/ci/ensure_workflow_cache.py",
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/testing-patterns/python-testing.md"
+  ],
+  "skillsLoaded": [
+    "backend-executor",
+    "focus",
+    "prompt-caching"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/issue-workflow.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "agent-runtime/config/agent-runtime.config.yml",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/docs/agent-runtime.md",
+    "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+    "agent-runtime/docs/schemas/release-evidence-plan.schema.json",
+    "agent-runtime/scripts/ci/ensure_workflow_cache.py",
+    "agent-runtime/scripts/ci/public_release_classification.py",
+    "agent-runtime/scripts/ci/release_evidence_plan.py",
+    "agent-runtime/scripts/validate/check_workflow_cache.py",
+    "agent-runtime/scripts/validate/check_public_release_classification.py",
+    "agent-runtime/scripts/validate/check_public_release_evidence_plan.py",
+    "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+    "docs/adr/README.md",
+    "tests/unit/test_public_release_classification.py",
+    "tests/unit/test_release_evidence_plan.py",
+    "tests/unit/test_public_release_meta_gates.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-513.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_public_release_classification.py",
+    "tests/unit/test_release_evidence_plan.py",
+    "tests/unit/test_public_release_meta_gates.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_ensure_workflow_cache.py",
+    "tests/unit/test_public_release_meta_gates.py",
+    "tests/unit/test_public_release_classification.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: public_release_classification (collection error)",
+      "passingTestEvidence": "20 passed — path/hostname/body/label triggers, non-public negative, docs-only cannot waive path",
+      "refactorEvidence": "Fixed path normalize so .github/workflows/* is not stripped to github/",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_public_release_classification.py -q",
+          "exitCode": 2,
+          "outputSummary": "ImportError during collection (RED)"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_public_release_classification.py -q",
+          "exitCode": 0,
+          "outputSummary": "20 passed (GREEN)"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "release_evidence_plan module missing before validator landed",
+      "passingTestEvidence": "17 passed — valid plan, each missing required field, empty arrays, traffic!=0, destructive migration",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_release_evidence_plan.py -q",
+          "exitCode": 0,
+          "outputSummary": "17 passed (GREEN after schema + validator)"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "public_release Meta gates not in GATE_SEQUENCE / modules missing",
+      "passingTestEvidence": "47 passed including ensure + classification + plan + meta gate suites; meta_prepare 513 unlocks with 6 gates",
+      "refactorEvidence": "ensure persists publicRelease fields and preserves releaseEvidencePlan",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_public_release_classification.py tests/unit/test_release_evidence_plan.py tests/unit/test_public_release_meta_gates.py tests/unit/test_ensure_workflow_cache.py -q",
+          "exitCode": 0,
+          "outputSummary": "47 passed"
+        },
+        {
+          "command": "python agent-runtime/scripts/meta_prepare_executor.py --issue 513 --force",
+          "exitCode": 0,
+          "outputSummary": "readyForExecutor true; public_release_* gates passed; publicRelease=false"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "Spec fidelity fail: labels=[] hardcoded in ensure; gate defaulted empty labels — label-only public bypass",
+      "passingTestEvidence": "50 passed — label-only classify, ensure persists label:public-release, gate fetches labels, missing plan fail-closed",
+      "refactorEvidence": "Shared paths_from_issue_load_profile; default_fetch_github_issue_labels via gh",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_public_release_classification.py tests/unit/test_public_release_meta_gates.py tests/unit/test_ensure_workflow_cache.py tests/unit/test_release_evidence_plan.py -q",
+          "exitCode": 0,
+          "outputSummary": "50 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "META-1: Added public-release classifier, releaseEvidencePlan JSON Schema + validator, child-cache schema fields (publicRelease, publicReleaseReasons, issueLoadProfile.releaseEvidencePlan), ensure persistence (including GitHub labels via gh), and Meta gates public_release_classification + public_release_evidence_plan after issue_load_profile. Non-public issues unlock without a plan; public + missing/invalid plan fail closed with missingFields. Label-only public issues classify and cannot unlock without a plan.",
+  "assumptions": [
+    "Body shipping signals require deploy/rollback/smoke/candidate-verification phrases rather than bare 'release' so harness Meta issues remain non-public.",
+    "GitHub labels are fetched via gh issue view --json labels during ensure and classification gate (injectable for tests).",
+    "Injection of releaseEvidencePlan into readyForExecutor payload is META-2 (#514)."
+  ],
+  "risks": [
+    "Body keyword heuristics may under/over-classify borderline issues; path triggers remain fail-closed and non-waivable.",
+    "Existing child caches without publicRelease fields fail the new gate until meta_prepare --force / ensure refresh.",
+    "gh label fetch failure fails the classification gate closed (cannot unlock) — intentional fail-closed."
+  ]
+}

@@ -91,6 +91,15 @@
       },
       "description": "Metadata linking child to parent epic. Does not inherit sibling load profiles."
     },
+    "publicRelease": {
+      "type": "boolean",
+      "description": "True when Meta classifies this issue as a public-release change (ADR-035). Persisted by ensure_workflow_cache."
+    },
+    "publicReleaseReasons": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Classifier reason codes (path:/surface:/body:/label:/runtime:)."
+    },
     "issueLoadProfile": {
       "type": "object",
       "additionalProperties": false,
@@ -117,6 +126,10 @@
         "loadWhenNeeded": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "releaseEvidencePlan": {
+          "type": "object",
+          "description": "Required iff publicRelease is true. Validated by public_release_evidence_plan gate against release-evidence-plan.schema.json."
         }
       },
       "description": "Unique context load plan for this child issue. Never copy from sibling issue context caches."

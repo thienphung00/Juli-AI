@@ -23,6 +23,12 @@ from workflow_cache_store import load_parent_child_caches  # noqa: E402
 
 from check_harness_bootstrap_pin import run_check as run_bootstrap  # noqa: E402
 from check_issue_load_profile import run_check as run_load_profile  # noqa: E402
+from check_public_release_classification import (  # noqa: E402
+    run_check as run_public_release_classification,
+)
+from check_public_release_evidence_plan import (  # noqa: E402
+    run_check as run_public_release_evidence_plan,
+)
 from check_scope_precedence import run_check as run_precedence  # noqa: E402
 from check_workflow_cache_staleness import run_check as run_staleness  # noqa: E402
 
@@ -31,6 +37,8 @@ GATE_SEQUENCE: list[tuple[str, Any]] = [
     ("scope_precedence", run_precedence),
     ("harness_bootstrap_pinned", run_bootstrap),
     ("issue_load_profile", run_load_profile),
+    ("public_release_classification", run_public_release_classification),
+    ("public_release_evidence_plan", run_public_release_evidence_plan),
 ]
 
 
