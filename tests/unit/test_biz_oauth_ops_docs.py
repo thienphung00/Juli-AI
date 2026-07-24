@@ -139,7 +139,7 @@ def test_ops_runbooks_do_not_embed_functional_secrets(
     vps_wiring_text: str,
 ):
     # api.env.example is a placeholder template (REPLACE_* URIs) — scan runbooks only.
-    combined = "\n".join((app_review_text, smoke_checklist_text, vps_wiring_text))
+    combined = f"{app_review_text}\n{smoke_checklist_text}\n{vps_wiring_text}"
     secret_patterns = [
         r"postgresql://[^:]+:[^@\s]+@",
         r"eyJ[A-Za-z0-9_-]{20,}\.",
