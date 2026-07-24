@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-514",
+  "issue": 514,
+  "timestamp": "2026-07-24T05:17:08Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main (edb123fbb0c2aa3d8e42528fe210978dc433b2ca) + working tree",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "META-2 injection contract, halt payload with missingFields, harness filter, domain alignment halt, and test matrix match issue #514 / PRD #500. Narrow gaps (docs-only bypass AC, value-equality vs is-identity, tddContract also on non-public) do not undermine the primary deliverable. Gate-fail KeyError on missing details fixed during review.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_meta_prepare_injection_contract.py",
+      "hunk": "TDD_CONTRACT literal duplicated vs mpe.TDD_CONTRACT; repeated sys.path+import of META-1 fixtures",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Mysterious Name",
+      "path": "agent-runtime/scripts/meta_prepare_executor.py",
+      "hunk": "_REVIEW_VALIDATE_SKILL_MARKERS bare 'validate' substring may over-match skill paths",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "code-quality.mdc \u2014 Error Handling",
+      "path": "agent-runtime/scripts/meta_prepare_executor.py",
+      "note": "Gate-fail branch previously used failed['details'] after details=failed.get('details') or {}; fixed to details.get('halt').",
+      "blocksMerge": false
+    },
+    {
+      "standard": "code-quality.mdc \u2014 Style & Naming",
+      "path": "agent-runtime/scripts/meta_prepare_executor.py",
+      "note": "executor_domain_mismatch returns bool without is_/has_ prefix (non-blocking).",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "514-20260724T051200Z"
+}

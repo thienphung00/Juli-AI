@@ -26,11 +26,32 @@ from ensure_workflow_cache import ensure_workflow_caches, load_runtime_config  #
 from check_workflow_cache import run_all_gates  # noqa: E402
 from workflow_cache_store import load_parent_child_caches  # noqa: E402
 
+TDD_CONTRACT: dict[str, Any] = {
+    "required": True,
+    "minRedGreenCycles": 1,
+    "requireTestsAddedOrUpdated": True,
+    "requirePassingCommandEvidence": True,
+}
+
+_REVIEW_VALIDATE_SKILL_MARKERS = ("intent-review", "guardrails", "validate")
+
+
+def _filter_executor_harness(harness: dict[str, Any]) -> dict[str, Any]:
+    filtered = dict(harness)
+    skills = list(harness.get("skills") or [])
+    filtered["skills"] = [
+        skill
+        for skill in skills
+        if not any(marker in (skill.get("path") or "") for marker in _REVIEW_VALIDATE_SKILL_MARKERS)
+    ]
+    return filtered
+
 
 def injection_plan(child: dict[str, Any], parent: dict[str, Any]) -> dict[str, Any]:
     profile = child.get("issueLoadProfile") or {}
-    harness = child.get("harnessUtility") or {}
-    return {
+    harness = _filter_executor_harness(child.get("harnessUtility") or {})
+    public_release = bool(child.get("publicRelease"))
+    plan: dict[str, Any] = {
         "parentScopeBlock": parent.get("parentScopeBlock"),
         "doNotLoad": list(
             dict.fromkeys(list(parent.get("doNotLoad") or []) + list(child.get("doNotLoad") or []))
@@ -41,7 +62,20 @@ def injection_plan(child: dict[str, Any], parent: dict[str, Any]) -> dict[str, A
         "promptCacheBlock": child.get("promptCacheBlock"),
         "executorDomain": profile.get("executorDomain"),
         "skillsPrimaryOnly": True,
+        "publicRelease": public_release,
+        "tddContract": dict(TDD_CONTRACT),
     }
+    if public_release:
+        release_plan = profile.get("releaseEvidencePlan")
+        if release_plan is not None:
+            plan["releaseEvidencePlan"] = release_plan
+            plan["releaseEvidencePlanId"] = release_plan.get("planId")
+    return plan
+
+
+def executor_domain_mismatch(child: dict[str, Any], plan: dict[str, Any]) -> bool:
+    profile_domain = (child.get("issueLoadProfile") or {}).get("executorDomain")
+    return plan.get("executorDomain") != profile_domain
 
 
 def main() -> int:
@@ -117,17 +151,32 @@ def main() -> int:
     if load_error:
         payload["loadError"] = load_error
     if ready and child and parent:
-        payload["injectionPlan"] = injection_plan(child, parent)
-        payload["executorDomain"] = (child.get("issueLoadProfile") or {}).get(
-            "executorDomain"
-        )
+        injection = injection_plan(child, parent)
+        if executor_domain_mismatch(child, injection):
+            ready = False
+            payload["halt"] = True
+            payload["readyForExecutor"] = False
+            payload["failedGate"] = "executor_domain_alignment"
+            payload["missingFields"] = []
+            payload["resolution"] = (
+                "Align injectionPlan.executorDomain with "
+                "child.issueLoadProfile.executorDomain, then re-run "
+                f"meta_prepare_executor --issue {issue}"
+            )
+        else:
+            payload["injectionPlan"] = injection
+            payload["executorDomain"] = (child.get("issueLoadProfile") or {}).get(
+                "executorDomain"
+            )
     elif not passed:
         failed = next(item for item in gate_results if not item["passed"])
+        payload["halt"] = True
+        payload["readyForExecutor"] = False
         payload["failedGate"] = failed["gate"]
-        payload["resolution"] = (failed.get("details") or {}).get(
-            "resolution", "refresh_issue_cache"
-        )
-        if failed["details"].get("halt"):
+        details = failed.get("details") or {}
+        payload["missingFields"] = list(details.get("missingFields") or [])
+        payload["resolution"] = details.get("resolution", "refresh_issue_cache")
+        if details.get("halt"):
             payload["halt"] = True
     elif require_valid and cache_status != "valid":
         payload["resolution"] = "set_cache_status_valid"
