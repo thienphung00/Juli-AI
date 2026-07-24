@@ -1,0 +1,170 @@
+{
+  "id": "review-issue-513",
+  "issue": 513,
+  "timestamp": "2026-07-24T04:46:19Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #513 META-1: intent-review spec_fidelity=pass after label-wiring fix. Classifier, releaseEvidencePlan schema, Meta gates, and ensure persistence (including GitHub labels) covered by 50 unit tests. All nine ACs mapped.",
+  "criticalFindings": [
+    {
+      "id": "513-info-plan-fixture-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_release_evidence_plan.py",
+      "description": "Intent-review smell (non-blocking): _valid_plan() duplicated across test modules.",
+      "suggestion": null
+    },
+    {
+      "id": "513-info-required-fields-mirror",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/ci/release_evidence_plan.py",
+      "description": "Intent-review smell (non-blocking): REQUIRED_TOP_LEVEL_FIELDS mirrors JSON Schema required[].",
+      "suggestion": "Optionally derive from schema to avoid drift."
+    },
+    {
+      "id": "513-info-schema-ref",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+      "description": "Intent-review smell (non-blocking): releaseEvidencePlan is a loose object without $ref to release-evidence-plan.schema.json.",
+      "suggestion": null
+    }
+  ],
+  "modulesTouched": [
+    "agent-runtime/scripts/ci/public_release_classification.py",
+    "agent-runtime/scripts/ci/release_evidence_plan.py",
+    "agent-runtime/scripts/ci/ensure_workflow_cache.py",
+    "agent-runtime/scripts/ci/upstream_fingerprints.py",
+    "agent-runtime/scripts/validate/check_workflow_cache.py",
+    "agent-runtime/scripts/validate/check_public_release_classification.py",
+    "agent-runtime/scripts/validate/check_public_release_evidence_plan.py",
+    "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+    "agent-runtime/docs/schemas/release-evidence-plan.schema.json",
+    "tests/unit/test_public_release_classification.py",
+    "tests/unit/test_release_evidence_plan.py",
+    "tests/unit/test_public_release_meta_gates.py",
+    "tests/unit/test_ensure_workflow_cache.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 9,
+      "mapped": 9,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "ensure persists label only public release on child cache",
+          "test": "tests/unit/test_ensure_workflow_cache.py::test_ensure_persists_label_only_public_release"
+        },
+        {
+          "criterion": "Classifier path hostname label body; docs only prose cannot waive path match",
+          "test": "tests/unit/test_public_release_classification.py::test_docs_only_prose_cannot_waive_path_match"
+        },
+        {
+          "criterion": "Unit tests cover trigger true, negative non-public, mixed docs and infra is public",
+          "test": "tests/unit/test_public_release_classification.py::test_mixed_docs_and_infra_is_public"
+        },
+        {
+          "criterion": "candidatePublicTrafficPercent nonzero fails schema validation",
+          "test": "tests/unit/test_release_evidence_plan.py::test_candidate_public_traffic_nonzero_fails"
+        },
+        {
+          "criterion": "Unit tests fail individually for each missing required field",
+          "test": "tests/unit/test_release_evidence_plan.py::test_each_missing_required_field_fails"
+        },
+        {
+          "criterion": "gates public_release_classification and public_release_evidence_plan after issue_load_profile",
+          "test": "tests/unit/test_public_release_meta_gates.py::test_gate_sequence_includes_public_release_gates_after_load_profile"
+        },
+        {
+          "criterion": "Public missing plan fails with missingFields",
+          "test": "tests/unit/test_public_release_meta_gates.py::test_public_missing_plan_fails_with_missing_fields"
+        },
+        {
+          "criterion": "Non-public fixtures pass Meta gates without a release plan",
+          "test": "tests/unit/test_public_release_meta_gates.py::test_non_public_passes_evidence_plan_without_plan"
+        },
+        {
+          "criterion": "Authority references ADR-035 and core-orchestration public-release gate",
+          "test": "tests/unit/test_public_release_classification.py::test_authority_references_adr_035_and_core_orchestration_public_release_gate"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 50,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [
+    {
+      "id": "513-critical-spec-fidelity",
+      "description": "Label wiring into ensure + classification gate",
+      "resolved": true
+    }
+  ],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 4,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "fb9176d7..working-tree on feature/issue-513-public-release-meta-gate (post label-wiring fix)",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-513.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-513.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "513-20260724T042500",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "513-info-plan-fixture-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_release_evidence_plan.py",
+      "description": "Intent-review smell (non-blocking): _valid_plan() duplicated across test modules.",
+      "suggestion": null
+    },
+    {
+      "id": "513-info-required-fields-mirror",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/ci/release_evidence_plan.py",
+      "description": "Intent-review smell (non-blocking): REQUIRED_TOP_LEVEL_FIELDS mirrors JSON Schema required[].",
+      "suggestion": "Optionally derive from schema to avoid drift."
+    },
+    {
+      "id": "513-info-schema-ref",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+      "description": "Intent-review smell (non-blocking): releaseEvidencePlan is a loose object without $ref to release-evidence-plan.schema.json.",
+      "suggestion": null
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewDurationMs": 90000,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "severity": "low",
+  "suggestedRemediation": [
+    "Optionally derive from schema to avoid drift."
+  ]
+}

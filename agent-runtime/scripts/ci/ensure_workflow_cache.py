@@ -27,6 +27,11 @@ from upstream_fingerprints import (  # noqa: E402
     build_child_upstream_fingerprints,
     build_parent_upstream_fingerprints,
     default_fetch_github_issue_body,
+    default_fetch_github_issue_labels,
+)
+from public_release_classification import (  # noqa: E402
+    classify_public_release,
+    paths_from_issue_load_profile,
 )
 from workflow_cache_store import (  # noqa: E402
     artifacts_dir_from_config,
@@ -298,6 +303,7 @@ def ensure_child_cache(
     repo_root: Path,
     config: dict[str, Any],
     issue_body_fetcher: Callable[[int], str],
+    issue_labels: list[str] | None = None,
     force: bool = False,
     mark_valid: bool = True,
 ) -> tuple[dict[str, Any], Path, bool]:
@@ -370,6 +376,7 @@ def ensure_child_cache(
         "sliceId": linkage["sliceId"],
         "handoffPath": linkage["handoffPath"],
     }
+    existing_plan = (child_cache.get("issueLoadProfile") or {}).get("releaseEvidencePlan")
     child_cache["issueLoadProfile"] = {
         "executorDomain": executor_domain,
         "requiredDocs": profile.get("requiredDocs") or [],
@@ -377,6 +384,16 @@ def ensure_child_cache(
         "acceptanceCriteria": profile.get("acceptanceCriteria") or [],
         "loadWhenNeeded": profile.get("loadWhenNeeded") or [],
     }
+    if existing_plan is not None:
+        child_cache["issueLoadProfile"]["releaseEvidencePlan"] = existing_plan
+
+    classification = classify_public_release(
+        paths=paths_from_issue_load_profile(profile),
+        issue_body=issue_body,
+        labels=list(issue_labels or []),
+    )
+    child_cache["publicRelease"] = classification["publicRelease"]
+    child_cache["publicReleaseReasons"] = classification["publicReleaseReasons"]
     child_cache["doNotLoad"] = do_not_load
     child_cache["authorityChain"] = build_expected_authority_chain(
         parent_issue_id=parent_id,
@@ -507,6 +524,7 @@ def ensure_workflow_caches(
     force: bool = False,
     mark_valid: bool = True,
     issue_body_fetcher: Callable[[int], str] | None = None,
+    issue_labels_fetcher: Callable[[int], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Ensure parent + child caches exist and are gate-ready.
 
@@ -514,7 +532,11 @@ def ensure_workflow_caches(
     """
     cfg = config or load_runtime_config(repo_root)
     fetcher = issue_body_fetcher or (lambda iid: fetch_issue_body(iid, repo_root))
+    labels_fetcher = issue_labels_fetcher or (
+        lambda iid: default_fetch_github_issue_labels(iid, repo_root)
+    )
     issue_body = fetcher(issue_id)
+    issue_labels = list(labels_fetcher(issue_id) or [])
     linkage = resolve_linkage(
         issue_id=issue_id,
         issue_body=issue_body,
@@ -538,6 +560,7 @@ def ensure_workflow_caches(
         repo_root=repo_root,
         config=cfg,
         issue_body_fetcher=fetcher,
+        issue_labels=issue_labels,
         force=force,
         mark_valid=mark_valid,
     )

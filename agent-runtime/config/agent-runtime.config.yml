@@ -394,3 +394,23 @@ workflow_prompt_cache:
         - ios/
         - docs/product/design/
         - Sibling issue context caches
+    500:
+      defaultSliceId: META-1
+      handoffPath: docs/adr/035-public-release-evidence-and-automatic-rollback.md
+      childSlices:
+        "513": META-1
+        "514": META-2
+        "515": META-3
+        "516": META-4
+      parentScopeBlock: "# Parent #500 — Enforce Meta public-release evidence gate (constant)\\n## Product boundary\\n- Meta/harness enforcement only (ADR-035 + core-orchestration)\\n- Classify publicRelease; require schema-valid releaseEvidencePlan before Executor\\n- Fail closed; sub-agents must not infer or waive the plan\\n## Slices\\n- META-1 (#513) classification + releaseEvidencePlan Meta gates\\n- META-2 (#514) injection contract + tddContract\\n- META-3 (#515) CI validators (TDD evidence, domain, phaseRunId, continuity)\\n- META-4 (#516) E2E fixtures + CHECKS wiring + docs\\n## Epic deferrals\\n- ECS candidate verification (#498)\\n- Demo asset repair (#499)\\n- User-traffic canaries / RUM / EKS\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - apps/demo/
+        - apps/landing/
+        - apps/dashboard/
+        - web/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_api/
+        - Sibling issue context caches

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-513",
+  "issue": 513,
+  "timestamp": "2026-07-24T04:42:22Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main (fb9176d72a63ac60cb528bded93664b9a05ec35d) + working tree",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Label wiring fix applied: ensure_workflow_cache and public_release_classification fetch GitHub labels via gh (injectable). Label-only public issues classify and fail closed without a plan. META-2/3/4 slice-routing rows remain epic harness scaffolding (non-blocking creep).",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_release_evidence_plan.py",
+      "hunk": "_valid_plan() near-copy of test_public_release_meta_gates fixture",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Duplicated Code",
+      "path": "agent-runtime/scripts/ci/release_evidence_plan.py",
+      "hunk": "REQUIRED_TOP_LEVEL_FIELDS mirrors schema required[]",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Shotgun Surgery",
+      "path": "agent-runtime/config/slice-routing.yml",
+      "hunk": "META-1..META-4 repeat identical doNotLoad blocks",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Primitive Obsession",
+      "path": "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+      "hunk": "releaseEvidencePlan is loose object without $ref to release-evidence-plan.schema.json",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "check_issue_load_profile.py gate pattern",
+      "path": "agent-runtime/scripts/validate/check_public_release_classification.py",
+      "note": "Gate now fetches labels by default; structure matches existing validate gates.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "code-quality.mdc \u2014 DRY",
+      "path": "agent-runtime/scripts/ci/public_release_classification.py",
+      "note": "paths_from_issue_load_profile shared by ensure and classification gate.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "513-20260724T042500"
+}

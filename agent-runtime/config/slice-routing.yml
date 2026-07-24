@@ -730,3 +730,115 @@ BIZ-OAUTH-4:
     - web/
     - ios/
     - Sibling issue context caches
+
+# Parent #500 — Meta public-release evidence gate (ADR-035)
+META-1:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - agent-runtime/docs/agent-runtime.md
+    - .cursor/rules/core-orchestration.mdc
+    - agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json
+    - agent-runtime/scripts/meta_prepare_executor.py
+    - agent-runtime/scripts/validate/check_workflow_cache.py
+  requiredModules:
+    - agent-runtime/scripts/meta_prepare_executor.py
+    - agent-runtime/scripts/validate/check_workflow_cache.py
+    - agent-runtime/scripts/ci/ensure_workflow_cache.py
+    - agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json
+    - tests/unit/test_ensure_workflow_cache.py
+  loadWhenNeeded:
+    - agent-runtime/docs/agent-runtime-artifacts.md
+    - .cursor/skills/standalone/prompt-caching/SKILL.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/rules/reliability.mdc
+    - .cursor/rules/code-quality.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - docs/integrations/tiktok_api/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - Sibling issue context caches
+
+META-2:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - agent-runtime/docs/agent-runtime.md
+    - .cursor/rules/core-orchestration.mdc
+    - agent-runtime/scripts/meta_prepare_executor.py
+  requiredModules:
+    - agent-runtime/scripts/meta_prepare_executor.py
+    - agent-runtime/scripts/validate/check_workflow_cache.py
+    - agent-runtime/scripts/ci/ensure_workflow_cache.py
+  loadWhenNeeded:
+    - agent-runtime/docs/agent-runtime-artifacts.md
+    - .cursor/skills/standalone/prompt-caching/SKILL.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - Sibling issue context caches
+
+META-3:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - agent-runtime/docs/agent-runtime.md
+    - agent-runtime/docs/agent-runtime-artifacts.md
+  requiredModules:
+    - agent-runtime/scripts/validate/
+    - agent-runtime/docs/schemas/
+  loadWhenNeeded:
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/rules/reliability.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - Sibling issue context caches
+
+META-4:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - agent-runtime/docs/agent-runtime.md
+    - agent-runtime/docs/agent-runtime-artifacts.md
+  requiredModules:
+    - agent-runtime/scripts/meta_prepare_executor.py
+    - agent-runtime/scripts/validate/
+    - agent-runtime/docs/schemas/
+  loadWhenNeeded:
+    - .cursor/skills/standalone/prompt-caching/SKILL.md
+    - .cursor/skills/standalone/validate/SKILL.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - Sibling issue context caches
