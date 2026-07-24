@@ -7,8 +7,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATE_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "validate"
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
