@@ -1,0 +1,203 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 515,
+  "parentIssueId": 500,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-500.json",
+  "phaseRunId": "515-20260724T053540",
+  "workflowPhase": "meta",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "META-3",
+    "handoffPath": "docs/adr/035-public-release-evidence-and-automatic-rollback.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "backend",
+    "requiredDocs": [
+      "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+      "agent-runtime/docs/agent-runtime.md",
+      "agent-runtime/docs/agent-runtime-artifacts.md"
+    ],
+    "requiredModules": [
+      "agent-runtime/scripts/validate/",
+      "agent-runtime/docs/schemas/"
+    ],
+    "acceptanceCriteria": [
+      "implementation_schema_valid validates against the implementation-artifact JSON Schema (not field-presence-only).",
+      "implementation_tdd_evidence for code under backend/, apps/, infra/, packages/: \u22651 RGR cycle; passing command evidence; non-empty testsAdded or testsUpdated; reject tokenUsage.total == 0 when executionDurationMs > 60000.",
+      "executor_domain_matches_cache fails on domain mismatch; passes on match.",
+      "phase_run_correlation requires matching phaseRunId across implementation, intent-review, review, and validation when those artifacts are required/present.",
+      "release_evidence_plan_continuity (public only) requires matching releaseEvidencePlanId.",
+      "release_metadata_honesty rejects hardcoded smokeTestsPassed / healthChecksPassed true without step evidence.",
+      "Unit matrix covers pass and each failure mode above.",
+      "New checks are runnable standalone and suitable for registration in the validation generator (wiring completed in #516)."
+    ],
+    "loadWhenNeeded": [
+      ".cursor/skills/domain/testing-patterns/python-testing.md",
+      ".cursor/rules/reliability.mdc"
+    ],
+    "releaseEvidencePlan": {
+      "planId": "rep-515-meta3-ci-validators",
+      "affectedPublicSurfaces": [
+        "demo.app-juli.com",
+        "app-juli.com",
+        "api.app-juli.com"
+      ],
+      "candidateVerificationJourney": {
+        "mode": "candidate_verification",
+        "stableTrafficPercent": 100,
+        "candidatePublicTrafficPercent": 0,
+        "restrictedRoute": "n/a \u2014 META-3 harness CI validators only; no public cutover",
+        "syntheticShopRequired": false,
+        "workersDisabledOnCandidate": true,
+        "apiSideEffectsInScope": false,
+        "journeys": [
+          {
+            "name": "standalone-ci-validator-matrix",
+            "entryUrl": "pytest://tests/unit/",
+            "assertions": [
+              "unit_matrix_pass_and_fail"
+            ]
+          }
+        ]
+      },
+      "staticAssetChecks": {
+        "required": false,
+        "htmlRoutes": [
+          "/"
+        ],
+        "discoverFromHtml": false,
+        "assetTypes": [
+          "css",
+          "js"
+        ],
+        "failOnMissing": false,
+        "failOnNon200": false
+      },
+      "migrationCompatibility": {
+        "schemaChangeInScope": false,
+        "expandContractOnly": true,
+        "stableAndCandidateCompatible": true,
+        "destructiveMigrationAllowed": false,
+        "notes": "No DB schema change. Additive agent-runtime CI validators only."
+      },
+      "rollbackAssertion": {
+        "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+        "postCutoverFailureBehavior": "restore_stable_listener",
+        "retainedStableRequired": true,
+        "automatic": true
+      },
+      "requiredArtifacts": {
+        "implementation": true,
+        "intentReview": true,
+        "review": true,
+        "validation": false,
+        "releaseMetadataHonest": true
+      },
+      "acceptanceCommands": [
+        "pytest -q tests/unit/test_implementation_schema_valid.py tests/unit/test_implementation_tdd_evidence.py tests/unit/test_executor_domain_matches_cache.py tests/unit/test_phase_run_correlation.py tests/unit/test_release_evidence_plan_continuity.py tests/unit/test_release_metadata_honesty.py"
+      ],
+      "doNotInfer": [
+        "release evidence fields",
+        "synthetic check asset lists",
+        "rollback behavior",
+        "validation generator CHECKS wiring (deferred to #516)"
+      ]
+    }
+  },
+  "authorityChain": [
+    {
+      "rank": 1,
+      "source": "EXECUTION.md",
+      "reason": "Phase/slice law \u2014 META-3"
+    },
+    {
+      "rank": 2,
+      "source": "parent-cache-issue-500",
+      "reason": "Epic constant"
+    },
+    {
+      "rank": 3,
+      "source": "GitHub issue #515",
+      "reason": "Child acceptance criteria"
+    },
+    {
+      "rank": 4,
+      "source": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+      "reason": "Epic handoff"
+    }
+  ],
+  "resolvedDecisions": [],
+  "inScope": [
+    "Slice META-3 acceptance criteria",
+    "Executor domain: backend"
+  ],
+  "outOfScope": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "apps/demo/",
+    "apps/landing/",
+    "apps/dashboard/"
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "apps/demo/",
+    "apps/landing/",
+    "apps/dashboard/",
+    "web/",
+    "ios/",
+    "backend/src/juli_backend/",
+    "Sibling issue context caches",
+    "docs/product/design/",
+    "docs/integrations/tiktok_api/"
+  ],
+  "promptCacheBlock": "# Issue #515 \u2014 META-3\n\n## Parent\n#500\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/adr/035-public-release-evidence-and-automatic-rollback.md\n- agent-runtime/docs/agent-runtime.md\n- agent-runtime/docs/agent-runtime-artifacts.md\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #515 \u2014 META-3\n\n## Parent\n#500\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/adr/035-public-release-evidence-and-automatic-rollback.md\n- agent-runtime/docs/agent-runtime.md\n- agent-runtime/docs/agent-runtime-artifacts.md\n",
+    "meta": "# Meta \u2014 Issue #515\n\n- sliceId: META-3\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "executor": "# Executor \u2014 Issue #515 META-3\n\nImplemented six standalone CI validators under agent-runtime/scripts/validate/ with stdlib JSON Schema validation and 26 unit tests (pass + failure modes). Additive releaseEvidencePlanId on implementation/validation schemas. CHECKS wiring deferred to #516.\n- check_implementation_schema_valid.py\n- check_implementation_tdd_evidence.py\n- check_executor_domain_matches_cache.py\n- check_phase_run_correlation.py\n- check_release_evidence_plan_continuity.py\n- check_release_metadata_honesty.py\nphaseRunId: 515-20260724T053540\nreleaseEvidencePlanId: rep-515-meta3-ci-validators\n",
+    "review": "",
+    "validate": ""
+  },
+  "harnessUtility": {
+    "skills": [
+      {
+        "path": ".cursor/skills/domain/backend/SKILL.md",
+        "purpose": "Primary backend Executor TDD"
+      }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc"
+    ],
+    "mcps": [],
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Shell",
+      "StrReplace"
+    ]
+  },
+  "glossarySnippets": [],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #515",
+      "fingerprint": "b3d28d886248fe4d"
+    },
+    {
+      "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-515.md",
+      "fingerprint": "1f9f6bce5720561684ec07b15e0e66619671a314"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-515.md",
+  "lastValidatedAt": "2026-07-24T05:57:02Z",
+  "lastScopeAlignmentAt": "2026-07-24T05:57:02Z",
+  "publicRelease": true,
+  "publicReleaseReasons": [
+    "body:smoke"
+  ]
+}

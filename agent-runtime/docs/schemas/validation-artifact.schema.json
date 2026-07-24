@@ -107,6 +107,11 @@
     "readyForShip": {
       "type": "boolean",
       "description": "Optional mirror of readyForMerge for Meta."
+    },
+    "releaseEvidencePlanId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "When publicRelease, echoes Meta releaseEvidencePlan.planId for continuity."
     }
   }
 }

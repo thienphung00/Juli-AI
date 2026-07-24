@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-515",
+  "issue": 515,
+  "timestamp": "2026-07-24T05:56:49Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main (c4ab1ea22df1445bb7727a7b19c3085c728da04c)",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "META-3 six standalone CI validators and deferred #516 CHECKS wiring match issue #515 intent. Minor TDD path-scope breadth beyond listed dirs is non-blocking.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_implementation_schema_valid.py",
+      "hunk": "Repeated REPO_ROOT/VALIDATE_DIR/CI_DIR sys.path bootstrap across six new test files (matches #513 convention).",
+      "judgement": true,
+      "blocksMerge": false
+    },
+    {
+      "name": "Mysterious Name",
+      "path": "agent-runtime/scripts/ci/implementation_tdd.py",
+      "hunk": "Module docstring implies broader CI helpers; file is TDD-evidence only.",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "code-quality.mdc \u2014 Style & Naming",
+      "path": "agent-runtime/scripts/ci/implementation_tdd.py",
+      "note": "Docstring broader than module contents; cleanup candidate.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "code-quality.mdc \u2014 Consistency",
+      "path": "agent-runtime/scripts/validate/check_release_metadata_honesty.py",
+      "note": "Mixes from-common import with separate import common for RELEASES_DIR.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "515-20260724T053540"
+}
