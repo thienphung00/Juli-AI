@@ -260,6 +260,8 @@ jobs:
       ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
       GITHUB_BASE_REF: ${{ github.base_ref }}
       GITHUB_HEAD_REF: ${{ github.head_ref }}
+      # Required for meta_prepare_executor / fingerprint gates (gh issue view).
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -268,7 +270,15 @@ jobs:
         with:
           python-version: "3.12"
       - name: Generate validation artifact
-        run: python agent-runtime/scripts/ci/generate_validation_artifact.py --issue "${{ needs.resolve-issue.outputs.issue_number }}"
+        run: |
+          issue="${ISSUE_NUMBER}"
+          # Workflow caches are gitignored (machine-local). Bootstrap before
+          # CHECKS that load child cache (public_release_*, executor_domain,
+          # phase_run_correlation, release_evidence_plan_continuity).
+          echo "==> agent-runtime/scripts/meta_prepare_executor.py --issue $issue"
+          python agent-runtime/scripts/meta_prepare_executor.py --issue "$issue"
+          echo "==> agent-runtime/scripts/ci/generate_validation_artifact.py --issue $issue"
+          python agent-runtime/scripts/ci/generate_validation_artifact.py --issue "$issue"
       - name: Upload validation artifact
         uses: actions/upload-artifact@v7
         with:
