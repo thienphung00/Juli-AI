@@ -1,0 +1,151 @@
+{
+  "id": "review-issue-515",
+  "issue": 515,
+  "timestamp": "2026-07-24T05:56:49Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #515 META-3: intent-review spec_fidelity=pass. Six standalone CI validators with unit matrix; CHECKS wiring deferred to #516. No reliability/security blockers. All eight ACs mapped.",
+  "criticalFindings": [
+    {
+      "id": "515-info-test-bootstrap-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_implementation_schema_valid.py",
+      "description": "Intent-review smell (non-blocking): duplicated test bootstrap across six files.",
+      "suggestion": "Optional shared conftest helper later."
+    },
+    {
+      "id": "515-info-implementation-tdd-name",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/ci/implementation_tdd.py",
+      "description": "Intent-review smell (non-blocking): module docstring broader than TDD helpers.",
+      "suggestion": "Narrow docstring to TDD evidence helpers."
+    }
+  ],
+  "modulesTouched": [
+    "agent-runtime/scripts/validate/check_implementation_schema_valid.py",
+    "agent-runtime/scripts/validate/check_implementation_tdd_evidence.py",
+    "agent-runtime/scripts/validate/check_executor_domain_matches_cache.py",
+    "agent-runtime/scripts/validate/check_phase_run_correlation.py",
+    "agent-runtime/scripts/validate/check_release_evidence_plan_continuity.py",
+    "agent-runtime/scripts/validate/check_release_metadata_honesty.py",
+    "agent-runtime/scripts/ci/json_schema_validate.py",
+    "agent-runtime/scripts/ci/implementation_schema.py",
+    "agent-runtime/scripts/ci/implementation_tdd.py",
+    "agent-runtime/scripts/ci/release_metadata_honesty.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "agent-runtime/docs/schemas/implementation-artifact.schema.json",
+      "interface": "releaseEvidencePlanId",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Optional releaseEvidencePlanId for public-release continuity."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 8,
+      "mapped": 8,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "schema valid passes for valid artifact",
+          "test": "tests/unit/test_implementation_schema_valid.py::test_schema_valid_passes_for_valid_artifact"
+        },
+        {
+          "criterion": "tdd evidence passes for in scope changes",
+          "test": "tests/unit/test_implementation_tdd_evidence.py::test_tdd_evidence_passes_for_in_scope_changes"
+        },
+        {
+          "criterion": "executor domain match passes",
+          "test": "tests/unit/test_executor_domain_matches_cache.py::test_executor_domain_match_passes"
+        },
+        {
+          "criterion": "phase run correlation passes when all match",
+          "test": "tests/unit/test_phase_run_correlation.py::test_phase_run_correlation_passes_when_all_match"
+        },
+        {
+          "criterion": "release plan continuity passes on match",
+          "test": "tests/unit/test_release_evidence_plan_continuity.py::test_release_plan_continuity_passes_on_match"
+        },
+        {
+          "criterion": "release metadata honesty passes with step evidence",
+          "test": "tests/unit/test_release_metadata_honesty.py::test_release_metadata_honesty_passes_with_step_evidence"
+        },
+        {
+          "criterion": "tdd evidence fails without cycles",
+          "test": "tests/unit/test_implementation_tdd_evidence.py::test_tdd_evidence_fails_without_cycles"
+        },
+        {
+          "criterion": "schema valid fails when artifact missing",
+          "test": "tests/unit/test_implementation_schema_valid.py::test_schema_valid_fails_when_artifact_missing"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 26,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Wire new checks into generate_validation_artifact CHECKS in #516",
+    "Optional shared test bootstrap helper"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 2,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..acb7077c on feature/issue-515-ci-tdd-validators",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-515.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-515.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "515-20260724T053540",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "515-info-test-bootstrap-dup",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_implementation_schema_valid.py",
+      "description": "Intent-review smell (non-blocking): duplicated test bootstrap across six files.",
+      "suggestion": "Optional shared conftest helper later."
+    },
+    {
+      "id": "515-info-implementation-tdd-name",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/ci/implementation_tdd.py",
+      "description": "Intent-review smell (non-blocking): module docstring broader than TDD helpers.",
+      "suggestion": "Narrow docstring to TDD evidence helpers."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewDurationMs": 180000,
+  "severity": "low",
+  "suggestedRemediation": [
+    "Optional shared conftest helper later.",
+    "Narrow docstring to TDD evidence helpers."
+  ],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}

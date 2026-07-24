@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "parent_cache",
+  "parentIssueId": 500,
+  "cacheBlockVersion": 1,
+  "parentScopeBlock": "# Parent #500 \u2014 Enforce Meta public-release evidence gate (constant)\\\n## Product boundary\\\n- Meta/harness enforcement only (ADR-035 + core-orchestration)\\\n- Classify publicRelease; require schema-valid releaseEvidencePlan before Executor\\\n- Fail closed; sub-agents must not infer or waive the plan\\\n## Slices\\\n- META-1 (#513) classification + releaseEvidencePlan Meta gates\\\n- META-2 (#514) injection contract + tddContract\\\n- META-3 (#515) CI validators (TDD evidence, domain, phaseRunId, continuity)\\\n- META-4 (#516) E2E fixtures + CHECKS wiring + docs\\\n## Epic deferrals\\\n- ECS candidate verification (#498)\\\n- Demo asset repair (#499)\\\n- User-traffic canaries / RUM / EKS\\\n",
+  "sliceId": "META-1",
+  "handoffPath": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+  "childIssueIds": [
+    513,
+    514,
+    515
+  ],
+  "doNotLoad": [
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "apps/demo/",
+    "apps/landing/",
+    "apps/dashboard/",
+    "web/",
+    "ios/",
+    "docs/product/design/",
+    "docs/integrations/tiktok_api/",
+    "Sibling issue context caches"
+  ],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #500",
+      "fingerprint": "f78894ce5136cd0c"
+    },
+    {
+      "path": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+      "fingerprint": "70a5b184b5a4858da52a7477459ae2d215cc109f"
+    },
+    {
+      "path": "EXECUTION.md",
+      "fingerprint": "582b139028e79aa2d7f9f3f8f39989e420755525"
+    }
+  ],
+  "bootstrapRef": {
+    "branch": "HEAD",
+    "commitSha": "f186f2a67cc6f645300fe35a6704e3fea86f8da3",
+    "copiedAt": "2026-07-24T05:57:01Z"
+  },
+  "lastValidatedAt": "2026-07-24T05:57:02Z"
+}
