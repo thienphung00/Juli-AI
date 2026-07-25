@@ -394,6 +394,20 @@ workflow_prompt_cache:
         - ios/
         - docs/product/design/
         - Sibling issue context caches
+    499:
+      defaultSliceId: DEMO-ASSET-1
+      handoffPath: docs/adr/035-public-release-evidence-and-automatic-rollback.md
+      childSlices:
+        "499": DEMO-ASSET-1
+      parentScopeBlock: "# Parent #499 — Restore Demo static-asset delivery (constant)\\n## Product boundary\\n- apps/demo mock-only; VPS bridge release evidence for demo.app-juli.com\\n- Diagnose/repair asset/runtime mismatch; no redesign; no backend/TikTok\\n## Design authority\\n- ADR-035 release evidence (bridge on current VPS; ECS #498 deferred)\\n- Reuse App Review HTML→static asset patterns (build-frontend-review / smoke-test)\\n## Work packages (same issue #499; path-disjoint Composer slices)\\n- DEMO-ASSET-1 runtime packaging align (standalone vs pnpm start / static serve)\\n- DEMO-ASSET-2 build + public smoke asset integrity\\n- DEMO-ASSET-3 Playwright styled smoke + rollback/uptime evidence\\n## Epic deferrals\\n- ECS candidate verification (#498)\\n- Meta harness gates (#500)\\n- Visual redesign / new Demo features / real backend data\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - backend/
+        - ios/
+        - web/
+        - docs/integrations/tiktok_api/
+        - Sibling issue context caches
     500:
       defaultSliceId: META-1
       handoffPath: docs/adr/035-public-release-evidence-and-automatic-rollback.md

@@ -1,0 +1,301 @@
+{
+  "issueId": 499,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 499,
+    "parentIssueId": 499,
+    "sliceId": "DEMO-ASSET-1",
+    "handoffPath": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+    "executorDomain": "ui-ux",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-499.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-499.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 499,
+        "parentIssueId": 499,
+        "sliceId": "DEMO-ASSET-1",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #499",
+            "fingerprint": "29fb2ed6567f9ab2"
+          },
+          {
+            "path": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+            "fingerprint": "70a5b184b5a4858da52a7477459ae2d215cc109f"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "4e927797b27634c93c1dfce4b3c3bec5df52d629"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #499",
+            "fingerprint": "29fb2ed6567f9ab2"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-499.md",
+            "fingerprint": "29bb11ab9007705e43c7f09deb6b93f346183321"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 499,
+        "parentIssueId": 499,
+        "sliceId": "DEMO-ASSET-1",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 DEMO-ASSET-1",
+            "sliceId": "DEMO-ASSET-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-499",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #499",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 DEMO-ASSET-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-499",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #499",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to f6d5bd1ea081 on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf",
+          "copiedAt": "2026-07-25T08:09:37Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/ui-ux/SKILL.md"
+        ],
+        "branchHeadSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf",
+        "pinnedCommitSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 499,
+        "parentIssueId": 499,
+        "sliceId": "DEMO-ASSET-1",
+        "derivedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+            "docs/runbooks/demo-deploy-runbook.md",
+            "apps/demo/MODULE.md",
+            "agent-runtime/artifacts/release-evidence-plan-issue-499.json"
+          ],
+          "requiredModules": [
+            "apps/demo/next.config.ts",
+            "infra/systemd/juli-demo.service",
+            "infra/nginx/demo.app-juli.com.conf",
+            "infra/scripts/build-demo.sh",
+            "infra/scripts/provision-demo.sh",
+            "tests/unit/test_phase_2_6_demo_deploy_config.py"
+          ],
+          "acceptanceCriteria": [],
+          "loadWhenNeeded": [
+            "infra/scripts/build-frontend-review.sh",
+            "infra/systemd/juli-web.service",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            ".cursor/rules/reliability.mdc"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "backend/",
+            "ios/",
+            "web/",
+            "docs/integrations/tiktok_api/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+            "docs/runbooks/demo-deploy-runbook.md",
+            "apps/demo/MODULE.md",
+            "agent-runtime/artifacts/release-evidence-plan-issue-499.json"
+          ],
+          "requiredModules": [
+            "apps/demo/next.config.ts",
+            "infra/systemd/juli-demo.service",
+            "infra/nginx/demo.app-juli.com.conf",
+            "infra/scripts/build-demo.sh",
+            "infra/scripts/provision-demo.sh",
+            "tests/unit/test_phase_2_6_demo_deploy_config.py"
+          ],
+          "acceptanceCriteria": [],
+          "loadWhenNeeded": [
+            "infra/scripts/build-frontend-review.sh",
+            "infra/systemd/juli-web.service",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            ".cursor/rules/reliability.mdc"
+          ]
+        },
+        "problems": []
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #499 \u2014 Restore Demo static-asset delivery (constant)\\\n## Product boundary\\\n- apps/demo mock-only; VPS bridge release evidence for demo.app-juli.com\\\n- Diagnose/repair asset/runtime mismatch; no redesign; no backend/TikTok\\\n## Design authority\\\n- ADR-035 release evidence (bridge on current VPS; ECS #498 deferred)\\\n- Reuse App Review HTML\u2192static asset patterns (build-frontend-review / smoke-test)\\\n## Work packages (same issue #499; path-disjoint Composer slices)\\\n- DEMO-ASSET-1 runtime packaging align (standalone vs pnpm start / static serve)\\\n- DEMO-ASSET-2 build + public smoke asset integrity\\\n- DEMO-ASSET-3 Playwright styled smoke + rollback/uptime evidence\\\n## Epic deferrals\\\n- ECS candidate verification (#498)\\\n- Meta harness gates (#500)\\\n- Visual redesign / new Demo features / real backend data\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "backend/",
+      "ios/",
+      "web/",
+      "docs/integrations/tiktok_api/",
+      "Sibling issue context caches"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/ui-ux/SKILL.md",
+          "purpose": "Primary ui-ux Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "ui-ux",
+      "requiredDocs": [
+        "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+        "docs/runbooks/demo-deploy-runbook.md",
+        "apps/demo/MODULE.md",
+        "agent-runtime/artifacts/release-evidence-plan-issue-499.json"
+      ],
+      "requiredModules": [
+        "apps/demo/next.config.ts",
+        "infra/systemd/juli-demo.service",
+        "infra/nginx/demo.app-juli.com.conf",
+        "infra/scripts/build-demo.sh",
+        "infra/scripts/provision-demo.sh",
+        "tests/unit/test_phase_2_6_demo_deploy_config.py"
+      ],
+      "acceptanceCriteria": [],
+      "loadWhenNeeded": [
+        "infra/scripts/build-frontend-review.sh",
+        "infra/systemd/juli-web.service",
+        ".cursor/skills/domain/testing-patterns/python-testing.md",
+        ".cursor/rules/reliability.mdc"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #499\n\n- sliceId: DEMO-ASSET-1\n- executorDomain: ui-ux (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #499 \u2014 DEMO-ASSET-1\n\n## Parent\n#499\n\n## Executor domain\nui-ux\n\n## Required docs\n- docs/adr/035-public-release-evidence-and-automatic-rollback.md\n- docs/runbooks/demo-deploy-runbook.md\n- apps/demo/MODULE.md\n- agent-runtime/artifacts/release-evidence-plan-issue-499.json\n",
+    "executorDomain": "ui-ux",
+    "skillsPrimaryOnly": true
+  },
+  "executorDomain": "ui-ux"
+}

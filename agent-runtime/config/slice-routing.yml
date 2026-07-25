@@ -731,6 +731,86 @@ BIZ-OAUTH-4:
     - ios/
     - Sibling issue context caches
 
+# Parent #499 — Demo static-asset delivery + VPS bridge release verification (ADR-035)
+DEMO-ASSET-1:
+  executorDomain: ui-ux
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/runbooks/demo-deploy-runbook.md
+    - apps/demo/MODULE.md
+    - agent-runtime/artifacts/release-evidence-plan-issue-499.json
+  requiredModules:
+    - apps/demo/next.config.ts
+    - infra/systemd/juli-demo.service
+    - infra/nginx/demo.app-juli.com.conf
+    - infra/scripts/build-demo.sh
+    - infra/scripts/provision-demo.sh
+    - tests/unit/test_phase_2_6_demo_deploy_config.py
+  loadWhenNeeded:
+    - infra/scripts/build-frontend-review.sh
+    - infra/systemd/juli-web.service
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/rules/reliability.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - web/
+    - docs/integrations/tiktok_api/
+    - Sibling issue context caches
+
+DEMO-ASSET-2:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/runbooks/demo-deploy-runbook.md
+    - agent-runtime/artifacts/release-evidence-plan-issue-499.json
+  requiredModules:
+    - infra/scripts/build-demo.sh
+    - infra/scripts/smoke-test-demo.sh
+    - infra/scripts/smoke-test.sh
+    - infra/scripts/build-frontend-review.sh
+    - tests/unit/test_phase_2_6_demo_deploy_config.py
+  loadWhenNeeded:
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/rules/reliability.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/src/juli_backend/
+    - ios/
+    - web/
+    - docs/integrations/tiktok_api/
+    - Sibling issue context caches
+
+DEMO-ASSET-3:
+  executorDomain: ui-ux
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/runbooks/demo-deploy-runbook.md
+    - apps/demo/MODULE.md
+    - agent-runtime/artifacts/release-evidence-plan-issue-499.json
+  requiredModules:
+    - apps/demo/e2e/
+    - infra/scripts/rollback-demo-release.sh
+    - infra/scripts/deploy-demo-release.sh
+    - tests/unit/test_phase_2_6_demo_deploy_config.py
+  loadWhenNeeded:
+    - apps/demo/e2e/exit-gate/decisions-journey.spec.ts
+    - .cursor/rules/reliability.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - web/
+    - docs/integrations/tiktok_api/
+    - Sibling issue context caches
+
 # Parent #500 — Meta public-release evidence gate (ADR-035)
 META-1:
   executorDomain: backend

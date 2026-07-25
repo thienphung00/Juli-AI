@@ -206,6 +206,37 @@ Mandatory route: `/decisions` (minimum Phase 2.6 exit gate).
 
 ---
 
+## Release evidence — static assets + rollback (ADR-035 VPS bridge)
+
+Before flipping `~/releases/demo-current` on the VPS, prove the candidate build serves
+reachable CSS/JS and renders branded styles in a browser — not only 2xx HTML.
+
+| Gate | Command | Proves |
+|------|---------|--------|
+| Build integrity | `./infra/scripts/build-demo.sh` | Home + `/decisions` routes built (mock mode) |
+| Static asset fetch | `./infra/scripts/verify-demo-static-assets.sh` | Referenced CSS/JS from `/` and `/decisions` return 200 |
+| Public smoke | `./infra/scripts/smoke-test-demo.sh` | DNS, TLS, HTTPS routes, local upstream when on VPS |
+| Browser styled check | `pnpm --filter @juli/demo test:e2e -- e2e/exit-gate/static-asset-render.spec.ts` | Non-default computed styles + Home → Decisions nav against production build |
+
+Run locally or on the deploy worktree **before** cutover; zero public canary traffic on
+this VPS bridge path (ECS candidate verification deferred to #498).
+
+**Rollback (Demo only)** — restore the previous healthy release without touching App Review:
+
+```bash
+cd ~/Juli-AI-v2
+./infra/scripts/rollback-demo-release.sh                # previous Demo release
+./infra/scripts/rollback-demo-release.sh <sha-or-short-sha>
+```
+
+Rollback re-points `~/releases/demo-current`, restarts `juli-demo` only, and verifies
+local `/decisions` health before success. Contract tests:
+`pytest -q tests/unit/test_demo_rollback_evidence.py`.
+
+Release evidence plan: `agent-runtime/artifacts/release-evidence-plan-issue-499.json`.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |

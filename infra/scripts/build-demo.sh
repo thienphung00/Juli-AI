@@ -41,4 +41,15 @@ if [ ! -f "${DEMO_DIR}/.next/server/app/index.html" ]; then
     exit 1
 fi
 
+if [ ! -d "${DEMO_DIR}/.next/static" ]; then
+    echo "FAIL: hashed static assets missing (.next/static directory not found)" >&2
+    exit 1
+fi
+
 echo "PASS: Demo home and /decisions routes built (mock mode, no API dependency)"
+
+VERIFY_STATIC="${REPO_ROOT}/infra/scripts/verify-demo-static-assets.sh"
+if [ -x "${VERIFY_STATIC}" ]; then
+    echo "-- verify static asset references --"
+    "${VERIFY_STATIC}"
+fi
