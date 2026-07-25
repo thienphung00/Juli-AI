@@ -11,8 +11,6 @@ import os
 import subprocess
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 VERIFY_SCRIPT_PATH = SCRIPTS_DIR / "verify-demo-static-assets.sh"

@@ -32,7 +32,7 @@
         "liveParentFingerprints": [
           {
             "path": "GitHub issue #499",
-            "fingerprint": "29fb2ed6567f9ab2"
+            "fingerprint": "70163573ae38181a"
           },
           {
             "path": "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
@@ -40,17 +40,17 @@
           },
           {
             "path": "EXECUTION.md",
-            "fingerprint": "4e927797b27634c93c1dfce4b3c3bec5df52d629"
+            "fingerprint": "582b139028e79aa2d7f9f3f8f39989e420755525"
           }
         ],
         "liveChildFingerprints": [
           {
             "path": "GitHub issue #499",
-            "fingerprint": "29fb2ed6567f9ab2"
+            "fingerprint": "70163573ae38181a"
           },
           {
             "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-499.md",
-            "fingerprint": "29bb11ab9007705e43c7f09deb6b93f346183321"
+            "fingerprint": "f9a8d56285df97475e804af5b20b723a4a84650e"
           }
         ]
       }
@@ -121,18 +121,18 @@
     {
       "gate": "harness_bootstrap_pinned",
       "passed": true,
-      "description": "Bootstrap pinned to f6d5bd1ea081 on HEAD; 1 harnessUtility skill path(s) verified",
+      "description": "Bootstrap pinned to 12486c38612b on HEAD; 1 harnessUtility skill path(s) verified",
       "details": {
         "bootstrapRef": {
           "branch": "HEAD",
-          "commitSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf",
-          "copiedAt": "2026-07-25T08:09:37Z"
+          "commitSha": "12486c38612b9faef70e70991672d77d64237724",
+          "copiedAt": "2026-07-25T08:26:52Z"
         },
         "harnessSkillPaths": [
           ".cursor/skills/domain/ui-ux/SKILL.md"
         ],
-        "branchHeadSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf",
-        "pinnedCommitSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf",
+        "branchHeadSha": "12486c38612b9faef70e70991672d77d64237724",
+        "pinnedCommitSha": "12486c38612b9faef70e70991672d77d64237724",
         "bootstrapSkillIndex": [
           ".cursor/skills/domain/backend/SKILL.md",
           ".cursor/skills/domain/data-platform/SKILL.md",
@@ -164,7 +164,7 @@
           ".cursor/skills/standalone/validate/SKILL.md",
           ".cursor/skills/write-a-skill/SKILL.md"
         ],
-        "bootstrapSkillIndexSha": "f6d5bd1ea08128f34a7372dd393bd7e6bee40bcf"
+        "bootstrapSkillIndexSha": "12486c38612b9faef70e70991672d77d64237724"
       }
     },
     {
@@ -230,9 +230,153 @@
             "infra/systemd/juli-web.service",
             ".cursor/skills/domain/testing-patterns/python-testing.md",
             ".cursor/rules/reliability.mdc"
-          ]
+          ],
+          "releaseEvidencePlan": {
+            "planId": "rep-499-demo-static-asset-bridge",
+            "affectedPublicSurfaces": [
+              "demo.app-juli.com"
+            ],
+            "candidateVerificationJourney": {
+              "mode": "candidate_verification",
+              "stableTrafficPercent": 100,
+              "candidatePublicTrafficPercent": 0,
+              "restrictedRoute": "VPS bridge \u2014 verify on deploy worktree / local production build before flipping demo-current; zero public canary traffic (ECS candidate path deferred to #498)",
+              "syntheticShopRequired": false,
+              "workersDisabledOnCandidate": true,
+              "apiSideEffectsInScope": false,
+              "journeys": [
+                {
+                  "name": "demo-home-styled-and-interactive",
+                  "entryUrl": "https://demo.app-juli.com/",
+                  "assertions": [
+                    "html_200",
+                    "referenced_css_js_all_200",
+                    "computed_styles_non_browser_default",
+                    "primary_nav_to_decisions_works"
+                  ]
+                },
+                {
+                  "name": "demo-decisions-styled",
+                  "entryUrl": "https://demo.app-juli.com/decisions",
+                  "assertions": [
+                    "html_200",
+                    "referenced_css_js_all_200",
+                    "computed_styles_non_browser_default"
+                  ]
+                }
+              ]
+            },
+            "staticAssetChecks": {
+              "required": true,
+              "htmlRoutes": [
+                "/",
+                "/decisions"
+              ],
+              "discoverFromHtml": true,
+              "assetTypes": [
+                "css",
+                "js"
+              ],
+              "failOnMissing": true,
+              "failOnNon200": true
+            },
+            "migrationCompatibility": {
+              "schemaChangeInScope": false,
+              "expandContractOnly": true,
+              "stableAndCandidateCompatible": true,
+              "destructiveMigrationAllowed": false,
+              "notes": "No DB schema change. Demo mock-only frontend + VPS infra scripts only."
+            },
+            "rollbackAssertion": {
+              "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+              "postCutoverFailureBehavior": "restore_stable_listener",
+              "retainedStableRequired": true,
+              "automatic": false,
+              "command": "./infra/scripts/rollback-demo-release.sh"
+            },
+            "requiredArtifacts": {
+              "implementation": true,
+              "intentReview": true,
+              "review": true,
+              "validation": true,
+              "releaseMetadataHonest": true
+            },
+            "acceptanceCommands": [
+              "./infra/scripts/build-demo.sh",
+              "./infra/scripts/smoke-test-demo.sh",
+              "pytest -q tests/unit/test_phase_2_6_demo_deploy_config.py",
+              "pnpm --filter @juli/demo test:e2e -- e2e/exit-gate/static-asset-render.spec.ts"
+            ],
+            "doNotInfer": [
+              "release evidence fields",
+              "smoke asset lists",
+              "rollback behavior",
+              "ECS candidate verification / ALB cutover (deferred to #498)",
+              "visual redesign or new Demo features",
+              "backend / TikTok integration",
+              "user-traffic percentage canaries"
+            ]
+          }
         },
         "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=True matches live classifier (8 reason(s))",
+      "details": {
+        "issueId": 499,
+        "parentIssueId": 499,
+        "live": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo",
+            "path:infra/systemd",
+            "path:infra/nginx",
+            "path:infra/scripts/build-",
+            "surface:demo.app-juli.com",
+            "body:rollback",
+            "body:smoke",
+            "runtime:public_host_config"
+          ]
+        },
+        "cached": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo",
+            "path:infra/systemd",
+            "path:infra/nginx",
+            "path:infra/scripts/build-",
+            "surface:demo.app-juli.com",
+            "body:rollback",
+            "body:smoke",
+            "runtime:public_host_config"
+          ]
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 499 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "releaseEvidencePlan present and schema-valid",
+      "details": {
+        "issueId": 499,
+        "parentIssueId": 499,
+        "publicRelease": true,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "missingFields": [],
+        "errors": [],
+        "resolution": "Complete issueLoadProfile.releaseEvidencePlan fields [], then re-run meta_prepare_executor --issue 499",
+        "planId": "rep-499-demo-static-asset-bridge"
       }
     }
   ],
@@ -290,12 +434,192 @@
         "infra/systemd/juli-web.service",
         ".cursor/skills/domain/testing-patterns/python-testing.md",
         ".cursor/rules/reliability.mdc"
-      ]
+      ],
+      "releaseEvidencePlan": {
+        "planId": "rep-499-demo-static-asset-bridge",
+        "affectedPublicSurfaces": [
+          "demo.app-juli.com"
+        ],
+        "candidateVerificationJourney": {
+          "mode": "candidate_verification",
+          "stableTrafficPercent": 100,
+          "candidatePublicTrafficPercent": 0,
+          "restrictedRoute": "VPS bridge \u2014 verify on deploy worktree / local production build before flipping demo-current; zero public canary traffic (ECS candidate path deferred to #498)",
+          "syntheticShopRequired": false,
+          "workersDisabledOnCandidate": true,
+          "apiSideEffectsInScope": false,
+          "journeys": [
+            {
+              "name": "demo-home-styled-and-interactive",
+              "entryUrl": "https://demo.app-juli.com/",
+              "assertions": [
+                "html_200",
+                "referenced_css_js_all_200",
+                "computed_styles_non_browser_default",
+                "primary_nav_to_decisions_works"
+              ]
+            },
+            {
+              "name": "demo-decisions-styled",
+              "entryUrl": "https://demo.app-juli.com/decisions",
+              "assertions": [
+                "html_200",
+                "referenced_css_js_all_200",
+                "computed_styles_non_browser_default"
+              ]
+            }
+          ]
+        },
+        "staticAssetChecks": {
+          "required": true,
+          "htmlRoutes": [
+            "/",
+            "/decisions"
+          ],
+          "discoverFromHtml": true,
+          "assetTypes": [
+            "css",
+            "js"
+          ],
+          "failOnMissing": true,
+          "failOnNon200": true
+        },
+        "migrationCompatibility": {
+          "schemaChangeInScope": false,
+          "expandContractOnly": true,
+          "stableAndCandidateCompatible": true,
+          "destructiveMigrationAllowed": false,
+          "notes": "No DB schema change. Demo mock-only frontend + VPS infra scripts only."
+        },
+        "rollbackAssertion": {
+          "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+          "postCutoverFailureBehavior": "restore_stable_listener",
+          "retainedStableRequired": true,
+          "automatic": false,
+          "command": "./infra/scripts/rollback-demo-release.sh"
+        },
+        "requiredArtifacts": {
+          "implementation": true,
+          "intentReview": true,
+          "review": true,
+          "validation": true,
+          "releaseMetadataHonest": true
+        },
+        "acceptanceCommands": [
+          "./infra/scripts/build-demo.sh",
+          "./infra/scripts/smoke-test-demo.sh",
+          "pytest -q tests/unit/test_phase_2_6_demo_deploy_config.py",
+          "pnpm --filter @juli/demo test:e2e -- e2e/exit-gate/static-asset-render.spec.ts"
+        ],
+        "doNotInfer": [
+          "release evidence fields",
+          "smoke asset lists",
+          "rollback behavior",
+          "ECS candidate verification / ALB cutover (deferred to #498)",
+          "visual redesign or new Demo features",
+          "backend / TikTok integration",
+          "user-traffic percentage canaries"
+        ]
+      }
     },
     "phaseCacheBlocks.meta": "# Meta \u2014 Issue #499\n\n- sliceId: DEMO-ASSET-1\n- executorDomain: ui-ux (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
     "promptCacheBlock": "# Issue #499 \u2014 DEMO-ASSET-1\n\n## Parent\n#499\n\n## Executor domain\nui-ux\n\n## Required docs\n- docs/adr/035-public-release-evidence-and-automatic-rollback.md\n- docs/runbooks/demo-deploy-runbook.md\n- apps/demo/MODULE.md\n- agent-runtime/artifacts/release-evidence-plan-issue-499.json\n",
     "executorDomain": "ui-ux",
-    "skillsPrimaryOnly": true
+    "skillsPrimaryOnly": true,
+    "publicRelease": true,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    },
+    "releaseEvidencePlan": {
+      "planId": "rep-499-demo-static-asset-bridge",
+      "affectedPublicSurfaces": [
+        "demo.app-juli.com"
+      ],
+      "candidateVerificationJourney": {
+        "mode": "candidate_verification",
+        "stableTrafficPercent": 100,
+        "candidatePublicTrafficPercent": 0,
+        "restrictedRoute": "VPS bridge \u2014 verify on deploy worktree / local production build before flipping demo-current; zero public canary traffic (ECS candidate path deferred to #498)",
+        "syntheticShopRequired": false,
+        "workersDisabledOnCandidate": true,
+        "apiSideEffectsInScope": false,
+        "journeys": [
+          {
+            "name": "demo-home-styled-and-interactive",
+            "entryUrl": "https://demo.app-juli.com/",
+            "assertions": [
+              "html_200",
+              "referenced_css_js_all_200",
+              "computed_styles_non_browser_default",
+              "primary_nav_to_decisions_works"
+            ]
+          },
+          {
+            "name": "demo-decisions-styled",
+            "entryUrl": "https://demo.app-juli.com/decisions",
+            "assertions": [
+              "html_200",
+              "referenced_css_js_all_200",
+              "computed_styles_non_browser_default"
+            ]
+          }
+        ]
+      },
+      "staticAssetChecks": {
+        "required": true,
+        "htmlRoutes": [
+          "/",
+          "/decisions"
+        ],
+        "discoverFromHtml": true,
+        "assetTypes": [
+          "css",
+          "js"
+        ],
+        "failOnMissing": true,
+        "failOnNon200": true
+      },
+      "migrationCompatibility": {
+        "schemaChangeInScope": false,
+        "expandContractOnly": true,
+        "stableAndCandidateCompatible": true,
+        "destructiveMigrationAllowed": false,
+        "notes": "No DB schema change. Demo mock-only frontend + VPS infra scripts only."
+      },
+      "rollbackAssertion": {
+        "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+        "postCutoverFailureBehavior": "restore_stable_listener",
+        "retainedStableRequired": true,
+        "automatic": false,
+        "command": "./infra/scripts/rollback-demo-release.sh"
+      },
+      "requiredArtifacts": {
+        "implementation": true,
+        "intentReview": true,
+        "review": true,
+        "validation": true,
+        "releaseMetadataHonest": true
+      },
+      "acceptanceCommands": [
+        "./infra/scripts/build-demo.sh",
+        "./infra/scripts/smoke-test-demo.sh",
+        "pytest -q tests/unit/test_phase_2_6_demo_deploy_config.py",
+        "pnpm --filter @juli/demo test:e2e -- e2e/exit-gate/static-asset-render.spec.ts"
+      ],
+      "doNotInfer": [
+        "release evidence fields",
+        "smoke asset lists",
+        "rollback behavior",
+        "ECS candidate verification / ALB cutover (deferred to #498)",
+        "visual redesign or new Demo features",
+        "backend / TikTok integration",
+        "user-traffic percentage canaries"
+      ]
+    },
+    "releaseEvidencePlanId": "rep-499-demo-static-asset-bridge"
   },
   "executorDomain": "ui-ux"
 }

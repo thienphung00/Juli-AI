@@ -7,6 +7,7 @@ prompt. Artifacts stay under ``agent-runtime/artifacts/workflow-cache/``.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -104,6 +105,34 @@ def epic_registry_entry(config: dict[str, Any], parent_issue_id: int) -> dict[st
     return out
 
 
+def resolve_parent_from_epic_registry(
+    config: dict[str, Any], issue_id: int
+) -> int | None:
+    """Resolve parent when issue body/CLI omit it.
+
+    - If ``issue_id`` is itself a registered epic, treat it as its own parent
+      (PRD implemented as the work item, e.g. #499).
+    - Else reverse-lookup ``childSlices`` across the registry.
+    """
+    if epic_registry_entry(config, issue_id):
+        return issue_id
+    registry = (config.get("workflow_prompt_cache") or {}).get("epicRegistry") or {}
+    for parent_key, entry in registry.items():
+        if not isinstance(entry, dict):
+            continue
+        child_slices = entry.get("childSlices") or {}
+        if (
+            issue_id in child_slices
+            or str(issue_id) in child_slices
+            or f'"{issue_id}"' in child_slices
+        ):
+            try:
+                return int(str(parent_key).strip('"'))
+            except ValueError:
+                return None
+    return None
+
+
 def resolve_linkage(
     *,
     issue_id: int,
@@ -113,7 +142,11 @@ def resolve_linkage(
     slice_id: str | None = None,
     handoff_path: str | None = None,
 ) -> dict[str, Any]:
-    resolved_parent = parent_issue_id or parse_parent_issue_id(issue_body)
+    resolved_parent = (
+        parent_issue_id
+        or parse_parent_issue_id(issue_body)
+        or resolve_parent_from_epic_registry(config, issue_id)
+    )
     if resolved_parent is None:
         raise ValueError(
             f"Cannot resolve parent for issue #{issue_id}. Pass --parent or add "
@@ -377,6 +410,20 @@ def ensure_child_cache(
         "handoffPath": linkage["handoffPath"],
     }
     existing_plan = (child_cache.get("issueLoadProfile") or {}).get("releaseEvidencePlan")
+    if existing_plan is None:
+        plan_path = (
+            repo_root
+            / "agent-runtime"
+            / "artifacts"
+            / f"release-evidence-plan-issue-{issue_id}.json"
+        )
+        if plan_path.is_file():
+            try:
+                loaded = json.loads(plan_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                loaded = None
+            if isinstance(loaded, dict):
+                existing_plan = loaded
     child_cache["issueLoadProfile"] = {
         "executorDomain": executor_domain,
         "requiredDocs": profile.get("requiredDocs") or [],
@@ -386,6 +433,9 @@ def ensure_child_cache(
     }
     if existing_plan is not None:
         child_cache["issueLoadProfile"]["releaseEvidencePlan"] = existing_plan
+        plan_id = existing_plan.get("planId")
+        if isinstance(plan_id, str) and plan_id.strip():
+            child_cache["releaseEvidencePlanId"] = plan_id
 
     classification = classify_public_release(
         paths=paths_from_issue_load_profile(profile),
