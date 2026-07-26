@@ -77,6 +77,43 @@ else
     else
         echo "INFO: local upstream check skipped or failed (local_code=${local_code}) — public HTTPS checks are authoritative."
     fi
+
+    # 6. Discover critical CSS/JS from HTML and assert all return 200 (issue #499).
+    # Asset types: .css stylesheets and .js client bundles under /_next/static/.
+    discover_demo_static_assets() {
+        printf '%s' "$1" | grep -oE '/_next/static/[^"'"'"']+\.(css|js)' | sort -u
+    }
+
+    check_route_static_assets() {
+        local route="$1"
+        local html="$2"
+        local stale_asset=""
+        local asset_count=0
+
+        while IFS= read -r asset_path; do
+            [ -n "${asset_path}" ] || continue
+            asset_count=$((asset_count + 1))
+            asset_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${DEMO_DOMAIN}${asset_path}")"
+            if [ "${asset_code}" != "200" ]; then
+                stale_asset="${asset_path} (${asset_code})"
+                break
+            fi
+        done < <(discover_demo_static_assets "${html}")
+
+        if [ "${asset_count}" -eq 0 ]; then
+            bad "${route} HTML did not reference any /_next/static CSS or JS assets"
+        elif [ -n "${stale_asset}" ]; then
+            bad "${route} HTML references stale asset ${stale_asset} (rebuild with ./infra/scripts/build-demo.sh && sudo systemctl restart juli-demo)"
+        else
+            ok "${route} — all ${asset_count} referenced static assets return 200"
+        fi
+    }
+
+    home_html="$(curl -sS "https://${DEMO_DOMAIN}/")"
+    check_route_static_assets "home" "${home_html}"
+
+    decisions_html="$(curl -sS "https://${DEMO_DOMAIN}/decisions")"
+    check_route_static_assets "/decisions" "${decisions_html}"
 fi
 
 echo

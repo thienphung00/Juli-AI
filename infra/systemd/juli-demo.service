@@ -1,5 +1,9 @@
 # Demo frontend service — Next.js (apps/demo) on 127.0.0.1:3001
 #
+# Runtime model matches juli-web: standard next build + `next start` from the app
+# directory (not standalone output). Nginx proxies all paths including /_next/static
+# to this upstream.
+#
 # Independent of App Review frontend and API services: restart with
 # `sudo systemctl restart juli-demo`.
 # Install to /etc/systemd/system/juli-demo.service on the review VPS.
@@ -15,9 +19,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/releases/demo-current
+WorkingDirectory=/root/releases/demo-current/apps/demo
 # Production Next.js server bound to the loopback upstream Nginx proxies to.
-ExecStart=/usr/bin/corepack pnpm --filter @juli/demo run start -- --port 3001 --hostname 127.0.0.1
+ExecStart=/usr/bin/corepack pnpm run start -- --port 3001 --hostname 127.0.0.1
 Restart=on-failure
 RestartSec=5
 

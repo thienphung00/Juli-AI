@@ -1,0 +1,86 @@
+{
+  "planId": "rep-499-demo-static-asset-bridge",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "VPS bridge — verify on deploy worktree / local production build before flipping demo-current; zero public canary traffic (ECS candidate path deferred to #498)",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-home-styled-and-interactive",
+        "entryUrl": "https://demo.app-juli.com/",
+        "assertions": [
+          "html_200",
+          "referenced_css_js_all_200",
+          "computed_styles_non_browser_default",
+          "primary_nav_to_decisions_works"
+        ]
+      },
+      {
+        "name": "demo-decisions-styled",
+        "entryUrl": "https://demo.app-juli.com/decisions",
+        "assertions": [
+          "html_200",
+          "referenced_css_js_all_200",
+          "computed_styles_non_browser_default"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Demo mock-only frontend + VPS infra scripts only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "command": "./infra/scripts/rollback-demo-release.sh"
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "./infra/scripts/build-demo.sh",
+    "./infra/scripts/smoke-test-demo.sh",
+    "pytest -q tests/unit/test_phase_2_6_demo_deploy_config.py",
+    "pnpm --filter @juli/demo test:e2e -- e2e/exit-gate/static-asset-render.spec.ts"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "ECS candidate verification / ALB cutover (deferred to #498)",
+    "visual redesign or new Demo features",
+    "backend / TikTok integration",
+    "user-traffic percentage canaries"
+  ]
+}

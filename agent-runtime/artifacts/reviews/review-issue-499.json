@@ -1,0 +1,87 @@
+{
+  "id": "review-issue-499",
+  "issue": 499,
+  "timestamp": "2026-07-25T08:25:07Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #499 Demo static-asset bridge: intent-review pass. Runtime packaging, asset integrity, Playwright, rollback evidence. No reliability/security blockers.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "apps/demo/next.config.ts",
+    "infra/systemd/juli-demo.service",
+    "infra/scripts/verify-demo-static-assets.sh",
+    "infra/scripts/smoke-test-demo.sh",
+    "apps/demo/e2e/exit-gate/static-asset-render.spec.ts",
+    "docs/runbooks/demo-deploy-runbook.md"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "next config uses standard build not standalone",
+          "test": "tests/unit/test_demo_runtime_packaging.py::test_next_config_uses_standard_build_not_standalone"
+        },
+        {
+          "criterion": "systemd demo runs next start from app directory",
+          "test": "tests/unit/test_demo_runtime_packaging.py::test_systemd_demo_runs_next_start_from_app_directory"
+        },
+        {
+          "criterion": "verify fails when referenced js missing",
+          "test": "tests/unit/test_demo_static_asset_integrity.py::test_verify_fails_when_referenced_js_missing"
+        },
+        {
+          "criterion": "smoke demo discovers css js from html for home and decisions",
+          "test": "tests/unit/test_demo_static_asset_integrity.py::test_smoke_demo_discovers_css_js_from_html_for_home_and_decisions"
+        },
+        {
+          "criterion": "rollback script restarts juli demo only",
+          "test": "tests/unit/test_demo_rollback_evidence.py::test_rollback_script_restarts_juli_demo_only"
+        },
+        {
+          "criterion": "static asset render playwright spec exists",
+          "test": "tests/unit/test_demo_rollback_evidence.py::test_static_asset_render_playwright_spec_exists"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 41,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "499-20260725T081800",
+  "findings": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..working-tree on feature/issue-499-demo-static-assets",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-499.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-499.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "reviewDurationMs": 180000,
+  "severity": "none",
+  "suggestedRemediation": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}
