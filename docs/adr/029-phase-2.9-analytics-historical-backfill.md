@@ -49,5 +49,11 @@ unpublished; Juli calibrates from `100005` and a local ~10 req/min/endpoint buck
   days; wall-clock “finish today” is not an exit criterion.
 - Product Impressions/Views remain unavailable until a later A-33 (or better)
   slice; PRD must list them as out of 2.9 must-have.
+- **Optional (non-blocking) field gaps** — A-36 `avg_page_views` and
+  `gmv.breakdowns[]` (LIVE/VIDEO/…), A-28 interaction extras (`product_clicks`,
+  `views`, `likes`, `comments`, `shares`) and session meta, A-29 overview
+  `items_sold` on shop rollup — are deferred; see PRD § Optional exit metrics.
+  Revisit needs additive columns (or JSON) + mapper work; does not change coverage
+  thresholds.
 - Active/New may fall back to point-in-time counts if A-2 cannot time-travel.
 - Pricing-model export/fit remains a follow-on once the owner specifies it.

@@ -15,6 +15,51 @@ Shared domain language for seller-money workflows across `ios/`, `web/`, and `ba
 
 ## Architecture
 
+**Release evidence contract**:
+The mandatory, machine-verifiable proof required before any public Juli deployment is
+considered successful: build integrity, critical static-asset reachability,
+browser-rendered smoke coverage, and a tested automatic rollback path. A deployment that lacks
+or fails this evidence is a failed release, even if its process exits successfully; the
+release runner restores the prior healthy release without waiting for manual intervention.
+_Avoid_: deploy succeeded (when referring only to a completed command), manual spot
+check, warning-only rollout, Demo-only smoke test
+
+**Canary release**:
+An immutable Juli release run concurrently with the stable release, initially serving a
+bounded fraction of public traffic while automated health, static-asset, browser-smoke,
+and error-rate checks decide promotion or rollback. It is not a sequential replacement
+of the only running process; stable and canary run on independent deploy targets behind
+traffic control before full transition. Deferred until traffic volume makes comparative
+user metrics meaningful.
+_Avoid_: rolling restart, single-VPS port split, applying a user-traffic canary at
+pre-user volume, manual spot check, blue-green (unless traffic moves in one atomic switch
+rather than a measured fraction)
+
+**Candidate verification release**:
+The pre-user deployment mode where stable continues serving 100% of public traffic while
+an immutable candidate version runs on an isolated ECS task set behind a restricted test
+listener or hostname. Synthetic browser/API/asset checks and target health decide whether
+to discard it or automatically atomically promote it; it receives no real user traffic.
+_Avoid_: canary (when any user receives the release), staging environment (when referring
+to an ephemeral release candidate), shadow traffic
+
+**Synthetic shop**:
+A dedicated non-customer Shop and credentials used only by candidate-verification
+journeys. It may exercise explicitly safe test data and reversible operations, but must
+not represent, poll, alter, or expose a customer Shop. Candidate task sets run without
+background workers, schedulers, or production side-effect dispatch.
+_Avoid_: test user (too broad), production shop test account, mirrored customer traffic
+
+**Pre-user release platform**:
+Juli's minimum managed public-delivery stack: AWS ECS on Fargate behind an Application
+Load Balancer, immutable ECR images, GitHub Actions OIDC delivery, Secrets Manager task
+roles, and CloudWatch target health plus scheduled synthetic checks. Candidate verification
+replaces user-traffic canaries while traffic is low; CloudWatch RUM/Application Signals
+and percentage canaries are deferred until real traffic warrants them. It is Git-controlled
+delivery with auditable desired state, not controller-reconciled GitOps; EKS is deferred
+until its reconciliation flexibility justifies its operating cost.
+_Avoid_: calling ECS deployment strict GitOps, single-VPS production, EKS-by-default
+
 **Schema-only migration**:
 Alembic revisions in `backend/src/juli_backend/database/migrations/` apply **DDL
 only** (create/alter/drop tables, indexes, RLS). They do **not** copy, migrate,

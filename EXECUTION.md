@@ -286,6 +286,8 @@ Focus: idempotent, resumable partitions `(shop_id, bucket, date)` · soft-cap ~3
 Partner calls per run (may span hours or multiple days) · endpoints **A-2, A-36, A-34,
 A-28, A-29, A-37** · GMV (TikTok) not Net Revenue · Ads and Product Impressions/Views
 out · additive nullable columns as needed ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)).
+Optional (non-blocking) revisit: A-36 page views + channel GMV breakdowns; richer A-28
+interaction fields — see PRD § Optional exit metrics.
 
 **Parallel / non-blocking** vs Phase 2.6 and 2.7 exit gates. Fujiwa for exit;
 `shop_id`-parameterized for later shops.

@@ -164,6 +164,31 @@ Use **1-day** windows for A-34 and A-37.
 - Multi-shop exit (parameterize only; Fujiwa is the exit shop).
 - Net Revenue computation (returns/fees); store GMV only.
 - Blocking Phase 2.6 / 2.7 exit gates.
+- **Optional exit metrics** below — present on Partner payloads / other endpoints but
+  **not** required for Phase 2.9 must-have coverage (revisit later).
+
+## Optional exit metrics (non-blocking — revisit)
+
+Verified gaps vs Partner contracts (2026-07-24). These do **not** block ≥95% A-36+A-29 /
+≥90% A-34. Follow-on work needs additive nullable columns (or a metrics JSON blob) plus
+mapper updates; some fields already exist on Partner responses we call today.
+
+| Source | Partner field(s) | Why deferred |
+|--------|------------------|--------------|
+| A-36 shop traffic | `traffic.avg_page_views` | No column; mapper drops it (`avg_visitors` → `visitors` only) |
+| A-36 shop sales | `sales.gmv.breakdowns[]` (`LIVE`, `VIDEO`, `PRODUCT_CARD`, …) | No `live_gmv` / `video_gmv` (etc.); `_extract_gmv` keeps overall only |
+| A-28 interaction | `product_clicks`, `views`, `likes`, `comments`, `shares` | No columns; session mapper keeps CTR + viewers + `product_impressions` only |
+| A-28 session meta | `title`, `username`, `start_time`, `end_time` | Times used for `live_hours` math only; not persisted |
+| A-29 overview | `items_sold` on daily interval | Not applied in shop LIVE rollup kwargs today |
+| A-33 (or better) | Product Impressions / Product Views | Already out of must-have; needs fan-out endpoint |
+| Other endpoints | True shop-level `ctr` (A-36 has `avg_conversation_rate` → `conversion_rate`, not `ctr`) | Use `conversion_rate` for shop; `ctr` remains product/LIVE-oriented |
+
+**Must-have already extracted (do not re-open as gaps):** A-36 overall GMV / orders /
+sku_orders / items_sold / visitors / `conversion_rate`; A-28 session GMV / sku_orders /
+items_sold / customers / `click_to_order_rate` / `click_through_rate` (when Partner
+sends it) / viewers→`visitors` / product_impressions→`impressions`; A-29 overview GMV /
+sku_orders / customers / CTR rates → shop rollup; A-34 product list CTR /
+click_order_rate.
 
 ## Further Notes
 
@@ -174,7 +199,9 @@ Use **1-day** windows for A-34 and A-37.
 - **Rollout:** operator-triggered or manually scheduled budgeted runs until coverage
   gate met; no requirement to finish in one quota day.
 - **Follow-ups:** pricing dataset instructions from owner; optional A-33 slice for
-  impressions/views; Phase 3 UI on warm history; EXECUTION Phase 2.9 row links this PRD.
+  impressions/views; **optional metric columns** from the table above (page views,
+  channel GMV, richer LIVE interaction); Phase 3 UI on warm history; EXECUTION Phase 2.9
+  row links this PRD.
 
 ## Exit Gate
 
@@ -184,4 +211,6 @@ Use **1-day** windows for A-34 and A-37.
 - [ ] ≥95% days with Revenue (A-36) + LIVE overview (A-29); ≥90% days with A-34
 - [ ] Coverage report published; gaps listed and resumable
 - [ ] GMV labeled correctly; Ads and Product Impressions/Views documented as out
+- [ ] Optional exit metrics (page views, channel GMV, LIVE interaction extras) listed
+      as non-blocking — not required for sign-off
 - [ ] No requirement that Demo/Landing UI consume the data in this phase

@@ -30,6 +30,8 @@ _COVERAGE_NOTES: tuple[str, ...] = (
     "Ads are out of Phase 2.9 scope.",
     "Product Impressions/Views are out of Phase 2.9 exit.",
     "GMV is TikTok GMV — not Net Revenue.",
+    "Optional (non-blocking): A-36 avg_page_views + gmv.breakdowns; "
+    "A-28 product_clicks/views/likes/comments/shares — see phase-2.9 PRD.",
 )
 
 _CATALOG_GRAINS: tuple[str, ...] = ("catalog_daily", "catalog_point_in_time")
