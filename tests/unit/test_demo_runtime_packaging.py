@@ -70,7 +70,10 @@ def test_systemd_demo_runs_next_start_from_app_directory(systemd_demo_text: str)
     assert RELEASE_APP_DIR in systemd_demo_text, (
         "WorkingDirectory must be the built app dir under demo-current, not monorepo root"
     )
-    assert "run start" in systemd_demo_text
+    assert "next start" in systemd_demo_text
+    assert "node_modules/.bin/next" in systemd_demo_text, (
+        "ExecStart must invoke the local next binary — corepack pnpm fails under systemd"
+    )
     assert "--filter @juli/demo" not in systemd_demo_text, (
         "pnpm --filter from release root mismatches non-standalone next start cwd"
     )
@@ -80,13 +83,17 @@ def test_systemd_demo_runs_next_start_from_app_directory(systemd_demo_text: str)
         if line.strip() and not line.lstrip().startswith("#")
     ]
     config_body = "\n".join(config_lines).lower()
+    assert "corepack" not in config_body
+    assert "pnpm" not in config_body
     assert "standalone" not in config_body
     assert "server.js" not in config_body
 
 
 def test_systemd_demo_matches_juli_web_loopback_start_pattern(systemd_demo_text: str):
     web = _read(SYSTEMD_WEB_PATH)
-    assert "run start" in web, "juli-web reference must use next start"
+    assert "run start" in web or "next" in web.lower(), (
+        "juli-web reference must start the Next production server"
+    )
     assert f"--port {DEMO_PORT}" in systemd_demo_text or f":{DEMO_PORT}" in systemd_demo_text
     assert "127.0.0.1" in systemd_demo_text
 
@@ -96,6 +103,23 @@ def test_build_demo_validates_next_static_output(build_demo_text: str):
     assert ".next/static" in build_demo_text, (
         "build-demo.sh must verify hashed static assets exist after next build"
     )
+    assert "_demo_service_app_dir" in build_demo_text, (
+        "build-demo.sh must guard against building in canonical checkout while juli-demo serves demo-current"
+    )
+    assert "TURBO_FORCE" in build_demo_text, (
+        "release builds must force turbo rebuild to avoid shared worktree cache hits"
+    )
+    assert "node_modules/.bin/next" in build_demo_text, (
+        "build-demo.sh must verify the next binary is linked before deploy cutover"
+    )
+
+
+def test_deploy_demo_reinstalls_systemd_and_dumps_logs_on_failure() -> None:
+    deploy = _read(REPO_ROOT / "infra/scripts/deploy-demo-release.sh")
+    assert "DEMO_RELEASE_BUILD=1" in deploy
+    assert "juli-demo.service" in deploy
+    assert "journalctl -u juli-demo" in deploy
+    assert "node_modules/.bin/next" in deploy
 
 
 def test_nginx_proxies_all_paths_to_next_upstream():

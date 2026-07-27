@@ -4,6 +4,9 @@
 # directory (not standalone output). Nginx proxies all paths including /_next/static
 # to this upstream.
 #
+# Start the local Next binary directly (not `corepack pnpm run start`) so systemd
+# does not depend on corepack preparing pnpm in a minimal service environment.
+#
 # Independent of App Review frontend and API services: restart with
 # `sudo systemctl restart juli-demo`.
 # Install to /etc/systemd/system/juli-demo.service on the review VPS.
@@ -21,7 +24,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/releases/demo-current/apps/demo
 # Production Next.js server bound to the loopback upstream Nginx proxies to.
-ExecStart=/usr/bin/corepack pnpm run start -- --port 3001 --hostname 127.0.0.1
+ExecStart=/root/releases/demo-current/apps/demo/node_modules/.bin/next start --port 3001 --hostname 127.0.0.1
 Restart=on-failure
 RestartSec=5
 

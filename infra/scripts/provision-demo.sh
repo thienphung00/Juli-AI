@@ -37,6 +37,12 @@ fi
 install -m 0644 "${SYSTEMD_SRC}" /etc/systemd/system/juli-demo.service
 systemctl daemon-reload
 
+RELEASES_ROOT="${RELEASES_ROOT:-$HOME/releases}"
+DEMO_CURRENT="${RELEASES_ROOT}/demo-current"
+mkdir -p "${RELEASES_ROOT}"
+ln -sfn "${REPO_ROOT}" "${DEMO_CURRENT}"
+echo "Linked ${DEMO_CURRENT} -> ${REPO_ROOT} (matches juli-demo WorkingDirectory on first provision)"
+
 echo "Building Demo (pnpm build:demo for apps/demo)..."
 if [ ! -x "${BUILD_SCRIPT}" ]; then
     chmod +x "${BUILD_SCRIPT}"

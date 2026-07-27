@@ -114,19 +114,20 @@ sudo ./infra/scripts/provision-demo.sh
 The Demo uses **hardcoded mock data** inside `apps/demo`. No `NEXT_PUBLIC_API_URL` or
 backend env vars are required.
 
+**On the VPS, `juli-demo` runs from `~/releases/demo-current/apps/demo`, not from the
+canonical `~/Juli-AI-v2` checkout.** Building only in `~/Juli-AI-v2` updates HTML on
+disk there while the service still serves an older release — smoke tests then fail with
+stale `/_next/static/...` 404s. Always deploy with:
+
 ```bash
 cd ~/Juli-AI-v2
-./infra/scripts/build-demo.sh   # validates home + /decisions routes built
-sudo systemctl restart juli-demo
+./infra/scripts/deploy-demo-release.sh
 ```
 
-Manual equivalent:
+Local-only rebuild (no systemd path guard):
 
 ```bash
-cd ~/Juli-AI-v2
-pnpm install --frozen-lockfile --filter @juli/demo...
-pnpm build:demo
-sudo systemctl restart juli-demo
+DEMO_BUILD_ALLOW_MISMATCH=1 ./infra/scripts/build-demo.sh
 ```
 
 ---
@@ -145,11 +146,13 @@ git fetch origin main && git checkout main && git pull
 What `deploy-demo-release.sh` does:
 
 1. Cut or reuse release worktree at `~/releases/<short-sha>/`
-2. Build `apps/demo` via `build-demo.sh` (mock mode)
-3. Atomically flip `~/releases/demo-current` symlink
-4. `systemctl restart juli-demo` **only**
-5. Local health check: `http://127.0.0.1:3001/decisions` must return 2xx
-6. Append to `~/releases/demo-deploy-history.log`
+2. Build `apps/demo` with **forced** turbo rebuild (`DEMO_RELEASE_BUILD=1`) so shared
+   worktree cache hits cannot restore a `.next` from `~/Juli-AI-v2`
+3. Refresh `/etc/systemd/system/juli-demo.service` from the repo
+4. Atomically flip `~/releases/demo-current` symlink
+5. `systemctl restart juli-demo` **only** (starts `node_modules/.bin/next start`)
+6. Local health check: `http://127.0.0.1:3001/decisions` must return 2xx
+7. Append to `~/releases/demo-deploy-history.log`
 
 ---
 

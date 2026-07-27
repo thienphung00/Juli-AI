@@ -52,20 +52,35 @@ fi
 
 # --- 2. Demo build (mock mode — no backend secrets) ---
 echo "-- demo frontend --"
-REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
+DEMO_RELEASE_BUILD=1 REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
 
-# --- 3. Cut over: atomically flip the demo-current symlink ---
+NEXT_BIN="${release_dir}/apps/demo/node_modules/.bin/next"
+if [ ! -e "${NEXT_BIN}" ]; then
+    echo "FAIL: next binary missing after build: ${NEXT_BIN}" >&2
+    exit 1
+fi
+
+# --- 3. Install/refresh systemd unit (keeps ExecStart in sync with repo) ---
+SYSTEMD_SRC="${CANONICAL_ROOT}/infra/systemd/juli-demo.service"
+if [ -f "${SYSTEMD_SRC}" ]; then
+    echo "-- install juli-demo.service --"
+    install -m 0644 "${SYSTEMD_SRC}" /etc/systemd/system/juli-demo.service
+    systemctl daemon-reload
+fi
+
+# --- 4. Cut over: atomically flip the demo-current symlink ---
 echo "-- cutover --"
 ln -sfn "${release_dir}" "${RELEASES_ROOT}/demo-current.tmp"
 mv -Tf "${RELEASES_ROOT}/demo-current.tmp" "${DEMO_CURRENT}"
 
-# --- 4. Restart Demo service only ---
+# --- 5. Restart Demo service only ---
 systemctl restart juli-demo
 
-# --- 5. Local health check before success ---
+# --- 6. Local health check before success ---
 echo "-- health check (timeout ${HEALTH_TIMEOUT_SECS}s) --"
 deadline=$((SECONDS + HEALTH_TIMEOUT_SECS))
 demo_ok=false
+demo_code="000"
 while [ "${SECONDS}" -lt "${deadline}" ]; do
     demo_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DEMO_PORT}/decisions" || true)"
     [[ "${demo_code}" =~ ^2 ]] && demo_ok=true
@@ -76,13 +91,17 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
 done
 
 if [ "${demo_ok}" != true ]; then
-    echo "FAIL: Demo health check did not pass within ${HEALTH_TIMEOUT_SECS}s (demo_ok=${demo_ok})." >&2
+    echo "FAIL: Demo health check did not pass within ${HEALTH_TIMEOUT_SECS}s (last_code=${demo_code})." >&2
     echo "The new Demo release is live at ${DEMO_CURRENT} — run rollback-demo-release.sh if this is a regression." >&2
+    echo "-- juli-demo status --" >&2
+    systemctl --no-pager --full status juli-demo || true
+    echo "-- juli-demo recent logs --" >&2
+    journalctl -u juli-demo -n 80 --no-pager || true
     exit 1
 fi
 echo "PASS: juli-demo is healthy on the new release (/decisions returned 2xx)."
 
-# --- 6. Record + prune history ---
+# --- 7. Record + prune history ---
 printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"
 
 echo "-- pruning old Demo release worktrees (keeping last ${KEEP_DEMO_RELEASES}) --"

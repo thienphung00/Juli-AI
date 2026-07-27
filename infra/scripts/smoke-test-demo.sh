@@ -103,7 +103,7 @@ else
         if [ "${asset_count}" -eq 0 ]; then
             bad "${route} HTML did not reference any /_next/static CSS or JS assets"
         elif [ -n "${stale_asset}" ]; then
-            bad "${route} HTML references stale asset ${stale_asset} (rebuild with ./infra/scripts/build-demo.sh && sudo systemctl restart juli-demo)"
+            bad "${route} HTML references stale asset ${stale_asset} (run ./infra/scripts/deploy-demo-release.sh on the VPS — juli-demo serves ~/releases/demo-current, not ~/Juli-AI-v2)"
         else
             ok "${route} — all ${asset_count} referenced static assets return 200"
         fi
