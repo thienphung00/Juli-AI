@@ -1,8 +1,10 @@
 # Repository Migration Plan
 
-> **Tier 1 — path mapping & migration sequence.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
+> **Tier 1 — path mapping & migration sequence.** Read [`EXECUTION.md`](../../EXECUTION.md)
+> and [`MODULES.md`](MODULES.md) first.  
 > **Owns:** current → target path mapping, migration PR sequence, naming collision notes.  
-> **Does not own:** as-built module registry (`map.md`), deploy domain details (`phase-2.5-deployment.md`).
+> **Does not own:** module goals (`MODULES.md`), as-built module registry (`map.md`),
+> deploy domain details (`phase-2.5-deployment.md`).
 
 **Status:** Phase 2.5 complete (App Review sign-off 2026-07-03). Runtime code lives under
 `backend/`; deploy entrypoint is `backend.api.api.main:app`. `web/` has already been

@@ -1,11 +1,20 @@
 # Architecture Map
 
-> **Tier 1 — as-built registry.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
-> **Owns:** deployed module paths, endpoints, jobs. **Does not own:** subsystem envelopes (`system-design.md`), data phase gates (`data-sources.md`), MVP target diagram (`phase-2-mvp.md`).
+> **Tier 2 — as-built registry.** Read [`EXECUTION.md`](../../EXECUTION.md) and
+> [`MODULES.md`](MODULES.md) first.  
+> **Owns:** deployed module paths, endpoints, jobs, `MODULE.md` links.  
+> **Does not own:** module goals/feature progression (`MODULES.md`), subsystem envelopes
+> (`system-design.md`), data phase gates (`data-sources.md`), MVP target diagram
+> (`phase-2-mvp.md`).
 
-Update this file when you add, rename, remove, or restructure a module.
+Update this file when you add, rename, remove, or restructure a **code** module path.
 
-**Authority:** `EXECUTION.md` > `system-design.md` > this file.
+**Authority:** `EXECUTION.md` > `MODULES.md` > `system-design.md` > this file.  
+When purpose/goals conflict with [`MODULES.md`](MODULES.md), MODULES wins; this file
+wins on live paths until MODULES is updated.
+
+**Authority (legacy note):** Older docs said Tier 1 for this file — superseded by
+[ADR-036](../adr/036-modules-tier1-planning-sot.md) (map is Tier 2 as-built).
 
 ## Code layout
 
@@ -178,7 +187,8 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
 ## Target architecture (Phase 2 MVP)
 
 Forward-looking stack diagram and daily schedule: [`phase-2-mvp.md`](../product/phases/phase-2-mvp.md).  
-This file (`map.md`) is **as-built only**.
+This file (`map.md`) is **as-built only**. Module goals and feature progression:
+[`MODULES.md`](MODULES.md).
 
 ## Adding / removing a module
 

@@ -30,7 +30,7 @@ Shared design system, API client, types, and utilities live in `packages/`; prod
 in `apps/`; backend services live in `backend/`.
 
 > Layer KPI mapping: [`visual_layer.md`](docs/ml/visual_layer.md) · [`ml_layer.md`](docs/ml/ml_layer.md) · [`execution_layer.md`](docs/product/execution_layer.md)  
-> Ecosystem layout: [`architecture/migration-plan.md`](docs/architecture/migration-plan.md) · [`architecture/map.md`](docs/architecture/map.md)
+> Ecosystem layout: [`architecture/MODULES.md`](docs/architecture/MODULES.md) · [`architecture/migration-plan.md`](docs/architecture/migration-plan.md) · [`architecture/map.md`](docs/architecture/map.md)
 
 ---
 
@@ -40,21 +40,24 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 
 | Tier | When to read | File |
 |------|--------------|------|
-| **0** | Always | `EXECUTION.md` (this file) |
-| **1a** | Subsystem envelopes, ML thresholds, pipeline stages | [`system-design.md`](docs/architecture/system-design.md) |
-| **1b** | Which data sources are allowed in which phase | [`data-sources.md`](docs/architecture/data-sources.md) |
-| **1c** | Which modules/paths exist in the repo | [`map.md`](docs/architecture/map.md) |
+| **0** | Always — phase/slice law (multi-module codebase progression) | `EXECUTION.md` (this file) |
+| **1a** | Module catalog, goals, per-module feature progression | [`MODULES.md`](docs/architecture/MODULES.md) |
+| **1b** | Subsystem envelopes, ML thresholds, pipeline stages | [`system-design.md`](docs/architecture/system-design.md) |
+| **1c** | Which data sources are allowed in which phase | [`data-sources.md`](docs/architecture/data-sources.md) |
 | **1d** | Phase 2 pipeline validation — stack, schedule | [`phase-2-mvp.md`](docs/product/phases/phase-2-mvp.md) |
 | **1e** | Phase 2.5 restructure, domains, deploy targets | [`phase-2.5-deployment.md`](docs/product/phases/phase-2.5-deployment.md) |
 | **1f** | Entity schemas, feature definitions | [`data-models/`](docs/api/data-models/README.md) |
 | **1g** | TikTok API ingestion field maps | [`tiktok_api/endpoints.md`](docs/integrations/tiktok_api/endpoints.md) |
-| **2** | Why a constraint exists | One ADR from [`decisions/`](docs/adr/README.md) |
+| **2a** | As-built modules/paths/endpoints in the repo | [`map.md`](docs/architecture/map.md) |
+| **2b** | Why a constraint exists | One ADR from [`docs/adr/`](docs/adr/README.md) |
+| **3** | Implementation precision | Issue AC, `**/MODULE.md`, contracts / API specs |
 
 **Historical pre-MVP:** [`phase-1-completed.md`](docs/product/phases/phase-1-completed.md)  
 **Phase 2.6 — Demo frontend (mock):** [`phase-2.6/PRD.md`](docs/product/phases/phase-2.6/PRD.md)  
 **Phase 2.7 — Landing frontend (mock):** [`phase-2.7/PRD.md`](docs/product/phases/phase-2.7/PRD.md)  
 **Phase 2.9 — Analytics historical backfill:** [`phase-2.9/PRD.md`](docs/product/phases/phase-2.9/PRD.md)  
 **Phase 2.9-B — Fujiwa T1 shop GMV experiment:** [`phase-2.9-b/PRD.md`](docs/product/phases/phase-2.9-b/PRD.md)  
+**Phase 2.10 — Demo dual-layer real data (no auth):** [`phase-2.10/PRD.md`](docs/product/phases/phase-2.10/PRD.md)  
 **Phase 3 forward:** [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
 
 ---
@@ -69,7 +72,8 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **2.7 — Landing Frontend (mock)** | `apps/landing` build-out, mock/static content | 0 (internal) | Landing frontend complete for web + mobile-web |
 | **2.9 — Analytics historical backfill** | Idempotent Partner Analytics → shared Supabase schema (Fujiwa; parallel to 2.6/2.7) | 0 (internal) | ≥95% days A-36+A-29 and ≥90% days A-34 for 2026-03-16→`latest_available_date`; resumable partitions; no UI ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)) |
 | **2.9-B — Fujiwa T1 shop GMV experiment** | Offline T1 ETS on Fujiwa A-36 GMV (pathfinder for Phase 4; reads 2.9 data) | 0 (internal) | CLI + local artifacts; holdout MAPE vs naive; no product DB writes; no hop-2 ([ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md)) |
-| **3 — Landing + Demo real data** | Wire real backend, deploy Landing, prove e2e pipeline | Public (Demo Sign-in adds OAuth) | LP deployed; Demo upgraded in place with working backend on real data; e2e pipeline proven for both |
+| **2.10 — Demo dual-layer real data** | Wire masked reference-shop Analytics + Decisions on public Demo (no OAuth); precompute + required Redis cache | Public (Mock mode; no auth) | 2.10-A Analytics live from precompute; 2.10-B Decisions from rules pipeline + emission budget; dry-run only; Sign-in stub stays disabled ([ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md), [ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md)) |
+| **3 — Landing + Demo Sign-in** | Deploy Landing; enable Demo Sign-in OAuth; Login-mode hybrid refresh | Public (Demo Sign-in adds OAuth) | LP deployed; Sign-in mode live for reference shop; PostHog; Mock mode remains |
 | **3.5 — Full Web Application** | Auth, connected shops, real backend | Early adopters | Demo replaced by production web app |
 | **4 — ML + LLM + Cross-Platform** | Intelligence, personalization, sync | Growing base | Production ML pipeline; LLM copy; Web ↔ Mobile sync |
 | **4.5 — Real-Time Infrastructure** | Latency reduction at scale | Growing base | Real-time updates justified by product scale |
@@ -87,7 +91,8 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **2.7** | `apps/landing` (mock/static content) · consumes `packages/ui` + `packages/theme` |
 | **2.9** | Historical Analytics backfill (A-2/A-36/A-34/A-28/A-29/A-37) → shared `analytics_performance_intervals` · idempotent partitions · ~400-call runs · Fujiwa first ([ADR-029](docs/adr/029-phase-2.9-analytics-historical-backfill.md)) — **parallel / non-blocking vs 2.6/2.7** |
 | **2.9-B** | Fujiwa T1 shop GMV ETS experiment (read A-36; offline CLI artifacts; Design A holdout; soft MAPE bar) ([ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md)) — **separate parent from 2.9; does not change backfill exit** |
-| **3** | `apps/demo` + `apps/landing` wired to real backend data · Demo Sign-in mode enabled (reference-shop TikTok OAuth) · deploy Landing to `app-juli.com` · upgrade the existing `demo.app-juli.com` deployment · PostHog behavior analytics |
+| **2.10** | Demo dual-layer wire: material webhooks + hourly Mock recompute → precompute Postgres + required Redis → Analytics (2.10-A) + Decisions (2.10-B); identity-mask public reads; Fake Demo Refresh; dry-run Decision execution; rules pipeline + emission budget ([ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md), [ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md)) |
+| **3** | `apps/landing` deploy to `app-juli.com` · Demo Sign-in/OAuth enabled · Login-mode hybrid real refresh · PostHog · Mock mode remains |
 | **3.5** | `apps/dashboard` ADR-023 rebuild · multi-tenant auth · per-seller TikTok connection · real API integration |
 | **4** | Production ML · cloud LLM copy · cross-platform tracking |
 | **4.5** | Webhooks · event-driven processing · real-time updates (when justified) |
@@ -347,18 +352,55 @@ Detail: [`phase-2.9-b/PRD.md`](docs/product/phases/phase-2.9-b/PRD.md)
 
 ---
 
-## Phase 3 — Landing Page + Demo, Real Data (brief)
+## Phase 2.10 — Demo Dual-Layer Real Data (brief)
 
-**Goal:** Wire the already-built (Phase 2.6/2.7) frontends to a working backend using
-real data, deploy the Landing Page, upgrade the existing public Demo deployment, and
-prove the end-to-end pipeline for both surfaces.
+**Goal:** Wire the public Demo (`demo.app-juli.com`) to **masked** reference-shop
+precomputed Analytics and Decisions **without** visitor login/OAuth. Production-shaped
+spine: material webhooks → API fetch → Postgres → transform/compute → precompute +
+**required Redis** → Analytics Layer + Decision Layer. Designed for multi-shop scale;
+2.10 proves it on one reference shop (Fujiwa).
+
+**Slices:**
+- **2.10-A — Analytics Layer:** KPI read model from 2.9-warmed analytics (+ aggregates
+  where already live); public Demo Analytics; GMV (TikTok) not Net Revenue; Ads/Shop
+  Status/`T1` overlays stay truthful `unavailable`.
+- **2.10-B — Decision Layer:** Same compute outputs → rules pipeline Action Cards on
+  Demo Decisions; **Decision emission budget**; **dry-run** execution (no merchant
+  credential TikTok writes).
+
+**Mock vs Login (2.10 = Mock only):** Fake Demo Refresh; material webhooks + hourly
+reconciliation; Sign-in stub stays disabled. Login hybrid real refresh + real executors
+= remaining Phase 3 ([ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md)).
+
+### Exit gate
+
+- [ ] Precomputed KPI envelopes in Postgres + Redis read-through for reference shop
+- [ ] Public Demo Analytics shows masked live GMV/product/LIVE (and aggregates where ready)
+- [ ] Material webhook set (+ #68 15‑min coalesce) and hourly job enqueue compute; Fake
+      Demo Refresh does not
+- [ ] Demo Decisions show rules-pipeline cards under emission budget; Approve/execute is dry-run
+- [ ] Home and Settings remain mock; no visitor OAuth; no real Partner writes from Demo; Landing/Sign-in not required
+
+**ADRs:** [ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md),
+[ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md)  
+**Parent issue:** [#524](https://github.com/thienphung00/Juli-AI/issues/524)  
+**2.10-A children:** [#525](https://github.com/thienphung00/Juli-AI/issues/525)–[#535](https://github.com/thienphung00/Juli-AI/issues/535)  
+Detail: [`phase-2.10/PRD.md`](docs/product/phases/phase-2.10/PRD.md)
+
+---
+
+## Phase 3 — Landing Page + Demo Sign-in (brief)
+
+**Goal:** Deploy the Landing Page, enable Demo **Sign-in / Login** mode (OAuth + hybrid
+real refresh + real approval-gated execution for the reference shop), and prove the
+authenticated path. Mock mode from 2.10 remains available for public visitors.
 
 Focus: deploy `apps/landing` to `app-juli.com` (replacing the temporary App Review
-placeholder) · upgrade the Phase 2.6 `apps/demo` deployment at `demo.app-juli.com` ·
-enable `apps/demo`'s Sign-in mode
-(real TikTok OAuth connect + real backend data for one pre-connected reference shop,
-per [ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)) · Mock mode remains
-available · behavior analytics (PostHog).
+placeholder) · enable `apps/demo`'s Sign-in mode
+(real TikTok OAuth connect + Login-mode hybrid recompute,
+per [ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md) as amended by
+[ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md) /
+[ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md)) · behavior analytics (PostHog).
 
 Per-visitor/self-serve TikTok connection and multi-tenant account management remain
 Phase 3.5 scope — Phase 3's Sign-in mode uses one reference shop only.
@@ -366,11 +408,10 @@ Phase 3.5 scope — Phase 3's Sign-in mode uses one reference shop only.
 ### Exit gate
 
 - [ ] `apps/landing` deployed and publicly reachable at `app-juli.com`; the existing
-      `demo.app-juli.com` deployment remains healthy through the real-data upgrade
-- [ ] `apps/demo` Sign-in mode shows real backend data (Phase 2 pipeline output) for the
-      reference shop end-to-end
-- [ ] End-to-end pipeline (poll/ETL → aggregates → signals → recommendations → Action
-      Cards) proven live for the Demo; Landing Page CTA flow to Demo verified
+      `demo.app-juli.com` deployment remains healthy
+- [ ] `apps/demo` Sign-in mode shows real backend data for the reference shop end-to-end
+      with hybrid real Demo Refresh and credentialed execution (approval-gated)
+- [ ] Landing Page CTA flow to Demo verified
 - [ ] Engagement and messaging metrics collected via PostHog
 
 Detail: [`phase-3-landing-demo.md`](docs/product/phases/phase-3-landing-demo.md)
