@@ -12,6 +12,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from juli_backend.core.security.credential_resolver import (
     resolve_production_read_credential,
 )
@@ -43,7 +45,6 @@ from juli_backend.workers.services.polling.sync import (
     sync_products,
     sync_returns,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 

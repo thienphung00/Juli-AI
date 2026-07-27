@@ -6,10 +6,11 @@ import asyncio
 import logging
 import os
 
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
 from juli_backend.database.database import init_session_factory
 from juli_backend.services.webhook.material_worker import run_material_analytics_compute
 from juli_backend.workers.celery_app import celery_app
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 logger = logging.getLogger(__name__)
 
