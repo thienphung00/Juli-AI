@@ -58,7 +58,7 @@ catalog:
           paths: ["src/**/*.py", "tests/**/*.py"]
         - name: sentry-nextjs-sdk
           invoke: /sentry-nextjs-sdk
-          paths: ["web/**/*.ts", "web/**/*.tsx"]
+          paths: ["apps/**/*.ts", "apps/**/*.tsx"]
         - name: sentry-workflow
           invoke: /sentry-workflow
         - name: sentry-feature-setup
@@ -88,7 +88,7 @@ catalog:
       skills:
         - name: nextjs
           invoke: /nextjs
-          paths: ["web/**"]
+          paths: ["apps/**"]
         - name: ai-sdk
           invoke: /ai-sdk
         - name: ai-gateway
@@ -98,7 +98,7 @@ catalog:
           note: Vercel plugin copy; prefer user-shadcn when both apply
         - name: react-best-practices
           invoke: /react-best-practices
-          paths: ["web/**/*.tsx"]
+          paths: ["apps/**/*.tsx"]
         - name: deployments-cicd
           invoke: /deployments-cicd
         - name: verification
@@ -121,7 +121,7 @@ catalog:
       skills:
         - name: shadcn
           invoke: /shadcn
-          note: Prefer over plugin-shadcn when working in web/
+          note: Prefer over plugin-shadcn when working in apps/
     - id: browser
       folder: cursor-ide-browser
       serverName: cursor-ide-browser
@@ -217,7 +217,7 @@ Machine-readable index for **focus** and agent-phase routing. Plugin skills ship
 |-------------|------------|-----------------|
 | Alembic, RLS, Supabase auth | `supabase` | `supabase`, `supabase-postgres-best-practices` |
 | FastAPI / pytest change | — | `backend` executor, `.cursor/skills/domain/python-*` |
-| `web/` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
+| `apps/demo` or `apps/dashboard` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
 | Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `ui-ux` executor, `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` when adding registry primitives |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
 | TikTok API / webhooks | — | `docs/integrations/tiktok_api/`, MODULE.md (no plugin) |

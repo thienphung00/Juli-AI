@@ -2,8 +2,8 @@
 name: ui-ux-executor
 description: >-
   Executor Agent domain skill for web and iOS UI work. Use when implementing
-  GitHub issues that touch web/, ios/, components, pages, forms, or visual
-  interaction behavior.
+  GitHub issues that touch apps/demo, apps/dashboard, ios/, components, pages,
+  forms, or visual interaction behavior.
 ---
 
 # UI/UX Executor
@@ -16,15 +16,16 @@ TDD (Red → Green → Refactor). Canonical requirements:
 
 | Signal | Also load |
 |--------|-----------|
-| `web/` component, page, route, form | `ui-ux-design`, `nextjs`, `react-best-practices` |
+| `apps/demo/` or `apps/dashboard/` component, page, route, form | `ui-ux-design`, `nextjs`, `react-best-practices` |
+| `packages/ui/` shared primitive | `shadcn` (only when adding registry components) |
 | shadcn registry primitive | `shadcn` (only when adding registry components) |
 | `ios/` SwiftUI | `swift-patterns`, `ios/MODULE.md` |
 
 ## Required context
 
-- `web/MODULE.md` or `ios/MODULE.md` for affected app
+- `apps/demo/MODULE.md`, `apps/dashboard/MODULE.md`, or `ios/MODULE.md` for affected app
 - Route/page acceptance criteria from GitHub issue
-- Design system docs if present (`Design-md/`, `globals.css` tokens)
+- Design system docs if present (`Design-md/`, `globals.css` tokens, `packages/ui/`)
 
 ## TDD expectations
 
@@ -33,7 +34,8 @@ TDD (Red → Green → Refactor). Canonical requirements:
 - **Refactor:** extract components, tighten selectors; tests stay green (advisory —
   only `intent-review` may block merge on structure)
 
-Test surfaces: `web/src/__tests__/`, Playwright when E2E is in scope, `ios/Tests/`.
+Test surfaces: `apps/demo/src/__tests__/`, `apps/dashboard/src/__tests__/`,
+Playwright when E2E is in scope, `ios/Tests/`.
 
 ## Review focus
 
@@ -42,7 +44,8 @@ Vietnamese copy with diacritics, empty/loading/error states.
 
 ## Validation
 
-Web: `npm run lint`, `npm run type-check`, `npm run test` in `web/`.
+Web: `npm run lint`, `npm run type-check`, `npm run test` in the affected app
+(`apps/demo/` primary; `apps/dashboard/` legacy/prod path).
 Map each acceptance criterion to a named test where practical.
 
 ## Implementation artifact (required handoff)

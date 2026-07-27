@@ -1,0 +1,20 @@
+{
+  "cacheId": "apply-c4a-rename-docs",
+  "candidate": 4,
+  "wave": "C4a",
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "writePaths": [
+    "agent-runtime/docs/agent-runtime-migration.md",
+    "agent-runtime/docs/agent-runtime.md",
+    "agent-runtime/docs/agent-runtime-benchmarks.md",
+    "agent-runtime/docs/agent-runtime-artifacts.md",
+    "agent-runtime/docs/schemas/README.md"
+  ],
+  "tasks": [
+    "Add rename mapping table at top of migration.md: Phase 6 → Agentic Version 1; Phases 1–5 remain historical bootstrap",
+    "Replace ## Phase 6: Optimization Loop (pending) with ## Agentic Version 1: Optimization Loop — leave Success criteria; C4c fills proof",
+    "Replace harness Phase 6 wording in agent-runtime.md, benchmarks.md, artifacts.md, schemas/README.md with Agentic Version 1 (or Version 1+)",
+    "Do not claim measured complete if C4c not done — use pending proof placeholder OK",
+    "Do not edit agent-runtime.config.yml or MODULES.md"
+  ]
+}

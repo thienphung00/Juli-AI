@@ -40,8 +40,8 @@ domain language. ADRs in `docs/adr/` record decisions this command must not re-l
 Apply the **deletion test** to suspected shallow modules: would deleting it concentrate
 complexity, or just move it? "Yes, concentrates" is the signal you want.
 
-**Juli surfaces:** `backend/` (pytest), `apps/dashboard/` (npm test), `ios/` (xcodebuild).
-Consult `docs/architecture/map.md` and affected `MODULE.md` files.
+**Juli surfaces:** `backend/` (pytest), `apps/demo/` and `apps/dashboard/` (npm test), `ios/` (xcodebuild).
+Consult `docs/architecture/MODULES.md` (goals/features), `docs/architecture/map.md` (as-built paths), and affected `MODULE.md` files.
 
 ### 2. Present candidates as an HTML report
 

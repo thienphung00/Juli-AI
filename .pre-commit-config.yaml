@@ -1,0 +1,23 @@
+# Light local gates: staged Python lint/format + conventional commit messages.
+# Heavy checks (mypy, bandit, gitleaks, full tests) stay in CI / Merge Queue.
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.22
+    hooks:
+      - id: ruff-check
+        name: ruff check (staged Python)
+        files: ^(backend/|tests/|scripts/).+\.py$
+        args: [--fix, --config, backend/pyproject.toml]
+      - id: ruff-format
+        name: ruff format (staged Python)
+        files: ^(backend/|tests/|scripts/).+\.py$
+        args: [--config, backend/pyproject.toml]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, refactor, docs, test, chore, perf, ci]

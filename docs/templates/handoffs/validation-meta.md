@@ -45,4 +45,4 @@ Emit only when repeated pattern detected across issues:
 - If `autoApplyEligible`: Architect reviews proposed harness change before apply (Phase 6)
 - If validation failed: route back to Executor or Review — do not ship
 
-Schema: [`docs/architecture/agent-runtime-artifacts.md`](../../architecture/agent-runtime-artifacts.md)
+Schema: [`agent-runtime/docs/agent-runtime-artifacts.md`](../../../agent-runtime/docs/agent-runtime-artifacts.md)

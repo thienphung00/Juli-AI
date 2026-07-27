@@ -78,8 +78,8 @@ python agent-runtime/scripts/validate/check_module_drift.py
    failures (so the JSON artifact lists every problem in one pass).
 3. Aggregate results into the validation artifact schema.
 4. Write the artifact, print a one-line summary per check, exit 0/1.
-5. Never modify production code. This skill is read-only against `src/`,
-   `web/`, `ios/`, and `tests/`.
+5. Never modify production code. This skill is read-only against `backend/`,
+   `apps/demo/`, `apps/dashboard/`, `ios/`, and `tests/`.
 
 ## Status semantics
 
@@ -96,9 +96,10 @@ all pass. Warnings live in `criticalFindings[*].severity == "WARNING"` with
 ## Handoff to `ship`
 
 Ship **requires** `readyForMerge: true` on the validation artifact. Do not hand off
-when `status` is `FAIL` or `readyForMerge` is `false`. After handoff, `ship` still
-owes **sync-before-merge** (rebase onto current `origin/main` + CI re-green) before
-merge — validate does not replace that gate.
+when `status` is `FAIL` or `readyForMerge` is `false`. After handoff, `ship` enqueues
+**GitHub Merge Queue** once PR fast CI is green (`merge_group` runs the full suite).
+**Sync-before-merge** (rebase onto current `origin/main` + CI re-green) is fallback
+only when Merge Queue is unavailable — validate does not replace either gate.
 
 ```markdown
 ## Handoff: validate -> ship

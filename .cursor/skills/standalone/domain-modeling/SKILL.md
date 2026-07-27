@@ -50,7 +50,7 @@ Group terms under `## [Domain area]` when natural clusters emerge (e.g. TikTok S
 ```markdown
 # Juli AI — ubiquitous language
 
-Shared domain language for seller-money workflows across `ios/`, `web/`, and `src/`.
+Shared domain language for seller-money workflows across `ios/`, `apps/demo/`, `apps/dashboard/`, and `backend/`.
 
 ## TikTok Shop seller
 
@@ -152,7 +152,7 @@ If easy to reverse → skip (just change it). If not surprising → skip. If no 
 ### What qualifies
 
 - Architectural shape (monorepo layout, event-sourced write vs projected read model)
-- Integration patterns between modules (`src/`, `web/`, `ios/`)
+- Integration patterns between modules (`backend/`, `apps/demo/`, `apps/dashboard/`, `ios/`)
 - Technology choices with lock-in (database, auth provider, deployment target — not every library)
 - Boundary and scope decisions ("Customer data owned by X; others reference by ID only")
 - Deliberate deviations from the obvious path ("manual SQL instead of ORM because …")

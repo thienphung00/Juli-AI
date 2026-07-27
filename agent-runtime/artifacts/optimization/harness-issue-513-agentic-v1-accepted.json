@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "harness_optimization",
+  "issueId": 513,
+  "phaseRunId": "513-20260724T042500",
+  "phasePath": [
+    "implementation",
+    "review",
+    "validation",
+    "harness_optimization"
+  ],
+  "executorAssigned": "backend",
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/meta-prepare-issue-513.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-513.json",
+    "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+    "agent-runtime/docs/agent-runtime.md",
+    ".cursor/rules/core-orchestration.mdc",
+    "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+    "agent-runtime/scripts/meta_prepare_executor.py",
+    "agent-runtime/scripts/validate/check_workflow_cache.py",
+    "agent-runtime/scripts/ci/ensure_workflow_cache.py",
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/testing-patterns/python-testing.md"
+  ],
+  "skillsLoaded": [
+    "backend-executor",
+    "focus",
+    "prompt-caching"
+  ],
+  "tokenUsage": {
+    "input": 45000,
+    "output": 12000,
+    "total": 57000
+  },
+  "executionDurationMs": 840000,
+  "reviewFailures": 0,
+  "validationFailures": 0,
+  "retryCount": 0,
+  "contextTransferCount": 0,
+  "toolInvocationCount": 62,
+  "baselineMetrics": {
+    "executionTimeMs": 840000,
+    "tokenUsageTotal": 57000,
+    "testPassRate": 1.0,
+    "coveragePercentage": 0.0,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 62
+  },
+  "rootCauseCategory": "context_overloaded",
+  "rootCause": "context_overloaded",
+  "proposedOptimization": {
+    "summary": "Reduce maximum context files for similar runs.",
+    "changeType": "context_budget",
+    "details": "Loaded 11 files against a max_files budget of 25."
+  },
+  "configTarget": "context.max_files",
+  "expectedMetricImpact": [
+    {
+      "metric": "tokenUsageTotal",
+      "direction": "decrease",
+      "magnitude": "medium"
+    },
+    {
+      "metric": "executionTimeMs",
+      "direction": "decrease",
+      "magnitude": "low"
+    }
+  ],
+  "predictedImpact": {
+    "summary": "Expected to reduce token usage and execution time.",
+    "metrics": [
+      {
+        "metric": "tokenUsageTotal",
+        "direction": "decrease",
+        "magnitude": "medium"
+      },
+      {
+        "metric": "executionTimeMs",
+        "direction": "decrease",
+        "magnitude": "low"
+      }
+    ]
+  },
+  "expectedImpact": "Expected to reduce token usage and execution time.",
+  "harnessConfigTargets": [
+    "agent_runtime_config"
+  ],
+  "autoApplyEligible": true,
+  "dryRun": true,
+  "humanApprovalRequired": true,
+  "appliedStatus": "accepted",
+  "sourceArtifacts": {
+    "implementation": "agent-runtime/artifacts/implementations/implementation-issue-513.json",
+    "review": "agent-runtime/artifacts/reviews/review-issue-513.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-513.json"
+  },
+  "notes": "Architect approval for Agentic Version 1 proof: accept context.max_files 25→20 on issue #513 (context_overloaded). Surgical StrReplace apply only — no harness_config apply --confirm.",
+  "configDiff": {
+    "targetFile": "agent-runtime/config/agent-runtime.config.yml",
+    "field": "context.max_files",
+    "targetId": "agent_runtime_context",
+    "before": 25,
+    "after": 20,
+    "validation": ">= 5 and <= 50",
+    "autoApplyEligible": true,
+    "humanApprovalRequired": true,
+    "applyMethod": "StrReplace surgical line edit"
+  },
+  "acceptanceNote": "Approved for Agentic Version 1 live optimization loop (C4c wave)."
+}

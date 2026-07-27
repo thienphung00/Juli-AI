@@ -19,7 +19,7 @@ Validate with your preferred JSON Schema tool or the gate scripts that embed sub
 | [`validation-artifact.schema.json`](validation-artifact.schema.json) | `validation` | `agent-runtime/artifacts/validation/validation-issue-<n>.json` |
 | [`harness-optimization-artifact.schema.json`](harness-optimization-artifact.schema.json) | `harness_optimization` | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
 | [`product-development-optimization-artifact.schema.json`](product-development-optimization-artifact.schema.json) | `product_development_optimization` | `agent-runtime/artifacts/optimization/product-development-<id>.json` |
-| [`promotion-candidate-artifact.schema.json`](promotion-candidate-artifact.schema.json) | `harness_promotion_candidate` | Meta promotion proposals (Phase 6+) |
+| [`promotion-candidate-artifact.schema.json`](promotion-candidate-artifact.schema.json) | `harness_promotion_candidate` | Meta promotion proposals (Version 1+) |
 
 ---
 

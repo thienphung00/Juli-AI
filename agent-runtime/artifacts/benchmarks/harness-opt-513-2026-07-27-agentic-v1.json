@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0.0",
+  "benchmarkRunId": "harness-opt-513-2026-07-27-agentic-v1",
+  "taskType": "multi-agent-workflow",
+  "taskSpec": "agent-runtime/docs/benchmarks/task-type-d-multi-agent-workflow.md",
+  "issueId": 513,
+  "phaseRunId": "2026-07-27T0500Z-rerun1",
+  "timestamp": "2026-07-27T05:00:00Z",
+  "baselineRun": false,
+  "rerunOf": "harness-issue-513-513-20260724T042500",
+  "scores": {
+    "planning": null,
+    "implementation": 90,
+    "review": 100,
+    "validation": 100,
+    "optimization": 100,
+    "overall": 97
+  },
+  "baselineMetrics": {
+    "executionTimeMs": 812000,
+    "tokenUsageTotal": 52800,
+    "testPassRate": 1.0,
+    "coveragePercentage": 0.0,
+    "reviewFailureRate": 0.0,
+    "validationFailureRate": 0.0,
+    "retryCount": 0,
+    "toolInvocationCount": 58
+  },
+  "artifactPaths": {
+    "implementation": "agent-runtime/artifacts/implementations/implementation-issue-513.json",
+    "review": "agent-runtime/artifacts/reviews/review-issue-513.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-513.json",
+    "harnessOptimizationProposed": "agent-runtime/artifacts/optimization/harness-issue-513-513-20260724T042500.json",
+    "harnessOptimizationMeasured": "agent-runtime/artifacts/optimization/harness-issue-513-agentic-v1-measured.json",
+    "harnessOptimizationEvaluate": "agent-runtime/artifacts/optimization/reports/evaluate-issue-513-agentic-v1.json"
+  },
+  "deterministicChecks": [
+    {"id": "validation_pass", "passed": true},
+    {"id": "harness_artifact_present", "passed": true},
+    {"id": "optimization_measured", "passed": true},
+    {"id": "evaluate_no_regression", "passed": true}
+  ],
+  "optimizationSummary": {
+    "configTarget": "context.max_files",
+    "before": 25,
+    "after": 20,
+    "rootCause": "context_overloaded",
+    "evaluateStatus": "improved",
+    "improvedMetrics": 2,
+    "regressedMetrics": 0,
+    "applyMethod": "StrReplace surgical line edit"
+  },
+  "notes": "Agentic Version 1 live optimization loop proof (C4c wave). dry_run_default remains true."
+}

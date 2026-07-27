@@ -39,7 +39,7 @@ When the backlog is webhook handling, TikTok API edge cases, or shop-scoped data
 
 - **Finding issues**: turn each failure mode into **one failing test** with a **minimal fixture** (sample webhook payload, mocked TikTok JSON, or DB seed) and a **single expectation** on the public interface (`create_app`, repo method, or API response).
 - **Naming**: test and issue titles should name the scenario (e.g. duplicate `order_status_change`, expired refresh token, empty inventory page) so CI output is actionable.
-- **Implementing**: **RED** → **GREEN** → **REFACTOR** per slice. Match existing test layout: `tests/unit/` for Python, `web/src/__tests__/` and `ios/Tests/` for clients.
+- **Implementing**: **RED** → **GREEN** → **REFACTOR** per slice. Match existing test layout: `tests/unit/` for Python, `apps/demo/src/__tests__/`, `apps/dashboard/src/__tests__/`, and `ios/Tests/` for clients.
 
 Repository pattern: follow `tests/unit/test_scoring.py` and webhook/API tests — one behavior per test class or `describe` block; do not introduce a second fixture convention.
 

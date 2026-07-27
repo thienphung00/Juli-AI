@@ -56,7 +56,7 @@ User message
 | Bug / failing test / Sentry | Implementation | `qa` first, then Meta routing + Executor |
 | Post-implementation quality gate | Review + Testing | `intent-review` → `guardrails` → `validate` → `ship` |
 | Branch / PR / "review since X" | Review + Testing | `intent-review` (Spec fidelity × structure); then `guardrails` when emitting ADR-003 artifact |
-| Architecture review / deepen modules | Ad-hoc (explore → report → grill → execute) | `improve-codebase-architecture`, `codebase-design`, `CONTEXT.md`, `docs/adr/`, `docs/architecture/map.md` |
+| Architecture review / deepen modules | Ad-hoc (explore → report → grill → execute) | `improve-codebase-architecture`, `codebase-design`, `CONTEXT.md`, `docs/architecture/MODULES.md`, `docs/adr/`, `docs/architecture/map.md` |
 | Mechanical file/module moves (structure already decided) | Ad-hoc | `restructure` (test-invariant moves only) |
 | Parallel issues / worktrees | Implementation | `issue-workflow.mdc` + [`docs/handoffs/worktree-branch-topology.md`](../../../docs/handoffs/worktree-branch-topology.md) |
 | Quick GitHub commit / hotfix in `.worktrees/debug` (no `issue-<N>` branch) | Ad-hoc | Skip ADR-003 artifacts per [`agent-runtime.config.yml`](../../../agent-runtime/config/agent-runtime.config.yml) `artifact_gates.quickCommitSkip` — do not edit `pr.yml`/rules from this slot |
@@ -71,7 +71,7 @@ for **technical / domain implementation**:
 
 1. Read [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) —
    `catalog.mcpServers` for MCP `serverName` values; `catalog.cliDocs` for Context7.
-2. Load **only** matching plugin skills (e.g. `supabase` for migrations, `nextjs` for `web/`).
+2. Load **only** matching plugin skills (e.g. `supabase` for migrations, `nextjs` for `apps/demo` / `apps/dashboard`).
 3. Read MCP tool schemas from `mcps/<folder>/tools/` **only for selected servers**.
 4. Follow [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc) before calling MCP tools.
 5. **Context7 (CLI only, never always-on):** Meta/Focus selects it when implementing
@@ -89,7 +89,7 @@ for **technical / domain implementation**:
 | New vendor API | `api-docs` | Context7 **CLI** when SDK/library refs needed |
 | Seller/creator policy | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Library/framework during domain implementation | — | Context7 **CLI** (`npx ctx7@latest`) — Focus-selected |
-| `web/` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `shadcn` |
+| `apps/demo` / `apps/dashboard` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `shadcn` |
 | Supabase / migrations / RLS | `supabase`, `supabase-postgres-best-practices` | `supabase` |
 | Production error | `sentry-workflow` → platform SDK | `plugin-sentry-sentry` |
 | Figma design sync | `figma-use` (before `use_figma`) | `figma` |
@@ -111,7 +111,7 @@ Detect what the implementation involves:
 | Python code / FastAPI | → `backend` executor, `python-patterns`, `code-quality.mdc` |
 | Python tests / pytest | → `backend` executor, `python-testing`, `reliability.mdc` |
 | SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
-| Frontend component / page / form | → `ui-ux` executor, `ui-ux-design`, `web/MODULE.md`; `shadcn` only if adding registry primitives |
+| Frontend component / page / form | → `ui-ux` executor, `ui-ux-design`, `apps/demo` or `apps/dashboard` `MODULE.md`; `shadcn` only if adding registry primitives |
 | Background job | → Celery MCP, reliability, observability |
 | TikTok integration / webhook | → `integrations` executor, `docs/integrations/tiktok_api/`, `data-sources.md`, affected MODULE.md |
 | Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first |
@@ -126,10 +126,11 @@ Always consult before loading task-specific context:
 ```
 ALWAYS load:
   - EXECUTION.md (phase, slice, in/out scope for the current issue)
+  - docs/architecture/MODULES.md (module catalog, goals, feature progression — planning SoT per ADR-036)
   - docs/architecture/system-design.md (subsystem behavior for the active phase)
-  - docs/architecture/map.md (module list, tiers, dependency graph)
+  - docs/architecture/map.md (as-built paths, public surfaces, dependency graph — not goals/features)
   - docs/architecture/data-sources.md (allowed/forbidden external data)
-  - MODULE.md for each affected module under src/, web/, or ios/
+  - MODULE.md for each affected module under backend/, apps/demo, apps/dashboard, or ios/
 ```
 
 ### Step 4: Load Task Context
@@ -162,7 +163,7 @@ Based on affected layers from [`docs/architecture/map.md`](../../../docs/archite
 ```
 Integrations (src/integrations/tiktok):
   - Load: authentication.md, rate-limits.md, endpoints.md (docs/integrations/tiktok_api/)
-  - Skip: web/ios UI unless building OAuth callback UX
+  - Skip: apps/demo, apps/dashboard, ios UI unless building OAuth callback UX
 
 Services (src/services/webhook, src/services/polling):
   - Load: webhooks.md, reliability/idempotency patterns
@@ -184,8 +185,8 @@ Intelligence (src/intelligence/scoring):
   - Load: data-sources.md rows #7–#8, edge-cases for post-stream-only
   - Skip: in-stream websocket designs (forbidden)
 
-Interface (web/, ios/):
-  - Load: MODULE.md for target app, ui-ux-design (web) or swift-patterns (ios)
+Interface (apps/demo, apps/dashboard, ios/):
+  - Load: MODULE.md for target app, ui-ux-design (Next.js apps) or swift-patterns (ios)
   - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
 
 AI features (post-MVP / OpenAI):
@@ -278,7 +279,7 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 - [ ] `grill-with-docs` (Architect planning / rescope)
 - [ ] `intent-review` (Spec fidelity × structure; Review Agent)
 - [ ] `guardrails` (domain quality + ADR-003 review artifact)
-- [ ] Plugin: `nextjs` (web/ work)
+- [ ] Plugin: `nextjs` (apps/demo / apps/dashboard work)
 
 ### MCPs (read schemas only when listed)
 - [ ] `supabase`
@@ -286,8 +287,9 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 
 ### Load (Required)
 - `EXECUTION.md` (slice P2-1)
+- `docs/architecture/MODULES.md` (affected module goals / feature backlog)
 - `docs/architecture/system-design.md` (Data pipeline → Phase 2)
-- `docs/architecture/map.md`
+- `docs/architecture/map.md` (as-built paths only)
 - `docs/architecture/data-sources.md`
 - GitHub issue #N — acceptance criteria
 - `docs/integrations/tiktok_api/endpoints.md`, `authentication.md`
@@ -299,7 +301,7 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 - `.cursor/skills/standalone/guardrails/checklists/api-endpoint.md`
 
 ### DO NOT Load
-- `web/`, `ios/` (not affected)
+- `apps/demo`, `apps/dashboard`, `ios/` (not affected)
 - Unselected marketplace plugin skills
 - MCP tool schemas for servers not listed above
 - Shopee/Lazada connector docs (out of scope per data-sources.md #13)

@@ -40,7 +40,7 @@ existing behaviour. The invariant is: the same tests pass before and after every
 | Surface | Command |
 |---------|---------|
 | iOS (`ios/`) | `xcodebuild test -scheme [scheme] -destination 'platform=iOS Simulator,...'` |
-| Web (`web/`) | `pnpm test` or `npx jest` |
+| Demo / Dashboard (`apps/demo/`, `apps/dashboard/`) | `pnpm test` (per app) or `npx vitest` |
 | Backend (`src/`) | `pytest` |
 
 ## Handoff

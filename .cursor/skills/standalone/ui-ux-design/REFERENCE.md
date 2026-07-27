@@ -1,14 +1,14 @@
-# UI/UX Reference — Juli web
+# UI/UX Reference — Juli product apps
 
 ## Stack
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Next.js 14 App Router (`web/src/app/`) |
+| Framework | Next.js App Router (`apps/demo/src/app/`, `apps/dashboard/src/app/`) |
 | Language | TypeScript |
-| Styling | Tailwind CSS + CSS variables in `globals.css` |
-| Components | Custom (`web/src/components/`) — no shadcn `components/ui/` yet |
-| Locale | Vietnamese (`vi-VN`), ICT timezone, VND via `@/lib/format` |
+| Styling | Tailwind CSS + CSS variables in `globals.css`; demo imports `@juli/theme` + `@juli/ui` |
+| Components | `packages/ui/` shared primitives; app-local under `apps/*/src/components/` |
+| Locale | Vietnamese (`vi-VN`), ICT timezone, VND via `@/lib/format` (dashboard) or `@juli/utils` (demo) |
 
 ## Dual workspace theme
 
@@ -19,13 +19,13 @@ Mode is persisted (`juli_workspace_mode` in `localStorage`) and toggles `dark` o
 | `seller` | **Light** (`#FEF5F6`/white canvas) | TikTok Shop seller workflows |
 | `affiliate` | **Dark** | Out-of-scope shell in Phase 1 |
 
-> **Theme swap ([ADR-027](../../../../docs/adr/027-design-system-token-foundation.md)):** Seller→light, Affiliate→dark. Theme mapping is implemented in `globals.css` and `applyWorkspaceTheme`.
+> **Theme swap ([ADR-027](../../../../docs/adr/027-design-system-token-foundation.md)):** Seller→light, Affiliate→dark. Theme mapping is implemented in `globals.css` (dashboard) and `@juli/theme` tokens (demo).
 
 **Rule:** Use semantic tokens (`var(--background)`, `var(--foreground)`, `var(--muted-foreground)`, `var(--border)`, `var(--primary)`) so both modes work without duplicate components.
 
 ## Design tokens
 
-Defined in `web/src/app/globals.css` and mirrored in `tailwind.config.ts` for `primary.*` scales.
+Defined in `apps/dashboard/src/app/globals.css` (legacy/prod) and `@juli/theme/tokens.css` (shared; consumed by demo and `packages/ui/`). Dashboard mirrors scales in `tailwind.config.ts` for `primary.*`.
 
 | Token | Role |
 |-------|------|
@@ -61,6 +61,8 @@ Prefer these before adding new utility soup:
 | `.safe-area-top` / `.safe-area-bottom` | iOS notch/home indicator |
 | `.text-muted` / `.bg-card` / `.bg-muted` | Utility aliases |
 
+Shared React primitives live in `packages/ui/` — see [`packages/ui/MODULE.md`](../../../../packages/ui/MODULE.md).
+
 ## Layout patterns
 
 ```
@@ -85,16 +87,24 @@ Prefer these before adding new utility soup:
 ## File organization
 
 ```
-web/src/
-  app/              # routes, layout.tsx, globals.css
-  components/       # UI by feature (tasks/, workflows/, seller-home/, …)
-  lib/              # format, auth, nav-config, mock-data, hooks
-  __tests__/        # component tests (*.test.tsx)
+apps/demo/src/          # primary product UI
+  app/                  # routes, layout.tsx, globals.css
+  components/           # demo-specific UI
+  lib/                  # mock state, workflows, analytics
+  __tests__/            # component tests (*.test.tsx)
+
+apps/dashboard/src/     # legacy/prod (App Review live path)
+  app/                  # routes, layout.tsx, globals.css
+  components/           # UI by feature (tasks/, workflows/, seller-home/, …)
+  lib/                  # format, auth, nav-config, mock-data, hooks
+  __tests__/            # component tests (*.test.tsx)
+
+packages/ui/src/        # shared primitives (Button, Card, PageHeader, …)
 ```
 
 - Colocate feature UI under `components/<feature>/`
 - Export shared shells from feature `index.ts` when multiple imports exist
-- Page files stay thin — compose from `components/`
+- Page files stay thin — compose from `components/` or `@juli/ui`
 
 ## Vietnamese copy
 
@@ -201,10 +211,13 @@ Juli is **clean light-commerce** (seller) and **refined dark-marketplace** (affi
 
 | Pattern | File |
 |---------|------|
-| Form + error/loading | `web/src/components/LoginForm.tsx` |
-| Card + actions + testids | `web/src/components/tasks/TaskCard.tsx` |
-| Sticky header shell | `web/src/components/PageHeader.tsx` |
-| Bottom navigation | `web/src/components/NavBar.tsx` |
-| Empty state | `web/src/components/recommendations/CollectingDataEmpty.tsx` |
-| Modal workflow | `web/src/components/tasks/TaskDismissModal.tsx` |
-| Workflow panel | `web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` |
+| Demo shell + nav | `apps/demo/src/components/demo-shell.tsx` |
+| Recommendations panel | `apps/demo/src/components/recommendations-panel.tsx` |
+| Form + error/loading | `apps/dashboard/src/components/LoginForm.tsx` |
+| Card + actions + testids | `apps/dashboard/src/components/tasks/TaskCard.tsx` |
+| Sticky header shell | `apps/dashboard/src/components/PageHeader.tsx` |
+| Bottom navigation | `apps/dashboard/src/components/NavBar.tsx` |
+| Empty state | `apps/dashboard/src/components/recommendations/CollectingDataEmpty.tsx` |
+| Modal workflow | `apps/dashboard/src/components/tasks/TaskDismissModal.tsx` |
+| Workflow panel | `apps/dashboard/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` |
+| Shared primitive | `packages/ui/src/button.tsx`, `packages/ui/src/page-header.tsx` |

@@ -72,8 +72,8 @@ Copy this block when Focus produces a Context Plan. Fill checkboxes per task.
 
 ## References
 
-- Runtime: [`docs/architecture/agent-runtime.md`](../architecture/agent-runtime.md)
-- Artifacts: [`docs/architecture/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md)
+- Runtime: [`agent-runtime/docs/agent-runtime.md`](../docs/agent-runtime.md)
+- Artifacts: [`agent-runtime/docs/agent-runtime-artifacts.md`](../docs/agent-runtime-artifacts.md)
 - Router: [`.cursor/skills/standalone/focus/SKILL.md`](../../.cursor/skills/standalone/focus/SKILL.md)
 - Catalog: [`.cursor/skills/skill-catalog/SKILL.md`](../../.cursor/skills/skill-catalog/SKILL.md)
 - Audit: [`context-routing-audit.md`](context-routing-audit.md)

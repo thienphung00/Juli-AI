@@ -3,9 +3,17 @@
 **Status:** Published (Agent Runtime Phase 5)  
 **Authority:** [`EXECUTION.md`](../../EXECUTION.md) > [`agent-runtime.md`](agent-runtime.md) > this file
 
-Five-phase rollout from workflow-oriented orchestration to agent-oriented runtime with
+### Rename mapping (Agentic Version 1)
+
+| Legacy | New |
+|--------|-----|
+| Agent Runtime migration Phases 1–5 | Completed **bootstrap** (unchanged labels historically) |
+| Agent Runtime Phase 6 | **Agentic Version 1** |
+| Agentic Phase 1 | Rejected alias → use **Agentic Version 1** |
+
+Five-phase bootstrap rollout from workflow-oriented orchestration to agent-oriented runtime with
 artifact-driven optimization. Phases 1–5 are documentation and harness alignment;
-Phase 6 proves the optimization loop.
+**Agentic Version 1** proves the optimization loop.
 
 ---
 
@@ -18,7 +26,7 @@ Phase 6 proves the optimization loop.
 | **3** | Complete | Artifact schemas; persistence policy |
 | **4** | Complete | Skills emit/consume artifacts per agent boundaries |
 | **5** | Complete | Unified benchmark framework; this migration doc |
-| **6** | Pending | Harness change proposed, applied, measured |
+| **Agentic Version 1** | Complete | Harness change proposed, applied, measured (#513) |
 
 ---
 
@@ -164,7 +172,7 @@ benchmark concepts.
 **Success criteria**
 
 - Task types A–D each define expected artifacts, deterministic checks, baseline metrics
-- Single repeated-run protocol for Phase 6 measurement
+- Single repeated-run protocol for Agentic Version 1 measurement
 
 **Rollback**
 
@@ -173,7 +181,9 @@ benchmark concepts.
 
 ---
 
-## Phase 6: Optimization Loop (pending)
+## Agentic Version 1: Optimization Loop
+
+**Proof status:** **COMPLETE** — issue #513, `context.max_files` 25→20, measured (C4c)
 
 **Goals:** Prove Meta can improve harness quality, speed, or cost; route occasional
 product-development improvements through Architect.
@@ -191,24 +201,27 @@ product-development improvements through Architect.
 
 **Success criteria**
 
-- One harness optimization proposed → applied → measured on benchmark rerun
-- One product-development optimization proposed and routed to Architect backlog
+- [x] One harness optimization proposed → applied → measured on benchmark rerun (#513)
+- [ ] One product-development optimization proposed and routed to Architect backlog
 
 **Rollback**
 
 - Revert config/doc update
 - Keep original artifacts as baseline evidence
 
-**Minimal proof run** (from architecture plan)
+**Minimal proof run** (Agentic Version 1 — issue #513, C4c)
 
-1. Select small issue or benchmark fixture (type A–D)
-2. Run Planning → Meta routing → Executor → Review + Testing → Meta optimization
-3. Produce all runtime artifacts
-4. Meta proposes one harness optimization (e.g. reduce context overload)
-5. Apply approved change manually to docs/config surface
-6. Rerun same benchmark; compare eight baseline metrics
-7. Mark `appliedStatus: measured` if no regression per thresholds in
-   [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md)
+| Step | Artifact / outcome |
+|------|-------------------|
+| 1. Baseline run | Issue #513 META-1 slice; impl/review/validation artifacts PASS |
+| 2. Propose | `agent-runtime/artifacts/optimization/harness-issue-513-513-20260724T042500.json` — `context_overloaded`, `context.max_files` 25→20 |
+| 3. Accept | `harness-issue-513-agentic-v1-accepted.json` — Architect approval |
+| 4. Apply | StrReplace `max_files: 25` → `20` in `agent-runtime.config.yml` (no `--apply` / no `apply --confirm`); `harness-issue-513-agentic-v1-applied.json` |
+| 5. Measure | `harness-issue-513-agentic-v1-measured.json` — `phaseRunId` `2026-07-27T0500Z-rerun1`, validation PASS |
+| 6. Evaluate | `reports/evaluate-issue-513-agentic-v1.json` — **status `improved`**, 2 improved metrics, 0 regressed |
+| 7. Benchmark | `artifacts/benchmarks/harness-opt-513-2026-07-27-agentic-v1.json` |
+
+**Metric delta (before → after):** executionTimeMs 840000→812000 (−3.3%); tokenUsageTotal 57000→52800 (−7.4%); failures/retries 0→0; testPassRate 1.0→1.0. Within no-regression thresholds in [`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md). `optimization.dry_run_default` remains `true`.
 
 ---
 

@@ -1,0 +1,29 @@
+{
+  "cacheId": "apply-c4c-live-loop",
+  "candidate": 4,
+  "wave": "C4c",
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "issue": 513,
+  "configTarget": "context.max_files",
+  "before": 25,
+  "after": 20,
+  "forbidden": [
+    "harness_optimizer.py propose --apply",
+    "harness_config.py apply --confirm"
+  ],
+  "allowedApply": "StrReplace only on max_files line in agent-runtime.config.yml",
+  "writePaths": [
+    "agent-runtime/config/agent-runtime.config.yml",
+    "agent-runtime/artifacts/optimization/",
+    "agent-runtime/artifacts/benchmarks/",
+    "agent-runtime/docs/agent-runtime-migration.md"
+  ],
+  "tasks": [
+    "Re-propose dry-run for --issue 513 if needed; keep proposed artifact",
+    "Copy/update artifacts: accepted → applied (after surgical max_files)",
+    "Create measured rerun artifact with validation PASS and metrics within no-regression thresholds vs before",
+    "Run harness_optimizer.py evaluate --before --after --output ...",
+    "Add Minimal proof run results subsection under Agentic Version 1 in migration.md",
+    "Keep optimization.dry_run_default: true"
+  ]
+}
