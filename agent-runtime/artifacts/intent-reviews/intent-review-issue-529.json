@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-529",
+  "issue": 529,
+  "timestamp": "2026-07-27T13:03:11Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "b50c82c682d5c4f2c52c9b0d902d30378fa1730f",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff origin/main..cb0a41aa implements P2.10-A5 (#529) Redis read-through cache for Analytics KPI envelopes per ADR-038. analytics_kpi_cache package provides envelope_cache_key (analytics:kpi_envelope:{shop_id}), get_analytics_kpi_envelope read-through (Redis first, Postgres SoT on miss/outage), refresh_analytics_kpi_envelope_cache fail-open after upsert, and create_redis_client factory. precompute_shop_analytics_kpis upserts Postgres then refreshes Redis via optional redis_client. Four unit tests cover hit, miss fill, precompute refresh, and Redis outage degraded Postgres read. No apps/demo, masking (#530), or public GET (#531) changes.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "reliability.mdc \u2014 fail-open cache refresh",
+      "path": "backend/src/juli_backend/services/analytics_kpi_cache/cache.py",
+      "note": "RedisError caught on read and refresh; Postgres rows never discarded on outage \u2014 satisfies ADR-038 degraded path.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "performance.mdc \u2014 cache TTL",
+      "path": "backend/src/juli_backend/services/analytics_kpi_cache/cache.py",
+      "note": "No TTL on cache keys yet; refresh-on-precompute only. Acceptable for slice; stale reads possible if Postgres updated outside precompute.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "529-20260727T124558"
+}

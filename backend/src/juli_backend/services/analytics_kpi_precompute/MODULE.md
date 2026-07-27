@@ -43,6 +43,8 @@ rows and upserts shop-scoped JSON envelopes in `analytics_kpi_envelopes` (ADR-03
 
 - ``AnalyticsKpiEnvelopesRepo`` (#525) — idempotent upsert on ``(shop_id, kind)``
 - ``AnalyticsPerformanceInterval`` — warm rows from backfill (#466)
+- ``analytics_kpi_cache`` (#529) — optional ``redis_client`` on precompute refreshes
+  Redis read-through cache after successful Postgres upsert
 
 ## JSONB merge
 
