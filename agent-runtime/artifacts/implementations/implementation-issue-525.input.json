@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 525,
+  "executorDomain": "data-platform",
+  "phaseRunId": "525-20260727T062600",
+  "startedAt": "2026-07-27T06:19:00Z",
+  "completedAt": "2026-07-27T06:35:07Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 20,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Shell",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 12,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 49,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-525.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-524.json",
+    "agent-runtime/artifacts/meta-prepare-issue-525.json",
+    ".cursor/skills/domain/data-platform/SKILL.md",
+    "backend/src/juli_backend/database/MODULE.md",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/database/migrations/versions/017_analytics_perf_intervals.py",
+    "tests/integration/test_migrations.py",
+    "tests/unit/test_action_cards_contract.py"
+  ],
+  "skillsLoaded": [
+    "data-platform"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/database/migrations/versions/020_analytics_kpi_envelopes.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/database/MODULE.md",
+    "tests/unit/test_analytics_kpi_envelopes.py",
+    "tests/unit/test_analytics_kpi_envelopes_migration_contract.py",
+    "tests/integration/test_migrations.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_kpi_envelopes.py",
+    "tests/unit/test_analytics_kpi_envelopes_migration_contract.py"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_migrations.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ImportError / missing migration 020 before GREEN (tests asserted AnalyticsKpiEnvelope, AnalyticsKpiEnvelopesRepo, 020_analytics_kpi_envelopes.py)",
+      "passingTestEvidence": "6 passed: model columns+unique constraint, upsert/fetch, idempotent (shop_id,kind), multi-shop keys, migration contract revision/RLS/JSONB",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src:tests python -m pytest tests/unit/test_analytics_kpi_envelopes.py tests/unit/test_analytics_kpi_envelopes_migration_contract.py -q",
+          "exitCode": 0,
+          "outputSummary": "6 passed in 2.11s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added analytics_kpi_envelopes (020) with UNIQUE(shop_id,kind), JSONB payload, timestamptz timestamps, and RLS matching analytics_performance_intervals. Added AnalyticsKpiEnvelope model and AnalyticsKpiEnvelopesRepo (ShopScopedRepo upsert by kind + get_by_kind). Schema-only; no Redis/API/Demo.",
+  "assumptions": [
+    "data-sources.md allows Partner Analytics-derived precompute SoT in Postgres for Demo (ADR-037/038)",
+    "Service-role / backend sessions continue to bypass RLS the same way as other shop-scoped tables",
+    "Model uses SQLAlchemy JSON for SQLite unit tests; migration uses postgresql.JSONB"
+  ],
+  "risks": [
+    "Postgres-only JSONB + RLS not exercised locally unless DATABASE_URL Postgres integration tests run",
+    "Duplicate UniqueConstraint name must stay aligned between model and migration"
+  ]
+}

@@ -69,6 +69,13 @@ database session management, and Alembic migrations for the Juli-AI platform.
 - `AnalyticsBackfillPartitionsRepo(session).list_incomplete(shop_id, bucket, start, end) -> list[AnalyticsBackfillPartition]` — pending/failed partitions in range
 - `AnalyticsBackfillPartitionsRepo(session).is_complete(shop_id, bucket, date) -> bool`
 
+### Models — Analytics KPI envelopes (P2.10-A1 / Issue #525)
+- `AnalyticsKpiEnvelope` — shop-scoped precomputed Analytics payload (`UNIQUE (shop_id, kind)`)
+
+### Repositories — Analytics KPI envelopes (P2.10-A1)
+- `AnalyticsKpiEnvelopesRepo(session).upsert(*, shop_id, kind, …)` — idempotent on `(shop_id, kind)`
+- `AnalyticsKpiEnvelopesRepo(session).get_by_kind(shop_id, kind) -> AnalyticsKpiEnvelope | None`
+
 ### Infrastructure
 - `Base` — declarative base for all models
 - `NotFound` — raised when a requested entity does not exist

@@ -1,0 +1,175 @@
+{
+  "id": "review-issue-525",
+  "issue": 525,
+  "timestamp": "2026-07-27T07:01:16Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #525 P2.10-A1 KPI envelope schema: intent-review spec_fidelity=pass consumed as given. Migration 020 adds analytics_kpi_envelopes with UNIQUE(shop_id,kind), JSONB payload, timestamptz, RLS matching 017. AnalyticsKpiEnvelopesRepo upsert/get_by_kind; 6/6 unit+contract tests pass. No Redis/webhook/API/Demo. No CRITICAL reliability/security/observability/performance gaps.",
+  "criticalFindings": [
+    {
+      "id": "525-convention-json-vs-jsonb",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/models/models.py",
+      "description": "Intent-review convention note: ORM payload uses JSON; Alembic uses JSONB for SQLite unit-test compatibility.",
+      "suggestion": "Optional follow-up: dialect-aware JSONB on Postgres-only paths when a second consumer needs it."
+    },
+    {
+      "id": "525-smell-duplicated-column-lists",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_envelopes.py",
+      "description": "Intent-review smell (non-blocking): required column names duplicated across unit/contract/integration asserts.",
+      "suggestion": "Optional shared constant; do not block merge."
+    },
+    {
+      "id": "525-ac-envelope-version-assert-depth",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_envelopes.py",
+      "description": "AC idempotent round-trip is covered for payload/computed_at; envelope_version is written but not re-asserted on get_by_kind after a version bump.",
+      "suggestion": "Optional strengthen test with bumped envelope_version on second upsert."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/database/MODULE.md",
+    "backend/src/juli_backend/database/migrations/versions/020_analytics_kpi_envelopes.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "tests/integration/test_migrations.py",
+    "tests/unit/test_analytics_kpi_envelopes.py",
+    "tests/unit/test_analytics_kpi_envelopes_migration_contract.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "migration analytics_kpi_envelopes unique shop kind rls",
+          "test": "tests/unit/test_analytics_kpi_envelopes_migration_contract.py::test_migration_020_analytics_kpi_envelopes_unique_shop_kind_rls"
+        },
+        {
+          "criterion": "Repo can upsert and fetch an envelope for a shop",
+          "test": "tests/unit/test_analytics_kpi_envelopes.py::test_repo_upsert_inserts_and_fetches_by_shop_kind"
+        },
+        {
+          "criterion": "Upsert is idempotent on shop_id kind envelope_version and payload",
+          "test": "tests/unit/test_analytics_kpi_envelopes.py::test_repo_upsert_is_idempotent_on_shop_kind"
+        },
+        {
+          "criterion": "Design assumes multi-shop keys not Demo-hardcoded",
+          "test": "tests/unit/test_analytics_kpi_envelopes.py::test_repo_supports_multi_shop_keys"
+        },
+        {
+          "criterion": "No Redis webhook public API or Demo UI changes",
+          "test": "tests/unit/test_analytics_kpi_envelopes.py::test_scope_excludes_redis_webhook_public_api_demo_ui"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Optional: assert envelope_version after upsert bump",
+    "Optional: align ORM payload type with JSONB when SQLite tests allow"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-525.json",
+  "reviewBasis": "working-tree vs origin/main@248fc6f5 on feature/p2.10-a1-kpi-envelope (uncommitted)",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-525.json",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 1,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "findings": [
+    {
+      "id": "525-convention-json-vs-jsonb",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/models/models.py",
+      "description": "Intent-review convention note: ORM payload uses JSON; Alembic uses JSONB for SQLite unit-test compatibility.",
+      "suggestion": "Optional follow-up: dialect-aware JSONB on Postgres-only paths when a second consumer needs it."
+    },
+    {
+      "id": "525-smell-duplicated-column-lists",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_envelopes.py",
+      "description": "Intent-review smell (non-blocking): required column names duplicated across unit/contract/integration asserts.",
+      "suggestion": "Optional shared constant; do not block merge."
+    },
+    {
+      "id": "525-ac-envelope-version-assert-depth",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_envelopes.py",
+      "description": "AC idempotent round-trip is covered for payload/computed_at; envelope_version is written but not re-asserted on get_by_kind after a version bump.",
+      "suggestion": "Optional strengthen test with bumped envelope_version on second upsert."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "id": "525-convention-json-vs-jsonb",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/models/models.py",
+      "description": "Intent-review convention note: ORM payload uses JSON; Alembic uses JSONB for SQLite unit-test compatibility.",
+      "suggestion": "Optional follow-up: dialect-aware JSONB on Postgres-only paths when a second consumer needs it."
+    },
+    {
+      "id": "525-smell-duplicated-column-lists",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_envelopes.py",
+      "description": "Intent-review smell (non-blocking): required column names duplicated across unit/contract/integration asserts.",
+      "suggestion": "Optional shared constant; do not block merge."
+    },
+    {
+      "id": "525-ac-envelope-version-assert-depth",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_envelopes.py",
+      "description": "AC idempotent round-trip is covered for payload/computed_at; envelope_version is written but not re-asserted on get_by_kind after a version bump.",
+      "suggestion": "Optional strengthen test with bumped envelope_version on second upsert."
+    }
+  ],
+  "reviewFailures": 0,
+  "reviewDurationMs": 0,
+  "reviewStatus": "PASS",
+  "severity": "low",
+  "suggestedRemediation": [
+    "Optional follow-up: dialect-aware JSONB on Postgres-only paths when a second consumer needs it.",
+    "Optional shared constant; do not block merge.",
+    "Optional strengthen test with bumped envelope_version on second upsert."
+  ],
+  "phaseRunId": "525-20260727T062600"
+}
