@@ -153,7 +153,7 @@ async def test_get_demo_analytics_rejects_visitor_shop_id(demo_client, reference
 
 
 @pytest.mark.asyncio
-async def test_get_demo_analytics_reads_through_redis_cache(
+async def test_get_demo_analytics_uses_cache_sot_read_path(
     demo_client,
     session,
     reference_shop,
