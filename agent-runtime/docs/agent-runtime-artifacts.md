@@ -36,11 +36,18 @@ Child cache path: `agent-runtime/artifacts/workflow-cache/issue-context-cache-<n
 |-------|------|-----------------|
 | `publicRelease` | Meta classifier result persisted on cache | Meta gate `public_release_classification` (#513) |
 | `publicReleaseReasons` | Reason codes (`path:` / `surface:` / `body:` / …) | Audit trail; must match live classifier |
-| `issueLoadProfile.releaseEvidencePlan` | ADR-035 contract object | Meta gate `public_release_evidence_plan` (#513); validated against [`release-evidence-plan.schema.json`](schemas/release-evidence-plan.schema.json) |
+| `issueLoadProfile.releaseEvidencePlan` | ADR-035 contract object (local cache copy) | Hydrated by `ensure_workflow_cache` from committed plan; local Meta fallback |
 | `injectionPlan.tddContract` | Executor TDD requirements | Emitted by `meta_prepare_executor.py` when `readyForExecutor: true` (#514) |
 | `injectionPlan.releaseEvidencePlan` | Full plan copy for Executor | Present only when `publicRelease: true` (#514) |
 | `implementation.releaseEvidencePlanId` | Plan continuity key | Validate check `release_evidence_plan_continuity` (#515) |
 | `validation.releaseEvidencePlanId` | Echo for ship continuity | Same check (#515) |
+
+**Committed plan SoT (CI):** `agent-runtime/artifacts/release-evidence-plan-issue-<n>.json`
+(preferred), else `meta-prepare-issue-<n>.json` → `injectionPlan.releaseEvidencePlan`.
+Workflow caches stay gitignored; do not force-commit them for public-release unlock.
+Gates `public_release_evidence_plan`, `release_evidence_plan_continuity`, and
+`phase_run_correlation` resolve the plan via that committed order (see
+`release_evidence_plan.resolve_release_evidence_plan`).
 
 Sub-agents must not infer or waive `releaseEvidencePlan`; incomplete plans halt Meta with
 `missingFields` (see [ADR-035](../../docs/adr/035-public-release-evidence-and-automatic-rollback.md)).

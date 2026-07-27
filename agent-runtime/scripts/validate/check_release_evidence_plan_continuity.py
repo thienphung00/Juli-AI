@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Gate: releaseEvidencePlanId continuity for public-release issues (ADR-035)."""
+"""Gate: releaseEvidencePlanId continuity for public-release issues (ADR-035).
+
+Expected planId comes from the committed release-evidence plan (or meta-prepare
+injectionPlan), not solely from the gitignored child cache.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ from common import (  # noqa: E402
     resolve_issue_number,
     validation_artifact_path,
 )
+from release_evidence_plan import resolve_release_evidence_plan  # noqa: E402
 from workflow_cache_store import load_child_cache  # noqa: E402
 
 
@@ -31,14 +36,16 @@ def run_check(
         return False, error or "Unable to load child workflow cache", {"issueId": issue}
 
     public = bool(child_cache.get("publicRelease"))
-    profile = child_cache.get("issueLoadProfile") or {}
-    plan = profile.get("releaseEvidencePlan") or {}
-    expected_plan_id = plan.get("planId")
+    plan, plan_source = resolve_release_evidence_plan(
+        issue, repo_root, child_cache=child_cache
+    )
+    expected_plan_id = (plan or {}).get("planId") if isinstance(plan, dict) else None
 
     details: dict[str, Any] = {
         "issueId": issue,
         "publicRelease": public,
         "expectedPlanId": expected_plan_id,
+        "planSource": plan_source,
         "authority": [
             "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
             ".cursor/rules/core-orchestration.mdc",
@@ -50,7 +57,12 @@ def run_check(
         return True, "publicRelease=false — releaseEvidencePlanId not required", details
 
     if not expected_plan_id:
-        return False, "Child cache missing releaseEvidencePlan.planId", details
+        return (
+            False,
+            "Committed releaseEvidencePlan.planId missing "
+            f"(expected release-evidence-plan-issue-{issue}.json)",
+            details,
+        )
 
     implementation = load_implementation_artifact(issue)
     if implementation is None:

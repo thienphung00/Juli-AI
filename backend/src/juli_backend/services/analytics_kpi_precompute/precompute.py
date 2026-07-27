@@ -17,6 +17,10 @@ from juli_backend.services.analytics_kpi_precompute.product_live import (
     build_live_performance_kpi,
     build_product_funnel_kpi,
 )
+from juli_backend.services.analytics_kpi_precompute.unavailable_contract import (
+    build_phase_210a_unavailable_kpis,
+    build_t1_forecast_overlay,
+)
 
 ANALYTICS_KIND = "analytics"
 ENVELOPE_VERSION = 1
@@ -99,11 +103,15 @@ async def precompute_shop_analytics_kpis(
         base = _base_envelope_payload(shop_id=shop_id, computed_at=when)
 
     base["computed_at"] = when.isoformat()
+    unavailable_kpis = {
+        key: _kpi_entry_to_dict(entry) for key, entry in build_phase_210a_unavailable_kpis().items()
+    }
     merged_kpis = {
         **base.get("kpis", {}),
         "gmv_tiktok": gmv_kpi,
         "product_funnel": product_funnel_kpi,
         "live_performance": live_performance_kpi,
+        **unavailable_kpis,
     }
     meta = dict(base.get("meta", {}))
     meta["source_partitions"] = _source_partitions_for_kpis(
@@ -111,7 +119,9 @@ async def precompute_shop_analytics_kpis(
         product_funnel_kpi=product_funnel_kpi,
         live_performance_kpi=live_performance_kpi,
     )
-    payload = {**base, "kpis": merged_kpis, "meta": meta}
+    overlays = dict(base.get("overlays", {}))
+    overlays["t1_forecast"] = build_t1_forecast_overlay()
+    payload = {**base, "kpis": merged_kpis, "meta": meta, "overlays": overlays}
 
     return await repo.upsert(
         shop_id=shop_id,

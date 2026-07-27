@@ -44,6 +44,15 @@ def _write_impl(repo: Path, *, plan_id: str | None = PLAN_ID) -> None:
     write_json(impl_dir / "implementation-issue-515.json", artifact)
 
 
+def _write_committed_plan(repo: Path, plan_id: str = PLAN_ID) -> None:
+    artifacts = repo / "agent-runtime" / "artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "release-evidence-plan-issue-515.json").write_text(
+        json.dumps({"planId": plan_id}),
+        encoding="utf-8",
+    )
+
+
 def test_release_plan_continuity_skips_non_public(tmp_path: Path) -> None:
     _write_child_cache(tmp_path, public_release=False)
     _write_impl(tmp_path, plan_id=None)
@@ -58,7 +67,11 @@ def test_release_plan_continuity_skips_non_public(tmp_path: Path) -> None:
 def test_release_plan_continuity_passes_on_match(tmp_path: Path, monkeypatch) -> None:
     import common
 
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    monkeypatch.setattr(
+        common,
+        "IMPLEMENTATIONS_DIR",
+        tmp_path / "agent-runtime" / "artifacts" / "implementations",
+    )
     _write_child_cache(tmp_path, public_release=True)
     _write_impl(tmp_path, plan_id=PLAN_ID)
 
@@ -69,10 +82,37 @@ def test_release_plan_continuity_passes_on_match(tmp_path: Path, monkeypatch) ->
     assert PLAN_ID in description
 
 
-def test_release_plan_continuity_fails_on_implementation_mismatch(tmp_path: Path, monkeypatch) -> None:
+def test_release_plan_continuity_uses_committed_plan_when_cache_empty(
+    tmp_path: Path, monkeypatch
+) -> None:
     import common
 
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    monkeypatch.setattr(
+        common,
+        "IMPLEMENTATIONS_DIR",
+        tmp_path / "agent-runtime" / "artifacts" / "implementations",
+    )
+    _write_child_cache(tmp_path, public_release=True, plan_id=None)
+    _write_committed_plan(tmp_path)
+    _write_impl(tmp_path, plan_id=PLAN_ID)
+
+    passed, description, details = run_check(515, repo_root=tmp_path)
+
+    assert passed is True
+    assert details["planSource"] == ("agent-runtime/artifacts/release-evidence-plan-issue-515.json")
+    assert PLAN_ID in description
+
+
+def test_release_plan_continuity_fails_on_implementation_mismatch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import common
+
+    monkeypatch.setattr(
+        common,
+        "IMPLEMENTATIONS_DIR",
+        tmp_path / "agent-runtime" / "artifacts" / "implementations",
+    )
     _write_child_cache(tmp_path, public_release=True)
     _write_impl(tmp_path, plan_id="wrong-plan")
 
@@ -85,8 +125,16 @@ def test_release_plan_continuity_fails_on_implementation_mismatch(tmp_path: Path
 def test_release_plan_continuity_fails_on_validation_mismatch(tmp_path: Path, monkeypatch) -> None:
     import common
 
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
-    monkeypatch.setattr(common, "VALIDATION_DIR", tmp_path / "agent-runtime" / "artifacts" / "validation")
+    monkeypatch.setattr(
+        common,
+        "IMPLEMENTATIONS_DIR",
+        tmp_path / "agent-runtime" / "artifacts" / "implementations",
+    )
+    monkeypatch.setattr(
+        common,
+        "VALIDATION_DIR",
+        tmp_path / "agent-runtime" / "artifacts" / "validation",
+    )
     _write_child_cache(tmp_path, public_release=True)
     _write_impl(tmp_path, plan_id=PLAN_ID)
     validation_dir = tmp_path / "agent-runtime" / "artifacts" / "validation"

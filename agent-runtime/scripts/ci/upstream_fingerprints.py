@@ -67,6 +67,9 @@ def repo_file_blob_hash(repo_root: Path, relative_path: str) -> str:
     return git_blob_hash(path.read_bytes())
 
 
+_GH_SUBPROCESS_TIMEOUT_SEC = 30
+
+
 def default_fetch_github_issue_body(issue_id: int, repo_root: Path) -> str:
     try:
         output = subprocess.check_output(
@@ -74,7 +77,12 @@ def default_fetch_github_issue_body(issue_id: int, repo_root: Path) -> str:
             cwd=repo_root,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=_GH_SUBPROCESS_TIMEOUT_SEC,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"gh issue view #{issue_id} timed out after {_GH_SUBPROCESS_TIMEOUT_SEC}s"
+        ) from exc
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or str(exc)).strip()
         raise RuntimeError(f"gh issue view #{issue_id} failed: {detail}") from exc
@@ -100,7 +108,12 @@ def default_fetch_github_issue_labels(issue_id: int, repo_root: Path) -> list[st
             cwd=repo_root,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=_GH_SUBPROCESS_TIMEOUT_SEC,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"gh issue view #{issue_id} labels timed out after {_GH_SUBPROCESS_TIMEOUT_SEC}s"
+        ) from exc
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or str(exc)).strip()
         raise RuntimeError(f"gh issue view #{issue_id} labels failed: {detail}") from exc

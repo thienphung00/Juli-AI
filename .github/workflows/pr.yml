@@ -147,6 +147,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: github.event_name == 'merge_group' || needs.changes.outputs.backend == 'true'
+    # Normal green runs finish in ~4–6m. Cap well below the Actions 6h default so a
+    # hung pytest/subprocess (no live logs until the step ends) fails closed.
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -165,6 +168,11 @@ jobs:
         image: redis:7
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
       REDIS_URL: redis://localhost:6379
@@ -172,6 +180,7 @@ jobs:
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
       TIKTOK_SANDBOX_AUTH_CODE: ${{ secrets.TIKTOK_SANDBOX_AUTH_CODE }}
       TIKTOK_SANDBOX_REFRESH_TOKEN: ${{ secrets.TIKTOK_SANDBOX_REFRESH_TOKEN }}
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -185,7 +194,10 @@ jobs:
         # Floor set 5 points below the measured juli_backend baseline (85%, 2026-07-09)
         # so this gate lands as a regression guard, not an immediate blocker.
         # Re-baseline (docs/deployment/troubleshooting.md) as coverage improves.
-        run: pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing --cov-fail-under=80
+        # -vv + faulthandler help diagnose hangs when a step hits timeout-minutes.
+        run: >-
+          python -X faulthandler -m pytest tests/ -vv --tb=short
+          --cov=juli_backend --cov-report=term-missing --cov-fail-under=80
 
   migration-check:
     runs-on: ubuntu-latest

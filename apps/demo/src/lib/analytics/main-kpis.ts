@@ -1,5 +1,6 @@
 export type MetricKey =
   | "sps"
+  | "gmv-tiktok"
   | "net-revenue"
   | "roas"
   | "inventory-turnover"
@@ -32,14 +33,14 @@ export interface MainKpiDefinition {
 
 export const MAIN_KPI_ORDER: readonly MetricKey[] = [
   "sps",
-  "net-revenue",
+  "gmv-tiktok",
   "roas",
   "inventory-turnover",
   "fulfillment-accuracy-rate",
   "csat",
 ] as const;
 
-export const DEFAULT_METRIC_KEY: MetricKey = "net-revenue";
+export const DEFAULT_METRIC_KEY: MetricKey = "gmv-tiktok";
 export const DEFAULT_ANALYTICS_RANGE: AnalyticsRange = "30d";
 
 export const ANALYTICS_RANGE_LABELS: Record<AnalyticsRange, string> = {
@@ -63,14 +64,28 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
         "Cần xác minh và kết nối hợp đồng sức khỏe tài khoản TikTok Shop chính thức trước khi hiển thị SPS.",
     },
   },
+  "gmv-tiktok": {
+    metricKey: "gmv-tiktok",
+    category: "Doanh thu",
+    name: "GMV (TikTok)",
+    description: "Tổng giá trị đơn hàng trên TikTok Shop trước hoàn tiền và hủy đơn.",
+    icon: "₫",
+    available: true,
+    chartKind: "forecast-line",
+  },
   "net-revenue": {
     metricKey: "net-revenue",
     category: "Doanh thu",
     name: "Doanh thu thuần",
     description: "Doanh thu sau khấu trừ hoàn tiền và hủy đơn.",
     icon: "₫",
-    available: true,
+    available: false,
     chartKind: "forecast-line",
+    unavailableReason: {
+      dataSource: "TikTok Shop Order API",
+      activationRequirement:
+        "Doanh thu thuần chưa khả dụng trong Phase 2.10-A — cần luồng hoàn tiền và hủy đơn trước khi hiển thị.",
+    },
   },
   roas: {
     metricKey: "roas",
