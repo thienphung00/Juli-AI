@@ -13,16 +13,13 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, text
-
 from juli_backend.core.config.runtime import sync_database_url
+from sqlalchemy import create_engine, text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-MIGRATIONS_DIR = (
-    REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
-)
+MIGRATIONS_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
 TEST_REV = "zzz_safe_alembic_local_delete"
 TEST_MIGRATION = MIGRATIONS_DIR / f"{TEST_REV}_delete_test_users.py"
 
@@ -71,9 +68,7 @@ def _write_test_migration(*, allowlisted: bool) -> str:
     from alembic.script import ScriptDirectory
 
     head = ScriptDirectory.from_config(cfg).get_current_head()
-    comment = (
-        "    # safe-migrate: allow-decrease users\n" if allowlisted else ""
-    )
+    comment = "    # safe-migrate: allow-decrease users\n" if allowlisted else ""
     TEST_MIGRATION.write_text(
         textwrap.dedent(
             f'''\
@@ -229,6 +224,7 @@ def _run_local_safe_upgrade(
         text=True,
         env=run_env,
         check=False,
+        timeout=180,
     )
 
 
@@ -316,6 +312,7 @@ def test_local_upgrade_non_interactive_without_yes_fails(tmp_path: Path):
             "PYTHONPATH": str(SCRIPTS_DIR),
         },
         check=False,
+        timeout=30,
     )
     combined = result.stdout + result.stderr
     assert result.returncode != 0

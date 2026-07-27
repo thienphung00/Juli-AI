@@ -8,24 +8,21 @@ import subprocess
 import sys
 import textwrap
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine, text
-
 from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.database.token_crypto import ENCRYPTED_TOKEN_PREFIX, encrypt_token
+from sqlalchemy import create_engine, text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-MIGRATIONS_DIR = (
-    REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
-)
+MIGRATIONS_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
 TEST_REV = "zzz_safe_alembic_test_delete"
 TEST_MIGRATION = MIGRATIONS_DIR / f"{TEST_REV}_delete_test_users.py"
 
@@ -74,9 +71,7 @@ def _write_test_migration(*, allowlisted: bool) -> str:
     from alembic.script import ScriptDirectory
 
     head = ScriptDirectory.from_config(cfg).get_current_head()
-    comment = (
-        "    # safe-migrate: allow-decrease users\n" if allowlisted else ""
-    )
+    comment = "    # safe-migrate: allow-decrease users\n" if allowlisted else ""
     TEST_MIGRATION.write_text(
         textwrap.dedent(
             f'''\
@@ -129,7 +124,7 @@ def _seed_encrypted_credential(engine) -> None:
     user_id = uuid.uuid4()
     shop_id = uuid.uuid4()
     cred_id = uuid.uuid4()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     token = encrypt_token("integration-test-access-token")
 
     with engine.begin() as conn:
@@ -282,7 +277,8 @@ if [ -z "$url" ] || [ -z "$file" ]; then
 fi
 internal="${{url/localhost:5433/localhost:5432}}"
 docker cp "$file" {DOCKER_PG_CONTAINER}:/tmp/safe-alembic-restore.dump
-docker exec {DOCKER_PG_CONTAINER} pg_restore --no-owner --no-acl -d "$internal" --clean --if-exists /tmp/safe-alembic-restore.dump
+docker exec {DOCKER_PG_CONTAINER} pg_restore --no-owner --no-acl \
+-d "$internal" --clean --if-exists /tmp/safe-alembic-restore.dump
 """,
         encoding="utf-8",
     )
@@ -318,6 +314,7 @@ def _run_safe_upgrade(
         text=True,
         env=run_env,
         check=False,
+        timeout=180,
     )
 
 
