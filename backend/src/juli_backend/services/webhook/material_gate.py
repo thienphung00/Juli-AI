@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import Protocol
+from typing import Any, Protocol
 
 from juli_backend.services.tiktok.webhook_catalog import (
     COALESCE_68_SECONDS,
@@ -53,7 +53,7 @@ class RedisMaterialEnqueueGate:
 
     def __init__(
         self,
-        redis_client: object,
+        redis_client: Any,
         *,
         clock: Callable[[], float] = time.time,
     ) -> None:
