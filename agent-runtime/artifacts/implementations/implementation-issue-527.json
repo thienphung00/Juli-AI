@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 527,
+  "executorDomain": "backend",
+  "phaseRunId": "527-20260727T075300",
+  "startedAt": "2026-07-27T07:53:00Z",
+  "completedAt": "2026-07-27T08:05:00Z",
+  "executionDurationMs": 720000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 18,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 5,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 5,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Glob",
+      "count": 3,
+      "stage": "other"
+    },
+    {
+      "toolName": "Grep",
+      "count": 2,
+      "stage": "other"
+    },
+    {
+      "toolName": "UpdateCurrentStep",
+      "count": 3,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 36,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-527.json",
+    "agent-runtime/artifacts/workflow-cache/scout-note-issue-527.md",
+    "agent-runtime/artifacts/workflow-cache/context7-sqlalchemy-upsert-526-527.txt",
+    "agent-runtime/artifacts/workflow-cache/context7-sqlalchemy-jsonb-526-527.txt",
+    "agent-runtime/artifacts/context-load-log-issue-527.jsonl",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/product_live.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/gmv.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/__init__.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+    "tests/unit/test_analytics_kpi_precompute_product_live.py",
+    "tests/unit/test_analytics_kpi_precompute_gmv.py",
+    "tests/unit/test_analytics_kpi_precompute_wire.py",
+    ".worktrees/issue-526/agent-runtime/artifacts/implementations/implementation-issue-526-input.json"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/testing-patterns/python-testing.md",
+    ".cursor/skills/standalone/focus/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/mcp-usage.mdc",
+    ".cursor/rules/git-baseline.mdc",
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/issue-workflow.mdc",
+    ".cursor/rules/patterns.mdc",
+    ".cursor/rules/context7-cli.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_kpi_precompute/__init__.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/gmv.py",
+    "tests/unit/test_analytics_kpi_precompute_gmv.py",
+    "tests/unit/test_analytics_kpi_precompute_wire.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_kpi_precompute_wire.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "KeyError: 'product_funnel' / 'live_performance' \u2014 precompute_shop_analytics_kpis only merged gmv_tiktok before #527 wire",
+      "passingTestEvidence": "4 wire tests pass: product_funnel available/unavailable, live_performance available/revenue-only unavailable; 19 total precompute tests green",
+      "refactorEvidence": "Merged #526 via git merge; resolved __init__.py exports; extended precompute.py with interval load, KpiEnvelopeEntry\u2192dict conversion, JSONB-safe payload dict assignment, dynamic meta.source_partitions",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_kpi_precompute_wire.py -q",
+          "exitCode": 1,
+          "outputSummary": "4 failed \u2014 KeyError product_funnel / live_performance"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_kpi_precompute_gmv.py tests/unit/test_analytics_kpi_precompute_product_live.py tests/unit/test_analytics_kpi_precompute_wire.py -q",
+          "exitCode": 0,
+          "outputSummary": "19 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Wave 4 integrated #526 GMV precompute package via merge and wired product_funnel + live_performance KPIs into precompute_shop_analytics_kpis. Orchestrator loads shop intervals once, delegates to pure builders in product_live.py, merges kpis with new payload dict (Context7 JSONB caveat), and sets meta.source_partitions (A-34, A-28/A-29) only when KPIs are available. Inventory/Ops/CSAT omitted per scout \u2014 no daily series builders. Wire integration tests cover available and unavailable paths for both KPI families; GMV tests remain green.",
+  "assumptions": [
+    "Branch merges feature/issue-526-gmv-precompute before wire (#526 wave 4 dependency)",
+    "Inventory/Ops/CSAT keys omitted from envelope \u2014 scalar aggregate builders exist but no daily series; AC satisfied via unavailable/omit",
+    "Context7 CLI docs preloaded by Meta \u2014 executors read workflow-cache artifacts only",
+    "phaseRunId 527-20260727T075300 correlates with Meta prepare 527-20260727T071558 family"
+  ],
+  "risks": [
+    "Merge conflict on __init__.py resolved manually \u2014 parallel #526/#527 exports must stay in sync at PR time",
+    "GMV and LIVE both use shop-grain rows; LIVE builder filters LIVE markers \u2014 revenue-only A-36 rows must not populate live_performance",
+    "meta.source_partitions rebuilt each precompute run \u2014 may drop stale partitions from prior envelope versions if KPI becomes unavailable"
+  ]
+}
