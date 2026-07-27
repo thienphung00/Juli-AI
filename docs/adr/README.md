@@ -46,3 +46,5 @@
 | [036](036-modules-tier1-planning-sot.md) | MODULES.md Tier-1 module planning SoT + doc tier ladder | Accepted |
 | [037](037-phase-2.10-demo-real-data-no-auth.md) | Phase 2.10 — Demo real-data KPI wire without auth | Accepted |
 | [038](038-phase-2.10-dual-layer-pipeline.md) | Phase 2.10 dual-layer pipeline — precompute + required cache | Accepted |
+| [039](039-docp-phase-2.11-openobserve-posthog.md) | DOCP Phase 2.11 — OpenObserve + PostHog thin MVP | Accepted |
+| [040](040-pr-safe-tests-lane.md) | PR-safe Tests lane (markers, timeouts, live on merge_group) | Accepted |

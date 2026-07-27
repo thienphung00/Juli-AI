@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.phase_scaffold
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"

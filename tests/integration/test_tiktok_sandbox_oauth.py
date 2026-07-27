@@ -2,12 +2,13 @@
 
 Live (unmocked) calls to TikTok token endpoints using Partner Center sandbox
 credentials from environment variables. Skips when secrets are absent.
+
+Marked ``live`` (ADR-040): runs on merge_group ``test-live-sandbox``, not PR-safe Tests.
 """
 
 from __future__ import annotations
 
 import pytest
-
 from juli_backend.integrations.tiktok.exceptions import AuthenticationError
 
 from tests.integration.tiktok_sandbox import (
@@ -17,6 +18,8 @@ from tests.integration.tiktok_sandbox import (
     sandbox_auth_code,
     sandbox_refresh_token,
 )
+
+pytestmark = pytest.mark.live
 
 INVALID_AUTH_CODE = "juli_integration_invalid_auth_code_366"
 

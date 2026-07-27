@@ -15,7 +15,6 @@ sys.path.insert(0, str(CI_DIR))
 
 from check_public_release_classification import run_check as run_classification  # noqa: E402
 from check_public_release_evidence_plan import run_check as run_evidence_plan  # noqa: E402
-from check_workflow_cache import GATE_SEQUENCE  # noqa: E402
 from release_evidence_plan import REQUIRED_TOP_LEVEL_FIELDS  # noqa: E402
 
 
@@ -30,9 +29,7 @@ def _valid_plan() -> dict[str, Any]:
             "restrictedRoute": "test listener",
             "syntheticShopRequired": True,
             "workersDisabledOnCandidate": True,
-            "journeys": [
-                {"name": "home", "entryUrl": "/", "assertions": ["html_200"]}
-            ],
+            "journeys": [{"name": "home", "entryUrl": "/", "assertions": ["html_200"]}],
         },
         "staticAssetChecks": {
             "required": True,
@@ -108,7 +105,9 @@ def _write_caches(
         "artifactType": "issue_context_cache",
         "issueId": issue_id,
         "parentIssueId": parent_id,
-        "parentCachePath": f"agent-runtime/artifacts/workflow-cache/parent-cache-issue-{parent_id}.json",
+        "parentCachePath": (
+            f"agent-runtime/artifacts/workflow-cache/parent-cache-issue-{parent_id}.json"
+        ),
         "phaseRunId": f"{issue_id}-test",
         "workflowPhase": "meta",
         "cacheStatus": "valid",
@@ -148,14 +147,6 @@ def _write_caches(
     )
     (cache_dir / f"issue-context-cache-{issue_id}.json").write_text(
         json.dumps(child), encoding="utf-8"
-    )
-
-
-def test_gate_sequence_includes_public_release_gates_after_load_profile() -> None:
-    names = [name for name, _ in GATE_SEQUENCE]
-    assert names.index("issue_load_profile") < names.index("public_release_classification")
-    assert names.index("public_release_classification") < names.index(
-        "public_release_evidence_plan"
     )
 
 

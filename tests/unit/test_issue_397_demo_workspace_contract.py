@@ -6,6 +6,9 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.demo_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKSPACE_PACKAGES = (
@@ -67,7 +70,7 @@ def test_root_declares_real_pnpm_turbo_workspace() -> None:
 
     assert str(root_package["packageManager"]).startswith("pnpm@10.")
     assert (ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8") == (
-        "packages:\n  - \"apps/*\"\n  - \"packages/*\"\n"
+        'packages:\n  - "apps/*"\n  - "packages/*"\n'
     )
     assert (ROOT / "turbo.json").is_file()
     assert {"lint", "type-check", "test", "build"} <= set(
@@ -126,9 +129,7 @@ def test_theme_and_shared_home_primitives_are_consumed_by_demo() -> None:
 
 def test_shared_formatters_and_mock_fixtures_run_without_network() -> None:
     root_scripts = _package_json(ROOT)["scripts"]
-    home_test = (
-        ROOT / "apps/demo/src/__tests__/home.test.tsx"
-    ).read_text(encoding="utf-8")
+    home_test = (ROOT / "apps/demo/src/__tests__/home.test.tsx").read_text(encoding="utf-8")
 
     assert "pnpm --filter @juli/utils test" in root_scripts["check:demo"]  # type: ignore[index]
     assert (ROOT / "packages/utils/src/index.test.ts").is_file()
@@ -164,9 +165,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
 
 
 def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:
-    import_pattern = re.compile(
-        r"""(?:from\s+|import\s*\(|require\s*\()\s*["'](?P<path>[^"']+)"""
-    )
+    import_pattern = re.compile(r"""(?:from\s+|import\s*\(|require\s*\()\s*["'](?P<path>[^"']+)""")
     app_paths = {
         str(_package_json(path)["name"]): path.resolve()
         for path in ROOT.glob("apps/*")
@@ -189,41 +188,31 @@ def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:
             imports = import_pattern.findall(source_file.read_text(encoding="utf-8"))
             for value in imports:
                 relative_target = (
-                    (source_file.parent / value).resolve()
-                    if value.startswith(".")
-                    else None
+                    (source_file.parent / value).resolve() if value.startswith(".") else None
                 )
                 assert value not in app_paths and not any(
-                    relative_target is not None
-                    and relative_target.is_relative_to(app_path)
+                    relative_target is not None and relative_target.is_relative_to(app_path)
                     for app_path in app_paths.values()
                 ), f"{source_file.relative_to(ROOT)} imports an app"
 
     assert not _contains_cycle(package_graph), "shared package dependency cycle detected"
 
     for app_name, app_path in app_paths.items():
-        sibling_paths = {
-            name: path for name, path in app_paths.items() if name != app_name
-        }
+        sibling_paths = {name: path for name, path in app_paths.items() if name != app_name}
         for source_file in _source_files(app_path):
             imports = import_pattern.findall(source_file.read_text(encoding="utf-8"))
             for value in imports:
                 relative_target = (
-                    (source_file.parent / value).resolve()
-                    if value.startswith(".")
-                    else None
+                    (source_file.parent / value).resolve() if value.startswith(".") else None
                 )
                 assert value not in sibling_paths and not any(
-                    relative_target is not None
-                    and relative_target.is_relative_to(sibling_path)
+                    relative_target is not None and relative_target.is_relative_to(sibling_path)
                     for sibling_path in sibling_paths.values()
                 ), f"{source_file.relative_to(ROOT)} imports a sibling app"
 
 
 def test_demo_source_has_no_backend_or_secret_environment_dependency() -> None:
-    forbidden = re.compile(
-        r"(NEXT_PUBLIC_API_URL|DATABASE_URL|TIKTOK_|SUPABASE_|process\.env)"
-    )
+    forbidden = re.compile(r"(NEXT_PUBLIC_API_URL|DATABASE_URL|TIKTOK_|SUPABASE_|process\.env)")
     sources = _source_files(ROOT / "apps" / "demo")
 
     assert sources

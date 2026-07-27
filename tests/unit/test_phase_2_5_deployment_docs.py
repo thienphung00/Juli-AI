@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.phase_scaffold
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PHASE_25_PATH = REPO_ROOT / "docs/product/phases/phase-2.5-deployment.md"
 MIGRATION_PLAN_PATH = REPO_ROOT / "docs/architecture/migration-plan.md"
@@ -63,9 +65,7 @@ def test_scaffold_ownership_readmes_exist():
     assert not missing, f"missing scaffold READMEs: {missing}"
 
 
-def test_naming_collision_documented(
-    migration_plan_text: str, map_text: str, execution_text: str
-):
+def test_naming_collision_documented(migration_plan_text: str, map_text: str, execution_text: str):
     """backend/api vs top-level apps collision is explicit in canonical docs."""
     for doc_text in (migration_plan_text, map_text, execution_text):
         assert "apps/" in doc_text or "backend/api" in doc_text

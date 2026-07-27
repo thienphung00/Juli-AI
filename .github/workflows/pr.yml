@@ -147,6 +147,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: github.event_name == 'merge_group' || needs.changes.outputs.backend == 'true'
+    # ADR-040: PR-safe Tests — fail-fast if a test hangs (healthy suite ~4–5 min).
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -168,6 +170,46 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
       REDIS_URL: redis://localhost:6379
+      # APP_KEY/SECRET: ASGI webhook signature tests (non-live). Live oauth secrets
+      # live only on test-live-sandbox (merge_group).
+      TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+      TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e "./backend[dev]"
+      - name: Install PostgreSQL client 16
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+      - name: Pytest with coverage (PR-safe Tests)
+        # ADR-040: exclude live + demo_contract.
+        # PR also excludes migration_heavy + phase_scaffold (run on MQ / path jobs).
+        # Floor set 5 points below the measured juli_backend baseline (85%, 2026-07-09).
+        # timeout=30 comes from pytest.ini (pytest-timeout).
+        run: |
+          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            MARKERS='not live and not demo_contract'
+          else
+            MARKERS='not live and not demo_contract and not migration_heavy and not phase_scaffold'
+          fi
+          pytest tests/ -v --tb=short \
+            -m "$MARKERS" \
+            --cov=juli_backend --cov-report=term-missing --cov-fail-under=80
+      - name: Pytest migration-heavy (migration paths on PR)
+        if: >-
+          github.event_name == 'pull_request'
+          && needs.changes.outputs.migrations == 'true'
+        run: pytest tests/ -v --tb=short -m migration_heavy
+
+  test-live-sandbox:
+    runs-on: ubuntu-latest
+    needs: changes
+    # ADR-040: live Partner oauth only on merge_group (not every PR push).
+    if: github.event_name == 'merge_group'
+    timeout-minutes: 15
+    env:
       TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
       TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
       TIKTOK_SANDBOX_AUTH_CODE: ${{ secrets.TIKTOK_SANDBOX_AUTH_CODE }}
@@ -179,13 +221,8 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -e "./backend[dev]"
-      - name: Install PostgreSQL client 16
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
-      - name: Pytest with coverage
-        # Floor set 5 points below the measured juli_backend baseline (85%, 2026-07-09)
-        # so this gate lands as a regression guard, not an immediate blocker.
-        # Re-baseline (docs/deployment/troubleshooting.md) as coverage improves.
-        run: pytest tests/ -v --tb=short --cov=juli_backend --cov-report=term-missing --cov-fail-under=80
+      - name: Live TikTok sandbox pytest
+        run: pytest tests/ -v --tb=short -m live
 
   migration-check:
     runs-on: ubuntu-latest
@@ -277,10 +314,8 @@ jobs:
           python-version: "3.12"
       - name: Install Python test dependencies
         run: pip install -e "./backend[dev]"
-      - name: Demo deploy contract tests (#406)
-        run: |
-          python -m pytest tests/unit/test_phase_2_6_demo_deploy_config.py \
-            tests/unit/test_phase_2_6_demo_deploy.py -q
+      - name: Demo contract tests (ADR-040 demo_contract)
+        run: python -m pytest -m demo_contract -q
 
   demo-e2e:
     runs-on: ubuntu-latest
@@ -296,19 +331,12 @@ jobs:
           node-version: "20"
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
       - name: Install Demo dependency graph
         run: pnpm install --frozen-lockfile --filter @juli/demo...
       - name: Install Playwright Chromium
         run: pnpm --filter @juli/demo exec playwright install chromium
       - name: Phase 2.6 Demo exit-gate Playwright (#407)
         run: pnpm --filter @juli/demo test:e2e
-      - name: Install Python test dependencies
-        run: pip install -e "./backend[dev]"
-      - name: Demo exit-gate contract tests (#407)
-        run: python -m pytest tests/unit/test_phase_2_6_demo_exit_gate.py -q
 
   validate-artifacts:
     runs-on: ubuntu-latest
@@ -385,6 +413,7 @@ jobs:
       - bandit
       - gitleaks
       - test
+      - test-live-sandbox
       - migration-check
       - frontend
       - demo-frontend
@@ -401,6 +430,7 @@ jobs:
           bandit="${{ needs.bandit.result }}"
           gitleaks="${{ needs.gitleaks.result }}"
           test="${{ needs.test.result }}"
+          live="${{ needs.test-live-sandbox.result }}"
           mig="${{ needs.migration-check.result }}"
           fe="${{ needs.frontend.result }}"
           demo="${{ needs.demo-frontend.result }}"
@@ -429,6 +459,8 @@ jobs:
           require "lint-and-typecheck" "$lint" "true"
           require "bandit" "$bandit" "true"
           require "test" "$test" "true"
+          # PR: skipped (job if is merge_group only). merge_group: required.
+          require "test-live-sandbox" "$live" "true"
           require "migration-check" "$mig" "true"
           require "frontend" "$fe" "true"
           require "demo-frontend" "$demo" "true"

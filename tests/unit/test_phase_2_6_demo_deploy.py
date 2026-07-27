@@ -23,6 +23,8 @@ PROVISION_DEMO_PATH = SCRIPTS_DIR / "provision-demo.sh"
 PROVISION_NGINX_PATH = SCRIPTS_DIR / "provision-nginx.sh"
 BUILD_DEMO_PATH = SCRIPTS_DIR / "build-demo.sh"
 DEPLOY_DEMO_PATH = SCRIPTS_DIR / "deploy-demo-release.sh"
+
+pytestmark = pytest.mark.demo_contract
 ROLLBACK_DEMO_PATH = SCRIPTS_DIR / "rollback-demo-release.sh"
 SYSTEMD_DEMO_PATH = SYSTEMD_DIR / "juli-demo.service"
 ENV_DEMO_PATH = SCRIPTS_DIR / "env/demo.env.example"
@@ -127,9 +129,7 @@ def test_provision_demo_does_not_reference_forbidden_services():
         "celery": r"\bcelery\b",
     }
     lowered = _read(PROVISION_DEMO_PATH).lower()
-    problems = [
-        label for label, pattern in forbidden.items() if re.search(pattern, lowered)
-    ]
+    problems = [label for label, pattern in forbidden.items() if re.search(pattern, lowered)]
     assert not problems, f"provision script references out-of-scope: {problems}"
 
 

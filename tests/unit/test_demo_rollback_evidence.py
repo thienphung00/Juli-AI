@@ -17,6 +17,9 @@ ROLLBACK_DEMO_PATH = SCRIPTS_DIR / "rollback-demo-release.sh"
 SMOKE_DEMO_PATH = SCRIPTS_DIR / "smoke-test-demo.sh"
 VERIFY_STATIC_PATH = SCRIPTS_DIR / "verify-demo-static-assets.sh"
 BUILD_DEMO_PATH = SCRIPTS_DIR / "build-demo.sh"
+
+pytestmark = pytest.mark.demo_contract
+
 STATIC_ASSET_SPEC = (
     REPO_ROOT / "apps" / "demo" / "e2e" / "exit-gate" / "static-asset-render.spec.ts"
 )
@@ -83,5 +86,7 @@ def test_release_evidence_plan_documents_rollback_and_static_checks() -> None:
 
 def test_smoke_and_verify_scripts_exist_for_asset_integrity() -> None:
     assert SMOKE_DEMO_PATH.is_file()
-    assert VERIFY_STATIC_PATH.is_file(), "verify-demo-static-assets.sh is required by ADR-035 bridge"
+    assert VERIFY_STATIC_PATH.is_file(), (
+        "verify-demo-static-assets.sh is required by ADR-035 bridge"
+    )
     assert BUILD_DEMO_PATH.is_file()

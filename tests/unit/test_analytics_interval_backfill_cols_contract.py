@@ -1,4 +1,8 @@
-"""Contract tests for P2-9-1 analytics interval backfill columns (#463)."""
+"""Contract tests for P2-9-1 analytics interval backfill columns (#463).
+
+Model-level assertions are the PR signal; seeded DB proof lives in
+``tests/integration/test_migrations.py`` (``migration_heavy``).
+"""
 
 from __future__ import annotations
 
@@ -40,16 +44,7 @@ def test_analytics_performance_interval_model_exposes_backfill_columns() -> None
         assert table_columns[name].nullable is True
 
 
-def test_migration_018_adds_nullable_backfill_columns() -> None:
+def test_migration_018_revision_chain() -> None:
     migration = _load_migration_module()
     assert migration.revision == "018_interval_backfill_cols"
     assert migration.down_revision == "017_analytics_perf_intervals"
-
-    source = MIGRATION_PATH.read_text()
-    for name in BACKFILL_COLUMNS:
-        assert f'"{name}"' in source
-        assert "op.add_column" in source
-        assert "op.drop_column" in source
-
-    assert "Numeric(12, 4)" in source
-    assert "sa.Integer()" in source

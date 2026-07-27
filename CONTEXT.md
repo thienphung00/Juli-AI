@@ -20,12 +20,24 @@ Tier-1 module catalog → [`MODULES.md`](docs/architecture/MODULES.md) ([ADR-036
 _Avoid_: conflating MODULES with map.md, EXECUTION slices as the only module backlog
 
 **Product phases**:
-The product/codebase progression timeline owned by [`EXECUTION.md`](EXECUTION.md) (Phases 1–5 completed product work, then 2.5, 2.6, 2.9, **2.10**, 3, …). Describes what the **seller product** ships. Distinct from **Agentic versions** and from historical **Agent Runtime migration** Phases 1–5 (harness bootstrap).
+The product/codebase progression timeline owned by [`EXECUTION.md`](EXECUTION.md) (Phases 1–5 completed product work, then 2.5, 2.6, 2.9, **2.10**, **2.11**, 3, …). Describes what the **seller product** ships (plus eng-facing phases like DOCP when listed in EXECUTION). Distinct from **Agentic versions** and from historical **Agent Runtime migration** Phases 1–5 (harness bootstrap).
 _Avoid_: Agent Runtime Phase N (when meaning product delivery), Agentic Version N (when meaning seller-product delivery)
 
 **Phase 2.10**:
 Product phase after 2.9 and before full Phase 3 — webhook/API ingest → raw Postgres → transform → compute → precomputed Postgres + Redis read-through cache → Analytics and Decisions on public Demo (no login / no OAuth). Slice checklists: [ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md), [ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md).
 _Avoid_: calling this “Phase 3”, visitor TikTok OAuth, Redis as system of record
+
+**Phase 2.11**:
+Product phase after 2.10 and before Phase 3 — ships the thin **DOCP** MVP (OpenObserve + PostHog) so runtime and UX reliability signals exist before Landing deploy and Demo Sign-in. Planned on a `2.11` planning branch; does not replace Phase 3 Landing/Sign-in. Strips PostHog from Phase 3’s exit once 2.11 owns wiring. **In scope:** structured logs + RED metrics + Slack alerts, Demo PostHog (`reliability.*`) with sampled replay, deploy SHA markers; vendor UIs only; hot retention policy (OO logs 14d / metrics 90d / PostHog 30d) documented — S3 archive pipeline not required to exit. **Deferred to Phase 2.11-B:** full traces/DB APM, Landing `product.*`, custom unified dashboard, automated change→deploy→user correlation, **hot→S3 cold archive export** (policy locked in 2.11).
+_Avoid_: calling DOCP Phase 3.1, folding DOCP into Phase 3 exit, requiring full change→deploy→user correlation in 2.11, requiring S3 archive to exit 2.11
+
+**Phase 2.11-B**:
+Follow-on DOCP deepening after the 2.11 thin MVP — fuller traces/APM, broader PostHog surfaces, cross-system correlation (code change → deploy → runtime → user impact), and **AWS S3 cold archive** of OO/PostHog telemetry after hot retention (not discard). Not a Phase 3 prerequisite.
+_Avoid_: treating 2.11-B as blocking Landing/Sign-in, merging 2.11 and 2.11-B into one exit gate
+
+**DOCP (Developer Observability Control Plane)**:
+Internal eng/ops observability module — OpenObserve for runtime (logs, metrics, traces, deploy/health) and PostHog for app UX reliability (sessions, flows, funnels, replay). Not seller-facing; must not duplicate Demo **Analytics** KPIs or product BI. Phase 3 engagement PostHog reuses one PostHog project with `reliability.*` vs `product.*` namespaces. First ship phase: **Phase 2.11**. **MODULES:** new top-level **§15 Observability (DOCP)**; ADR-035 / #498 ECS lives under **§12 CI/CD & Infra** as child **12.1 Public release platform** (not under DOCP). **Hosting (2.11):** OpenObserve Cloud + PostHog Cloud as the live query/alert plane — not CloudWatch as primary for VPS apps; not self-hosted on the product VPS. **Hot retention then cold archive:** OO logs 14d, OO metrics 90d, PostHog events/replay 30d; S3 archive in **2.11-B**. **Alerts (2.11):** Slack (existing uptime webhook + OpenObserve rules for API 5xx / health). **Correlation (2.11):** `request_id` on API logs/responses + best-effort PostHog attach on API failures; `release_sha` deploy markers on OO and PostHog. Secrets Manager holds OO/PostHog keys; CloudWatch for AWS-native compute stays under §12.1.
+_Avoid_: seller observability UI, cloning Analytics into PostHog, Sentry-as-DOCP, custom unified dashboard as v1 requirement, self-hosting OpenObserve on the Juli product VPS in 2.11, CloudWatch as primary app log/metrics/replay store, putting DOCP backlog under §12 or ECS under §15, PagerDuty in 2.11
 
 **Demo dual-layer read model**:
 Durable shop-scoped precomputed KPI/intelligence envelopes (Postgres SoT) plus mandatory Redis read-through cache — shared by Analytics and Decisions after transform→compute. See [ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md).
@@ -198,6 +210,28 @@ _Avoid_: treating outputs as decision-grade, persisting experiment rows into Ana
 **Mediated Juli GMV impact**:
 The intended future way to estimate Juli's effect on client GMV: compose **Juli → Product/LIVE mediators** and **mediators → GMV** elasticities. Requires shipped workflows plus enough history; calibration-grade until promotion gates exist. Hop detail: [ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md).
 _Avoid_: direct Juli→GMV as the only story, Value calculator assumption tabs as measured Juli impact
+
+## CI / test lanes
+
+**PR-safe Tests**:
+The default GitHub Actions `test` job on pull requests — unit + non-live integration, with `pytest-timeout` (30s/test) and a 15-minute job cap; runs `-m "not live and not demo_contract"` and keeps `--cov-fail-under=80`. Extends the two-tier CI model in ADR-003 / `pr.yml` without replacing merge_group fullness. See [ADR-040](docs/adr/040-pr-safe-tests-lane.md).
+_Avoid_: calling the whole `tests/` tree “PR tests”, assuming live Partner calls belong here
+
+**live (pytest marker)**:
+Tests that make real outbound TikTok Partner / sandbox HTTP calls. Excluded from **PR-safe Tests**; run in a dedicated merge_group job. See [ADR-040](docs/adr/040-pr-safe-tests-lane.md).
+_Avoid_: marking local ASGI webhook signature tests that only use sandbox secrets for HMAC as `live`
+
+**demo_contract (pytest marker)**:
+Demo deploy/exit-gate contract pytest owned by dedicated demo CI jobs (`demo-deploy-contracts` / `demo-e2e`). Excluded from the main `test` job to avoid double-running. See [ADR-040](docs/adr/040-pr-safe-tests-lane.md).
+_Avoid_: duplicating these files inside PR-safe Tests “just in case”
+
+**migration_heavy (pytest marker)**:
+Seeded Alembic downgrade/upgrade integration tests (`tests/integration/test_migrations.py`). Excluded from PR-safe Tests unless migration paths change; included on merge_group. Structural alembic still covered by `migration-check`. See [ADR-040](docs/adr/040-pr-safe-tests-lane.md).
+_Avoid_: treating `migration-check` as a substitute for seeded row assertions on merge_group
+
+**phase_scaffold (pytest marker)**:
+Completed Phase 2.5 deploy/doc scaffold contracts. Excluded from PR-safe Tests; run on merge_group only.
+_Avoid_: deleting these without a path-filtered or MQ replacement
 
 ## Agent runtime (Executor domains)
 

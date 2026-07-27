@@ -8,22 +8,24 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from juli_backend.core.config.runtime import sync_database_url
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
-from juli_backend.core.config.runtime import sync_database_url
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 LATEST_REVISION = "019_backfill_partitions"
+
+pytestmark = pytest.mark.migration_heavy
+
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -59,6 +61,7 @@ REVISION_018_COLUMNS = (
     "new_products",
 )
 REVISION_019_TABLE = "analytics_backfill_partitions"
+
 
 def _database_url() -> str:
     return os.environ.get("DATABASE_URL", "").strip()
@@ -123,7 +126,7 @@ def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
     order_id = uuid.uuid4()
     product_id = uuid.uuid4()
     sync_state_id = uuid.uuid4()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
 
     with engine.begin() as conn:
         conn.execute(
@@ -258,9 +261,7 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
             {"id": ids["user_id"]},
         ).one()
         shop = conn.execute(
-            text(
-                "SELECT shop_name, tiktok_shop_id FROM shops WHERE id = :id"
-            ),
+            text("SELECT shop_name, tiktok_shop_id FROM shops WHERE id = :id"),
             {"id": ids["shop_id"]},
         ).one()
         order = conn.execute(
@@ -422,9 +423,7 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
     with postgres_at_head.connect() as conn:
         order_count = conn.execute(text("SELECT COUNT(*) FROM orders")).scalar_one()
         product_count = conn.execute(text("SELECT COUNT(*) FROM products")).scalar_one()
-        sync_state_count = conn.execute(
-            text("SELECT COUNT(*) FROM tiktok_sync_state")
-        ).scalar_one()
+        sync_state_count = conn.execute(text("SELECT COUNT(*) FROM tiktok_sync_state")).scalar_one()
 
     assert order_count == 1
     assert product_count == 1
@@ -470,11 +469,13 @@ def test_unique_constraints_enforced_after_migration_round_trip(postgres_at_head
                     "status": "COMPLETED",
                     "total_amount": Decimal("1.00"),
                     "currency": "USD",
-                    "update_time": datetime.now(timezone.utc).replace(tzinfo=None),
+                    "update_time": datetime.now(UTC).replace(tzinfo=None),
                 },
             )
 
-    revision = postgres_at_head.connect().execute(
-        text("SELECT version_num FROM alembic_version")
-    ).scalar_one()
+    revision = (
+        postgres_at_head.connect()
+        .execute(text("SELECT version_num FROM alembic_version"))
+        .scalar_one()
+    )
     assert revision == LATEST_REVISION

@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.phase_scaffold
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
@@ -87,9 +89,7 @@ def test_provision_script_does_not_reference_forbidden_services():
         "celery": r"\bcelery\b",
     }
     lowered = _read(PROVISION_NGINX_PATH).lower()
-    problems = [
-        label for label, pattern in forbidden.items() if re.search(pattern, lowered)
-    ]
+    problems = [label for label, pattern in forbidden.items() if re.search(pattern, lowered)]
     assert not problems, f"provision script references out-of-scope: {problems}"
 
 

@@ -19,6 +19,8 @@ DEMO_PACKAGE = DEMO_ROOT / "package.json"
 PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr.yml"
 SMOKE_DEMO_PATH = REPO_ROOT / "infra" / "scripts" / "smoke-test-demo.sh"
 
+pytestmark = pytest.mark.demo_contract
+
 REQUIRED_SPECS = (
     "decisions-journey.spec.ts",
     "manual-refresh.spec.ts",
@@ -62,7 +64,7 @@ def test_public_smoke_script_covers_decisions_route() -> None:
 def test_deploy_contract_tests_remain_in_pr_workflow() -> None:
     text = PR_WORKFLOW.read_text(encoding="utf-8")
     assert "demo-deploy-contracts:" in text
-    assert "test_phase_2_6_demo_deploy_config.py" in text
+    assert "-m demo_contract" in text or "demo_contract" in text
 
 
 def test_e2e_covers_home_decisions_priority_workflow_cards_approval_in_progress() -> None:

@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.phase_scaffold
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
@@ -88,7 +90,9 @@ def test_provision_script_installs_juli_api_and_pip_deps():
 
 
 # AC4: Redis, cron, workers, ML, polling, webhooks not required.
-def test_backend_runbook_excludes_redis_cron_workers_webhooks_not_required(backend_runbook_text: str):
+def test_backend_runbook_excludes_redis_cron_workers_webhooks_not_required(
+    backend_runbook_text: str,
+):
     lowered = backend_runbook_text.lower()
     for term in ("redis", "cron", "worker", "ml", "polling", "webhook"):
         assert term in lowered, f"runbook must document {term} as out of scope"
@@ -101,14 +105,14 @@ def test_provision_script_does_not_reference_forbidden_services():
         "celery": r"\bcelery\b",
     }
     lowered = _read(PROVISION_BACKEND_PATH).lower()
-    problems = [
-        label for label, pattern in forbidden.items() if re.search(pattern, lowered)
-    ]
+    problems = [label for label, pattern in forbidden.items() if re.search(pattern, lowered)]
     assert not problems, f"provision script references out-of-scope: {problems}"
 
 
 # AC5: Alembic migrations skipped unless OAuth/login persistence requires schema.
-def test_backend_runbook_documents_alembic_migrations_skipped_unless_oauth(backend_runbook_text: str):
+def test_backend_runbook_documents_alembic_migrations_skipped_unless_oauth(
+    backend_runbook_text: str,
+):
     assert "Alembic" in backend_runbook_text or "alembic" in backend_runbook_text
     lowered = backend_runbook_text.lower()
     assert "skip" in lowered
