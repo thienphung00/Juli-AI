@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Gate: when publicRelease, require schema-valid releaseEvidencePlan (ADR-035)."""
+"""Gate: when publicRelease, require schema-valid releaseEvidencePlan (ADR-035).
+
+Plan SoT is a committed artifact (release-evidence-plan-issue-<N>.json or
+meta-prepare injectionPlan). Workflow caches stay local / gitignored; ensure
+hydrates the cache from the committed plan, and this gate prefers the
+committed file so CI does not depend on force-committed caches.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +20,10 @@ from common import (  # noqa: E402
     print_check_result,
     resolve_issue_number,
 )
-from release_evidence_plan import validate_release_evidence_plan  # noqa: E402
+from release_evidence_plan import (  # noqa: E402
+    resolve_release_evidence_plan,
+    validate_release_evidence_plan,
+)
 from workflow_cache_store import load_parent_child_caches  # noqa: E402
 
 
@@ -31,13 +40,15 @@ def run_check(
         return False, error or "Unable to load workflow caches", {"issueId": issue}
 
     public = bool(child_cache.get("publicRelease"))
-    profile = child_cache.get("issueLoadProfile") or {}
-    plan = profile.get("releaseEvidencePlan")
+    plan, plan_source = resolve_release_evidence_plan(
+        issue, repo_root, child_cache=child_cache
+    )
 
     details: dict[str, Any] = {
         "issueId": issue,
         "parentIssueId": child_cache.get("parentIssueId"),
         "publicRelease": public,
+        "planSource": plan_source,
         "authority": [
             "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
             ".cursor/rules/core-orchestration.mdc",
@@ -56,8 +67,8 @@ def run_check(
     details["missingFields"] = result["missingFields"]
     details["errors"] = result["errors"]
     details["resolution"] = (
-        "Complete issueLoadProfile.releaseEvidencePlan fields "
-        f"{result['missingFields'] or result['errors']}, then re-run "
+        "Commit agent-runtime/artifacts/release-evidence-plan-issue-"
+        f"{issue}.json (schema-valid releaseEvidencePlan), then re-run "
         f"meta_prepare_executor --issue {issue}"
     )
 

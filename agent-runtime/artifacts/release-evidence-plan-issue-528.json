@@ -1,0 +1,76 @@
+{
+  "planId": "rep-528-unavailable-kpi-contract",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic (ECS candidate path deferred to #498)",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-analytics-main-kpi-honest-naming",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "main_kpi_hero_label_is_gmv_or_unavailable_not_net_revenue_alias",
+          "ads_roas_cac_ctr_marked_unavailable",
+          "shop_status_sps_ahr_vp_marked_unavailable"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Contract/tests + Demo Main KPI naming honesty only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_analytics_kpi_unavailable_contract.py",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 528"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "ECS candidate verification / ALB cutover (deferred to #498)",
+    "Redis cache (#529)",
+    "public GET API (#531)",
+    "identity masking (#530)",
+    "user-traffic percentage canaries"
+  ]
+}

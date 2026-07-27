@@ -1016,6 +1016,7 @@ P2.10-A4:
     - docs/adr/038-phase-2.10-dual-layer-pipeline.md
     - docs/ml/visual_layer.md
     - CONTEXT.md
+    - agent-runtime/artifacts/release-evidence-plan-issue-528.json
   requiredModules:
     - backend/src/juli_backend/repositories/repos.py
   loadWhenNeeded:

@@ -20,6 +20,7 @@ from common import (  # noqa: E402
     resolve_issue_number,
     validation_artifact_path,
 )
+from release_evidence_plan import resolve_release_evidence_plan  # noqa: E402
 from workflow_cache_store import load_child_cache  # noqa: E402
 
 _ARTIFACT_SPECS: tuple[tuple[str, str, Any, Any], ...] = (
@@ -64,13 +65,15 @@ def run_check(
     if not canonical:
         return False, "Implementation artifact missing phaseRunId", {"issueId": issue}
 
-    profile = child_cache.get("issueLoadProfile") or {}
-    plan = profile.get("releaseEvidencePlan") or {}
-    required_artifacts = plan.get("requiredArtifacts") or {}
+    plan, plan_source = resolve_release_evidence_plan(
+        issue, repo_root, child_cache=child_cache
+    )
+    required_artifacts = (plan or {}).get("requiredArtifacts") or {}
 
     details: dict[str, Any] = {
         "issueId": issue,
         "canonicalPhaseRunId": canonical,
+        "planSource": plan_source,
         "artifacts": {},
     }
     mismatches: list[str] = []

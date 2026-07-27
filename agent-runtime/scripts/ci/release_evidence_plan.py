@@ -2,10 +2,17 @@
 
 Pure-stdlib validator (no jsonschema) so Meta CI validate-artifacts can import
 without installing optional deps.
+
+Committed plan SoT (CI-readable; workflow-cache stays local / gitignored):
+  1. ``agent-runtime/artifacts/release-evidence-plan-issue-<N>.json``
+  2. ``meta-prepare-issue-<N>.json`` → ``injectionPlan.releaseEvidencePlan``
+  3. Child cache ``issueLoadProfile.releaseEvidencePlan`` (local Meta fallback)
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 REQUIRED_TOP_LEVEL_FIELDS: list[str] = [
@@ -79,6 +86,72 @@ def _require_keys(obj: dict[str, Any], keys: list[str], path: str, errors: list[
     for key in keys:
         if key not in obj:
             errors.append(f"{path}: missing required property {key!r}")
+
+
+def release_evidence_plan_artifact_path(repo_root: Path, issue: int) -> Path:
+    return (
+        repo_root
+        / "agent-runtime"
+        / "artifacts"
+        / f"release-evidence-plan-issue-{issue}.json"
+    )
+
+
+def meta_prepare_artifact_path(repo_root: Path, issue: int) -> Path:
+    return repo_root / "agent-runtime" / "artifacts" / f"meta-prepare-issue-{issue}.json"
+
+
+def _load_json_object(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def resolve_release_evidence_plan(
+    issue: int,
+    repo_root: Path,
+    *,
+    child_cache: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Load the schema-valid plan object from committed artifacts first.
+
+    Returns ``(plan, source)`` where ``source`` is a repo-relative path or
+    ``"workflow-cache"`` when falling back to the local child cache.
+    """
+    committed = release_evidence_plan_artifact_path(repo_root, issue)
+    loaded = _load_json_object(committed)
+    if loaded is not None:
+        return loaded, committed.relative_to(repo_root).as_posix()
+
+    meta_path = meta_prepare_artifact_path(repo_root, issue)
+    meta = _load_json_object(meta_path)
+    if meta is not None:
+        injection = meta.get("injectionPlan")
+        if isinstance(injection, dict):
+            plan = injection.get("releaseEvidencePlan")
+            if isinstance(plan, dict):
+                return plan, meta_path.relative_to(repo_root).as_posix()
+        # Older meta-prepare dumps also nest the plan under child cache snapshot.
+        child = meta.get("childCache")
+        if isinstance(child, dict):
+            profile = child.get("issueLoadProfile") or {}
+            if isinstance(profile, dict):
+                plan = profile.get("releaseEvidencePlan")
+                if isinstance(plan, dict):
+                    return plan, meta_path.relative_to(repo_root).as_posix()
+
+    if child_cache is not None:
+        profile = child_cache.get("issueLoadProfile") or {}
+        if isinstance(profile, dict):
+            plan = profile.get("releaseEvidencePlan")
+            if isinstance(plan, dict):
+                return plan, "workflow-cache"
+
+    return None, None
 
 
 def validate_release_evidence_plan(plan: Any) -> dict[str, Any]:
