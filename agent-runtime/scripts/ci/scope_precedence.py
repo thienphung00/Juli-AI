@@ -6,7 +6,10 @@ import re
 from typing import Any
 
 EXECUTION_MD = "EXECUTION.md"
-SLICE_IN_REASON_RE = re.compile(r"\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\b")
+# Allow dotted phase segments (e.g. P2.10-A1) in addition to hyphenated IDs (P2-A1).
+SLICE_IN_REASON_RE = re.compile(
+    r"\b([A-Z0-9]+(?:\.[A-Z0-9]+)*(?:-[A-Z0-9]+(?:\.[A-Z0-9]+)*)+)\b"
+)
 
 RANK_EXECUTION = 1
 RANK_PARENT = 2

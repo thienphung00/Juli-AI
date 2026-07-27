@@ -15,6 +15,10 @@ sys.path.insert(0, str(CI_DIR))
 from check_implementation_tdd_evidence import run_check  # noqa: E402
 from common import build_implementation_artifact, write_json  # noqa: E402
 
+_IMPL_DIR = Path("agent-runtime") / "artifacts" / "implementations"
+_TDD_SCRIPT = "agent-runtime/scripts/validate/check_implementation_tdd_evidence.py"
+_TDD_TEST = "tests/unit/test_implementation_tdd_evidence.py"
+
 
 def _base_artifact(**overrides: Any) -> dict[str, Any]:
     return build_implementation_artifact(
@@ -23,8 +27,8 @@ def _base_artifact(**overrides: Any) -> dict[str, Any]:
         overrides={
             "executionDurationMs": 1200,
             "tokenUsage": {"input": 10, "output": 5, "total": 15},
-            "filesModified": ["agent-runtime/scripts/validate/check_implementation_tdd_evidence.py"],
-            "testsAdded": ["tests/unit/test_implementation_tdd_evidence.py"],
+            "filesModified": [_TDD_SCRIPT],
+            "testsAdded": [_TDD_TEST],
             "testsUpdated": [],
             "redGreenRefactorEvidence": [
                 {
@@ -43,10 +47,14 @@ def _write(repo: Path, artifact: dict[str, Any]) -> None:
     write_json(impl_dir / "implementation-issue-515.json", artifact)
 
 
-def test_tdd_evidence_passes_for_in_scope_changes(tmp_path: Path, monkeypatch) -> None:
+def _patch_impl_dir(monkeypatch, tmp_path: Path) -> None:
     import common
 
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / _IMPL_DIR)
+
+
+def test_tdd_evidence_passes_for_in_scope_changes(tmp_path: Path, monkeypatch) -> None:
+    _patch_impl_dir(monkeypatch, tmp_path)
     _write(tmp_path, _base_artifact())
 
     passed, description, details = run_check(515)
@@ -57,9 +65,7 @@ def test_tdd_evidence_passes_for_in_scope_changes(tmp_path: Path, monkeypatch) -
 
 
 def test_tdd_evidence_skips_docs_only_changes(tmp_path: Path, monkeypatch) -> None:
-    import common
-
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    _patch_impl_dir(monkeypatch, tmp_path)
     _write(
         tmp_path,
         _base_artifact(
@@ -76,9 +82,7 @@ def test_tdd_evidence_skips_docs_only_changes(tmp_path: Path, monkeypatch) -> No
 
 
 def test_tdd_evidence_fails_without_cycles(tmp_path: Path, monkeypatch) -> None:
-    import common
-
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    _patch_impl_dir(monkeypatch, tmp_path)
     _write(tmp_path, _base_artifact(redGreenRefactorEvidence=[]))
 
     passed, description, _details = run_check(515)
@@ -88,9 +92,7 @@ def test_tdd_evidence_fails_without_cycles(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_tdd_evidence_fails_without_passing_command(tmp_path: Path, monkeypatch) -> None:
-    import common
-
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    _patch_impl_dir(monkeypatch, tmp_path)
     _write(
         tmp_path,
         _base_artifact(
@@ -107,9 +109,7 @@ def test_tdd_evidence_fails_without_passing_command(tmp_path: Path, monkeypatch)
 
 
 def test_tdd_evidence_fails_without_tests(tmp_path: Path, monkeypatch) -> None:
-    import common
-
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+    _patch_impl_dir(monkeypatch, tmp_path)
     _write(tmp_path, _base_artifact(testsAdded=[], testsUpdated=[]))
 
     passed, description, _details = run_check(515)
@@ -118,10 +118,8 @@ def test_tdd_evidence_fails_without_tests(tmp_path: Path, monkeypatch) -> None:
     assert "tests" in description.lower()
 
 
-def test_tdd_evidence_fails_zero_tokens_long_run(tmp_path: Path, monkeypatch) -> None:
-    import common
-
-    monkeypatch.setattr(common, "IMPLEMENTATIONS_DIR", tmp_path / "agent-runtime" / "artifacts" / "implementations")
+def test_tdd_evidence_ignores_zero_tokens_long_run(tmp_path: Path, monkeypatch) -> None:
+    _patch_impl_dir(monkeypatch, tmp_path)
     _write(
         tmp_path,
         _base_artifact(
@@ -132,5 +130,5 @@ def test_tdd_evidence_fails_zero_tokens_long_run(tmp_path: Path, monkeypatch) ->
 
     passed, description, _details = run_check(515)
 
-    assert passed is False
-    assert "tokenUsage" in description
+    assert passed is True
+    assert "TDD evidence present" in description

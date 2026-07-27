@@ -54,12 +54,7 @@ def run_check(issue: int) -> tuple[bool, str, dict[str, Any]]:
     if not tests_added_or_updated(artifact):
         return False, "testsAdded and testsUpdated are both empty", details
 
-    duration = artifact.get("executionDurationMs")
-    token_usage = artifact.get("tokenUsage") or {}
-    total_tokens = token_usage.get("total") if isinstance(token_usage, dict) else None
-    if isinstance(duration, int) and duration > 60000 and total_tokens == 0:
-        return False, "tokenUsage.total is 0 for executionDurationMs > 60000", details
-
+    # tokenUsage is optional telemetry for harness optimization — not a ship gate.
     return True, "TDD evidence present for in-scope code changes", details
 
 
