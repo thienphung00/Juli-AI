@@ -32,7 +32,11 @@ async def build_gmv_tiktok_kpi(
     if not rows:
         return {"availability": "unavailable", "label": GMV_TIKTOK_LABEL}
 
-    series = [{"t": row.start_date.isoformat(), "v": float(row.gmv)} for row in rows]
+    series = [
+        {"t": row.start_date.isoformat(), "v": float(row.gmv)}
+        for row in rows
+        if row.gmv is not None
+    ]
     return {
         "availability": "available",
         "label": GMV_TIKTOK_LABEL,
