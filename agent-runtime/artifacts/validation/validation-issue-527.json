@@ -1,11 +1,11 @@
 {
   "id": "validation-issue-527",
   "issue": 527,
-  "timestamp": "2026-07-27T08:04:36Z",
+  "timestamp": "2026-07-27T08:12:17Z",
   "validatedBy": "validate skill",
-  "status": "FAIL",
-  "passedChecks": 17,
-  "failedChecks": 4,
+  "status": "PASS",
+  "passedChecks": 21,
+  "failedChecks": 0,
   "checks": [
     {
       "name": "review_artifact_present",
@@ -33,15 +33,13 @@
     },
     {
       "name": "acceptance_criteria_mapped",
-      "status": "FAIL",
-      "description": "Acceptance criteria mapping invalid",
+      "status": "PASS",
+      "description": "All acceptance criteria mapped to tests",
       "details": {
         "total": 4,
         "mapped": 4,
         "unmapped": [],
-        "problems": [
-          "criterion/test name mismatch: 'Missing sources yield unavailable (not fabricated)' -> test_precompute_live_performance_unavailable_revenue_only"
-        ]
+        "problems": []
       }
     },
     {
@@ -143,18 +141,39 @@
     },
     {
       "name": "public_release_classification",
-      "status": "FAIL",
-      "description": "Parent cache missing: agent-runtime/artifacts/workflow-cache/parent-cache-issue-524.json",
+      "status": "PASS",
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
       "details": {
-        "issueId": 527
+        "issueId": 527,
+        "parentIssueId": 524,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 527 so ensure persists publicRelease classification"
       }
     },
     {
       "name": "public_release_evidence_plan",
-      "status": "FAIL",
-      "description": "Parent cache missing: agent-runtime/artifacts/workflow-cache/parent-cache-issue-524.json",
+      "status": "PASS",
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
       "details": {
-        "issueId": 527
+        "issueId": 527,
+        "parentIssueId": 524,
+        "publicRelease": false,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
       }
     },
     {
@@ -170,8 +189,8 @@
     },
     {
       "name": "implementation_tdd_evidence",
-      "status": "FAIL",
-      "description": "tokenUsage.total is 0 for executionDurationMs > 60000",
+      "status": "PASS",
+      "description": "TDD evidence present for in-scope code changes",
       "details": {
         "issueId": 527,
         "requiresTddEvidence": true,
@@ -255,8 +274,8 @@
       }
     }
   ],
-  "overallSummary": "4 validation check(s) failed.",
-  "readyForMerge": false,
+  "overallSummary": "All validation checks passed.",
+  "readyForMerge": true,
   "warningGated": false,
   "mergeBlockedByWarnings": false,
   "mergeOverrideActive": false,
@@ -265,8 +284,8 @@
   "schemaVersion": "1.0.0",
   "artifactType": "validation",
   "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-527.json",
-  "validationFailures": 4,
-  "readyForShip": false,
+  "validationFailures": 0,
+  "readyForShip": true,
   "retryCount": 0,
   "testsExecuted": 19,
   "testsPassed": 19,

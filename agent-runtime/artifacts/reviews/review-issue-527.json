@@ -83,15 +83,15 @@
         },
         {
           "criterion": "Missing sources yield unavailable (not fabricated)",
-          "test": "tests/unit/test_analytics_kpi_precompute_wire.py::test_precompute_live_performance_unavailable_revenue_only"
+          "test": "tests/unit/test_analytics_kpi_precompute_wire.py::test_precompute_missing_sources_yield_unavailable_not_fabricated"
         },
         {
           "criterion": "Inventory/Ops/CSAT included only when aggregate builders already provide values; otherwise unavailable",
-          "test": "tests/unit/test_analytics_kpi_precompute_wire.py::test_precompute_live_performance_unavailable_revenue_only"
+          "test": "tests/unit/test_analytics_kpi_precompute_wire.py::test_precompute_inventory_ops_csat_unavailable_without_aggregate_builders"
         },
         {
           "criterion": "Pytest covers available vs unavailable paths for at least one product and one LIVE KPI",
-          "test": "tests/unit/test_analytics_kpi_precompute_product_live.py::test_build_product_funnel_kpi_unavailable_empty"
+          "test": "tests/unit/test_analytics_kpi_precompute_product_live.py::test_build_live_performance_kpi_unavailable_revenue_only_shop"
         }
       ]
     },
