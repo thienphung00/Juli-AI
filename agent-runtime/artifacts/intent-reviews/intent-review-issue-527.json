@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-527",
+  "issue": 527,
+  "timestamp": "2026-07-27T08:02:35Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "fe3f051c0d437b3a7b0662fcd3f88b10d2cb1b39",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff fe3f051c..b1a1ed58 (#527 + merged #526 GMV). precompute_shop_analytics_kpis wires product_funnel (A-34 product-grain GMV by day) and live_performance (A-28/A-29 shop-grain LIVE rows only) into analytics envelope with availability flags and meta.source_partitions. LIVE builder filters revenue-only A-36 shop rows via _is_live_marked_row (live_hours/live_sessions/click_through_rate). Missing sources return unavailable with empty/omitted series \u2014 no fabrication. Inventory/Ops/CSAT keys omitted per scout/MODULE.md (no daily series builders). JSONB merge assigns new payload dict. 19 pytest cases pass (product_live pure builders + wire integration).",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_analytics_kpi_precompute_product_live.py",
+      "hunk": "_product_interval and _shop_interval fixture builders duplicated in test_analytics_kpi_precompute_wire.py",
+      "judgement": true
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md \u2014 Inventory/Ops/CSAT omission",
+      "path": "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+      "note": "Documents that Inventory/Ops/CSAT keys are not wired; omit rather than fabricate \u2014 satisfies AC3 via design.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "performance.mdc \u2014 redundant query",
+      "path": "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+      "note": "precompute loads all shop intervals once but build_gmv_tiktok_kpi (#526) still issues a separate shop-grain GMV query; acceptable for this slice, optional follow-up to pass intervals.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "527-20260727T075300"
+}

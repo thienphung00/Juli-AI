@@ -1,0 +1,198 @@
+{
+  "id": "review-issue-527",
+  "issue": 527,
+  "timestamp": "2026-07-27T08:04:35Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #527 P2.10-A3: intent-review spec_fidelity=pass consumed as given. Merged #526 GMV + product_funnel/live_performance builders wired into precompute_shop_analytics_kpis with availability flags, LIVE marker filter excluding revenue-only A-36 rows, JSONB-safe payload merge, and dynamic meta.source_partitions. Inventory/Ops/CSAT omitted (no daily builders). 19 unit tests pass; no reliability/security blockers.",
+  "criticalFindings": [
+    {
+      "id": "527-info-duplicated-test-fixtures",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_precompute_product_live.py",
+      "description": "Intent-review smell (non-blocking): _product_interval/_shop_interval helpers duplicated in test_analytics_kpi_precompute_wire.py.",
+      "suggestion": "Optional shared conftest helper for precompute interval fixtures."
+    },
+    {
+      "id": "527-info-gmv-double-query",
+      "type": "performance",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+      "description": "Intent-review convention note: build_gmv_tiktok_kpi re-queries shop intervals while precompute already loaded intervals for product/LIVE builders.",
+      "suggestion": "Optional follow-up: pass loaded intervals into GMV builder to avoid redundant DB round-trip."
+    },
+    {
+      "id": "527-info-inventory-omit-by-design",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+      "description": "AC3 satisfied by omission: Inventory/Ops/CSAT keys not added to envelope; MODULE.md documents no daily series builders exist.",
+      "suggestion": "No action required unless future slice adds aggregate-backed daily builders."
+    },
+    {
+      "id": "527-info-ac2-validate-gate-heuristic",
+      "type": "test_gap",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_precompute_wire.py",
+      "description": "AC2 behavior covered via unavailable wire tests + _assert_no_fabricated_series, but validate acceptance_criteria_mapped gate criterion_matches_test heuristic has no matching pytest node name for AC2 wording.",
+      "suggestion": "Optional: rename/add test with \u22652 AC2 tokens in name, or waive gate for semantic mapping."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/analytics_kpi_precompute/__init__.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/gmv.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/product_live.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+    "tests/unit/test_analytics_kpi_precompute_gmv.py",
+    "tests/unit/test_analytics_kpi_precompute_product_live.py",
+    "tests/unit/test_analytics_kpi_precompute_wire.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/analytics_kpi_precompute",
+      "interface": "precompute_shop_analytics_kpis",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Envelope kpis map now includes product_funnel and live_performance slices merged with gmv_tiktok."
+    },
+    {
+      "module": "backend/src/juli_backend/services/analytics_kpi_precompute",
+      "interface": "build_product_funnel_kpi / build_live_performance_kpi",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Pure KPI envelope builders for A-34 and A-28/A-29 partitions."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Precompute fills product/LIVE series from fixtures when present",
+          "test": "tests/unit/test_analytics_kpi_precompute_wire.py::test_precompute_product_funnel_available"
+        },
+        {
+          "criterion": "Missing sources yield unavailable (not fabricated)",
+          "test": "tests/unit/test_analytics_kpi_precompute_wire.py::test_precompute_missing_sources_yield_unavailable_not_fabricated"
+        },
+        {
+          "criterion": "Inventory/Ops/CSAT included only when aggregate builders already provide values; otherwise unavailable",
+          "test": "tests/unit/test_analytics_kpi_precompute_wire.py::test_precompute_inventory_ops_csat_unavailable_without_aggregate_builders"
+        },
+        {
+          "criterion": "Pytest covers available vs unavailable paths for at least one product and one LIVE KPI",
+          "test": "tests/unit/test_analytics_kpi_precompute_product_live.py::test_build_live_performance_kpi_unavailable_revenue_only_shop"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 19,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Optional shared conftest for interval fixture builders",
+    "Optional pass loaded intervals into build_gmv_tiktok_kpi to avoid double query",
+    "Optional AC2 test rename to satisfy validate criterion_matches_test heuristic"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 1,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..b1a1ed58 on feature/issue-527-product-live-precompute",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-527.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-527.json",
+  "reviewDurationMs": 240000,
+  "phaseRunId": "527-20260727T075300",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "527-info-duplicated-test-fixtures",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_precompute_product_live.py",
+      "description": "Intent-review smell (non-blocking): _product_interval/_shop_interval helpers duplicated in test_analytics_kpi_precompute_wire.py.",
+      "suggestion": "Optional shared conftest helper for precompute interval fixtures."
+    },
+    {
+      "id": "527-info-gmv-double-query",
+      "type": "performance",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+      "description": "Intent-review convention note: build_gmv_tiktok_kpi re-queries shop intervals while precompute already loaded intervals for product/LIVE builders.",
+      "suggestion": "Optional follow-up: pass loaded intervals into GMV builder to avoid redundant DB round-trip."
+    },
+    {
+      "id": "527-info-inventory-omit-by-design",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+      "description": "AC3 satisfied by omission: Inventory/Ops/CSAT keys not added to envelope; MODULE.md documents no daily series builders exist.",
+      "suggestion": "No action required unless future slice adds aggregate-backed daily builders."
+    },
+    {
+      "id": "527-info-ac2-validate-gate-heuristic",
+      "type": "test_gap",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_precompute_wire.py",
+      "description": "AC2 behavior covered via unavailable wire tests + _assert_no_fabricated_series, but validate acceptance_criteria_mapped gate criterion_matches_test heuristic has no matching pytest node name for AC2 wording.",
+      "suggestion": "Optional: rename/add test with \u22652 AC2 tokens in name, or waive gate for semantic mapping."
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "id": "527-info-inventory-omit-by-design",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+      "description": "AC3 satisfied by omission: Inventory/Ops/CSAT keys not added to envelope; MODULE.md documents no daily series builders exist.",
+      "suggestion": "No action required unless future slice adds aggregate-backed daily builders."
+    },
+    {
+      "id": "527-info-ac2-validate-gate-heuristic",
+      "type": "test_gap",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_analytics_kpi_precompute_wire.py",
+      "description": "AC2 behavior covered via unavailable wire tests + _assert_no_fabricated_series, but validate acceptance_criteria_mapped gate criterion_matches_test heuristic has no matching pytest node name for AC2 wording.",
+      "suggestion": "Optional: rename/add test with \u22652 AC2 tokens in name, or waive gate for semantic mapping."
+    }
+  ],
+  "suggestedRemediation": [
+    "Optional shared conftest helper for precompute interval fixtures.",
+    "Optional follow-up: pass loaded intervals into GMV builder to avoid redundant DB round-trip.",
+    "No action required unless future slice adds aggregate-backed daily builders.",
+    "Optional: rename/add test with \u22652 AC2 tokens in name, or waive gate for semantic mapping."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}
