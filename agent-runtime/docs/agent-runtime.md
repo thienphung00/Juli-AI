@@ -168,7 +168,7 @@ pipeline.
 - Implement features, review its own routing decisions, or bypass Review Agent / Validate.
 - Automatically edit skills, rules, architecture docs, PRDs, ADRs, or product scope.
   Safe auto-apply is limited to harness configuration, benchmark thresholds, context
-  budget hints, and executor routing hints (Phase 6+).
+  budget hints, and executor routing hints (Version 1+).
 
 Config: `workflow_prompt_cache.requireValidCacheBeforeExecutor` and
 `agents.meta.pre_executor_command` in
@@ -321,7 +321,7 @@ vendor API material (`api-docs`, `platform-docs`), or start implementation.
 ## Meta optimization loop (overview)
 
 [`agent-runtime-artifacts.md`](agent-runtime-artifacts.md). Skill emission is documented
-in domain executor and review/validate skills; harness automation lands in Phase 6.
+in domain executor and review/validate skills; harness automation lands in Agentic Version 1.
 
 ### Signal collection
 
@@ -352,7 +352,7 @@ in domain executor and review/validate skills; harness automation lands in Phase
 - Meta emits `harness-optimization-artifact` after each complete run.
 - Safe, config-scoped changes may be marked `autoApplyEligible`.
 - Approved harness update targets: `focus` routing tables, context budgets,
-  `docs/handoffs/context-plan-template.md`, `agent-runtime.config.yml` (Phase 6+),
+  `docs/handoffs/context-plan-template.md`, `agent-runtime.config.yml` (Version 1+),
   benchmark task definitions ([`agent-runtime-benchmarks.md`](agent-runtime-benchmarks.md)).
 
 ### Product-development optimization

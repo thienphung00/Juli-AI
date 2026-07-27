@@ -40,3 +40,4 @@
 | [033](033-weekly-secrets-security-check.md) | Weekly secrets-first security check (report + prepare; VPS + website leak paths) | Accepted |
 | [034](034-tiktok-business-oauth-redirect-urls.md) | TikTok Business OAuth redirect URL pair (Advertiser + account holder) | Accepted |
 | [035](035-public-release-evidence-and-automatic-rollback.md) | Public release evidence contract + automatic rollback | Accepted |
+| [036](036-modules-tier1-planning-sot.md) | MODULES.md Tier-1 module planning SoT + doc tier ladder | Accepted |

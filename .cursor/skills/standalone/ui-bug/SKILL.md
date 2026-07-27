@@ -42,7 +42,7 @@ Issue body format:
 
 ```markdown
 ## What's wrong
-[component name, incorrect value, surface: ios/ or web/]
+[component name, incorrect value, surface: ios/, apps/demo/, or apps/dashboard/]
 ## What it should be
 [correct value from design token system or user annotation]
 ## Screenshot
@@ -55,6 +55,6 @@ Labels: `bug`, `ui`
 
 ## Per-issue loop
 
-- `focus` loads `ui-ux` executor + `ui-ux-design` + `swift-patterns` (iOS) or `nextjs` (web).
-- Executor uses built-in TDD: SwiftUI Preview (iOS) or React Testing Library (web) as the fast feedback loop.
+- `focus` loads `ui-ux` executor + `ui-ux-design` + `swift-patterns` (iOS) or `nextjs` (apps/demo or apps/dashboard).
+- Executor uses built-in TDD: SwiftUI Preview (iOS) or React Testing Library (apps/demo or apps/dashboard) as the fast feedback loop.
 - `review` → `validate` → `ship` verifies the acceptance criterion passes before closing the issue.

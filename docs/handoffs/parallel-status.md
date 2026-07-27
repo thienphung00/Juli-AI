@@ -8,7 +8,7 @@
 |---|----------|
 | 1 | **Parallel** #490 + #491 — path-disjoint vertical slices |
 | 2 | Shared-core ADR-034 + CONTEXT land first (`feature/adr-032-tiktok-business-oauth-redirects` → renumbered ADR-034) |
-| 3 | Open individual PRs; CI green; **sync-before-merge** onto current `origin/main` |
+| 3 | Open individual PRs; PR fast CI green; enqueue **GitHub Merge Queue** (`merge_group` full suite) |
 | 4 | Hard failure: retry ×2, then stop |
 | 5 | No Marketing API campaign CRUD, Ads ETL, or Connect Ads UI in this wave |
 | 6 | Do **not** edit Shop `auth_tiktok.py` behavior (read-only prior art) |
@@ -44,7 +44,7 @@
 |-------|-------|
 | **Owner** | Meta (sequential ship) |
 | **PR** | Individual — ADR-034 → #490 → #491 |
-| **Merge** | sync-before-merge onto current `origin/main` |
+| **Merge** | GitHub Merge Queue after PR fast CI green (`merge_group` full suite); sync-before-merge fallback if queue unavailable |
 | **AFK** | Yes — mocked TikTok HTTP |
 
 ### Remote op log

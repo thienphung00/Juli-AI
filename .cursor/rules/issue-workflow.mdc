@@ -12,22 +12,24 @@ Topology (slots, ephemeral `feature/*`, shared-core): [`docs/handoffs/worktree-b
 | Modules overlap another **ready** issue, or change touches **shared core** | **Isolate** — one issue at a time |
 | Unblocked and path-disjoint from other ready issues | **Parallel** — one worktree per **task** (not a permanent FE/BE lane) |
 
-**Shared core** (never bundle into a feature PR): `packages/contracts`, root workspace/CI config, canonical `docs/architecture/*`, `CONTEXT.md`. Land a dedicated PR first. `packages/contracts` is FE-owned until an OpenAPI/codegen ADR.
+**Shared core** (never bundle into a feature PR): canonical list in the topology handoff (`packages/contracts`, root workspace/CI config, canonical `docs/architecture/*`, `CONTEXT.md`, …). Land a dedicated PR first. `packages/contracts` is FE-owned until an OpenAPI/codegen ADR.
 
 ## Parallel pipeline (no blocked)
 
 Per issue, independently:
 
-`implement` → Review Agent (`intent-review` → `guardrails` → `validate`) → commit → open **individual** PR → CI green → **sync-before-merge** → merge
+`implement` → Review Agent (`intent-review` → `guardrails` → `validate`) → commit → open **individual** PR → PR **fast CI** (path-filtered lint/type/cheap tests) → **GitHub Merge Queue** (`merge_group` full suite) → merge
 
 Do **not** batch parallel work into one PR. Path-disjoint issues stay on separate branches/PRs.
 
-### Sync-before-merge (required)
+Path-disjoint **product** PRs may **auto-enqueue** to Merge Queue after Review Agent passes and PR fast CI is green. **Human approval** required before enqueue/merge for **shared-core**, **auth**, **prod-config**, and **public-release** changes.
 
-Rebase (or merge) onto **current** `origin/main` **immediately before merge**, not only at branch cut or first PR open. Sibling PR #1 can land while #2 is still in review — that is when conflicts appear. After sync: push (`--force-with-lease` if rebased), confirm CI green again, then merge. Owned by Review Agent `ship` + ops lock holder.
+### Sync-before-merge (fallback — cutover only)
+
+Use when Merge Queue is **unavailable** (cutover, outage, or **user-owned repo** — GitHub MQ requires an org-owned repository; see topology handoff). Rebase (or merge) onto **current** `origin/main` immediately before merge, push (`--force-with-lease` if rebased), confirm CI green again, then merge directly. Prefer Merge Queue once the repo is org-owned and the queue is enabled.
 
 ## GitHub ops (parallel runs)
 
 - One agent holds the ops lock in the active `docs/handoffs/parallel-status.md` (create/update per parallel run).
-- Ops owner alone: `git push`, `gh pr create|merge|checks`, issue close on `main`.
+- Ops owner alone: `git push`, `gh pr create|merge|checks`, Merge Queue enqueue, issue close on `main`.
 - Others: commit locally; stagger remote ops ≥ **30s**.

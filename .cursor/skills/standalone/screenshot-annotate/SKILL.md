@@ -20,7 +20,7 @@ For each screenshot, produce a markdown file at `docs/ui-bugs/YYYY-MM-DD-{slug}-
 
 ```markdown
 # UI state: [surface] — [brief description]
-Surface: ios/ | web/
+Surface: ios/ | apps/demo/ | apps/dashboard/
 Date: YYYY-MM-DD
 
 ## Visible components

@@ -51,7 +51,7 @@ Cheat sheet for [ADR-003](../adr/003-ai-native-cicd-policy.md). Pair with
 
 ## Agent Phase Chains
 
-See [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md).
+See [`agent-runtime/docs/agent-runtime.md`](../../agent-runtime/docs/agent-runtime.md).
 
 ```
 Planning:       focus -> to-prd -> to-issues

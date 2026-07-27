@@ -1,14 +1,14 @@
 ---
 name: ui-ux-design
 description: >-
-  Builds production-grade Next.js UI for the Juli web app with strong UX,
+  Builds production-grade Next.js UI for Juli product apps with strong UX,
   accessibility, and brand consistency. Use when creating or refining components,
-  pages, dashboards, forms, modals, or layouts under web/, or when the user asks
-  to improve how something looks or feels.
+  pages, dashboards, forms, modals, or layouts under apps/demo or apps/dashboard,
+  or when the user asks to improve how something looks or feels.
 catalog:
   pluginIndex: skill-catalog
   loadWhen:
-    - web/ next.js component page layout form modal dashboard
+    - apps/demo apps/dashboard next.js component page layout form modal dashboard
     - ui ux visual polish accessibility vietnamese
   companionSkills:
     - nextjs
@@ -28,15 +28,16 @@ hooks:
             Respond {"ok": true} or {"ok": false, "reason": "specific gap"}.
 ---
 
-# UI/UX Design (Juli web)
+# UI/UX Design (Juli product apps)
 
-Working code in `web/` — not mockups. Follow existing patterns before inventing new ones.
+Working code in `apps/demo/` (primary) and `apps/dashboard/` (legacy/prod path) —
+not mockups. Follow existing patterns before inventing new ones.
 
 ## When to invoke
 
 | Signal | Action |
 |--------|--------|
-| New/changed component, page, modal, form | Load this skill + `web/MODULE.md` |
+| New/changed component, page, modal, form | Load this skill + affected app `MODULE.md` |
 | "Make this look better" / screenshot pasted | Assess gap vs brand; patch in place |
 | Figma → code | Also load `figma-use` + Figma MCP |
 | Adding shadcn registry component | Also load `shadcn` plugin skill |
@@ -49,11 +50,11 @@ Working code in `web/` — not mockups. Follow existing patterns before inventin
 
 Before editing:
 
-1. [`web/MODULE.md`](../../../../web/MODULE.md) — routes, invariants, locale
-2. Nearest existing component (grep `web/src/components/` for similar UI)
+1. [`apps/demo/MODULE.md`](../../../../apps/demo/MODULE.md) or [`apps/dashboard/MODULE.md`](../../../../apps/dashboard/MODULE.md) — routes, invariants, locale
+2. Nearest existing component (grep `apps/demo/src/components/` or `apps/dashboard/src/components/` for similar UI)
 3. [REFERENCE.md](REFERENCE.md) — tokens, primitives, layout, copy
 
-Load plugin skills when Focus selects them: `nextjs`, `react-best-practices`; `shadcn` only when introducing registry components (no `components/ui/` yet — prefer existing `.card`, `.btn-*` classes first).
+Load plugin skills when Focus selects them: `nextjs`, `react-best-practices`; `shadcn` only when introducing registry components (prefer `@juli/ui` and existing `.card`, `.btn-*` classes first).
 
 ### 2. Design within brand
 
@@ -73,8 +74,8 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 | Requirement | Standard |
 |-------------|----------|
 | Copy | Vietnamese with proper diacritics |
-| Money/dates | `formatVND`, `formatDate`, `formatDateTime` from `@/lib/format` |
-| Theming | `var(--*)` and `@layer components` utilities in `globals.css` |
+| Money/dates | `formatVND`, `formatDate`, `formatDateTime` from `@/lib/format` (dashboard) or `@juli/utils` (demo) |
+| Theming | `var(--*)` and `@layer components` utilities in `globals.css` or `@juli/theme` tokens |
 | Structure | Semantic HTML (`header`, `nav`, `main`, `article`, `button`) |
 | States | default · hover (color shift/shadow lift) · active (scale 0.98) · focus-visible (3px ring + offset) · disabled (muted, not-allowed) · loading (inline spinner) · error/empty |
 | A11y | 4.5:1 text contrast; 44×44px touch targets; `aria-*` + labels on forms |
@@ -85,9 +86,9 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 ### 4. Verify
 
 ```
-- [ ] web/MODULE.md invariants respected (API auth, locale, dual theme)
-- [ ] Tokens from globals.css — no stray hex for theme surfaces
-- [ ] Vietnamese copy; VND/date formatting via @/lib/format
+- [ ] apps/demo/MODULE.md or apps/dashboard/MODULE.md invariants respected (API auth, locale, dual theme)
+- [ ] Tokens from globals.css / @juli/theme — no stray hex for theme surfaces
+- [ ] Vietnamese copy; VND/date formatting via shared format helpers
 - [ ] Interactive + empty/loading/error states
 - [ ] Focus visible; inputs labeled
 - [ ] data-testid on key elements
@@ -107,13 +108,14 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 
 | Issue | Action |
 |-------|--------|
-| Looks off-brand | Re-read REFERENCE tokens; copy patterns from `TaskCard`, `LoginForm`, `PageHeader` |
+| Looks off-brand | Re-read REFERENCE tokens; copy patterns from dashboard `TaskCard`, `LoginForm`, `PageHeader` or demo `DemoShell`, `RecommendationsPanel` |
 | Too generic | Strengthen hierarchy, spacing rhythm, or micro-interactions — stay on-brand |
 | a11y gap | Contrast check, `focus-visible:ring-*`, associate labels |
-| Missing states | Walk checklist; mirror `LoginForm` error/loading pattern |
+| Missing states | Walk checklist; mirror `LoginForm` error/loading pattern (dashboard) |
 
 ## See also
 
 - [`.cursor/rules/ui-ux-design.mdc`](../../../rules/ui-ux-design.mdc) — Ramp-inspired product patterns on Juli brand (Focus Tier 2)
 - [REFERENCE.md](REFERENCE.md) — tokens, primitives, file layout, examples
-- [`web/src/app/globals.css`](../../../../web/src/app/globals.css) — source of truth for design tokens
+- [`apps/demo/src/app/globals.css`](../../../../apps/demo/src/app/globals.css) — demo app styles (imports `@juli/theme`)
+- [`apps/dashboard/src/app/globals.css`](../../../../apps/dashboard/src/app/globals.css) — dashboard token source (legacy/prod)

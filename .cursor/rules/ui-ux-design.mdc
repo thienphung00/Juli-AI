@@ -1,12 +1,12 @@
 ---
-description: UI/UX design standards for Juli web — Ramp-inspired product patterns on Juli brand tokens
-globs: web/**/*.{tsx,css}
+description: UI/UX design standards for Juli product apps — Ramp-inspired product patterns on Juli brand tokens
+globs: apps/demo/**/*.{tsx,css},apps/dashboard/**/*.{tsx,css},packages/ui/**/*.{tsx,css}
 alwaysApply: false
 ---
 
-# UI/UX Design (Juli web)
+# UI/UX Design (Juli product apps)
 
-Load via Focus for `web/` UI work. Companion skill: `.cursor/skills/standalone/ui-ux-design/SKILL.md`. Token reference: `web/src/app/globals.css`, `.cursor/skills/standalone/ui-ux-design/REFERENCE.md`.
+Load via Focus for `apps/demo/` or `apps/dashboard/` UI work. Companion skill: `.cursor/skills/standalone/ui-ux-design/SKILL.md`. Token reference: `apps/demo/src/app/globals.css`, `apps/dashboard/src/app/globals.css`, `.cursor/skills/standalone/ui-ux-design/REFERENCE.md`.
 
 **Ramp research baseline:** [ramp.com](https://ramp.com/) marketing + app patterns, [Ramp DS](https://ramp-ds.vercel.app/docs). Adopt Ramp's **product UX discipline**, not their visual identity (yellow `#ffe74c`, sand canvas, Lausanne). Juli stays pink + Inter.
 
@@ -53,9 +53,10 @@ Implementation checklist + states: companion skill.
 
 | Pattern | File |
 |---------|------|
-| Form + error/loading | `web/src/components/LoginForm.tsx` |
-| Action card | `web/src/components/tasks/TaskCard.tsx` |
-| Home shell | `web/src/components/seller-home/SellerHomeShell.tsx` |
-| Workflow modal | `web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` |
-| Empty state | `web/src/components/recommendations/CollectingDataEmpty.tsx` |
-| Chat | `web/src/components/AiChatPage.tsx`, `ai-chat/ChatInput.tsx` |
+| Demo shell | `apps/demo/src/components/demo-shell.tsx` |
+| Form + error/loading | `apps/dashboard/src/components/LoginForm.tsx` |
+| Action card | `apps/dashboard/src/components/tasks/TaskCard.tsx` |
+| Home shell | `apps/dashboard/src/components/seller-home/SellerHomeShell.tsx` |
+| Workflow modal | `apps/dashboard/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` |
+| Empty state | `apps/dashboard/src/components/recommendations/CollectingDataEmpty.tsx` |
+| Chat | `apps/dashboard/src/components/AiChatPage.tsx`, `ai-chat/ChatInput.tsx` |

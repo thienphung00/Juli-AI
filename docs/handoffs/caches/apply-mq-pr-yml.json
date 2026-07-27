@@ -1,0 +1,17 @@
+{
+  "cacheId": "apply-mq-pr-yml",
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "writePaths": [".github/workflows/pr.yml"],
+  "optionalDocs": [
+    "docs/handoffs/worktree-branch-topology.md",
+    ".cursor/rules/issue-workflow.mdc"
+  ],
+  "tasks": [
+    "Add merge_group trigger for main",
+    "Add changes job with dorny/paths-filter@v4",
+    "Path-filter heavy jobs on pull_request; full suite on merge_group",
+    "status-check: skipped OK on PR; required success on merge_group",
+    "gitleaks always on PR; concurrency no cancel on merge_group",
+    "Short comment at top of workflow documenting two-tier CI + enable Merge Queue in repo settings"
+  ]
+}

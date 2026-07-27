@@ -1,0 +1,48 @@
+{
+  "cacheId": "apply-c2-focus-modules",
+  "candidate": 2,
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "waves": {
+    "C2a": {
+      "writePaths": [
+        ".cursor/skills/standalone/focus/SKILL.md",
+        ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+        ".cursor/skills/standalone/focus/routing-rules.md"
+      ],
+      "tasks": [
+        "Step 3 ALWAYS load: docs/architecture/MODULES.md (goals/features) + map.md (as-built) + system-design + data-sources + EXECUTION",
+        "Architecture-review row: add MODULES.md",
+        "Output template example: include MODULES.md",
+        "Replace product UI web/ references with apps/demo and apps/dashboard (keep web/ only if labeled legacy)",
+        "improve-codebase-architecture: consult MODULES + map"
+      ]
+    },
+    "C2b": {
+      "writePaths": [
+        "agent-runtime/config/agent-runtime.config.yml",
+        "agent-runtime/config/slice-routing.yml"
+      ],
+      "tasks": [
+        "Add docs/architecture/MODULES.md to every cross_layer_hints.*.related_paths (backend, ui-ux, data-platform, machine-learning, integrations)",
+        "slice-routing: add MODULES where map.md is loaded for planning slices"
+      ]
+    },
+    "C2c": {
+      "writePaths": [
+        "docs/architecture/system-design.md",
+        "docs/ml/ml_layer.md",
+        "agent-runtime/templates/context-plan-template.md",
+        "docs/templates/handoffs/validation-meta.md",
+        "docs/deployment/implementation-guide.md",
+        "docs/deployment/quick-reference.md",
+        "docs/adr/003-ai-native-cicd-policy.md"
+      ],
+      "tasks": [
+        "Rewrite docs/architecture/agent-runtime*.md links → agent-runtime/docs/agent-runtime*.md",
+        "Rewrite (decisions/NNN → ../adr/NNN or docs/adr/NNN) ADR hrefs",
+        "Do not rename Phase 6→Agentic Version 1 in migration.md (Candidate 4) unless a single broken path requires a touch — prefer leave migration.md"
+      ]
+    }
+  },
+  "doNotTouch": ["CONTEXT.md", ".cursor/rules/issue-workflow.mdc", "docs/handoffs/worktree-branch-topology.md"]
+}

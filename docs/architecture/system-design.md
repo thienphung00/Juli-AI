@@ -2,7 +2,7 @@
 
 > **Tier 1 — subsystem envelopes.** Read [`EXECUTION.md`](../EXECUTION.md) first for slices and routing.  
 > **Owns:** pipeline stage shapes, subsystem phase matrix, ML promotion thresholds, JSON envelopes.  
-> **Does not own:** module paths (`map.md`), data-source phase gates (`data-sources.md`), MVP diagram/schedule (`phase-2-mvp.md`), ADR rationale (`decisions/`).
+> **Does not own:** module paths (`map.md`), data-source phase gates (`data-sources.md`), MVP diagram/schedule (`phase-2-mvp.md`), ADR rationale (`../adr/`).
 
 **Authority:** `EXECUTION.md` > this file > `map.md`.
 
@@ -59,7 +59,7 @@ Outcome Tracking (workflow_outcome_metrics)
 `shop_profile ∈ {NEW_SHOP, MID_LARGE_SHOP}`. The **T8 router** selects the rule set per
 profile; the workflow taxonomy itself is owned by [`execution_layer.md`](execution_layer.md)
 (domain-organized; each action owned by exactly one workflow). The closed "exactly six /
-Copilot surface" framing is **retired** ([ADR-011](decisions/011-display-grade-analytics-layer.md)
+Copilot surface" framing is **retired** ([ADR-011](../adr/011-display-grade-analytics-layer.md)
 Decision #6). New display-grade techniques/workflows may be added when they map to a
 visual-layer KPI and are advisory-only (constraint #3).
 
@@ -108,12 +108,12 @@ workflows to MID_LARGE_SHOP.
 
 > **SPS vs VP/AHR:** SPS (Shop Performance Score) is a **probation/graduation
 > progress** indicator, **distinct** from the VP/AHR **account-health** contract
-> (§ Platform policy signals; [ADR-006](decisions/006-dual-read-vp-ahr-transition.md)).
+> (§ Platform policy signals; [ADR-006](../adr/006-dual-read-vp-ahr-transition.md)).
 > Both are mock in P1.8; real exposure is gated by P2-B1 verification.
 
 ### Recommendation & ranking (mock in P1.8)
 
-`workflow_recommendations` per [ADR-013](decisions/013-operations-pipeline-spine.md):
+`workflow_recommendations` per [ADR-013](../adr/013-operations-pipeline-spine.md):
 each item carries `workflow_id`, `workflow_name`, `priority`, `rationale`,
 `expected_impact {metric, value, confidence}`, `preconditions_met`,
 `user_action_required`.
@@ -235,7 +235,7 @@ Routes a seller to the right workflow and the right next action.
 **Schema authority:** [`docs/api/data-models/`](data-models/README.md) defines platform-agnostic
 entities and ML features. [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md) is the
 **ingestion layer** only — vendor field maps, not ML schema source of truth
-([ADR-009](decisions/009-entity-centric-data-model.md)).
+([ADR-009](../adr/009-entity-centric-data-model.md)).
 
 ```
 TikTok API (endpoints.md)
@@ -261,7 +261,7 @@ Phase 2 MVP uses a simple daily scheduler (cron / APScheduler). Celery / Kafka a
 ### 3. ML models
 
 > **Authority:** [`ml_layer.md`](ml_layer.md) technique catalog + per-KPI mapping;
-> [ADR-011](decisions/011-display-grade-analytics-layer.md) display-grade vs
+> [ADR-011](../adr/011-display-grade-analytics-layer.md) display-grade vs
 > decision-grade split.
 
 **Not built in Phase 1** (UI renders mock/fixture forecasts, rankings, and risk
@@ -419,7 +419,7 @@ ML / rules → structured signals
 | **Phase 1** | Hardcoded mock copy in fixtures; no LLM. |
 | **Phase 2 MVP Milestone A** | Rules-only templates generated from backtest signals; validates copy quality offline. |
 | pre-MVP | Rules-only **reasoning** templates — per-recommendation Why / Expected Impact / Next Steps from deterministic signals (§ Operations-system pipeline). No LLM. |
-| **Phase 2 MVP** | **Claude Haiku 3.5** ([ADR-012](decisions/012-architecture-reconciliation-mvp-vs-target.md)) renders copy + reasoning from live signals — summarize + localize (Vietnamese); **rules fallback** on timeout, error, or daily token budget exceeded. |
+| **Phase 2 MVP** | **Claude Haiku 3.5** ([ADR-012](../adr/012-architecture-reconciliation-mvp-vs-target.md)) renders copy + reasoning from live signals — summarize + localize (Vietnamese); **rules fallback** on timeout, error, or daily token budget exceeded. |
 
 **Haiku copy layer (Phase 2 MVP):**
 
@@ -463,14 +463,14 @@ Collaboration overrides Open Collaboration rate ([`cross-cutting.md`](tiktok_pla
 
 **VP → AHR transition:** If VP/AHR fields are exposed via official APIs, dual-read both systems
 May–July 2026; feature-flag switch to AHR-only after July 2026
-([ADR-006](decisions/006-dual-read-vp-ahr-transition.md)). If not exposed, remain in
+([ADR-006](../adr/006-dual-read-vp-ahr-transition.md)). If not exposed, remain in
 `proxy`/`unavailable` mode and do **not** fabricate numeric VP/AHR.
 Milestone alerts must fire on threshold hits — not silent degradation
-([ADR-005](decisions/005-alert-vp-ahr-milestones.md)).
+([ADR-005](../adr/005-alert-vp-ahr-milestones.md)).
 
 **Out of Phase 2 MVP:** Creator CHR scoring, creator matching filters, LIVE commerce
 attribution — Phase 3+ per EXECUTION.md. VN-specific thresholds (follower count,
-tax code, CHR zones) are region-variant config ([ADR-007](decisions/007-vn-regional-platform-config.md)).
+tax code, CHR zones) are region-variant config ([ADR-007](../adr/007-vn-regional-platform-config.md)).
 
 ### 6. Executor
 
@@ -495,7 +495,7 @@ No new App Router routes. State machines persist step + payload in `sessionStora
 | Create New Product Listing (P1.6) | `list_products` | `ListingWorkflowPanel` | path → form/discovery → draft → export | P2-B7 queue → P2-B8 Products API |
 | Loss prevention (P1.7) | `return_spike`, `buyer_cancellation_cluster`, `refund_cluster`, `return_window_policy` | `LeakageWorkflowPanel` | detail → evidence → root cause → action → execute → success | P2-B9 queue → P2-B10 APIs |
 
-**Leakage step graph** ([ADR-013](decisions/013-operations-pipeline-spine.md)):
+**Leakage step graph** ([ADR-013](../adr/013-operations-pipeline-spine.md)):
 
 ```
 TaskCard (alert)
@@ -516,7 +516,7 @@ TaskCard (alert)
 | `return_window_policy` | Shop policy / config | Settings review → apply config |
 
 Affiliate cancellation and commission-dispute patterns are **policy-rule alerts** in
-Phase 2 MVP ([ADR-008](decisions/008-buyer-behavior-anomaly-scope.md)) — not leakage workflow
+Phase 2 MVP ([ADR-008](../adr/008-buyer-behavior-anomaly-scope.md)) — not leakage workflow
 types. `affiliate_fraud` is removed from the leakage persona in P1.7-1.
 
 ---

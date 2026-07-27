@@ -1,0 +1,26 @@
+{
+  "cacheId": "apply-c5b-config-skills",
+  "candidate": 5,
+  "wave": "C5b",
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "writePaths": [
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml",
+    ".cursor/skills/standalone/validate/SKILL.md",
+    ".cursor/skills/standalone/domain-modeling/SKILL.md",
+    ".cursor/skills/standalone/ui-bug/SKILL.md",
+    ".cursor/skills/standalone/extract-design-md/SKILL.md",
+    ".cursor/skills/standalone/restructure/SKILL.md",
+    ".cursor/skills/standalone/to-issues/SKILL.md",
+    ".cursor/skills/standalone/ship/ci-examples.md",
+    ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+    ".cursor/skills/standalone/grill-with-docs/SKILL.md"
+  ],
+  "tasks": [
+    "slice-routing doNotLoad web/: keep as legacy deferral; add apps/dashboard where product UI should be excluded incorrectly; ensure requiredDocs never point at web/MODULE for product work",
+    "config epic doNotLoad: keep web/ as legacy; parentScopeBlock text may say web/ legacy — prefer 'legacy web/ (App Review)'",
+    "Update standalone skill path mentions to apps/demo|dashboard",
+    "Do not dump_simple_yaml rewrite entire config — surgical edits only",
+    "Do not edit .github/workflows/pr.yml (MQ agent owns it)"
+  ]
+}

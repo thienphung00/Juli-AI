@@ -1,0 +1,37 @@
+{
+  "cacheId": "apply-c3-merge-queue",
+  "candidate": 3,
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "waves": {
+    "C3a": {
+      "writePaths": [
+        ".cursor/rules/issue-workflow.mdc",
+        ".cursor/rules/git-baseline.mdc"
+      ],
+      "tasks": [
+        "Parallel pipeline: implement → review → commit → individual PR → PR fast CI → Merge Queue (merge_group full suite) → merge",
+        "sync-before-merge: cutover/fallback only when Merge Queue unavailable",
+        "git-baseline: short pointer to topology + Merge Queue; no duplicate full ritual",
+        "Keep Isolate vs Parallel + shared-core list; shared-core may point to topology for the canonical list"
+      ]
+    },
+    "C3b": {
+      "writePaths": [
+        "docs/handoffs/worktree-branch-topology.md",
+        ".cursor/skills/standalone/validate/SKILL.md",
+        "docs/handoffs/parallel-status.md"
+      ],
+      "tasks": [
+        "Topology pipeline step: Merge Queue not sync-before-merge-first",
+        "validate/ship: enqueue Merge Queue after green PR checks; rebase ritual = fallback",
+        "parallel-status: update merge step wording only"
+      ]
+    }
+  },
+  "ciTiers": {
+    "pr": "fast always-on lint/type/secrets + cheap unit + path filters",
+    "merge_group": "full required suite",
+    "note": "Do not implement pr.yml merge_group in this candidate unless trivial comment — YAML can be follow-up"
+  },
+  "doNotTouch": ["CONTEXT.md", ".cursor/skills/standalone/focus/SKILL.md", "agent-runtime/config/agent-runtime.config.yml"]
+}

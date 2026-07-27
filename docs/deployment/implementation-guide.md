@@ -45,7 +45,7 @@ artifacts/
 
 docs/
   schemas/agent-runtime/         # JSON Schema for runtime artifacts
-  decisions/                     # NNN-slug.md ADRs
+  adr/                           # NNN-slug.md ADRs
   system-design.md               # technical design (phase-mapped)
   architecture/map.md            # authoritative module list
 
@@ -55,7 +55,7 @@ done.md                          # root definition-of-done checklist
 
 ## Skill / Agent Phase Wiring
 
-Harness routing: [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md).
+Harness routing: [`agent-runtime/docs/agent-runtime.md`](../../agent-runtime/docs/agent-runtime.md).
 
 ```
 Planning:      focus -> to-prd -> to-issues
@@ -78,7 +78,7 @@ Bug filing:    qa -> focus -> Executor -> review -> validate -> ship
 ## Artifact Schemas
 
 **Agent Runtime (Phase 3):** JSON Schema definitions and persistence policy live in
-[`agent-runtime/docs/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md)
+[`agent-runtime/docs/agent-runtime-artifacts.md`](../../agent-runtime/docs/agent-runtime-artifacts.md)
 and [`agent-runtime/docs/schemas/`](../schemas/agent-runtime/). The review and validation
 schemas below remain the **ADR-003 CI gate contract**. Agent Runtime extends them with
 optional Meta optimization fields (`reviewFailures`, `baselineMetrics`, etc.) — gate scripts

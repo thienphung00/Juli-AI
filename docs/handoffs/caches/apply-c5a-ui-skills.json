@@ -1,0 +1,21 @@
+{
+  "cacheId": "apply-c5a-ui-skills",
+  "candidate": 5,
+  "wave": "C5a",
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "writePaths": [
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+    ".cursor/skills/standalone/ui-ux-design/REFERENCE.md",
+    ".cursor/rules/ui-ux-design.mdc",
+    ".cursor/skills/skill-catalog/SKILL.md",
+    ".cursor/skills/standalone/focus/routing-rules.md"
+  ],
+  "tasks": [
+    "Replace product web/ with apps/demo and apps/dashboard",
+    "globs: apps/demo/** apps/dashboard/** packages/ui/**",
+    "Label web/ as legacy App Review only when mentioned",
+    "Point MODULE.md / globals / tests to apps/demo (or apps/dashboard where accurate)",
+    "skill-catalog path triggers → apps/**"
+  ]
+}

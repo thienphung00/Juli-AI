@@ -67,7 +67,7 @@ single report.
 ## Repeated-run protocol
 
 Use this protocol for baseline capture, harness change, and optimization measurement
-(Phase 6).
+(Agentic Version 1).
 
 ### 1. Baseline run
 
@@ -77,7 +77,7 @@ Use this protocol for baseline capture, harness change, and optimization measure
 4. Write benchmark report to `artifacts/benchmarks/<benchmarkRunId>.json` (see [Report format](#report-format)).
 5. Set harness optimization `appliedStatus: "proposed"` on first run.
 
-### 2. Harness change (manual, Phase 6)
+### 2. Harness change (manual, Agentic Version 1)
 
 1. Architect or operator approves one `autoApplyEligible` optimization.
 2. Apply change only to approved surfaces: `focus` routing, context budgets,
@@ -192,7 +192,7 @@ If Planning skipped (implementation-only rerun), omit Planning Score from overal
 | Harness artifact present | `artifactType == harness_optimization` | 25 |
 | Root cause identified | `rootCauseCategory != none` when any failure metric > 0 | 25 |
 | Concrete proposal | `proposedOptimization.summary` non-empty | 25 |
-| Measured improvement | `appliedStatus == measured` on rerun (Phase 6) | 25 |
+| Measured improvement | `appliedStatus == measured` on rerun (Agentic Version 1) | 25 |
 
 On baseline-only runs, cap Optimization Score at 75 (no measured rerun yet).
 

@@ -203,7 +203,7 @@ Validate → Ship + Meta objective-quality signal.
 
 ### harness-optimization-artifact
 
-Meta → Harness config. Emitted after every complete agent-phase run (Phase 6 automation).
+Meta → Harness config. Emitted after every complete agent-phase run (Agentic Version 1 automation).
 
 Captures the **eight baseline metrics:**
 

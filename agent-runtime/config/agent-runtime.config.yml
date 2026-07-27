@@ -17,7 +17,7 @@ model:
     - gpt-5-mini
 context:
   budget_tokens: 50000
-  max_files: 25
+  max_files: 20
   retrieval_depth: 3
   reserved_reasoning_ratio: 0.1
 routing:
@@ -63,6 +63,7 @@ routing:
       related_paths:
         - backend/src/juli_backend/api
         - backend/src/juli_backend/database
+        - docs/architecture/MODULES.md
         - docs/architecture/map.md
       note: API and persistence context often required beyond backend/src/juli_backend/api
     ui-ux:
@@ -71,6 +72,7 @@ routing:
         - packages/ui
         - packages/theme
         - docs/product/design/soul.md
+        - docs/architecture/MODULES.md
         - docs/architecture/map.md
       note: Demo/UI library tasks use packages/* and design soul — not apps/dashboard product code
     data-platform:
@@ -78,18 +80,21 @@ routing:
         - backend/src/juli_backend/database
         - backend/src/juli_backend/services/etl
         - backend/src/juli_backend/database/migrations
+        - docs/architecture/MODULES.md
         - docs/architecture/data-sources.md
       note: Schema and ingestion paths span ordering and database layers
     machine-learning:
       related_paths:
         - backend/src/juli_backend/ai
         - backend/src/juli_backend/database
+        - docs/architecture/MODULES.md
         - docs/api/data-models
       note: Feature pipelines depend on canonical data models outside ai/
     integrations:
       related_paths:
         - backend/src/juli_backend/integrations
         - docs/integrations/
+        - docs/architecture/MODULES.md
         - docs/architecture/data-sources.md
         - backend/src/juli_backend/services/etl
       note: Vendor HTTP/webhook/polling/backfill; ETL consumer durability stays data-platform
@@ -321,7 +326,7 @@ workflow_prompt_cache:
     278:
       defaultSliceId: P2-A1
       handoffPath: docs/handoffs/phase-2-tiktok-implementation.md
-      parentScopeBlock: "# Parent #278 — Phase 2 TikTok (constant)\n## Epic deferrals\n- T8 router / ML inference: Phase 4\n- web/, ios/: out of P2 product scope unless slice says otherwise\n## Merchants\n- Fujiwa: read only\n- SANDBOX_VN: write validation only\n"
+      parentScopeBlock: "# Parent #278 — Phase 2 TikTok (constant)\n## Epic deferrals\n- T8 router / ML inference: Phase 4\n- legacy web/ (App Review), ios/: out of P2 product scope unless slice says otherwise\n## Merchants\n- Fujiwa: read only\n- SANDBOX_VN: write validation only\n"
       doNotLoad:
         - docs/handoffs/archive/
         - docs/product/features/

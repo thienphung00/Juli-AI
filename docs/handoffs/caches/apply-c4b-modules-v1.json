@@ -1,0 +1,14 @@
+{
+  "cacheId": "apply-c4b-modules-v1",
+  "candidate": 4,
+  "wave": "C4b",
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "writePaths": ["docs/architecture/MODULES.md"],
+  "scope": "§11 Agent Runtime only",
+  "tasks": [
+    "Replace Phase 6 wording with Agentic Version 1",
+    "Update Goals/Features/quality snapshot: Focus+MODULES wiring done in this branch; optimization loop in progress→done when C4c lands — use language that Version 1 exit includes measured loop",
+    "Mark path hygiene / MODULES Focus as improved (wired on this branch)",
+    "Do not rewrite other MODULES sections"
+  ]
+}

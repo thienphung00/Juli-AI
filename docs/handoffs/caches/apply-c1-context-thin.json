@@ -1,0 +1,55 @@
+{
+  "cacheId": "apply-c1-context-thin",
+  "candidate": 1,
+  "worktree": ".worktrees/agentic-v1-docs-lean",
+  "writePaths": ["CONTEXT.md"],
+  "targetLines": 280,
+  "maxLines": 320,
+  "actions": {
+    "DELETE": [
+      "Merge Queue (GitHub) entire entry — move to topology/issue-workflow",
+      "Context7 CLI",
+      "Weekly Secrets Security Check",
+      "Phase 2.6 optional stretch scope",
+      "Domain executor skill (or one-line pointer only)"
+    ],
+    "MOVE": [
+      "Agentic Version 1 exit gates → agent-runtime-migration.md (leave Agentic versions SLIM only)",
+      "2.10-A / 2.10-B slice checklists → ADR-037/038",
+      "Material webhook / Fake Demo Refresh / Hybrid compute → fold into Mock/Sign-in",
+      "OAuth redirect URL triple → ADR-034",
+      "Clear Excess / 8a-8c step catalogs → execution_layer",
+      "GMV hop elasticities / Forecasting package → ADR-032",
+      "Operator Backfill Launcher → ADR-030",
+      "Documentation tier ladder detail → ADR-036"
+    ],
+    "SLIM_MERGE": [
+      "MODULES + Phase progression + map + tier ladder → **Doc SoT pointers** (≤6 lines)",
+      "Phase 2.10 + Analytics KPI read model + Required cache → Phase 2.10 umbrella + **Demo dual-layer read model**",
+      "Copy dictionary: dedupe repeated v1 harvest paragraph",
+      "Decision emission budget: drop numeric defaults (keep policy name)",
+      "Agentic versions: Version vs Phase + SoT paths only"
+    ],
+    "KEEP": [
+      "Product Intelligence Layer",
+      "Schema-only migration",
+      "Layered model",
+      "Workflow taxonomy",
+      "Copy layer",
+      "Display-grade analytics",
+      "Main KPI",
+      "Decision-grade ML",
+      "Decision",
+      "Action Card (backend)",
+      "Demo dry-run execution",
+      "Masked reference-shop data",
+      "Reference shop",
+      "Supplier-sourced replenishment",
+      "ERP-sourced replenishment",
+      "CSAT proxy",
+      "Product bundle routing",
+      "Mediated Juli GMV impact"
+    ]
+  },
+  "format": "domain-modeling: **Term**: 1-2 sentences. _Avoid_: aliases. Link ADRs; do not paste ADR bodies."
+}

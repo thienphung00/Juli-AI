@@ -130,14 +130,14 @@ Post-stream livestream and SKU depletion heuristics live under
 Do not promote intelligence heuristics to T1/T4 without ADR-011 amendment and workflow
 traceability.
 
-## Phasing ([ADR-011](decisions/011-display-grade-analytics-layer.md))
+## Phasing ([ADR-011](../adr/011-display-grade-analytics-layer.md))
 
 | Phase | ML/analytics behavior | Data |
 |-------|-----------------------|------|
 | **Completed (pre-MVP)** | UI rendered mock/fixture forecasts, rankings, and risk flags | Mock JSON only |
-| **Phase 2 MVP Milestone A** | Implement T1–T8 on backtest / synthetic parquet ([ADR-010](decisions/010-ml-module-tree-and-trainers.md)) | Parquet manifest; no live API |
+| **Phase 2 MVP Milestone A** | Implement T1–T8 on backtest / synthetic parquet ([ADR-010](../adr/010-ml-module-tree-and-trainers.md)) | Parquet manifest; no live API |
 | **Phase 2 MVP Milestone B** | Serve live at the **08:00 UTC** daily batch, **after API approval** | TikTok polling → feature build → inference |
-| **Phase 3** | Sentiment / CSAT modeling; **Customer Service workflow execution** (Customer Service API + Return/Refund API); complaint text pattern mining; root-cause classification; buyer risk scoring; advanced return segmentation; ML dynamic pricing (upgrade T9 rules → elasticity model); ML demand-based reorder (upgrade T10 deterministic → ML forecast); polyglot store ([ADR-012](decisions/012-architecture-reconciliation-mvp-vs-target.md)) | Legal text sources TBD; CS API scopes TBD |
+| **Phase 3** | Sentiment / CSAT modeling; **Customer Service workflow execution** (Customer Service API + Return/Refund API); complaint text pattern mining; root-cause classification; buyer risk scoring; advanced return segmentation; ML dynamic pricing (upgrade T9 rules → elasticity model); ML demand-based reorder (upgrade T10 deterministic → ML forecast); polyglot store ([ADR-012](../adr/012-architecture-reconciliation-mvp-vs-target.md)) | Legal text sources TBD; CS API scopes TBD |
 
 ### Milestone A implementation status
 
@@ -167,8 +167,8 @@ macro averages). Full table: [`system-design.md`](system-design.md) §3.
   [`execution_layer.md`](execution_layer.md).
 - Financial PII stays off any LLM prompt — pass tiers / deltas / trend direction
   only (`core-safety.mdc`, mle-agent).
-- Features stay Python ([ADR-010](decisions/010-ml-module-tree-and-trainers.md)); SQL
-  views are serving conveniences only ([ADR-012](decisions/012-architecture-reconciliation-mvp-vs-target.md)).
+- Features stay Python ([ADR-010](../adr/010-ml-module-tree-and-trainers.md)); SQL
+  views are serving conveniences only ([ADR-012](../adr/012-architecture-reconciliation-mvp-vs-target.md)).
 - Feature column names: [`data-models/feature-store-schema.md`](data-models/feature-store-schema.md)
   only; build via `src/modules/ml/features/`.
 - Algorithm vetting before new techniques: [`.cursor/skills/domain/data-scientist/SKILL.md`](../.cursor/skills/domain/data-scientist/SKILL.md).

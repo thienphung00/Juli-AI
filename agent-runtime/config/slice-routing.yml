@@ -1,6 +1,7 @@
 # Focus slice → issueLoadProfile derivation rules.
 # Consumed by issue_load_profile.py and validated against Focus SKILL table.
 # Add a row here before relying on a new slice in workflow cache.
+# doNotLoad web/ — legacy App Review static bundle; product UI is apps/demo + apps/dashboard.
 
 P2-A1:
   executorDomain: backend
@@ -21,7 +22,7 @@ P2-A1:
   doNotLoad:
     - docs/handoffs/archive/
     - docs/product/features/
-    - web/
+    - web/  # legacy App Review
     - ios/
     - src/modules/ml/
 
@@ -129,6 +130,7 @@ P2-B5:
     - backend/src/juli_backend/repositories/repos.py
   loadWhenNeeded:
     - apps/dashboard/src/lib/operations/outcome-metrics.ts
+    - docs/architecture/MODULES.md
     - docs/architecture/map.md
   doNotLoad:
     - docs/handoffs/archive/
@@ -285,6 +287,7 @@ P2-6:
   requiredDocs:
     - EXECUTION.md
     - "{handoffPath}"
+    - docs/architecture/MODULES.md
     - docs/architecture/map.md
     - docs/adr/023-four-destination-analytics-ownership.md
     - docs/adr/024-phase-2.6-2.7-frontend-resequencing.md

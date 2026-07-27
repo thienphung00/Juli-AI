@@ -8,7 +8,7 @@
 
 ## Context
 
-**Harness routing (updated 2026):** Agent phases in [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md) supersede the workflow skills below. **CI gate ordering is unchanged.**
+**Harness routing (updated 2026):** Agent phases in [`agent-runtime/docs/agent-runtime.md`](../../agent-runtime/docs/agent-runtime.md) supersede the workflow skills below. **CI gate ordering is unchanged.**
 
 - The repository is built and operated by AI agents using skills in
   [`.cursor/skills/`](../../.cursor/skills/). Conversations are session-local;
@@ -82,7 +82,7 @@ The three JSON artifact schemas are defined in
 | Harness optimization | Meta Agent | Harness config | `agent-runtime/artifacts/optimization/harness-issue-<n>-<phaseRunId>.json` |
 | Product-development optimization | Meta Agent | Architect Agent backlog | `agent-runtime/artifacts/optimization/product-development-<id>.json` |
 
-Runtime schemas and persistence: [`agent-runtime/docs/agent-runtime-artifacts.md`](../architecture/agent-runtime-artifacts.md).
+Runtime schemas and persistence: [`agent-runtime/docs/agent-runtime-artifacts.md`](../../agent-runtime/docs/agent-runtime-artifacts.md).
 
 ## Enforcement Rules
 
@@ -207,7 +207,7 @@ Bug filing:     qa -> focus -> Executor -> review -> validate -> ship
 - [ADR-022](022-intent-review-guardrails-split.md) — skill split and structure authority
 - [`.cursor/skills/standalone/ship/SKILL.md`](../../.cursor/skills/standalone/ship/SKILL.md) — consumes validation artifact, emits release artifact
 - [`.cursor/skills/standalone/ship/ci-examples.md`](../../.cursor/skills/standalone/ship/ci-examples.md) — replaced with pointer to real workflows
-- [`agent-runtime/docs/agent-runtime.md`](../architecture/agent-runtime.md) — agent phase harness (Phase 2)
+- [`agent-runtime/docs/agent-runtime.md`](../../agent-runtime/docs/agent-runtime.md) — agent phase harness (Phase 2)
 - [`.cursor/skills/standalone/focus/routing-rules.md`](../../.cursor/skills/standalone/focus/routing-rules.md) — adds validation-stage routing
 - [`.cursor/rules/git-baseline.mdc`](../../.cursor/rules/git-baseline.mdc) — CI/CD subsection
 
