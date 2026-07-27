@@ -1,7 +1,10 @@
 # Architecture Decision Records
 
-> **Tier 2 — decision rationale.** Read [`EXECUTION.md`](../../EXECUTION.md) and the relevant Tier 1 component doc first.  
-> **Owns:** why, options considered, consequences. **Does not own:** slices, envelopes, module paths, or schemas.
+> **Tier 2 — decision rationale.** Read [`EXECUTION.md`](../../EXECUTION.md) and the
+> relevant Tier 1 planning doc first ([`MODULES.md`](../architecture/MODULES.md),
+> `system-design.md`, …).  
+> **Owns:** why, options considered, consequences. **Does not own:** slices, envelopes,
+> module goals/paths, or schemas.
 
 | ADR | Title | Status |
 |-----|-------|--------|
@@ -41,3 +44,5 @@
 | [034](034-tiktok-business-oauth-redirect-urls.md) | TikTok Business OAuth redirect URL pair (Advertiser + account holder) | Accepted |
 | [035](035-public-release-evidence-and-automatic-rollback.md) | Public release evidence contract + automatic rollback | Accepted |
 | [036](036-modules-tier1-planning-sot.md) | MODULES.md Tier-1 module planning SoT + doc tier ladder | Accepted |
+| [037](037-phase-2.10-demo-real-data-no-auth.md) | Phase 2.10 — Demo real-data KPI wire without auth | Accepted |
+| [038](038-phase-2.10-dual-layer-pipeline.md) | Phase 2.10 dual-layer pipeline — precompute + required cache | Accepted |

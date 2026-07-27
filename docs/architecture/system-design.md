@@ -2,7 +2,7 @@
 
 > **Tier 1 — subsystem envelopes.** Read [`EXECUTION.md`](../EXECUTION.md) first for slices and routing.  
 > **Owns:** pipeline stage shapes, subsystem phase matrix, ML promotion thresholds, JSON envelopes.  
-> **Does not own:** module paths (`map.md`), data-source phase gates (`data-sources.md`), MVP diagram/schedule (`phase-2-mvp.md`), ADR rationale (`../adr/`).
+> **Does not own:** module goals/features (`MODULES.md`), module paths (`map.md`), data-source phase gates (`data-sources.md`), MVP diagram/schedule (`phase-2-mvp.md`), ADR rationale (`../adr/`).
 
 **Authority:** `EXECUTION.md` > this file > `map.md`.
 

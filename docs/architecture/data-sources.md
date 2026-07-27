@@ -1,10 +1,12 @@
 # Data Sources
 
-> **Tier 1 — data phase gates.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
+> **Tier 1 — data phase gates.** Read [`EXECUTION.md`](../../EXECUTION.md) first;
+> module planning context in [`MODULES.md`](MODULES.md).  
 > **Owns:** which external sources are allowed in which phase; forbidden sources; operational polling rules.  
-> **Does not own:** entity schemas (`data-models/`), ingestion field maps (`tiktok_api/endpoints.md`), subsystem envelopes (`system-design.md`).
+> **Does not own:** module goals (`MODULES.md`), entity schemas (`data-models/`),
+> ingestion field maps (`tiktok_api/endpoints.md`), subsystem envelopes (`system-design.md`).
 
-**Authority:** `EXECUTION.md` > `system-design.md` > this file.  
+**Authority:** `EXECUTION.md` > `MODULES.md` > `system-design.md` > this file.  
 This is the **only** file that assigns a phase to a data source.
 
 ## Phase legend

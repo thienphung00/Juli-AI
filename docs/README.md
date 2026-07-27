@@ -6,7 +6,7 @@ Read **one tier at a time.** Do not load peer files unless the routing table bel
 
 | Category | Path | Contents |
 |----------|------|----------|
-| Architecture | [`architecture/`](architecture/) | System design, module map, agent runtime, data sources |
+| Architecture | [`architecture/`](architecture/) | MODULES planning SoT, system design, map, data sources |
 | API & schemas | [`api/`](api/) | Canonical entity schemas, feature store |
 | Deployment | [`deployment/`](deployment/) | CI implementation guide, troubleshooting |
 | Runbooks | [`runbooks/`](runbooks/) | VPS wiring, frontend/backend deploy, smoke sign-off |
@@ -22,13 +22,16 @@ Read **one tier at a time.** Do not load peer files unless the routing table bel
 |------|------|
 | [`EXECUTION.md`](../EXECUTION.md) | Phases, slices, exit gates, in/out scope, governance, **which doc to open next** |
 
-## Tier 1 — Component context (read ONE based on task)
+## Tier 1 — Planning SoT (Architect + Developer; read by task)
+
+Higher-tier docs cover **more of the system with less detail**. Prefer MODULES for
+module goals; do not load every peer Tier 1 file.
 
 | If your task touches… | Read | Owns (and only this) |
 |---------------------|------|----------------------|
+| Module catalog, goals, per-module feature progression | [`architecture/MODULES.md`](architecture/MODULES.md) | What each planning module is for; refinement + features ([ADR-036](adr/036-modules-tier1-planning-sot.md)) |
 | Subsystem behavior, pipeline stage envelopes, ML promotion thresholds | [`architecture/system-design.md`](architecture/system-design.md) | How components interact; JSON envelopes; subsystem phase matrix |
 | External data availability by phase | [`architecture/data-sources.md`](architecture/data-sources.md) | Source matrix; phase gating; forbidden sources |
-| Deployed modules, paths, endpoints | [`architecture/map.md`](architecture/map.md) | As-built module registry + target layout |
 | Repo restructure, path mapping, migration sequence | [`architecture/migration-plan.md`](architecture/migration-plan.md) | Current → target path mapping; migration PR sequence |
 | Phase 2 pipeline validation — stack, schedule | [`product/phases/phase-2-mvp.md`](product/phases/phase-2-mvp.md) | Backend pipeline; daily batch; rules copy; no production deploy |
 | Phase 2.5 deployment architecture | [`product/phases/phase-2.5-deployment.md`](product/phases/phase-2.5-deployment.md) | Monorepo layout, domains, package boundaries |
@@ -52,20 +55,27 @@ Read **one tier at a time.** Do not load peer files unless the routing table bel
 | [`product/phases/phase-4-beta-launch.md`](product/phases/phase-4-beta-launch.md) | Superseded by `EXECUTION.md` Phase 4 |
 | [`product/phases/phase-5-public-launch.md`](product/phases/phase-5-public-launch.md) | Superseded by `EXECUTION.md` Phase 5 |
 
-## Tier 2 — Decisions (read when you need the *why*)
+## Tier 2 — As-built registry + decisions
 
 | File | Owns |
 |------|------|
+| [`architecture/map.md`](architecture/map.md) | Deployed paths, endpoints, `MODULE.md` links (not goals) |
 | [`adr/README.md`](adr/README.md) | ADR index |
 | `adr/NNN-*.md` | Rationale, options considered, consequences for one decision |
 
 ADRs do not repeat Tier 1 envelopes or EXECUTION slices. Tier 1 files link to ADRs by number only — they do not re-state ADR prose.
 
+## Tier 3 — Implementation precision
+
+Issue acceptance criteria, per-folder `MODULE.md`, `docs/api/` contracts, curated
+integration field maps used during Executor implementation.
+
 ## Authority chain
 
 ```
-Code  >  EXECUTION.md  >  Tier 1 (component doc for your domain)  >  Tier 2 (ADR)
+Code  >  EXECUTION.md  >  MODULES.md  >  other Tier 1  >  Tier 2 (map / ADR)  >  Tier 3
 ```
 
-`map.md` describes deployed reality and target layout. `migration-plan.md` owns the path mapping.
-When code and EXECUTION disagree, update EXECUTION in the same PR.
+`MODULES.md` owns module purpose/goals/features. `map.md` owns deployed paths.
+`migration-plan.md` owns path mapping. When code and EXECUTION disagree, update
+EXECUTION in the same PR.
