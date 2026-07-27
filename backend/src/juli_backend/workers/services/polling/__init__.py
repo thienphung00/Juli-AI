@@ -2,6 +2,7 @@
 
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
+    run_fujiwa_material_resource_fetch,
     run_fujiwa_poll_cycle,
 )
 from juli_backend.workers.services.polling.sync import (
@@ -16,6 +17,7 @@ from juli_backend.workers.services.polling.sync import (
 __all__ = [
     "FujiwaPollConfig",
     "backfill_shop",
+    "run_fujiwa_material_resource_fetch",
     "run_fujiwa_poll_cycle",
     "sync_analytics",
     "sync_creators",

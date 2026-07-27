@@ -188,6 +188,11 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
 
 PHASE2_CATALOG_IDS: tuple[int, ...] = tuple(sorted(PHASE2_CATALOG))
 
+# Material catalog types enqueue shop Analytics precompute after ingest (#532 / ADR-038).
+MATERIAL_CATALOG_IDS: frozenset[int] = frozenset({1, 2, 5, 12, 27, 39, 67, 68})
+INVENTORY_CHANGED_CATALOG_ID = 68
+COALESCE_68_SECONDS = 15 * 60
+
 _EVENT_TYPE_INDEX: dict[str, CatalogEntry] = {
     event_type.upper(): entry
     for entry in PHASE2_CATALOG.values()
@@ -215,6 +220,17 @@ def resolve_catalog_entry(event_type: str) -> CatalogEntry | None:
     if event_type.isdigit():
         return PHASE2_CATALOG.get(int(event_type))
     return None
+
+
+def is_material_catalog_id(catalog_id: int) -> bool:
+    """Return True when a catalog id should enqueue Analytics precompute (#532)."""
+    return catalog_id in MATERIAL_CATALOG_IDS
+
+
+def catalog_id_for_event(event_type: str) -> int | None:
+    """Resolve event type to catalog id, or None when unknown/deferred."""
+    entry = resolve_catalog_entry(event_type)
+    return entry.catalog_id if entry is not None else None
 
 
 def ingest_channel_for_event(event_type: str) -> str:
