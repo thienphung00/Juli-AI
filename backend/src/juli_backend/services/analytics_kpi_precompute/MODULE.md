@@ -16,12 +16,22 @@ rows and upserts shop-scoped JSON envelopes in `analytics_kpi_envelopes` (ADR-03
   by day (A-34); wired as ``kpis.product_funnel``
 - ``build_live_performance_kpi(intervals)`` → ``KpiEnvelopeEntry`` — shop-grain LIVE
   rollup rows only (A-28/A-29); wired as ``kpis.live_performance``
+- ``build_unavailable_kpi_entry(kpi_id)`` → ``KpiEnvelopeEntry`` — single unavailable
+  Ads/Shop Status entry
+- ``build_phase_210a_unavailable_kpis()`` → ``dict[str, KpiEnvelopeEntry]`` — all six
+  phase-2.10-A unavailable KPI keys
+- ``build_t1_forecast_overlay()`` → ``dict`` — ``overlays.t1_forecast`` slice
 
 ## Payload contract
 
 - KPI key ``gmv_tiktok`` with label ``GMV (TikTok)`` — never ``net_revenue``
 - KPI key ``product_funnel`` with label ``Product funnel (GMV)`` (A-34)
 - KPI key ``live_performance`` with label ``LIVE performance (GMV)`` (A-28/A-29)
+- **Unavailable for 2.10-A** (explicit ``unavailable``, no ``series``, no source partition):
+  - Ads: ``roas``, ``cac``, ``ctr``
+  - Shop Status: ``sps``, ``ahr``, ``violation_points``
+- **Overlays**: ``overlays.t1_forecast`` — ``availability: unavailable`` (T1 forecast
+  overlay not wired in 2.10-A)
 - ``availability``: ``available`` when sourced rows exist; ``unavailable`` otherwise
 - ``series``: ``[{t, v}]`` when available; omitted when unavailable (no fabrication)
 - ``meta.source_partitions``: includes ``A-36`` / ``A-34`` / ``A-28``+``A-29`` only when

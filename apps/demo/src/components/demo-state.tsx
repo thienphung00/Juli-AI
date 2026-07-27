@@ -54,7 +54,7 @@ export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
   executionRecords: {},
   executionProgress: {},
   decisionsView: "recommendations",
-  analyticsMetric: "net-revenue",
+  analyticsMetric: "gmv-tiktok",
   analyticsRange: "30d",
   analyticsComparisonEnabled: false,
   settingsDraft: {},

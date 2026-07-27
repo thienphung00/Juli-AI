@@ -31,7 +31,7 @@ function AnalyticsStateProbe() {
 
 describe("Analytics dashboard", () => {
   beforeEach(() => {
-    vi.mocked(usePathname).mockReturnValue("/analytics/net-revenue");
+    vi.mocked(usePathname).mockReturnValue("/analytics/gmv-tiktok");
     vi.mocked(useRouter).mockReturnValue({
       back: vi.fn(),
       forward: vi.fn(),
@@ -49,15 +49,15 @@ describe("Analytics dashboard", () => {
     vi.restoreAllMocks();
   });
 
-  it("AC1: renders one hero and five selector cards with Net Revenue at 30 days by default", () => {
+  it("AC1: renders one hero and five selector cards with GMV at 30 days by default", () => {
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="net-revenue" />
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Doanh thu thuần",
+      "GMV (TikTok)",
     );
     expect(screen.getByRole("tab", { name: "30 ngày" })).toHaveAttribute(
       "aria-selected",
@@ -66,7 +66,7 @@ describe("Analytics dashboard", () => {
 
     const selectorCards = screen.getAllByTestId(/analytics-kpi-card-/);
     expect(selectorCards).toHaveLength(5);
-    expect(MAIN_KPI_ORDER.filter((key) => key !== "net-revenue")).toHaveLength(
+    expect(MAIN_KPI_ORDER.filter((key) => key !== "gmv-tiktok")).toHaveLength(
       5,
     );
   });
@@ -74,7 +74,7 @@ describe("Analytics dashboard", () => {
   it("AC2: shows documented mock values and charts for available KPIs", () => {
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="net-revenue" />
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
@@ -86,14 +86,14 @@ describe("Analytics dashboard", () => {
       document.querySelector('[data-testid="trend-line-chart-visual"]'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Doanh thu thuần — .* — ▲ 15%/),
+      screen.getByText(/GMV \(TikTok\) — .* — ▲ 15%/),
     ).toHaveClass("juli-sr-only");
   });
 
   it("AC3: keeps SPS, ROAS, and CSAT visible, unavailable, and non-selectable without fake values", () => {
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="net-revenue" />
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
@@ -114,7 +114,7 @@ describe("Analytics dashboard", () => {
 
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="net-revenue" />
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
         <AnalyticsStateProbe />
       </DemoShell>,
     );
@@ -128,7 +128,7 @@ describe("Analytics dashboard", () => {
       "inventory-turnover",
     );
     expect(
-      screen.getByTestId("analytics-kpi-card-net-revenue"),
+      screen.getByTestId("analytics-kpi-card-gmv-tiktok"),
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("analytics-kpi-card-inventory-turnover"),
@@ -140,7 +140,7 @@ describe("Analytics dashboard", () => {
 
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="net-revenue" />
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
@@ -167,7 +167,7 @@ describe("Analytics dashboard", () => {
   it("AC6: exposes provenance, freshness, decision links, and invalid deep links", async () => {
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="net-revenue" />
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
@@ -185,8 +185,8 @@ describe("Analytics dashboard", () => {
 
     expect(screen.getByRole("heading", { name: "KPI không tìm thấy" })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Xem Doanh thu thuần" }),
-    ).toHaveAttribute("href", "/analytics/net-revenue");
+      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+    ).toHaveAttribute("href", "/analytics/gmv-tiktok");
   });
 
   it("AC6: preserves selection on error and supports retry plus partial data", async () => {
@@ -194,7 +194,7 @@ describe("Analytics dashboard", () => {
 
     const { rerender } = render(
       <DemoShell>
-        <AnalyticsDashboard initialLoadState="error" metricKey="net-revenue" />
+        <AnalyticsDashboard initialLoadState="error" metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
@@ -208,7 +208,7 @@ describe("Analytics dashboard", () => {
 
     rerender(
       <DemoShell>
-        <AnalyticsDashboard initialLoadState="partial" metricKey="net-revenue" key="partial" />
+        <AnalyticsDashboard initialLoadState="partial" metricKey="gmv-tiktok" key="partial" />
       </DemoShell>,
     );
 
@@ -220,7 +220,7 @@ describe("Analytics dashboard", () => {
   it("AC6: shows stable hero and five-card loading skeletons", () => {
     render(
       <DemoShell>
-        <AnalyticsDashboard initialLoadState="loading" metricKey="net-revenue" />
+        <AnalyticsDashboard initialLoadState="loading" metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
@@ -228,7 +228,7 @@ describe("Analytics dashboard", () => {
     expect(document.querySelectorAll(".analytics-skeleton--card")).toHaveLength(5);
   });
 
-  it("AC7: Manual Refresh restores Net Revenue, 30 days, and comparison off", async () => {
+  it("AC7: Manual Refresh restores GMV, 30 days, and comparison off", async () => {
     const user = userEvent.setup();
 
     render(
@@ -253,7 +253,7 @@ describe("Analytics dashboard", () => {
 
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="net-revenue" />
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
       </DemoShell>,
     );
 
@@ -262,7 +262,7 @@ describe("Analytics dashboard", () => {
     expect(css).toContain("@media (max-width: 35rem)");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(
-      screen.getByText(/Doanh thu thuần — .* — ▲ 15%/),
+      screen.getByText(/GMV \(TikTok\) — .* — ▲ 15%/),
     ).toHaveClass("juli-sr-only");
   });
 });

@@ -90,7 +90,7 @@ if (!heroFixtureEntry) {
 
 const heroFixture = heroFixtureEntry;
 
-export const defaultAnalyticsMetricKey = "net-revenue";
+export const defaultAnalyticsMetricKey = "gmv-tiktok";
 
 export function buildReviewInputDefaults(): Record<string, string> {
   return {

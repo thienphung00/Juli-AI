@@ -33,7 +33,7 @@ export function buildPreventReturnReviewInputDefaults(): Record<string, string> 
 }
 
 export function getPreventReturnReviewStages(
-  analyticsMetricKey = "net-revenue",
+  analyticsMetricKey = "gmv-tiktok",
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 

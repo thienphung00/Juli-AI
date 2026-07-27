@@ -133,8 +133,8 @@ export function AnalyticsDashboard({
           Không có KPI chính nào khớp với đường dẫn{" "}
           <code>{routeMetricKey}</code>. Juli giữ nguyên URL để bạn hiểu lỗi này.
         </p>
-        <Link className="analytics-dashboard__recovery" href="/analytics/net-revenue">
-          Xem Doanh thu thuần
+        <Link className="analytics-dashboard__recovery" href="/analytics/gmv-tiktok">
+          Xem GMV (TikTok)
         </Link>
       </section>
     );

@@ -1,0 +1,573 @@
+{
+  "issueId": 528,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 528,
+    "parentIssueId": 524,
+    "sliceId": "P2.10-A4",
+    "handoffPath": "docs/product/phases/phase-2.10/PRD.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-524.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-528.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 528,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A4",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #524",
+            "fingerprint": "09e3b5171b760997"
+          },
+          {
+            "path": "docs/product/phases/phase-2.10/PRD.md",
+            "fingerprint": "e19dc3a6ca824f771536cbd9088abf85d3633229"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "440b6bbf906eed8fd27615468ccf15c0249e4462"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #528",
+            "fingerprint": "9e3651675bf394d3"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-528.md",
+            "fingerprint": "486e0de4b6d824cea702f581c3813b02abac9293"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 528,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A4",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2.10-A4",
+            "sliceId": "P2.10-A4"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-524",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #528",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.10/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2.10-A4"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-524",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #528",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.10/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 920680c31c5d on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "920680c31c5db6bed7653e4222d76336b377bafa",
+          "copiedAt": "2026-07-27T09:30:17Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "920680c31c5db6bed7653e4222d76336b377bafa",
+        "pinnedCommitSha": "920680c31c5db6bed7653e4222d76336b377bafa",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "920680c31c5db6bed7653e4222d76336b377bafa"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 528,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A4",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.10/PRD.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            "docs/ml/visual_layer.md",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/repositories/repos.py"
+          ],
+          "acceptanceCriteria": [
+            "Envelope/API contract documents Ads, SPS/AHR/VP, T1 overlays as unavailable for 2.10-A",
+            "Tests assert these KPIs are unavailable even when GMV/product/LIVE are live",
+            "No code path renames or aliases GMV to Net Revenue",
+            "Visual-layer Main KPI hero can use GMV where Net Revenue is unavailable without lying about the name"
+          ],
+          "loadWhenNeeded": [
+            "apps/demo/src/lib/analytics/main-kpis.ts"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "apps/landing/",
+            "web/",
+            "ios/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.10/PRD.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            "docs/ml/visual_layer.md",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/repositories/repos.py"
+          ],
+          "acceptanceCriteria": [
+            "Envelope/API contract documents Ads, SPS/AHR/VP, T1 overlays as unavailable for 2.10-A",
+            "Tests assert these KPIs are unavailable even when GMV/product/LIVE are live",
+            "No code path renames or aliases GMV to Net Revenue",
+            "Visual-layer Main KPI hero can use GMV where Net Revenue is unavailable without lying about the name"
+          ],
+          "loadWhenNeeded": [
+            "apps/demo/src/lib/analytics/main-kpis.ts"
+          ],
+          "releaseEvidencePlan": {
+            "planId": "rep-528-unavailable-kpi-contract",
+            "affectedPublicSurfaces": [
+              "demo.app-juli.com"
+            ],
+            "candidateVerificationJourney": {
+              "mode": "candidate_verification",
+              "stableTrafficPercent": 100,
+              "candidatePublicTrafficPercent": 0,
+              "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic (ECS candidate path deferred to #498)",
+              "syntheticShopRequired": false,
+              "workersDisabledOnCandidate": true,
+              "apiSideEffectsInScope": false,
+              "journeys": [
+                {
+                  "name": "demo-analytics-main-kpi-honest-naming",
+                  "entryUrl": "/analytics",
+                  "assertions": [
+                    "html_200",
+                    "main_kpi_hero_label_is_gmv_or_unavailable_not_net_revenue_alias",
+                    "ads_roas_cac_ctr_marked_unavailable",
+                    "shop_status_sps_ahr_vp_marked_unavailable"
+                  ]
+                }
+              ]
+            },
+            "staticAssetChecks": {
+              "required": true,
+              "htmlRoutes": [
+                "/",
+                "/analytics"
+              ],
+              "discoverFromHtml": true,
+              "assetTypes": [
+                "css",
+                "js"
+              ],
+              "failOnMissing": true,
+              "failOnNon200": true
+            },
+            "migrationCompatibility": {
+              "schemaChangeInScope": false,
+              "expandContractOnly": true,
+              "stableAndCandidateCompatible": true,
+              "destructiveMigrationAllowed": false,
+              "notes": "No DB schema change. Contract/tests + Demo Main KPI naming honesty only."
+            },
+            "rollbackAssertion": {
+              "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+              "postCutoverFailureBehavior": "restore_stable_listener",
+              "retainedStableRequired": true,
+              "automatic": false
+            },
+            "requiredArtifacts": {
+              "implementation": true,
+              "intentReview": true,
+              "review": true,
+              "validation": true,
+              "releaseMetadataHonest": true
+            },
+            "acceptanceCommands": [
+              "pytest -q tests/unit/test_analytics_kpi_unavailable_contract.py",
+              "pnpm --filter @juli/demo exec tsc --noEmit",
+              "python agent-runtime/scripts/validate/run_validate.py --issue 528"
+            ],
+            "doNotInfer": [
+              "release evidence fields",
+              "smoke asset lists",
+              "rollback behavior",
+              "ECS candidate verification / ALB cutover (deferred to #498)",
+              "Redis cache (#529)",
+              "public GET API (#531)",
+              "identity masking (#530)",
+              "user-traffic percentage canaries"
+            ]
+          }
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=True matches live classifier (1 reason(s))",
+      "details": {
+        "issueId": 528,
+        "parentIssueId": 524,
+        "live": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo"
+          ]
+        },
+        "cached": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo"
+          ]
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 528 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "releaseEvidencePlan present and schema-valid",
+      "details": {
+        "issueId": 528,
+        "parentIssueId": 524,
+        "publicRelease": true,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "missingFields": [],
+        "errors": [],
+        "resolution": "Complete issueLoadProfile.releaseEvidencePlan fields [], then re-run meta_prepare_executor --issue 528",
+        "planId": "rep-528-unavailable-kpi-contract"
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #524 \u2014 Phase 2.10 Demo dual-layer real data (2.10-A Analytics)\\\n## Product boundary\\\n- Masked reference-shop Analytics on public Demo (no OAuth); precompute Postgres + required Redis\\\n- Material webhooks + hourly Mock reconciler; Fake Demo Refresh; Home/Settings stay mock\\\n- 2.10-B Decision slices not filed yet\\\n## Schema law\\\n- New analytics_kpi_envelopes (shop_id, kind) + JSONB payload v1; not FeatureAggregateSnapshot\\\n## Public API\\\n- GET /v1/demo/analytics; DEMO_REFERENCE_SHOP_ID server-bound\\\n## ADRs\\\n- ADR-037 no-auth Demo \u00b7 ADR-038 dual-layer pipeline / Redis required / material set\\\n## Epic deferrals\\\n- 2.10-B Decisions \u00b7 Landing/Sign-in \u00b7 Ads ETL \u00b7 real Partner writes\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "apps/landing/",
+      "web/",
+      "ios/",
+      "Sibling issue context caches"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/backend/SKILL.md",
+          "purpose": "Primary backend Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "backend",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/phase-2.10/PRD.md",
+        "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+        "docs/ml/visual_layer.md",
+        "CONTEXT.md"
+      ],
+      "requiredModules": [
+        "backend/src/juli_backend/repositories/repos.py"
+      ],
+      "acceptanceCriteria": [
+        "Envelope/API contract documents Ads, SPS/AHR/VP, T1 overlays as unavailable for 2.10-A",
+        "Tests assert these KPIs are unavailable even when GMV/product/LIVE are live",
+        "No code path renames or aliases GMV to Net Revenue",
+        "Visual-layer Main KPI hero can use GMV where Net Revenue is unavailable without lying about the name"
+      ],
+      "loadWhenNeeded": [
+        "apps/demo/src/lib/analytics/main-kpis.ts"
+      ],
+      "releaseEvidencePlan": {
+        "planId": "rep-528-unavailable-kpi-contract",
+        "affectedPublicSurfaces": [
+          "demo.app-juli.com"
+        ],
+        "candidateVerificationJourney": {
+          "mode": "candidate_verification",
+          "stableTrafficPercent": 100,
+          "candidatePublicTrafficPercent": 0,
+          "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic (ECS candidate path deferred to #498)",
+          "syntheticShopRequired": false,
+          "workersDisabledOnCandidate": true,
+          "apiSideEffectsInScope": false,
+          "journeys": [
+            {
+              "name": "demo-analytics-main-kpi-honest-naming",
+              "entryUrl": "/analytics",
+              "assertions": [
+                "html_200",
+                "main_kpi_hero_label_is_gmv_or_unavailable_not_net_revenue_alias",
+                "ads_roas_cac_ctr_marked_unavailable",
+                "shop_status_sps_ahr_vp_marked_unavailable"
+              ]
+            }
+          ]
+        },
+        "staticAssetChecks": {
+          "required": true,
+          "htmlRoutes": [
+            "/",
+            "/analytics"
+          ],
+          "discoverFromHtml": true,
+          "assetTypes": [
+            "css",
+            "js"
+          ],
+          "failOnMissing": true,
+          "failOnNon200": true
+        },
+        "migrationCompatibility": {
+          "schemaChangeInScope": false,
+          "expandContractOnly": true,
+          "stableAndCandidateCompatible": true,
+          "destructiveMigrationAllowed": false,
+          "notes": "No DB schema change. Contract/tests + Demo Main KPI naming honesty only."
+        },
+        "rollbackAssertion": {
+          "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+          "postCutoverFailureBehavior": "restore_stable_listener",
+          "retainedStableRequired": true,
+          "automatic": false
+        },
+        "requiredArtifacts": {
+          "implementation": true,
+          "intentReview": true,
+          "review": true,
+          "validation": true,
+          "releaseMetadataHonest": true
+        },
+        "acceptanceCommands": [
+          "pytest -q tests/unit/test_analytics_kpi_unavailable_contract.py",
+          "pnpm --filter @juli/demo exec tsc --noEmit",
+          "python agent-runtime/scripts/validate/run_validate.py --issue 528"
+        ],
+        "doNotInfer": [
+          "release evidence fields",
+          "smoke asset lists",
+          "rollback behavior",
+          "ECS candidate verification / ALB cutover (deferred to #498)",
+          "Redis cache (#529)",
+          "public GET API (#531)",
+          "identity masking (#530)",
+          "user-traffic percentage canaries"
+        ]
+      }
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #528\n\n- sliceId: P2.10-A4\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #528 \u2014 P2.10-A4\n\n## Parent\n#524\n\n## Executor domain\nbackend\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/phase-2.10/PRD.md\n- docs/adr/038-phase-2.10-dual-layer-pipeline.md\n- docs/ml/visual_layer.md\n- CONTEXT.md\n",
+    "executorDomain": "backend",
+    "skillsPrimaryOnly": true,
+    "publicRelease": true,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    },
+    "releaseEvidencePlan": {
+      "planId": "rep-528-unavailable-kpi-contract",
+      "affectedPublicSurfaces": [
+        "demo.app-juli.com"
+      ],
+      "candidateVerificationJourney": {
+        "mode": "candidate_verification",
+        "stableTrafficPercent": 100,
+        "candidatePublicTrafficPercent": 0,
+        "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic (ECS candidate path deferred to #498)",
+        "syntheticShopRequired": false,
+        "workersDisabledOnCandidate": true,
+        "apiSideEffectsInScope": false,
+        "journeys": [
+          {
+            "name": "demo-analytics-main-kpi-honest-naming",
+            "entryUrl": "/analytics",
+            "assertions": [
+              "html_200",
+              "main_kpi_hero_label_is_gmv_or_unavailable_not_net_revenue_alias",
+              "ads_roas_cac_ctr_marked_unavailable",
+              "shop_status_sps_ahr_vp_marked_unavailable"
+            ]
+          }
+        ]
+      },
+      "staticAssetChecks": {
+        "required": true,
+        "htmlRoutes": [
+          "/",
+          "/analytics"
+        ],
+        "discoverFromHtml": true,
+        "assetTypes": [
+          "css",
+          "js"
+        ],
+        "failOnMissing": true,
+        "failOnNon200": true
+      },
+      "migrationCompatibility": {
+        "schemaChangeInScope": false,
+        "expandContractOnly": true,
+        "stableAndCandidateCompatible": true,
+        "destructiveMigrationAllowed": false,
+        "notes": "No DB schema change. Contract/tests + Demo Main KPI naming honesty only."
+      },
+      "rollbackAssertion": {
+        "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+        "postCutoverFailureBehavior": "restore_stable_listener",
+        "retainedStableRequired": true,
+        "automatic": false
+      },
+      "requiredArtifacts": {
+        "implementation": true,
+        "intentReview": true,
+        "review": true,
+        "validation": true,
+        "releaseMetadataHonest": true
+      },
+      "acceptanceCommands": [
+        "pytest -q tests/unit/test_analytics_kpi_unavailable_contract.py",
+        "pnpm --filter @juli/demo exec tsc --noEmit",
+        "python agent-runtime/scripts/validate/run_validate.py --issue 528"
+      ],
+      "doNotInfer": [
+        "release evidence fields",
+        "smoke asset lists",
+        "rollback behavior",
+        "ECS candidate verification / ALB cutover (deferred to #498)",
+        "Redis cache (#529)",
+        "public GET API (#531)",
+        "identity masking (#530)",
+        "user-traffic percentage canaries"
+      ]
+    },
+    "releaseEvidencePlanId": "rep-528-unavailable-kpi-contract"
+  },
+  "executorDomain": "backend"
+}
