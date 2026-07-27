@@ -8,22 +8,21 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from juli_backend.core.config.runtime import sync_database_url
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
-from juli_backend.core.config.runtime import sync_database_url
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "019_backfill_partitions"
+LATEST_REVISION = "020_analytics_kpi_envelopes"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -59,6 +58,8 @@ REVISION_018_COLUMNS = (
     "new_products",
 )
 REVISION_019_TABLE = "analytics_backfill_partitions"
+REVISION_020_TABLE = "analytics_kpi_envelopes"
+
 
 def _database_url() -> str:
     return os.environ.get("DATABASE_URL", "").strip()
@@ -123,7 +124,7 @@ def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
     order_id = uuid.uuid4()
     product_id = uuid.uuid4()
     sync_state_id = uuid.uuid4()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
 
     with engine.begin() as conn:
         conn.execute(
@@ -258,9 +259,7 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
             {"id": ids["user_id"]},
         ).one()
         shop = conn.execute(
-            text(
-                "SELECT shop_name, tiktok_shop_id FROM shops WHERE id = :id"
-            ),
+            text("SELECT shop_name, tiktok_shop_id FROM shops WHERE id = :id"),
             {"id": ids["shop_id"]},
         ).one()
         order = conn.execute(
@@ -321,25 +320,65 @@ def test_backfill_partitions_table_exists_at_head(postgres_at_head: Engine):
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_019_table(postgres_at_head: Engine):
-    """Downgrading head removes analytics_backfill_partitions; 018 columns remain."""
+def test_analytics_kpi_envelopes_table_exists_at_head(postgres_at_head: Engine):
+    """Revision 020 adds analytics_kpi_envelopes (#525)."""
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    for column in (
+        "id",
+        "shop_id",
+        "kind",
+        "envelope_version",
+        "payload",
+        "computed_at",
+        "created_at",
+        "updated_at",
+    ):
+        assert _table_has_column(postgres_at_head, REVISION_020_TABLE, column)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_020_table(postgres_at_head: Engine):
+    """Downgrading head removes analytics_kpi_envelopes; 019 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+
+    command.downgrade(cfg, "-1")
+
+    assert not _table_exists(postgres_at_head, REVISION_020_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
+
+    command.upgrade(cfg, "head")
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_019_table(postgres_at_head: Engine):
+    """Downgrading past 019 removes analytics_backfill_partitions; 018 columns remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "018_interval_backfill_cols")
 
+    assert not _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
     command.upgrade(cfg, "head")
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
 
@@ -353,6 +392,7 @@ def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
     for column in REVISION_015_COLUMNS:
@@ -360,6 +400,7 @@ def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine
 
     command.downgrade(cfg, "016_webhook_raw_events")
 
+    assert not _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
@@ -371,6 +412,7 @@ def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
@@ -383,17 +425,20 @@ def test_latest_downgrade_drops_only_revision_018_columns(postgres_at_head: Engi
 
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
     command.downgrade(cfg, "017_analytics_perf_intervals")
 
+    assert not _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     for column in REVISION_018_COLUMNS:
         assert not _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
     command.upgrade(cfg, "head")
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
@@ -422,9 +467,7 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
     with postgres_at_head.connect() as conn:
         order_count = conn.execute(text("SELECT COUNT(*) FROM orders")).scalar_one()
         product_count = conn.execute(text("SELECT COUNT(*) FROM products")).scalar_one()
-        sync_state_count = conn.execute(
-            text("SELECT COUNT(*) FROM tiktok_sync_state")
-        ).scalar_one()
+        sync_state_count = conn.execute(text("SELECT COUNT(*) FROM tiktok_sync_state")).scalar_one()
 
     assert order_count == 1
     assert product_count == 1
@@ -436,6 +479,7 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
@@ -470,11 +514,13 @@ def test_unique_constraints_enforced_after_migration_round_trip(postgres_at_head
                     "status": "COMPLETED",
                     "total_amount": Decimal("1.00"),
                     "currency": "USD",
-                    "update_time": datetime.now(timezone.utc).replace(tzinfo=None),
+                    "update_time": datetime.now(UTC).replace(tzinfo=None),
                 },
             )
 
-    revision = postgres_at_head.connect().execute(
-        text("SELECT version_num FROM alembic_version")
-    ).scalar_one()
+    revision = (
+        postgres_at_head.connect()
+        .execute(text("SELECT version_num FROM alembic_version"))
+        .scalar_one()
+    )
     assert revision == LATEST_REVISION
