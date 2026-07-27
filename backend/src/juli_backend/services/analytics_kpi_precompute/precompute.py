@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import AnalyticsKpiEnvelope, AnalyticsPerformanceInterval
 from juli_backend.repositories.repos import AnalyticsKpiEnvelopesRepo
+from juli_backend.services.analytics_kpi_cache import refresh_analytics_kpi_envelope_cache
 from juli_backend.services.analytics_kpi_precompute.gmv import build_gmv_tiktok_kpi
 from juli_backend.services.analytics_kpi_precompute.product_live import (
     KpiEnvelopeEntry,
@@ -86,6 +87,7 @@ async def precompute_shop_analytics_kpis(
     shop_id: uuid.UUID,
     *,
     computed_at: datetime | None = None,
+    redis_client: Any | None = None,
 ) -> AnalyticsKpiEnvelope:
     """Read warm interval rows, merge KPI slices into analytics envelope, upsert SoT."""
     when = computed_at or datetime.now(tz=UTC)
@@ -123,10 +125,16 @@ async def precompute_shop_analytics_kpis(
     overlays["t1_forecast"] = build_t1_forecast_overlay()
     payload = {**base, "kpis": merged_kpis, "meta": meta, "overlays": overlays}
 
-    return await repo.upsert(
+    envelope = await repo.upsert(
         shop_id=shop_id,
         kind=ANALYTICS_KIND,
         envelope_version=ENVELOPE_VERSION,
         payload=payload,
         computed_at=when,
     )
+    await refresh_analytics_kpi_envelope_cache(
+        shop_id,
+        envelope,
+        redis_client=redis_client,
+    )
+    return envelope

@@ -1,0 +1,724 @@
+{
+  "issueId": 529,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 529,
+    "parentIssueId": 524,
+    "sliceId": "P2.10-A5",
+    "handoffPath": "docs/product/phases/phase-2.10/PRD.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-524.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-529.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 529,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A5",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #524",
+            "fingerprint": "09e3b5171b760997"
+          },
+          {
+            "path": "docs/product/phases/phase-2.10/PRD.md",
+            "fingerprint": "e19dc3a6ca824f771536cbd9088abf85d3633229"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "440b6bbf906eed8fd27615468ccf15c0249e4462"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #529",
+            "fingerprint": "461579d59e8a33b1"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-529.md",
+            "fingerprint": "0c365397a36b0480db55ccd43eb8bc24f5df0b09"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 529,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A5",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2.10-A5",
+            "sliceId": "P2.10-A5"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-524",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #529",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.10/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2.10-A5"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-524",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #529",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.10/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 920680c31c5d on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "920680c31c5db6bed7653e4222d76336b377bafa",
+          "copiedAt": "2026-07-27T12:46:49Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "920680c31c5db6bed7653e4222d76336b377bafa",
+        "pinnedCommitSha": "920680c31c5db6bed7653e4222d76336b377bafa",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "920680c31c5db6bed7653e4222d76336b377bafa"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 529,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A5",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.10/PRD.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/repositories/repos.py"
+          ],
+          "acceptanceCriteria": [
+            "Get envelope hits Redis when populated; loads from Postgres and fills cache on miss",
+            "Successful precompute upserts Postgres then refreshes Redis for that shop",
+            "Redis outage still allows Postgres read (degraded path tested)",
+            "Redis is never the only copy of truth"
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/system-design.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "apps/demo/",
+            "apps/landing/",
+            "web/",
+            "ios/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.10/PRD.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/repositories/repos.py"
+          ],
+          "acceptanceCriteria": [
+            "Get envelope hits Redis when populated; loads from Postgres and fills cache on miss",
+            "Successful precompute upserts Postgres then refreshes Redis for that shop",
+            "Redis outage still allows Postgres read (degraded path tested)",
+            "Redis is never the only copy of truth"
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/system-design.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 529,
+        "parentIssueId": 524,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 529 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 529,
+        "parentIssueId": 524,
+        "publicRelease": false,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #524 \u2014 Phase 2.10 Demo dual-layer real data (2.10-A Analytics)\\\n## Product boundary\\\n- Masked reference-shop Analytics on public Demo (no OAuth); precompute Postgres + required Redis\\\n- Material webhooks + hourly Mock reconciler; Fake Demo Refresh; Home/Settings stay mock\\\n- 2.10-B Decision slices not filed yet\\\n## Schema law\\\n- New analytics_kpi_envelopes (shop_id, kind) + JSONB payload v1; not FeatureAggregateSnapshot\\\n## Public API\\\n- GET /v1/demo/analytics; DEMO_REFERENCE_SHOP_ID server-bound\\\n## ADRs\\\n- ADR-037 no-auth Demo \u00b7 ADR-038 dual-layer pipeline / Redis required / material set\\\n## Epic deferrals\\\n- 2.10-B Decisions \u00b7 Landing/Sign-in \u00b7 Ads ETL \u00b7 real Partner writes\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "apps/landing/",
+      "web/",
+      "ios/",
+      "Sibling issue context caches",
+      "apps/demo/",
+      "Unselected marketplace plugin skills",
+      "Context7 MCP / context7-mcp skill",
+      "Upstash MCP",
+      "Supabase MCP",
+      "Identity masking (#530), public GET (#531)",
+      "2.10-B Decision slices"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/backend/SKILL.md",
+          "purpose": "Primary backend Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc",
+        ".cursor/rules/performance.mdc",
+        ".cursor/rules/issue-workflow.mdc",
+        ".cursor/rules/patterns.mdc",
+        ".cursor/rules/context7-cli.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "backend",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/phase-2.10/PRD.md",
+        "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+        "CONTEXT.md"
+      ],
+      "requiredModules": [
+        "backend/src/juli_backend/repositories/repos.py"
+      ],
+      "acceptanceCriteria": [
+        "Get envelope hits Redis when populated; loads from Postgres and fills cache on miss",
+        "Successful precompute upserts Postgres then refreshes Redis for that shop",
+        "Redis outage still allows Postgres read (degraded path tested)",
+        "Redis is never the only copy of truth"
+      ],
+      "loadWhenNeeded": [
+        "docs/architecture/system-design.md",
+        ".cursor/skills/domain/testing-patterns/python-testing.md"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #529\n\n- sliceId: P2.10-A5\n- parentIssueId: 524\n- executorDomain: backend (single primary)\n- readyForExecutor: true (meta_prepare gate passed)\n- baseBranch: origin/main @ b50c82c682d5c4f2c52c9b0d902d30378fa1730f (must include #525\u2013#528)\n- publicRelease: false\n- workflowRecommendation: Parallel with #530 \u2014 path-disjoint (cache module vs masking module)\n- Skills: primary domain only; Review/Validate deferred to review tick\n- Context7: selected for redis-py; Upstash MCP not selected\n- phaseRunId: 529-20260727T124558\n\n### Context loading capture (for harness optimization)\n- Persist Context Plan + CLI harness into implementation-issue artifact fields:\n  `contextFilesLoaded`, `skillsLoaded`, `rulesLoaded`, `mcpsUsed=[]`, plus Context7 queries used.\n",
+    "promptCacheBlock": "# Issue #529 \u2014 P2.10-A5\n\n## Parent\n#524\n\n## Executor domain\nbackend\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/phase-2.10/PRD.md\n- docs/adr/038-phase-2.10-dual-layer-pipeline.md\n- CONTEXT.md\n",
+    "executorDomain": "backend",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    },
+    "phaseCacheBlocks.executor": "# Executor \u2014 Issue #529 (P2.10-A5)\n\n## Gate\n- Inject from `agent-runtime/artifacts/meta-prepare-issue-529.json` \u2192 `injectionPlan`\n- Halt unless `readyForExecutor: true` and `cacheStatus: valid`\n- Built-in TDD required (`tddContract.minRedGreenCycles: 1`)\n\n## Base + branch\n- Cut `feature/issue-529-\u2026` from **current `origin/main`** (`b50c82c682d5c4f2c52c9b0d902d30378fa1730f` includes #528)\n- Worktree: `.worktrees/issue-529` \u2014 do not share with #530\n\n## Injection order (stable \u2192 volatile)\n1. parentScopeBlock (parent-cache-issue-524)\n2. doNotLoad\n3. harnessUtility (backend skill + Tier-2)\n4. issueLoadProfile\n5. phaseCacheBlocks.executor (this block)\n6. promptCacheBlock\n7. requiredModules code + MODULE.md\n\n## Context7 (Focus-selected)\n- CLI only: `npx ctx7@latest` per `.cursor/rules/context7-cli.mdc`\n- Preloaded libraryId: `/redis/redis-py`\n- Read Meta-captured docs before coding\n- Catch `RedisError` (incl. ConnectionError/TimeoutError) \u2192 fall back to Postgres SoT; never raise away last-good rows\n- Prefer `decode_responses=True` if storing JSON strings; async client via `redis.asyncio.from_url` if service is async\n- Record every Context7 command in implementation artifact\n\n## Expected contextFilesLoaded baseline\n- `EXECUTION.md`\n- `docs/product/phases/phase-2.10/PRD.md`\n- `docs/adr/038-phase-2.10-dual-layer-pipeline.md`\n- `CONTEXT.md`\n- `docs/handoffs/phase-2.10-issue-bodies/529.md`\n- `backend/src/juli_backend/repositories/repos.py`\n- `backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md`\n- `backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py`\n- `agent-runtime/artifacts/workflow-cache/context7-redis-getset-fallback-529.txt`\n- `agent-runtime/artifacts/workflow-cache/context7-redis-asyncio-529.txt`\n- `agent-runtime/artifacts/meta-prepare-issue-529.json`\n- `agent-runtime/artifacts/workflow-cache/issue-context-cache-529.json`\n- `agent-runtime/artifacts/workflow-cache/parent-cache-issue-524.json`\n\n## Expected skillsLoaded\n- `.cursor/skills/domain/backend/SKILL.md`\n- `.cursor/skills/domain/testing-patterns/python-testing.md`\n- `.cursor/skills/standalone/focus/SKILL.md`\n- `.cursor/skills/standalone/prompt-caching/SKILL.md`\n\n## Expected rulesLoaded\n- `.cursor/rules/code-quality.mdc`\n- `.cursor/rules/reliability.mdc`\n- `.cursor/rules/performance.mdc`\n- `.cursor/rules/issue-workflow.mdc`\n- `.cursor/rules/patterns.mdc`\n- `.cursor/rules/context7-cli.mdc`\n\n## Expected mcpsUsed\n- (empty)\n\n## Cache key contract\n- `analytics:kpi_envelope:{shop_id}` (versioned payload as stored; envelope_version in payload)\n\n## TDD scope\n- AC: Get envelope hits Redis when populated; loads from Postgres and fills cache on miss\n- AC: Successful precompute upserts Postgres then refreshes Redis for that shop\n- AC: Redis outage still allows Postgres read (degraded path tested)\n- AC: Redis is never the only copy of truth\n- Prefer fake/in-memory redis client or monkeypatch; do not require live Redis in unit tests\n\n## Module ownership (this issue)\n- exclusive: `backend/src/juli_backend/services/analytics_kpi_cache/` (new package)\n- exclusive: `tests/unit/test_analytics_kpi_cache*.py`\n- shared/rebase: `backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py` (post-upsert Redis refresh hook only)\n- shared/rebase: `backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md` (additive note)\n- read-only: `AnalyticsKpiEnvelopesRepo` / models / #525\u2013#528 surfaces\n\n## Must not\n- Dual-load data-platform skill\n- Touch apps/demo, masking (#530), public API (#531)\n- Make Redis the system of record / skip Postgres upsert\n- Fabricate KPI series\n- Start without valid cache / without syncing to origin/main with #528\n\n## After GREEN \u2192 hand off to Review\n- Emit `implementation-issue-529.json` with contextFilesLoaded / skillsLoaded / rulesLoaded / mcpsUsed / tddEvidence\n- Then Review Agent injects `phaseCacheBlocks.review` from child cache\n",
+    "phaseCacheBlocks.review": "# Review \u2014 Issue #529 (P2.10-A5)\n\n## Sequence\n`intent-review` \u2192 `guardrails` \u2192 `validate` \u2192 ship-ready\n\n## Fixed point\n- `origin/main` @ `b50c82c682d5c4f2c52c9b0d902d30378fa1730f` (#528 merged) \u2014 three-dot `git diff origin/main...HEAD`\n\n## Spec sources\n- GitHub issue #529\n- `docs/handoffs/phase-2.10-issue-bodies/529.md`\n- ADR-038 (Redis required / identity mask, real magnitudes)\n- `docs/adr/038-phase-2.10-dual-layer-pipeline.md \u00a7 Redis required`\n\n## Skills (Review tick only)\n- `.cursor/skills/standalone/intent-review/SKILL.md`\n- `.cursor/skills/standalone/guardrails/SKILL.md`\n- `.cursor/skills/standalone/validate/SKILL.md`\n\n## Acceptance criteria (Guardrails AC\u2194test)\n- AC: Get envelope hits Redis when populated; loads from Postgres and fills cache on miss\n- AC: Successful precompute upserts Postgres then refreshes Redis for that shop\n- AC: Redis outage still allows Postgres read (degraded path tested)\n- AC: Redis is never the only copy of truth\n\n## Module ownership check\n- exclusive: `backend/src/juli_backend/services/analytics_kpi_cache/`\n- exclusive: `tests/unit/test_analytics_kpi_cache*.py`\n\n## Must not (fail Review)\n- Redis as SoT (Postgres must remain durable copy)\n- Swallow Redis outage by returning empty when Postgres has rows\n- Touch identity masking or apps/demo\n\n## Artifacts to emit\n- `agent-runtime/artifacts/intent-reviews/intent-review-issue-529.json`\n- `agent-runtime/artifacts/reviews/review-issue-529.json`\n- `agent-runtime/artifacts/validation/validation-issue-529.json`\n\n## Correlation\n- Use child `phaseRunId` from issue-context-cache-529.json\n",
+    "contextPlan": "## Context Plan: P2.10-A5 Redis read-through Analytics envelopes (#529)\n\n### Agent Phase\n- [x] Implementation: Meta routing \u2192 Executor (built-in TDD)\n- [x] Review + Testing: intent-review \u2192 guardrails \u2192 validate (after TDD green)\n\n### Rules (Tier 2 \u2014 load selectively)\n- [x] `.cursor/rules/code-quality.mdc`\n- [x] `.cursor/rules/reliability.mdc`\n- [x] `.cursor/rules/performance.mdc`\n- [x] `.cursor/rules/issue-workflow.mdc`\n- [x] `.cursor/rules/patterns.mdc`\n- [x] `.cursor/rules/context7-cli.mdc`\n- [ ] `.cursor/rules/security.mdc` \u2014 defer to #530\n\n### Skills\n- [x] Executor built-in TDD (Red \u2192 Green \u2192 Refactor)\n- [x] Domain executor: `backend` (single primary)\n- [x] Domain patterns: `python-testing` (loadWhenNeeded)\n- [ ] Review skills \u2014 load only on Review tick\n\n### MCPs\n- [x] none (generic REDIS_URL + redis-py; not Upstash-specific)\n\n### CLI harness (Focus-selected; not MCP)\n- [x] Context7 CLI (`npx ctx7@latest`) \u2014 implement stage; redis-py get/set + RedisError fallback\n- [ ] Supabase CLI \u2014 not selected (no schema work)\n\n### Load (Required)\n- `EXECUTION.md`\n- `docs/product/phases/phase-2.10/PRD.md`\n- `docs/adr/038-phase-2.10-dual-layer-pipeline.md`\n- `CONTEXT.md`\n- `docs/handoffs/phase-2.10-issue-bodies/529.md`\n- GitHub issue #529 acceptance criteria\n- `backend/src/juli_backend/repositories/repos.py` (AnalyticsKpiEnvelopesRepo)\n- `backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md`\n- `backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py` (refresh hook only)\n\n### Load (If Needed)\n- `docs/architecture/system-design.md`\n- `.cursor/skills/domain/testing-patterns/python-testing.md`\n- `backend/src/juli_backend/integrations/tiktok/rate_limiter.py` (Redis client pattern reference)\n- Context7 artifacts under `agent-runtime/artifacts/workflow-cache/context7-redis-*-529.txt`\n\n### DO NOT Load\n- `docs/handoffs/archive/`\n- `docs/product/features/`\n- `apps/demo/` / `apps/landing/` / `web/` / `ios/`\n- Sibling issue context caches (#530)\n- Identity masking (#530), public GET (#531), 2.10-B Decisions\n- Upstash MCP / Context7 MCP / Supabase MCP\n- Unselected marketplace plugin skills\n\n### Acceptance criteria (inject)\n- Get envelope hits Redis when populated; loads from Postgres and fills cache on miss\n- Successful precompute upserts Postgres then refreshes Redis for that shop\n- Redis outage still allows Postgres read (degraded path tested)\n- Redis is never the only copy of truth\n",
+    "contextLoading": {
+      "capturedAt": "2026-07-27T12:49:42Z",
+      "agentPhase": "Implementation",
+      "focus": {
+        "skill": ".cursor/skills/standalone/focus/SKILL.md",
+        "catalog": ".cursor/skills/skill-catalog/SKILL.md",
+        "sliceId": "P2.10-A5",
+        "executorDomain": "backend",
+        "parallelSibling": 530,
+        "workflowRecommendation": "Parallel \u2014 path-disjoint cache vs masking"
+      },
+      "tier1AlwaysOn": [
+        ".cursor/rules/core-safety.mdc",
+        ".cursor/rules/core-orchestration.mdc",
+        ".cursor/rules/mcp-usage.mdc",
+        ".cursor/rules/git-baseline.mdc"
+      ],
+      "tier2Selected": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc",
+        ".cursor/rules/performance.mdc",
+        ".cursor/rules/issue-workflow.mdc",
+        ".cursor/rules/patterns.mdc",
+        ".cursor/rules/context7-cli.mdc"
+      ],
+      "skillsSelected": [
+        ".cursor/skills/domain/backend/SKILL.md",
+        ".cursor/skills/domain/testing-patterns/python-testing.md",
+        ".cursor/skills/standalone/focus/SKILL.md",
+        ".cursor/skills/standalone/prompt-caching/SKILL.md"
+      ],
+      "mcpsSelected": [],
+      "cliHarness": {
+        "context7": {
+          "selected": true,
+          "stage": "implement",
+          "rule": ".cursor/rules/context7-cli.mdc",
+          "rationale": "Focus-selected for implement: redis-py get/set + RedisError degraded fallback for required read-through cache (ADR-038). Repo RateLimiter is pattern reference only.",
+          "skippedAlwaysOn": true,
+          "libraryResolve": {
+            "command": "npx ctx7@latest library redis \"Python redis-py get set JSON cache read-through fallback on connection error\"",
+            "chosenLibraryId": "/redis/redis-py",
+            "alternatives": [
+              "/websites/redis_readthedocs_io_en_stable",
+              "/redis/docs"
+            ],
+            "artifactPath": "agent-runtime/artifacts/workflow-cache/context7-redis-library-resolve-529.txt",
+            "exitCode": 0
+          },
+          "docsQueries": [
+            {
+              "command": "npx ctx7@latest docs /redis/redis-py \"get set setex JSON string cache values with from_url client; handle ConnectionError RedisError so reads fall back\"",
+              "artifactPath": "agent-runtime/artifacts/workflow-cache/context7-redis-getset-fallback-529.txt",
+              "bytes": 5082,
+              "keyTakeaways": [
+                "Catch RedisError (ConnectionError/TimeoutError) for degraded Postgres path",
+                "Retry helpers catch ConnectionError/TimeoutError by default \u2014 prefer fail-open to Postgres for Demo reads"
+              ],
+              "exitCode": 0
+            },
+            {
+              "command": "npx ctx7@latest docs /redis/redis-py \"redis.asyncio from_url get set for async FastAPI cache; decode_responses True\"",
+              "artifactPath": "agent-runtime/artifacts/workflow-cache/context7-redis-asyncio-529.txt",
+              "bytes": 3924,
+              "keyTakeaways": [
+                "redis.asyncio.from_url + ConnectionPool.from_url for async services",
+                "decode_responses=True for JSON string payloads; default returns bytes"
+              ],
+              "exitCode": 0
+            }
+          ],
+          "notSelected": [
+            {
+              "id": "upstash-mcp",
+              "reason": "Generic REDIS_URL + redis-py; not Upstash product APIs"
+            },
+            {
+              "id": "supabase-cli",
+              "reason": "No schema/RLS in #529"
+            },
+            {
+              "id": "context7-mcp",
+              "reason": "CLI harness only"
+            }
+          ]
+        },
+        "supabase": {
+          "selected": false,
+          "reason": "No schema/RLS/auth work in this slice"
+        }
+      },
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/phase-2.10/PRD.md",
+        "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+        "CONTEXT.md"
+      ],
+      "requiredModules": [
+        "backend/src/juli_backend/repositories/repos.py",
+        "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md"
+      ],
+      "loadWhenNeeded": [
+        "docs/architecture/system-design.md",
+        ".cursor/skills/domain/testing-patterns/python-testing.md"
+      ],
+      "doNotLoad": [
+        "docs/handoffs/archive/",
+        "docs/product/features/",
+        "apps/demo/",
+        "apps/landing/",
+        "web/",
+        "ios/",
+        "Sibling issue context caches",
+        "Unselected marketplace plugin skills",
+        "Context7 MCP / context7-mcp skill",
+        "Upstash MCP",
+        "Supabase MCP",
+        "Identity masking (#530), public GET (#531)",
+        "2.10-B Decision slices"
+      ],
+      "extraIssueDocs": [
+        "docs/handoffs/phase-2.10-issue-bodies/529.md",
+        "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py"
+      ],
+      "baseRef": {
+        "mustInclude": "origin/main @ b50c82c682d5c4f2c52c9b0d902d30378fa1730f (#528 merged)",
+        "prepareHeadAtEnsure": "920680c31c5db6bed7653e4222d76336b377bafa",
+        "note": "Executor must cut branch from current origin/main after #528; Meta ensure may pin older bootstrap SHA for skill index only"
+      },
+      "qualityMeasurementHooks": {
+        "implementationArtifactFields": [
+          "contextFilesLoaded",
+          "skillsLoaded",
+          "rulesLoaded",
+          "mcpsUsed",
+          "toolsUsed"
+        ],
+        "compareAgainst": "injectionPlan.contextLoading in meta-prepare-issue-529.json",
+        "context7ArtifactPaths": [
+          "agent-runtime/artifacts/workflow-cache/context7-redis-getset-fallback-529.txt",
+          "agent-runtime/artifacts/workflow-cache/context7-redis-asyncio-529.txt"
+        ]
+      },
+      "subAgentPlan": {
+        "mode": "parallel-sibling-tdd-then-review",
+        "agentCount": 4,
+        "agentIds": [
+          "529-scout",
+          "529-rg-cache",
+          "529-artifact",
+          "529-review"
+        ],
+        "waves": {
+          "1": {
+            "concurrent": [
+              "529-scout",
+              "530-scout"
+            ],
+            "note": "2 concurrent read-only scouts + optional 3rd worktree bootstrap"
+          },
+          "2": {
+            "concurrent": [
+              "529-rg-cache",
+              "530-rg-mask"
+            ],
+            "note": "Path-disjoint writes: analytics_kpi_cache/** vs analytics_kpi_masking/**"
+          },
+          "3": {
+            "concurrent": [
+              "529-artifact",
+              "530-artifact"
+            ],
+            "note": "Emit implementation artifacts; keep precompute.py hooks isolated (529 only)"
+          },
+          "4": {
+            "concurrent": [
+              "529-review",
+              "530-review"
+            ],
+            "note": "Review Agent per issue: intent-review \u2192 guardrails \u2192 validate; \u22642 concurrent reviews"
+          }
+        },
+        "qualityHook": "Each sub-agent appends actual context loads to context-load-log-issue-{n}.jsonl; final artifact compares to contextLoading baseline"
+      }
+    }
+  },
+  "executorDomain": "backend",
+  "contextLoading": {
+    "capturedAt": "2026-07-27T12:49:42Z",
+    "agentPhase": "Implementation",
+    "focus": {
+      "skill": ".cursor/skills/standalone/focus/SKILL.md",
+      "catalog": ".cursor/skills/skill-catalog/SKILL.md",
+      "sliceId": "P2.10-A5",
+      "executorDomain": "backend",
+      "parallelSibling": 530,
+      "workflowRecommendation": "Parallel \u2014 path-disjoint cache vs masking"
+    },
+    "tier1AlwaysOn": [
+      ".cursor/rules/core-safety.mdc",
+      ".cursor/rules/core-orchestration.mdc",
+      ".cursor/rules/mcp-usage.mdc",
+      ".cursor/rules/git-baseline.mdc"
+    ],
+    "tier2Selected": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc",
+      ".cursor/rules/performance.mdc",
+      ".cursor/rules/issue-workflow.mdc",
+      ".cursor/rules/patterns.mdc",
+      ".cursor/rules/context7-cli.mdc"
+    ],
+    "skillsSelected": [
+      ".cursor/skills/domain/backend/SKILL.md",
+      ".cursor/skills/domain/testing-patterns/python-testing.md",
+      ".cursor/skills/standalone/focus/SKILL.md",
+      ".cursor/skills/standalone/prompt-caching/SKILL.md"
+    ],
+    "mcpsSelected": [],
+    "cliHarness": {
+      "context7": {
+        "selected": true,
+        "stage": "implement",
+        "rule": ".cursor/rules/context7-cli.mdc",
+        "rationale": "Focus-selected for implement: redis-py get/set + RedisError degraded fallback for required read-through cache (ADR-038). Repo RateLimiter is pattern reference only.",
+        "skippedAlwaysOn": true,
+        "libraryResolve": {
+          "command": "npx ctx7@latest library redis \"Python redis-py get set JSON cache read-through fallback on connection error\"",
+          "chosenLibraryId": "/redis/redis-py",
+          "alternatives": [
+            "/websites/redis_readthedocs_io_en_stable",
+            "/redis/docs"
+          ],
+          "artifactPath": "agent-runtime/artifacts/workflow-cache/context7-redis-library-resolve-529.txt",
+          "exitCode": 0
+        },
+        "docsQueries": [
+          {
+            "command": "npx ctx7@latest docs /redis/redis-py \"get set setex JSON string cache values with from_url client; handle ConnectionError RedisError so reads fall back\"",
+            "artifactPath": "agent-runtime/artifacts/workflow-cache/context7-redis-getset-fallback-529.txt",
+            "bytes": 5082,
+            "keyTakeaways": [
+              "Catch RedisError (ConnectionError/TimeoutError) for degraded Postgres path",
+              "Retry helpers catch ConnectionError/TimeoutError by default \u2014 prefer fail-open to Postgres for Demo reads"
+            ],
+            "exitCode": 0
+          },
+          {
+            "command": "npx ctx7@latest docs /redis/redis-py \"redis.asyncio from_url get set for async FastAPI cache; decode_responses True\"",
+            "artifactPath": "agent-runtime/artifacts/workflow-cache/context7-redis-asyncio-529.txt",
+            "bytes": 3924,
+            "keyTakeaways": [
+              "redis.asyncio.from_url + ConnectionPool.from_url for async services",
+              "decode_responses=True for JSON string payloads; default returns bytes"
+            ],
+            "exitCode": 0
+          }
+        ],
+        "notSelected": [
+          {
+            "id": "upstash-mcp",
+            "reason": "Generic REDIS_URL + redis-py; not Upstash product APIs"
+          },
+          {
+            "id": "supabase-cli",
+            "reason": "No schema/RLS in #529"
+          },
+          {
+            "id": "context7-mcp",
+            "reason": "CLI harness only"
+          }
+        ]
+      },
+      "supabase": {
+        "selected": false,
+        "reason": "No schema/RLS/auth work in this slice"
+      }
+    },
+    "requiredDocs": [
+      "EXECUTION.md",
+      "docs/product/phases/phase-2.10/PRD.md",
+      "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+      "CONTEXT.md"
+    ],
+    "requiredModules": [
+      "backend/src/juli_backend/repositories/repos.py",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md"
+    ],
+    "loadWhenNeeded": [
+      "docs/architecture/system-design.md",
+      ".cursor/skills/domain/testing-patterns/python-testing.md"
+    ],
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "apps/demo/",
+      "apps/landing/",
+      "web/",
+      "ios/",
+      "Sibling issue context caches",
+      "Unselected marketplace plugin skills",
+      "Context7 MCP / context7-mcp skill",
+      "Upstash MCP",
+      "Supabase MCP",
+      "Identity masking (#530), public GET (#531)",
+      "2.10-B Decision slices"
+    ],
+    "extraIssueDocs": [
+      "docs/handoffs/phase-2.10-issue-bodies/529.md",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py"
+    ],
+    "baseRef": {
+      "mustInclude": "origin/main @ b50c82c682d5c4f2c52c9b0d902d30378fa1730f (#528 merged)",
+      "prepareHeadAtEnsure": "920680c31c5db6bed7653e4222d76336b377bafa",
+      "note": "Executor must cut branch from current origin/main after #528; Meta ensure may pin older bootstrap SHA for skill index only"
+    },
+    "qualityMeasurementHooks": {
+      "implementationArtifactFields": [
+        "contextFilesLoaded",
+        "skillsLoaded",
+        "rulesLoaded",
+        "mcpsUsed",
+        "toolsUsed"
+      ],
+      "compareAgainst": "injectionPlan.contextLoading in meta-prepare-issue-529.json",
+      "context7ArtifactPaths": [
+        "agent-runtime/artifacts/workflow-cache/context7-redis-getset-fallback-529.txt",
+        "agent-runtime/artifacts/workflow-cache/context7-redis-asyncio-529.txt"
+      ]
+    },
+    "subAgentPlan": {
+      "mode": "parallel-sibling-tdd-then-review",
+      "agentCount": 4,
+      "agentIds": [
+        "529-scout",
+        "529-rg-cache",
+        "529-artifact",
+        "529-review"
+      ],
+      "waves": {
+        "1": {
+          "concurrent": [
+            "529-scout",
+            "530-scout"
+          ],
+          "note": "2 concurrent read-only scouts + optional 3rd worktree bootstrap"
+        },
+        "2": {
+          "concurrent": [
+            "529-rg-cache",
+            "530-rg-mask"
+          ],
+          "note": "Path-disjoint writes: analytics_kpi_cache/** vs analytics_kpi_masking/**"
+        },
+        "3": {
+          "concurrent": [
+            "529-artifact",
+            "530-artifact"
+          ],
+          "note": "Emit implementation artifacts; keep precompute.py hooks isolated (529 only)"
+        },
+        "4": {
+          "concurrent": [
+            "529-review",
+            "530-review"
+          ],
+          "note": "Review Agent per issue: intent-review \u2192 guardrails \u2192 validate; \u22642 concurrent reviews"
+        }
+      },
+      "qualityHook": "Each sub-agent appends actual context loads to context-load-log-issue-{n}.jsonl; final artifact compares to contextLoading baseline"
+    }
+  },
+  "enrichedAt": "2026-07-27T12:49:42Z",
+  "parallelSibling": 530
+}
