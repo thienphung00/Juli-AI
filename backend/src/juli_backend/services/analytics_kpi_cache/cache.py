@@ -27,7 +27,8 @@ def envelope_cache_key(shop_id: uuid.UUID) -> str:
 
 def create_redis_client(redis_url: str | None = None) -> Any | None:
     """Build async Redis client from REDIS_URL when configured."""
-    url = (redis_url or os.getenv("REDIS_URL", "")).strip()
+    raw = redis_url if redis_url is not None else os.getenv("REDIS_URL", "")
+    url = (raw or "").strip()
     if not url:
         return None
     import redis.asyncio as redis
