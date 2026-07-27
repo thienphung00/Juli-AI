@@ -1,0 +1,21 @@
+{
+  "phaseRunId": "531-20260727T171330",
+  "fixedPoint": "bd978e16c2b3d4379cfdc7be2c1470ca06bae448",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff bd978e16..82c187dc (#531 P2.10-A7). GET /v1/demo/analytics implements unauthenticated public Demo Analytics read: DEMO_REFERENCE_SHOP_ID resolved server-side via require_env; visitor shop_id query rejected 400; optional range=7d|30d|90d trims KPI series for chart windows; read path delegates to get_analytics_kpi_envelope (Redis read-through → Postgres SoT #529) then mask_public_analytics_envelope (#530) before JSON 200 response; no precompute/compute enqueue. Five pytest cases cover all five ACs including cache hit without Postgres row and precompute mock assert_not_called.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "api/MODULE.md — public interface",
+      "path": "backend/src/juli_backend/api/MODULE.md",
+      "note": "Documents GET /v1/demo/analytics and ADR-037 JWT exception in invariants — aligned with issue scope.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "patterns.mdc — service delegation",
+      "path": "backend/src/juli_backend/api/routes/demo_analytics.py",
+      "note": "Route is thin orchestrator: cache read + mask + range filter; no inline SQL or compute — matches backend conventions.",
+      "blocksMerge": false
+    }
+  ]
+}
