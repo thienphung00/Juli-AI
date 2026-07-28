@@ -1,0 +1,41 @@
+# Modular monolith import boundary contract (MMU-2 / GitHub #552).
+# Machine-readable allowed-edge matrix + deep-import policy for juli_backend.
+# How to extend when MODULES.md gains a module: docs/architecture/import-boundaries.md
+
+[contract]
+root_package = "juli_backend"
+scan_root = "backend/src/juli_backend"
+
+# Top-level packages under root_package governed by [allowed_edges].
+# Shared persistence packages are first-class rows (not folded into core).
+[packages]
+top_level = [
+  "api",
+  "workers",
+  "services",
+  "ai",
+  "integrations",
+  "database",
+  "models",
+  "repositories",
+  "core",
+]
+
+# importer_top_level -> allowed importee top-level packages.
+# services may import sibling services until facades fully harden (MMU follow-ups).
+[allowed_edges]
+api = ["services", "ai", "integrations", "workers", "core", "database", "models", "repositories"]
+workers = ["services", "core", "database", "models", "repositories"]
+services = ["services", "ai", "integrations", "core", "database", "models", "repositories"]
+ai = ["services", "core", "database", "models", "repositories"]
+integrations = ["core", "database", "models", "repositories"]
+core = ["database", "models", "repositories"]
+database = []
+models = []
+repositories = ["models", "database"]
+
+[deep_imports]
+# Cross top-level imports may only reach root_package.<top>.<direct_child>.
+# Example allowed: juli_backend.integrations.tiktok
+# Example forbidden: juli_backend.integrations.tiktok.client (from api/services/…)
+max_cross_package_depth = 2
