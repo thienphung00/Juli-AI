@@ -7,6 +7,22 @@ metadata:
     Machine-readable runtime ownership for Postgres tables, Celery tasks, Redis key
     namespaces, and external integrations. Planning module names match the MODULES.md
     index (Tier-1 catalog).
+  redisKeyPolicy:
+    futureConvention: "juli:<module>:"
+    description: >
+      New application Redis keys MUST use the juli:<module>: prefix where <module> is a
+      lowercase slug aligned with a planning module (e.g. juli:intelligence:,
+      juli:data-pipeline:, juli:integrations:). Only the registry owner for a pattern
+      may write matching keys. Celery broker/result keys are infrastructure-owned by
+      Workers & Async — do not prefix them with juli:.
+    legacyAllowlist:
+      - "ratelimit:*"
+      - "analytics:kpi_envelope:*"
+      - "material_analytics:mutex:*"
+      - "material_analytics:coalesce68:*"
+    notes: >
+      Legacy allowlist entries are grandfathered runtime formats — do not rename existing
+      keys. New caches and gates must use juli:<module>: unless explicitly exempted here.
   boundaryGuidance:
     doNotImport: |
       Cross-module callers must use each module's published public facade (package
@@ -160,11 +176,31 @@ redisNamespaces:
     access: write
     env: REDIS_URL
     notes: TikTok RateLimiter token bucket (ratelimit:{app_id}:{shop_id}:{endpoint}).
+  - pattern: "analytics:kpi_envelope:*"
+    owner: Intelligence
+    access: write
+    env: REDIS_URL
+    notes: Phase 2.10 Analytics KPI envelope read-through cache (analytics:kpi_envelope:{shop_id}).
+  - pattern: "material_analytics:mutex:*"
+    owner: Data Pipeline
+    access: write
+    env: REDIS_URL
+    notes: Per-shop material Analytics precompute enqueue mutex (material_analytics:mutex:{shop_key}).
+  - pattern: "material_analytics:coalesce68:*"
+    owner: Data Pipeline
+    access: write
+    env: REDIS_URL
+    notes: Catalog #68 coalesce window for material Analytics gate (material_analytics:coalesce68:{shop_key}).
   - pattern: "celery-*"
     owner: Workers & Async
     access: write
     env: CELERY_BROKER_URL
-    notes: Celery broker/result meta keys when Redis is the broker backend.
+    notes: >
+      Celery broker and result-backend key space when Redis is configured as broker or
+      result backend (CELERY_BROKER_URL / CELERY_RESULT_BACKEND). Keys use Celery's own
+      prefixes (_kombu.binding.*, celery-task-meta-*, etc.) — not namespaced under juli:.
+      Workers & Async owns wiring in workers/celery_app.py; domain modules own task
+      semantics only.
 
 externalIntegrations:
   - id: tiktok_shop_api
@@ -200,8 +236,10 @@ externalIntegrations:
     name: Redis
     owner: Cross-cutting
     surfaces:
-      - ratelimit:* keys
-      - optional Celery broker/backend
+      - ratelimit:* keys (Integrations)
+      - analytics:kpi_envelope:* (Intelligence)
+      - material_analytics:mutex:* and material_analytics:coalesce68:* (Data Pipeline)
+      - optional Celery broker/backend (Workers & Async)
     env:
       - REDIS_URL
   - id: celery_broker

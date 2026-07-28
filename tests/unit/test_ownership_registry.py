@@ -52,7 +52,15 @@ def test_registry_lists_celery_task_names() -> None:
 def test_registry_lists_redis_patterns_and_external_systems() -> None:
     registry = load_ownership_registry()
     patterns = {entry["pattern"] for entry in registry["redisNamespaces"]}
-    assert "ratelimit:*" in patterns
+    required_patterns = {
+        "ratelimit:*",
+        "analytics:kpi_envelope:*",
+        "material_analytics:mutex:*",
+        "material_analytics:coalesce68:*",
+        "celery-*",
+    }
+    missing_patterns = sorted(required_patterns - patterns)
+    assert not missing_patterns, f"Redis patterns missing: {missing_patterns}"
     integration_ids = {entry["id"] for entry in registry["externalIntegrations"]}
     required = {
         "tiktok_shop_api",
@@ -63,6 +71,15 @@ def test_registry_lists_redis_patterns_and_external_systems() -> None:
     }
     missing = sorted(required - integration_ids)
     assert not missing, f"External integrations missing: {missing}"
+
+
+def test_registry_documents_redis_key_policy() -> None:
+    registry = load_ownership_registry()
+    policy = registry.get("metadata", {}).get("redisKeyPolicy", {})
+    assert policy.get("futureConvention") == "juli:<module>:"
+    allowlist = set(policy.get("legacyAllowlist") or [])
+    assert "ratelimit:*" in allowlist
+    assert "analytics:kpi_envelope:*" in allowlist
 
 
 def test_each_entry_has_planning_module_owner() -> None:

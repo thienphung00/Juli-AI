@@ -113,8 +113,33 @@ def validate_registry_completeness(registry: dict[str, Any] | None = None) -> li
             errors.append(f"celeryTasks.{task} owner {owner!r} not in planningModules")
 
     patterns = {e.get("pattern") for e in reg.get("redisNamespaces") or []}
-    if "ratelimit:*" not in patterns:
-        errors.append("redisNamespaces must include ratelimit:*")
+    required_redis_patterns = {
+        "ratelimit:*",
+        "analytics:kpi_envelope:*",
+        "material_analytics:mutex:*",
+        "material_analytics:coalesce68:*",
+        "celery-*",
+    }
+    legacy_required = required_redis_patterns - {"celery-*"}
+    missing_patterns = sorted(required_redis_patterns - patterns)
+    if missing_patterns:
+        errors.append(
+            "redisNamespaces missing patterns: " + ", ".join(missing_patterns)
+        )
+
+    policy = (reg.get("metadata") or {}).get("redisKeyPolicy") or {}
+    if not policy.get("futureConvention"):
+        errors.append("metadata.redisKeyPolicy.futureConvention is required")
+    allowlist = policy.get("legacyAllowlist") or []
+    if not allowlist:
+        errors.append("metadata.redisKeyPolicy.legacyAllowlist is required")
+    else:
+        missing_allowlist = sorted(legacy_required - set(allowlist))
+        if missing_allowlist:
+            errors.append(
+                "metadata.redisKeyPolicy.legacyAllowlist missing: "
+                + ", ".join(missing_allowlist)
+            )
 
     integration_ids = {e.get("id") for e in reg.get("externalIntegrations") or []}
     required_integrations = {
