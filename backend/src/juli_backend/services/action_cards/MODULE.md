@@ -9,6 +9,8 @@ Manual-refresh pipeline persistence for **Decision** rows (Action Cards per
 
 - `run_action_card_refresh(session, shop_id, *, poll=True)` → `list[ActionCard]`
 - `persist_scoring_result(session, shop_id, result)` → `list[ActionCard]`
+- `persist_legacy_recommendations(session, shop_id)` → `None` — sole write owner
+  for retained `recommendations` rows (legacy GET /v1/recommendations refresh path)
 - `maybe_poll_tiktok_data(session, shop_id)` — Fujiwa poll when `TIKTOK_APP_*` set
 - `enqueue_action_card_refresh(session, *, shop_id)` → Celery task id
 
@@ -28,6 +30,7 @@ Manual-refresh pipeline persistence for **Decision** rows (Action Cards per
 ## Key behaviors
 
 - Unique constraint on `(shop_id, workflow_key)` — re-refresh updates rows in place
+- Sole write owner for `action_cards` and retained legacy `recommendations` tables
 - No Redis; Postgres is the sole store (ADR-021)
 - HTTP handlers never run scoring inline — same pattern as `execution/dispatch.py`
 - `DAILY_SCORING_CRON_UTC` remains unused (manual refresh only)

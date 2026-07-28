@@ -13,7 +13,9 @@ decision-focused, not dashboard/reporting.
 - `GET /v1/creators` — creators with attribution + commission efficiency (matching signal)
 - `GET /v1/creators/{id}/content` — content-to-conversion funnel for a creator
 - `GET /v1/products` — products (product nodes for matching)
-- `GET /v1/recommendations` — decision-focused recommendations: match/justification + CTA
+- `GET /v1/recommendations` — decision-focused recommendations: match/justification + CTA;
+  empty shop triggers legacy persist via `services/action_cards.persist_legacy_recommendations`
+  (read-only route — no direct `RecommendationsRepo.create`)
 - `GET /v1/demo/analytics` — unauthenticated masked Analytics envelope for the
   server-configured reference shop (Issue #531, ADR-037). No visitor `shop_id`;
   read-through Redis → Postgres SoT; masking applied before response.
@@ -29,7 +31,8 @@ analytics, and threshold alerting). See `docs/adr/006-matching-pivot.md`.
 ## Dependencies
 - `core/security` — `get_current_user` for JWT-based authentication
 - `database` — repos and models for shop-scoped persistence
-- `ai/recommendations` — engine functions for recommendation refresh
+- `services/action_cards` — legacy recommendation persist delegate (MMU-11); scoring refresh enqueue
+- `ai/recommendations` — engine functions consumed by action_cards owner (not API writes)
 
 ## Invariants
 - All /v1/* endpoints require a valid Supabase JWT (401 on failure), except

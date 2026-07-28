@@ -1279,6 +1279,8 @@ MMU-6:
     - web/
     - Sibling issue context caches
 
+MMU-11:
+  executorDomain: backend
 MMU-9:
   executorDomain: data-platform
   requiredDocs:
@@ -1288,6 +1290,29 @@ MMU-9:
     - docs/architecture/MODULES.md
     - docs/architecture/map.md
     - docs/architecture/ownership-registry.yml
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - backend/src/juli_backend/services/scoring/MODULE.md
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/services/action_cards/__init__.py
+    - backend/src/juli_backend/services/action_cards/persist.py
+    - backend/src/juli_backend/services/action_cards/refresh.py
+    - backend/src/juli_backend/api/routes/recommendations.py
+    - backend/src/juli_backend/api/routes/action_cards.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/ai/recommendations/MODULE.md
+    - backend/src/juli_backend/api/MODULE.md
+    - backend/src/juli_backend/services/scoring/pipeline.py
+    - tests/unit/test_action_cards_contract.py
+    - tests/unit/test_api_alerts_recommendations_analytics.py
+    - tests/unit/test_api_recommendations.py
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
     - backend/src/juli_backend/database/MODULE.md
     - .cursor/rules/patterns.mdc
   requiredModules:
@@ -1359,5 +1384,6 @@ MMU-5:
     - apps/dashboard/
     - ios/
     - web/
+    - backend/src/juli_backend/services/etl/persistence/
     - backend/src/juli_backend/ai/
     - Sibling issue context caches
