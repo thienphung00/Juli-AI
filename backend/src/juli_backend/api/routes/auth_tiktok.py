@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.config.runtime import require_env
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.database import get_session
-from juli_backend.integrations.tiktok.auth import TikTokAuth
-from juli_backend.integrations.tiktok.exceptions import (
+from juli_backend.integrations.tiktok import (
     AuthenticationError,
+    TikTokAuth,
 )
 from juli_backend.services.tiktok.app_review_store import persist_oauth_tokens
 from juli_backend.services.tiktok.oauth import TikTokOAuthInfrastructureService
@@ -38,9 +38,7 @@ def get_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
     if not base_url:
         base_url = DEFAULT_TIKTOK_BASE_URL
 
-    auth_base_url = os.environ.get(
-        "TIKTOK_AUTH_BASE_URL", DEFAULT_TIKTOK_AUTH_BASE_URL
-    ).strip()
+    auth_base_url = os.environ.get("TIKTOK_AUTH_BASE_URL", DEFAULT_TIKTOK_AUTH_BASE_URL).strip()
     if not auth_base_url:
         auth_base_url = DEFAULT_TIKTOK_AUTH_BASE_URL
 
@@ -50,9 +48,7 @@ def get_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
         base_url=base_url,
         auth_base_url=auth_base_url,
     )
-    return TikTokOAuthInfrastructureService(
-        app_secret=app_secret, tiktok_auth=tiktok_auth
-    )
+    return TikTokOAuthInfrastructureService(app_secret=app_secret, tiktok_auth=tiktok_auth)
 
 
 @router.get("/callback", response_model=TikTokOAuthCallbackResult)

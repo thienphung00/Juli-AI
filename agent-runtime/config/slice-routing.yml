@@ -1278,3 +1278,46 @@ MMU-6:
     - ios/
     - web/
     - Sibling issue context caches
+
+MMU-5:
+  executorDomain: integrations
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/import-boundaries.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - .importlinter.toml
+  requiredModules:
+    - backend/src/juli_backend/integrations/tiktok/__init__.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/resources/__init__.py
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+    - backend/src/juli_backend/integrations/tiktok/merchant.py
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - agent-runtime/scripts/ci/check_import_boundaries.py
+    - tests/unit/test_import_boundaries.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/integrations/tiktok_api/authentication.md
+    - docs/architecture/data-sources.md
+    - .cursor/skills/domain/integrations/SKILL.md
+    - .cursor/rules/patterns.mdc
+    - backend/src/juli_backend/workers/services/polling/orchestrate.py
+    - backend/src/juli_backend/workers/services/polling/sync.py
+    - backend/src/juli_backend/services/tiktok/verify_connection.py
+    - backend/src/juli_backend/core/security/credential_resolver.py
+    - backend/src/juli_backend/repositories/repos.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - backend/src/juli_backend/ai/
+    - Sibling issue context caches

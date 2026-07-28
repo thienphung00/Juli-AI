@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from juli_backend.integrations.tiktok.factories import SandboxWriteResources
+from juli_backend.integrations.tiktok import SandboxWriteResources
 
 
 def run_create_activity_chain(

@@ -19,7 +19,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from juli_backend.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
     ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
@@ -31,13 +31,12 @@ from juli_backend.integrations.tiktok.constants import (
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
+    PermissionDeniedError,
+    RateLimiter,
+    TikTokAPIError,
     analytics_shop_performance_per_hour_path,
     analytics_shop_product_performance_path,
     analytics_shop_sku_performance_path,
-    promotion_activity_path,
-)
-from juli_backend.integrations.tiktok.exceptions import PermissionDeniedError, TikTokAPIError
-from juli_backend.integrations.tiktok.mapping import (
     analytics_snapshot_key,
     expand_analytics_live_session,
     expand_analytics_product_detail,
@@ -53,8 +52,8 @@ from juli_backend.integrations.tiktok.mapping import (
     normalize_order,
     normalize_product,
     normalize_return,
+    promotion_activity_path,
 )
-from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
@@ -374,9 +373,7 @@ def _acquire(
     shop_id: str,
     endpoint: str,
 ) -> bool:
-    return rate_limiter.acquire(
-        app_id, shop_id, endpoint, max_requests=10, window_seconds=60
-    )
+    return rate_limiter.acquire(app_id, shop_id, endpoint, max_requests=10, window_seconds=60)
 
 
 async def sync_analytics(
@@ -430,9 +427,7 @@ async def sync_analytics(
                 if not sku_id:
                     continue
                 detail_path = analytics_shop_sku_performance_path(str(sku_id))
-                if not _acquire(
-                    rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
-                ):
+                if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path):
                     list_row = expand_analytics_sku_list_item(
                         sku,
                         start_date=start_date_ge,
@@ -505,9 +500,7 @@ async def sync_analytics(
                 if not product_id:
                     continue
                 detail_path = analytics_shop_product_performance_path(str(product_id))
-                if not _acquire(
-                    rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path
-                ):
+                if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=detail_path):
                     list_row = expand_analytics_product_list_item(
                         product,
                         start_date=start_date_ge,
@@ -608,9 +601,7 @@ async def sync_analytics(
                 await _handoff_analytics_rows(
                     handoff_fn,
                     shop_id,
-                    expand_analytics_shop_performance(
-                        shop_performance, synced_at=synced_at
-                    ),
+                    expand_analytics_shop_performance(shop_performance, synced_at=synced_at),
                 )
         except TikTokAPIError:
             logger.warning(
@@ -620,9 +611,7 @@ async def sync_analytics(
             )
 
     per_hour_path = analytics_shop_performance_per_hour_path(day)
-    if _acquire(
-        rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path
-    ):
+    if _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=per_hour_path):
         try:
             per_hour = resource.get_shop_performance_per_hour(date=day)
             sync_state["shop_performance_per_hour_last_sync_at"] = synced_at
@@ -678,9 +667,7 @@ async def sync_analytics(
         fetched_any = False
         for activity_id in activity_ids:
             path = promotion_activity_path(str(activity_id))
-            if not _acquire(
-                rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=path
-            ):
+            if not _acquire(rate_limiter, app_id=app_id, shop_id=shop_id, endpoint=path):
                 break
             try:
                 promotion_resource.get_activity(str(activity_id))
@@ -693,4 +680,3 @@ async def sync_analytics(
                 )
         if fetched_any:
             sync_state["promotion_activity_last_sync_at"] = synced_at
-

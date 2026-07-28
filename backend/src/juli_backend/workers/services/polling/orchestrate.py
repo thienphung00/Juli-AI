@@ -18,23 +18,19 @@ from juli_backend.core.security.credential_resolver import (
     resolve_production_read_credential,
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-from juli_backend.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok import (
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
+    PRODUCTION_AUTH_ID,
     RETURN_SEARCH_PATH,
-)
-from juli_backend.integrations.tiktok.factories import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
     ProductionReadResources,
-)
-from juli_backend.integrations.tiktok.merchant import (
-    PRODUCTION_AUTH_ID,
+    RateLimiter,
     TikTokCapability,
 )
-from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
