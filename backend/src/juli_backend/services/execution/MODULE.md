@@ -16,6 +16,8 @@ sandbox write guard contract, idempotency key threading, and error taxonomy.
   map Action Card `workflow_key` → registered Celery `tool_name` (mirrors
   `services/tiktok/webhook_catalog.py` lookup shape)
 - `get_task_dispatcher()` / `set_task_dispatcher()` — inject dispatcher in tests
+- `get_workflow_outcome_recorder()` / `set_workflow_outcome_recorder()` — inject outcome
+  recorder in tests (production adapter bound in `workers/dispatch_binding.py`)
 - `run_tool(tool_name, payload)` — worker-side registry in `runner.py` (not for HTTP handlers)
 - `register_tool(name, handler)` — extend tool catalog for P2-B6+ executors
 - `load_sandbox_write_resources(session, app_key, app_secret)` — SANDBOX_VN write path for real tools

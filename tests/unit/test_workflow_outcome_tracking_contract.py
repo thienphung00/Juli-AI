@@ -63,9 +63,7 @@ async def auth_client(app, authenticated_user, shop):
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -91,7 +89,10 @@ async def test_ac1_worker_records_workflow_outcome_in_oltp(
     from juli_backend.repositories.repos import ToolExecutionsRepo, WorkflowOutcomeRecordsRepo
     from juli_backend.services.execution.dispatch import create_queued_execution
     from juli_backend.services.execution.types import ExecutionStatus
+    from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
     from juli_backend.workers.tasks import tool_execution
+
+    bind_celery_dispatchers()
 
     factory = create_session_factory(engine)
     init_session_factory(factory)
@@ -137,7 +138,10 @@ async def test_ac2_metrics_available_for_internal_validation(
 ):
     """AC2: GET /v1/workflow-outcomes/{approval_id} returns metrics envelope."""
     from juli_backend.database.database import create_session_factory, init_session_factory
+    from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
     from juli_backend.workers.tasks import tool_execution
+
+    bind_celery_dispatchers()
 
     factory = create_session_factory(engine)
     init_session_factory(factory)

@@ -85,20 +85,25 @@ def test_mmu6_bind_celery_dispatchers_wires_domain_injectors():
     """Startup binding registers Celery adapters on domain injectors."""
     from juli_backend.services.action_cards import dispatch as action_dispatch
     from juli_backend.services.execution import dispatch as execution_dispatch
+    from juli_backend.services.execution import outcome_port
     from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
 
     action_dispatch.set_refresh_dispatcher(None)
     execution_dispatch.set_task_dispatcher(None)
+    outcome_port.set_workflow_outcome_recorder(None)
 
     bind_celery_dispatchers()
 
     refresh = action_dispatch.get_refresh_dispatcher()
     task = execution_dispatch.get_task_dispatcher()
+    recorder = outcome_port.get_workflow_outcome_recorder()
     assert refresh.__class__.__name__ == "CeleryRefreshDispatcher"
     assert task.__class__.__name__ == "CeleryTaskDispatcher"
+    assert recorder.__class__.__name__ == "OperationsWorkflowOutcomeRecorder"
 
     action_dispatch.set_refresh_dispatcher(None)
     execution_dispatch.set_task_dispatcher(None)
+    outcome_port.set_workflow_outcome_recorder(None)
 
 
 def test_mmu6_unbound_refresh_dispatcher_raises():
