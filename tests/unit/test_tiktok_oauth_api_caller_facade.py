@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 BACKEND_SRC = ROOT / "backend/src"
 
 # Bounded OAuth/API caller group for MMU-5 packet 2.
+# auth_tiktok.py is thinned in MMU-8 — integrations.tiktok imports live in oauth.py.
 OAUTH_API_CALLER_FILES = (
-    "juli_backend/api/routes/auth_tiktok.py",
     "juli_backend/api/routes/auth_tiktok_business_advertiser.py",
     "juli_backend/api/routes/auth_tiktok_business_account_holder.py",
     "juli_backend/services/tiktok/oauth.py",
@@ -38,7 +38,6 @@ FACADE_MODULE = "juli_backend.integrations.tiktok"
 
 # Representative facade symbols each caller is expected to consume via the root.
 EXPECTED_FACADE_SYMBOLS_BY_CALLER = {
-    "juli_backend/api/routes/auth_tiktok.py": frozenset({"TikTokAuth", "AuthenticationError"}),
     "juli_backend/api/routes/auth_tiktok_business_advertiser.py": frozenset(
         {"TikTokBusinessAdvertiserAuth", "AuthenticationError"}
     ),

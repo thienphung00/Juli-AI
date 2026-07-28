@@ -17,6 +17,9 @@ the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipel
 - `build_webhook_service(*, app_key, app_secret, handoff_fn, side_effects=None, raw_event_recorder=None) -> TikTokWebhookService`
   — shared verify+dispatch+handoff (+ optional raw audit) assembly, reused by
   `create_app` and by `juli_backend.api.routes.webhook_tiktok` (the deployed mount)
+- `handle_tiktok_webhook_delivery(*, session, app_key, app_secret, body, signature, headers) -> WebhookProcessResult`
+  — production HTTP wiring for the main API mount: assembles ETL handoff, DB side
+  effects, and raw-event recorder on the request-scoped session, then commits
 - `HandoffFn` — type alias (from `juli_backend.services.ingestion`)
 - `WEBHOOK_PATH` — `/webhooks/tiktok`
 
@@ -60,9 +63,9 @@ the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipel
 the `build_webhook_service` assembly:
 
 1. **`juli_backend.api.app`** (deployed) — `api/routes/webhook_tiktok.py` mounts
-   the route directly on the main API via `app.include_router(...)`, using the
-   request-scoped `get_session` dependency (same as every other `/v1/*` route)
-   instead of an injected `session_factory`. This is what TikTok Partner Center
+   the route directly on the main API via `app.include_router(...)`, delegating
+   to `handle_tiktok_webhook_delivery` with the request-scoped `get_session`
+   dependency (same as every other `/v1/*` route). This is what TikTok Partner Center
    actually reaches at `https://api.app-juli.com/webhooks/tiktok` — Nginx and
    `juli-api` (systemd) require no changes since both already proxy/serve every
    path on port 8000 (see `docs/runbooks/backend-deploy-runbook.md`).

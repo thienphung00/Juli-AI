@@ -8,18 +8,12 @@ service deployed. Registering the route here — instead of only on the
 standalone app in ``juli_backend.services.webhook`` — is what makes that
 already-proxied path resolve instead of 404.
 
-Reuses the verified signature/dispatch assembly from
-``juli_backend.services.webhook.app.build_webhook_service`` and the
-request-scoped DB session used by every other API route (``get_session``),
-rather than the standalone app's injected ``session_factory``. TikTok
-credentials are resolved lazily per-request via ``require_env``, matching
-``get_tiktok_oauth_service`` / ``get_verify_connection_service`` in the
-sibling route modules.
+HTTP wiring delegates to ``juli_backend.services.webhook.handle_tiktok_webhook_delivery``.
+TikTok credentials are resolved lazily per-request via ``require_env``, matching
+the sibling TikTok auth route modules.
 """
 
 from __future__ import annotations
-
-import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
@@ -27,22 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config.runtime import require_env
 from juli_backend.database import get_session
-from juli_backend.services.etl.consumer import EtlConsumer
-from juli_backend.services.ingestion.handoff import make_etl_handoff
-from juli_backend.services.tiktok.webhook_handlers import DatabaseWebhookSideEffects
-from juli_backend.services.tiktok.webhook_raw_log import DatabaseRawWebhookEventRecorder
-from juli_backend.services.webhook.app import WEBHOOK_PATH, build_webhook_service
-
-logger = logging.getLogger(__name__)
+from juli_backend.services.webhook import WEBHOOK_PATH, handle_tiktok_webhook_delivery
 
 router = APIRouter(tags=["webhooks"])
-
-
-async def _dlq_handoff(channel: str, shop_key: str, payload: bytes) -> None:
-    logger.error(
-        "webhook_etl_dlq",
-        extra={"channel": channel, "shop_key": shop_key, "payload_bytes": len(payload)},
-    )
 
 
 def _resolve_tiktok_credentials() -> tuple[str, str]:
@@ -67,19 +48,13 @@ async def handle_tiktok_webhook(
     body = await request.body()
     signature = request.headers.get("Authorization")
 
-    consumer = EtlConsumer(session=session, dlq_handoff=_dlq_handoff)
-    service = build_webhook_service(
+    result = await handle_tiktok_webhook_delivery(
+        session=session,
         app_key=app_key,
         app_secret=app_secret,
-        handoff_fn=make_etl_handoff(consumer),
-        side_effects=DatabaseWebhookSideEffects(session),
-        raw_event_recorder=DatabaseRawWebhookEventRecorder(session),
-    )
-    result = await service.handle(
         body=body,
         signature=signature,
         headers=dict(request.headers),
     )
-    await session.commit()
 
     return JSONResponse(result.body, status_code=result.status_code)
