@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-560",
+  "issue": 560,
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Uncommitted diff vs origin/main (ef3ea591) for MMU-12 / #560. ownership-registry.yml adds metadata.redisKeyPolicy (futureConvention juli:<module>:, legacyAllowlist, no-rename notes) and registers ratelimit:* (Integrations), analytics:kpi_envelope:* (Intelligence), material_analytics mutex/coalesce68 (Data Pipeline), celery-* (Workers & Async) with expanded broker notes. check_ownership_registry.py validates policy + patterns; check_redis_key_prefixes.py best-effort AST scan with --strict fail mode and synthetic rogue fixture; production backend scan passes. No runtime key renames (rate_limiter.py untouched). pr.yml / CI unwired — matches AC (local test/script) and implementation deferral to #556. 14 pytest cases pass.",
+  "smells": [
+    {
+      "name": "Duplicated Code",
+      "path": "tests/unit/test_ownership_registry.py",
+      "hunk": "test_registry_documents_redis_key_policy overlaps test_registry_documents_juli_module_convention_and_legacy_allowlist in test_redis_key_prefixes.py (same futureConvention/allowlist assertions)",
+      "judgement": true
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "Issue #560 — policy doc location",
+      "path": "docs/architecture/ownership-registry.yml",
+      "note": "juli:<module>: policy lives in registry metadata.redisKeyPolicy rather than a separate MODULES/cross-cutting note; satisfies AC alternate ('or MODULES/cross-cutting note') and PRD Runtime Namespace Policy decision #6.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "MODULES.md — Integrations vs TikTok Integration",
+      "path": "docs/architecture/ownership-registry.yml",
+      "note": "Issue/PRD cite 'TikTok Integration'; registry owner Integrations matches MODULES.md planning module index — intentional naming alignment.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "ADR-041 (cited standard)",
+      "path": "docs/adr/",
+      "note": "ADR-041 not present in repo at review time; no conflicting ADR found. Intent judged against #560, Modular Monolith PRD §Runtime Namespace Policy, and ownership-registry SOT.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "PRD — CI wiring scope",
+      "path": "agent-runtime/scripts/ci/check_redis_key_prefixes.py",
+      "note": "Prefix scanner exists with --strict exit non-zero; not added to pr.yml in this slice (deferred per implementation artifact to MMU-3 #556). Acceptable for #560 AC ('Test/script fails').",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "560-20260728T041200"
+}
