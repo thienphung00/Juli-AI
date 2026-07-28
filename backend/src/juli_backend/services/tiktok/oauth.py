@@ -15,9 +15,9 @@ import logging
 import uuid
 
 from juli_backend.core.security.exceptions import Unauthorized
-from juli_backend.integrations.tiktok.auth import TikTokAuth
-from juli_backend.integrations.tiktok.exceptions import (
+from juli_backend.integrations.tiktok import (
     AuthenticationError,
+    TikTokAuth,
 )
 from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
 
@@ -38,9 +38,7 @@ class TikTokOAuthInfrastructureService:
             raise Unauthorized("Invalid OAuth state")
 
         encoded, signature = parts
-        expected = hmac.new(
-            self._app_secret.encode(), encoded.encode(), hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self._app_secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(signature, expected):
             raise Unauthorized("Invalid OAuth state signature")

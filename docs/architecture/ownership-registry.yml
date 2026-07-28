@@ -118,11 +118,16 @@ databaseTables:
   action_cards:
     owner: Intelligence
     access: write
-    notes: Written by refresh pipeline after scoring.
+    notes: >
+      Sole write owner via services/action_cards (Action Cards / Scoring);
+      refresh → persist_scoring_result pipeline.
   recommendations:
     owner: Intelligence
     access: write
-    notes: Legacy AI recommendations path; prefer action_cards owner for new work.
+    notes: >
+      Legacy table retained for GET /v1/recommendations; sole write owner is
+      services/action_cards.persist_legacy_recommendations (Action Cards / Scoring).
+      API routes delegate — do not call RecommendationsRepo.create directly.
   tool_executions:
     owner: Workers & Async
     access: write

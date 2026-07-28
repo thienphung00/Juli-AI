@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.token_crypto import decrypt_token, encrypt_token
-from juli_backend.integrations.tiktok.merchant import (
+from juli_backend.integrations.tiktok import (
     TikTokCapability,
     is_cross_merchant_lookup,
 )
@@ -30,7 +30,6 @@ from juli_backend.models.models import (
     Livestream,
     Order,
     OrderItem,
-    ProcessedEvent,
     Product,
     Recommendation,
     Return,
@@ -822,25 +821,9 @@ class GraphRepo:
         return campaign
 
 
-class ProcessedEventsRepo:
-    """Tracks consumed ingest event IDs for idempotent ETL (#32)."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def claim(self, *, event_id: str, shop_id: uuid.UUID) -> bool:
-        """Insert *event_id* if unseen. Returns False when already processed."""
-        stmt = select(ProcessedEvent).where(ProcessedEvent.event_id == event_id)
-        result = await self._session.execute(stmt)
-        if result.scalar_one_or_none() is not None:
-            return False
-        self._session.add(ProcessedEvent(event_id=event_id, shop_id=shop_id))
-        try:
-            async with self._session.begin_nested():
-                await self._session.flush()
-        except IntegrityError:
-            return False
-        return True
+from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401, I001
+    ProcessedEventsRepo,  # MMU-9a legacy shim
+)
 
 
 class WorkflowWebhookSignalsRepo:

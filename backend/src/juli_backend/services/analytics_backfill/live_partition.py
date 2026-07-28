@@ -9,11 +9,9 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
-from juli_backend.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok import (
     ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,
     ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
-)
-from juli_backend.integrations.tiktok.mapping import (
     analytics_snapshot_key,
     expand_analytics_live_session,
 )
@@ -28,10 +26,12 @@ from juli_backend.services.analytics_backfill.budget import (
 
 LIVE_BUCKET = "live"
 
-_BACKFILL_LIVE_GET_PATHS = frozenset({
-    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
-    ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,
-})
+_BACKFILL_LIVE_GET_PATHS = frozenset(
+    {
+        ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
+        ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,
+    }
+)
 
 _FORBIDDEN_LIVE_BACKFILL_PATH_PATTERNS = (
     re.compile(r"^/analytics/\d+/shop_lives/[^/]+/performance_per_minutes$"),
