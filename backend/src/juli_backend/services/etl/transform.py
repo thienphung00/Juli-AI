@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.integrations.tiktok.mapping import (
+from juli_backend.integrations.tiktok import (
     analytics_snapshot_key,
     normalize_creator,
     normalize_inventory,
@@ -86,9 +86,7 @@ def _transform_order(body: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         "tiktok_created_at": _optional_datetime(body.get("create_time")),
         "cancel_reason": body.get("cancel_reason"),
         "is_seller_fault": body.get("is_seller_fault"),
-        "update_time": _unix_to_datetime(
-            body.get("update_time") or payload.get("timestamp")
-        ),
+        "update_time": _unix_to_datetime(body.get("update_time") or payload.get("timestamp")),
     }
 
 
@@ -113,9 +111,7 @@ def _canonical_order_status(value: Any) -> str:
     return status_map.get(status, str(value).lower())
 
 
-def _transform_order_item(
-    body: dict[str, Any], payload: dict[str, Any]
-) -> dict[str, Any]:
+def _transform_order_item(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     sku_id = body.get("sku_id")
     tiktok_order_id = body.get("tiktok_order_id")
     if not sku_id or not tiktok_order_id:
@@ -134,9 +130,7 @@ def _transform_order_item(
         "quantity": quantity,
         "unit_price": Decimal(str(unit_price)),
         "line_total": Decimal(str(line_total)),
-        "update_time": _unix_to_datetime(
-            body.get("update_time") or payload.get("timestamp")
-        ),
+        "update_time": _unix_to_datetime(body.get("update_time") or payload.get("timestamp")),
     }
 
 
@@ -162,9 +156,7 @@ def _transform_return(body: dict[str, Any], payload: dict[str, Any]) -> dict[str
         "refund_amount": Decimal(str(refund)),
         "status": str(body.get("status") or body.get("return_status") or "pending_review"),
         "update_time": _unix_to_datetime(
-            body.get("update_time")
-            or body.get("create_time")
-            or payload.get("timestamp")
+            body.get("update_time") or body.get("create_time") or payload.get("timestamp")
         ),
     }
 
@@ -193,9 +185,7 @@ def _transform_product(body: dict[str, Any]) -> dict[str, Any]:
         "status": str(body.get("status") or audit_status or "ACTIVE"),
         "revenue": Decimal(str(body.get("revenue", 0))),
         "units_sold": int(body.get("units_sold", 0)),
-        "update_time": _unix_to_datetime(
-            body.get("updated_at") or body.get("update_time")
-        ),
+        "update_time": _unix_to_datetime(body.get("updated_at") or body.get("update_time")),
     }
 
 
@@ -218,9 +208,7 @@ def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[
     if not sku_id:
         raise TransformError("sku_id required")
     return {
-        "tiktok_product_id": str(
-            body.get("product_id") or body.get("tiktok_product_id") or sku_id
-        ),
+        "tiktok_product_id": str(body.get("product_id") or body.get("tiktok_product_id") or sku_id),
         "tiktok_sku_id": str(sku_id),
         "quantity": _coerce_int(
             body.get("available_quantity")
@@ -265,9 +253,7 @@ def _transform_livestream(body: dict[str, Any]) -> dict[str, Any]:
         "title": body.get("title"),
         "viewer_count": body.get("viewer_count"),
         "order_count": body.get("order_count"),
-        "revenue": (
-            Decimal(str(body["revenue"])) if body.get("revenue") is not None else None
-        ),
+        "revenue": (Decimal(str(body["revenue"])) if body.get("revenue") is not None else None),
         "update_time": _unix_to_datetime(update_time) if update_time else None,
     }
 
@@ -283,13 +269,9 @@ def _transform_settlement(body: dict[str, Any], payload: dict[str, Any]) -> dict
         "currency": str(body.get("currency") or "VND"),
         "status": str(body.get("status") or "pending"),
         "settlement_time": (
-            _unix_to_datetime(body["settlement_time"])
-            if body.get("settlement_time")
-            else None
+            _unix_to_datetime(body["settlement_time"]) if body.get("settlement_time") else None
         ),
-        "update_time": _unix_to_datetime(
-            body.get("update_time") or payload.get("timestamp")
-        ),
+        "update_time": _unix_to_datetime(body.get("update_time") or payload.get("timestamp")),
     }
 
 
@@ -392,9 +374,7 @@ def _channel_allowed(channel: str) -> bool:
     return channel in RAW_CHANNELS or channel.startswith("tiktok.")
 
 
-def transform_for_channel(
-    channel: str, payload: dict[str, Any]
-) -> tuple[str, dict[str, Any]]:
+def transform_for_channel(channel: str, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Return ``(entity_kind, upsert_kwargs_without_shop_id)`` for an ingest payload."""
     if not _channel_allowed(channel):
         raise TransformError(f"unsupported channel: {channel}")
@@ -406,10 +386,7 @@ def transform_for_channel(
 
     if (
         channel == "tiktok.orders.raw"
-        or (
-            channel.startswith("tiktok.order")
-            and channel != "tiktok.order_items.raw"
-        )
+        or (channel.startswith("tiktok.order") and channel != "tiktok.order_items.raw")
         or (
             (body.get("order_id") or body.get("id"))
             and not body.get("return_id")
@@ -425,13 +402,10 @@ def transform_for_channel(
     if channel == "tiktok.returns.raw" or body.get("return_id"):
         return "return", _transform_return(normalize_return(body), payload)
 
-    if (
-        channel == "tiktok.products.raw"
-        or (
-            (body.get("product_id") or body.get("id"))
-            and not body.get("sku_id")
-            and not body.get("return_id")
-        )
+    if channel == "tiktok.products.raw" or (
+        (body.get("product_id") or body.get("id"))
+        and not body.get("sku_id")
+        and not body.get("return_id")
     ):
         return "product", _transform_product(normalize_product(body))
 

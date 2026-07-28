@@ -13,10 +13,10 @@ import uuid
 from pydantic import BaseModel
 
 from juli_backend.core.security.exceptions import Unauthorized
-from juli_backend.integrations.tiktok.business_advertiser_auth import (
+from juli_backend.integrations.tiktok import (
+    AuthenticationError,
     TikTokBusinessAdvertiserAuth,
 )
-from juli_backend.integrations.tiktok.exceptions import AuthenticationError
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,7 @@ class TikTokBusinessAdvertiserOAuthService:
             raise Unauthorized("Invalid OAuth state")
 
         encoded, signature = parts
-        expected = hmac.new(
-            self._app_secret.encode(), encoded.encode(), hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self._app_secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(signature, expected):
             raise Unauthorized("Invalid OAuth state signature")
@@ -91,9 +89,7 @@ class TikTokBusinessAdvertiserOAuthService:
             raise
 
         advertiser_ids = token_data.get("advertiser_ids")
-        advertiser_id_present = (
-            isinstance(advertiser_ids, list) and len(advertiser_ids) > 0
-        )
+        advertiser_id_present = isinstance(advertiser_ids, list) and len(advertiser_ids) > 0
 
         logger.info(
             "tiktok_business_advertiser_oauth_token_exchange_completed",

@@ -22,7 +22,6 @@ from juli_backend.repositories.repos import (
     LivestreamsRepo,
     OrderItemsRepo,
     OrdersRepo,
-    ProcessedEventsRepo,
     ProductsRepo,
     ReturnsRepo,
     SettlementsRepo,
@@ -30,6 +29,7 @@ from juli_backend.repositories.repos import (
 )
 from juli_backend.services.etl.channels import DLQ_CHANNEL
 from juli_backend.services.etl.event_id import extract_event_id
+from juli_backend.services.etl.persistence.ingest import ProcessedEventsRepo
 from juli_backend.services.etl.record import IngestRecord
 from juli_backend.services.etl.transform import TransformError, transform_for_channel
 
@@ -184,13 +184,9 @@ class EtlConsumer:
         )
         return ProcessOutcome.PROCESSED
 
-    async def _upsert(
-        self, entity_kind: str, *, shop_id: Any, kwargs: dict[str, Any]
-    ) -> None:
+    async def _upsert(self, entity_kind: str, *, shop_id: Any, kwargs: dict[str, Any]) -> None:
         if entity_kind == "order_item":
-            kwargs["order_id"] = await self._resolve_order_id(
-                shop_id, kwargs["tiktok_order_id"]
-            )
+            kwargs["order_id"] = await self._resolve_order_id(shop_id, kwargs["tiktok_order_id"])
         elif entity_kind == "return" and kwargs.get("tiktok_order_id"):
             order_pk = await self._lookup_order_id(shop_id, kwargs["tiktok_order_id"])
             kwargs["order_id"] = order_pk
@@ -217,9 +213,7 @@ class EtlConsumer:
             raise TransformError(f"unknown entity kind {entity_kind}")
         await repo.upsert(shop_id=shop_id, **kwargs)
 
-    async def _lookup_order_id(
-        self, shop_id: Any, tiktok_order_id: str
-    ) -> Any | None:
+    async def _lookup_order_id(self, shop_id: Any, tiktok_order_id: str) -> Any | None:
         stmt = select(Order.id).where(
             Order.shop_id == shop_id,
             Order.tiktok_order_id == tiktok_order_id,

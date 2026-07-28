@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.integrations.tiktok.merchant import (
+from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
     SANDBOX_AUTH_ID,
     TikTokCapability,

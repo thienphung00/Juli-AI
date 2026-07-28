@@ -7,8 +7,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
-from juli_backend.integrations.tiktok.exceptions import TikTokAPIError
-from juli_backend.integrations.tiktok.mapping import expand_analytics_shop_performance
+from juli_backend.integrations.tiktok import (
+    TikTokAPIError,
+    expand_analytics_shop_performance,
+)
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
     AnalyticsPerformanceRepo,
@@ -22,9 +24,7 @@ BUCKET = "revenue"
 
 
 class AnalyticsResourceProtocol(Protocol):
-    def get_shop_performance(
-        self, *, start_date_ge: str, end_date_lt: str
-    ) -> dict[str, Any]: ...
+    def get_shop_performance(self, *, start_date_ge: str, end_date_lt: str) -> dict[str, Any]: ...
 
     def get_shop_performance_per_hour(self, *, date: str) -> dict[str, Any]: ...
 
@@ -73,9 +73,7 @@ def _extract_customers_from_per_hour(data: dict[str, Any]) -> int | None:
     return total if found else None
 
 
-def _select_daily_row(
-    rows: list[dict[str, Any]], partition_date: date
-) -> dict[str, Any] | None:
+def _select_daily_row(rows: list[dict[str, Any]], partition_date: date) -> dict[str, Any] | None:
     date_str = partition_date.isoformat()
     for row in rows:
         if row.get("grain") == "shop" and row.get("start_date") == date_str:

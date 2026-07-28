@@ -1,0 +1,270 @@
+{
+  "id": "review-issue-558",
+  "issue": 558,
+  "timestamp": "2026-07-28T05:05:24Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #558 MMU-9a processed_events persistence extraction: intent-review spec_fidelity=pass consumed as given. ProcessedEvent/ProcessedEventsRepo live in services/etl/persistence/ingest with legacy shims, Database lazy facade resolves canonical module, ownership discovery scans **/persistence/**/*.py, EtlConsumer imports domain repo, etl/__init__ lazy-loads consumer to break cycle. claim() idempotency preserved; no migrations or polyglot wiring. All five ACs mapped to focused pytest nodes in tests/unit/test_etl_persistence_ingest.py. 28 unit tests pass; ownership registry CI OK.",
+  "criticalFindings": [
+    {
+      "id": "558-info-shotgun-surgery",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/models/models.py",
+      "description": "Intent-review smell (non-blocking): Shotgun Surgery \u2014 ProcessedEvent move touches models/repos shims, database facade, consumer import, ownership discovery, and new persistence package.",
+      "suggestion": "Expected for MMU-9 strangler slice; collapse shims in follow-up slices per slice-routing.yml."
+    },
+    {
+      "id": "558-info-module-md-drift",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/MODULE.md",
+      "description": "Intent-review convention note (non-blocking): MODULE.md and database/MODULE.md still list ProcessedEvent/ProcessedEventsRepo under legacy Database paths; ingest persistence facade not documented.",
+      "suggestion": "Doc follow-up: note strangler re-export or add services/etl/persistence/ingest/MODULE.md in a later slice."
+    },
+    {
+      "id": "558-info-lazy-etl-consumer",
+      "type": "architecture",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/__init__.py",
+      "description": "Reliability note: EtlConsumer/ProcessOutcome now resolve via PEP 562 __getattr__ to break models\u2194repos cycle introduced by persistence package path; import errors defer until first attribute access.",
+      "suggestion": "Validate phase should smoke-check `from juli_backend.services.etl import EtlConsumer` and app boot paths; existing test_etl.py exercises consumer after import."
+    },
+    {
+      "id": "558-info-ac1-scope-alignment-pytest",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-558.md",
+      "description": "AC1 (written split plan approved before code move) mapped to test_written_split_plan_approved_before_code_move_issue_558, which reads scope-alignment-issue-558.md for MMU-9 APPROVED comment 5099566733 (2026-07-28T03:24:34Z) predating implementation startedAt 2026-07-28T03:30:00Z.",
+      "suggestion": "PR body may link approval comment for human reviewers."
+    },
+    {
+      "id": "558-info-claim-select-then-insert",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/persistence/ingest/repo.py",
+      "description": "ProcessedEventsRepo.claim retains pre-extraction select-then-insert with nested savepoint + IntegrityError handling (TOCTOU race handled at PK constraint); not a regression from this slice.",
+      "suggestion": "Future optimization: INSERT \u2026 ON CONFLICT DO NOTHING if hot-path profiling warrants."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/etl/persistence/ingest/model.py",
+    "backend/src/juli_backend/services/etl/persistence/ingest/repo.py",
+    "backend/src/juli_backend/services/etl/persistence/ingest/__init__.py",
+    "backend/src/juli_backend/services/etl/persistence/__init__.py",
+    "backend/src/juli_backend/services/etl/consumer.py",
+    "backend/src/juli_backend/services/etl/__init__.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/database/__init__.py",
+    "agent-runtime/scripts/ci/check_ownership_registry.py",
+    "agent-runtime/config/slice-routing.yml",
+    "tests/unit/test_etl_persistence_ingest.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/etl/persistence/ingest",
+      "interface": "ProcessedEvent / ProcessedEventsRepo",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Canonical public ETL ingest persistence facade; legacy models/repos and Database lazy exports remain as strangler shims."
+    },
+    {
+      "module": "backend/src/juli_backend/services/etl",
+      "interface": "EtlConsumer / ProcessOutcome",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Package __init__ now lazy-loads consumer symbols via __getattr__ to avoid import-cycle at etl package import."
+    },
+    {
+      "module": "agent-runtime/scripts/ci/check_ownership_registry.py",
+      "interface": "discover_orm_table_names",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "ORM discovery extended to scan backend/src/juli_backend/services/**/persistence/**/*.py for __tablename__ declarations."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Written split plan mapping each table to a persistence package/submodule (from #551 registry) approved in issue comments before code move.",
+          "test": "tests/unit/test_etl_persistence_ingest.py::test_written_split_plan_approved_before_code_move_issue_558"
+        },
+        {
+          "criterion": "At least one domain (e.g. ETL commerce or execution) moved end-to-end with imports updated and tests green.",
+          "test": "tests/unit/test_etl_persistence_ingest.py::test_at_least_one_domain_moved_end_to_end_imports_updated"
+        },
+        {
+          "criterion": "Shared session/Base remain in Database shared infra.",
+          "test": "tests/unit/test_etl_persistence_ingest.py::test_shared_session_base_remain_in_database_shared_infra"
+        },
+        {
+          "criterion": "No polyglot DB; single deployable.",
+          "test": "tests/unit/test_etl_persistence_ingest.py::test_no_polyglot_db_single_deployable_shared_postgres"
+        },
+        {
+          "criterion": "Remaining god-file shrinkage tracked or completed in follow-ups linked from this issue if too large for one PR (<400 LOC preference \u2192 multiple PRs OK under this issue).",
+          "test": "tests/unit/test_etl_persistence_ingest.py::test_remaining_god_file_shrinkage_tracked_in_follow_up_slices"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 28,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Run Validate gates before merge (import boundaries, ownership registry, implementation TDD evidence).",
+    "Optional doc follow-up: update services/etl/MODULE.md and database/MODULE.md for ingest persistence public surface.",
+    "Link MMU-9 APPROVED comment URL in PR body for human reviewers."
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [
+    {
+      "id": "558-warn-ac1-unmapped",
+      "description": "Coverage gap: AC1 had manual/doc mapping only.",
+      "resolved": true,
+      "resolvedInCommit": "uncommitted remediation \u2014 test_written_split_plan_approved_before_code_move_issue_558"
+    },
+    {
+      "id": "558-warn-ac4-unmapped",
+      "description": "Coverage gap: AC4 mapped to legacy test name.",
+      "resolved": true,
+      "resolvedInCommit": "uncommitted remediation \u2014 test_no_polyglot_db_single_deployable_shared_postgres"
+    },
+    {
+      "id": "558-warn-ac-mapping-heuristic",
+      "description": "Validate acceptance_criteria_mapped failed on manual/doc pseudo-tests and criterion token mismatches.",
+      "resolved": true,
+      "resolvedInCommit": "uncommitted remediation \u2014 AC1\u2013AC5 pytest nodes aligned to issue criteria"
+    }
+  ],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 1,
+    "conventionNotesImported": 4,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "uncommitted diff vs origin/main (ef3ea591) on feature/issue-558-persistence-split",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-558.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-558.json",
+  "reviewDurationMs": 210000,
+  "phaseRunId": "558-20260728T032501",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "558-info-shotgun-surgery",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/models/models.py",
+      "description": "Intent-review smell (non-blocking): Shotgun Surgery \u2014 ProcessedEvent move touches models/repos shims, database facade, consumer import, ownership discovery, and new persistence package.",
+      "suggestion": "Expected for MMU-9 strangler slice; collapse shims in follow-up slices per slice-routing.yml."
+    },
+    {
+      "id": "558-info-module-md-drift",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/MODULE.md",
+      "description": "Intent-review convention note (non-blocking): MODULE.md and database/MODULE.md still list ProcessedEvent/ProcessedEventsRepo under legacy Database paths; ingest persistence facade not documented.",
+      "suggestion": "Doc follow-up: note strangler re-export or add services/etl/persistence/ingest/MODULE.md in a later slice."
+    },
+    {
+      "id": "558-info-lazy-etl-consumer",
+      "type": "architecture",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/__init__.py",
+      "description": "Reliability note: EtlConsumer/ProcessOutcome now resolve via PEP 562 __getattr__ to break models\u2194repos cycle introduced by persistence package path; import errors defer until first attribute access.",
+      "suggestion": "Validate phase should smoke-check `from juli_backend.services.etl import EtlConsumer` and app boot paths; existing test_etl.py exercises consumer after import."
+    },
+    {
+      "id": "558-info-ac1-scope-alignment-pytest",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-558.md",
+      "description": "AC1 (written split plan approved before code move) mapped to test_written_split_plan_approved_before_code_move_issue_558, which reads scope-alignment-issue-558.md for MMU-9 APPROVED comment 5099566733 (2026-07-28T03:24:34Z) predating implementation startedAt 2026-07-28T03:30:00Z.",
+      "suggestion": "PR body may link approval comment for human reviewers."
+    },
+    {
+      "id": "558-info-claim-select-then-insert",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/persistence/ingest/repo.py",
+      "description": "ProcessedEventsRepo.claim retains pre-extraction select-then-insert with nested savepoint + IntegrityError handling (TOCTOU race handled at PK constraint); not a regression from this slice.",
+      "suggestion": "Future optimization: INSERT \u2026 ON CONFLICT DO NOTHING if hot-path profiling warrants."
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [
+    {
+      "id": "558-info-module-md-drift",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/MODULE.md",
+      "description": "Intent-review convention note (non-blocking): MODULE.md and database/MODULE.md still list ProcessedEvent/ProcessedEventsRepo under legacy Database paths; ingest persistence facade not documented.",
+      "suggestion": "Doc follow-up: note strangler re-export or add services/etl/persistence/ingest/MODULE.md in a later slice."
+    }
+  ],
+  "maintainabilityFindings": [
+    {
+      "id": "558-info-module-md-drift",
+      "type": "drift",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/MODULE.md",
+      "description": "Intent-review convention note (non-blocking): MODULE.md and database/MODULE.md still list ProcessedEvent/ProcessedEventsRepo under legacy Database paths; ingest persistence facade not documented.",
+      "suggestion": "Doc follow-up: note strangler re-export or add services/etl/persistence/ingest/MODULE.md in a later slice."
+    },
+    {
+      "id": "558-info-ac1-scope-alignment-pytest",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-558.md",
+      "description": "AC1 (written split plan approved before code move) mapped to test_written_split_plan_approved_before_code_move_issue_558, which reads scope-alignment-issue-558.md for MMU-9 APPROVED comment 5099566733 (2026-07-28T03:24:34Z) predating implementation startedAt 2026-07-28T03:30:00Z.",
+      "suggestion": "PR body may link approval comment for human reviewers."
+    },
+    {
+      "id": "558-info-claim-select-then-insert",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/etl/persistence/ingest/repo.py",
+      "description": "ProcessedEventsRepo.claim retains pre-extraction select-then-insert with nested savepoint + IntegrityError handling (TOCTOU race handled at PK constraint); not a regression from this slice.",
+      "suggestion": "Future optimization: INSERT \u2026 ON CONFLICT DO NOTHING if hot-path profiling warrants."
+    }
+  ],
+  "suggestedRemediation": [
+    "Expected for MMU-9 strangler slice; collapse shims in follow-up slices per slice-routing.yml.",
+    "Doc follow-up: note strangler re-export or add services/etl/persistence/ingest/MODULE.md in a later slice.",
+    "Validate phase should smoke-check `from juli_backend.services.etl import EtlConsumer` and app boot paths; existing test_etl.py exercises consumer after import.",
+    "PR body may link approval comment for human reviewers.",
+    "Future optimization: INSERT \u2026 ON CONFLICT DO NOTHING if hot-path profiling warrants."
+  ]
+}
