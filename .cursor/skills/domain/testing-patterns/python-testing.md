@@ -13,6 +13,19 @@ Use when adding/changing Python behavior in this repo to ensure tests are fast, 
 - Prefer parametrization over copy/paste tests.
 - Keep suite fast; slow tests must be isolated/marked.
 
+# Modular Monolith Test Layers
+
+Per [PRD #550 Testing Decisions](docs/product/phases/modular-monolith-upgrade/PRD.md#testing-decisions) — place tests by boundary, not by convenience.
+
+| Layer | Scope | Placement | Rules |
+|-------|-------|-----------|-------|
+| **Unit** | One module | `tests/unit/` | Exercise only that module's **public surface** (facades, ports, published helpers). Mock or fake cross-module deps; never import another module's internals. |
+| **Integration** | Module collaboration | `tests/integration/` | Call **public facades** across module boundaries only — prove contracts (import edges, ownership, dispatcher ports) without reaching private files. |
+| **E2E** | User workflows | existing E2E suites | Drive complete flows from the **outside** (HTTP, CLI, browser). Assert outcomes, not internal layout. |
+
+- Default suite stays offline: no live TikTok/Supabase; use fakes and registry/contract checks (`test_import_boundaries`, `test_ownership_registry`).
+- Architecture checks (import-linter, cycle audit, ownership registry) complement tests — a green unit suite that crosses module internals is still wrong.
+
 # Preferred Patterns
 
 - **pytest structure**
