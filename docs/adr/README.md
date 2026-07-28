@@ -46,3 +46,4 @@
 | [036](036-modules-tier1-planning-sot.md) | MODULES.md Tier-1 module planning SoT + doc tier ladder | Accepted |
 | [037](037-phase-2.10-demo-real-data-no-auth.md) | Phase 2.10 — Demo real-data KPI wire without auth | Accepted |
 | [038](038-phase-2.10-dual-layer-pipeline.md) | Phase 2.10 dual-layer pipeline — precompute + required cache | Accepted |
+| [041](041-vps-redis-ephemeral-cache-and-celery.md) | VPS Redis — ephemeral cache + Celery DB split (Phase 2.10 A11) | Accepted |

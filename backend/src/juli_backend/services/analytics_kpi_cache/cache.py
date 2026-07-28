@@ -20,20 +20,68 @@ logger = logging.getLogger(__name__)
 ANALYTICS_KIND = "analytics"
 CACHE_KEY_PREFIX = "analytics:kpi_envelope:"
 
+_shared_client: Any | None = None
+_shared_client_url: str | None = None
+
 
 def envelope_cache_key(shop_id: uuid.UUID) -> str:
     return f"{CACHE_KEY_PREFIX}{shop_id}"
 
 
-def create_redis_client(redis_url: str | None = None) -> Any | None:
-    """Build async Redis client from REDIS_URL when configured."""
+def _resolve_redis_url(redis_url: str | None = None) -> str:
     raw = redis_url if redis_url is not None else os.getenv("REDIS_URL", "")
-    url = (raw or "").strip()
+    return (raw or "").strip()
+
+
+def get_shared_redis_client(redis_url: str | None = None) -> Any | None:
+    """Return process-lifetime async Redis client from REDIS_URL (or None)."""
+    global _shared_client, _shared_client_url
+
+    url = _resolve_redis_url(redis_url)
     if not url:
         return None
+    if _shared_client is not None and _shared_client_url == url:
+        return _shared_client
+
     import redis.asyncio as redis
 
-    return redis.from_url(url, decode_responses=True)
+    # URL changed without close — drop the old handle; caller should prefer
+    # close_shared_redis_client() on shutdown. We cannot await aclose here.
+    _shared_client = redis.from_url(url, decode_responses=True)
+    _shared_client_url = url
+    return _shared_client
+
+
+def create_redis_client(redis_url: str | None = None) -> Any | None:
+    """Return the shared async Redis client (compat alias for get_shared_redis_client)."""
+    return get_shared_redis_client(redis_url)
+
+
+async def close_shared_redis_client() -> None:
+    """Close and clear the process-lifetime async Redis client."""
+    global _shared_client, _shared_client_url
+
+    client = _shared_client
+    _shared_client = None
+    _shared_client_url = None
+    if client is None:
+        return
+    aclose = getattr(client, "aclose", None)
+    if aclose is not None:
+        await aclose()
+        return
+    close = getattr(client, "close", None)
+    if close is not None:
+        result = close()
+        if hasattr(result, "__await__"):
+            await result
+
+
+def reset_shared_redis_client_for_tests() -> None:
+    """Drop the singleton without closing (unit tests only)."""
+    global _shared_client, _shared_client_url
+    _shared_client = None
+    _shared_client_url = None
 
 
 def _envelope_from_cached_payload(

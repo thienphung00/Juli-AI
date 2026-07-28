@@ -14,8 +14,10 @@ after successful precompute upserts.
   Postgres and best-effort fill cache
 - ``refresh_analytics_kpi_envelope_cache(shop_id, envelope, *, redis_client=None)``
   — overwrite cache with versioned envelope payload after Postgres upsert; fail-open
-- ``create_redis_client(redis_url=None)`` → async Redis client or ``None`` when
-  ``REDIS_URL`` unset
+- ``create_redis_client(redis_url=None)`` → shared async Redis client or ``None``
+  when ``REDIS_URL`` unset (compat alias for ``get_shared_redis_client``)
+- ``get_shared_redis_client(redis_url=None)`` → process-lifetime singleton
+- ``close_shared_redis_client()`` → awaitable shutdown close (API lifespan)
 
 ## Cache contract
 

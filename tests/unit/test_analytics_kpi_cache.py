@@ -8,9 +8,10 @@ from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
+from redis.exceptions import ConnectionError as RedisConnectionError
+
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import AnalyticsKpiEnvelopesRepo
-from redis.exceptions import ConnectionError as RedisConnectionError
 
 
 class FakeAsyncRedis:
@@ -163,3 +164,75 @@ async def test_get_redis_outage_still_returns_postgres_rows(session, shop) -> No
 
     assert envelope is not None
     assert envelope.payload == payload
+
+
+def test_shared_redis_client_reuses_same_instance(monkeypatch) -> None:
+    from juli_backend.services.analytics_kpi_cache import (
+        get_shared_redis_client,
+        reset_shared_redis_client_for_tests,
+    )
+
+    reset_shared_redis_client_for_tests()
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+
+    created: list[object] = []
+
+    class _FakeClient:
+        async def aclose(self) -> None:
+            return None
+
+    def _fake_from_url(url: str, **kwargs: object) -> _FakeClient:
+        client = _FakeClient()
+        created.append(client)
+        return client
+
+    monkeypatch.setattr("redis.asyncio.from_url", _fake_from_url)
+
+    first = get_shared_redis_client()
+    second = get_shared_redis_client()
+
+    assert first is second
+    assert len(created) == 1
+    reset_shared_redis_client_for_tests()
+
+
+@pytest.mark.asyncio
+async def test_close_shared_redis_client_clears_singleton(monkeypatch) -> None:
+    from juli_backend.services.analytics_kpi_cache import (
+        close_shared_redis_client,
+        get_shared_redis_client,
+        reset_shared_redis_client_for_tests,
+    )
+
+    reset_shared_redis_client_for_tests()
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+
+    closed = {"count": 0}
+
+    class _FakeClient:
+        async def aclose(self) -> None:
+            closed["count"] += 1
+
+    monkeypatch.setattr(
+        "redis.asyncio.from_url",
+        lambda url, **kwargs: _FakeClient(),
+    )
+
+    client = get_shared_redis_client()
+    assert client is not None
+    await close_shared_redis_client()
+    assert closed["count"] == 1
+    assert get_shared_redis_client() is not client
+    await close_shared_redis_client()
+    reset_shared_redis_client_for_tests()
+
+
+def test_shared_redis_client_none_without_url(monkeypatch) -> None:
+    from juli_backend.services.analytics_kpi_cache import (
+        get_shared_redis_client,
+        reset_shared_redis_client_for_tests,
+    )
+
+    reset_shared_redis_client_for_tests()
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    assert get_shared_redis_client() is None
