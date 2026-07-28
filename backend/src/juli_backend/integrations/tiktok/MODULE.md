@@ -6,6 +6,41 @@ API plus OAuth lifecycle management.
 
 ## Public Interface
 
+Import from the package root only:
+
+```python
+from juli_backend.integrations.tiktok import TikTokAuth, TikTokClient, ...
+```
+
+Deep imports of leaf modules (``resources/*``, ``guarded_client``, ``guards``,
+``capabilities``, etc.) are internal and forbidden for external callers once
+migration completes.
+
+### Package facade (`__init__.py`)
+
+Re-exports the documented public surface:
+
+- **Authentication** — ``TikTokAuth``, ``TikTokBusinessAdvertiserAuth``,
+  ``TikTokBusinessAccountHolderAuth``, ``DEFAULT_OPEN_API_BASE_URL``
+- **HTTP client** — ``TikTokClient``
+- **Request signing** — ``sign_request``
+- **Rate limiting** — ``RateLimiter``
+- **API path constants** — polling/analytics path pins (``ORDER_SEARCH_PATH``,
+  ``ANALYTICS_SHOP_PERFORMANCE_PATH``, ``promotion_activity_path``, …)
+- **Client factories** — ``ClientFactoryConfig``, ``ProductionReadClientFactory``,
+  ``ProductionReadResources``, ``SandboxWriteClientFactory``, ``SandboxWriteResources``
+- **Merchant isolation** — ``PRODUCTION_AUTH_ID``, ``SANDBOX_AUTH_ID``,
+  ``TikTokCapability``, ``resolve_merchant_context``, ``is_cross_merchant_lookup``
+- **Vendor → ingest mapping** — ``normalize_*``, ``expand_*``, ``analytics_snapshot_key``
+- **Resources** — ``OrdersResource``, ``ProductsResource``, ``InventoryResource``,
+  ``AnalyticsResource``, ``FulfillmentResource``, ``PromotionResource``,
+  ``CreatorsResource``, ``LivestreamsResource``, ``SettlementsResource``,
+  ``AuthorizationResource``, ``ReturnsResource``, ``strip_nones``
+- **Exceptions** — ``TikTokAPIError``, ``AuthenticationError``,
+  ``PermissionDeniedError``, ``ResourceNotFoundError``, ``RateLimitError``,
+  ``TikTokSystemError``, ``TransportGuardError``, ``error_from_response``
+- **Selective (OAuth verify slice)** — ``TikTokSchemaError``
+
 ### Authentication (`auth.py`)
 - `TikTokAuth(app_key, app_secret, base_url)` — OAuth lifecycle manager
 - `TikTokAuth.generate_auth_url(redirect_uri, state) -> str` — build the seller

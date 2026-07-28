@@ -45,8 +45,7 @@ async def maybe_poll_tiktok_data(session: AsyncSession, shop_id: uuid.UUID) -> N
     import redis
 
     from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-    from juli_backend.integrations.tiktok.auth import TikTokAuth
-    from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
+    from juli_backend.integrations.tiktok import RateLimiter, TikTokAuth
     from juli_backend.services.etl.consumer import EtlConsumer
     from juli_backend.services.ingestion import make_etl_handoff
     from juli_backend.workers.services.polling import FujiwaPollConfig, run_fujiwa_poll_cycle

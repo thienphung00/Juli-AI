@@ -8,9 +8,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.integrations.tiktok.merchant import (
-    resolve_merchant_context,
-)
+from juli_backend.integrations.tiktok import resolve_merchant_context
 from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo, UsersRepo
 from juli_backend.services.tiktok.token_expiry import access_token_expires_at
 
@@ -18,9 +16,7 @@ APP_REVIEW_USER_PHONE = "+849000000001"
 
 
 def app_review_user_id() -> uuid.UUID:
-    raw = os.environ.get(
-        "TIKTOK_APP_REVIEW_USER_ID", "00000000-0000-4000-8000-000000000001"
-    )
+    raw = os.environ.get("TIKTOK_APP_REVIEW_USER_ID", "00000000-0000-4000-8000-000000000001")
     return uuid.UUID(raw)
 
 
@@ -53,9 +49,7 @@ async def persist_oauth_tokens(
     merchant_authorization_id, capability = resolve_merchant_context(open_id)
     cred_repo = TikTokCredentialRepo(session)
     try:
-        existing = await cred_repo.get_by_merchant(
-            merchant_authorization_id, capability
-        )
+        existing = await cred_repo.get_by_merchant(merchant_authorization_id, capability)
         await cred_repo.update_tokens(
             credential_id=existing.id,
             access_token=access_token,

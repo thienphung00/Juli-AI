@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from juli_backend.integrations.tiktok.exceptions import (
+from juli_backend.integrations.tiktok import (
     RateLimitError,
     TikTokAPIError,
     TikTokSystemError,
