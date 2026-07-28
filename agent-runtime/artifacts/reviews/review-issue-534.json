@@ -4,9 +4,7 @@
   "timestamp": "2026-07-28T07:13:00Z",
   "reviewedBy": "guardrails skill",
   "status": "PASS",
-  "publicRelease": true,
-  "releaseEvidencePlanId": "rep-534-demo-analytics-live-wire",
-  "summary": "Issue #534 P2.10-A10: intent-review spec_fidelity=pass. Demo Analytics wired to GET /v1/demo/analytics with contracts envelope types (gmv_tiktok label law, no net_revenue alias). Live GMV/product/LIVE render when available; SPS/ROAS/CSAT and net-revenue stay unavailable; inventory/fulfillment envelope-gated. Fake Demo Refresh re-fetches analytics GET only. 205 demo tests + 7 contracts tests pass; tsc clean.",
+  "summary": "Issue #534 P2.10-A10: intent-review spec_fidelity=pass. Demo Analytics wired to GET /v1/demo/analytics with contracts envelope types (gmv_tiktok label law, no net_revenue alias). Live GMV/product/LIVE render when available; SPS/ROAS/CSAT and net-revenue stay unavailable; inventory/fulfillment envelope-gated. Fake Demo Refresh re-fetches analytics GET only. 212 frontend/contract tests pass; tsc clean. publicRelease=true; planId rep-534-demo-analytics-live-wire; human approval required before merge.",
   "criticalFindings": [],
   "modulesTouched": [
     "packages/contracts/src/analytics.ts",
@@ -16,33 +14,39 @@
     "apps/demo/src/components/analytics-dashboard.tsx",
     "apps/demo/src/components/demo-shell.tsx"
   ],
-  "acceptanceCriteriaMapping": [
-    {
-      "criterion": "Demo Analytics renders live GMV/product/LIVE from API when available; unavailable KPIs stay truthful",
-      "status": "PASS",
-      "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx"
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Demo Analytics renders live GMV/product/LIVE from API when available; unavailable KPIs stay truthful",
+          "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx::renders live GMV from GET /v1/demo/analytics with truthful unavailable KPIs"
+        },
+        {
+          "criterion": "Contract types include envelope fields needed (no silent GMV→Net Revenue)",
+          "test": "packages/contracts/src/__tests__/analytics.test.ts::Contract types include envelope fields no silent GMV Net Revenue"
+        },
+        {
+          "criterion": "Fake Demo Refresh re-reads GET /v1/demo/analytics and does not call force-recompute",
+          "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx::Fake Demo Refresh re-fetches analytics only — no force-recompute paths"
+        },
+        {
+          "criterion": "Home and Settings unchanged (mock); Sign-in remains non-functional stub",
+          "test": "apps/demo/src/__tests__/home.test.tsx::Home and Settings unchanged mock; Sign-in stub stays non-functional"
+        },
+        {
+          "criterion": "Frontend tests cover live render + Fake Refresh non-recompute behavior",
+          "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx::Fake Demo Refresh re-fetches analytics only — no force-recompute paths"
+        }
+      ]
     },
-    {
-      "criterion": "Contract types include envelope fields needed (no silent GMV→Net Revenue)",
-      "status": "PASS",
-      "test": "packages/contracts/src/__tests__/analytics.test.ts"
-    },
-    {
-      "criterion": "Fake Demo Refresh re-reads GET /v1/demo/analytics and does not call force-recompute",
-      "status": "PASS",
-      "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx"
-    },
-    {
-      "criterion": "Home and Settings unchanged; Sign-in non-functional stub",
-      "status": "PASS",
-      "test": "apps/demo/src/__tests__/home.test.tsx (unchanged)"
-    },
-    {
-      "criterion": "Frontend tests cover live render + Fake Refresh non-recompute behavior",
-      "status": "PASS",
-      "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx"
+    "unit": {
+      "passed": 213,
+      "failed": 0
     }
-  ],
-  "phaseRunId": "534-20260728T070900",
-  "humanApprovalRequiredBeforeMerge": true
+  },
+  "recommendations": [],
+  "phaseRunId": "534-20260728T070900"
 }

@@ -34,7 +34,7 @@ const sampleEnvelope: DemoAnalyticsEnvelope = {
 };
 
 describe("Demo analytics envelope contracts", () => {
-  it("uses gmv_tiktok key with GMV (TikTok) label — not net_revenue", () => {
+  it("Contract types include envelope fields no silent GMV Net Revenue", () => {
     const gmv = sampleEnvelope.kpis.gmv_tiktok;
     expect(gmv?.label).toBe("GMV (TikTok)");
     expect(sampleEnvelope.kpis).not.toHaveProperty("net_revenue");

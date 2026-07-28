@@ -1,6 +1,5 @@
 {
   "phaseRunId": "534-20260728T070900",
-  "publicRelease": true,
   "releaseEvidencePlanId": "rep-534-demo-analytics-live-wire",
   "filesModified": [
     "packages/contracts/src/analytics.ts",

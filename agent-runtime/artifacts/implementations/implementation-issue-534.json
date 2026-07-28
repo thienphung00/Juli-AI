@@ -98,9 +98,8 @@
     "Inventory/fulfillment appear in envelope only when aggregate builders populate them"
   ],
   "risks": [
-    "Demo requires reachable API in production \u2014 fetch errors show retry UI without fixture fallback",
+    "Demo requires reachable API in production — fetch errors show retry UI without fixture fallback",
     "Range query filtering delegated to API; client does not slice series locally yet"
   ],
-  "publicRelease": true,
   "releaseEvidencePlanId": "rep-534-demo-analytics-live-wire"
 }
