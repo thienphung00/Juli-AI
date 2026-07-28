@@ -18,7 +18,7 @@ export interface KpiSnapshot {
   signal: string;
   dataSource: string;
   lastUpdated: string;
-  dataMode: "fixture";
+  dataMode: "fixture" | "live";
   partialNote?: string;
   workflowId?: string;
   decisionLabel?: string;

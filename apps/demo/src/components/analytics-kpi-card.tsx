@@ -1,5 +1,6 @@
 "use client";
 
+import type { DemoAnalyticsEnvelope } from "@juli/contracts";
 import {
   Card,
   CardBody,
@@ -16,8 +17,11 @@ import {
   type MetricKey,
   getMainKpiDefinition,
 } from "../lib/analytics/main-kpis";
-import { getPreviewSnapshot } from "../lib/analytics/mock-data";
 import type { AnalyticsRange } from "../lib/analytics/main-kpis";
+import {
+  buildLiveKpiSnapshot,
+  isSelectableMetricKey,
+} from "../lib/analytics/envelope-mapper";
 import {
   AnalyticsPreviewChart,
   AnalyticsUnavailableChartPattern,
@@ -26,6 +30,7 @@ import {
 interface AnalyticsKpiCardProps {
   metricKey: MetricKey;
   range: AnalyticsRange;
+  envelope: DemoAnalyticsEnvelope | null;
   selected?: boolean;
   onSelect?: (metricKey: MetricKey, keyboardInitiated: boolean) => void;
 }
@@ -33,13 +38,16 @@ interface AnalyticsKpiCardProps {
 export function AnalyticsKpiCard({
   metricKey,
   range,
+  envelope,
   selected = false,
   onSelect,
 }: AnalyticsKpiCardProps) {
   const definition = getMainKpiDefinition(metricKey);
-  const preview = definition.available
-    ? getPreviewSnapshot(metricKey, range)
-    : null;
+  const isAvailable = isSelectableMetricKey(metricKey, envelope);
+  const liveSnapshot =
+    envelope && isAvailable
+      ? buildLiveKpiSnapshot(envelope, metricKey, range)
+      : null;
   const [popoverOpen, setPopoverOpen] = useState(false);
 
   const cardContent = (
@@ -54,16 +62,16 @@ export function AnalyticsKpiCard({
       </CardHeader>
       <CardBody>
         <p className="analytics-kpi-card__description">{definition.description}</p>
-        {definition.available && preview ? (
+        {isAvailable && liveSnapshot ? (
           <>
-            <p className="analytics-kpi-card__value">{preview.formattedValue}</p>
-            <p className="analytics-kpi-card__delta">{preview.delta}</p>
+            <p className="analytics-kpi-card__value">{liveSnapshot.formattedValue}</p>
+            <p className="analytics-kpi-card__delta">{liveSnapshot.delta}</p>
             <AnalyticsPreviewChart
-              delta={preview.delta}
+              delta={liveSnapshot.delta}
               label={definition.name}
-              sparkline={preview.sparkline}
-              trend={preview.trend}
-              value={preview.formattedValue}
+              sparkline={liveSnapshot.sparkline}
+              trend={liveSnapshot.trend}
+              value={liveSnapshot.formattedValue}
             />
           </>
         ) : (
@@ -85,7 +93,7 @@ export function AnalyticsKpiCard({
     </>
   );
 
-  if (!definition.available) {
+  if (!isAvailable) {
     return (
       <Card
         aria-labelledby={`analytics-kpi-${metricKey}-title`}

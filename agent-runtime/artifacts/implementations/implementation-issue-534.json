@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 534,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "534-20260728T070900",
+  "startedAt": "2026-07-28T00:11:47Z",
+  "completedAt": "2026-07-28T00:11:47Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-534.json",
+    "agent-runtime/artifacts/release-evidence-plan-issue-534.json",
+    "docs/handoffs/phase-2.10-issue-bodies/534.md",
+    "apps/demo/src/lib/analytics/main-kpis.ts",
+    "packages/contracts/src/index.ts"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "packages/contracts/src/analytics.ts",
+    "packages/contracts/src/index.ts",
+    "packages/contracts/src/__tests__/analytics.test.ts",
+    "apps/demo/src/lib/analytics/api-client.ts",
+    "apps/demo/src/lib/analytics/envelope-mapper.ts",
+    "apps/demo/src/lib/analytics/analytics-data-context.tsx",
+    "apps/demo/src/lib/analytics/main-kpis.ts",
+    "apps/demo/src/lib/analytics/mock-data.ts",
+    "apps/demo/src/components/analytics-dashboard.tsx",
+    "apps/demo/src/components/analytics-kpi-card.tsx",
+    "apps/demo/src/components/analytics-supplementary-sections.tsx",
+    "apps/demo/src/components/demo-shell.tsx",
+    "apps/demo/src/__tests__/analytics-dashboard.test.tsx",
+    "apps/demo/src/__tests__/analytics-live-wire.test.tsx",
+    "apps/demo/src/lib/analytics/__tests__/envelope-mapper.test.ts",
+    "apps/demo/src/lib/analytics/__tests__/fixtures.ts",
+    "apps/demo/src/lib/analytics/__tests__/main-kpis.test.ts"
+  ],
+  "testsAdded": [
+    "packages/contracts/src/__tests__/analytics.test.ts",
+    "apps/demo/src/__tests__/analytics-live-wire.test.tsx",
+    "apps/demo/src/lib/analytics/__tests__/envelope-mapper.test.ts"
+  ],
+  "testsUpdated": [
+    "apps/demo/src/__tests__/analytics-dashboard.test.tsx",
+    "apps/demo/src/lib/analytics/__tests__/main-kpis.test.ts"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "analytics-live-wire: no GET /v1/demo/analytics fetch; dashboard showed D\u1eef li\u1ec7u m\u1eabu fixture values",
+      "passingTestEvidence": "Live wire tests pass: GMV from envelope gmv_tiktok, D\u1eef li\u1ec7u th\u1ef1c chip, product/LIVE supplementary sections, SPS/ROAS/CSAT unavailable",
+      "refactorEvidence": "Extracted envelope-mapper + AnalyticsDataProvider; contracts analytics.ts types with assertNoNetRevenueAlias",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test -- --run src/__tests__/analytics-live-wire.test.tsx",
+          "exitCode": 1,
+          "outputSummary": "Expected live API values \u2014 fetch not wired"
+        },
+        {
+          "command": "pnpm --filter @juli/demo test -- --run src/__tests__/analytics-live-wire.test.tsx src/__tests__/analytics-dashboard.test.tsx",
+          "exitCode": 0,
+          "outputSummary": "205 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Fake refresh test: refreshAnalytics not called; only resetMockState",
+      "passingTestEvidence": "Fake Demo Refresh re-fetches GET /v1/demo/analytics only; forbidden recompute paths never called",
+      "refactorEvidence": "demo-shell wires refreshAnalytics before resetMockState; api-client documents forbidden refresh paths",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test -- --run src/__tests__/analytics-live-wire.test.tsx",
+          "exitCode": 0,
+          "outputSummary": "3 passed including fake refresh non-recompute"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Aligned packages/contracts with Demo Analytics envelope (gmv_tiktok, product_funnel, live_performance; no net_revenue alias). Wired apps/demo Analytics to GET /v1/demo/analytics via AnalyticsDataProvider; maps live KPIs with truthful unavailable states for SPS/ROAS/CSAT and envelope-gated inventory/fulfillment. Fake Demo Refresh re-fetches analytics cache path only. Home/Settings unchanged; Sign-in stub remains disabled.",
+  "assumptions": [
+    "GET /v1/demo/analytics implemented by #531 on same API base as dashboard (NEXT_PUBLIC_API_URL / localhost:8000)",
+    "Backend envelope uses snake_case KPI keys per #525/#527 precompute",
+    "Inventory/fulfillment appear in envelope only when aggregate builders populate them"
+  ],
+  "risks": [
+    "Demo requires reachable API in production \u2014 fetch errors show retry UI without fixture fallback",
+    "Range query filtering delegated to API; client does not slice series locally yet"
+  ],
+  "publicRelease": true,
+  "releaseEvidencePlanId": "rep-534-demo-analytics-live-wire"
+}

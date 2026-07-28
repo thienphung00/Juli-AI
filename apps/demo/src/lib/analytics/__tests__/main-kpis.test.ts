@@ -30,7 +30,7 @@ describe("main-kpis catalog", () => {
     }
   });
 
-  it("AC4: marks Net Revenue unavailable with honest reason; GMV, Inventory Turnover, and Fulfillment Accuracy available", () => {
+  it("AC4: marks Net Revenue unavailable; GMV static default; inventory/fulfillment envelope-gated", () => {
     const netRevenue = getMainKpiDefinition("net-revenue");
     expect(netRevenue.available).toBe(false);
     expect(netRevenue.unavailableReason?.activationRequirement).toMatch(
@@ -48,8 +48,9 @@ describe("main-kpis catalog", () => {
       "inventory-turnover",
       "fulfillment-accuracy-rate",
     ] as const) {
-      expect(getMainKpiDefinition(key).available).toBe(true);
-      expect(isAvailableMetricKey(key)).toBe(true);
+      expect(getMainKpiDefinition(key).available).toBe(false);
+      expect(isAvailableMetricKey(key)).toBe(false);
+      expect(getMainKpiDefinition(key).unavailableReason).toBeTruthy();
     }
   });
 

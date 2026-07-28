@@ -107,8 +107,13 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     name: "Vòng quay tồn kho",
     description: "Tốc độ bán hết và thay thế hàng tồn.",
     icon: "↻",
-    available: true,
+    available: false,
     chartKind: "trend-line",
+    unavailableReason: {
+      dataSource: "Analytics KPI envelope",
+      activationRequirement:
+        "Vòng quay tồn kho chỉ hiển thị khi envelope precompute có dữ liệu aggregate tương ứng.",
+    },
   },
   "fulfillment-accuracy-rate": {
     metricKey: "fulfillment-accuracy-rate",
@@ -116,8 +121,13 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     name: "Tỷ lệ giao đúng",
     description: "Tỷ lệ đơn giao đúng hàng và đúng hạn.",
     icon: "✓",
-    available: true,
+    available: false,
     chartKind: "gauge",
+    unavailableReason: {
+      dataSource: "Analytics KPI envelope",
+      activationRequirement:
+        "Tỷ lệ giao đúng chỉ hiển thị khi envelope precompute có dữ liệu aggregate tương ứng.",
+    },
   },
   csat: {
     metricKey: "csat",

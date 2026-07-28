@@ -1,0 +1,48 @@
+{
+  "id": "review-issue-534",
+  "issue": 534,
+  "timestamp": "2026-07-28T07:13:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "publicRelease": true,
+  "releaseEvidencePlanId": "rep-534-demo-analytics-live-wire",
+  "summary": "Issue #534 P2.10-A10: intent-review spec_fidelity=pass. Demo Analytics wired to GET /v1/demo/analytics with contracts envelope types (gmv_tiktok label law, no net_revenue alias). Live GMV/product/LIVE render when available; SPS/ROAS/CSAT and net-revenue stay unavailable; inventory/fulfillment envelope-gated. Fake Demo Refresh re-fetches analytics GET only. 205 demo tests + 7 contracts tests pass; tsc clean.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "packages/contracts/src/analytics.ts",
+    "apps/demo/src/lib/analytics/api-client.ts",
+    "apps/demo/src/lib/analytics/envelope-mapper.ts",
+    "apps/demo/src/lib/analytics/analytics-data-context.tsx",
+    "apps/demo/src/components/analytics-dashboard.tsx",
+    "apps/demo/src/components/demo-shell.tsx"
+  ],
+  "acceptanceCriteriaMapping": [
+    {
+      "criterion": "Demo Analytics renders live GMV/product/LIVE from API when available; unavailable KPIs stay truthful",
+      "status": "PASS",
+      "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx"
+    },
+    {
+      "criterion": "Contract types include envelope fields needed (no silent GMV→Net Revenue)",
+      "status": "PASS",
+      "test": "packages/contracts/src/__tests__/analytics.test.ts"
+    },
+    {
+      "criterion": "Fake Demo Refresh re-reads GET /v1/demo/analytics and does not call force-recompute",
+      "status": "PASS",
+      "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx"
+    },
+    {
+      "criterion": "Home and Settings unchanged; Sign-in non-functional stub",
+      "status": "PASS",
+      "test": "apps/demo/src/__tests__/home.test.tsx (unchanged)"
+    },
+    {
+      "criterion": "Frontend tests cover live render + Fake Refresh non-recompute behavior",
+      "status": "PASS",
+      "test": "apps/demo/src/__tests__/analytics-live-wire.test.tsx"
+    }
+  ],
+  "phaseRunId": "534-20260728T070900",
+  "humanApprovalRequiredBeforeMerge": true
+}
