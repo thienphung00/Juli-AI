@@ -36,7 +36,6 @@ if TYPE_CHECKING:
         InventoryItem,
         Livestream,
         Order,
-        ProcessedEvent,
         Product,
         Recommendation,
         Settlement,
@@ -53,7 +52,6 @@ if TYPE_CHECKING:
         InventoryRepo,
         LivestreamsRepo,
         OrdersRepo,
-        ProcessedEventsRepo,
         ProductsRepo,
         RecommendationsRepo,
         SettlementsRepo,
@@ -61,6 +59,10 @@ if TYPE_CHECKING:
         ShopsRepo,
         TikTokCredentialRepo,
         UsersRepo,
+    )
+    from juli_backend.services.etl.persistence.ingest import (
+        ProcessedEvent,
+        ProcessedEventsRepo,
     )
 
 # Lazily re-exported symbol -> defining module. Resolved on first attribute
@@ -76,7 +78,7 @@ _LAZY_EXPORTS = {
     "InventoryItem": "juli_backend.models.models",
     "Livestream": "juli_backend.models.models",
     "Order": "juli_backend.models.models",
-    "ProcessedEvent": "juli_backend.models.models",
+    "ProcessedEvent": "juli_backend.services.etl.persistence.ingest",
     "Product": "juli_backend.models.models",
     "Recommendation": "juli_backend.models.models",
     "Settlement": "juli_backend.models.models",
@@ -92,7 +94,7 @@ _LAZY_EXPORTS = {
     "InventoryRepo": "juli_backend.repositories.repos",
     "LivestreamsRepo": "juli_backend.repositories.repos",
     "OrdersRepo": "juli_backend.repositories.repos",
-    "ProcessedEventsRepo": "juli_backend.repositories.repos",
+    "ProcessedEventsRepo": "juli_backend.services.etl.persistence.ingest",
     "ProductsRepo": "juli_backend.repositories.repos",
     "RecommendationsRepo": "juli_backend.repositories.repos",
     "SettlementsRepo": "juli_backend.repositories.repos",

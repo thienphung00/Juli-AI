@@ -456,18 +456,6 @@ class AlertHistory(Base):
     )
 
 
-class ProcessedEvent(Base):
-    """Idempotency ledger for ETL ingest consumers (#32)."""
-
-    __tablename__ = "processed_events"
-
-    event_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
-    processed_at: Mapped[datetime] = mapped_column(server_default=func.now())
-
-    __table_args__ = (Index("ix_processed_events_shop", "shop_id"),)
-
-
 class WorkflowWebhookSignal(Base):
     """Durable workflow-intent record emitted by Phase 2 catalog webhooks (#354)."""
 
@@ -753,3 +741,8 @@ class AnalyticsKpiEnvelope(Base):
             name="uq_analytics_kpi_envelopes_shop_kind",
         ),
     )
+
+
+from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401
+    ProcessedEvent,
+)

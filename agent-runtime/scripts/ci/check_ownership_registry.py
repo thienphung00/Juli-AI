@@ -12,6 +12,9 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_PATH = REPO_ROOT / "docs" / "architecture" / "ownership-registry.yml"
 MODELS_PATH = REPO_ROOT / "backend" / "src" / "juli_backend" / "models" / "models.py"
+PERSISTENCE_ROOT = (
+    REPO_ROOT / "backend" / "src" / "juli_backend" / "services"
+)
 WORKERS_DIR = REPO_ROOT / "backend" / "src" / "juli_backend" / "workers"
 TABLENAME_RE = re.compile(r'__tablename__\s*=\s*["\']([^"\']+)["\']')
 CELERY_TASK_NAME_RE = re.compile(
@@ -39,7 +42,11 @@ def load_ownership_registry(path: Path | None = None) -> dict[str, Any]:
 
 def discover_orm_table_names(models_path: Path | None = None) -> set[str]:
     source = (models_path or MODELS_PATH).read_text(encoding="utf-8")
-    return set(TABLENAME_RE.findall(source))
+    tables = set(TABLENAME_RE.findall(source))
+    if models_path is None:
+        for path in sorted(PERSISTENCE_ROOT.glob("**/persistence/**/*.py")):
+            tables.update(TABLENAME_RE.findall(path.read_text(encoding="utf-8")))
+    return tables
 
 
 def discover_celery_task_names(workers_dir: Path | None = None) -> set[str]:
