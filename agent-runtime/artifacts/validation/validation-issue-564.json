@@ -1,11 +1,11 @@
 {
   "id": "validation-issue-564",
   "issue": 564,
-  "timestamp": "2026-07-28T12:16:38Z",
+  "timestamp": "2026-07-28T12:28:29Z",
   "validatedBy": "validate skill",
-  "status": "FAIL",
-  "passedChecks": 15,
-  "failedChecks": 6,
+  "status": "PASS",
+  "passedChecks": 21,
+  "failedChecks": 0,
   "checks": [
     {
       "name": "review_artifact_present",
@@ -19,10 +19,16 @@
     },
     {
       "name": "implementation_artifact_present",
-      "status": "FAIL",
-      "description": "contextFilesLoaded must be a non-empty list (context telemetry)",
+      "status": "PASS",
+      "description": "Implementation artifact present; domain backend",
       "details": {
-        "contextFilesLoaded": []
+        "executorDomain": "backend",
+        "phaseRunId": "564-20260728T121933",
+        "executionDurationMs": 2700000,
+        "contextFileCount": 14,
+        "rulesLoadedCount": 7,
+        "mcpsUsedCount": 0,
+        "tokenUsageTotal": 0
       }
     },
     {
@@ -30,8 +36,8 @@
       "status": "PASS",
       "description": "All acceptance criteria mapped to tests",
       "details": {
-        "total": 0,
-        "mapped": 0,
+        "total": 4,
+        "mapped": 4,
         "unmapped": [],
         "problems": []
       }
@@ -135,18 +141,47 @@
     },
     {
       "name": "public_release_classification",
-      "status": "FAIL",
-      "description": "Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-564.json",
+      "status": "PASS",
+      "description": "publicRelease=True matches live classifier (1 reason(s))",
       "details": {
-        "issueId": 564
+        "issueId": 564,
+        "parentIssueId": 550,
+        "live": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "body:public_surface"
+          ]
+        },
+        "cached": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "body:public_surface"
+          ]
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 564 so ensure persists publicRelease classification"
       }
     },
     {
       "name": "public_release_evidence_plan",
-      "status": "FAIL",
-      "description": "Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-564.json",
+      "status": "PASS",
+      "description": "releaseEvidencePlan present and schema-valid",
       "details": {
-        "issueId": 564
+        "issueId": 564,
+        "parentIssueId": 550,
+        "publicRelease": true,
+        "planSource": "agent-runtime/artifacts/release-evidence-plan-issue-564.json",
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "missingFields": [],
+        "errors": [],
+        "resolution": "Commit agent-runtime/artifacts/release-evidence-plan-issue-564.json (schema-valid releaseEvidencePlan), then re-run meta_prepare_executor --issue 564",
+        "planId": "rep-564-test-layer-discipline"
       }
     },
     {
@@ -173,26 +208,64 @@
     },
     {
       "name": "executor_domain_matches_cache",
-      "status": "FAIL",
-      "description": "Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-564.json",
+      "status": "PASS",
+      "description": "executorDomain matches cache (backend)",
       "details": {
-        "issueId": 564
+        "issueId": 564,
+        "expectedExecutorDomain": "backend",
+        "actualExecutorDomain": "backend"
       }
     },
     {
       "name": "phase_run_correlation",
-      "status": "FAIL",
-      "description": "Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-564.json",
+      "status": "PASS",
+      "description": "phaseRunId 564-20260728T121933 correlated across present artifacts",
       "details": {
-        "issueId": 564
+        "issueId": 564,
+        "canonicalPhaseRunId": "564-20260728T121933",
+        "planSource": "agent-runtime/artifacts/release-evidence-plan-issue-564.json",
+        "artifacts": {
+          "implementation": {
+            "required": true,
+            "present": true,
+            "phaseRunId": "564-20260728T121933",
+            "status": "matched"
+          },
+          "intent_review": {
+            "required": true,
+            "present": true,
+            "phaseRunId": "564-20260728T121933",
+            "status": "matched"
+          },
+          "review": {
+            "required": true,
+            "present": true,
+            "phaseRunId": "564-20260728T121933",
+            "status": "matched"
+          },
+          "validation": {
+            "required": true,
+            "present": true,
+            "phaseRunId": "564-20260728T121933",
+            "status": "matched"
+          }
+        }
       }
     },
     {
       "name": "release_evidence_plan_continuity",
-      "status": "FAIL",
-      "description": "Child issue context cache missing: agent-runtime/artifacts/workflow-cache/issue-context-cache-564.json",
+      "status": "PASS",
+      "description": "releaseEvidencePlanId matches Meta plan (rep-564-test-layer-discipline)",
       "details": {
-        "issueId": 564
+        "issueId": 564,
+        "publicRelease": true,
+        "expectedPlanId": "rep-564-test-layer-discipline",
+        "planSource": "agent-runtime/artifacts/release-evidence-plan-issue-564.json",
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "implementationPlanId": "rep-564-test-layer-discipline"
       }
     },
     {
@@ -206,8 +279,8 @@
       }
     }
   ],
-  "overallSummary": "6 validation check(s) failed.",
-  "readyForMerge": false,
+  "overallSummary": "All validation checks passed.",
+  "readyForMerge": true,
   "warningGated": false,
   "mergeBlockedByWarnings": false,
   "mergeOverrideActive": false,
@@ -216,13 +289,15 @@
   "schemaVersion": "1.0.0",
   "artifactType": "validation",
   "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-564.json",
-  "validationFailures": 6,
-  "readyForShip": false,
+  "validationFailures": 0,
+  "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 0,
-  "testsPassed": 0,
+  "testsExecuted": 20,
+  "testsPassed": 20,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
-  "executionDurationMs": 0
+  "executionDurationMs": 0,
+  "phaseRunId": "564-20260728T121933",
+  "releaseEvidencePlanId": "rep-564-test-layer-discipline"
 }

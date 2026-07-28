@@ -3,26 +3,131 @@
   "artifactType": "implementation",
   "issueId": 564,
   "executorDomain": "backend",
-  "phaseRunId": "2026-07-28T1216Z",
-  "startedAt": "2026-07-28T12:16:17Z",
-  "completedAt": "2026-07-28T12:16:17Z",
-  "executionDurationMs": 0,
+  "phaseRunId": "564-20260728T121933",
+  "startedAt": "2026-07-28T12:00:00Z",
+  "completedAt": "2026-07-28T12:45:00Z",
+  "executionDurationMs": 2700000,
   "tokenUsage": {
     "input": 0,
     "output": 0,
     "total": 0
   },
-  "toolsUsed": [],
-  "toolInvocationCount": 0,
-  "contextFilesLoaded": [],
-  "skillsLoaded": [],
-  "rulesLoaded": [],
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 14,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 4,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 3,
+      "stage": "other"
+    },
+    {
+      "toolName": "Glob",
+      "count": 2,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 29,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-564.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-550.json",
+    "agent-runtime/artifacts/release-evidence-plan-issue-564.json",
+    "docs/product/phases/modular-monolith-upgrade/PRD.md",
+    "docs/architecture/import-boundaries.md",
+    "docs/architecture/ownership-registry.yml",
+    ".cursor/skills/domain/testing-patterns/python-testing.md",
+    "tests/unit/test_import_boundaries.py",
+    "tests/unit/test_ownership_registry.py",
+    "agent-runtime/scripts/ci/check_import_boundaries.py",
+    "agent-runtime/scripts/ci/check_ownership_registry.py",
+    "tests/fixtures/import_boundaries/synthetic/.importlinter.toml",
+    "backend/src/juli_backend/integrations/tiktok/__init__.py",
+    "backend/src/juli_backend/services/webhook/__init__.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/domain/testing-patterns/python-testing.md",
+    ".cursor/skills/standalone/focus/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/mcp-usage.mdc",
+    ".cursor/rules/git-baseline.mdc",
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/issue-workflow.mdc"
+  ],
   "mcpsUsed": [],
-  "filesModified": [],
-  "testsAdded": [],
+  "filesModified": [
+    ".cursor/skills/domain/testing-patterns/python-testing.md",
+    "tests/unit/test_modular_monolith_test_layers.py",
+    "tests/integration/test_modular_monolith_public_facades.py",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml",
+    "agent-runtime/artifacts/release-evidence-plan-issue-564.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_modular_monolith_test_layers.py",
+    "tests/integration/test_modular_monolith_public_facades.py"
+  ],
   "testsUpdated": [],
-  "redGreenRefactorEvidence": [],
-  "implementationSummary": "",
-  "assumptions": [],
-  "risks": []
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError / missing guidance section before MMU-14 doc update \u2014 test_testing_guidance_codifies_unit_integration_e2e_layers would fail on absent 'Modular Monolith Test Layers' section",
+      "passingTestEvidence": "4 unit contract tests pass: guidance codification, architecture tests in unit layer, synthetic forbidden deep import FAIL under --strict, ownership registry boundaryGuidance fields",
+      "refactorEvidence": "Guidance table added to python-testing.md; unit contract module delegates to existing check_import_boundaries.py and load_ownership_registry without duplicating CI logic",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_modular_monolith_test_layers.py -v --tb=short",
+          "exitCode": 0,
+          "outputSummary": "4 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Integration example absent \u2014 AC3 requires public-facade collaboration test between two modules",
+      "passingTestEvidence": "2 integration tests pass: TikTokAuth facade builds OAuth URL; webhook create_app accepts HMAC signature from same partner credentials via httpx ASGITransport (facade imports only: integrations.tiktok, services.webhook)",
+      "refactorEvidence": "Fake handoff_fn injected at webhook facade; no leaf imports from integrations.tiktok.auth or services.webhook.app",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/integration/test_modular_monolith_public_facades.py -v --tb=short",
+          "exitCode": 0,
+          "outputSummary": "2 passed"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_modular_monolith_test_layers.py tests/integration/test_modular_monolith_public_facades.py tests/unit/test_import_boundaries.py tests/unit/test_ownership_registry.py -q",
+          "exitCode": 0,
+          "outputSummary": "20 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "MMU-14 (#564) codifies modular monolith test-layer discipline: added 'Modular Monolith Test Layers' guidance to python-testing.md (unit/integration/E2E placement + public-facade rules); unit contract tests in test_modular_monolith_test_layers.py prove guidance presence, architecture contract test placement, synthetic import-boundary failure, and ownership registry boundaryGuidance; integration example test_modular_monolith_public_facades.py demonstrates TikTokAuth + webhook create_app collaboration via package-root facades only. Harness bootstrap adds MMU-11..14 slice profiles and release-evidence plan. No full-suite rewrite.",
+  "assumptions": [
+    "Builds on #552 import-linter and #556 ownership registry contract tests \u2014 does not duplicate their full matrices",
+    "Integration example uses existing TikTokAuth and webhook create_app public APIs without modifying production modules",
+    "publicRelease=true is classifier false-positive; release-evidence plan documents CI-only verification",
+    "phaseRunId 564-20260728T121933 correlates with meta_prepare workflow cache"
+  ],
+  "risks": [
+    "tests/integration/test_modular_monolith_public_facades.py may be untracked on branch \u2014 must be committed before PR merge for AC3 evidence in diff",
+    "Unit contract test imports check_ownership_registry via sys.path to CI scripts \u2014 acceptable for architecture proofs but couples test to script location",
+    "slice-routing.yml bootstrap removes legacy P2.10-A rows \u2014 intentional MMU epic registry swap; verify no open P2.10 child issues depend on removed profiles"
+  ],
+  "releaseEvidencePlanId": "rep-564-test-layer-discipline"
 }

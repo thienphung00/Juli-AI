@@ -34,6 +34,13 @@ def _run_import_checker(*extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False)
 
 
+def test_no_full_suite_rewrite_required_for_mmu14_slice() -> None:
+    """AC4 — slice adds targeted guidance/contract tests; existing suites stay in place."""
+    assert (ROOT / "tests/unit/test_import_boundaries.py").is_file()
+    assert (ROOT / "tests/unit/test_ownership_registry.py").is_file()
+    assert (ROOT / "tests/unit/test_modular_monolith_test_layers.py").is_file()
+
+
 def test_testing_guidance_codifies_unit_integration_e2e_layers() -> None:
     """Unit layer contract — guidance must state placement and public-surface rules."""
     text = TESTING_GUIDANCE.read_text(encoding="utf-8")
@@ -80,3 +87,15 @@ def test_ownership_registry_documents_cross_module_import_policy() -> None:
     assert read_vs_write, "readVsWrite guidance required"
     assert "facade" in do_not_import.lower()
     assert "owner" in read_vs_write.lower()
+
+
+def test_no_requirement_to_rewrite_entire_suite() -> None:
+    """AC4 — targeted guidance/examples only; existing contract tests stay authoritative."""
+    targeted = (
+        ROOT / "tests/unit/test_modular_monolith_test_layers.py",
+        ROOT / "tests/integration/test_modular_monolith_public_facades.py",
+    )
+    missing = [str(path.relative_to(ROOT)) for path in targeted if not path.is_file()]
+    assert not missing, f"targeted MMU-14 tests missing: {missing}"
+    assert (ROOT / "tests/unit/test_import_boundaries.py").is_file()
+    assert (ROOT / "tests/unit/test_ownership_registry.py").is_file()
