@@ -1281,8 +1281,6 @@ MMU-6:
 
 MMU-9:
   executorDomain: data-platform
-MMU-5:
-  executorDomain: integrations
   requiredDocs:
     - EXECUTION.md
     - "{handoffPath}"
@@ -1319,6 +1317,15 @@ MMU-5:
     - web/
     - ios/
     - docs/product/design/
+    - Sibling issue context caches
+
+MMU-5:
+  executorDomain: integrations
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
     - docs/architecture/import-boundaries.md
     - docs/handoffs/modular-monolith-audit-data.json
     - backend/src/juli_backend/integrations/tiktok/MODULE.md

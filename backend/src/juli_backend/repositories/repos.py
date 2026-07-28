@@ -821,6 +821,11 @@ class GraphRepo:
         return campaign
 
 
+from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401, I001
+    ProcessedEventsRepo,  # MMU-9a legacy shim
+)
+
+
 class WorkflowWebhookSignalsRepo:
     """Durable workflow-intent records for Phase 2 catalog webhooks (#354)."""
 
