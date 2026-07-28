@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,28 +12,14 @@ class RefreshDispatcher(Protocol):
     def enqueue(self, shop_id: str) -> str: ...
 
 
-@dataclass
-class CeleryRefreshDispatcher:
-    def enqueue(self, shop_id: str) -> str:
-        from juli_backend.workers.tasks.action_card_refresh import refresh_action_cards
-
-        async_result = refresh_action_cards.delay(shop_id)
-        return async_result.id
-
-
-@dataclass
-class _DefaultRefreshDispatcher:
-    def enqueue(self, shop_id: str) -> str:
-        return CeleryRefreshDispatcher().enqueue(shop_id)
-
-
 _refresh_dispatcher: RefreshDispatcher | None = None
 
 
 def get_refresh_dispatcher() -> RefreshDispatcher:
-    global _refresh_dispatcher
     if _refresh_dispatcher is None:
-        _refresh_dispatcher = _DefaultRefreshDispatcher()
+        raise RuntimeError(
+            "Action card refresh dispatcher is not bound; call bind_celery_dispatchers() at startup"
+        )
     return _refresh_dispatcher
 
 

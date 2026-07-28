@@ -22,7 +22,8 @@ Manual-refresh pipeline persistence for **Decision** rows (Action Cards per
 - `juli_backend.services.scoring.pipeline` — `run_daily_scoring_for_shop` (unchanged)
 - `juli_backend.repositories.repos.ActionCardsRepo` — idempotent `(shop_id, workflow_key)` upsert
 - `juli_backend.workers.services.polling` — optional Fujiwa poll before scoring
-- `juli_backend.workers.tasks.action_card_refresh` — Celery entrypoint
+- Celery enqueue via injectable `RefreshDispatcher` — production adapter in
+  `juli_backend.workers.dispatch_binding` (bound at API/worker startup; #554)
 
 ## Key behaviors
 
