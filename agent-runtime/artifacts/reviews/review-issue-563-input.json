@@ -1,0 +1,101 @@
+{
+  "reviewedBy": "guardrails skill",
+  "status": "FAIL",
+  "summary": "Issue #563 MMU-13: intent-review spec_fidelity=fail consumed as given — AC1 partial (MODULE.md facade parity gaps per intent-review); AC2–AC4 satisfied in planning docs. Blocking smell: P2.10-A slice removal in slice-routing.yml. Blocking convention note: database/MODULE.md facade doc parity. Guardrails domain checks: no reliability/security/observability/performance blockers beyond intent-review contract. AC coverage analysis skipped per handoff rules.",
+  "criticalFindings": [
+    {
+      "id": "563-critical-spec-fidelity-fail",
+      "type": "other",
+      "severity": "CRITICAL",
+      "actionRequired": true,
+      "module": "agent-runtime/artifacts/intent-reviews/intent-review-issue-563.json",
+      "description": "Intent-review spec_fidelity=fail: AC1 partial — required touched MODULE.md files (integrations/tiktok, api, database, etl, webhook, core/security) documented pre-facade deep surfaces vs enforced package-root facades. Re-run intent-review on HEAD e4a6375d after MODULE.md alignment commits or address residual gaps cited in specFidelityNotes.",
+      "suggestion": "Verify e4a6375d MODULE.md edits satisfy AC1; refresh intent-review artifact to pass before merge."
+    },
+    {
+      "id": "563-critical-divergent-change-routing",
+      "type": "architecture",
+      "severity": "CRITICAL",
+      "actionRequired": true,
+      "module": "agent-runtime/config/slice-routing.yml",
+      "description": "Intent-review blocking smell (Divergent Change): removes entire P2.10-A1..A11 slice routing (~266 lines) and rewrites MMU-9 block as MMU-3 architecture-gates profile — unrelated to #563 doc-sync intent.",
+      "suggestion": "Revert P2.10-A removal or split harness routing bootstrap into a separate issue; document intentional cleanup if merge-queue baseline already dropped P2.10-A."
+    },
+    {
+      "id": "563-critical-database-module-md-facade",
+      "type": "drift",
+      "severity": "CRITICAL",
+      "actionRequired": true,
+      "module": "backend/src/juli_backend/database/MODULE.md",
+      "description": "Intent-review blocking convention note (patterns.mdc): MODULE.md listed deep repo method signatures and titled module \"data\" while code exposes lazy juli_backend.database facade — contradicts map.md/MODULES.md facade narrative.",
+      "suggestion": "Confirm e4a6375d database/MODULE.md rewrite resolves this; if resolved, refresh intent-review to clear blocksMerge."
+    },
+    {
+      "id": "563-warning-tiktok-module-md-leaf-docs",
+      "type": "maintainability",
+      "severity": "WARNING",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "description": "Intent-review convention note (non-blocking): documents import-from-root policy then enumerates leaf submodule APIs — doc/code boundary policy inconsistent with MMU-5 facade enforcement.",
+      "suggestion": "Trim leaf submodule enumeration to __all__-aligned facade list only."
+    },
+    {
+      "id": "563-info-security-module-md-identity",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/core/security/MODULE.md",
+      "description": "Intent-review convention note (non-blocking): header previously \"identity/infrastructure/auth\" with stale shared.utils.data deps — e4a6375d appears to align to core/security facade.",
+      "suggestion": "No action if intent-review re-run confirms pass on HEAD."
+    }
+  ],
+  "modulesTouched": [
+    "docs/architecture/MODULES.md",
+    "docs/architecture/map.md",
+    "backend/src/juli_backend/api/MODULE.md",
+    "backend/src/juli_backend/core/security/MODULE.md",
+    "backend/src/juli_backend/database/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/services/tiktok/MODULE.md",
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml",
+    "agent-runtime/artifacts/validation/audit-drift-2026-07-28.json"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 0,
+      "mapped": 0,
+      "unmapped": [],
+      "mappings": []
+    },
+    "unit": {
+      "passed": 9,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Re-run intent-review on HEAD e4a6375d after MODULE.md alignment commits.",
+    "Revert or justify P2.10-A slice-routing removal.",
+    "Optional: add MODULES.md/map.md contract pytest nodes in MMU-15."
+  ],
+  "approvalReady": false,
+  "intentReviewHandoff": {
+    "spec_fidelity": "fail",
+    "smellsImported": 1,
+    "conventionNotesImported": 3,
+    "blockingSmellsFolded": 1,
+    "acCoverageSkipped": true
+  },
+  "reviewBasis": "origin/main..e4a6375d on feature/issue-563-module-docs-sync",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-563.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-563.json",
+  "phaseRunId": "563-20260728T121800",
+  "reviewDurationMs": 240000,
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

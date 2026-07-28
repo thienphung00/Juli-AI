@@ -6,13 +6,27 @@ and shop-scoped request context. Phase 1 (Creator ↔ Shop Matching) surface onl
 decision-focused, not dashboard/reporting.
 
 ## Public Interface
-- `create_app() -> FastAPI` — builds the application with the Phase-1 routers wired
-- `get_active_shop(x_shop_id, user, session) -> Shop` — FastAPI dependency resolving X-Shop-Id header to an owned Shop
+
+No package-root ``__all__`` yet. Deploy and tests import entry points from submodules:
+
+```python
+from juli_backend.api.app import create_app
+from juli_backend.api.dependencies import get_active_shop
+```
+
+- `create_app(*, lifespan=None) -> FastAPI` — builds the application with routers wired
+  (`juli_backend.api.app`)
+- `get_active_shop(x_shop_id, user, session) -> Shop` — FastAPI dependency resolving
+  X-Shop-Id header to an owned Shop (`juli_backend.api.dependencies`)
+
+### HTTP surface
+
 - `GET /v1/shops` — list authenticated user's shops
 - `GET /v1/shops/me` — get the shop identified by X-Shop-Id header
 - `GET /v1/creators` — creators with attribution + commission efficiency (matching signal)
 - `GET /v1/creators/{id}/content` — content-to-conversion funnel for a creator
 - `GET /v1/products` — products (product nodes for matching)
+- `GET /v1/orders` — shop-scoped orders
 - `GET /v1/recommendations` — decision-focused recommendations: match/justification + CTA;
   empty shop triggers legacy persist via `services/action_cards.persist_legacy_recommendations`
   (read-only route — no direct `RecommendationsRepo.create`)
@@ -20,8 +34,8 @@ decision-focused, not dashboard/reporting.
   server-configured reference shop (Issue #531, ADR-037). No visitor `shop_id`;
   read-through Redis → Postgres SoT; masking applied before response.
 - `POST /webhooks/tiktok` — TikTok Shop webhook ingress (Issue #381), not under `/v1`.
-  Mounted from `juli_backend.services.webhook.app.build_webhook_service`; see
-  `api/routes/webhook_tiktok.py` and `services/webhook/MODULE.md`.
+  Mounted from `juli_backend.services.webhook`; see `api/routes/webhook_tiktok.py` and
+  `services/webhook/MODULE.md`.
 
 ## Removed in the matching pivot
 `orders`, `inventory`, `settlements`, `analytics`, `livestreams`, and `alerts`
