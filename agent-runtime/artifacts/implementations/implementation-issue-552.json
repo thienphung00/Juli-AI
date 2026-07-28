@@ -12,8 +12,13 @@
     "output": 0,
     "total": 0
   },
-  "toolsUsed": [],
-  "toolInvocationCount": 0,
+  "toolsUsed": [
+    {"toolName": "Read", "count": 8, "stage": "implementation"},
+    {"toolName": "Write", "count": 10, "stage": "green"},
+    {"toolName": "Shell", "count": 5, "stage": "implementation"},
+    {"toolName": "StrReplace", "count": 1, "stage": "green"}
+  ],
+  "toolInvocationCount": 24,
   "contextFilesLoaded": [
     "agent-runtime/artifacts/meta-prepare-issue-552.json",
     "docs/product/phases/modular-monolith-upgrade/PRD.md",
@@ -55,22 +60,19 @@
       "refactorEvidence": "Resolved scan_root paths; documented matrix update in import-boundaries.md",
       "commands": [
         {
-          "phase": "red",
           "command": "python -m pytest tests/unit/test_import_boundaries.py::test_synthetic_forbidden_deep_import_fails_strict_check -v",
           "exitCode": 1,
-          "note": "Before checker implementation / before path fix"
+          "outputSummary": "Before checker implementation / before path fix"
         },
         {
-          "phase": "green",
           "command": "python -m pytest tests/unit/test_import_boundaries.py -v",
           "exitCode": 0,
-          "note": "All import boundary contract tests green"
+          "outputSummary": "All import boundary contract tests green"
         },
         {
-          "phase": "green",
           "command": "python agent-runtime/scripts/ci/check_import_boundaries.py --config tests/fixtures/import_boundaries/synthetic/.importlinter.toml --scan-root tests/fixtures/import_boundaries/synthetic/backend/src/juli_backend --strict",
           "exitCode": 1,
-          "note": "Synthetic forbidden deep import detected with named importer/target"
+          "outputSummary": "Synthetic forbidden deep import detected with named importer/target"
         }
       ]
     }

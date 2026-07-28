@@ -12,6 +12,9 @@ SYNTHETIC_FIXTURE = ROOT / "tests/fixtures/import_boundaries/synthetic"
 SYNTHETIC_CONFIG = SYNTHETIC_FIXTURE / ".importlinter.toml"
 SYNTHETIC_SCAN_ROOT = SYNTHETIC_FIXTURE / "backend/src/juli_backend"
 
+sys.path.insert(0, str(ROOT / "agent-runtime/scripts/ci"))
+from import_boundary_config import load_import_boundary_config  # noqa: E402
+
 
 def _run_checker(*extra: str) -> subprocess.CompletedProcess[str]:
     cmd = [
@@ -44,6 +47,21 @@ def test_import_boundary_config_defines_core_package_matrix() -> None:
 
     for package in ("services", "ai", "integrations", "api", "workers", "core"):
         assert package in text
+
+
+def test_import_boundaries_doc_update_matrix_when_modules_gains_module() -> None:
+    """Document how to update the matrix when MODULES.md gains a module."""
+    doc = (ROOT / "docs/architecture/import-boundaries.md").read_text(encoding="utf-8")
+    assert "MODULES.md" in doc
+    assert "[allowed_edges]" in doc or "allowed_edges" in doc
+    assert "Updating the matrix" in doc
+
+
+def test_no_microservices_single_deployable_unchanged_by_import_checker() -> None:
+    """No microservices; single deployable unchanged — checker scans in-tree backend only."""
+    config = load_import_boundary_config(ROOT / ".importlinter.toml")
+    assert config.scan_root == ROOT / "backend/src/juli_backend"
+    assert config.root_package == "juli_backend"
 
 
 def test_check_import_boundaries_warn_mode_exits_zero_on_repo_scan() -> None:
