@@ -14,9 +14,22 @@ def anyio_backend():
 
 @pytest.fixture(autouse=True)
 def token_encryption_key(monkeypatch):
-    monkeypatch.setenv(
-        "TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key"
-    )
+    monkeypatch.setenv("TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key")
+
+
+@pytest.fixture(autouse=True)
+def bind_celery_dispatchers_for_unit_tests():
+    """Wire MMU-6/7 worker bindings so unit tests can run the execution worker."""
+    from juli_backend.services.action_cards.dispatch import set_refresh_dispatcher
+    from juli_backend.services.execution.dispatch import set_task_dispatcher
+    from juli_backend.services.execution.outcome_port import set_workflow_outcome_recorder
+    from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
+
+    bind_celery_dispatchers()
+    yield
+    set_refresh_dispatcher(None)
+    set_task_dispatcher(None)
+    set_workflow_outcome_recorder(None)
 
 
 @pytest_asyncio.fixture

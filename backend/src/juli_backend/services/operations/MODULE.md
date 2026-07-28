@@ -20,7 +20,7 @@ instrumentation after approved tool execution.
 
 ## Dependencies
 
-- `services/execution` — terminal execution records (`tool_executions`)
+- `models.models.ToolExecution` — terminal execution records (no execution module import)
 - `repositories.repos.WorkflowOutcomeRecordsRepo`
 
 ## Invariants
