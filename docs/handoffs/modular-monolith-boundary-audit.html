@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Juli Modular Monolith — Boundary Audit</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2332;
+    --border: #2d3a4f;
+    --text: #e7ecf3;
+    --muted: #8b9bb4;
+    --accent: #5b9fd4;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--font); background: var(--bg); color: var(--text);
+    line-height: 1.55; font-size: 15px;
+  }
+  header {
+    padding: 2.5rem 2rem 1.5rem; border-bottom: 1px solid var(--border);
+    background: linear-gradient(160deg, #1a2740 0%, #0f1419 70%);
+  }
+  header h1 { margin: 0 0 0.4rem; font-size: 1.85rem; font-weight: 650; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); max-width: 70ch; }
+  .score-pill {
+    display: inline-flex; align-items: baseline; gap: 0.5rem; margin-top: 1rem;
+    padding: 0.55rem 1rem; border-radius: 999px; background: #243044; border: 1px solid var(--border);
+  }
+  .score-pill strong { font-size: 1.6rem; color: var(--warn); }
+  nav.toc {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: rgba(15,20,25,0.92); backdrop-filter: blur(8px); z-index: 10;
+  }
+  nav.toc a {
+    color: var(--accent); text-decoration: none; font-size: 0.85rem; padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  nav.toc a:hover { background: var(--panel); }
+  main { padding: 1.5rem 2rem 4rem; max-width: 1200px; margin: 0 auto; }
+  section { margin: 2.5rem 0; }
+  h2 { font-size: 1.35rem; margin: 0 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem;
+  }
+  .card h3 { margin-top: 0; }
+  .stat { font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; }
+  .stat.ok { color: var(--ok); } .stat.warn { color: var(--warn); } .stat.bad { color: var(--bad); }
+  .muted { color: var(--muted); }
+  .small { font-size: 0.82rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.45rem 0.55rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  code { font-family: var(--mono); font-size: 0.8em; background: #0d1218; padding: 0.1em 0.35em; border-radius: 4px; }
+  .badge {
+    display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+  }
+  .badge.ok { background: #064e3b; color: var(--ok); }
+  .badge.warn { background: #78350f; color: var(--warn); }
+  .badge.bad { background: #7f1d1d; color: var(--bad); }
+  .badge.muted { background: #1e293b; color: var(--muted); }
+  .mermaid { background: #111827; border-radius: 10px; padding: 1rem; overflow-x: auto; border: 1px solid var(--border); }
+  .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+  ul.tight li { margin: 0.35rem 0; }
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--panel); padding: 0.85rem 1rem; border-radius: 0 8px 8px 0;
+    margin: 1rem 0;
+  }
+  .verdict {
+    display: grid; grid-template-columns: 120px 1fr; gap: 1.2rem; align-items: start;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;
+  }
+  .verdict .big { font-size: 3.5rem; font-weight: 800; color: var(--warn); line-height: 1; }
+  details { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.9rem; margin: 0.5rem 0; }
+  summary { cursor: pointer; font-weight: 600; }
+  footer { color: var(--muted); font-size: 0.8rem; padding: 2rem; text-align: center; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Modular Monolith Boundary Audit</h1>
+  <p>As-built analysis of <code>backend/src/juli_backend</code> against planning modules in MODULES.md / map.md.
+  Generated 2026-07-28 from static import graph + route/model inventory + runtime write-path / Celery / Redis / integration ownership.</p>
+  <div class="score-pill">Modular monolith score <strong>5.5 / 10</strong> <span class="muted">→ target 9 without microservices</span></div>
+</header>
+<nav class="toc">
+  <a href="#modules">Modules</a>
+  <a href="#graph">Dependency Graph</a>
+  <a href="#violations">Cross-Module Imports</a>
+  <a href="#interfaces">Public Interfaces</a>
+  <a href="#shared">Shared Code</a>
+  <a href="#db">Database</a>
+  <a href="#api">API Ownership</a>
+  <a href="#workers">Workers</a>
+  <a href="#runtime">Runtime Ownership</a>
+  <a href="#enforcement">Enforcement</a>
+  <a href="#assessment">Assessment</a>
+</nav>
+<main>
+
+<section id="summary">
+  <h2>Executive snapshot</h2>
+  <div class="grid">
+    <div class="card"><div class="stat">25</div><div class="muted">Catalogued modules (incl. missing Billing)</div></div>
+    <div class="card"><div class="stat warn">94</div><div class="muted">Unique deep-import violation patterns</div></div>
+    <div class="card"><div class="stat bad">5</div><div class="muted">Two-way import cycles</div></div>
+    <div class="card"><div class="stat">25</div><div class="muted">ORM tables in one god models file</div></div>
+  </div>
+  <div class="callout">
+    <strong>Headline:</strong> The repo is a <em>documented</em> modular monolith with good MODULE.md discipline and thin Celery entrypoints,
+    but boundaries are soft: API routes reach into service/integration internals, all models live in one shared bag,
+    and there is no PR-blocking import contract (only a non-blocking nightly audit).
+  </div>
+</section>
+
+<section id="modules">
+  <h2>1. Module boundaries — what exists today</h2>
+  <div class="grid">
+    <div class="chart-wrap"><canvas id="kindChart" height="200"></canvas></div>
+    <div class="chart-wrap"><canvas id="statusChart" height="200"></canvas></div>
+  </div>
+  <h3>Business &amp; platform modules</h3>
+  <table>
+    <thead><tr><th>Module</th><th>Path</th><th>Status</th><th>Kind</th></tr></thead>
+    <tbody>
+      <tr><td>API</td><td><code>api/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Auth &amp; Security</td><td><code>core/security/</code></td><td><span class="badge ok">as-built</span></td><td>shared</td></tr><tr><td>Config</td><td><code>core/config/</code></td><td><span class="badge ok">as-built</span></td><td>shared</td></tr><tr><td>Database</td><td><code>database/</code></td><td><span class="badge ok">as-built</span></td><td>shared</td></tr><tr><td>Models</td><td><code>models/</code></td><td><span class="badge ok">as-built</span></td><td>shared</td></tr><tr><td>Repositories</td><td><code>repositories/</code></td><td><span class="badge ok">as-built</span></td><td>shared</td></tr><tr><td>TikTok Integration</td><td><code>integrations/tiktok/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Webhook</td><td><code>services/webhook/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Ingestion</td><td><code>services/ingestion/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>ETL</td><td><code>services/etl/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>TikTok Services (OAuth/webhooks)</td><td><code>services/tiktok/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Analytics Backfill</td><td><code>services/analytics_backfill/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Aggregates</td><td><code>services/aggregates/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Scoring / Intelligence</td><td><code>services/scoring/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Action Cards</td><td><code>services/action_cards/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Execution</td><td><code>services/execution/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Operations</td><td><code>services/operations/</code></td><td><span class="badge warn">partial</span></td><td>business</td></tr><tr><td>Alerts</td><td><code>services/alerts/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Feedback</td><td><code>services/feedback/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Polling Workers</td><td><code>workers/services/polling/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Celery Tasks</td><td><code>workers/tasks/</code></td><td><span class="badge ok">as-built</span></td><td>shared</td></tr><tr><td>AI / ML</td><td><code>ai/*</code></td><td><span class="badge warn">partial</span></td><td>business</td></tr><tr><td>Agent Runtime</td><td><code>agent-runtime/</code></td><td><span class="badge warn">partial</span></td><td>devtools</td></tr><tr><td>Frontend Demo/Dashboard</td><td><code>apps/</code></td><td><span class="badge ok">as-built</span></td><td>business</td></tr><tr><td>Billing</td><td><code>—</code></td><td><span class="badge bad">missing</span></td><td>planned</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <strong>Not present as product modules:</strong> Billing / subscriptions — no package, no tables, no routes.
+    <strong>Agent</strong> exists as <code>agent-runtime/</code> (dev harness), not a seller-facing runtime module.
+    <strong>Analytics</strong> is split across <code>services/aggregates</code>, <code>services/analytics_backfill</code>, and ML feature pipelines — not a single package.
+  </div>
+</section>
+
+<section id="graph">
+  <h2>2. Dependency graph</h2>
+  <p class="muted">Layered view (edges with ≥2 import sites). Arrow weight = import statement count.</p>
+  <div class="mermaid">
+flowchart LR
+  API["API"]
+  Alerts["Alerts"]
+  Analytics["Analytics"]
+  Auth["Auth"]
+  Data_Pipeline["Data Pipeline"]
+  Execution["Execution"]
+  Intelligence["Intelligence"]
+  ML["ML"]
+  Shared_Infra["Shared Infra"]
+  TikTok_Integration["TikTok Integration"]
+  TikTok_Services["TikTok Services"]
+  Workers["Workers"]
+  API -->|27| Shared_Infra
+  Analytics -->|11| Shared_Infra
+  TikTok_Services -->|10| TikTok_Integration
+  API -->|9| TikTok_Services
+  Intelligence -->|8| Analytics
+  TikTok_Services -->|8| Shared_Infra
+  Workers -->|8| TikTok_Integration
+  API -->|8| TikTok_Integration
+  Intelligence -->|7| Shared_Infra
+  Analytics -->|6| TikTok_Integration
+  Execution -->|6| Shared_Infra
+  Execution -->|6| TikTok_Integration
+  Workers -->|6| Shared_Infra
+  ML -->|6| Shared_Infra
+  Auth -->|6| Shared_Infra
+  API -->|5| Auth
+  Data_Pipeline -->|4| TikTok_Services
+  Data_Pipeline -->|4| Shared_Infra
+  Alerts -->|4| Shared_Infra
+  TikTok_Services -->|3| Data_Pipeline
+  API -->|3| Execution
+  API -->|3| Data_Pipeline
+  Auth -->|3| TikTok_Integration
+  Analytics -->|2| Data_Pipeline
+  Intelligence -->|2| Workers
+  Intelligence -->|2| TikTok_Integration
+  Intelligence -->|2| Data_Pipeline
+  TikTok_Services -->|2| Auth
+  Workers -->|2| Data_Pipeline
+  Workers -->|2| Auth
+  API -->|2| Intelligence
+  style API fill:#3b82f6,color:#fff
+  style Auth fill:#8b5cf6,color:#fff
+  style Shared_Infra fill:#64748b,color:#fff
+  style TikTok_Integration fill:#000,color:#fff
+  style TikTok_Services fill:#111827,color:#fff
+  style Data_Pipeline fill:#059669,color:#fff
+  style Analytics fill:#0d9488,color:#fff
+  style Intelligence fill:#d97706,color:#fff
+  style Execution fill:#dc2626,color:#fff
+  style Workers fill:#ea580c,color:#fff
+  style ML fill:#7c3aed,color:#fff
+  style Alerts fill:#db2777,color:#fff
+  </div>
+  <h3>Hottest package edges</h3>
+  <div class="chart-wrap"><canvas id="edgeChart" height="420"></canvas></div>
+  <h3>Detected cycles</h3>
+  <ul class="tight"><li><code>database</code> ↔ <code>repositories</code></li><li><code>services/execution</code> ↔ <code>services/operations</code></li><li><code>services/execution</code> ↔ <code>workers/tasks</code></li><li><code>services/action_cards</code> ↔ <code>workers/tasks</code></li><li><code>core/security</code> ↔ <code>services/tiktok</code></li></ul>
+  <p class="muted">Nightly <code>audit_cycles.py</code> also scans MODULE.md-mapped packages via Tarjan SCC; workflow uses <code>continue-on-error</code>.</p>
+</section>
+
+<section id="violations">
+  <h2>3. Cross-module imports — every violation pattern</h2>
+  <p>
+    A <strong>violation</strong> is an import of another business package’s <em>internal submodule</em>
+    (e.g. <code>services.etl.consumer</code>) instead of the package root / documented public surface.
+    Shared infra (<code>models</code>, <code>repositories</code>, <code>database</code>, <code>core/*</code>) is excluded from this list
+    because they are intentionally shared — their own “god file” problem is covered under Shared Code / Database.
+  </p>
+  <p class="muted">108 import sites · 94 unique (from → import) patterns</p>
+  <div style="max-height: 520px; overflow: auto; border: 1px solid var(--border); border-radius: 8px;">
+  <table>
+    <thead><tr><th>From</th><th>Imports (internal)</th><th>Names</th><th>N</th><th>Target facade</th></tr></thead>
+    <tbody>
+      <tr><td><code>api</code></td><td><code>juli_backend.integrations.tiktok.exceptions</code></td><td>AuthenticationError</td><td>3</td><td class="muted">has __all__</td></tr><tr><td><code>services/execution</code></td><td><code>juli_backend.integrations.tiktok.factories</code></td><td>SandboxWriteResources</td><td>3</td><td class="muted">has __all__</td></tr><tr><td><code>services/analytics_backfill</code></td><td><code>juli_backend.integrations.tiktok.exceptions</code></td><td>TikTokAPIError</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>services/analytics_backfill</code></td><td><code>juli_backend.services.etl.transform</code></td><td>transform_for_channel</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>services/scoring</code></td><td><code>juli_backend.services.aggregates.types</code></td><td>ShopLifecycleContext</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>services/scoring</code></td><td><code>juli_backend.services.aggregates.types</code></td><td>ShopProfile</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.exceptions</code></td><td>AuthenticationError</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.services.etl.event_id</code></td><td>extract_event_id</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>services/webhook</code></td><td><code>juli_backend.services.ingestion.handoff</code></td><td>HandoffFn</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.integrations.tiktok.rate_limiter</code></td><td>RateLimiter</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.services.ingestion.handoff</code></td><td>HandoffFn</td><td>2</td><td class="muted">has __all__</td></tr><tr><td><code>workers/tasks</code></td><td><code>juli_backend.workers.celery_app</code></td><td>celery_app</td><td>2</td><td class="muted">no package facade</td></tr><tr><td><code>ai/ad_performance</code></td><td><code>juli_backend.ai.features.schema</code></td><td>AD_FEATURE_COLUMNS</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/anomaly</code></td><td><code>juli_backend.ai.features.schema</code></td><td>ANOMALY_FEATURE_COLUMNS</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/artifacts</code></td><td><code>juli_backend.ai.ad_performance.fixtures</code></td><td>GOLDEN_AD_FIXTURES</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/artifacts</code></td><td><code>juli_backend.ai.ad_performance.inference</code></td><td>predict_ad_action</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/artifacts</code></td><td><code>juli_backend.ai.anomaly.fixtures</code></td><td>GOLDEN_ANOMALY_FIXTURES</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/artifacts</code></td><td><code>juli_backend.ai.anomaly.inference</code></td><td>predict_anomaly</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/artifacts</code></td><td><code>juli_backend.ai.features.schema</code></td><td>AD_FEATURE_COLUMNS, ANOMALY_FEATURE_COLUMNS, SELLER_STAGE_FEATURE_COLUMNS</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/artifacts</code></td><td><code>juli_backend.ai.seller_stage.fixtures</code></td><td>STAGE_BOUNDARY_FIXTURES</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/artifacts</code></td><td><code>juli_backend.ai.seller_stage.inference</code></td><td>predict_seller_stage</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/features</code></td><td><code>juli_backend.ai.dataset.schema</code></td><td>ORDER_ITEMS_COLUMNS, ORDERS_COLUMNS, RETURNS_COLUMNS</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/recommendations</code></td><td><code>juli_backend.ai.forecasting.forecaster</code></td><td>get_low_stock_risks, get_velocity_changes</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>ai/seller_stage</code></td><td><code>juli_backend.ai.features.schema</code></td><td>SELLER_STAGE_FEATURE_COLUMNS</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.integrations.tiktok.auth</code></td><td>DEFAULT_OPEN_API_BASE_URL</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.integrations.tiktok.auth</code></td><td>TikTokAuth</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.integrations.tiktok.business_account_holder_auth</code></td><td>TikTokBusinessAccountHolderAuth</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.integrations.tiktok.business_advertiser_auth</code></td><td>TikTokBusinessAdvertiserAuth</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.integrations.tiktok.merchant</code></td><td>TikTokCapability</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.action_cards.dispatch</code></td><td>enqueue_action_card_refresh</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.etl.consumer</code></td><td>EtlConsumer</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.execution.dispatch</code></td><td>enqueue_approved_tool</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.execution.types</code></td><td>ExecutionStatus</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.ingestion.handoff</code></td><td>make_etl_handoff</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.operations.outcome_tracking</code></td><td>load_workflow_outcome_metrics</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.advertiser_oauth_store</code></td><td>persist_advertiser_oauth_tokens</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.app_review_store</code></td><td>persist_oauth_tokens</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.business_account_holder_store</code></td><td>account_holder_merchant_id, persist_account_holder_tokens</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.business_advertiser_oauth</code></td><td>TikTokBusinessAdvertiserOAuthCallbackResult, TikTokBusinessAdvertiserOAuthService</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.oauth</code></td><td>TikTokOAuthInfrastructureService</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.schemas</code></td><td>TikTokOAuthCallbackResult</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.verify_connection</code></td><td>TikTokVerifyConnectionService, tiktok_debug_enabled</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.webhook_handlers</code></td><td>DatabaseWebhookSideEffects</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.tiktok.webhook_raw_log</code></td><td>DatabaseRawWebhookEventRecorder</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>api</code></td><td><code>juli_backend.services.webhook.app</code></td><td>WEBHOOK_PATH, build_webhook_service</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>core/security</code></td><td><code>juli_backend.integrations.tiktok.auth</code></td><td>TikTokAuth</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>core/security</code></td><td><code>juli_backend.integrations.tiktok.merchant</code></td><td>PRODUCTION_AUTH_ID, SANDBOX_AUTH_ID, TikTokCapability</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>core/security</code></td><td><code>juli_backend.integrations.tiktok.merchant</code></td><td>TikTokCapability, resolve_merchant_context</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>core/security</code></td><td><code>juli_backend.services.tiktok.token_expiry</code></td><td>access_token_expires_at</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>repositories</code></td><td><code>juli_backend.integrations.tiktok.merchant</code></td><td>TikTokCapability, is_cross_merchant_lookup</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/action_cards</code></td><td><code>juli_backend.integrations.tiktok.auth</code></td><td>TikTokAuth</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/action_cards</code></td><td><code>juli_backend.integrations.tiktok.rate_limiter</code></td><td>RateLimiter</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/action_cards</code></td><td><code>juli_backend.services.etl.consumer</code></td><td>EtlConsumer</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/action_cards</code></td><td><code>juli_backend.services.scoring.pipeline</code></td><td>run_daily_scoring_for_shop</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/action_cards</code></td><td><code>juli_backend.services.scoring.types</code></td><td>DailyScoringResult, KpiId, Severity, WorkflowReasoningSummary</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/action_cards</code></td><td><code>juli_backend.workers.tasks.action_card_refresh</code></td><td>refresh_action_cards</td><td>1</td><td class="muted">no package facade</td></tr><tr><td><code>services/analytics_backfill</code></td><td><code>juli_backend.integrations.tiktok.constants</code></td><td>ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH, ANALYTICS_LIVE_PERFORMANCE_LIST_PATH</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/analytics_backfill</code></td><td><code>juli_backend.integrations.tiktok.mapping</code></td><td>expand_analytics_shop_performance</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/analytics_backfill</code></td><td><code>juli_backend.integrations.tiktok.mapping</code></td><td>analytics_snapshot_key, expand_analytics_live_session</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/analytics_backfill</code></td><td><code>juli_backend.integrations.tiktok.mapping</code></td><td>expand_analytics_product_list_item</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/etl</code></td><td><code>juli_backend.integrations.tiktok.mapping</code></td><td>analytics_snapshot_key, normalize_creator, normalize_inventory, normalize_livestream, normalize_order, normalize_product</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/execution</code></td><td><code>juli_backend.integrations.tiktok.exceptions</code></td><td>RateLimitError, TikTokAPIError, TikTokSystemError, TransportGuardError</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/execution</code></td><td><code>juli_backend.integrations.tiktok.factories</code></td><td>ClientFactoryConfig, SandboxWriteClientFactory, SandboxWriteResources</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/execution</code></td><td><code>juli_backend.integrations.tiktok.merchant</code></td><td>SANDBOX_AUTH_ID</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/execution</code></td><td><code>juli_backend.services.operations.outcome_tracking</code></td><td>record_workflow_outcome</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/execution</code></td><td><code>juli_backend.workers.tasks.tool_execution</code></td><td>execute_approved_tool</td><td>1</td><td class="muted">no package facade</td></tr><tr><td><code>services/ingestion</code></td><td><code>juli_backend.services.etl.consumer</code></td><td>EtlConsumer</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/ingestion</code></td><td><code>juli_backend.services.etl.record</code></td><td>IngestRecord</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/operations</code></td><td><code>juli_backend.services.execution.types</code></td><td>ExecutionStatus</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/scoring</code></td><td><code>juli_backend.services.aggregates.builder</code></td><td>build_feature_aggregates</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/scoring</code></td><td><code>juli_backend.services.aggregates.computed_kpis</code></td><td>ComputedKpiMetrics</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/scoring</code></td><td><code>juli_backend.services.aggregates.types</code></td><td>FeatureAggregateSnapshot, ShopLifecycleContext</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/scoring</code></td><td><code>juli_backend.services.aggregates.types</code></td><td>FeatureAggregateSnapshot, HealthDataSource, ShopProfile</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.auth</code></td><td>DEFAULT_OPEN_API_BASE_URL</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.auth</code></td><td>TikTokAuth</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.business_advertiser_auth</code></td><td>TikTokBusinessAdvertiserAuth</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.client</code></td><td>TikTokClient</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.exceptions</code></td><td>TikTokAPIError</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.merchant</code></td><td>resolve_merchant_context</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.resources.authorization</code></td><td>AuthorizationResource</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.integrations.tiktok.schemas</code></td><td>TikTokSchemaError</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/tiktok</code></td><td><code>juli_backend.services.ingestion.handoff</code></td><td>HandoffFn</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/webhook</code></td><td><code>juli_backend.services.etl.consumer</code></td><td>EtlConsumer</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/webhook</code></td><td><code>juli_backend.services.etl.record</code></td><td>IngestRecord</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/webhook</code></td><td><code>juli_backend.services.tiktok.webhook_handlers</code></td><td>DatabaseWebhookSideEffects, WebhookSideEffects</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>services/webhook</code></td><td><code>juli_backend.services.tiktok.webhook_raw_log</code></td><td>DatabaseRawWebhookEventRecorder, RawWebhookEventRecorder</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.integrations.tiktok.constants</code></td><td>ANALYTICS_BESTSELLING_PRODUCTS_PATH, ANALYTICS_BESTSELLING_VIDEOS_PATH, ANALYTICS_LIVE_PERFORMANCE_LIST_PATH, ANALYTICS_SHOP_PERFORMANCE_PATH, ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH, ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.integrations.tiktok.constants</code></td><td>ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH, INVENTORY_SEARCH_PATH, ORDER_SEARCH_PATH, PRODUCT_SEARCH_PATH, RETURN_SEARCH_PATH</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.integrations.tiktok.exceptions</code></td><td>PermissionDeniedError, TikTokAPIError</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.integrations.tiktok.factories</code></td><td>ClientFactoryConfig, ProductionReadClientFactory, ProductionReadResources</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.integrations.tiktok.mapping</code></td><td>analytics_snapshot_key, expand_analytics_live_session, expand_analytics_product_detail, expand_analytics_product_list_item, expand_analytics_shop_performance, expand_analytics_shop_performance_per_hour</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/polling</code></td><td><code>juli_backend.integrations.tiktok.merchant</code></td><td>PRODUCTION_AUTH_ID, TikTokCapability</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/tasks</code></td><td><code>juli_backend.services.action_cards.refresh</code></td><td>run_action_card_refresh</td><td>1</td><td class="muted">has __all__</td></tr><tr><td><code>workers/tasks</code></td><td><code>juli_backend.services.execution.worker</code></td><td>run_approved_tool</td><td>1</td><td class="muted">has __all__</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <details>
+    <summary>Notable clusters</summary>
+    <ul class="tight">
+      <li><code>api</code> → deep into <code>services.tiktok.*</code>, <code>services.execution.*</code>, <code>integrations.tiktok.*</code>, <code>services.etl.consumer</code></li>
+      <li><code>services.scoring</code> → <code>services.aggregates.types|builder|computed_kpis</code> (bypasses package re-exports)</li>
+      <li><code>services.tiktok</code> → <code>integrations.tiktok.resources.authorization</code> (true leaf-internal)</li>
+      <li><code>ai.artifacts</code> → sibling <code>inference</code>/<code>fixtures</code> modules despite package <code>__all__</code></li>
+      <li>Workers/tasks correctly thin, but domain packages import <code>workers.tasks</code> creating cycles</li>
+    </ul>
+  </details>
+</section>
+
+<section id="interfaces">
+  <h2>4. Public interfaces</h2>
+  <p>Many service packages define <code>__all__</code> and MODULE.md public surfaces — but callers often ignore them and import submodules directly.</p>
+  <table>
+    <thead><tr><th>Package</th><th>Documented / exported symbols (sample)</th><th>Has __all__</th></tr></thead>
+    <tbody><tr><td><code>ai/ad_performance</code></td><td class="small">AD_ACTIONS, AdPerformanceModel, CLASS_IMBALANCE_STRATEGY, GOLDEN_AD_FIXTURES, HOLD_CONFIDENCE_THRESHOLD, InferenceResult, SPARSE_MAX_CONFIDENCE, TrainResult, build_ad_training_frame, predict_ad_action, train_ad_performance</td><td>Yes</td></tr><tr><td><code>ai/anomaly</code></td><td class="small">ANOMALY_CLASSES, ANOMALY_CONFIDENCE_THRESHOLD, CLASS_IMBALANCE_STRATEGY, GOLDEN_ANOMALY_FIXTURES, InferenceResult, TrainResult, build_anomaly_training_frame, predict_anomaly, train_anomaly</td><td>Yes</td></tr><tr><td><code>ai/artifacts</code></td><td class="small">MODEL_SUITES, ArtifactBundle, ArtifactError, ArtifactLoadError, ArtifactPublishError, LoadedModel, ModelSuite, PromotionStatus, evaluate_promotion_status, feature_columns_for_suite, feature_schema_hash, load_metadata…</td><td>Yes</td></tr><tr><td><code>ai/dataset</code></td><td class="small">ADS_COLUMNS, LABELS_COLUMNS, ORDER_ITEMS_COLUMNS, ORDERS_COLUMNS, RETURNS_COLUMNS, RETURN_TYPE_VALUES, DatasetValidationError, assemble_backtest_dataset, validate_backtest_dataset</td><td>Yes</td></tr><tr><td><code>ai/features</code></td><td class="small">AD_FEATURE_COLUMNS, ANOMALY_FEATURE_COLUMNS, FeatureMatrix, FeatureValidationError, SELLER_STAGE_FEATURE_COLUMNS, build_ad_features, build_anomaly_features, build_seller_stage_features</td><td>Yes</td></tr><tr><td><code>ai/forecasting</code></td><td class="small">ForecastResult, LowStockRisk, VelocityChange, get_forecast, get_low_stock_risks, get_velocity_changes</td><td>Yes</td></tr><tr><td><code>ai/ranking</code></td><td class="small">Anomaly, LivestreamScore, RetentionPoint, SentimentResult, analyze_comments, detect_anomalies, get_stream_retention, score_livestream</td><td>Yes</td></tr><tr><td><code>ai/recommendations</code></td><td class="small">HostProductMatch, ProductPushSuggestion, StreamOptimizationSuggestion, get_host_product_matching, get_product_push_suggestions, get_stream_optimization</td><td>Yes</td></tr><tr><td><code>ai/seller_stage</code></td><td class="small">AD_SPEND_GROWTH_MIN_VND, CLASS_IMBALANCE_STRATEGY, ComparisonReport, InferenceResult, ORDER_COUNT_GROWTH_MIN, ORDER_COUNT_NEW_MAX, RETURN_RATE_LEAKAGE_MIN, SHOP_AGE_NEW_MAX_DAYS, STAGE_BOUNDARY_FIXTURES, SellerStage, SellerStageProfile, TrainResult…</td><td>Yes</td></tr><tr><td><code>core/security</code></td><td class="small">TikTokOAuthService, Unauthorized, get_current_user, verify_supabase_jwt</td><td>Yes</td></tr><tr><td><code>database</code></td><td class="small">ActionCard, ActionCardsRepo, AlertConfig, AlertConfigsRepo, AlertHistory, AlertHistoryRepo, Base, Campaign, Creator, CreatorsRepo, GraphEdge, GraphRepo…</td><td>Yes</td></tr><tr><td><code>integrations/tiktok</code></td><td class="small">strip_nones, AnalyticsResource, AuthorizationResource, OrdersResource, ProductsResource, ReturnsResource, InventoryResource, FulfillmentResource, PromotionResource, CreatorsResource, LivestreamsResource, SettlementsResource</td><td>Yes</td></tr><tr><td><code>services/action_cards</code></td><td class="small">enqueue_action_card_refresh, get_refresh_dispatcher, maybe_poll_tiktok_data, persist_scoring_result, run_action_card_refresh, set_refresh_dispatcher</td><td>Yes</td></tr><tr><td><code>services/aggregates</code></td><td class="small">SYNCED_DATA_SOURCES, ComputedKpiMetrics, FeatureAggregateSnapshot, HealthDataSource, HealthSnapshot, ProxyHealthSignals, ShopLifecycleContext, ShopProfile, ShopProfileSignals, build_feature_aggregates, classify_shop_profile, compute_all_kpis…</td><td>Yes</td></tr><tr><td><code>services/alerts</code></td><td class="small">FcmAdapter, ZaloOaAdapter</td><td>Yes</td></tr><tr><td><code>services/analytics_backfill</code></td><td class="small">ACTIVE_PRODUCT_STATUSES, ALLOWED_BUCKETS, BACKFILL_WINDOW_START, BudgetExhaustedError, BucketCoverageResult, CATALOG_BUCKET, CallBudgetGovernor, CoverageReport, PRODUCT_COVERAGE_THRESHOLD, REVENUE_LIVE_COVERAGE_THRESHOLD, CatalogCountStrategy, CatalogCounts…</td><td>Yes</td></tr><tr><td><code>services/etl</code></td><td class="small">DLQ_CHANNEL, RAW_CHANNELS, EtlConsumer, IngestRecord, KafkaRecord, ProcessOutcome, transform_for_channel, transform_for_topic</td><td>Yes</td></tr><tr><td><code>services/execution</code></td><td class="small">ExecutionErrorCategory, ExecutionStatus, build_sandbox_write_resources, enqueue_approved_tool, get_task_dispatcher, is_noop_tool, load_sandbox_write_resources, mark_execution_finished, register_async_tool, register_tool, resolve_tool_name, resolve_tool_name_for_workflow…</td><td>Yes</td></tr><tr><td><code>services/feedback</code></td><td class="small">OutcomeIngestResult, compute_calibration_weight, ingest_campaign_outcome</td><td>Yes</td></tr><tr><td><code>services/ingestion</code></td><td class="small">DlqHandoffFn, HandoffFn, make_etl_handoff</td><td>Yes</td></tr><tr><td><code>services/operations</code></td><td class="small">build_workflow_outcome_metrics, load_workflow_outcome_metrics, record_workflow_outcome</td><td>Yes</td></tr><tr><td><code>services/scoring</code></td><td class="small">AdvisorySignal, COPY_SOURCE_RULES, DAILY_SCORING_CRON_UTC, DAILY_SCORING_UTC_HOUR, DAILY_SCORING_UTC_MINUTE, DailyScoringResult, KPI_WORKFLOW_KEYS, ScoringSignals, VisualLayerDomain, VISUAL_LAYER_KPI_IDS, WORKFLOW_COPY_TEMPLATE_KEYS, WorkflowReasoningCopy…</td><td>Yes</td></tr><tr><td><code>services/tiktok</code></td><td class="small">ACCOUNT_LIFECYCLE_CHANNEL, EVENT_CATEGORY_ROUTES, PHASE2_CATALOG, PHASE2_CATALOG_IDS, TikTokOAuthInfrastructureService, TikTokWebhookDispatcher, TikTokWebhookService, TikTokWebhookSignatureVerifier, resolve_catalog_entry, resolve_ingest_channel, should_handoff_to_etl</td><td>Yes</td></tr><tr><td><code>services/webhook</code></td><td class="small">create_app, build_webhook_service, WEBHOOK_PATH, HandoffFn, EVENT_CATEGORY_ROUTES</td><td>Yes</td></tr><tr><td><code>workers/polling</code></td><td class="small">FujiwaPollConfig, backfill_shop, run_fujiwa_poll_cycle, sync_analytics, sync_creators, sync_orders, sync_products, sync_returns</td><td>Yes</td></tr></tbody>
+  </table>
+  <div class="callout">
+    <strong>integrations/tiktok</strong> documents a rich public API in MODULE.md but has <strong>no package-level <code>__all__</code></strong>,
+    so every consumer imports leaf modules (<code>auth</code>, <code>factories</code>, <code>rate_limiter</code>, <code>resources.*</code>) — the facade is documentation-only.
+  </div>
+</section>
+
+<section id="shared">
+  <h2>5. Shared code vs business modules</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Belongs in shared (today: core / database / models / repos)</h3>
+      <ul class="tight">
+        <li>Config &amp; runtime helpers — <code>core/config</code></li>
+        <li>JWT / AuthZ dependencies — <code>core/security</code> (partially leaking TikTok OAuth orchestration)</li>
+        <li>Engine/session/Alembic — <code>database/</code></li>
+        <li>ORM Base — <code>orm_base.py</code></li>
+        <li>Cross-cutting Redis rate limiter lives under integrations (OK if treated as infra adapter)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Business logic leaking into “shared”</h3>
+      <ul class="tight">
+        <li><code>core/security/tiktok_oauth.py</code> orchestrates shop provisioning + TikTok auth (domain, not pure auth primitive)</li>
+        <li><code>models/models.py</code> (~813 LOC) mixes identity, commerce, ETL, ML graph, execution, alerts</li>
+        <li><code>repositories/repos.py</code> (~1203 LOC) is a monolith data-access bag — no per-module ownership</li>
+        <li>No dedicated <code>shared/</code> package name; “shared” is implicit via these folders</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="db">
+  <h2>6. Database ownership</h2>
+  <p>All 25 tables are defined in a single shared file. Ownership below is <em>logical</em> (who writes / cares), not physical package ownership.</p>
+  <table>
+    <thead><tr><th>Table</th><th>Model</th><th>Logical owner</th></tr></thead>
+    <tbody><tr><td><code>users</code></td><td>User</td><td>Auth / shared identity</td></tr><tr><td><code>shops</code></td><td>Shop</td><td>Auth / shared identity</td></tr><tr><td><code>tiktok_credentials</code></td><td>TikTokCredential</td><td>Integrations (TikTok OAuth)</td></tr><tr><td><code>tiktok_sync_state</code></td><td>TikTokSyncState</td><td>Workers/polling + TikTok sync</td></tr><tr><td><code>orders</code></td><td>Order</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>order_items</code></td><td>OrderItem</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>returns</code></td><td>Return</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>products</code></td><td>Product</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>inventory_items</code></td><td>InventoryItem</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>settlements</code></td><td>Settlement</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>creators</code></td><td>Creator</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>livestreams</code></td><td>Livestream</td><td>Data pipeline (ETL/polling)</td></tr><tr><td><code>analytics_performance_intervals</code></td><td>AnalyticsPerformanceInterval</td><td>Analytics backfill</td></tr><tr><td><code>alert_configs</code></td><td>AlertConfig</td><td>Alerts</td></tr><tr><td><code>alert_history</code></td><td>AlertHistory</td><td>Alerts</td></tr><tr><td><code>processed_events</code></td><td>ProcessedEvent</td><td>ETL</td></tr><tr><td><code>workflow_webhook_signals</code></td><td>WorkflowWebhookSignal</td><td>Webhook / Operations</td></tr><tr><td><code>webhook_raw_events</code></td><td>WebhookRawEvent</td><td>Webhook</td></tr><tr><td><code>tool_executions</code></td><td>ToolExecution</td><td>Execution</td></tr><tr><td><code>workflow_outcome_records</code></td><td>WorkflowOutcomeRecord</td><td>Operations</td></tr><tr><td><code>action_cards</code></td><td>ActionCard</td><td>Action cards / Scoring</td></tr><tr><td><code>recommendations</code></td><td>Recommendation</td><td>Intelligence (AI recommendations)</td></tr><tr><td><code>campaigns</code></td><td>Campaign</td><td>Intelligence (commerce graph)</td></tr><tr><td><code>graph_edges</code></td><td>GraphEdge</td><td>Intelligence (commerce graph)</td></tr><tr><td><code>analytics_backfill_partitions</code></td><td>AnalyticsBackfillPartition</td><td>Analytics backfill</td></tr></tbody>
+  </table>
+  <p class="muted">Models are shared across modules by design today — any service may <code>from juli_backend.models.models import …</code>. That maximizes coupling.</p>
+</section>
+
+<section id="api">
+  <h2>7. API ownership (FastAPI routes)</h2>
+  <table>
+    <thead><tr><th>Router file</th><th>Prefix</th><th>Endpoints</th><th>Backend imports</th><th>Depth</th></tr></thead>
+    <tbody><tr><td><code>__init__.py</code></td><td><code>(none)</code></td><td class="small">(router mount / nested)</td><td class="small"></td><td>0 <span class="muted">ok</span></td></tr><tr><td><code>action_cards.py</code></td><td><code>/action-cards</code></td><td class="small">POST /action-cards/refresh, GET /action-cards</td><td class="small"><code>juli_backend.database</code><br><code>juli_backend.repositories.repos</code><br><code>juli_backend.services.action_cards.dispatch</code></td><td>3 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>auth_tiktok.py</code></td><td><code>/auth/tiktok</code></td><td class="small">GET /auth/tiktok/callback</td><td class="small"><code>juli_backend.core.config.runtime</code><br><code>juli_backend.core.security.exceptions</code><br><code>juli_backend.database</code><br><code>juli_backend.integrations.tiktok.auth</code><br><code>juli_backend.integrations.tiktok.exceptions</code><br><code>juli_backend.services.tiktok.app_review_store</code><br><code>juli_backend.services.tiktok.oauth</code><br><code>juli_backend.services.tiktok.schemas</code></td><td>5 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>auth_tiktok_business_account_holder.py</code></td><td><code>/auth/tiktok/business/account-holder</code></td><td class="small">GET /auth/tiktok/business/account-holder/callback</td><td class="small"><code>juli_backend.core.config.runtime</code><br><code>juli_backend.core.security.exceptions</code><br><code>juli_backend.database</code><br><code>juli_backend.integrations.tiktok.business_account_holder_auth</code><br><code>juli_backend.integrations.tiktok.exceptions</code><br><code>juli_backend.services.tiktok.business_account_holder_store</code></td><td>5 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>auth_tiktok_business_advertiser.py</code></td><td><code>/auth/tiktok/business</code></td><td class="small">GET /auth/tiktok/business/callback</td><td class="small"><code>juli_backend.core.config.runtime</code><br><code>juli_backend.core.security.exceptions</code><br><code>juli_backend.database</code><br><code>juli_backend.integrations.tiktok.business_advertiser_auth</code><br><code>juli_backend.integrations.tiktok.exceptions</code><br><code>juli_backend.services.tiktok.advertiser_oauth_store</code><br><code>juli_backend.services.tiktok.business_advertiser_oauth</code></td><td>5 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>creators.py</code></td><td><code>/creators</code></td><td class="small">GET /creators, GET /creators/{creator_id}/content</td><td class="small"><code>juli_backend.database</code><br><code>juli_backend.models.models</code></td><td>2 <span class="muted">ok</span></td></tr><tr><td><code>debug_tiktok.py</code></td><td><code>/debug/tiktok</code></td><td class="small">GET /debug/tiktok/verify-connection</td><td class="small"><code>juli_backend.core.config.runtime</code><br><code>juli_backend.database</code><br><code>juli_backend.database.exceptions</code><br><code>juli_backend.integrations.tiktok.auth</code><br><code>juli_backend.integrations.tiktok.merchant</code><br><code>juli_backend.services.tiktok.verify_connection</code></td><td>4 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>executions.py</code></td><td><code>/executions</code></td><td class="small">POST /executions, GET /executions/{execution_id}</td><td class="small"><code>juli_backend.database</code><br><code>juli_backend.repositories.repos</code><br><code>juli_backend.services.execution.dispatch</code><br><code>juli_backend.services.execution.types</code></td><td>3 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>orders.py</code></td><td><code>/orders</code></td><td class="small">GET /orders, POST /orders/{order_id}/confirm-shipment</td><td class="small"><code>juli_backend.database</code></td><td>1 <span class="muted">ok</span></td></tr><tr><td><code>outcomes.py</code></td><td><code>/outcomes</code></td><td class="small">POST /outcomes</td><td class="small"><code>juli_backend.database</code><br><code>juli_backend.services.feedback</code></td><td>2 <span class="muted">ok</span></td></tr><tr><td><code>products.py</code></td><td><code>/products</code></td><td class="small">GET /products</td><td class="small"><code>juli_backend.database</code></td><td>1 <span class="muted">ok</span></td></tr><tr><td><code>recommendations.py</code></td><td><code>/recommendations</code></td><td class="small">GET /recommendations</td><td class="small"><code>juli_backend.ai.recommendations</code><br><code>juli_backend.database</code><br><code>juli_backend.models.models</code></td><td>3 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>shops.py</code></td><td><code>/shops</code></td><td class="small">GET /shops, GET /shops/me</td><td class="small"><code>juli_backend.core.security</code><br><code>juli_backend.database</code></td><td>2 <span class="muted">ok</span></td></tr><tr><td><code>webhook_tiktok.py</code></td><td><code>(none)</code></td><td class="small">(router mount / nested)</td><td class="small"><code>juli_backend.core.config.runtime</code><br><code>juli_backend.database</code><br><code>juli_backend.services.etl.consumer</code><br><code>juli_backend.services.ingestion.handoff</code><br><code>juli_backend.services.tiktok.webhook_handlers</code><br><code>juli_backend.services.tiktok.webhook_raw_log</code><br><code>juli_backend.services.webhook.app</code></td><td>6 <span class="muted">⚠️ multi-module</span></td></tr><tr><td><code>workflow_outcomes.py</code></td><td><code>/workflow-outcomes</code></td><td class="small">GET /workflow-outcomes/{approval_id}</td><td class="small"><code>juli_backend.database</code><br><code>juli_backend.services.operations.outcome_tracking</code></td><td>2 <span class="muted">ok</span></td></tr></tbody>
+  </table>
+  <div class="callout">
+    <strong>Worst offenders for multi-module internals:</strong>
+    <code>webhook_tiktok.py</code> (etl + ingestion + tiktok services + webhook app + config/db),
+    <code>auth_tiktok*.py</code> (integrations auth + services stores + security),
+    <code>debug_tiktok.py</code> (integrations merchant/auth + verify service).
+    CRUD routers (<code>orders</code>, <code>products</code>, <code>shops</code>) are healthier — mostly deps + database.
+  </div>
+</section>
+
+<section id="workers">
+  <h2>8. Background workers</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Celery layout</h3>
+      <ul class="tight">
+        <li><code>workers/celery_app.py</code> — central app, autodiscovers <code>workers.tasks</code></li>
+        <li><code>workers/tasks/action_card_refresh.py</code> → <code>services.action_cards.refresh</code></li>
+        <li><code>workers/tasks/tool_execution.py</code> → <code>services.execution.worker</code></li>
+        <li><code>workers/services/polling/</code> — sync orchestration (not Celery-decorated; callable from schedulers)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Ownership assessment</h3>
+      <p>Tasks are <strong>centralized entrypoints</strong> that correctly delegate to owning services — good pattern.</p>
+      <p class="muted">Coupling issue: services import Celery dispatchers / task modules, creating cycles with <code>workers.tasks</code>. Prefer a port interface in the service package and wire Celery only in workers.</p>
+    </div>
+  </div>
+</section>
+
+<section id="enforcement">
+  <h2>9. Boundary enforcement</h2>
+  <table>
+    <thead><tr><th>Mechanism</th><th>Present?</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>import-linter / grimp</td><td><span class="badge bad">No</span></td><td>Not in pyproject or CI</td></tr>
+      <tr><td><code>architecture-audit.yml</code></td><td><span class="badge warn">Yes</span></td><td>Nightly + manual; drift/cycles/size; <code>continue-on-error</code></td></tr>
+      <tr><td><code>audit_cycles.py</code></td><td><span class="badge ok">Yes</span></td><td>Detects SCCs; not PR-blocking</td></tr>
+      <tr><td><code>audit_module_drift.py</code></td><td><span class="badge ok">Yes</span></td><td>MODULE.md vs map drift</td></tr>
+      <tr><td>PR workflow import gates</td><td><span class="badge bad">No</span></td><td><code>pr.yml</code> has no architecture import check</td></tr>
+      <tr><td>MODULE.md public surfaces</td><td><span class="badge warn">Docs only</span></td><td>Not machine-enforced</td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<section id="runtime">
+  <h2>11. Runtime ownership (beyond static imports)</h2>
+  <p class="muted">Write-path and infra ownership inferred from repository call sites, Celery task wiring, Redis key builders, and env-bound clients — not just import edges.</p>
+  <div class="grid">
+    <div class="card"><div class="stat">25</div><div class="muted">Tables with assigned logical owners</div></div>
+    <div class="card"><div class="stat">2</div><div class="muted">Celery tasks (both domain-owned wrappers)</div></div>
+    <div class="card"><div class="stat warn">1</div><div class="muted">App Redis key namespace (<code>ratelimit:*</code>)</div></div>
+    <div class="card"><div class="stat">5</div><div class="muted">External systems with an owner</div></div>
+  </div>
+  <ul class="tight"><li>Most commerce tables have a clear write owner (ETL); identity/credentials have dual writers (core/security vs services/tiktok).</li><li>Celery tasks are correctly thin and domain-owned; workers package is only wiring.</li><li>Redis application namespace is a single ratelimit:* pattern owned by TikTok integration — no broader convention.</li><li>External TikTok ownership is split across integrations + services + API routes.</li><li>No machine-readable ownership registry for tables/tasks/keys/integrations.</li></ul>
+
+  <h3>Database tables — who owns writes?</h3>
+  <div style="max-height: 480px; overflow: auto; border: 1px solid var(--border); border-radius: 8px;">
+  <table>
+    <thead><tr><th>Table</th><th>Logical owner</th><th>Primary writers</th><th>Also writes</th><th>Notes</th></tr></thead>
+    <tbody><tr><td><code>users</code></td><td>Auth / TikTok OAuth services</td><td class='small'>services/tiktok (OAuth stores)</td><td class='small'>—</td><td class='small muted'>Created during OAuth shop connect; no dedicated identity module.</td></tr><tr><td><code>shops</code></td><td>Auth / TikTok OAuth services</td><td class='small'>services/tiktok, core/security/tiktok_oauth</td><td class='small'>—</td><td class='small muted'>Dual writers: security OAuth service + services/tiktok stores — ownership split.</td></tr><tr><td><code>tiktok_credentials</code></td><td>Auth / TikTok OAuth services</td><td class='small'>services/tiktok, core/security/tiktok_oauth</td><td class='small'>—</td><td class='small muted'>Encrypted tokens; shared by all TikTok callers via credential resolver.</td></tr><tr><td><code>tiktok_sync_state</code></td><td>Polling workers</td><td class='small'>workers/polling</td><td class='small'>—</td><td class='small muted'>Clear single owner.</td></tr><tr><td><code>orders</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'>Ingest via webhook+polling handoff → ETL upsert.</td></tr><tr><td><code>order_items</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>returns</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>products</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>inventory_items</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>settlements</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>creators</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>livestreams</code></td><td>ETL / Data Pipeline</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>analytics_performance_intervals</code></td><td>Analytics Backfill (+ ETL)</td><td class='small'>services/analytics_backfill, services/etl</td><td class='small'>—</td><td class='small muted'>Shared write surface between backfill partitions and ETL transform path.</td></tr><tr><td><code>analytics_backfill_partitions</code></td><td>Analytics Backfill</td><td class='small'>services/analytics_backfill</td><td class='small'>—</td><td class='small muted'>Clear single owner.</td></tr><tr><td><code>processed_events</code></td><td>ETL</td><td class='small'>services/etl</td><td class='small'>—</td><td class='small muted'>Idempotency ledger — ETL exclusive.</td></tr><tr><td><code>webhook_raw_events</code></td><td>TikTok webhook services</td><td class='small'>services/tiktok (webhook_raw_log)</td><td class='small'>—</td><td class='small muted'>Audit trail before ETL handoff.</td></tr><tr><td><code>workflow_webhook_signals</code></td><td>TikTok webhook services</td><td class='small'>services/tiktok (webhook_handlers)</td><td class='small'>—</td><td class='small muted'>Phase 2 catalog signal store.</td></tr><tr><td><code>action_cards</code></td><td>Action Cards / Scoring</td><td class='small'>services/action_cards</td><td class='small'>—</td><td class='small muted'>Written by refresh pipeline after scoring.</td></tr><tr><td><code>recommendations</code></td><td>Intelligence (legacy AI recommendations)</td><td class='small'>api/routes/recommendations (create via repo)</td><td class='small'>—</td><td class='small muted'>API route can create — weak ownership vs action_cards path.</td></tr><tr><td><code>tool_executions</code></td><td>Execution</td><td class='small'>services/execution</td><td class='small'>—</td><td class='small muted'>Clear owner; Celery task updates status.</td></tr><tr><td><code>workflow_outcome_records</code></td><td>Operations</td><td class='small'>services/operations</td><td class='small'>services/execution (calls outcome_tracking)</td><td class='small muted'>Operations owns schema; execution invokes record API — cycle risk.</td></tr><tr><td><code>alert_configs</code></td><td>Alerts</td><td class='small'>services/alerts</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>alert_history</code></td><td>Alerts</td><td class='small'>services/alerts</td><td class='small'>—</td><td class='small muted'></td></tr><tr><td><code>campaigns</code></td><td>Feedback / Commerce graph</td><td class='small'>services/feedback (via GraphRepo)</td><td class='small'>—</td><td class='small muted'>GraphRepo shares campaigns + graph_edges.</td></tr><tr><td><code>graph_edges</code></td><td>Feedback / Commerce graph (+ AI ranking)</td><td class='small'>services/feedback, ai/recommendations (reads/uses GraphRepo)</td><td class='small'>—</td><td class='small muted'>Ownership fuzzy between feedback ingest and matching engine.</td></tr></tbody>
+  </table>
+  </div>
+
+  <h3>Celery tasks — who owns semantics?</h3>
+  <table>
+    <thead><tr><th>Task</th><th>Logical owner</th><th>Entrypoint</th><th>Enqueued by</th><th>Delegates to</th><th>Notes</th></tr></thead>
+    <tbody><tr><td><code>juli_backend.refresh_action_cards</code></td><td>Action Cards / Scoring</td><td class='small'><code>workers/tasks/action_card_refresh.py</code></td><td class='small'>services/action_cards.dispatch (API refresh)</td><td class='small'><code>services.action_cards.refresh.run_action_card_refresh</code></td><td class='small muted'>Thin wrapper — good. Owner is action_cards, not workers package.</td></tr><tr><td><code>juli_backend.execute_approved_tool</code></td><td>Execution</td><td class='small'><code>workers/tasks/tool_execution.py</code></td><td class='small'>services/execution.dispatch (API executions)</td><td class='small'><code>services.execution.worker</code></td><td class='small muted'>Thin wrapper — good. No Celery beat schedule defined yet.</td></tr></tbody>
+  </table>
+  <p class="muted">Celery app wiring owned by Workers; no beat schedule in code. Broker/result via <code>CELERY_BROKER_URL</code> / <code>CELERY_RESULT_BACKEND</code>.</p>
+
+  <h3>Redis key namespaces</h3>
+  <table>
+    <thead><tr><th>Key pattern</th><th>Owner</th><th>Consumers</th><th>Env</th><th>Notes</th></tr></thead>
+    <tbody><tr><td><code>ratelimit:{app_id}:{shop_id}:{endpoint}</code></td><td>TikTok Integration (RateLimiter)</td><td class='small'>workers/polling, services/action_cards.refresh, any TikTok client with RateLimiter</td><td class='small'><code>REDIS_URL</code></td><td class='small muted'>Only application-defined Redis key namespace found in backend code.</td></tr><tr><td><code>celery-* / celery task meta (broker-dependent)</code></td><td>Workers (Celery infra)</td><td class='small'>Celery workers/API producers</td><td class='small'><code>CELERY_BROKER_URL, CELERY_RESULT_BACKEND</code></td><td class='small muted'>If broker is Redis, Celery uses its own key prefixes — not namespaced under juli_*. No custom juli: prefix.</td></tr><tr><td><code>(none) juli:* / module:* application cache</code></td><td>— missing</td><td class='small'>—</td><td class='small'><code>—</code></td><td class='small muted'>No module-owned cache namespaces. Future precompute/KPI cache has no ownership convention yet.</td></tr></tbody>
+  </table>
+
+  <h3>External integrations</h3>
+  <table>
+    <thead><tr><th>System</th><th>Owner</th><th>Surfaces</th><th>Env (sample)</th><th>Boundary health</th></tr></thead>
+    <tbody><tr><td>TikTok Shop Partner API</td><td>integrations/tiktok (HTTP client) + services/tiktok (OAuth/webhooks)</td><td class='small'>OAuth Shop, Business Advertiser, Account Holder, webhooks HMAC, polling sync, execution sandbox writes</td><td class='small'><code>TIKTOK_APP_KEY, TIKTOK_APP_SECRET, TIKTOK_REDIRECT_URI, TIKTOK_BASE_URL, TIKTOK_*_AUTH_ID, TIKTOK_BUSINESS_*, TIKTOK_TOK</code></td><td class='small'>Split: leaf client vs domain services; API routes still call both.</td></tr><tr><td>Supabase Postgres</td><td>database module (engine/session/Alembic)</td><td class='small'>DATABASE_URL via async SQLAlchemy, Alembic migrations</td><td class='small'><code>DATABASE_URL</code></td><td class='small'>Good infra ownership; table schemas not module-owned.</td></tr><tr><td>Supabase Auth (JWT)</td><td>core/security</td><td class='small'>verify_supabase_jwt, get_current_user</td><td class='small'><code>SUPABASE_JWT_SECRET</code></td><td class='small'>Auth-only — no Supabase SDK client in runtime Python.</td></tr><tr><td>Redis</td><td>Shared infra; primary consumer = TikTok RateLimiter + optional Celery broker</td><td class='small'>ratelimit:* keys, Celery broker/backend if configured</td><td class='small'><code>REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND</code></td><td class='small'>No module key-namespace registry; collision risk if new caches added.</td></tr><tr><td>OpenObserve / PostHog</td><td>Observability (DOCP) — planned Phase 2.11, not as-built in backend runtime yet</td><td class='small'>planned logs/metrics/UX reliability</td><td class='small'><code>(planned)</code></td><td class='small'>Documented in ADR-039; not present as owned runtime module code yet.</td></tr><tr><td>Billing / payments</td><td>— missing</td><td class='small'>—</td><td class='small'><code></code></td><td class='small'>No integration.</td></tr></tbody>
+  </table>
+</section>
+
+<section id="assessment">
+  <h2>10. Assessment</h2>
+  <div class="verdict">
+    <div class="big">5.5</div>
+    <div>
+      <p><strong>As a modular monolith:</strong> clear folder intent and planning SoT (MODULES.md), but soft runtime boundaries.
+      Shared god-models/repos, deep cross-imports, cycles, and non-enforced contracts keep this in the mid band —
+      better than a classic ball-of-mud, far from a 9/10 “modules with hard shells.”</p>
+      <h3>Top 5 changes to reach ~9/10 (no microservices)</h3>
+      <ol class="tight"><li>Introduce import-linter (or AST CI) with allowed dependency matrix; fail PRs on forbidden edges.</li><li>Split god files models/models.py (~813 LOC) and repositories/repos.py (~1203 LOC) into per-domain packages with clear ownership.</li><li>Enforce package-root imports only: consumers use services.X / integrations.tiktok public __init__; ban deep submodule imports.</li><li>Break cycles (execution↔operations, security↔tiktok services, action_cards/execution↔workers.tasks) via ports/adapters.</li><li>Make API routes thin adapters: one owning service per router; no direct integrations/tiktok or models imports in routes.</li></ol>
+      <h3>Scoring rationale</h3>
+      <ul class="tight">
+        <li>+ Documented modules &amp; MODULE.md culture</li>
+        <li>+ Thin Celery task wrappers</li>
+        <li>+ Nightly cycle/drift audits exist</li>
+        <li>− No forbidden-import CI on PRs</li>
+        <li>− Shared models/repos megafiles</li>
+        <li>− API/integration deep coupling</li>
+        <li>− Bidirectional service cycles</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer>
+  Source data: <code>docs/handoffs/modular-monolith-audit-data.json</code> ·
+  Authority docs: MODULES.md, map.md · Static AST scan of <code>backend/src/juli_backend</code>
+</footer>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "dark", securityLevel: "loose" });
+  const kindLabels = ["business", "shared", "devtools", "planned"];
+  const kindData = [17, 6, 1, 1];
+  const statusLabels = ["as-built", "partial", "missing"];
+  const statusData = [21, 3, 1];
+  new Chart(document.getElementById('kindChart'), {
+    type: 'doughnut',
+    data: { labels: kindLabels, datasets: [{ data: kindData, backgroundColor: ['#3b82f6','#64748b','#8b5cf6','#475569'] }] },
+    options: { plugins: { title: { display: true, text: 'Module kinds', color: '#e7ecf3' }, legend: { labels: { color: '#8b9bb4' } } }, }
+  });
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: { labels: statusLabels, datasets: [{ data: statusData, backgroundColor: ['#34d399','#fbbf24','#f87171','#64748b'] }] },
+    options: { plugins: { title: { display: true, text: 'Module status', color: '#e7ecf3' }, legend: { labels: { color: '#8b9bb4' } } }, }
+  });
+  new Chart(document.getElementById('edgeChart'), {
+    type: 'bar',
+    data: {
+      labels: ["api \u2192 database", "services/tiktok \u2192 integrations/tiktok", "api \u2192 services/tiktok", "services/scoring \u2192 services/aggregates", "workers/polling \u2192 integrations/tiktok", "api \u2192 integrations/tiktok", "api \u2192 core/config", "services/analytics_backfill \u2192 repositories", "services/analytics_backfill \u2192 integrations/tiktok", "services/execution \u2192 integrations/tiktok", "api \u2192 core/security", "services/tiktok \u2192 repositories", "services/webhook \u2192 services/tiktok", "workers/tasks \u2192 database", "services/tiktok \u2192 database", "ai/ranking \u2192 models", "core/security \u2192 integrations/tiktok", "database \u2192 models", "repositories \u2192 database", "services/webhook \u2192 services/ingestion", "services/webhook \u2192 services/etl", "services/ingestion \u2192 services/etl", "services/analytics_backfill \u2192 services/etl", "services/aggregates \u2192 models", "services/alerts \u2192 repositories"],
+      datasets: [{ label: 'Import sites', data: [17, 10, 9, 8, 8, 8, 6, 6, 6, 6, 5, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2], backgroundColor: '#5b9fd4' }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false }, title: { display: true, text: 'Top cross-package import edges', color: '#e7ecf3' } },
+      scales: {
+        x: { ticks: { color: '#8b9bb4' }, grid: { color: '#2d3a4f' } },
+        y: { ticks: { color: '#8b9bb4', font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+</script>
+</body>
+</html>
