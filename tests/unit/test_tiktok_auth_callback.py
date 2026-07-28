@@ -13,10 +13,10 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from juli_backend.models.models import TikTokCredential
 from juli_backend.integrations.tiktok.exceptions import (
     AuthenticationError,
 )
+from juli_backend.models.models import TikTokCredential
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
@@ -32,13 +32,9 @@ TOKEN_FIXTURE = {
 
 
 def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
-    payload = json.dumps(
-        {"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)}
-    )
+    payload = json.dumps({"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)})
     encoded = base64.urlsafe_b64encode(payload.encode()).decode()
-    signature = hmac.new(
-        secret.encode(), encoded.encode(), hashlib.sha256
-    ).hexdigest()
+    signature = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
     return f"{encoded}.{signature}"
 
 
@@ -60,9 +56,10 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def client(engine, monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
     from juli_backend.api.app import create_app
     from juli_backend.database import get_session
-    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     application = create_app()
@@ -73,9 +70,7 @@ async def client(engine, monkeypatch):
 
     application.dependency_overrides[get_session] = _test_session
 
-    async with AsyncClient(
-        transport=ASGITransport(app=application), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as c:
         yield c
 
 
@@ -87,9 +82,7 @@ class TestOAuthCallbackRoute:
         assert "code" in resp.json()["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_callback_accepts_code_without_state(
-        self, client, mock_token_exchange
-    ):
+    async def test_callback_accepts_code_without_state(self, client, mock_token_exchange):
         """Partner Center redirects with code but no state (App Review flow)."""
         resp = await client.get(
             CALLBACK_PATH,
@@ -103,7 +96,7 @@ class TestOAuthCallbackRoute:
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ok"
-        assert "completed" in body["message"].lower()
+        assert "accepted" in body["message"].lower()
         assert body["open_id_present"] is True
         mock_token_exchange.assert_called_once_with("ROW_test_auth_code")
 
@@ -129,7 +122,7 @@ class TestOAuthCallbackRoute:
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ok"
-        assert "completed" in body["message"].lower()
+        assert "accepted" in body["message"].lower()
         assert body["open_id_present"] is True
         assert body["access_token_expires_in"] == 604800
         mock_token_exchange.assert_called_once_with("auth_code_123")
@@ -146,9 +139,7 @@ class TestOAuthCallbackRoute:
         assert stored_refresh_token != TOKEN_FIXTURE["refresh_token"]
 
     @pytest.mark.asyncio
-    async def test_callback_token_exchange_failure_returns_502(
-        self, client, mock_token_exchange
-    ):
+    async def test_callback_token_exchange_failure_returns_502(self, client, mock_token_exchange):
         mock_token_exchange.side_effect = AuthenticationError(
             code=100002, message="Invalid auth code"
         )
@@ -178,9 +169,9 @@ class TestOAuthCallbackRoute:
     async def test_callback_does_not_require_jwt(self, client):
         """Public OAuth redirect must not require Supabase JWT."""
         resp = await client.get(CALLBACK_PATH)
-        assert resp.status_code != 401 or "authorization" not in resp.json().get(
-            "detail", ""
-        ).lower()
+        assert (
+            resp.status_code != 401 or "authorization" not in resp.json().get("detail", "").lower()
+        )
 
     @pytest.mark.asyncio
     async def test_callback_route_is_listed_in_openapi(self, client):

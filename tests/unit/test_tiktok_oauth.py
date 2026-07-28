@@ -7,7 +7,7 @@ AC → Test Mapping:
 - AC4 → test_multi_shop_oauth_connection
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
 
@@ -17,9 +17,9 @@ from sqlalchemy import select
 
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
+from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.models.models import TikTokCredential, User
 from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
-from juli_backend.integrations.tiktok.auth import TikTokAuth
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
@@ -29,9 +29,7 @@ REDIRECT_URI = "https://myapp.com/callback"
 
 @pytest.fixture
 def tiktok_auth():
-    return TikTokAuth(
-        app_key=APP_KEY, app_secret=APP_SECRET, base_url=BASE_URL
-    )
+    return TikTokAuth(app_key=APP_KEY, app_secret=APP_SECRET, base_url=BASE_URL)
 
 
 @pytest_asyncio.fixture
@@ -76,9 +74,7 @@ def _extract_state(url: str) -> str:
 
 class TestInitiateOAuth:
     @pytest.mark.asyncio
-    async def test_initiate_oauth_returns_valid_url(
-        self, service, user, user_id
-    ):
+    async def test_initiate_oauth_returns_valid_url(self, service, user, user_id):
         url = await service.initiate_oauth(user_id)
 
         parsed = urlparse(url)
@@ -92,9 +88,7 @@ class TestInitiateOAuth:
         assert len(params["state"][0]) > 10
 
     @pytest.mark.asyncio
-    async def test_initiate_oauth_unique_states(
-        self, service, user, user_id
-    ):
+    async def test_initiate_oauth_unique_states(self, service, user, user_id):
         """Each call produces a unique state (nonce prevents replay)."""
         url1 = await service.initiate_oauth(user_id)
         url2 = await service.initiate_oauth(user_id)
@@ -125,29 +119,24 @@ class TestOAuthCallback:
         cred = await TikTokCredentialRepo(session).get_by_shop(shop.id)
         assert cred.access_token == "ROW_access_abc"
         assert cred.refresh_token == "ROW_refresh_xyz"
-        assert cred.token_expires_at > datetime.now(timezone.utc).replace(
-            tzinfo=None
-        )
+        assert cred.token_expires_at > datetime.now(UTC).replace(tzinfo=None)
 
         raw = await session.execute(
-            select(TikTokCredential.access_token, TikTokCredential.refresh_token)
-            .where(TikTokCredential.id == cred.id)
+            select(TikTokCredential.access_token, TikTokCredential.refresh_token).where(
+                TikTokCredential.id == cred.id
+            )
         )
         stored_access_token, stored_refresh_token = raw.one()
         assert stored_access_token != "ROW_access_abc"
         assert stored_refresh_token != "ROW_refresh_xyz"
 
     @pytest.mark.asyncio
-    async def test_oauth_callback_rejects_tampered_state(
-        self, service, user, user_id
-    ):
+    async def test_oauth_callback_rejects_tampered_state(self, service, user, user_id):
         with pytest.raises(Unauthorized, match="signature"):
             await service.handle_callback("code", "tampered.state")
 
     @pytest.mark.asyncio
-    async def test_oauth_callback_rejects_malformed_state(
-        self, service, user, user_id
-    ):
+    async def test_oauth_callback_rejects_malformed_state(self, service, user, user_id):
         with pytest.raises(Unauthorized, match="Invalid OAuth state"):
             await service.handle_callback("code", "no_dot_separator")
 
@@ -211,13 +200,9 @@ class TestOAuthCallback:
 
 class TestTokenRefresh:
     @pytest.mark.asyncio
-    async def test_token_refresh_before_expiry(
-        self, service, tiktok_auth, session, user, user_id
-    ):
-        shop = await ShopsRepo(session).create(
-            user_id, "Expiring Shop", "shop_exp"
-        )
-        near_expiry = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=10)
+    async def test_token_refresh_before_expiry(self, service, tiktok_auth, session, user, user_id):
+        shop = await ShopsRepo(session).create(user_id, "Expiring Shop", "shop_exp")
+        near_expiry = datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10)
         await TikTokCredentialRepo(session).create(
             shop_id=shop.id,
             access_token="old_access",
@@ -237,18 +222,14 @@ class TestTokenRefresh:
 
         assert credential.access_token == "new_access_token"
         assert credential.refresh_token == "new_refresh_token"
-        tiktok_auth.refresh_access_token.assert_called_once_with(
-            "old_refresh"
-        )
+        tiktok_auth.refresh_access_token.assert_called_once_with("old_refresh")
 
     @pytest.mark.asyncio
     async def test_token_refresh_skipped_when_not_near_expiry(
         self, service, tiktok_auth, session, user, user_id
     ):
-        shop = await ShopsRepo(session).create(
-            user_id, "Fresh Shop", "shop_fresh"
-        )
-        far_expiry = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+        shop = await ShopsRepo(session).create(user_id, "Fresh Shop", "shop_fresh")
+        far_expiry = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
         await TikTokCredentialRepo(session).create(
             shop_id=shop.id,
             access_token="still_valid",
@@ -271,18 +252,12 @@ class TestTokenRefresh:
 
 class TestMultiShopOAuth:
     @pytest.mark.asyncio
-    async def test_multi_shop_oauth_connection(
-        self, service, tiktok_auth, session, user, user_id
-    ):
-        _mock_exchange(
-            tiktok_auth, open_id="shop_A", seller_name="Shop A"
-        )
+    async def test_multi_shop_oauth_connection(self, service, tiktok_auth, session, user, user_id):
+        _mock_exchange(tiktok_auth, open_id="shop_A", seller_name="Shop A")
         url1 = await service.initiate_oauth(user_id)
         await service.handle_callback("code_a", _extract_state(url1))
 
-        _mock_exchange(
-            tiktok_auth, open_id="shop_B", seller_name="Shop B"
-        )
+        _mock_exchange(tiktok_auth, open_id="shop_B", seller_name="Shop B")
         url2 = await service.initiate_oauth(user_id)
         await service.handle_callback("code_b", _extract_state(url2))
 
@@ -290,3 +265,27 @@ class TestMultiShopOAuth:
         assert len(shops) == 2
         names = {s.shop_name for s in shops}
         assert names == {"Shop A", "Shop B"}
+
+
+# ---------------------------------------------------------------------------
+# MMU-10 (#562) — OAuth callback path must route writes through facade
+# ---------------------------------------------------------------------------
+
+
+class TestOAuthFacadeRouting:
+    def test_mmu10_callback_infrastructure_delegates_to_oauth_facade(self) -> None:
+        """Callback wiring must not bypass TikTokOAuthService with persist_oauth_tokens."""
+        from pathlib import Path
+
+        oauth_module = (
+            Path(__file__).resolve().parents[2]
+            / "backend/src/juli_backend/services/tiktok/oauth.py"
+        )
+        source = oauth_module.read_text(encoding="utf-8")
+
+        assert "TikTokOAuthService" in source or "core.security.tiktok_oauth" in source, (
+            "OAuth callback infrastructure must delegate to Auth & Security facade"
+        )
+        assert "persist_oauth_tokens" not in source, (
+            "OAuth callback must not call competing app_review_store writer"
+        )

@@ -925,272 +925,6 @@ META-4:
     - ios/
     - backend/src/juli_backend/
     - Sibling issue context caches
-
-# --- Phase 2.10-A Demo dual-layer Analytics (parent #524) ---
-
-P2.10-A1:
-  executorDomain: data-platform
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/037-phase-2.10-demo-real-data-no-auth.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - CONTEXT.md
-    - docs/architecture/data-sources.md
-    - backend/src/juli_backend/database/MODULE.md
-  requiredModules:
-    - backend/src/juli_backend/database/MODULE.md
-    - backend/src/juli_backend/models/models.py
-    - backend/src/juli_backend/repositories/repos.py
-    - backend/src/juli_backend/database/migrations/versions/017_analytics_perf_intervals.py
-  loadWhenNeeded:
-    - docs/architecture/system-design.md
-    - docs/api/data-models/canonical-entities.md
-    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - docs/product/design/
-    - apps/demo/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A2:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
-    - CONTEXT.md
-    - docs/architecture/data-sources.md
-  requiredModules:
-    - backend/src/juli_backend/models/models.py
-    - backend/src/juli_backend/repositories/repos.py
-    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
-  loadWhenNeeded:
-    - docs/ml/visual_layer.md
-    - backend/src/juli_backend/database/migrations/versions/017_analytics_perf_intervals.py
-    - .cursor/skills/domain/testing-patterns/python-testing.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/demo/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A3:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
-    - CONTEXT.md
-  requiredModules:
-    - backend/src/juli_backend/repositories/repos.py
-    - backend/src/juli_backend/services/aggregates/MODULE.md
-  loadWhenNeeded:
-    - docs/ml/visual_layer.md
-    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/demo/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A4:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - docs/ml/visual_layer.md
-    - CONTEXT.md
-  requiredModules:
-    - backend/src/juli_backend/repositories/repos.py
-  loadWhenNeeded:
-    - apps/demo/src/lib/analytics/main-kpis.ts
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A5:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - CONTEXT.md
-  requiredModules:
-    - backend/src/juli_backend/repositories/repos.py
-  loadWhenNeeded:
-    - docs/architecture/system-design.md
-    - .cursor/skills/domain/testing-patterns/python-testing.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/demo/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A6:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/037-phase-2.10-demo-real-data-no-auth.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - CONTEXT.md
-  requiredModules:
-    - backend/src/juli_backend/repositories/repos.py
-  loadWhenNeeded:
-    - .cursor/rules/security.mdc
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/demo/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A7:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/037-phase-2.10-demo-real-data-no-auth.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - CONTEXT.md
-    - docs/architecture/data-sources.md
-  requiredModules:
-    - backend/src/juli_backend/api/
-  loadWhenNeeded:
-    - .cursor/skills/standalone/guardrails/checklists/api-endpoint.md
-    - .cursor/rules/security.mdc
-    - .cursor/rules/patterns.mdc
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A8:
-  executorDomain: integrations
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - docs/integrations/tiktok_api/webhooks.md
-    - docs/product/execution_layer.md
-    - CONTEXT.md
-  requiredModules:
-    - backend/src/juli_backend/services/webhook/MODULE.md
-    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
-    - backend/src/juli_backend/workers/services/polling/orchestrate.py
-  loadWhenNeeded:
-    - docs/integrations/tiktok_api/endpoints.md
-    - backend/src/juli_backend/workers/services/polling/MODULE.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/demo/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A9:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - CONTEXT.md
-  requiredModules:
-    - backend/src/juli_backend/workers/
-  loadWhenNeeded:
-    - docs/architecture/system-design.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - apps/demo/
-    - apps/landing/
-    - web/
-    - ios/
-    - Sibling issue context caches
-
-P2.10-A10:
-  executorDomain: ui-ux
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/037-phase-2.10-demo-real-data-no-auth.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - docs/ml/visual_layer.md
-    - CONTEXT.md
-  requiredModules:
-    - apps/demo/MODULE.md
-    - apps/demo/src/lib/analytics/main-kpis.ts
-    - packages/contracts/
-  loadWhenNeeded:
-    - docs/product/design/
-    - .cursor/skills/standalone/ui-ux-design/SKILL.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - ios/
-    - web/
-    - Sibling issue context caches
-
-P2.10-A11:
-  executorDomain: backend
-  requiredDocs:
-    - EXECUTION.md
-    - "{handoffPath}"
-    - docs/product/phases/phase-2.10/PRD.md
-    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
-    - docs/adr/037-phase-2.10-demo-real-data-no-auth.md
-    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
-    - CONTEXT.md
-  requiredModules:
-    - apps/demo/MODULE.md
-  loadWhenNeeded:
-    - docs/handoffs/worktree-branch-topology.md
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
-    - ios/
-    - web/
-    - Sibling issue context caches
-
 # --- Modular Monolith Upgrade (#550) ---
 
 MMU-1:
@@ -1279,6 +1013,48 @@ MMU-6:
     - web/
     - Sibling issue context caches
 
+MMU-3:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/adr/003-ai-native-cicd-policy.md
+    - docs/adr/040-pr-safe-tests-lane.md
+    - .github/workflows/pr.yml
+    - .github/workflows/architecture-audit.yml
+    - docs/architecture/import-boundaries.md
+    - docs/architecture/ownership-registry.yml
+  requiredModules:
+    - .github/workflows/pr.yml
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - agent-runtime/scripts/ci/check_import_boundaries.py
+    - agent-runtime/scripts/ci/import_boundary_config.py
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - .importlinter.toml
+    - tests/unit/test_ownership_registry.py
+    - tests/unit/test_import_boundaries.py
+  loadWhenNeeded:
+    - docs/handoffs/worktree-branch-topology.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - agent-runtime/config/agent-runtime.config.yml
+    - tests/unit/test_phase_2_6_demo_exit_gate.py
+    - .cursor/rules/patterns.mdc
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - backend/src/juli_backend/
+    - docs/integrations/tiktok_api/
+    - docs/product/design/
+    - Sibling issue context caches
 MMU-9:
   executorDomain: data-platform
   requiredDocs:
@@ -1555,3 +1331,108 @@ MMU-8:
     - docs/product/design/
     - Sibling issue context caches
 
+MMU-10:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/core/security/MODULE.md
+    - backend/src/juli_backend/services/tiktok/MODULE.md
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/core/security/tiktok_oauth.py
+    - backend/src/juli_backend/services/tiktok/oauth.py
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/repositories/repos.py
+    - tests/unit/test_tiktok_oauth.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/core/security/credential_resolver.py
+    - backend/src/juli_backend/integrations/tiktok/__init__.py
+    - tests/unit/test_tiktok_credential_isolation.py
+    - tests/unit/test_import_boundaries.py
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - .cursor/skills/domain/integrations/SKILL.md
+    - .cursor/rules/security.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-13:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - docs/architecture/import-boundaries.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - docs/handoffs/modular-monolith-boundary-audit.html
+  requiredModules:
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/api/MODULE.md
+    - backend/src/juli_backend/services/webhook/MODULE.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/database/MODULE.md
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/tiktok/MODULE.md
+    - backend/src/juli_backend/core/security/MODULE.md
+    - agent-runtime/scripts/ci/audit_module_drift.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-14:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/import-boundaries.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  requiredModules:
+    - tests/unit/test_import_boundaries.py
+    - tests/unit/test_ownership_registry.py
+    - .importlinter.toml
+    - agent-runtime/scripts/ci/check_import_boundaries.py
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+  loadWhenNeeded:
+    - tests/integration/
+    - .github/workflows/pr.yml
+    - docs/architecture/ownership-registry.yml
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - .cursor/rules/reliability.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches

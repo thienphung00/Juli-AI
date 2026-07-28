@@ -57,11 +57,18 @@ databaseTables:
   shops:
     owner: Auth & Security
     access: write
-    notes: Dual-writer debt (core/security OAuth + services/tiktok) — collapse to Auth.
+    notes: >
+      Sole write owner: TikTokOAuthService OAuth facade
+      (core/security/tiktok_oauth.py). Shop connect/reconnect paths persist via
+      this facade; API routes and services/tiktok delegate — no direct
+      ShopsRepo.create outside Auth.
   tiktok_credentials:
     owner: Auth & Security
     access: write
-    notes: Encrypted tokens; credential resolver is the read surface for TikTok callers.
+    notes: >
+      Encrypted tokens; sole write owner TikTokOAuthService OAuth facade
+      (core/security/tiktok_oauth.py). credential_resolver is the read surface
+      for TikTok callers.
   tiktok_sync_state:
     owner: Workers & Async
     access: write

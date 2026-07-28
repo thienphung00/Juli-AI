@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import (
     TikTokAuth,
     TikTokCapability,
@@ -67,16 +68,27 @@ class TikTokOAuthService:
         TikTokAuth, then creates (or reconnects) a Shop with its credential.
         """
         user_id = self._verify_state(state)
-
         token_data = await asyncio.to_thread(self._tiktok_auth.exchange_code, code)
+        return await self.provision_shop_and_credentials(token_data, user_id=user_id)
 
-        tiktok_shop_id = token_data.get("open_id")
+    async def provision_shop_and_credentials(
+        self,
+        token_data: dict,
+        *,
+        user_id: uuid.UUID,
+    ) -> Shop:
+        """Single write owner for ``shops`` + ``tiktok_credentials`` (Partner OAuth)."""
+        open_id = token_data.get("open_id")
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        if not open_id or not access_token or not refresh_token:
+            raise Unauthorized("Incomplete TikTok token payload")
+
         seller_name = token_data.get("seller_name", "TikTok Shop")
-
         shops_repo = ShopsRepo(self._session)
         cred_repo = TikTokCredentialRepo(self._session)
 
-        existing = await shops_repo.get_by_tiktok_id(tiktok_shop_id) if tiktok_shop_id else None
+        existing = await shops_repo.get_by_tiktok_id(open_id)
 
         if existing and existing.user_id == user_id:
             shop = existing
@@ -84,7 +96,7 @@ class TikTokOAuthService:
             logger.warning(
                 "tiktok_shop_already_claimed",
                 extra={
-                    "tiktok_shop_id": tiktok_shop_id,
+                    "tiktok_shop_id": open_id,
                     "user_id": str(user_id),
                 },
             )
@@ -93,22 +105,40 @@ class TikTokOAuthService:
             shop = await shops_repo.create(
                 user_id=user_id,
                 shop_name=seller_name,
-                tiktok_shop_id=tiktok_shop_id,
+                tiktok_shop_id=open_id,
             )
 
         expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
+        merchant_authorization_id, capability = resolve_merchant_context(open_id)
+        scopes = token_data.get("scopes")
+        if scopes is None and token_data.get("granted_scopes") is not None:
+            granted = token_data.get("granted_scopes")
+            if isinstance(granted, list):
+                scopes = ",".join(str(scope) for scope in granted)
+            else:
+                scopes = str(granted)
 
-        merchant_authorization_id, capability = resolve_merchant_context(tiktok_shop_id or "")
-
-        await cred_repo.create(
-            shop_id=shop.id,
-            access_token=token_data["access_token"],
-            refresh_token=token_data["refresh_token"],
-            token_expires_at=expires_at,
-            scopes=token_data.get("scopes"),
-            merchant_authorization_id=merchant_authorization_id,
-            capability=capability.value,
-        )
+        try:
+            existing_cred = await cred_repo.get_by_merchant(
+                merchant_authorization_id,
+                capability,
+            )
+            await cred_repo.update_tokens(
+                credential_id=existing_cred.id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_expires_at=expires_at,
+            )
+        except NotFound:
+            await cred_repo.create(
+                shop_id=shop.id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_expires_at=expires_at,
+                scopes=scopes,
+                merchant_authorization_id=merchant_authorization_id,
+                capability=capability.value,
+            )
 
         logger.info(
             "tiktok_oauth_completed",
