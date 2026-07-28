@@ -1,0 +1,364 @@
+{
+  "issueId": 551,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 551,
+    "parentIssueId": 550,
+    "sliceId": "MMU-1",
+    "handoffPath": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-550.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-551.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 551,
+        "parentIssueId": 550,
+        "sliceId": "MMU-1",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #550",
+            "fingerprint": "5a24774c47f97411"
+          },
+          {
+            "path": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "fingerprint": "5cb6f994719dd13f1dba20828dfc92332baec4ac"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #551",
+            "fingerprint": "f2103b1719f14128"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-551.md",
+            "fingerprint": "28528620252fd973c67e3438e0bc35f5d2511807"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 551,
+        "parentIssueId": 550,
+        "sliceId": "MMU-1",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 MMU-1",
+            "sliceId": "MMU-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-550",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #551",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 MMU-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-550",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #551",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 95afca5349f4 on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "95afca5349f4756172376b4ddce60162f67cb0aa",
+          "copiedAt": "2026-07-28T02:34:02Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "95afca5349f4756172376b4ddce60162f67cb0aa",
+        "pinnedCommitSha": "95afca5349f4756172376b4ddce60162f67cb0aa",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "95afca5349f4756172376b4ddce60162f67cb0aa"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 551,
+        "parentIssueId": 550,
+        "sliceId": "MMU-1",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "docs/architecture/MODULES.md",
+            "docs/architecture/map.md",
+            "docs/handoffs/modular-monolith-audit-data.json"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/models/models.py",
+            "backend/src/juli_backend/workers/celery_app.py",
+            "backend/src/juli_backend/workers/tasks/action_card_refresh.py",
+            "backend/src/juli_backend/workers/tasks/tool_execution.py",
+            "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+          ],
+          "acceptanceCriteria": [
+            "Registry file exists and lists every current ORM __tablename__, both Celery task names, known Redis patterns (ratelimit:* at minimum), and external systems (TikTok, Supabase Postgres, Supabase JWT, Redis, Celery broker).",
+            "Unit/script test fails if a model table or @celery_app.task name is missing from the registry.",
+            "Each entry names one owning planning module (aligned with MODULES.md naming).",
+            "Documented \u201cdo not import\u201d / read-vs-write guidance is referenced from the registry or adjacent MODULE.md note.",
+            "Verifiable without live TikTok/Supabase calls."
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/data-sources.md",
+            "agent-runtime/scripts/ci/audit_module_drift.py",
+            ".cursor/rules/patterns.mdc"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "apps/demo/",
+            "apps/landing/",
+            "apps/dashboard/",
+            "ios/",
+            "web/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "docs/architecture/MODULES.md",
+            "docs/architecture/map.md",
+            "docs/handoffs/modular-monolith-audit-data.json"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/models/models.py",
+            "backend/src/juli_backend/workers/celery_app.py",
+            "backend/src/juli_backend/workers/tasks/action_card_refresh.py",
+            "backend/src/juli_backend/workers/tasks/tool_execution.py",
+            "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+          ],
+          "acceptanceCriteria": [
+            "Registry file exists and lists every current ORM __tablename__, both Celery task names, known Redis patterns (ratelimit:* at minimum), and external systems (TikTok, Supabase Postgres, Supabase JWT, Redis, Celery broker).",
+            "Unit/script test fails if a model table or @celery_app.task name is missing from the registry.",
+            "Each entry names one owning planning module (aligned with MODULES.md naming).",
+            "Documented \u201cdo not import\u201d / read-vs-write guidance is referenced from the registry or adjacent MODULE.md note.",
+            "Verifiable without live TikTok/Supabase calls."
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/data-sources.md",
+            "agent-runtime/scripts/ci/audit_module_drift.py",
+            ".cursor/rules/patterns.mdc"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 551,
+        "parentIssueId": 550,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 551 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 551,
+        "parentIssueId": 550,
+        "publicRelease": false,
+        "planSource": null,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #550 \u2014 Modular Monolith Upgrade (constant)\\\n## Product boundary\\\n- Hard-shell modular monolith (~9/10); single backend deployable; NO microservices\\\n- Enforce ownership (tables/tasks/Redis/integrations) + import contracts + thin Celery ports\\\n## Parallel wave 1\\\n- #551 MMU-1 ownership registry \u00b7 #552 MMU-2 import-linter (warn-capable) \u00b7 #554 MMU-6 Celery async ports\\\n## Architecture authority\\\n- MODULES.md (planning) \u00b7 map.md (as-built) \u00b7 modular-monolith-audit-data.json \u00b7 PRD\\\n## Epic deferrals\\\n- MMU-3 required PR gates (#556) \u00b7 facades/API thinning \u00b7 models/repos split \u00b7 Redis juli:<module>: policy \u00b7 dual-writer collapse \u00b7 Billing\\\n- Phase 2.10/2.11 product slices (path-disjoint)\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "apps/demo/",
+      "apps/landing/",
+      "apps/dashboard/",
+      "web/",
+      "ios/",
+      "docs/product/design/",
+      "Sibling issue context caches"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/backend/SKILL.md",
+          "purpose": "Primary backend Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "backend",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/modular-monolith-upgrade/PRD.md",
+        "docs/architecture/MODULES.md",
+        "docs/architecture/map.md",
+        "docs/handoffs/modular-monolith-audit-data.json"
+      ],
+      "requiredModules": [
+        "backend/src/juli_backend/models/models.py",
+        "backend/src/juli_backend/workers/celery_app.py",
+        "backend/src/juli_backend/workers/tasks/action_card_refresh.py",
+        "backend/src/juli_backend/workers/tasks/tool_execution.py",
+        "backend/src/juli_backend/integrations/tiktok/MODULE.md"
+      ],
+      "acceptanceCriteria": [
+        "Registry file exists and lists every current ORM __tablename__, both Celery task names, known Redis patterns (ratelimit:* at minimum), and external systems (TikTok, Supabase Postgres, Supabase JWT, Redis, Celery broker).",
+        "Unit/script test fails if a model table or @celery_app.task name is missing from the registry.",
+        "Each entry names one owning planning module (aligned with MODULES.md naming).",
+        "Documented \u201cdo not import\u201d / read-vs-write guidance is referenced from the registry or adjacent MODULE.md note.",
+        "Verifiable without live TikTok/Supabase calls."
+      ],
+      "loadWhenNeeded": [
+        "docs/architecture/data-sources.md",
+        "agent-runtime/scripts/ci/audit_module_drift.py",
+        ".cursor/rules/patterns.mdc"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #551\n\n- sliceId: MMU-1\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #551 \u2014 MMU-1\n\n## Parent\n#550\n\n## Executor domain\nbackend\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/modular-monolith-upgrade/PRD.md\n- docs/architecture/MODULES.md\n- docs/architecture/map.md\n- docs/handoffs/modular-monolith-audit-data.json\n",
+    "executorDomain": "backend",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    }
+  },
+  "executorDomain": "backend"
+}

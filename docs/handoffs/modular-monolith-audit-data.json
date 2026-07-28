@@ -1,0 +1,3187 @@
+{
+  "modules": [
+    {
+      "name": "API",
+      "path": "api/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Auth & Security",
+      "path": "core/security/",
+      "status": "as-built",
+      "kind": "shared"
+    },
+    {
+      "name": "Config",
+      "path": "core/config/",
+      "status": "as-built",
+      "kind": "shared"
+    },
+    {
+      "name": "Database",
+      "path": "database/",
+      "status": "as-built",
+      "kind": "shared"
+    },
+    {
+      "name": "Models",
+      "path": "models/",
+      "status": "as-built",
+      "kind": "shared"
+    },
+    {
+      "name": "Repositories",
+      "path": "repositories/",
+      "status": "as-built",
+      "kind": "shared"
+    },
+    {
+      "name": "TikTok Integration",
+      "path": "integrations/tiktok/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Webhook",
+      "path": "services/webhook/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Ingestion",
+      "path": "services/ingestion/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "ETL",
+      "path": "services/etl/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "TikTok Services (OAuth/webhooks)",
+      "path": "services/tiktok/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Analytics Backfill",
+      "path": "services/analytics_backfill/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Aggregates",
+      "path": "services/aggregates/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Scoring / Intelligence",
+      "path": "services/scoring/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Action Cards",
+      "path": "services/action_cards/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Execution",
+      "path": "services/execution/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Operations",
+      "path": "services/operations/",
+      "status": "partial",
+      "kind": "business"
+    },
+    {
+      "name": "Alerts",
+      "path": "services/alerts/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Feedback",
+      "path": "services/feedback/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Polling Workers",
+      "path": "workers/services/polling/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Celery Tasks",
+      "path": "workers/tasks/",
+      "status": "as-built",
+      "kind": "shared"
+    },
+    {
+      "name": "AI / ML",
+      "path": "ai/*",
+      "status": "partial",
+      "kind": "business"
+    },
+    {
+      "name": "Agent Runtime",
+      "path": "agent-runtime/",
+      "status": "partial",
+      "kind": "devtools"
+    },
+    {
+      "name": "Frontend Demo/Dashboard",
+      "path": "apps/",
+      "status": "as-built",
+      "kind": "business"
+    },
+    {
+      "name": "Billing",
+      "path": "\u2014",
+      "status": "missing",
+      "kind": "planned"
+    }
+  ],
+  "edges": [
+    {
+      "from": "api",
+      "to": "database",
+      "count": 17
+    },
+    {
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "count": 10
+    },
+    {
+      "from": "api",
+      "to": "services/tiktok",
+      "count": 9
+    },
+    {
+      "from": "services/scoring",
+      "to": "services/aggregates",
+      "count": 8
+    },
+    {
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "count": 8
+    },
+    {
+      "from": "api",
+      "to": "integrations/tiktok",
+      "count": 8
+    },
+    {
+      "from": "api",
+      "to": "core/config",
+      "count": 6
+    },
+    {
+      "from": "services/analytics_backfill",
+      "to": "repositories",
+      "count": 6
+    },
+    {
+      "from": "services/analytics_backfill",
+      "to": "integrations/tiktok",
+      "count": 6
+    },
+    {
+      "from": "services/execution",
+      "to": "integrations/tiktok",
+      "count": 6
+    },
+    {
+      "from": "api",
+      "to": "core/security",
+      "count": 5
+    },
+    {
+      "from": "services/tiktok",
+      "to": "repositories",
+      "count": 5
+    },
+    {
+      "from": "services/webhook",
+      "to": "services/tiktok",
+      "count": 4
+    },
+    {
+      "from": "workers/tasks",
+      "to": "database",
+      "count": 4
+    },
+    {
+      "from": "services/tiktok",
+      "to": "database",
+      "count": 3
+    },
+    {
+      "from": "ai/ranking",
+      "to": "models",
+      "count": 3
+    },
+    {
+      "from": "core/security",
+      "to": "integrations/tiktok",
+      "count": 3
+    },
+    {
+      "from": "database",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "repositories",
+      "to": "database",
+      "count": 2
+    },
+    {
+      "from": "services/webhook",
+      "to": "services/ingestion",
+      "count": 2
+    },
+    {
+      "from": "services/webhook",
+      "to": "services/etl",
+      "count": 2
+    },
+    {
+      "from": "services/ingestion",
+      "to": "services/etl",
+      "count": 2
+    },
+    {
+      "from": "services/analytics_backfill",
+      "to": "services/etl",
+      "count": 2
+    },
+    {
+      "from": "services/aggregates",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "services/alerts",
+      "to": "repositories",
+      "count": 2
+    },
+    {
+      "from": "services/alerts",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "services/execution",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "services/execution",
+      "to": "repositories",
+      "count": 2
+    },
+    {
+      "from": "services/scoring",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "services/action_cards",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "services/action_cards",
+      "to": "services/scoring",
+      "count": 2
+    },
+    {
+      "from": "services/action_cards",
+      "to": "integrations/tiktok",
+      "count": 2
+    },
+    {
+      "from": "services/tiktok",
+      "to": "services/etl",
+      "count": 2
+    },
+    {
+      "from": "services/tiktok",
+      "to": "core/security",
+      "count": 2
+    },
+    {
+      "from": "workers/tasks",
+      "to": "workers",
+      "count": 2
+    },
+    {
+      "from": "workers/polling",
+      "to": "services/ingestion",
+      "count": 2
+    },
+    {
+      "from": "workers/polling",
+      "to": "core/security",
+      "count": 2
+    },
+    {
+      "from": "api",
+      "to": "repositories",
+      "count": 2
+    },
+    {
+      "from": "api",
+      "to": "services/execution",
+      "count": 2
+    },
+    {
+      "from": "api",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "ai/anomaly",
+      "to": "ai/features",
+      "count": 2
+    },
+    {
+      "from": "ai/artifacts",
+      "to": "ai/ad_performance",
+      "count": 2
+    },
+    {
+      "from": "ai/artifacts",
+      "to": "ai/anomaly",
+      "count": 2
+    },
+    {
+      "from": "ai/artifacts",
+      "to": "ai/seller_stage",
+      "count": 2
+    },
+    {
+      "from": "ai/seller_stage",
+      "to": "ai/features",
+      "count": 2
+    },
+    {
+      "from": "ai/ad_performance",
+      "to": "ai/features",
+      "count": 2
+    },
+    {
+      "from": "core/security",
+      "to": "models",
+      "count": 2
+    },
+    {
+      "from": "core/security",
+      "to": "repositories",
+      "count": 2
+    },
+    {
+      "from": "core/security",
+      "to": "database",
+      "count": 2
+    },
+    {
+      "from": "database",
+      "to": "orm_base",
+      "count": 1
+    },
+    {
+      "from": "database",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "repositories",
+      "to": "integrations/tiktok",
+      "count": 1
+    },
+    {
+      "from": "repositories",
+      "to": "models",
+      "count": 1
+    },
+    {
+      "from": "models",
+      "to": "orm_base",
+      "count": 1
+    },
+    {
+      "from": "services/webhook",
+      "to": "core/config",
+      "count": 1
+    },
+    {
+      "from": "services/webhook",
+      "to": "database",
+      "count": 1
+    },
+    {
+      "from": "services/analytics_backfill",
+      "to": "models",
+      "count": 1
+    },
+    {
+      "from": "services/aggregates",
+      "to": "database",
+      "count": 1
+    },
+    {
+      "from": "services/aggregates",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "services/etl",
+      "to": "models",
+      "count": 1
+    },
+    {
+      "from": "services/etl",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "services/etl",
+      "to": "integrations/tiktok",
+      "count": 1
+    },
+    {
+      "from": "services/operations",
+      "to": "models",
+      "count": 1
+    },
+    {
+      "from": "services/operations",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "services/operations",
+      "to": "services/execution",
+      "count": 1
+    },
+    {
+      "from": "services/feedback",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "services/execution",
+      "to": "services/operations",
+      "count": 1
+    },
+    {
+      "from": "services/execution",
+      "to": "workers/tasks",
+      "count": 1
+    },
+    {
+      "from": "services/execution",
+      "to": "core/security",
+      "count": 1
+    },
+    {
+      "from": "services/scoring",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "services/action_cards",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "services/action_cards",
+      "to": "workers/tasks",
+      "count": 1
+    },
+    {
+      "from": "services/action_cards",
+      "to": "core/security",
+      "count": 1
+    },
+    {
+      "from": "services/action_cards",
+      "to": "services/etl",
+      "count": 1
+    },
+    {
+      "from": "services/action_cards",
+      "to": "services/ingestion",
+      "count": 1
+    },
+    {
+      "from": "services/action_cards",
+      "to": "workers/polling",
+      "count": 1
+    },
+    {
+      "from": "services/tiktok",
+      "to": "services/ingestion",
+      "count": 1
+    },
+    {
+      "from": "workers/tasks",
+      "to": "services/execution",
+      "count": 1
+    },
+    {
+      "from": "workers/tasks",
+      "to": "services/action_cards",
+      "count": 1
+    },
+    {
+      "from": "workers/polling",
+      "to": "models",
+      "count": 1
+    },
+    {
+      "from": "workers/polling",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "api",
+      "to": "services/action_cards",
+      "count": 1
+    },
+    {
+      "from": "api",
+      "to": "ai/recommendations",
+      "count": 1
+    },
+    {
+      "from": "api",
+      "to": "services/etl",
+      "count": 1
+    },
+    {
+      "from": "api",
+      "to": "services/ingestion",
+      "count": 1
+    },
+    {
+      "from": "api",
+      "to": "services/webhook",
+      "count": 1
+    },
+    {
+      "from": "api",
+      "to": "services/operations",
+      "count": 1
+    },
+    {
+      "from": "api",
+      "to": "services/feedback",
+      "count": 1
+    },
+    {
+      "from": "ai/artifacts",
+      "to": "ai/features",
+      "count": 1
+    },
+    {
+      "from": "ai/features",
+      "to": "ai/dataset",
+      "count": 1
+    },
+    {
+      "from": "ai/recommendations",
+      "to": "ai/forecasting",
+      "count": 1
+    },
+    {
+      "from": "ai/recommendations",
+      "to": "ai/ranking",
+      "count": 1
+    },
+    {
+      "from": "ai/recommendations",
+      "to": "models",
+      "count": 1
+    },
+    {
+      "from": "ai/recommendations",
+      "to": "repositories",
+      "count": 1
+    },
+    {
+      "from": "ai/forecasting",
+      "to": "models",
+      "count": 1
+    },
+    {
+      "from": "core/security",
+      "to": "services/tiktok",
+      "count": 1
+    },
+    {
+      "from": "database",
+      "to": "core/config",
+      "count": 1
+    }
+  ],
+  "layer_edges": [
+    {
+      "from": "API",
+      "to": "Shared Infra",
+      "count": 27
+    },
+    {
+      "from": "Analytics",
+      "to": "Shared Infra",
+      "count": 11
+    },
+    {
+      "from": "TikTok Services",
+      "to": "TikTok Integration",
+      "count": 10
+    },
+    {
+      "from": "API",
+      "to": "TikTok Services",
+      "count": 9
+    },
+    {
+      "from": "Intelligence",
+      "to": "Analytics",
+      "count": 8
+    },
+    {
+      "from": "TikTok Services",
+      "to": "Shared Infra",
+      "count": 8
+    },
+    {
+      "from": "Workers",
+      "to": "TikTok Integration",
+      "count": 8
+    },
+    {
+      "from": "API",
+      "to": "TikTok Integration",
+      "count": 8
+    },
+    {
+      "from": "Intelligence",
+      "to": "Shared Infra",
+      "count": 7
+    },
+    {
+      "from": "Analytics",
+      "to": "TikTok Integration",
+      "count": 6
+    },
+    {
+      "from": "Execution",
+      "to": "Shared Infra",
+      "count": 6
+    },
+    {
+      "from": "Execution",
+      "to": "TikTok Integration",
+      "count": 6
+    },
+    {
+      "from": "Workers",
+      "to": "Shared Infra",
+      "count": 6
+    },
+    {
+      "from": "ML",
+      "to": "Shared Infra",
+      "count": 6
+    },
+    {
+      "from": "Auth",
+      "to": "Shared Infra",
+      "count": 6
+    },
+    {
+      "from": "API",
+      "to": "Auth",
+      "count": 5
+    },
+    {
+      "from": "Data Pipeline",
+      "to": "TikTok Services",
+      "count": 4
+    },
+    {
+      "from": "Data Pipeline",
+      "to": "Shared Infra",
+      "count": 4
+    },
+    {
+      "from": "Alerts",
+      "to": "Shared Infra",
+      "count": 4
+    },
+    {
+      "from": "TikTok Services",
+      "to": "Data Pipeline",
+      "count": 3
+    },
+    {
+      "from": "API",
+      "to": "Execution",
+      "count": 3
+    },
+    {
+      "from": "API",
+      "to": "Data Pipeline",
+      "count": 3
+    },
+    {
+      "from": "Auth",
+      "to": "TikTok Integration",
+      "count": 3
+    },
+    {
+      "from": "Analytics",
+      "to": "Data Pipeline",
+      "count": 2
+    },
+    {
+      "from": "Intelligence",
+      "to": "Workers",
+      "count": 2
+    },
+    {
+      "from": "Intelligence",
+      "to": "TikTok Integration",
+      "count": 2
+    },
+    {
+      "from": "Intelligence",
+      "to": "Data Pipeline",
+      "count": 2
+    },
+    {
+      "from": "TikTok Services",
+      "to": "Auth",
+      "count": 2
+    },
+    {
+      "from": "Workers",
+      "to": "Data Pipeline",
+      "count": 2
+    },
+    {
+      "from": "Workers",
+      "to": "Auth",
+      "count": 2
+    },
+    {
+      "from": "API",
+      "to": "Intelligence",
+      "count": 2
+    },
+    {
+      "from": "Shared Infra",
+      "to": "TikTok Integration",
+      "count": 1
+    },
+    {
+      "from": "Data Pipeline",
+      "to": "TikTok Integration",
+      "count": 1
+    },
+    {
+      "from": "Execution",
+      "to": "Workers",
+      "count": 1
+    },
+    {
+      "from": "Execution",
+      "to": "Auth",
+      "count": 1
+    },
+    {
+      "from": "Intelligence",
+      "to": "Auth",
+      "count": 1
+    },
+    {
+      "from": "Workers",
+      "to": "Execution",
+      "count": 1
+    },
+    {
+      "from": "Workers",
+      "to": "Intelligence",
+      "count": 1
+    },
+    {
+      "from": "API",
+      "to": "ML",
+      "count": 1
+    },
+    {
+      "from": "Auth",
+      "to": "TikTok Services",
+      "count": 1
+    }
+  ],
+  "violations": [
+    {
+      "file": "juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "from": "api",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.exceptions",
+      "names": [
+        "AuthenticationError"
+      ],
+      "has_public_api": true,
+      "count": 3
+    },
+    {
+      "file": "juli_backend/services/execution/inventory_leakage.py",
+      "from": "services/execution",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.factories",
+      "names": [
+        "SandboxWriteResources"
+      ],
+      "has_public_api": true,
+      "count": 3
+    },
+    {
+      "file": "juli_backend/services/analytics_backfill/revenue_partition.py",
+      "from": "services/analytics_backfill",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.exceptions",
+      "names": [
+        "TikTokAPIError"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/services/analytics_backfill/revenue_partition.py",
+      "from": "services/analytics_backfill",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.transform",
+      "names": [
+        "transform_for_channel"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/services/scoring/batch.py",
+      "from": "services/scoring",
+      "to": "services/aggregates",
+      "import": "juli_backend.services.aggregates.types",
+      "names": [
+        "ShopLifecycleContext"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/services/scoring/recommendations.py",
+      "from": "services/scoring",
+      "to": "services/aggregates",
+      "import": "juli_backend.services.aggregates.types",
+      "names": [
+        "ShopProfile"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/services/tiktok/business_advertiser_oauth.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.exceptions",
+      "names": [
+        "AuthenticationError"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/services/tiktok/webhook_raw_log.py",
+      "from": "services/tiktok",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.event_id",
+      "names": [
+        "extract_event_id"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/services/webhook/__init__.py",
+      "from": "services/webhook",
+      "to": "services/ingestion",
+      "import": "juli_backend.services.ingestion.handoff",
+      "names": [
+        "HandoffFn"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/workers/services/polling/sync.py",
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.rate_limiter",
+      "names": [
+        "RateLimiter"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/workers/services/polling/sync.py",
+      "from": "workers/polling",
+      "to": "services/ingestion",
+      "import": "juli_backend.services.ingestion.handoff",
+      "names": [
+        "HandoffFn"
+      ],
+      "has_public_api": true,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/workers/tasks/tool_execution.py",
+      "from": "workers/tasks",
+      "to": "workers",
+      "import": "juli_backend.workers.celery_app",
+      "names": [
+        "celery_app"
+      ],
+      "has_public_api": false,
+      "count": 2
+    },
+    {
+      "file": "juli_backend/ai/ad_performance/inference.py",
+      "from": "ai/ad_performance",
+      "to": "ai/features",
+      "import": "juli_backend.ai.features.schema",
+      "names": [
+        "AD_FEATURE_COLUMNS"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/anomaly/inference.py",
+      "from": "ai/anomaly",
+      "to": "ai/features",
+      "import": "juli_backend.ai.features.schema",
+      "names": [
+        "ANOMALY_FEATURE_COLUMNS"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/artifacts/smoke.py",
+      "from": "ai/artifacts",
+      "to": "ai/ad_performance",
+      "import": "juli_backend.ai.ad_performance.fixtures",
+      "names": [
+        "GOLDEN_AD_FIXTURES"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/artifacts/smoke.py",
+      "from": "ai/artifacts",
+      "to": "ai/ad_performance",
+      "import": "juli_backend.ai.ad_performance.inference",
+      "names": [
+        "predict_ad_action"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/artifacts/smoke.py",
+      "from": "ai/artifacts",
+      "to": "ai/anomaly",
+      "import": "juli_backend.ai.anomaly.fixtures",
+      "names": [
+        "GOLDEN_ANOMALY_FIXTURES"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/artifacts/smoke.py",
+      "from": "ai/artifacts",
+      "to": "ai/anomaly",
+      "import": "juli_backend.ai.anomaly.inference",
+      "names": [
+        "predict_anomaly"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/artifacts/schema.py",
+      "from": "ai/artifacts",
+      "to": "ai/features",
+      "import": "juli_backend.ai.features.schema",
+      "names": [
+        "AD_FEATURE_COLUMNS",
+        "ANOMALY_FEATURE_COLUMNS",
+        "SELLER_STAGE_FEATURE_COLUMNS"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/artifacts/smoke.py",
+      "from": "ai/artifacts",
+      "to": "ai/seller_stage",
+      "import": "juli_backend.ai.seller_stage.fixtures",
+      "names": [
+        "STAGE_BOUNDARY_FIXTURES"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/artifacts/smoke.py",
+      "from": "ai/artifacts",
+      "to": "ai/seller_stage",
+      "import": "juli_backend.ai.seller_stage.inference",
+      "names": [
+        "predict_seller_stage"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/features/loader.py",
+      "from": "ai/features",
+      "to": "ai/dataset",
+      "import": "juli_backend.ai.dataset.schema",
+      "names": [
+        "ORDER_ITEMS_COLUMNS",
+        "ORDERS_COLUMNS",
+        "RETURNS_COLUMNS"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/recommendations/engine.py",
+      "from": "ai/recommendations",
+      "to": "ai/forecasting",
+      "import": "juli_backend.ai.forecasting.forecaster",
+      "names": [
+        "get_low_stock_risks",
+        "get_velocity_changes"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/ai/seller_stage/inference.py",
+      "from": "ai/seller_stage",
+      "to": "ai/features",
+      "import": "juli_backend.ai.features.schema",
+      "names": [
+        "SELLER_STAGE_FEATURE_COLUMNS"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/debug_tiktok.py",
+      "from": "api",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.auth",
+      "names": [
+        "DEFAULT_OPEN_API_BASE_URL"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok.py",
+      "from": "api",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.auth",
+      "names": [
+        "TikTokAuth"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "from": "api",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.business_account_holder_auth",
+      "names": [
+        "TikTokBusinessAccountHolderAuth"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "from": "api",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.business_advertiser_auth",
+      "names": [
+        "TikTokBusinessAdvertiserAuth"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/debug_tiktok.py",
+      "from": "api",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.merchant",
+      "names": [
+        "TikTokCapability"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/action_cards.py",
+      "from": "api",
+      "to": "services/action_cards",
+      "import": "juli_backend.services.action_cards.dispatch",
+      "names": [
+        "enqueue_action_card_refresh"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/webhook_tiktok.py",
+      "from": "api",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.consumer",
+      "names": [
+        "EtlConsumer"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/executions.py",
+      "from": "api",
+      "to": "services/execution",
+      "import": "juli_backend.services.execution.dispatch",
+      "names": [
+        "enqueue_approved_tool"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/executions.py",
+      "from": "api",
+      "to": "services/execution",
+      "import": "juli_backend.services.execution.types",
+      "names": [
+        "ExecutionStatus"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/webhook_tiktok.py",
+      "from": "api",
+      "to": "services/ingestion",
+      "import": "juli_backend.services.ingestion.handoff",
+      "names": [
+        "make_etl_handoff"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/workflow_outcomes.py",
+      "from": "api",
+      "to": "services/operations",
+      "import": "juli_backend.services.operations.outcome_tracking",
+      "names": [
+        "load_workflow_outcome_metrics"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.advertiser_oauth_store",
+      "names": [
+        "persist_advertiser_oauth_tokens"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.app_review_store",
+      "names": [
+        "persist_oauth_tokens"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.business_account_holder_store",
+      "names": [
+        "account_holder_merchant_id",
+        "persist_account_holder_tokens"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.business_advertiser_oauth",
+      "names": [
+        "TikTokBusinessAdvertiserOAuthCallbackResult",
+        "TikTokBusinessAdvertiserOAuthService"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.oauth",
+      "names": [
+        "TikTokOAuthInfrastructureService"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/auth_tiktok.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.schemas",
+      "names": [
+        "TikTokOAuthCallbackResult"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/debug_tiktok.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.verify_connection",
+      "names": [
+        "TikTokVerifyConnectionService",
+        "tiktok_debug_enabled"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/webhook_tiktok.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.webhook_handlers",
+      "names": [
+        "DatabaseWebhookSideEffects"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/webhook_tiktok.py",
+      "from": "api",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.webhook_raw_log",
+      "names": [
+        "DatabaseRawWebhookEventRecorder"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/api/routes/webhook_tiktok.py",
+      "from": "api",
+      "to": "services/webhook",
+      "import": "juli_backend.services.webhook.app",
+      "names": [
+        "WEBHOOK_PATH",
+        "build_webhook_service"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/core/security/tiktok_oauth.py",
+      "from": "core/security",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.auth",
+      "names": [
+        "TikTokAuth"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/core/security/credential_resolver.py",
+      "from": "core/security",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.merchant",
+      "names": [
+        "PRODUCTION_AUTH_ID",
+        "SANDBOX_AUTH_ID",
+        "TikTokCapability"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/core/security/tiktok_oauth.py",
+      "from": "core/security",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.merchant",
+      "names": [
+        "TikTokCapability",
+        "resolve_merchant_context"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/core/security/tiktok_oauth.py",
+      "from": "core/security",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.token_expiry",
+      "names": [
+        "access_token_expires_at"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/repositories/repos.py",
+      "from": "repositories",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.merchant",
+      "names": [
+        "TikTokCapability",
+        "is_cross_merchant_lookup"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/action_cards/refresh.py",
+      "from": "services/action_cards",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.auth",
+      "names": [
+        "TikTokAuth"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/action_cards/refresh.py",
+      "from": "services/action_cards",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.rate_limiter",
+      "names": [
+        "RateLimiter"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/action_cards/refresh.py",
+      "from": "services/action_cards",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.consumer",
+      "names": [
+        "EtlConsumer"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/action_cards/refresh.py",
+      "from": "services/action_cards",
+      "to": "services/scoring",
+      "import": "juli_backend.services.scoring.pipeline",
+      "names": [
+        "run_daily_scoring_for_shop"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/action_cards/persist.py",
+      "from": "services/action_cards",
+      "to": "services/scoring",
+      "import": "juli_backend.services.scoring.types",
+      "names": [
+        "DailyScoringResult",
+        "KpiId",
+        "Severity",
+        "WorkflowReasoningSummary"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/action_cards/dispatch.py",
+      "from": "services/action_cards",
+      "to": "workers/tasks",
+      "import": "juli_backend.workers.tasks.action_card_refresh",
+      "names": [
+        "refresh_action_cards"
+      ],
+      "has_public_api": false,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/analytics_backfill/live_partition.py",
+      "from": "services/analytics_backfill",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.constants",
+      "names": [
+        "ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH",
+        "ANALYTICS_LIVE_PERFORMANCE_LIST_PATH"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/analytics_backfill/revenue_partition.py",
+      "from": "services/analytics_backfill",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.mapping",
+      "names": [
+        "expand_analytics_shop_performance"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/analytics_backfill/live_partition.py",
+      "from": "services/analytics_backfill",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.mapping",
+      "names": [
+        "analytics_snapshot_key",
+        "expand_analytics_live_session"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/analytics_backfill/product_partition.py",
+      "from": "services/analytics_backfill",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.mapping",
+      "names": [
+        "expand_analytics_product_list_item"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/etl/transform.py",
+      "from": "services/etl",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.mapping",
+      "names": [
+        "analytics_snapshot_key",
+        "normalize_creator",
+        "normalize_inventory",
+        "normalize_livestream",
+        "normalize_order",
+        "normalize_product",
+        "normalize_return",
+        "normalize_statement"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/execution/errors.py",
+      "from": "services/execution",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.exceptions",
+      "names": [
+        "RateLimitError",
+        "TikTokAPIError",
+        "TikTokSystemError",
+        "TransportGuardError"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/execution/sandbox_guard.py",
+      "from": "services/execution",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.factories",
+      "names": [
+        "ClientFactoryConfig",
+        "SandboxWriteClientFactory",
+        "SandboxWriteResources"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/execution/sandbox_guard.py",
+      "from": "services/execution",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.merchant",
+      "names": [
+        "SANDBOX_AUTH_ID"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/execution/worker.py",
+      "from": "services/execution",
+      "to": "services/operations",
+      "import": "juli_backend.services.operations.outcome_tracking",
+      "names": [
+        "record_workflow_outcome"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/execution/dispatch.py",
+      "from": "services/execution",
+      "to": "workers/tasks",
+      "import": "juli_backend.workers.tasks.tool_execution",
+      "names": [
+        "execute_approved_tool"
+      ],
+      "has_public_api": false,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/ingestion/handoff.py",
+      "from": "services/ingestion",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.consumer",
+      "names": [
+        "EtlConsumer"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/ingestion/handoff.py",
+      "from": "services/ingestion",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.record",
+      "names": [
+        "IngestRecord"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/operations/outcome_tracking.py",
+      "from": "services/operations",
+      "to": "services/execution",
+      "import": "juli_backend.services.execution.types",
+      "names": [
+        "ExecutionStatus"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/scoring/pipeline.py",
+      "from": "services/scoring",
+      "to": "services/aggregates",
+      "import": "juli_backend.services.aggregates.builder",
+      "names": [
+        "build_feature_aggregates"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/scoring/signals.py",
+      "from": "services/scoring",
+      "to": "services/aggregates",
+      "import": "juli_backend.services.aggregates.computed_kpis",
+      "names": [
+        "ComputedKpiMetrics"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/scoring/signals.py",
+      "from": "services/scoring",
+      "to": "services/aggregates",
+      "import": "juli_backend.services.aggregates.types",
+      "names": [
+        "FeatureAggregateSnapshot",
+        "ShopLifecycleContext"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/scoring/types.py",
+      "from": "services/scoring",
+      "to": "services/aggregates",
+      "import": "juli_backend.services.aggregates.types",
+      "names": [
+        "FeatureAggregateSnapshot",
+        "HealthDataSource",
+        "ShopProfile"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/verify_connection.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.auth",
+      "names": [
+        "DEFAULT_OPEN_API_BASE_URL"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/oauth.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.auth",
+      "names": [
+        "TikTokAuth"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/business_advertiser_oauth.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.business_advertiser_auth",
+      "names": [
+        "TikTokBusinessAdvertiserAuth"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/verify_connection.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.client",
+      "names": [
+        "TikTokClient"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/verify_connection.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.exceptions",
+      "names": [
+        "TikTokAPIError"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/app_review_store.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.merchant",
+      "names": [
+        "resolve_merchant_context"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/verify_connection.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.resources.authorization",
+      "names": [
+        "AuthorizationResource"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/verify_connection.py",
+      "from": "services/tiktok",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.schemas",
+      "names": [
+        "TikTokSchemaError"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/tiktok/webhook.py",
+      "from": "services/tiktok",
+      "to": "services/ingestion",
+      "import": "juli_backend.services.ingestion.handoff",
+      "names": [
+        "HandoffFn"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/webhook/main.py",
+      "from": "services/webhook",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.consumer",
+      "names": [
+        "EtlConsumer"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/webhook/main.py",
+      "from": "services/webhook",
+      "to": "services/etl",
+      "import": "juli_backend.services.etl.record",
+      "names": [
+        "IngestRecord"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/webhook/app.py",
+      "from": "services/webhook",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.webhook_handlers",
+      "names": [
+        "DatabaseWebhookSideEffects",
+        "WebhookSideEffects"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/services/webhook/app.py",
+      "from": "services/webhook",
+      "to": "services/tiktok",
+      "import": "juli_backend.services.tiktok.webhook_raw_log",
+      "names": [
+        "DatabaseRawWebhookEventRecorder",
+        "RawWebhookEventRecorder"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/services/polling/sync.py",
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.constants",
+      "names": [
+        "ANALYTICS_BESTSELLING_PRODUCTS_PATH",
+        "ANALYTICS_BESTSELLING_VIDEOS_PATH",
+        "ANALYTICS_LIVE_PERFORMANCE_LIST_PATH",
+        "ANALYTICS_SHOP_PERFORMANCE_PATH",
+        "ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH",
+        "ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH",
+        "INVENTORY_SEARCH_PATH",
+        "MARKETPLACE_CREATORS_SEARCH_PATH",
+        "ORDER_SEARCH_PATH",
+        "PRODUCT_SEARCH_PATH",
+        "RETURN_SEARCH_PATH",
+        "analytics_shop_performance_per_hour_path",
+        "analytics_shop_product_performance_path",
+        "analytics_shop_sku_performance_path",
+        "promotion_activity_path"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/services/polling/orchestrate.py",
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.constants",
+      "names": [
+        "ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH",
+        "INVENTORY_SEARCH_PATH",
+        "ORDER_SEARCH_PATH",
+        "PRODUCT_SEARCH_PATH",
+        "RETURN_SEARCH_PATH"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/services/polling/sync.py",
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.exceptions",
+      "names": [
+        "PermissionDeniedError",
+        "TikTokAPIError"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/services/polling/orchestrate.py",
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.factories",
+      "names": [
+        "ClientFactoryConfig",
+        "ProductionReadClientFactory",
+        "ProductionReadResources"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/services/polling/sync.py",
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.mapping",
+      "names": [
+        "analytics_snapshot_key",
+        "expand_analytics_live_session",
+        "expand_analytics_product_detail",
+        "expand_analytics_product_list_item",
+        "expand_analytics_shop_performance",
+        "expand_analytics_shop_performance_per_hour",
+        "expand_analytics_sku_detail",
+        "expand_analytics_sku_list_item",
+        "expand_inventory_search",
+        "expand_order_line_items",
+        "normalize_creator",
+        "normalize_inventory",
+        "normalize_order",
+        "normalize_product",
+        "normalize_return"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/services/polling/orchestrate.py",
+      "from": "workers/polling",
+      "to": "integrations/tiktok",
+      "import": "juli_backend.integrations.tiktok.merchant",
+      "names": [
+        "PRODUCTION_AUTH_ID",
+        "TikTokCapability"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/tasks/action_card_refresh.py",
+      "from": "workers/tasks",
+      "to": "services/action_cards",
+      "import": "juli_backend.services.action_cards.refresh",
+      "names": [
+        "run_action_card_refresh"
+      ],
+      "has_public_api": true,
+      "count": 1
+    },
+    {
+      "file": "juli_backend/workers/tasks/tool_execution.py",
+      "from": "workers/tasks",
+      "to": "services/execution",
+      "import": "juli_backend.services.execution.worker",
+      "names": [
+        "run_approved_tool"
+      ],
+      "has_public_api": true,
+      "count": 1
+    }
+  ],
+  "violation_count": 108,
+  "unique_violation_patterns": 94,
+  "cycles": [
+    [
+      "database",
+      "repositories"
+    ],
+    [
+      "services/execution",
+      "services/operations"
+    ],
+    [
+      "services/execution",
+      "workers/tasks"
+    ],
+    [
+      "services/action_cards",
+      "workers/tasks"
+    ],
+    [
+      "core/security",
+      "services/tiktok"
+    ]
+  ],
+  "routes": [
+    {
+      "file": "__init__.py",
+      "prefix": "(none)",
+      "endpoints": [],
+      "imports": [],
+      "module_count": 0
+    },
+    {
+      "file": "action_cards.py",
+      "prefix": "/action-cards",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/refresh"
+        },
+        {
+          "method": "GET",
+          "path": "/"
+        }
+      ],
+      "imports": [
+        "juli_backend.database",
+        "juli_backend.repositories.repos",
+        "juli_backend.services.action_cards.dispatch"
+      ],
+      "module_count": 3
+    },
+    {
+      "file": "auth_tiktok.py",
+      "prefix": "/auth/tiktok",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/callback"
+        }
+      ],
+      "imports": [
+        "juli_backend.core.config.runtime",
+        "juli_backend.core.security.exceptions",
+        "juli_backend.database",
+        "juli_backend.integrations.tiktok.auth",
+        "juli_backend.integrations.tiktok.exceptions",
+        "juli_backend.services.tiktok.app_review_store",
+        "juli_backend.services.tiktok.oauth",
+        "juli_backend.services.tiktok.schemas"
+      ],
+      "module_count": 5
+    },
+    {
+      "file": "auth_tiktok_business_account_holder.py",
+      "prefix": "/auth/tiktok/business/account-holder",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/callback"
+        }
+      ],
+      "imports": [
+        "juli_backend.core.config.runtime",
+        "juli_backend.core.security.exceptions",
+        "juli_backend.database",
+        "juli_backend.integrations.tiktok.business_account_holder_auth",
+        "juli_backend.integrations.tiktok.exceptions",
+        "juli_backend.services.tiktok.business_account_holder_store"
+      ],
+      "module_count": 5
+    },
+    {
+      "file": "auth_tiktok_business_advertiser.py",
+      "prefix": "/auth/tiktok/business",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/callback"
+        }
+      ],
+      "imports": [
+        "juli_backend.core.config.runtime",
+        "juli_backend.core.security.exceptions",
+        "juli_backend.database",
+        "juli_backend.integrations.tiktok.business_advertiser_auth",
+        "juli_backend.integrations.tiktok.exceptions",
+        "juli_backend.services.tiktok.advertiser_oauth_store",
+        "juli_backend.services.tiktok.business_advertiser_oauth"
+      ],
+      "module_count": 5
+    },
+    {
+      "file": "creators.py",
+      "prefix": "/creators",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/"
+        },
+        {
+          "method": "GET",
+          "path": "/{creator_id}/content"
+        }
+      ],
+      "imports": [
+        "juli_backend.database",
+        "juli_backend.models.models"
+      ],
+      "module_count": 2
+    },
+    {
+      "file": "debug_tiktok.py",
+      "prefix": "/debug/tiktok",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/verify-connection"
+        }
+      ],
+      "imports": [
+        "juli_backend.core.config.runtime",
+        "juli_backend.database",
+        "juli_backend.database.exceptions",
+        "juli_backend.integrations.tiktok.auth",
+        "juli_backend.integrations.tiktok.merchant",
+        "juli_backend.services.tiktok.verify_connection"
+      ],
+      "module_count": 4
+    },
+    {
+      "file": "executions.py",
+      "prefix": "/executions",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/"
+        },
+        {
+          "method": "GET",
+          "path": "/{execution_id}"
+        }
+      ],
+      "imports": [
+        "juli_backend.database",
+        "juli_backend.repositories.repos",
+        "juli_backend.services.execution.dispatch",
+        "juli_backend.services.execution.types"
+      ],
+      "module_count": 3
+    },
+    {
+      "file": "orders.py",
+      "prefix": "/orders",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/"
+        },
+        {
+          "method": "POST",
+          "path": "/{order_id}/confirm-shipment"
+        }
+      ],
+      "imports": [
+        "juli_backend.database"
+      ],
+      "module_count": 1
+    },
+    {
+      "file": "outcomes.py",
+      "prefix": "/outcomes",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/"
+        }
+      ],
+      "imports": [
+        "juli_backend.database",
+        "juli_backend.services.feedback"
+      ],
+      "module_count": 2
+    },
+    {
+      "file": "products.py",
+      "prefix": "/products",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/"
+        }
+      ],
+      "imports": [
+        "juli_backend.database"
+      ],
+      "module_count": 1
+    },
+    {
+      "file": "recommendations.py",
+      "prefix": "/recommendations",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/"
+        }
+      ],
+      "imports": [
+        "juli_backend.ai.recommendations",
+        "juli_backend.database",
+        "juli_backend.models.models"
+      ],
+      "module_count": 3
+    },
+    {
+      "file": "shops.py",
+      "prefix": "/shops",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/"
+        },
+        {
+          "method": "GET",
+          "path": "/me"
+        }
+      ],
+      "imports": [
+        "juli_backend.core.security",
+        "juli_backend.database"
+      ],
+      "module_count": 2
+    },
+    {
+      "file": "webhook_tiktok.py",
+      "prefix": "(none)",
+      "endpoints": [],
+      "imports": [
+        "juli_backend.core.config.runtime",
+        "juli_backend.database",
+        "juli_backend.services.etl.consumer",
+        "juli_backend.services.ingestion.handoff",
+        "juli_backend.services.tiktok.webhook_handlers",
+        "juli_backend.services.tiktok.webhook_raw_log",
+        "juli_backend.services.webhook.app"
+      ],
+      "module_count": 6
+    },
+    {
+      "file": "workflow_outcomes.py",
+      "prefix": "/workflow-outcomes",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/{approval_id}"
+        }
+      ],
+      "imports": [
+        "juli_backend.database",
+        "juli_backend.services.operations.outcome_tracking"
+      ],
+      "module_count": 2
+    }
+  ],
+  "tables": [
+    {
+      "model": "User",
+      "table": "users",
+      "owner": "Auth / shared identity"
+    },
+    {
+      "model": "Shop",
+      "table": "shops",
+      "owner": "Auth / shared identity"
+    },
+    {
+      "model": "TikTokCredential",
+      "table": "tiktok_credentials",
+      "owner": "Integrations (TikTok OAuth)"
+    },
+    {
+      "model": "TikTokSyncState",
+      "table": "tiktok_sync_state",
+      "owner": "Workers/polling + TikTok sync"
+    },
+    {
+      "model": "Order",
+      "table": "orders",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "OrderItem",
+      "table": "order_items",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "Return",
+      "table": "returns",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "Product",
+      "table": "products",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "InventoryItem",
+      "table": "inventory_items",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "Settlement",
+      "table": "settlements",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "Creator",
+      "table": "creators",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "Livestream",
+      "table": "livestreams",
+      "owner": "Data pipeline (ETL/polling)"
+    },
+    {
+      "model": "AnalyticsPerformanceInterval",
+      "table": "analytics_performance_intervals",
+      "owner": "Analytics backfill"
+    },
+    {
+      "model": "AlertConfig",
+      "table": "alert_configs",
+      "owner": "Alerts"
+    },
+    {
+      "model": "AlertHistory",
+      "table": "alert_history",
+      "owner": "Alerts"
+    },
+    {
+      "model": "ProcessedEvent",
+      "table": "processed_events",
+      "owner": "ETL"
+    },
+    {
+      "model": "WorkflowWebhookSignal",
+      "table": "workflow_webhook_signals",
+      "owner": "Webhook / Operations"
+    },
+    {
+      "model": "WebhookRawEvent",
+      "table": "webhook_raw_events",
+      "owner": "Webhook"
+    },
+    {
+      "model": "ToolExecution",
+      "table": "tool_executions",
+      "owner": "Execution"
+    },
+    {
+      "model": "WorkflowOutcomeRecord",
+      "table": "workflow_outcome_records",
+      "owner": "Operations"
+    },
+    {
+      "model": "ActionCard",
+      "table": "action_cards",
+      "owner": "Action cards / Scoring"
+    },
+    {
+      "model": "Recommendation",
+      "table": "recommendations",
+      "owner": "Intelligence (AI recommendations)"
+    },
+    {
+      "model": "Campaign",
+      "table": "campaigns",
+      "owner": "Intelligence (commerce graph)"
+    },
+    {
+      "model": "GraphEdge",
+      "table": "graph_edges",
+      "owner": "Intelligence (commerce graph)"
+    },
+    {
+      "model": "AnalyticsBackfillPartition",
+      "table": "analytics_backfill_partitions",
+      "owner": "Analytics backfill"
+    }
+  ],
+  "public_apis": {
+    "database": [
+      "ActionCard",
+      "ActionCardsRepo",
+      "AlertConfig",
+      "AlertConfigsRepo",
+      "AlertHistory",
+      "AlertHistoryRepo",
+      "Base",
+      "Campaign",
+      "Creator",
+      "CreatorsRepo",
+      "GraphEdge",
+      "GraphRepo",
+      "InventoryItem",
+      "InventoryRepo",
+      "Livestream",
+      "LivestreamsRepo",
+      "NotFound",
+      "Order",
+      "OrdersRepo",
+      "ProcessedEvent",
+      "ProcessedEventsRepo",
+      "Product",
+      "ProductsRepo",
+      "Recommendation",
+      "RecommendationsRepo",
+      "Settlement",
+      "SettlementsRepo",
+      "Shop",
+      "ShopScopedRepo",
+      "ShopsRepo",
+      "TikTokCredential",
+      "TikTokCredentialRepo",
+      "User",
+      "UsersRepo",
+      "get_session",
+      "init_session_factory"
+    ],
+    "services/webhook": [
+      "create_app",
+      "build_webhook_service",
+      "WEBHOOK_PATH",
+      "HandoffFn",
+      "EVENT_CATEGORY_ROUTES"
+    ],
+    "services/ingestion": [
+      "DlqHandoffFn",
+      "HandoffFn",
+      "make_etl_handoff"
+    ],
+    "services/analytics_backfill": [
+      "ACTIVE_PRODUCT_STATUSES",
+      "ALLOWED_BUCKETS",
+      "BACKFILL_WINDOW_START",
+      "BudgetExhaustedError",
+      "BucketCoverageResult",
+      "CATALOG_BUCKET",
+      "CallBudgetGovernor",
+      "CoverageReport",
+      "PRODUCT_COVERAGE_THRESHOLD",
+      "REVENUE_LIVE_COVERAGE_THRESHOLD",
+      "CatalogCountStrategy",
+      "CatalogCounts",
+      "CatalogPartitionResult",
+      "DEFAULT_BUCKET_ORDER",
+      "LivePartitionResult",
+      "OrchestratorResult",
+      "ProductPartitionResult",
+      "backfill_analytics_history",
+      "backfill_product_partition",
+      "backfill_revenue_partition",
+      "begin_run",
+      "compute_catalog_counts",
+      "coverage_ratio",
+      "coverage_report_to_json",
+      "coverage_report_to_markdown",
+      "generate_coverage_report",
+      "meets_coverage_threshold",
+      "run_catalog_partition",
+      "run_live_partition",
+      "validate_buckets"
+    ],
+    "services/aggregates": [
+      "SYNCED_DATA_SOURCES",
+      "ComputedKpiMetrics",
+      "FeatureAggregateSnapshot",
+      "HealthDataSource",
+      "HealthSnapshot",
+      "ProxyHealthSignals",
+      "ShopLifecycleContext",
+      "ShopProfile",
+      "ShopProfileSignals",
+      "build_feature_aggregates",
+      "classify_shop_profile",
+      "compute_all_kpis",
+      "resolve_health_snapshot"
+    ],
+    "services/etl": [
+      "DLQ_CHANNEL",
+      "RAW_CHANNELS",
+      "EtlConsumer",
+      "IngestRecord",
+      "KafkaRecord",
+      "ProcessOutcome",
+      "transform_for_channel",
+      "transform_for_topic"
+    ],
+    "services/operations": [
+      "build_workflow_outcome_metrics",
+      "load_workflow_outcome_metrics",
+      "record_workflow_outcome"
+    ],
+    "services/feedback": [
+      "OutcomeIngestResult",
+      "compute_calibration_weight",
+      "ingest_campaign_outcome"
+    ],
+    "services/alerts": [
+      "FcmAdapter",
+      "ZaloOaAdapter"
+    ],
+    "services/execution": [
+      "ExecutionErrorCategory",
+      "ExecutionStatus",
+      "build_sandbox_write_resources",
+      "enqueue_approved_tool",
+      "get_task_dispatcher",
+      "is_noop_tool",
+      "load_sandbox_write_resources",
+      "mark_execution_finished",
+      "register_async_tool",
+      "register_tool",
+      "resolve_tool_name",
+      "resolve_tool_name_for_workflow",
+      "run_tool",
+      "run_tool_async",
+      "set_task_dispatcher"
+    ],
+    "services/scoring": [
+      "AdvisorySignal",
+      "COPY_SOURCE_RULES",
+      "DAILY_SCORING_CRON_UTC",
+      "DAILY_SCORING_UTC_HOUR",
+      "DAILY_SCORING_UTC_MINUTE",
+      "DailyScoringResult",
+      "KPI_WORKFLOW_KEYS",
+      "ScoringSignals",
+      "VisualLayerDomain",
+      "VISUAL_LAYER_KPI_IDS",
+      "WORKFLOW_COPY_TEMPLATE_KEYS",
+      "WorkflowReasoningCopy",
+      "WorkflowReasoningSummary",
+      "WorkflowRecommendations",
+      "build_reasoning_for_recommendations",
+      "build_workflow_reasoning_copy",
+      "compute_scoring_signals",
+      "format_advisory_one_line",
+      "get_workflows_for_profile",
+      "rank_workflow_recommendations",
+      "run_daily_scoring_batch",
+      "run_daily_scoring_for_shop"
+    ],
+    "services/action_cards": [
+      "enqueue_action_card_refresh",
+      "get_refresh_dispatcher",
+      "maybe_poll_tiktok_data",
+      "persist_scoring_result",
+      "run_action_card_refresh",
+      "set_refresh_dispatcher"
+    ],
+    "services/tiktok": [
+      "ACCOUNT_LIFECYCLE_CHANNEL",
+      "EVENT_CATEGORY_ROUTES",
+      "PHASE2_CATALOG",
+      "PHASE2_CATALOG_IDS",
+      "TikTokOAuthInfrastructureService",
+      "TikTokWebhookDispatcher",
+      "TikTokWebhookService",
+      "TikTokWebhookSignatureVerifier",
+      "resolve_catalog_entry",
+      "resolve_ingest_channel",
+      "should_handoff_to_etl"
+    ],
+    "workers/polling": [
+      "FujiwaPollConfig",
+      "backfill_shop",
+      "run_fujiwa_poll_cycle",
+      "sync_analytics",
+      "sync_creators",
+      "sync_orders",
+      "sync_products",
+      "sync_returns"
+    ],
+    "ai/anomaly": [
+      "ANOMALY_CLASSES",
+      "ANOMALY_CONFIDENCE_THRESHOLD",
+      "CLASS_IMBALANCE_STRATEGY",
+      "GOLDEN_ANOMALY_FIXTURES",
+      "InferenceResult",
+      "TrainResult",
+      "build_anomaly_training_frame",
+      "predict_anomaly",
+      "train_anomaly"
+    ],
+    "ai/artifacts": [
+      "MODEL_SUITES",
+      "ArtifactBundle",
+      "ArtifactError",
+      "ArtifactLoadError",
+      "ArtifactPublishError",
+      "LoadedModel",
+      "ModelSuite",
+      "PromotionStatus",
+      "evaluate_promotion_status",
+      "feature_columns_for_suite",
+      "feature_schema_hash",
+      "load_metadata",
+      "load_model",
+      "publish_model",
+      "run_all_smoke_tests",
+      "run_smoke_test"
+    ],
+    "ai/ranking": [
+      "Anomaly",
+      "LivestreamScore",
+      "RetentionPoint",
+      "SentimentResult",
+      "analyze_comments",
+      "detect_anomalies",
+      "get_stream_retention",
+      "score_livestream"
+    ],
+    "ai/dataset": [
+      "ADS_COLUMNS",
+      "LABELS_COLUMNS",
+      "ORDER_ITEMS_COLUMNS",
+      "ORDERS_COLUMNS",
+      "RETURNS_COLUMNS",
+      "RETURN_TYPE_VALUES",
+      "DatasetValidationError",
+      "assemble_backtest_dataset",
+      "validate_backtest_dataset"
+    ],
+    "ai/seller_stage": [
+      "AD_SPEND_GROWTH_MIN_VND",
+      "CLASS_IMBALANCE_STRATEGY",
+      "ComparisonReport",
+      "InferenceResult",
+      "ORDER_COUNT_GROWTH_MIN",
+      "ORDER_COUNT_NEW_MAX",
+      "RETURN_RATE_LEAKAGE_MIN",
+      "SHOP_AGE_NEW_MAX_DAYS",
+      "STAGE_BOUNDARY_FIXTURES",
+      "SellerStage",
+      "SellerStageProfile",
+      "TrainResult",
+      "classify_seller_stage",
+      "compare_to_rules_baseline",
+      "predict_seller_stage",
+      "train_seller_stage"
+    ],
+    "ai/features": [
+      "AD_FEATURE_COLUMNS",
+      "ANOMALY_FEATURE_COLUMNS",
+      "FeatureMatrix",
+      "FeatureValidationError",
+      "SELLER_STAGE_FEATURE_COLUMNS",
+      "build_ad_features",
+      "build_anomaly_features",
+      "build_seller_stage_features"
+    ],
+    "ai/ad_performance": [
+      "AD_ACTIONS",
+      "AdPerformanceModel",
+      "CLASS_IMBALANCE_STRATEGY",
+      "GOLDEN_AD_FIXTURES",
+      "HOLD_CONFIDENCE_THRESHOLD",
+      "InferenceResult",
+      "SPARSE_MAX_CONFIDENCE",
+      "TrainResult",
+      "build_ad_training_frame",
+      "predict_ad_action",
+      "train_ad_performance"
+    ],
+    "ai/recommendations": [
+      "HostProductMatch",
+      "ProductPushSuggestion",
+      "StreamOptimizationSuggestion",
+      "get_host_product_matching",
+      "get_product_push_suggestions",
+      "get_stream_optimization"
+    ],
+    "ai/forecasting": [
+      "ForecastResult",
+      "LowStockRisk",
+      "VelocityChange",
+      "get_forecast",
+      "get_low_stock_risks",
+      "get_velocity_changes"
+    ],
+    "integrations/tiktok": [
+      "strip_nones",
+      "AnalyticsResource",
+      "AuthorizationResource",
+      "OrdersResource",
+      "ProductsResource",
+      "ReturnsResource",
+      "InventoryResource",
+      "FulfillmentResource",
+      "PromotionResource",
+      "CreatorsResource",
+      "LivestreamsResource",
+      "SettlementsResource"
+    ],
+    "core/security": [
+      "TikTokOAuthService",
+      "Unauthorized",
+      "get_current_user",
+      "verify_supabase_jwt"
+    ]
+  },
+  "celery_tasks": [
+    {
+      "name": "refresh_action_cards",
+      "module": "workers/tasks",
+      "delegates_to": "services/action_cards"
+    },
+    {
+      "name": "execute_approved_tool",
+      "module": "workers/tasks",
+      "delegates_to": "services/execution"
+    }
+  ],
+  "enforcement": {
+    "import_linter": false,
+    "architecture_audit_yml": true,
+    "audit_scripts": [
+      "audit_module_drift.py",
+      "audit_cycles.py",
+      "audit_module_size.py"
+    ],
+    "pr_blocking": false,
+    "notes": "Nightly architecture-audit.yml runs with continue-on-error; no import-linter; no PR gate for forbidden imports."
+  },
+  "score": 5.5,
+  "top5": [
+    "Introduce import-linter (or AST CI) with allowed dependency matrix; fail PRs on forbidden edges.",
+    "Split god files models/models.py (~813 LOC) and repositories/repos.py (~1203 LOC) into per-domain packages with clear ownership.",
+    "Enforce package-root imports only: consumers use services.X / integrations.tiktok public __init__; ban deep submodule imports.",
+    "Break cycles (execution\u2194operations, security\u2194tiktok services, action_cards/execution\u2194workers.tasks) via ports/adapters.",
+    "Make API routes thin adapters: one owning service per router; no direct integrations/tiktok or models imports in routes."
+  ],
+  "runtime_ownership": {
+    "database_tables": [
+      {
+        "table": "users",
+        "owner": "Auth / TikTok OAuth services",
+        "primary_writers": [
+          "services/tiktok (OAuth stores)"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api",
+          "core/security"
+        ],
+        "notes": "Created during OAuth shop connect; no dedicated identity module."
+      },
+      {
+        "table": "shops",
+        "owner": "Auth / TikTok OAuth services",
+        "primary_writers": [
+          "services/tiktok",
+          "core/security/tiktok_oauth"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api",
+          "etl (lookup by tiktok_shop_id)"
+        ],
+        "notes": "Dual writers: security OAuth service + services/tiktok stores \u2014 ownership split."
+      },
+      {
+        "table": "tiktok_credentials",
+        "owner": "Auth / TikTok OAuth services",
+        "primary_writers": [
+          "services/tiktok",
+          "core/security/tiktok_oauth"
+        ],
+        "also_writes": [],
+        "readers": [
+          "workers/polling",
+          "execution",
+          "action_cards refresh"
+        ],
+        "notes": "Encrypted tokens; shared by all TikTok callers via credential resolver."
+      },
+      {
+        "table": "tiktok_sync_state",
+        "owner": "Polling workers",
+        "primary_writers": [
+          "workers/polling"
+        ],
+        "also_writes": [],
+        "readers": [
+          "workers/polling"
+        ],
+        "notes": "Clear single owner."
+      },
+      {
+        "table": "orders",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api/routes/orders",
+          "aggregates",
+          "scoring"
+        ],
+        "notes": "Ingest via webhook+polling handoff \u2192 ETL upsert."
+      },
+      {
+        "table": "order_items",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "aggregates",
+          "scoring",
+          "ai"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "returns",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "aggregates",
+          "scoring"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "products",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api/routes/products",
+          "aggregates",
+          "scoring",
+          "execution"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "inventory_items",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "aggregates",
+          "scoring",
+          "execution"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "settlements",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "aggregates"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "creators",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api/routes/creators",
+          "ai/recommendations"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "livestreams",
+        "owner": "ETL / Data Pipeline",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "aggregates",
+          "ai"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "analytics_performance_intervals",
+        "owner": "Analytics Backfill (+ ETL)",
+        "primary_writers": [
+          "services/analytics_backfill",
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "aggregates"
+        ],
+        "notes": "Shared write surface between backfill partitions and ETL transform path."
+      },
+      {
+        "table": "analytics_backfill_partitions",
+        "owner": "Analytics Backfill",
+        "primary_writers": [
+          "services/analytics_backfill"
+        ],
+        "also_writes": [],
+        "readers": [
+          "services/analytics_backfill"
+        ],
+        "notes": "Clear single owner."
+      },
+      {
+        "table": "processed_events",
+        "owner": "ETL",
+        "primary_writers": [
+          "services/etl"
+        ],
+        "also_writes": [],
+        "readers": [
+          "services/etl"
+        ],
+        "notes": "Idempotency ledger \u2014 ETL exclusive."
+      },
+      {
+        "table": "webhook_raw_events",
+        "owner": "TikTok webhook services",
+        "primary_writers": [
+          "services/tiktok (webhook_raw_log)"
+        ],
+        "also_writes": [],
+        "readers": [
+          "ops/debug"
+        ],
+        "notes": "Audit trail before ETL handoff."
+      },
+      {
+        "table": "workflow_webhook_signals",
+        "owner": "TikTok webhook services",
+        "primary_writers": [
+          "services/tiktok (webhook_handlers)"
+        ],
+        "also_writes": [],
+        "readers": [
+          "operations (future)"
+        ],
+        "notes": "Phase 2 catalog signal store."
+      },
+      {
+        "table": "action_cards",
+        "owner": "Action Cards / Scoring",
+        "primary_writers": [
+          "services/action_cards"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api/routes/action_cards"
+        ],
+        "notes": "Written by refresh pipeline after scoring."
+      },
+      {
+        "table": "recommendations",
+        "owner": "Intelligence (legacy AI recommendations)",
+        "primary_writers": [
+          "api/routes/recommendations (create via repo)"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api"
+        ],
+        "notes": "API route can create \u2014 weak ownership vs action_cards path."
+      },
+      {
+        "table": "tool_executions",
+        "owner": "Execution",
+        "primary_writers": [
+          "services/execution"
+        ],
+        "also_writes": [],
+        "readers": [
+          "api/routes/executions",
+          "workers/tasks"
+        ],
+        "notes": "Clear owner; Celery task updates status."
+      },
+      {
+        "table": "workflow_outcome_records",
+        "owner": "Operations",
+        "primary_writers": [
+          "services/operations"
+        ],
+        "also_writes": [
+          "services/execution (calls outcome_tracking)"
+        ],
+        "notes": "Operations owns schema; execution invokes record API \u2014 cycle risk."
+      },
+      {
+        "table": "alert_configs",
+        "owner": "Alerts",
+        "primary_writers": [
+          "services/alerts"
+        ],
+        "also_writes": [],
+        "readers": [
+          "services/alerts"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "alert_history",
+        "owner": "Alerts",
+        "primary_writers": [
+          "services/alerts"
+        ],
+        "also_writes": [],
+        "readers": [
+          "services/alerts"
+        ],
+        "notes": ""
+      },
+      {
+        "table": "campaigns",
+        "owner": "Feedback / Commerce graph",
+        "primary_writers": [
+          "services/feedback (via GraphRepo)"
+        ],
+        "also_writes": [],
+        "readers": [
+          "ai/recommendations",
+          "api/outcomes"
+        ],
+        "notes": "GraphRepo shares campaigns + graph_edges."
+      },
+      {
+        "table": "graph_edges",
+        "owner": "Feedback / Commerce graph (+ AI ranking)",
+        "primary_writers": [
+          "services/feedback",
+          "ai/recommendations (reads/uses GraphRepo)"
+        ],
+        "also_writes": [],
+        "readers": [
+          "ai/recommendations",
+          "ai/ranking"
+        ],
+        "notes": "Ownership fuzzy between feedback ingest and matching engine."
+      }
+    ],
+    "celery_tasks": [
+      {
+        "task_name": "juli_backend.refresh_action_cards",
+        "entrypoint": "workers/tasks/action_card_refresh.py",
+        "logical_owner": "Action Cards / Scoring",
+        "enqueued_by": [
+          "services/action_cards.dispatch (API refresh)"
+        ],
+        "delegates_to": "services.action_cards.refresh.run_action_card_refresh",
+        "broker_keys": "Celery default queue on CELERY_BROKER_URL (Redis or memory)",
+        "notes": "Thin wrapper \u2014 good. Owner is action_cards, not workers package."
+      },
+      {
+        "task_name": "juli_backend.execute_approved_tool",
+        "entrypoint": "workers/tasks/tool_execution.py",
+        "logical_owner": "Execution",
+        "enqueued_by": [
+          "services/execution.dispatch (API executions)"
+        ],
+        "delegates_to": "services.execution.worker",
+        "broker_keys": "Celery default queue on CELERY_BROKER_URL",
+        "notes": "Thin wrapper \u2014 good. No Celery beat schedule defined yet."
+      }
+    ],
+    "celery_infra": {
+      "app": "workers/celery_app.py",
+      "broker_env": "CELERY_BROKER_URL",
+      "result_env": "CELERY_RESULT_BACKEND",
+      "beat": "None configured in code",
+      "ownership": "Workers package owns Celery app wiring; domain modules own task semantics"
+    },
+    "redis_namespaces": [
+      {
+        "pattern": "ratelimit:{app_id}:{shop_id}:{endpoint}",
+        "owner": "TikTok Integration (RateLimiter)",
+        "used_by": [
+          "workers/polling",
+          "services/action_cards.refresh",
+          "any TikTok client with RateLimiter"
+        ],
+        "env": "REDIS_URL",
+        "notes": "Only application-defined Redis key namespace found in backend code."
+      },
+      {
+        "pattern": "celery-* / celery task meta (broker-dependent)",
+        "owner": "Workers (Celery infra)",
+        "used_by": [
+          "Celery workers/API producers"
+        ],
+        "env": "CELERY_BROKER_URL, CELERY_RESULT_BACKEND",
+        "notes": "If broker is Redis, Celery uses its own key prefixes \u2014 not namespaced under juli_*. No custom juli: prefix."
+      },
+      {
+        "pattern": "(none) juli:* / module:* application cache",
+        "owner": "\u2014 missing",
+        "used_by": [],
+        "env": "\u2014",
+        "notes": "No module-owned cache namespaces. Future precompute/KPI cache has no ownership convention yet."
+      }
+    ],
+    "external_integrations": [
+      {
+        "system": "TikTok Shop Partner API",
+        "owner": "integrations/tiktok (HTTP client) + services/tiktok (OAuth/webhooks)",
+        "surfaces": [
+          "OAuth Shop",
+          "Business Advertiser",
+          "Account Holder",
+          "webhooks HMAC",
+          "polling sync",
+          "execution sandbox writes"
+        ],
+        "env": [
+          "TIKTOK_APP_KEY",
+          "TIKTOK_APP_SECRET",
+          "TIKTOK_REDIRECT_URI",
+          "TIKTOK_BASE_URL",
+          "TIKTOK_*_AUTH_ID",
+          "TIKTOK_BUSINESS_*",
+          "TIKTOK_TOKEN_ENCRYPTION_KEY"
+        ],
+        "boundary_health": "Split: leaf client vs domain services; API routes still call both."
+      },
+      {
+        "system": "Supabase Postgres",
+        "owner": "database module (engine/session/Alembic)",
+        "surfaces": [
+          "DATABASE_URL via async SQLAlchemy",
+          "Alembic migrations"
+        ],
+        "env": [
+          "DATABASE_URL"
+        ],
+        "boundary_health": "Good infra ownership; table schemas not module-owned."
+      },
+      {
+        "system": "Supabase Auth (JWT)",
+        "owner": "core/security",
+        "surfaces": [
+          "verify_supabase_jwt",
+          "get_current_user"
+        ],
+        "env": [
+          "SUPABASE_JWT_SECRET"
+        ],
+        "boundary_health": "Auth-only \u2014 no Supabase SDK client in runtime Python."
+      },
+      {
+        "system": "Redis",
+        "owner": "Shared infra; primary consumer = TikTok RateLimiter + optional Celery broker",
+        "surfaces": [
+          "ratelimit:* keys",
+          "Celery broker/backend if configured"
+        ],
+        "env": [
+          "REDIS_URL",
+          "CELERY_BROKER_URL",
+          "CELERY_RESULT_BACKEND"
+        ],
+        "boundary_health": "No module key-namespace registry; collision risk if new caches added."
+      },
+      {
+        "system": "OpenObserve / PostHog",
+        "owner": "Observability (DOCP) \u2014 planned Phase 2.11, not as-built in backend runtime yet",
+        "surfaces": [
+          "planned logs/metrics/UX reliability"
+        ],
+        "env": [
+          "(planned)"
+        ],
+        "boundary_health": "Documented in ADR-039; not present as owned runtime module code yet."
+      },
+      {
+        "system": "Billing / payments",
+        "owner": "\u2014 missing",
+        "surfaces": [],
+        "env": [],
+        "boundary_health": "No integration."
+      }
+    ],
+    "findings": [
+      "Most commerce tables have a clear write owner (ETL); identity/credentials have dual writers (core/security vs services/tiktok).",
+      "Celery tasks are correctly thin and domain-owned; workers package is only wiring.",
+      "Redis application namespace is a single ratelimit:* pattern owned by TikTok integration \u2014 no broader convention.",
+      "External TikTok ownership is split across integrations + services + API routes.",
+      "No machine-readable ownership registry for tables/tasks/keys/integrations."
+    ]
+  }
+}
