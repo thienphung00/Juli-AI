@@ -142,7 +142,20 @@ def test_mmu10_oauth_callback_module_does_not_import_app_review_store() -> None:
         for module in modules
         if module.endswith("app_review_store") or module.endswith("persist_oauth_tokens")
     }
-    assert forbidden == [], f"oauth callback module imports competing writer: {forbidden}"
+    assert not forbidden, f"oauth callback module imports competing writer: {forbidden}"
+
+
+def test_mmu10_callback_infrastructure_source_uses_facade_not_persist_helper() -> None:
+    """AC: oauth.py must delegate to TikTokOAuthService, not persist_oauth_tokens."""
+    oauth_module = BACKEND_SRC / "services/tiktok/oauth.py"
+    source = oauth_module.read_text(encoding="utf-8")
+
+    assert "TikTokOAuthService" in source or OAUTH_FACADE_MODULE in source, (
+        "OAuth callback infrastructure must import Auth & Security facade"
+    )
+    assert "persist_oauth_tokens" not in source, (
+        "OAuth callback must not call competing app_review_store writer"
+    )
 
 
 def test_mmu10_complete_callback_delegates_to_oauth_facade() -> None:
@@ -168,7 +181,7 @@ def test_mmu10_auth_tiktok_callback_route_avoids_competing_writer_imports() -> N
     modules = _collect_import_modules(route.read_text(encoding="utf-8"))
 
     forbidden = {m for m in modules if "app_review_store" in m}
-    assert forbidden == [], f"auth_tiktok route imports competing writer module: {forbidden}"
+    assert not forbidden, f"auth_tiktok route imports competing writer module: {forbidden}"
     assert any(m.startswith("juli_backend.services.tiktok.oauth") for m in modules), (
         "auth_tiktok route must import OAuth facade entrypoint module"
     )
