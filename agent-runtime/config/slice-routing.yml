@@ -1279,10 +1279,48 @@ MMU-6:
     - web/
     - Sibling issue context caches
 
-MMU-11:
-  executorDomain: backend
 MMU-9:
   executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/database/MODULE.md
+    - .cursor/rules/patterns.mdc
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/database/__init__.py
+    - backend/src/juli_backend/database/migrations/env.py
+    - backend/src/juli_backend/services/etl/consumer.py
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - tests/unit/test_ownership_registry.py
+    - tests/unit/test_etl.py
+  loadWhenNeeded:
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/services/execution/MODULE.md
+    - backend/src/juli_backend/services/alerts/MODULE.md
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - .cursor/skills/domain/data-platform/SKILL.md
+    - agent-runtime/scripts/ci/audit_module_drift.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - web/
+    - ios/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-11:
+  executorDomain: backend
   requiredDocs:
     - EXECUTION.md
     - "{handoffPath}"
@@ -1313,35 +1351,12 @@ MMU-9:
   doNotLoad:
     - docs/handoffs/archive/
     - docs/product/features/
-    - backend/src/juli_backend/database/MODULE.md
-    - .cursor/rules/patterns.mdc
-  requiredModules:
-    - docs/architecture/ownership-registry.yml
-    - backend/src/juli_backend/models/models.py
-    - backend/src/juli_backend/repositories/repos.py
-    - backend/src/juli_backend/database/__init__.py
-    - backend/src/juli_backend/database/migrations/env.py
-    - backend/src/juli_backend/services/etl/consumer.py
-    - backend/src/juli_backend/services/etl/MODULE.md
-    - agent-runtime/scripts/ci/check_ownership_registry.py
-    - tests/unit/test_ownership_registry.py
-    - tests/unit/test_etl.py
-  loadWhenNeeded:
-    - docs/handoffs/modular-monolith-audit-data.json
-    - backend/src/juli_backend/services/execution/MODULE.md
-    - backend/src/juli_backend/services/alerts/MODULE.md
-    - backend/src/juli_backend/services/action_cards/MODULE.md
-    - .cursor/skills/domain/data-platform/SKILL.md
-    - agent-runtime/scripts/ci/audit_module_drift.py
-  doNotLoad:
-    - docs/handoffs/archive/
-    - docs/product/features/
     - apps/demo/
     - apps/landing/
     - apps/dashboard/
-    - web/
     - ios/
-    - docs/product/design/
+    - web/
+    - backend/src/juli_backend/services/etl/persistence/
     - Sibling issue context caches
 
 MMU-5:
@@ -1384,6 +1399,45 @@ MMU-5:
     - apps/dashboard/
     - ios/
     - web/
-    - backend/src/juli_backend/services/etl/persistence/
     - backend/src/juli_backend/ai/
+    - Sibling issue context caches
+
+MMU-12:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/ownership-registry.yml
+    - docs/adr/041-vps-redis-ephemeral-cache-and-celery.md
+    - docs/handoffs/modular-monolith-audit-data.json
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/integrations/tiktok/rate_limiter.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/services/analytics_kpi_cache/cache.py
+    - backend/src/juli_backend/services/analytics_kpi_cache/MODULE.md
+    - backend/src/juli_backend/services/webhook/material_gate.py
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/workers/README.md
+  loadWhenNeeded:
+    - docs/architecture/redis-namespace-policy.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - agent-runtime/scripts/ci/check_redis_key_prefixes.py
+    - backend/src/juli_backend/services/action_cards/refresh.py
+    - backend/src/juli_backend/services/webhook/material_worker.py
+    - backend/src/juli_backend/services/webhook/material_dispatch.py
+    - backend/src/juli_backend/api/main.py
+    - backend/src/juli_backend/api/routes/demo_analytics.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
     - Sibling issue context caches
