@@ -5,12 +5,12 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.credential_resolver import resolve_sandbox_write_credential
-from juli_backend.integrations.tiktok.factories import (
+from juli_backend.integrations.tiktok import (
+    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     SandboxWriteClientFactory,
     SandboxWriteResources,
 )
-from juli_backend.integrations.tiktok.merchant import SANDBOX_AUTH_ID
 
 NOOP_TOOL_NAMES: frozenset[str] = frozenset({"noop.ping"})
 

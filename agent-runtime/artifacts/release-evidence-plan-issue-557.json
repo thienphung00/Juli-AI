@@ -1,0 +1,70 @@
+{
+  "planId": "rep-557-tiktok-package-facade",
+  "affectedPublicSurfaces": [
+    "juli_backend.integrations.tiktok package-root API consumed by backend modules"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local candidate environment: import the TikTok package facade and execute focused caller contract tests; no public traffic or live TikTok calls",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "tiktok-package-facade-contract",
+        "entryUrl": "local Python import: juli_backend.integrations.tiktok",
+        "assertions": [
+          "documented public symbols import from the package root",
+          "representative callers no longer deep-import TikTok leaf modules",
+          "no HTTP, Redis, database, Celery, or TikTok side effects occur at import time"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: Python package facade has no HTML route or static assets"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "The change adds a package-root facade and migrates imports only; it makes no database, queue, deployment, or external API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy the prior stable backend revision; legacy leaf modules remain present during this facade migration",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_tiktok_public_facade.py tests/unit/test_import_boundaries.py",
+    "python agent-runtime/scripts/ci/check_import_boundaries.py --strict",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 557"
+  ],
+  "doNotInfer": [
+    "public traffic or canary deployment",
+    "static-asset verification",
+    "live TikTok credentials, API calls, or webhook traffic",
+    "database migration or persistence changes",
+    "forbidden-edge remediation owned by MMU-9, MMU-10, or worker follow-up slices"
+  ]
+}

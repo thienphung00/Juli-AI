@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.token_crypto import decrypt_token, encrypt_token
-from juli_backend.integrations.tiktok.merchant import (
+from juli_backend.integrations.tiktok import (
     TikTokCapability,
     is_cross_merchant_lookup,
 )

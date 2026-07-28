@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from juli_backend.integrations.tiktok.factories import SandboxWriteResources
+from juli_backend.integrations.tiktok import SandboxWriteResources
 
 
 def _decode_optional_base64(value: str | None) -> bytes | None:
@@ -61,9 +61,7 @@ def _resolve_brand_id(
     if brands is None or not _category_requires_brand(attributes):
         return None
     brand_rows = brands.get("brands") or []
-    authorized = [
-        row for row in brand_rows if row.get("authorized_status") == "AUTHORIZED"
-    ]
+    authorized = [row for row in brand_rows if row.get("authorized_status") == "AUTHORIZED"]
     chosen = authorized[0] if authorized else (brand_rows[0] if brand_rows else None)
     if chosen is None:
         return None
@@ -89,12 +87,9 @@ def _first_suggestion_text(
                 continue
             first = items[0]
             if isinstance(first, dict):
-                return str(
-                    first.get("text")
-                    or first.get("value")
-                    or first.get("name")
-                    or ""
-                ) or None
+                return (
+                    str(first.get("text") or first.get("value") or first.get("name") or "") or None
+                )
             return str(first)
     return None
 
@@ -184,9 +179,7 @@ def _build_edit_body_from_chain(
     edit_body = dict(payload.get("edit_body") or {})
 
     if "title" not in edit_body:
-        suggested_title = _first_suggestion_text(
-            suggestions, product_id=product_id, field="TITLE"
-        )
+        suggested_title = _first_suggestion_text(suggestions, product_id=product_id, field="TITLE")
         if suggested_title:
             edit_body["title"] = suggested_title
         elif current.get("title"):
@@ -223,13 +216,9 @@ def run_create_hero_product_chain(
 
     brands = None
     brand_id = payload.get("brand_id")
-    if not brand_id and (
-        payload.get("resolve_brand") or _category_requires_brand(attributes)
-    ):
+    if not brand_id and (payload.get("resolve_brand") or _category_requires_brand(attributes)):
         brands = products.get_brands(category_id=category_id)
-        brand_id = _resolve_brand_id(
-            payload, attributes=attributes, brands=brands
-        )
+        brand_id = _resolve_brand_id(payload, attributes=attributes, brands=brands)
 
     image_uri = _resolve_image_uri(payload, products)
     file_uri = _resolve_file_uri(payload, products)

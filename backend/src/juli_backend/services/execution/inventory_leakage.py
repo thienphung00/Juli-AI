@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from juli_backend.integrations.tiktok.factories import SandboxWriteResources
+from juli_backend.integrations.tiktok import SandboxWriteResources
 
 
 def _first_inventory_match(search_result: dict[str, Any]) -> tuple[str, str]:

@@ -13,10 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.config.runtime import require_env
 from juli_backend.database import TikTokCredentialRepo, get_session
 from juli_backend.database.exceptions import NotFound
-from juli_backend.integrations.tiktok.auth import (
+from juli_backend.integrations.tiktok import (
     DEFAULT_OPEN_API_BASE_URL,
-)
-from juli_backend.integrations.tiktok.merchant import (
     TikTokCapability,
 )
 from juli_backend.services.tiktok.verify_connection import (
@@ -105,7 +103,6 @@ async def verify_tiktok_connection(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "Database unavailable for credential lookup — run "
-                "`alembic upgrade head` on the VPS"
+                "Database unavailable for credential lookup — run `alembic upgrade head` on the VPS"
             ),
         ) from exc
