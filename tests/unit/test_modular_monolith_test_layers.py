@@ -2,6 +2,8 @@
 
 Codifies placement rules for unit / integration / E2E suites and proves sample
 architecture contracts (import boundaries, ownership registry) stay enforceable.
+
+See python-testing.md "Modular Monolith Test Layers" for placement guidance.
 """
 
 from __future__ import annotations
