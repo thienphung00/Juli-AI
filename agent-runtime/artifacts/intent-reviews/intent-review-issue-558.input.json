@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-558",
+  "issue": 558,
+  "timestamp": "2026-07-28T04:02:04Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "ef3ea5919b8cb7e2701d5f143df798c66eb159b8",
+  "phaseRunId": "558-20260728T032501",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Uncommitted diff vs origin/main (ef3ea591) implements MMU-9 APPROVED first slice A only: ProcessedEvent + ProcessedEventsRepo moved to services/etl/persistence/ingest/ with model.py, repo.py, and public __init__; EtlConsumer imports ProcessedEventsRepo from the domain ingest facade; legacy re-export shims remain in models/models.py and repositories/repos.py; Database lazy facade resolves ProcessedEvent/ProcessedEventsRepo to the canonical ingest module; check_ownership_registry discovers ORM tables under **/persistence/**/*.py so processed_events stays registered. Shared orm_base/Base and session factory untouched; no migrations, dual-writer, commerce-bag, or execution persistence moves. Seven focused AC pytest nodes in tests/unit/test_etl_persistence_ingest.py cover #558 acceptance criteria (AC1 reads scope-alignment approval timestamps vs implementation startedAt; AC2–AC5 assert domain move, shared infra, single Postgres wiring, and follow-up slice tracking). 28/28 pass across ingest + ownership + etl suites. Minor harness-only addition: agent-runtime/config/slice-routing.yml MMU-9 routing block.",
+  "smells": [
+    {
+      "name": "Shotgun Surgery",
+      "path": "backend/src/juli_backend/models/models.py",
+      "hunk": "ProcessedEvent removal plus shims/facade updates span models.py, repos.py, database/__init__.py, consumer.py, check_ownership_registry.py, and new persistence/ingest package",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "MMU-9 HITL approval — strangler shims",
+      "path": "backend/src/juli_backend/models/models.py",
+      "note": "Temporary bottom-of-file re-export shims and Database lazy facade bridge match approved incremental strangler; Shotgun Surgery smell suppressed for merge blocking.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "services/etl/MODULE.md — public surface",
+      "path": "backend/src/juli_backend/services/etl/MODULE.md",
+      "note": "MODULE.md still documents ProcessedEventsRepo under juli_backend.database and persistence via repositories; ingest persistence facade not yet reflected. Doc follow-up recommended, not slice-blocking.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "database/MODULE.md — public surface",
+      "path": "backend/src/juli_backend/database/MODULE.md",
+      "note": "ProcessedEvent/ProcessedEventsRepo still listed under Database Models/Repositories — ETL; should note strangler re-export or defer to domain ingest MODULE when added.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "patterns.mdc — repository pattern",
+      "path": "backend/src/juli_backend/services/etl/persistence/ingest/repo.py",
+      "note": "ProcessedEventsRepo preserves prior claim() contract and session-scoped interface; domain-owned persistence aligns with repository encapsulation.",
+      "blocksMerge": false
+    }
+  ]
+}
