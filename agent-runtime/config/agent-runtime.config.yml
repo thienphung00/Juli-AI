@@ -433,29 +433,6 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_api/
         - Sibling issue context caches
-    524:
-      defaultSliceId: P2.10-A1
-      handoffPath: docs/product/phases/phase-2.10/PRD.md
-      childSlices:
-        "525": P2.10-A1
-        "526": P2.10-A2
-        "527": P2.10-A3
-        "528": P2.10-A4
-        "529": P2.10-A5
-        "530": P2.10-A6
-        "531": P2.10-A7
-        "532": P2.10-A8
-        "533": P2.10-A9
-        "534": P2.10-A10
-        "535": P2.10-A11
-      parentScopeBlock: "# Parent #524 — Phase 2.10 Demo dual-layer real data (2.10-A Analytics)\\n## Product boundary\\n- Masked reference-shop Analytics on public Demo (no OAuth); precompute Postgres + required Redis\\n- Material webhooks + hourly Mock reconciler; Fake Demo Refresh; Home/Settings stay mock\\n- 2.10-B Decision slices not filed yet\\n## Schema law\\n- New analytics_kpi_envelopes (shop_id, kind) + JSONB payload v1; not FeatureAggregateSnapshot\\n## Public API\\n- GET /v1/demo/analytics; DEMO_REFERENCE_SHOP_ID server-bound\\n## ADRs\\n- ADR-037 no-auth Demo · ADR-038 dual-layer pipeline / Redis required / material set\\n## Epic deferrals\\n- 2.10-B Decisions · Landing/Sign-in · Ads ETL · real Partner writes\\n"
-      doNotLoad:
-        - docs/handoffs/archive/
-        - docs/product/features/
-        - apps/landing/
-        - web/
-        - ios/
-        - Sibling issue context caches
     550:
       defaultSliceId: MMU-1
       handoffPath: docs/product/phases/modular-monolith-upgrade/PRD.md
