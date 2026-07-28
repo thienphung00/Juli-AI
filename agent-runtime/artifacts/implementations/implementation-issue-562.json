@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 562,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-28T1216Z",
+  "startedAt": "2026-07-28T12:16:15Z",
+  "completedAt": "2026-07-28T12:16:15Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [],
+  "testsAdded": [],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [],
+  "implementationSummary": "",
+  "assumptions": [],
+  "risks": []
+}
