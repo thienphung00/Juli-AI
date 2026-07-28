@@ -6,22 +6,34 @@ Receives TikTok Shop webhooks, verifies HMAC-SHA256 signatures, dispatches throu
 the Phase 2 catalog (#354), and hands validated raw payloads to the ingest pipeline
 (ETL) via an injected `handoff_fn`.
 
-## Public API
+## Public Interface
 
-- `create_app(*, app_key, app_secret, handoff_fn, raw_event_recorder=None, ...) -> FastAPI`
+Import from the package root only:
+
+```python
+from juli_backend.services.webhook import create_app, WEBHOOK_PATH, ...
+```
+
+### Package facade (`__init__.py`)
+
+Matches ``__all__`` — re-exports only:
+
+- ``create_app(*, app_key, app_secret, handoff_fn, raw_event_recorder=None, ...) -> FastAPI``
   — standalone application factory
-  - `handoff_fn: Callable[[str, str, bytes], Awaitable[None]]` — async function
-    invoked with `(channel, shop_key, payload_bytes)` for each verified in-scope event
-  - `raw_event_recorder` — optional `RawWebhookEventRecorder`; when `session_factory`
-    is set, the app constructs `DatabaseRawWebhookEventRecorder(session)` per request
-- `build_webhook_service(*, app_key, app_secret, handoff_fn, side_effects=None, raw_event_recorder=None) -> TikTokWebhookService`
+  - ``handoff_fn: Callable[[str, str, bytes], Awaitable[None]]`` — async function
+    invoked with ``(channel, shop_key, payload_bytes)`` for each verified in-scope event
+  - ``raw_event_recorder`` — optional ``RawWebhookEventRecorder``; when ``session_factory``
+    is set, the app constructs ``DatabaseRawWebhookEventRecorder(session)`` per request
+- ``build_webhook_service(*, app_key, app_secret, handoff_fn, side_effects=None, raw_event_recorder=None) -> TikTokWebhookService``
   — shared verify+dispatch+handoff (+ optional raw audit) assembly, reused by
-  `create_app` and by `juli_backend.api.routes.webhook_tiktok` (the deployed mount)
-- `handle_tiktok_webhook_delivery(*, session, app_key, app_secret, body, signature, headers) -> WebhookProcessResult`
+  ``create_app`` and by ``juli_backend.api.routes.webhook_tiktok`` (the deployed mount)
+- ``handle_tiktok_webhook_delivery(*, session, app_key, app_secret, body, signature, headers) -> WebhookProcessResult``
   — production HTTP wiring for the main API mount: assembles ETL handoff, DB side
   effects, and raw-event recorder on the request-scoped session, then commits
-- `HandoffFn` — type alias (from `juli_backend.services.ingestion`)
-- `WEBHOOK_PATH` — `/webhooks/tiktok`
+- ``HandoffFn`` — type alias (re-exported from ``juli_backend.services.ingestion``)
+- ``EVENT_CATEGORY_ROUTES`` — legacy category → ingest channel map (re-exported from
+  ``juli_backend.services.tiktok``)
+- ``WEBHOOK_PATH`` — ``/webhooks/tiktok``
 
 ## Dependencies
 
