@@ -926,6 +926,8 @@ META-4:
     - backend/src/juli_backend/
     - Sibling issue context caches
 
+# --- Phase 2.10-A Demo dual-layer Analytics (parent #524) ---
+
 P2.10-A1:
   executorDomain: data-platform
   requiredDocs:
@@ -1016,7 +1018,6 @@ P2.10-A4:
     - docs/adr/038-phase-2.10-dual-layer-pipeline.md
     - docs/ml/visual_layer.md
     - CONTEXT.md
-    - agent-runtime/artifacts/release-evidence-plan-issue-528.json
   requiredModules:
     - backend/src/juli_backend/repositories/repos.py
   loadWhenNeeded:
@@ -1186,6 +1187,94 @@ P2.10-A11:
   doNotLoad:
     - docs/handoffs/archive/
     - docs/product/features/
+    - ios/
+    - web/
+    - Sibling issue context caches
+
+# --- Modular Monolith Upgrade (#550) ---
+
+MMU-1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/workers/tasks/action_card_refresh.py
+    - backend/src/juli_backend/workers/tasks/tool_execution.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  loadWhenNeeded:
+    - docs/architecture/data-sources.md
+    - agent-runtime/scripts/ci/audit_module_drift.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - Sibling issue context caches
+
+MMU-2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+  requiredModules:
+    - backend/src/juli_backend/services
+    - backend/src/juli_backend/integrations
+    - backend/src/juli_backend/api
+    - backend/src/juli_backend/workers
+    - backend/src/juli_backend/core
+  loadWhenNeeded:
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - .cursor/rules/patterns.mdc
+    - docs/architecture/system-design.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - Sibling issue context caches
+
+MMU-6:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+  requiredModules:
+    - backend/src/juli_backend/services/action_cards/dispatch.py
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - backend/src/juli_backend/services/execution/dispatch.py
+    - backend/src/juli_backend/workers/tasks/action_card_refresh.py
+    - backend/src/juli_backend/workers/tasks/tool_execution.py
+  loadWhenNeeded:
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - tests/unit/test_action_cards_contract.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
     - ios/
     - web/
     - Sibling issue context caches

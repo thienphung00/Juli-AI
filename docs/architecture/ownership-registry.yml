@@ -1,0 +1,209 @@
+schemaVersion: "1.0.0"
+
+metadata:
+  authority: docs/architecture/MODULES.md
+  auditSource: docs/handoffs/modular-monolith-audit-data.json
+  description: >
+    Machine-readable runtime ownership for Postgres tables, Celery tasks, Redis key
+    namespaces, and external integrations. Planning module names match the MODULES.md
+    index (Tier-1 catalog).
+  boundaryGuidance:
+    doNotImport: |
+      Cross-module callers must use each module's published public facade (package
+      __init__ or MODULE.md Public Interface). Do not import deep submodules such as
+      integrations/tiktok/rate_limiter.py, services/execution/worker.py, or
+      workers/tasks/* from domain packages — enqueue via dispatcher ports instead.
+      The workers package owns Celery app wiring only; domain modules own task semantics.
+      See docs/architecture/MODULES.md and .cursor/rules/patterns.mdc.
+    readVsWrite: |
+      Each databaseTables entry names one planning-module owner. Only the owner (or its
+      published write API) may INSERT/UPDATE/DELETE that table; other modules read via
+      repositories or public query helpers. Dual writers called out in audit notes are
+      debt — new code must not add writers. Redis namespaces: only the listed owner may
+      create keys matching the pattern. External integrations: HTTP/auth clients stay in
+      the owning module; routes enqueue or delegate, they do not reimplement vendor I/O.
+
+planningModules:
+  - Auth & Security
+  - Backend API
+  - Cross-cutting
+  - Database
+  - Data Pipeline
+  - Integrations
+  - Intelligence
+  - Workers & Async
+
+databaseTables:
+  users:
+    owner: Auth & Security
+    access: write
+    notes: Created during TikTok OAuth shop connect.
+  shops:
+    owner: Auth & Security
+    access: write
+    notes: Dual-writer debt (core/security OAuth + services/tiktok) — collapse to Auth.
+  tiktok_credentials:
+    owner: Auth & Security
+    access: write
+    notes: Encrypted tokens; credential resolver is the read surface for TikTok callers.
+  tiktok_sync_state:
+    owner: Workers & Async
+    access: write
+    notes: Polling cursor state; exclusive to polling workers.
+  orders:
+    owner: Data Pipeline
+    access: write
+    notes: ETL upsert from webhook + polling handoff.
+  order_items:
+    owner: Data Pipeline
+    access: write
+  returns:
+    owner: Data Pipeline
+    access: write
+  products:
+    owner: Data Pipeline
+    access: write
+  inventory_items:
+    owner: Data Pipeline
+    access: write
+  settlements:
+    owner: Data Pipeline
+    access: write
+  creators:
+    owner: Data Pipeline
+    access: write
+  livestreams:
+    owner: Data Pipeline
+    access: write
+  analytics_performance_intervals:
+    owner: Data Pipeline
+    access: write
+    notes: Shared write surface between analytics backfill and ETL transform path.
+  analytics_backfill_partitions:
+    owner: Data Pipeline
+    access: write
+    notes: Backfill partition ledger.
+  analytics_kpi_envelopes:
+    owner: Intelligence
+    access: write
+    notes: Phase 2.10 precomputed Analytics KPI read model envelopes.
+  processed_events:
+    owner: Data Pipeline
+    access: write
+    notes: Idempotency ledger — ETL exclusive.
+  webhook_raw_events:
+    owner: Data Pipeline
+    access: write
+    notes: Audit trail before ETL handoff (TikTok webhook services).
+  workflow_webhook_signals:
+    owner: Data Pipeline
+    access: write
+    notes: Phase 2 catalog signal store from TikTok webhooks.
+  action_cards:
+    owner: Intelligence
+    access: write
+    notes: Written by refresh pipeline after scoring.
+  recommendations:
+    owner: Intelligence
+    access: write
+    notes: Legacy AI recommendations path; prefer action_cards owner for new work.
+  tool_executions:
+    owner: Workers & Async
+    access: write
+    notes: Execution module persists; Celery task updates status.
+  workflow_outcome_records:
+    owner: Workers & Async
+    access: write
+    notes: Operations schema; execution invokes record API — cycle risk under MMU-6.
+  alert_configs:
+    owner: Cross-cutting
+    access: write
+  alert_history:
+    owner: Cross-cutting
+    access: write
+  campaigns:
+    owner: Intelligence
+    access: write
+    notes: Commerce graph via GraphRepo (feedback ingest).
+  graph_edges:
+    owner: Intelligence
+    access: write
+    notes: Graph edges for matching/ranking; fuzzy ownership with AI ranking reads.
+
+celeryTasks:
+  juli_backend.refresh_action_cards:
+    owner: Intelligence
+    wrapper: backend/src/juli_backend/workers/tasks/action_card_refresh.py
+    delegatesTo: services.action_cards.refresh.run_action_card_refresh
+  juli_backend.execute_approved_tool:
+    owner: Workers & Async
+    wrapper: backend/src/juli_backend/workers/tasks/tool_execution.py
+    delegatesTo: services.execution.worker.run_approved_tool
+  juli_backend.material_analytics_precompute:
+    owner: Data Pipeline
+    wrapper: backend/src/juli_backend/workers/tasks/material_analytics_precompute.py
+    delegatesTo: services.webhook.material_worker.run_material_analytics_compute
+  juli_backend.mock_analytics_hourly_reconcile:
+    owner: Data Pipeline
+    wrapper: backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py
+    delegatesTo: workers.tasks.material_analytics_precompute.material_analytics_precompute_sync
+    notes: Phase 2.10 Mock-mode hourly Demo reference shop reconciliation only.
+
+redisNamespaces:
+  - pattern: "ratelimit:*"
+    owner: Integrations
+    access: write
+    env: REDIS_URL
+    notes: TikTok RateLimiter token bucket (ratelimit:{app_id}:{shop_id}:{endpoint}).
+  - pattern: "celery-*"
+    owner: Workers & Async
+    access: write
+    env: CELERY_BROKER_URL
+    notes: Celery broker/result meta keys when Redis is the broker backend.
+
+externalIntegrations:
+  - id: tiktok_shop_api
+    name: TikTok Shop Partner API
+    owner: Integrations
+    surfaces:
+      - OAuth Shop
+      - Business Advertiser
+      - webhooks HMAC
+      - polling sync
+      - execution sandbox writes
+    env:
+      - TIKTOK_APP_KEY
+      - TIKTOK_APP_SECRET
+      - TIKTOK_BASE_URL
+  - id: supabase_postgres
+    name: Supabase Postgres
+    owner: Database
+    surfaces:
+      - DATABASE_URL async SQLAlchemy sessions
+      - Alembic migrations
+    env:
+      - DATABASE_URL
+  - id: supabase_jwt
+    name: Supabase Auth JWT
+    owner: Auth & Security
+    surfaces:
+      - verify_supabase_jwt
+      - get_current_user
+    env:
+      - SUPABASE_JWT_SECRET
+  - id: redis
+    name: Redis
+    owner: Cross-cutting
+    surfaces:
+      - ratelimit:* keys
+      - optional Celery broker/backend
+    env:
+      - REDIS_URL
+  - id: celery_broker
+    name: Celery broker
+    owner: Workers & Async
+    surfaces:
+      - default task queue on CELERY_BROKER_URL
+    env:
+      - CELERY_BROKER_URL
+      - CELERY_RESULT_BACKEND
