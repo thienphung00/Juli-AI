@@ -104,6 +104,7 @@ async def bound_fake_outcome_recorder():
     set_workflow_outcome_recorder(None)
 
 
+@pytest.mark.asyncio
 async def test_mmu7_worker_records_outcome_via_port_with_fake(
     session,
     shop,
