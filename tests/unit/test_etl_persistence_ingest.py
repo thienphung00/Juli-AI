@@ -39,9 +39,7 @@ from juli_backend.services.etl.persistence.ingest import (
 from juli_backend.services.etl.persistence.ingest import model as ingest_model
 from juli_backend.services.etl.persistence.ingest import repo as ingest_repo
 
-SCOPE_ALIGNMENT_PATH = (
-    REPO_ROOT / "agent-runtime" / "artifacts" / "workflow-cache" / "scope-alignment-issue-558.md"
-)
+SCOPE_ALIGNMENT_PATH = REPO_ROOT / "tests" / "fixtures" / "mmu9" / "scope-alignment-issue-558.md"
 IMPLEMENTATION_ARTIFACT_PATH = (
     REPO_ROOT / "agent-runtime" / "artifacts" / "implementations" / "implementation-issue-558.json"
 )
