@@ -47,3 +47,4 @@
 | [037](037-phase-2.10-demo-real-data-no-auth.md) | Phase 2.10 — Demo real-data KPI wire without auth | Accepted |
 | [038](038-phase-2.10-dual-layer-pipeline.md) | Phase 2.10 dual-layer pipeline — precompute + required cache | Accepted |
 | [041](041-vps-redis-ephemeral-cache-and-celery.md) | VPS Redis — ephemeral cache + Celery DB split (Phase 2.10 A11) | Accepted |
+| [042](042-module-docs-facade-sync.md) | MODULE.md + map.md sync to enforced facades (MMU-13) | Accepted |

@@ -1,8 +1,4 @@
 {
-  "schemaVersion": "1.0.0",
-  "artifactType": "implementation",
-  "issueId": 563,
-  "executorDomain": "backend",
   "phaseRunId": "563-20260728T121800",
   "startedAt": "2026-07-28T12:04:00Z",
   "completedAt": "2026-07-28T12:18:00Z",
@@ -13,36 +9,12 @@
     "total": 0
   },
   "toolsUsed": [
-    {
-      "toolName": "Read",
-      "count": 32,
-      "stage": "implementation"
-    },
-    {
-      "toolName": "Grep",
-      "count": 8,
-      "stage": "implementation"
-    },
-    {
-      "toolName": "Glob",
-      "count": 3,
-      "stage": "implementation"
-    },
-    {
-      "toolName": "StrReplace",
-      "count": 18,
-      "stage": "green"
-    },
-    {
-      "toolName": "Shell",
-      "count": 6,
-      "stage": "implementation"
-    },
-    {
-      "toolName": "Write",
-      "count": 3,
-      "stage": "green"
-    }
+    { "toolName": "Read", "count": 32, "stage": "implementation" },
+    { "toolName": "Grep", "count": 8, "stage": "implementation" },
+    { "toolName": "Glob", "count": 3, "stage": "implementation" },
+    { "toolName": "StrReplace", "count": 18, "stage": "green" },
+    { "toolName": "Shell", "count": 6, "stage": "implementation" },
+    { "toolName": "Write", "count": 3, "stage": "green" }
   ],
   "toolInvocationCount": 70,
   "contextFilesLoaded": [
@@ -99,12 +71,12 @@
   "implementationSummary": "MMU-13 (#563): synced docs/architecture/MODULES.md and map.md to post-MMU-8 facades; added/aligned MODULE.md public surfaces for TikTok integration, API, database (lazy PEP 562 facade), ETL, webhook, core/security, and services/tiktok. Recorded audit_module_drift (driftCount=0). Bootstrapped MMU-13 harness routing.",
   "assumptions": [
     "Intent-review fixedPoint 1d5ff260..1538f02e may predate final MODULE.md alignment commits e4a6375d/bc22539d on branch tip.",
-    "publicRelease=false \u2014 docs-only; no deploy surfaces touched.",
+    "publicRelease=false — docs-only; no deploy surfaces touched.",
     "phaseRunId 563-20260728T121800 aligned with intent-review artifact."
   ],
   "risks": [
     "Intent-review spec_fidelity=fail blocks merge until re-run on HEAD e4a6375d or executor addresses blocking findings.",
-    "slice-routing.yml removes P2.10-A profiles vs origin/main \u2014 flagged as Divergent Change smell.",
+    "slice-routing.yml removes P2.10-A profiles vs origin/main — flagged as Divergent Change smell.",
     "Doc-only slice has no pytest AC mapping nodes."
   ]
 }

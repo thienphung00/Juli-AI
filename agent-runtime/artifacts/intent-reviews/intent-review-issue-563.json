@@ -3,12 +3,39 @@
   "artifactType": "intent_review",
   "id": "intent-review-issue-563",
   "issue": 563,
-  "timestamp": "2026-07-28T12:15:09Z",
+  "timestamp": "2026-07-28T12:24:10Z",
   "reviewedBy": "intent-review skill",
-  "fixedPoint": "",
-  "spec_fidelity": "pass",
-  "specFidelityNotes": "",
-  "smells": [],
-  "convention_notes": [],
-  "phaseRunId": null
+  "fixedPoint": "1d5ff260a370898042181ce8cb5dc7461125df04",
+  "spec_fidelity": "fail",
+  "specFidelityNotes": "Diff 1d5ff260..1538f02e (#563, 4 commits). AC2\u2013AC4 satisfied: map.md expanded with post-MMU-1..8 layout, facade rule, ownership-registry links, and boundary-audit score narrative; MODULES.md adds MMU upgrade section with ownership-registry/import-boundaries links and #550 audit baseline (5.5\u2192~9). AC1 partial: only services/tiktok/MODULE.md added (facade-aligned). Required touched MODULE.md files in MMU-13 slice (integrations/tiktok, api, database, etl, webhook, core/security) were not updated \u2014 they still document pre-facade deep surfaces. Examples vs intent \"public surfaces match enforced facades\": database/MODULE.md titled \"Module: data\" with per-repo method listings instead of lazy PEP 562 facade; api/MODULE.md cites deep path juli_backend.services.webhook.app.build_webhook_service; integrations/tiktok/MODULE.md adds facade header but retains 70+ lines of leaf auth.py/client.py/resources docs contradicting import-from-root-only; core/security/MODULE.md still \"identity/infrastructure/auth\" with stale shared.utils.data deps. Orphan commit 58d3cf93 (not on branch) contains the missing MODULE.md alignment. audit-drift-2026-07-28.json reports driftCount 0 (symbol-set check only) but does not prove facade-doc parity.",
+  "smells": [
+    {
+      "name": "Divergent Change",
+      "path": "agent-runtime/config/slice-routing.yml",
+      "hunk": "Removes entire P2.10-A1..A11 slice routing (~266 lines) and rewrites MMU-9 block as MMU-3 architecture-gates profile \u2014 unrelated to #563 doc-sync intent",
+      "judgement": true,
+      "blocksMerge": true
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "patterns.mdc \u2014 package-root facade / MODULE.md Public Interface",
+      "path": "backend/src/juli_backend/database/MODULE.md",
+      "note": "Still lists deep repo method signatures and titles module \"data\" while code exposes lazy juli_backend.database facade \u2014 contradicts map.md/MODULES.md facade narrative added in this diff.",
+      "blocksMerge": true
+    },
+    {
+      "standard": "patterns.mdc \u2014 package-root facade",
+      "path": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "note": "Documents import-from-root policy then enumerates leaf submodule APIs (auth.py, client.py, resources/*) \u2014 doc/code boundary policy inconsistent with MMU-5 facade enforcement.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "MODULE.md \u2014 module identity",
+      "path": "backend/src/juli_backend/core/security/MODULE.md",
+      "note": "Header still \"identity/infrastructure/auth\"; Dependencies cite removed shared.utils.data instead of juli_backend.database.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "563-20260728T121800"
 }

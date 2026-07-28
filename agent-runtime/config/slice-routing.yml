@@ -1291,6 +1291,46 @@ MMU-8:
     - docs/product/design/
     - Sibling issue context caches
 
+MMU-9:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/database/MODULE.md
+    - .cursor/rules/patterns.mdc
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/database/__init__.py
+    - backend/src/juli_backend/database/migrations/env.py
+    - backend/src/juli_backend/services/etl/consumer.py
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - tests/unit/test_ownership_registry.py
+    - tests/unit/test_etl.py
+  loadWhenNeeded:
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/services/execution/MODULE.md
+    - backend/src/juli_backend/services/alerts/MODULE.md
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - .cursor/skills/domain/data-platform/SKILL.md
+    - agent-runtime/scripts/ci/audit_module_drift.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - web/
+    - ios/
+    - docs/product/design/
+    - Sibling issue context caches
+
 MMU-10:
   executorDomain: backend
   requiredDocs:
