@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 553,
+  "executorDomain": "backend",
+  "phaseRunId": "553-20260728T104952",
+  "startedAt": "2026-07-28T10:52:00Z",
+  "completedAt": "2026-07-28T10:58:00Z",
+  "executionDurationMs": 360000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 3,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 3,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 4,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 4,
+      "stage": "other"
+    },
+    {
+      "toolName": "Glob",
+      "count": 2,
+      "stage": "other"
+    },
+    {
+      "toolName": "UpdateCurrentStep",
+      "count": 3,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 31,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-553.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-553.json",
+    "agent-runtime/docs/schemas/implementation-artifact.schema.json",
+    "docs/product/phases/modular-monolith-upgrade/PRD.md",
+    ".cursor/rules/code-review.mdc",
+    ".cursor/skills/standalone/intent-review/SKILL.md",
+    ".cursor/skills/standalone/guardrails/SKILL.md",
+    "agent-runtime/config/slice-routing.yml",
+    ".cursor/skills/domain/backend/SKILL.md",
+    "tests/unit/test_demo_rollback_evidence.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/mcp-usage.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    ".github/pull_request_template.md",
+    ".cursor/rules/code-review.mdc",
+    ".cursor/skills/standalone/intent-review/SKILL.md",
+    ".cursor/skills/standalone/guardrails/SKILL.md",
+    "agent-runtime/config/slice-routing.yml",
+    "tests/unit/test_pr_template_mmu_contract.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-553.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_pr_template_mmu_contract.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "6 failed / 3 errors: missing .github/pull_request_template.md; code-review.mdc lacked four question headings and pull_request_template.md reference",
+      "passingTestEvidence": "7 passed — PR template, code-review.mdc, PRD, and slice-routing MMU-4 contract aligned",
+      "refactorEvidence": "Aligned intent-review step 0 and guardrails architectureFindings note to same canonical wording; no CI/workflow changes",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_pr_template_mmu_contract.py -q",
+          "exitCode": 1,
+          "outputSummary": "FEEFFE. — missing PR template; code-review missing Does it work? and pull_request_template.md"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_pr_template_mmu_contract.py -q",
+          "exitCode": 0,
+          "outputSummary": "7 passed, 1 warning (unknown mark mmu_contract)"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Created GitHub PR template with four required modular-monolith review checkboxes matching PRD § PR review. Updated code-review.mdc, intent-review, and guardrails to reference the same canonical wording and .github/pull_request_template.md. Added tests/unit/test_pr_template_mmu_contract.py (doc/template contract TDD). Branch includes slice-routing.yml bootstrap for MMU-4/7/8 (pre-staged on feature branch). acceptanceCriteriaMapping: (1) PR template four-question checklist — test_pr_template_includes_four_required_checklist_items + test_pr_template_questions_are_checklist_items; (2) Review Agent alignment — test_code_review_rule_references_same_four_questions + intent-review/guardrails wording updates; (3) No CI change — no .github/workflows/ edits.",
+  "assumptions": [
+    "slice-routing.yml MMU-4/7/8 entries were already present on feature branch; test_slice_routing_bootstraps_mmu_four verifies MMU-4 references pull_request_template.md",
+    "Architecture CI gates remain deferred to MMU-3 (#556); checklist is human/agent attestation until gates land",
+    "phaseRunId correlated from issue-context-cache-553.json Meta prepare run"
+  ],
+  "risks": [
+    "Authors may check boxes without running import-linter/cycle checks until MMU-3 CI is required",
+    "pytest mark mmu_contract is unregistered — harmless warning only"
+  ]
+}
