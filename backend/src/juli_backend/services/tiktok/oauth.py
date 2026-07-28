@@ -25,8 +25,9 @@ from juli_backend.integrations.tiktok import (
     TikTokAuth,
 )
 from juli_backend.repositories.repos import UsersRepo
-from juli_backend.services.tiktok.app_review_store import APP_REVIEW_USER_PHONE, app_review_user_id
 from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
+
+APP_REVIEW_USER_PHONE = "+849000000001"
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,14 @@ def build_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
         auth_base_url=auth_base_url,
     )
     return TikTokOAuthInfrastructureService(app_secret=app_secret, tiktok_auth=tiktok_auth)
+
+
+def _app_review_user_id() -> uuid.UUID:
+    raw = os.environ.get(
+        "TIKTOK_APP_REVIEW_USER_ID",
+        "00000000-0000-4000-8000-000000000001",
+    )
+    return uuid.UUID(raw)
 
 
 def build_partner_oauth_facade(
@@ -123,7 +132,7 @@ async def complete_tiktok_oauth_callback(
     except AuthenticationError as exc:
         raise TikTokOAuthTokenExchangeFailed from exc
 
-    owner_id = user_id or app_review_user_id()
+    owner_id = user_id or _app_review_user_id()
     await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
     facade = build_partner_oauth_facade(session, service)
     await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
