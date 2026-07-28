@@ -166,7 +166,7 @@ async def test_get_redis_outage_still_returns_postgres_rows(session, shop) -> No
     assert envelope.payload == payload
 
 
-def test_shared_redis_client_reuses_same_instance(monkeypatch) -> None:
+def test_redis_reachable_shared_client_for_api_workers(monkeypatch) -> None:
     from juli_backend.services.analytics_kpi_cache import (
         get_shared_redis_client,
         reset_shared_redis_client_for_tests,
@@ -236,3 +236,13 @@ def test_shared_redis_client_none_without_url(monkeypatch) -> None:
     reset_shared_redis_client_for_tests()
     monkeypatch.delenv("REDIS_URL", raising=False)
     assert get_shared_redis_client() is None
+
+
+def test_operator_notes_release_evidence_plan_for_demo_runtime_config() -> None:
+    from pathlib import Path
+
+    plan_path = Path("agent-runtime/artifacts/release-evidence-plan-issue-535.json")
+    assert plan_path.is_file()
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert plan["planId"] == "rep-535-vps-redis-shared-client"
+    assert "demo.app-juli.com" in plan["affectedPublicSurfaces"]
