@@ -39,5 +39,6 @@
   "maintainabilityFindings": [],
   "suggestedRemediation": [],
   "staticAnalysisExecuted": true,
-  "dynamicTestsExecuted": false
+  "dynamicTestsExecuted": false,
+  "phaseRunId": "2026-07-28T1216Z"
 }

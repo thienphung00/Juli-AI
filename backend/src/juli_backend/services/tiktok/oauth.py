@@ -122,7 +122,7 @@ async def complete_tiktok_oauth_callback(
         )
 
     try:
-        result, token_data, user_id = await service.handle_callback(
+        result, token_data, callback_user_id = await service.handle_callback(
             code,
             state,
             app_key=app_key,
@@ -132,7 +132,7 @@ async def complete_tiktok_oauth_callback(
     except AuthenticationError as exc:
         raise TikTokOAuthTokenExchangeFailed from exc
 
-    owner_id = user_id or _app_review_user_id()
+    owner_id = callback_user_id or _app_review_user_id()
     await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
     facade = build_partner_oauth_facade(session, service)
     await facade.provision_shop_and_credentials(token_data, user_id=owner_id)

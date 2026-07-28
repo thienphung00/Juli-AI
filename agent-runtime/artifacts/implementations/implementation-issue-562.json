@@ -14,15 +14,39 @@
   },
   "toolsUsed": [],
   "toolInvocationCount": 0,
-  "contextFilesLoaded": [],
-  "skillsLoaded": [],
-  "rulesLoaded": [],
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-562.json",
+    "backend/src/juli_backend/core/security/tiktok_oauth.py",
+    "backend/src/juli_backend/services/tiktok/oauth.py",
+    "backend/src/juli_backend/services/tiktok/app_review_store.py",
+    "docs/architecture/ownership-registry.yml",
+    "tests/unit/test_oauth_facade_dual_writer.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc"
+  ],
   "mcpsUsed": [],
-  "filesModified": [],
-  "testsAdded": [],
-  "testsUpdated": [],
-  "redGreenRefactorEvidence": [],
-  "implementationSummary": "",
+  "filesModified": [
+    "backend/src/juli_backend/core/security/tiktok_oauth.py",
+    "backend/src/juli_backend/services/tiktok/app_review_store.py",
+    "backend/src/juli_backend/services/tiktok/oauth.py",
+    "docs/architecture/ownership-registry.yml",
+    "tests/unit/test_oauth_facade_dual_writer.py",
+    "tests/unit/test_tiktok_oauth.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_oauth_facade_dual_writer.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_tiktok_oauth.py"
+  ],
+  "redGreenRefactorEvidence": [
+    "tests/unit/test_oauth_facade_dual_writer.py"
+  ],
+  "implementationSummary": "Collapse OAuth dual writers: route shop/credential persistence through TikTokOAuthService facade.",
   "assumptions": [],
   "risks": []
 }

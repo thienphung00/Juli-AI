@@ -224,5 +224,6 @@
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
-  "executionDurationMs": 0
+  "executionDurationMs": 0,
+  "phaseRunId": "2026-07-28T1216Z"
 }
