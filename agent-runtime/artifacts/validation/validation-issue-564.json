@@ -1,20 +1,20 @@
 {
-  "id": "validation-issue-563",
-  "issue": 563,
-  "timestamp": "2026-07-28T12:39:34Z",
+  "id": "validation-issue-564",
+  "issue": 564,
+  "timestamp": "2026-07-28T12:39:08Z",
   "validatedBy": "validate skill",
   "status": "PASS",
-  "passedChecks": 18,
-  "failedChecks": 3,
+  "passedChecks": 21,
+  "failedChecks": 0,
   "checks": [
     {
       "name": "review_artifact_present",
       "status": "PASS",
-      "description": "Review artifact present; status FAIL (1 gating warning(s))",
+      "description": "Review artifact present; status PASS",
       "details": {
-        "status": "FAIL",
-        "derivedStatus": "FAIL",
-        "warningCount": 1
+        "status": "PASS",
+        "derivedStatus": "PASS",
+        "warningCount": 0
       }
     },
     {
@@ -23,10 +23,10 @@
       "description": "Implementation artifact present; domain backend",
       "details": {
         "executorDomain": "backend",
-        "phaseRunId": "563-20260728T121800",
-        "executionDurationMs": 840000,
-        "contextFileCount": 21,
-        "rulesLoadedCount": 5,
+        "phaseRunId": "564-20260728T121933",
+        "executionDurationMs": 2700000,
+        "contextFileCount": 14,
+        "rulesLoadedCount": 7,
         "mcpsUsedCount": 0,
         "tokenUsageTotal": 0
       }
@@ -36,8 +36,8 @@
       "status": "PASS",
       "description": "All acceptance criteria mapped to tests",
       "details": {
-        "total": 0,
-        "mapped": 0,
+        "total": 4,
+        "mapped": 4,
         "unmapped": [],
         "problems": []
       }
@@ -92,19 +92,17 @@
     },
     {
       "name": "critical_findings_resolved",
-      "status": "FAIL",
-      "description": "review status is FAIL (blocks merge)",
+      "status": "PASS",
+      "description": "No blocking CRITICAL findings or mandatory fail triggers",
       "details": {
-        "status": "FAIL",
-        "derivedStatus": "FAIL",
-        "criticalCount": 3,
+        "status": "PASS",
+        "derivedStatus": "PASS",
+        "criticalCount": 0,
         "mandatoryFailReasons": [],
         "effectiveMandatoryFailReasons": [],
         "overriddenMerge": null,
         "mergeOverrideActive": false,
-        "problems": [
-          "review status is FAIL (blocks merge)"
-        ]
+        "problems": []
       }
     },
     {
@@ -112,7 +110,7 @@
       "status": "PASS",
       "description": "No gating warnings (signoff not required)",
       "details": {
-        "warningCount": 1,
+        "warningCount": 0,
         "required": false
       }
     },
@@ -143,26 +141,47 @@
     },
     {
       "name": "public_release_classification",
-      "status": "FAIL",
-      "description": "Unable to fetch issue body: gh issue view #563 failed: Post \"https://api.github.com/graphql\": Forbidden",
+      "status": "PASS",
+      "description": "publicRelease=True matches live classifier (1 reason(s))",
       "details": {
-        "error": "gh issue view #563 failed: Post \"https://api.github.com/graphql\": Forbidden"
+        "issueId": 564,
+        "parentIssueId": 550,
+        "live": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "body:public_surface"
+          ]
+        },
+        "cached": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "body:public_surface"
+          ]
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 564 so ensure persists publicRelease classification"
       }
     },
     {
       "name": "public_release_evidence_plan",
       "status": "PASS",
-      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "description": "releaseEvidencePlan present and schema-valid",
       "details": {
-        "issueId": 563,
+        "issueId": 564,
         "parentIssueId": 550,
-        "publicRelease": false,
-        "planSource": null,
+        "publicRelease": true,
+        "planSource": "agent-runtime/artifacts/release-evidence-plan-issue-564.json",
         "authority": [
           "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
           ".cursor/rules/core-orchestration.mdc"
         ],
-        "skipped": true
+        "missingFields": [],
+        "errors": [],
+        "resolution": "Commit agent-runtime/artifacts/release-evidence-plan-issue-564.json (schema-valid releaseEvidencePlan), then re-run meta_prepare_executor --issue 564",
+        "planId": "rep-564-test-layer-discipline"
       }
     },
     {
@@ -170,29 +189,21 @@
       "status": "PASS",
       "description": "Implementation artifact schema-valid",
       "details": {
-        "issueId": 563,
-        "path": "agent-runtime/artifacts/implementations/implementation-issue-563.json",
+        "issueId": 564,
+        "path": "agent-runtime/artifacts/implementations/implementation-issue-564.json",
         "valid": true,
         "errors": []
       }
     },
     {
       "name": "implementation_tdd_evidence",
-      "status": "FAIL",
-      "description": "redGreenRefactorEvidence must contain at least one cycle",
+      "status": "PASS",
+      "description": "No in-scope code changes \u2014 TDD evidence not required",
       "details": {
-        "issueId": 563,
-        "requiresTddEvidence": true,
-        "matchedPaths": [
-          "backend/src/juli_backend/api/MODULE.md",
-          "backend/src/juli_backend/core/security/MODULE.md",
-          "backend/src/juli_backend/database/MODULE.md",
-          "backend/src/juli_backend/integrations/tiktok/MODULE.md",
-          "backend/src/juli_backend/services/etl/MODULE.md",
-          "backend/src/juli_backend/services/tiktok/MODULE.md",
-          "backend/src/juli_backend/services/webhook/MODULE.md"
-        ],
-        "cycleCount": 0
+        "issueId": 564,
+        "requiresTddEvidence": false,
+        "matchedPaths": [],
+        "skipped": true
       }
     },
     {
@@ -200,7 +211,7 @@
       "status": "PASS",
       "description": "executorDomain matches cache (backend)",
       "details": {
-        "issueId": 563,
+        "issueId": 564,
         "expectedExecutorDomain": "backend",
         "actualExecutorDomain": "backend"
       }
@@ -208,34 +219,34 @@
     {
       "name": "phase_run_correlation",
       "status": "PASS",
-      "description": "phaseRunId 563-20260728T121800 correlated across present artifacts",
+      "description": "phaseRunId 564-20260728T121933 correlated across present artifacts",
       "details": {
-        "issueId": 563,
-        "canonicalPhaseRunId": "563-20260728T121800",
-        "planSource": null,
+        "issueId": 564,
+        "canonicalPhaseRunId": "564-20260728T121933",
+        "planSource": "agent-runtime/artifacts/release-evidence-plan-issue-564.json",
         "artifacts": {
           "implementation": {
             "required": true,
             "present": true,
-            "phaseRunId": "563-20260728T121800",
+            "phaseRunId": "564-20260728T121933",
             "status": "matched"
           },
           "intent_review": {
-            "required": false,
+            "required": true,
             "present": true,
-            "phaseRunId": "563-20260728T121800",
+            "phaseRunId": "564-20260728T121933",
             "status": "matched"
           },
           "review": {
-            "required": false,
+            "required": true,
             "present": true,
-            "phaseRunId": "563-20260728T121800",
+            "phaseRunId": "564-20260728T121933",
             "status": "matched"
           },
           "validation": {
-            "required": false,
+            "required": true,
             "present": true,
-            "phaseRunId": "563-20260728T121800",
+            "phaseRunId": "564-20260728T121933",
             "status": "matched"
           }
         }
@@ -244,17 +255,18 @@
     {
       "name": "release_evidence_plan_continuity",
       "status": "PASS",
-      "description": "publicRelease=false \u2014 releaseEvidencePlanId not required",
+      "description": "releaseEvidencePlanId matches Meta plan (rep-564-test-layer-discipline)",
       "details": {
-        "issueId": 563,
-        "publicRelease": false,
-        "expectedPlanId": null,
-        "planSource": null,
+        "issueId": 564,
+        "publicRelease": true,
+        "expectedPlanId": "rep-564-test-layer-discipline",
+        "planSource": "agent-runtime/artifacts/release-evidence-plan-issue-564.json",
         "authority": [
           "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
           ".cursor/rules/core-orchestration.mdc"
         ],
-        "skipped": true
+        "implementationPlanId": "rep-564-test-layer-discipline",
+        "validationPlanId": "rep-564-test-layer-discipline"
       }
     },
     {
@@ -262,30 +274,31 @@
       "status": "PASS",
       "description": "No release artifact for issue \u2014 honesty check skipped",
       "details": {
-        "issueId": 563,
+        "issueId": 564,
         "releaseArtifacts": [],
         "skipped": true
       }
     }
   ],
-  "overallSummary": "3 validation check(s) failed.",
+  "overallSummary": "All validation checks passed.",
   "readyForMerge": true,
   "warningGated": false,
   "mergeBlockedByWarnings": false,
   "mergeOverrideActive": false,
-  "reviewStatus": "FAIL",
-  "reviewWarningCount": 1,
+  "reviewStatus": "PASS",
+  "reviewWarningCount": 0,
   "schemaVersion": "1.0.0",
   "artifactType": "validation",
-  "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-563.json",
+  "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-564.json",
   "validationFailures": 0,
   "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 9,
-  "testsPassed": 9,
+  "testsExecuted": 21,
+  "testsPassed": 21,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
   "executionDurationMs": 0,
-  "phaseRunId": "563-20260728T121800"
+  "phaseRunId": "564-20260728T121933",
+  "releaseEvidencePlanId": "rep-564-test-layer-discipline"
 }

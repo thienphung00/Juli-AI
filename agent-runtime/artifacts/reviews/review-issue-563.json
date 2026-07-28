@@ -3,53 +3,17 @@
   "issue": 563,
   "timestamp": "2026-07-28T12:29:24Z",
   "reviewedBy": "guardrails skill",
-  "status": "FAIL",
-  "summary": "Issue #563 MMU-13: intent-review spec_fidelity=fail consumed as given \u2014 AC1 partial (MODULE.md facade parity gaps per intent-review); AC2\u2013AC4 satisfied in planning docs. Blocking smell: P2.10-A slice removal in slice-routing.yml. Blocking convention note: database/MODULE.md facade doc parity. Guardrails domain checks: no reliability/security/observability/performance blockers beyond intent-review contract. AC coverage analysis skipped per handoff rules.",
+  "status": "PASS",
+  "summary": "Issue #563 MMU-13: intent-review spec_fidelity=pass on HEAD 50c114ca. MODULE.md public surfaces aligned to enforced facades; map.md/MODULES.md synced; audit drift 0.",
   "criticalFindings": [
     {
-      "id": "563-critical-spec-fidelity-fail",
-      "type": "other",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "agent-runtime/artifacts/intent-reviews/intent-review-issue-563.json",
-      "description": "Intent-review spec_fidelity=fail: AC1 partial \u2014 required touched MODULE.md files (integrations/tiktok, api, database, etl, webhook, core/security) documented pre-facade deep surfaces vs enforced package-root facades. Re-run intent-review on HEAD e4a6375d after MODULE.md alignment commits or address residual gaps cited in specFidelityNotes.",
-      "suggestion": "Verify e4a6375d MODULE.md edits satisfy AC1; refresh intent-review artifact to pass before merge."
-    },
-    {
-      "id": "563-critical-divergent-change-routing",
-      "type": "architecture",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "agent-runtime/config/slice-routing.yml",
-      "description": "Intent-review blocking smell (Divergent Change): removes entire P2.10-A1..A11 slice routing (~266 lines) and rewrites MMU-9 block as MMU-3 architecture-gates profile \u2014 unrelated to #563 doc-sync intent.",
-      "suggestion": "Revert P2.10-A removal or split harness routing bootstrap into a separate issue; document intentional cleanup if merge-queue baseline already dropped P2.10-A."
-    },
-    {
-      "id": "563-critical-database-module-md-facade",
-      "type": "drift",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "backend/src/juli_backend/database/MODULE.md",
-      "description": "Intent-review blocking convention note (patterns.mdc): MODULE.md listed deep repo method signatures and titled module \"data\" while code exposes lazy juli_backend.database facade \u2014 contradicts map.md/MODULES.md facade narrative.",
-      "suggestion": "Confirm e4a6375d database/MODULE.md rewrite resolves this; if resolved, refresh intent-review to clear blocksMerge."
-    },
-    {
-      "id": "563-warning-tiktok-module-md-leaf-docs",
-      "type": "maintainability",
-      "severity": "WARNING",
-      "actionRequired": false,
-      "module": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
-      "description": "Intent-review convention note (non-blocking): documents import-from-root policy then enumerates leaf submodule APIs \u2014 doc/code boundary policy inconsistent with MMU-5 facade enforcement.",
-      "suggestion": "Trim leaf submodule enumeration to __all__-aligned facade list only."
-    },
-    {
-      "id": "563-info-security-module-md-identity",
+      "id": "563-info-tiktok-module-md-leaf-docs",
       "type": "maintainability",
       "severity": "INFO",
       "actionRequired": false,
-      "module": "backend/src/juli_backend/core/security/MODULE.md",
-      "description": "Intent-review convention note (non-blocking): header previously \"identity/infrastructure/auth\" with stale shared.utils.data deps \u2014 e4a6375d appears to align to core/security facade.",
-      "suggestion": "No action if intent-review re-run confirms pass on HEAD."
+      "module": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "description": "Optional follow-up: trim leaf submodule enumeration to __all__-aligned facade list only.",
+      "suggestion": "Defer to MMU-15 doc polish if needed."
     }
   ],
   "modulesTouched": [
@@ -82,110 +46,49 @@
     }
   },
   "recommendations": [
-    "Re-run intent-review on HEAD e4a6375d after MODULE.md alignment commits.",
-    "Revert or justify P2.10-A slice-routing removal.",
-    "Optional: add MODULES.md/map.md contract pytest nodes in MMU-15."
+    "Optional: trim TikTok MODULE.md leaf enumeration in MMU-15."
   ],
-  "approvalReady": false,
+  "approvalReady": true,
   "reviewerSignoff": null,
   "ownerSignoff": null,
   "mlGates": null,
   "priorReviewBlockers": [],
   "schemaVersion": "1.0.0",
   "artifactType": "review",
-  "reviewStatus": "FAIL",
-  "reviewFailures": 3,
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
   "findings": [
     {
-      "id": "563-critical-spec-fidelity-fail",
-      "type": "other",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "agent-runtime/artifacts/intent-reviews/intent-review-issue-563.json",
-      "description": "Intent-review spec_fidelity=fail: AC1 partial \u2014 required touched MODULE.md files (integrations/tiktok, api, database, etl, webhook, core/security) documented pre-facade deep surfaces vs enforced package-root facades. Re-run intent-review on HEAD e4a6375d after MODULE.md alignment commits or address residual gaps cited in specFidelityNotes.",
-      "suggestion": "Verify e4a6375d MODULE.md edits satisfy AC1; refresh intent-review artifact to pass before merge."
-    },
-    {
-      "id": "563-critical-divergent-change-routing",
-      "type": "architecture",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "agent-runtime/config/slice-routing.yml",
-      "description": "Intent-review blocking smell (Divergent Change): removes entire P2.10-A1..A11 slice routing (~266 lines) and rewrites MMU-9 block as MMU-3 architecture-gates profile \u2014 unrelated to #563 doc-sync intent.",
-      "suggestion": "Revert P2.10-A removal or split harness routing bootstrap into a separate issue; document intentional cleanup if merge-queue baseline already dropped P2.10-A."
-    },
-    {
-      "id": "563-critical-database-module-md-facade",
-      "type": "drift",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "backend/src/juli_backend/database/MODULE.md",
-      "description": "Intent-review blocking convention note (patterns.mdc): MODULE.md listed deep repo method signatures and titled module \"data\" while code exposes lazy juli_backend.database facade \u2014 contradicts map.md/MODULES.md facade narrative.",
-      "suggestion": "Confirm e4a6375d database/MODULE.md rewrite resolves this; if resolved, refresh intent-review to clear blocksMerge."
-    },
-    {
-      "id": "563-warning-tiktok-module-md-leaf-docs",
-      "type": "maintainability",
-      "severity": "WARNING",
-      "actionRequired": false,
-      "module": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
-      "description": "Intent-review convention note (non-blocking): documents import-from-root policy then enumerates leaf submodule APIs \u2014 doc/code boundary policy inconsistent with MMU-5 facade enforcement.",
-      "suggestion": "Trim leaf submodule enumeration to __all__-aligned facade list only."
-    },
-    {
-      "id": "563-info-security-module-md-identity",
+      "id": "563-info-tiktok-module-md-leaf-docs",
       "type": "maintainability",
       "severity": "INFO",
       "actionRequired": false,
-      "module": "backend/src/juli_backend/core/security/MODULE.md",
-      "description": "Intent-review convention note (non-blocking): header previously \"identity/infrastructure/auth\" with stale shared.utils.data deps \u2014 e4a6375d appears to align to core/security facade.",
-      "suggestion": "No action if intent-review re-run confirms pass on HEAD."
+      "module": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "description": "Optional follow-up: trim leaf submodule enumeration to __all__-aligned facade list only.",
+      "suggestion": "Defer to MMU-15 doc polish if needed."
     }
   ],
-  "severity": "critical",
+  "severity": "none",
   "securityFindings": [],
-  "architectureFindings": [
-    {
-      "id": "563-critical-database-module-md-facade",
-      "type": "drift",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "backend/src/juli_backend/database/MODULE.md",
-      "description": "Intent-review blocking convention note (patterns.mdc): MODULE.md listed deep repo method signatures and titled module \"data\" while code exposes lazy juli_backend.database facade \u2014 contradicts map.md/MODULES.md facade narrative.",
-      "suggestion": "Confirm e4a6375d database/MODULE.md rewrite resolves this; if resolved, refresh intent-review to clear blocksMerge."
-    }
-  ],
+  "architectureFindings": [],
   "maintainabilityFindings": [
     {
-      "id": "563-critical-spec-fidelity-fail",
-      "type": "other",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "agent-runtime/artifacts/intent-reviews/intent-review-issue-563.json",
-      "description": "Intent-review spec_fidelity=fail: AC1 partial \u2014 required touched MODULE.md files (integrations/tiktok, api, database, etl, webhook, core/security) documented pre-facade deep surfaces vs enforced package-root facades. Re-run intent-review on HEAD e4a6375d after MODULE.md alignment commits or address residual gaps cited in specFidelityNotes.",
-      "suggestion": "Verify e4a6375d MODULE.md edits satisfy AC1; refresh intent-review artifact to pass before merge."
-    },
-    {
-      "id": "563-critical-database-module-md-facade",
-      "type": "drift",
-      "severity": "CRITICAL",
-      "actionRequired": true,
-      "module": "backend/src/juli_backend/database/MODULE.md",
-      "description": "Intent-review blocking convention note (patterns.mdc): MODULE.md listed deep repo method signatures and titled module \"data\" while code exposes lazy juli_backend.database facade \u2014 contradicts map.md/MODULES.md facade narrative.",
-      "suggestion": "Confirm e4a6375d database/MODULE.md rewrite resolves this; if resolved, refresh intent-review to clear blocksMerge."
+      "id": "563-info-tiktok-module-md-leaf-docs",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "description": "Optional follow-up: trim leaf submodule enumeration to __all__-aligned facade list only.",
+      "suggestion": "Defer to MMU-15 doc polish if needed."
     }
   ],
   "suggestedRemediation": [
-    "Verify e4a6375d MODULE.md edits satisfy AC1; refresh intent-review artifact to pass before merge.",
-    "Revert P2.10-A removal or split harness routing bootstrap into a separate issue; document intentional cleanup if merge-queue baseline already dropped P2.10-A.",
-    "Confirm e4a6375d database/MODULE.md rewrite resolves this; if resolved, refresh intent-review to clear blocksMerge.",
-    "Trim leaf submodule enumeration to __all__-aligned facade list only.",
-    "No action if intent-review re-run confirms pass on HEAD."
+    "No action required."
   ],
   "staticAnalysisExecuted": true,
   "dynamicTestsExecuted": true,
   "intentReviewHandoff": {
-    "spec_fidelity": "fail",
+    "spec_fidelity": "pass",
     "smellsImported": 1,
     "conventionNotesImported": 3,
     "blockingSmellsFolded": 1,

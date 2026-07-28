@@ -1,0 +1,132 @@
+{
+  "id": "review-issue-564",
+  "issue": 564,
+  "timestamp": "2026-07-28T12:30:38Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #564 MMU-14: intent-review spec_fidelity=pass consumed as given. Test-layer guidance added to python-testing.md; unit contract tests prove import-boundary and ownership-registry discipline; integration example uses TikTokAuth + webhook create_app facades only. 21 related pytest cases pass (7 new + 14 existing contract tests). No reliability/security/observability blockers for docs+test-only slice.",
+  "criticalFindings": [
+    {
+      "id": "564-info-ac4-no-rewrite-by-design",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/",
+      "description": "AC4 satisfied: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
+      "suggestion": "No action required."
+    },
+    {
+      "id": "564-info-ci-script-import",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_modular_monolith_test_layers.py",
+      "description": "Unit contract test imports load_ownership_registry via sys.path to agent-runtime/scripts/ci \u2014 acceptable for architecture proofs; optional follow-up to expose registry loader as installable test helper.",
+      "suggestion": "Optional: shared tests/helpers/ownership_registry.py if pattern repeats."
+    }
+  ],
+  "modulesTouched": [
+    ".cursor/skills/domain/testing-patterns/python-testing.md",
+    "tests/unit/test_modular_monolith_test_layers.py",
+    "tests/integration/test_modular_monolith_public_facades.py",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml",
+    "agent-runtime/artifacts/release-evidence-plan-issue-564.json"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 4,
+      "mapped": 4,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Short testing guidance (docs or testing-patterns note) states unit/integration/E2E boundary rules.",
+          "test": "tests/unit/test_modular_monolith_test_layers.py::test_testing_guidance_codifies_unit_integration_e2e_layers"
+        },
+        {
+          "criterion": "At least one unit contract test for ownership or import boundary (builds on #552/#556).",
+          "test": "tests/unit/test_modular_monolith_test_layers.py::test_synthetic_forbidden_deep_import_proves_boundary_contract"
+        },
+        {
+          "criterion": "Integration test example uses only public facades between two modules.",
+          "test": "tests/integration/test_modular_monolith_public_facades.py::test_integration_example_uses_public_facades_only"
+        },
+        {
+          "criterion": "No requirement to rewrite the entire suite in this slice.",
+          "test": "tests/unit/test_modular_monolith_test_layers.py::test_no_full_suite_rewrite_required_for_mmu14_slice"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 21,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Optional shared test helper if CI script imports repeat across contract tests"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "564-info-ac4-no-rewrite-by-design",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/",
+      "description": "AC4 satisfied: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
+      "suggestion": "No action required."
+    },
+    {
+      "id": "564-info-ci-script-import",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_modular_monolith_test_layers.py",
+      "description": "Unit contract test imports load_ownership_registry via sys.path to agent-runtime/scripts/ci \u2014 acceptable for architecture proofs; optional follow-up to expose registry loader as installable test helper.",
+      "suggestion": "Optional: shared tests/helpers/ownership_registry.py if pattern repeats."
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "id": "564-info-ac4-no-rewrite-by-design",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/",
+      "description": "AC4 satisfied: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
+      "suggestion": "No action required."
+    }
+  ],
+  "suggestedRemediation": [
+    "No action required.",
+    "Optional: shared tests/helpers/ownership_registry.py if pattern repeats."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "phaseRunId": "564-20260728T121933",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..6920a5f3 on feature/issue-564-test-layer-discipline",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-564.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-564.json",
+  "reviewDurationMs": 900000
+}

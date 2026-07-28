@@ -19,12 +19,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config.runtime import require_env
 from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok import (
     AuthenticationError,
     TikTokAuth,
 )
-from juli_backend.services.tiktok.app_review_store import persist_oauth_tokens
+from juli_backend.repositories.repos import UsersRepo
 from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
+
+APP_REVIEW_USER_PHONE = "+849000000001"
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +68,31 @@ def build_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
     return TikTokOAuthInfrastructureService(app_secret=app_secret, tiktok_auth=tiktok_auth)
 
 
+def _app_review_user_id() -> uuid.UUID:
+    raw = os.environ.get(
+        "TIKTOK_APP_REVIEW_USER_ID",
+        "00000000-0000-4000-8000-000000000001",
+    )
+    return uuid.UUID(raw)
+
+
+def build_partner_oauth_facade(
+    session: AsyncSession,
+    infra: TikTokOAuthInfrastructureService,
+) -> TikTokOAuthService:
+    """Construct the Auth-owned Partner OAuth facade sharing infra TikTokAuth."""
+    redirect_uri = os.environ.get(
+        "TIKTOK_REDIRECT_URI",
+        "https://api.app-juli.com/v1/auth/tiktok/callback",
+    ).strip()
+    return TikTokOAuthService(
+        tiktok_auth=infra.tiktok_auth,
+        session=session,
+        redirect_uri=redirect_uri,
+        app_secret=infra.app_secret,
+    )
+
+
 async def complete_tiktok_oauth_callback(
     session: AsyncSession,
     *,
@@ -75,10 +103,26 @@ async def complete_tiktok_oauth_callback(
     shop_region: str | None = None,
     oauth_service: TikTokOAuthInfrastructureService | None = None,
 ) -> TikTokOAuthCallbackResult:
-    """Exchange the authorization code and persist tokens for the callback owner."""
+    """Exchange the authorization code and persist tokens via the OAuth facade."""
     service = oauth_service or build_tiktok_oauth_service()
+    if state:
+        user_id = service.verify_state(state)
+        try:
+            token_data = await service.exchange_code(code, user_id=user_id)
+        except AuthenticationError as exc:
+            raise TikTokOAuthTokenExchangeFailed from exc
+        facade = build_partner_oauth_facade(session, service)
+        shop = await facade.provision_shop_and_credentials(token_data, user_id=user_id)
+        await session.commit()
+        return TikTokOAuthCallbackResult(
+            status="ok",
+            message="OAuth callback accepted; shop provisioned via Auth facade",
+            open_id_present=bool(shop.tiktok_shop_id),
+            access_token_expires_in=token_data.get("access_token_expire_in"),
+        )
+
     try:
-        result, token_data, user_id = await service.handle_callback(
+        result, token_data, callback_user_id = await service.handle_callback(
             code,
             state,
             app_key=app_key,
@@ -88,7 +132,10 @@ async def complete_tiktok_oauth_callback(
     except AuthenticationError as exc:
         raise TikTokOAuthTokenExchangeFailed from exc
 
-    await persist_oauth_tokens(session, token_data, user_id=user_id)
+    owner_id = callback_user_id or _app_review_user_id()
+    await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
+    facade = build_partner_oauth_facade(session, service)
+    await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
     await session.commit()
     return result
 
@@ -99,6 +146,14 @@ class TikTokOAuthInfrastructureService:
     def __init__(self, *, app_secret: str, tiktok_auth: TikTokAuth) -> None:
         self._app_secret = app_secret
         self._tiktok_auth = tiktok_auth
+
+    @property
+    def tiktok_auth(self) -> TikTokAuth:
+        return self._tiktok_auth
+
+    @property
+    def app_secret(self) -> str:
+        return self._app_secret
 
     def verify_state(self, state: str) -> uuid.UUID:
         """Verify HMAC-signed state and return the embedded user id."""
