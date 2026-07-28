@@ -1,27 +1,18 @@
 {
   "id": "review-issue-564",
   "issue": 564,
-  "timestamp": "2026-07-28T12:29:08Z",
+  "timestamp": "2026-07-28T12:30:38Z",
   "reviewedBy": "guardrails skill",
   "status": "PASS",
-  "summary": "Issue #564 MMU-14: intent-review spec_fidelity=pass consumed as given. Test-layer guidance added to python-testing.md; unit contract tests prove import-boundary and ownership-registry discipline; integration example uses TikTokAuth + webhook create_app facades only. 20 related pytest cases pass (6 new + 14 existing contract tests). No reliability/security/observability blockers for docs+test-only slice.",
+  "summary": "Issue #564 MMU-14: intent-review spec_fidelity=pass consumed as given. Test-layer guidance added to python-testing.md; unit contract tests prove import-boundary and ownership-registry discipline; integration example uses TikTokAuth + webhook create_app facades only. 21 related pytest cases pass (7 new + 14 existing contract tests). No reliability/security/observability blockers for docs+test-only slice.",
   "criticalFindings": [
-    {
-      "id": "564-info-integration-untracked",
-      "type": "other",
-      "severity": "INFO",
-      "actionRequired": false,
-      "module": "tests/integration/test_modular_monolith_public_facades.py",
-      "description": "Intent-review convention note: AC3 integration example exists in worktree but may be untracked \u2014 commit before merge so diff reflects public-facade example.",
-      "suggestion": "git add tests/integration/test_modular_monolith_public_facades.py in PR branch."
-    },
     {
       "id": "564-info-ac4-no-rewrite-by-design",
       "type": "other",
       "severity": "INFO",
       "actionRequired": false,
       "module": "tests/",
-      "description": "AC4 satisfied by omission: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
+      "description": "AC4 satisfied: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
       "suggestion": "No action required."
     },
     {
@@ -65,17 +56,16 @@
         },
         {
           "criterion": "No requirement to rewrite the entire suite in this slice.",
-          "test": "tests/unit/test_modular_monolith_test_layers.py::test_architecture_contract_tests_live_in_unit_layer"
+          "test": "tests/unit/test_modular_monolith_test_layers.py::test_no_full_suite_rewrite_required_for_mmu14_slice"
         }
       ]
     },
     "unit": {
-      "passed": 20,
+      "passed": 21,
       "failed": 0
     }
   },
   "recommendations": [
-    "Commit integration example before PR merge",
     "Optional shared test helper if CI script imports repeat across contract tests"
   ],
   "approvalReady": true,
@@ -89,21 +79,12 @@
   "reviewFailures": 0,
   "findings": [
     {
-      "id": "564-info-integration-untracked",
-      "type": "other",
-      "severity": "INFO",
-      "actionRequired": false,
-      "module": "tests/integration/test_modular_monolith_public_facades.py",
-      "description": "Intent-review convention note: AC3 integration example exists in worktree but may be untracked \u2014 commit before merge so diff reflects public-facade example.",
-      "suggestion": "git add tests/integration/test_modular_monolith_public_facades.py in PR branch."
-    },
-    {
       "id": "564-info-ac4-no-rewrite-by-design",
       "type": "other",
       "severity": "INFO",
       "actionRequired": false,
       "module": "tests/",
-      "description": "AC4 satisfied by omission: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
+      "description": "AC4 satisfied: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
       "suggestion": "No action required."
     },
     {
@@ -121,26 +102,16 @@
   "architectureFindings": [],
   "maintainabilityFindings": [
     {
-      "id": "564-info-integration-untracked",
-      "type": "other",
-      "severity": "INFO",
-      "actionRequired": false,
-      "module": "tests/integration/test_modular_monolith_public_facades.py",
-      "description": "Intent-review convention note: AC3 integration example exists in worktree but may be untracked \u2014 commit before merge so diff reflects public-facade example.",
-      "suggestion": "git add tests/integration/test_modular_monolith_public_facades.py in PR branch."
-    },
-    {
       "id": "564-info-ac4-no-rewrite-by-design",
       "type": "other",
       "severity": "INFO",
       "actionRequired": false,
       "module": "tests/",
-      "description": "AC4 satisfied by omission: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
+      "description": "AC4 satisfied: diff adds guidance + targeted contract/integration examples only; no full-suite rewrite.",
       "suggestion": "No action required."
     }
   ],
   "suggestedRemediation": [
-    "git add tests/integration/test_modular_monolith_public_facades.py in PR branch.",
     "No action required.",
     "Optional: shared tests/helpers/ownership_registry.py if pattern repeats."
   ],
@@ -150,11 +121,11 @@
   "intentReviewHandoff": {
     "spec_fidelity": "pass",
     "smellsImported": 0,
-    "conventionNotesImported": 2,
+    "conventionNotesImported": 1,
     "blockingSmellsFolded": 0,
     "acCoverageSkipped": false
   },
-  "reviewBasis": "origin/main..HEAD on feature/issue-564-test-layer-discipline (fixedPoint 1d5ff260)",
+  "reviewBasis": "origin/main..6920a5f3 on feature/issue-564-test-layer-discipline",
   "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-564.json",
   "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-564.json",
   "reviewDurationMs": 900000

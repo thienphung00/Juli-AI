@@ -3,19 +3,13 @@
   "artifactType": "intent_review",
   "id": "intent-review-issue-564",
   "issue": 564,
-  "timestamp": "2026-07-28T12:23:37Z",
+  "timestamp": "2026-07-28T12:30:38Z",
   "reviewedBy": "intent-review skill",
   "fixedPoint": "1d5ff260a370898042181ce8cb5dc7461125df04",
   "spec_fidelity": "pass",
-  "specFidelityNotes": "Diff 1d5ff260..fc6417d7 (+ untracked integration example in worktree). AC1: python-testing.md adds Modular Monolith Test Layers table with unit/integration/E2E placement and public-surface rules per PRD #550 Testing Decisions. AC2: test_modular_monolith_test_layers.py adds four unit contract tests building on #552/#556 (synthetic forbidden deep import, ownership registry boundaryGuidance, guidance codification, contract test placement). AC3: test_modular_monolith_public_facades.py demonstrates integrations.tiktok.TikTokAuth + services.webhook.create_app collaboration via facades only \u2014 present in worktree, pending commit. AC4: no mass suite rewrite; only targeted guidance + contract/integration examples. Harness bootstrap (MMU-11..14 slice profiles, release-evidence plan) aligns with parallel wave 2 handoff.",
+  "specFidelityNotes": "Diff 1d5ff260..6920a5f3. AC1: python-testing.md adds Modular Monolith Test Layers table with unit/integration/E2E placement and public-surface rules per PRD #550 Testing Decisions. AC2: test_modular_monolith_test_layers.py adds unit contract tests building on #552/#556 (synthetic forbidden deep import, ownership registry boundaryGuidance, guidance codification, contract test placement). AC3: test_modular_monolith_public_facades.py demonstrates integrations.tiktok.TikTokAuth + services.webhook.create_app collaboration via facades only. AC4: no mass suite rewrite; targeted guidance + contract/integration examples only. Harness bootstrap adds MMU-11..14 slice profiles and release-evidence plan.",
   "smells": [],
   "convention_notes": [
-    {
-      "standard": "git-baseline \u2014 commit completeness",
-      "path": "tests/integration/test_modular_monolith_public_facades.py",
-      "note": "Integration example satisfies AC3 in worktree but file is untracked on branch \u2014 stage before PR for diff-visible evidence.",
-      "blocksMerge": false
-    },
     {
       "standard": "python-testing.md \u2014 offline determinism",
       "path": "tests/integration/test_modular_monolith_public_facades.py",

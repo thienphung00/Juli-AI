@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-564",
   "issue": 564,
-  "timestamp": "2026-07-28T12:28:29Z",
+  "timestamp": "2026-07-28T12:39:08Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 21,
@@ -265,7 +265,8 @@
           "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
           ".cursor/rules/core-orchestration.mdc"
         ],
-        "implementationPlanId": "rep-564-test-layer-discipline"
+        "implementationPlanId": "rep-564-test-layer-discipline",
+        "validationPlanId": "rep-564-test-layer-discipline"
       }
     },
     {
@@ -292,8 +293,8 @@
   "validationFailures": 0,
   "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 20,
-  "testsPassed": 20,
+  "testsExecuted": 21,
+  "testsPassed": 21,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
