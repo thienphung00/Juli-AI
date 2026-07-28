@@ -30,3 +30,7 @@ celery_app.conf.update(
 )
 
 celery_app.autodiscover_tasks(["juli_backend.workers.tasks"])
+
+from juli_backend.workers.dispatch_binding import bind_celery_dispatchers  # noqa: E402
+
+bind_celery_dispatchers()

@@ -25,6 +25,9 @@ async def lifespan(app: FastAPI):
         close_shared_redis_client,
         get_shared_redis_client,
     )
+    from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
+
+    bind_celery_dispatchers()
 
     database_url = async_database_url(require_env("DATABASE_URL"))
     engine = create_engine(database_url)

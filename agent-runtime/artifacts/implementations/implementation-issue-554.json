@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 554,
+  "executorDomain": "backend",
+  "phaseRunId": "554-20260728T023700",
+  "startedAt": "2026-07-28T02:37:00Z",
+  "completedAt": "2026-07-28T02:45:00Z",
+  "executionDurationMs": 480000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 6,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 5,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 4,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 33,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-554.json",
+    "backend/src/juli_backend/services/action_cards/dispatch.py",
+    "backend/src/juli_backend/services/execution/dispatch.py",
+    "backend/src/juli_backend/workers/celery_app.py",
+    "backend/src/juli_backend/api/main.py",
+    "tests/unit/test_action_cards_contract.py",
+    "tests/unit/test_celery_tool_execution_contract.py",
+    "agent-runtime/scripts/ci/audit_cycles.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/standalone/focus/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/patterns.mdc",
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/action_cards/dispatch.py",
+    "backend/src/juli_backend/services/action_cards/MODULE.md",
+    "backend/src/juli_backend/services/execution/dispatch.py",
+    "backend/src/juli_backend/workers/dispatch_binding.py",
+    "backend/src/juli_backend/workers/celery_app.py",
+    "backend/src/juli_backend/api/main.py",
+    "tests/unit/test_mmu6_celery_dispatch_ports.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_mmu6_celery_dispatch_ports.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "7 failed — domain dispatch.py still imported workers.tasks; dispatch_binding missing; get_*_dispatcher auto-defaulted to Celery",
+      "passingTestEvidence": "21 passed — domain modules free of workers.tasks; Celery adapters in workers/dispatch_binding; bind_celery_dispatchers wired at API/worker startup",
+      "refactorEvidence": "Lazy-import tasks inside binding enqueue methods to break celery_app↔dispatch_binding import cycle; updated MODULE.md dependency note",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_mmu6_celery_dispatch_ports.py -q",
+          "exitCode": 1,
+          "outputSummary": "7 failed — workers.tasks imports in domain dispatch modules"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_mmu6_celery_dispatch_ports.py tests/unit/test_action_cards_contract.py tests/unit/test_celery_tool_execution_contract.py -q",
+          "exitCode": 0,
+          "outputSummary": "21 passed"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python agent-runtime/scripts/ci/audit_cycles.py",
+          "exitCode": 0,
+          "outputSummary": "0 cycles"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "MMU-6 (#554): moved CeleryRefreshDispatcher/CeleryTaskDispatcher from action_cards and execution domain dispatch modules into workers/dispatch_binding.py. Domain modules retain RefreshDispatcher/TaskDispatcher protocols and get_/set_ injectors; unset injectors raise RuntimeError until bind_celery_dispatchers() runs at API lifespan and celery_app startup. Existing contract tests continue using fake dispatchers via monkeypatch. New MMU-6 port tests assert no workers.tasks imports in domain, binding enqueue behavior, and startup wiring.",
+  "assumptions": [
+    "publicRelease=false — no release-evidence plan required",
+    "Lazy imports inside binding enqueue methods acceptable to avoid celery_app circular import",
+    "Tests that call create_app without main lifespan continue to mock get_*_dispatcher"
+  ],
+  "risks": [
+    "Any code path calling enqueue without bind_celery_dispatchers and without test mock will raise RuntimeError"
+  ]
+}

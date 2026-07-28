@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass
 from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,30 +17,14 @@ class TaskDispatcher(Protocol):
     def enqueue(self, execution_id: str) -> str: ...
 
 
-@dataclass
-class CeleryTaskDispatcher:
-    """Production dispatcher — enqueues the Celery worker task."""
-
-    def enqueue(self, execution_id: str) -> str:
-        from juli_backend.workers.tasks.tool_execution import execute_approved_tool
-
-        async_result = execute_approved_tool.delay(execution_id)
-        return async_result.id
-
-
-@dataclass
-class _DefaultDispatcher:
-    def enqueue(self, execution_id: str) -> str:
-        return CeleryTaskDispatcher().enqueue(execution_id)
-
-
 _task_dispatcher: TaskDispatcher | None = None
 
 
 def get_task_dispatcher() -> TaskDispatcher:
-    global _task_dispatcher
     if _task_dispatcher is None:
-        _task_dispatcher = _DefaultDispatcher()
+        raise RuntimeError(
+            "Tool execution task dispatcher is not bound; call bind_celery_dispatchers() at startup"
+        )
     return _task_dispatcher
 
 
