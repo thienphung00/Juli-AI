@@ -1,0 +1,369 @@
+{
+  "issueId": 553,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 553,
+    "parentIssueId": 550,
+    "sliceId": "MMU-4",
+    "handoffPath": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-550.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-553.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 553,
+        "parentIssueId": 550,
+        "sliceId": "MMU-4",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #550",
+            "fingerprint": "5a24774c47f97411"
+          },
+          {
+            "path": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "fingerprint": "5cb6f994719dd13f1dba20828dfc92332baec4ac"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #553",
+            "fingerprint": "bb24bcc34d87c3a9"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-553.md",
+            "fingerprint": "2fd42fe3ca5839e4f65969a744914610fb036006"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 553,
+        "parentIssueId": 550,
+        "sliceId": "MMU-4",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 MMU-4",
+            "sliceId": "MMU-4"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-550",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #553",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 MMU-4"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-550",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #553",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 02db92bfbe2c on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "02db92bfbe2c98a13a9a90c63e5cd7781bf3af70",
+          "copiedAt": "2026-07-28T10:52:03Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "02db92bfbe2c98a13a9a90c63e5cd7781bf3af70",
+        "pinnedCommitSha": "02db92bfbe2c98a13a9a90c63e5cd7781bf3af70",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "02db92bfbe2c98a13a9a90c63e5cd7781bf3af70"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 553,
+        "parentIssueId": 550,
+        "sliceId": "MMU-4",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "docs/architecture/MODULES.md",
+            ".cursor/rules/code-review.mdc",
+            ".cursor/skills/standalone/intent-review/SKILL.md",
+            ".cursor/skills/standalone/guardrails/SKILL.md"
+          ],
+          "requiredModules": [
+            ".github/pull_request_template.md",
+            ".cursor/rules/code-review.mdc",
+            ".cursor/skills/standalone/intent-review/SKILL.md",
+            ".cursor/skills/standalone/guardrails/SKILL.md"
+          ],
+          "acceptanceCriteria": [
+            "PR template includes the four questions as a required checklist.",
+            "Review Agent / code-review guidance points at the same four questions (no conflicting wording).",
+            "No CI behavior change in this slice (gates are MMU-3)."
+          ],
+          "loadWhenNeeded": [
+            "docs/handoffs/modular-monolith-audit-data.json",
+            "docs/architecture/map.md",
+            "docs/architecture/import-boundaries.md",
+            ".cursor/rules/patterns.mdc",
+            "agent-runtime/docs/agent-runtime-artifacts.md"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "apps/demo/",
+            "apps/landing/",
+            "apps/dashboard/",
+            "ios/",
+            "web/",
+            "backend/src/juli_backend/",
+            "docs/integrations/tiktok_api/",
+            "docs/product/design/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/modular-monolith-upgrade/PRD.md",
+            "docs/architecture/MODULES.md",
+            ".cursor/rules/code-review.mdc",
+            ".cursor/skills/standalone/intent-review/SKILL.md",
+            ".cursor/skills/standalone/guardrails/SKILL.md"
+          ],
+          "requiredModules": [
+            ".github/pull_request_template.md",
+            ".cursor/rules/code-review.mdc",
+            ".cursor/skills/standalone/intent-review/SKILL.md",
+            ".cursor/skills/standalone/guardrails/SKILL.md"
+          ],
+          "acceptanceCriteria": [
+            "PR template includes the four questions as a required checklist.",
+            "Review Agent / code-review guidance points at the same four questions (no conflicting wording).",
+            "No CI behavior change in this slice (gates are MMU-3)."
+          ],
+          "loadWhenNeeded": [
+            "docs/handoffs/modular-monolith-audit-data.json",
+            "docs/architecture/map.md",
+            "docs/architecture/import-boundaries.md",
+            ".cursor/rules/patterns.mdc",
+            "agent-runtime/docs/agent-runtime-artifacts.md"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 553,
+        "parentIssueId": 550,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 553 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 553,
+        "parentIssueId": 550,
+        "publicRelease": false,
+        "planSource": null,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #550 \u2014 Modular Monolith Upgrade (constant)\\\n## Product boundary\\\n- Hard-shell modular monolith (~9/10); single backend deployable; NO microservices\\\n- Enforce ownership (tables/tasks/Redis/integrations) + import contracts + thin Celery ports\\\n## Parallel wave 1\\\n- #551 MMU-1 ownership registry \u00b7 #552 MMU-2 import-linter (warn-capable) \u00b7 #554 MMU-6 Celery async ports\\\n## Architecture authority\\\n- MODULES.md (planning) \u00b7 map.md (as-built) \u00b7 modular-monolith-audit-data.json \u00b7 PRD\\\n## Epic deferrals\\\n- MMU-3 required PR gates (#556) \u00b7 facades/API thinning \u00b7 models/repos split \u00b7 Redis juli:<module>: policy \u00b7 dual-writer collapse \u00b7 Billing\\\n- Phase 2.10/2.11 product slices (path-disjoint)\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "apps/demo/",
+      "apps/landing/",
+      "apps/dashboard/",
+      "web/",
+      "ios/",
+      "docs/product/design/",
+      "Sibling issue context caches",
+      "backend/src/juli_backend/",
+      "docs/integrations/tiktok_api/"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/backend/SKILL.md",
+          "purpose": "Primary backend Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "backend",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/modular-monolith-upgrade/PRD.md",
+        "docs/architecture/MODULES.md",
+        ".cursor/rules/code-review.mdc",
+        ".cursor/skills/standalone/intent-review/SKILL.md",
+        ".cursor/skills/standalone/guardrails/SKILL.md"
+      ],
+      "requiredModules": [
+        ".github/pull_request_template.md",
+        ".cursor/rules/code-review.mdc",
+        ".cursor/skills/standalone/intent-review/SKILL.md",
+        ".cursor/skills/standalone/guardrails/SKILL.md"
+      ],
+      "acceptanceCriteria": [
+        "PR template includes the four questions as a required checklist.",
+        "Review Agent / code-review guidance points at the same four questions (no conflicting wording).",
+        "No CI behavior change in this slice (gates are MMU-3)."
+      ],
+      "loadWhenNeeded": [
+        "docs/handoffs/modular-monolith-audit-data.json",
+        "docs/architecture/map.md",
+        "docs/architecture/import-boundaries.md",
+        ".cursor/rules/patterns.mdc",
+        "agent-runtime/docs/agent-runtime-artifacts.md"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #553\n\n- sliceId: MMU-4\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #553 \u2014 MMU-4\n\n## Parent\n#550\n\n## Executor domain\nbackend\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/modular-monolith-upgrade/PRD.md\n- docs/architecture/MODULES.md\n- .cursor/rules/code-review.mdc\n- .cursor/skills/standalone/intent-review/SKILL.md\n- .cursor/skills/standalone/guardrails/SKILL.md\n",
+    "executorDomain": "backend",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    }
+  },
+  "executorDomain": "backend"
+}
