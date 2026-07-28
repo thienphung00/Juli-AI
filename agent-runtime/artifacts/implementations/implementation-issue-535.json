@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 535,
+  "executorDomain": "backend",
+  "phaseRunId": "535-20260728T021352",
+  "startedAt": "2026-07-28T01:50:00Z",
+  "completedAt": "2026-07-28T02:20:00Z",
+  "executionDurationMs": 1800000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 20,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 12,
+      "stage": "green"
+    },
+    {
+      "toolName": "Write",
+      "count": 4,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 10,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 46,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-535.json",
+    "docs/handoffs/phase-2.10-issue-bodies/535.md",
+    "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+    "docs/adr/041-vps-redis-ephemeral-cache-and-celery.md",
+    "backend/src/juli_backend/services/analytics_kpi_cache/cache.py",
+    "backend/src/juli_backend/api/routes/demo_analytics.py",
+    "backend/src/juli_backend/api/main.py",
+    "tests/unit/test_analytics_kpi_cache.py",
+    "tests/unit/test_api_demo_analytics.py",
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/standalone/grill-with-docs/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/git-baseline.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_kpi_cache/cache.py",
+    "backend/src/juli_backend/services/analytics_kpi_cache/__init__.py",
+    "backend/src/juli_backend/services/analytics_kpi_cache/MODULE.md",
+    "backend/src/juli_backend/api/main.py",
+    "backend/src/juli_backend/api/routes/demo_analytics.py",
+    "tests/unit/test_analytics_kpi_cache.py",
+    "tests/unit/test_api_demo_analytics.py",
+    "docs/adr/041-vps-redis-ephemeral-cache-and-celery.md",
+    "docs/adr/README.md",
+    "CONTEXT.md",
+    "infra/scripts/env/api.env.example",
+    "agent-runtime/artifacts/release-evidence-plan-issue-535.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_kpi_cache.py::test_shared_redis_client_reuses_same_instance",
+    "tests/unit/test_analytics_kpi_cache.py::test_close_shared_redis_client_clears_singleton",
+    "tests/unit/test_analytics_kpi_cache.py::test_shared_redis_client_none_without_url"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_api_demo_analytics.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "CI: AttributeError demo_analytics.create_redis_client after singleton rename — 4 demo analytics tests failed",
+      "passingTestEvidence": "Patches updated to get_shared_redis_client; demo analytics + cache unit tests pass (12)",
+      "refactorEvidence": "Process-lifetime get_shared_redis_client + lifespan close; create_redis_client compat alias",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_api_demo_analytics.py tests/unit/test_analytics_kpi_cache.py -q",
+          "exitCode": 0,
+          "outputSummary": "12 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "test_shared_redis_client_reuses_same_instance red until singleton implemented",
+      "passingTestEvidence": "Same instance returned for repeated get_shared_redis_client calls; aclose clears singleton",
+      "refactorEvidence": "Module-level _shared_client; Demo Depends + API lifespan warm/close",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_kpi_cache.py -q",
+          "exitCode": 0,
+          "outputSummary": "7 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Shared process-lifetime async Redis client for Demo Analytics cache (reuse + lifespan close). ADR-041 documents ephemeral co-located VPS Redis (no persistence, 256mb LRU, Celery DB split). Env example documents REDIS_URL / CELERY_* / DEMO_REFERENCE_SHOP_ID for A11 HITL. /health remains Redis-agnostic (fail-open).",
+  "assumptions": [
+    "Ops applies redis.conf + env on VPS after merge (HITL remainder of #535)",
+    "phaseRunId 535-20260728T021352 from issue-context-cache-535.json",
+    "publicRelease=true because slice load profile includes apps/demo + Demo smoke ACs"
+  ],
+  "risks": [
+    "HITL smoke still required on VPS after deploy",
+    "Sync RateLimiter clients still create per-call redis.from_url connections (out of this slice)"
+  ],
+  "releaseEvidencePlanId": "rep-535-vps-redis-shared-client"
+}

@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.config.runtime import require_env
 from juli_backend.database import get_session
 from juli_backend.services.analytics_kpi_cache import (
-    create_redis_client,
     get_analytics_kpi_envelope,
+    get_shared_redis_client,
 )
 from juli_backend.services.analytics_kpi_masking import mask_public_analytics_envelope
 
@@ -40,7 +40,7 @@ def get_demo_reference_shop_id() -> uuid.UUID:
 
 
 def get_demo_redis_client() -> Any | None:
-    return create_redis_client()
+    return get_shared_redis_client()
 
 
 def _parse_computed_at(payload: dict[str, Any]) -> datetime:

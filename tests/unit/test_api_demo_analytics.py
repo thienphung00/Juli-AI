@@ -10,9 +10,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import AnalyticsKpiEnvelopesRepo
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 REAL_SHOP_DISPLAY_NAME = "Fujiwa Official Store"
 REAL_MERCHANT_ID = "7658073774813611784"
@@ -122,7 +123,7 @@ async def test_get_demo_analytics_returns_masked_envelope_without_auth(
     await session.flush()
 
     with patch(
-        "juli_backend.api.routes.demo_analytics.create_redis_client",
+        "juli_backend.api.routes.demo_analytics.get_shared_redis_client",
         return_value=None,
     ):
         resp = await demo_client.get("/v1/demo/analytics")
@@ -139,6 +140,34 @@ async def test_get_demo_analytics_returns_masked_envelope_without_auth(
     assert identity["shop_display_name"] != REAL_SHOP_DISPLAY_NAME
     assert "merchant_id" not in identity
     assert body["kpis"]["gmv_tiktok"]["series"][2]["v"] == 1200000.0
+
+
+@pytest.mark.asyncio
+async def test_reference_shop_id_configured_server_side_for_public_analytics_get(
+    demo_client,
+    session,
+    reference_shop,
+    demo_reference_shop_id,
+) -> None:
+    computed_at = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
+    payload = _raw_envelope_payload(shop_id=reference_shop.id, computed_at=computed_at)
+    await AnalyticsKpiEnvelopesRepo(session).upsert(
+        shop_id=reference_shop.id,
+        kind="analytics",
+        envelope_version=1,
+        payload=payload,
+        computed_at=computed_at,
+    )
+    await session.flush()
+
+    with patch(
+        "juli_backend.api.routes.demo_analytics.get_shared_redis_client",
+        return_value=None,
+    ):
+        resp = await demo_client.get("/v1/demo/analytics")
+
+    assert resp.status_code == 200
+    assert resp.json()["shop_id"] != str(demo_reference_shop_id)
 
 
 @pytest.mark.asyncio
@@ -166,7 +195,7 @@ async def test_get_demo_analytics_uses_cache_sot_read_path(
     await redis.set(envelope_cache_key(reference_shop.id), json.dumps(payload))
 
     with patch(
-        "juli_backend.api.routes.demo_analytics.create_redis_client",
+        "juli_backend.api.routes.demo_analytics.get_shared_redis_client",
         return_value=redis,
     ):
         resp = await demo_client.get("/v1/demo/analytics")
@@ -178,7 +207,7 @@ async def test_get_demo_analytics_uses_cache_sot_read_path(
 
 
 @pytest.mark.asyncio
-async def test_get_demo_analytics_does_not_enqueue_compute(
+async def test_smoke_fake_refresh_does_not_trigger_partner_fetch_storm(
     demo_client,
     session,
     reference_shop,
@@ -196,7 +225,7 @@ async def test_get_demo_analytics_does_not_enqueue_compute(
 
     with (
         patch(
-            "juli_backend.api.routes.demo_analytics.create_redis_client",
+            "juli_backend.api.routes.demo_analytics.get_shared_redis_client",
             return_value=None,
         ),
         patch(
@@ -228,7 +257,7 @@ async def test_get_demo_analytics_range_filters_chart_series(
     await session.flush()
 
     with patch(
-        "juli_backend.api.routes.demo_analytics.create_redis_client",
+        "juli_backend.api.routes.demo_analytics.get_shared_redis_client",
         return_value=None,
     ):
         resp = await demo_client.get("/v1/demo/analytics", params={"range": "30d"})
