@@ -5,6 +5,12 @@ import HomePage from "../app/page";
 import { demoSnapshot, homeDestinations } from "../lib/mock-data";
 
 describe("Demo Home", () => {
+  it("Home and Settings unchanged mock; Sign-in stub stays non-functional", () => {
+    expect(demoSnapshot.mode).toBe("mock");
+    render(<HomePage />);
+    expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
+  });
+
   it("renders exactly the two keyboard-operable destination launchers", () => {
     render(<HomePage />);
 

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { demoDestinations } from "../lib/mock-data";
+import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
 import { DemoStateProvider, useDemoState } from "./demo-state";
 
 const assistanceByPath = {
@@ -41,6 +42,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     requestSignIn,
     resetMockState,
   } = useDemoState();
+  const { refreshAnalytics } = useAnalyticsData();
   const assistance =
     pathname.startsWith("/analytics")
       ? assistanceByPath["/analytics"]
@@ -52,6 +54,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
       : assistance.message;
 
   const handleManualRefresh = () => {
+    void refreshAnalytics();
     resetMockState();
     router.replace("/decisions");
   };
@@ -125,7 +128,9 @@ function DemoShellContent({ children }: { children: ReactNode }) {
 export function DemoShell({ children }: { children: ReactNode }) {
   return (
     <DemoStateProvider>
-      <DemoShellContent>{children}</DemoShellContent>
+      <AnalyticsDataProvider>
+        <DemoShellContent>{children}</DemoShellContent>
+      </AnalyticsDataProvider>
     </DemoStateProvider>
   );
 }

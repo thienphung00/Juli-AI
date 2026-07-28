@@ -14,6 +14,7 @@ remains in app-level libs until a later migration.
 - `ExecutionRecord` — one approved workflow execution with timeline and input snapshot.
 - `ReviewStage` / `ReviewStageContent` — five-stage recommendation review copy.
 - `ReviewInputFieldDescriptor` — editable Inputs-stage field metadata.
+- `DemoAnalyticsEnvelope` / `AnalyticsKpiEntry` — masked public Analytics KPI envelope (#525/#531); `gmv_tiktok` label law, no `net_revenue` alias.
 - `deriveLifecycleFromTimeline(timeline)` — maps step states to lifecycle status.
 
 ## Dependencies
