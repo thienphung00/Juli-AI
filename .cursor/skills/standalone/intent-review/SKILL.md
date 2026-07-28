@@ -31,6 +31,20 @@ GitHub Issues via `gh issue view <n> --comments` (or `gh pr view` for PRs).
 
 ## Process
 
+### 0. Modular monolith four questions (when applicable)
+
+For backend- or architecture-touching PRs, confirm the author answered the four
+required questions in [`.github/pull_request_template.md`](../../../.github/pull_request_template.md)
+(same wording in [`.cursor/rules/code-review.mdc`](../../../.cursor/rules/code-review.mdc)):
+
+1. **Does it work?** — Tests (unit / integration / E2E as applicable).
+2. **Does it belong in this module?** — Ownership (routes, models, services, tables, tasks, Redis keys, integrations).
+3. **Did it create forbidden dependencies?** — Import-linter + cycle check.
+4. **Can this module still be extracted later?** — Architecture (deep module / facade discipline; no new god-file or cross-module internal reach-through).
+
+Fold violations into smells / convention_notes or Spec fidelity as appropriate; do
+not invent alternate wording for these questions.
+
 ### 1. Pin the fixed point
 
 Ask if unspecified. Capture once:

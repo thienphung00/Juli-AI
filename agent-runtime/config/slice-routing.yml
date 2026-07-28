@@ -1441,3 +1441,117 @@ MMU-12:
     - ios/
     - web/
     - Sibling issue context caches
+
+MMU-4:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - .cursor/rules/code-review.mdc
+    - .cursor/skills/standalone/intent-review/SKILL.md
+    - .cursor/skills/standalone/guardrails/SKILL.md
+  requiredModules:
+    - .github/pull_request_template.md
+    - .cursor/rules/code-review.mdc
+    - .cursor/skills/standalone/intent-review/SKILL.md
+    - .cursor/skills/standalone/guardrails/SKILL.md
+  loadWhenNeeded:
+    - docs/handoffs/modular-monolith-audit-data.json
+    - docs/architecture/map.md
+    - docs/architecture/import-boundaries.md
+    - .cursor/rules/patterns.mdc
+    - agent-runtime/docs/agent-runtime-artifacts.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - backend/src/juli_backend/
+    - docs/integrations/tiktok_api/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-7:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/services/execution/MODULE.md
+    - backend/src/juli_backend/services/operations/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/execution/__init__.py
+    - backend/src/juli_backend/services/execution/worker.py
+    - backend/src/juli_backend/services/execution/types.py
+    - backend/src/juli_backend/services/operations/__init__.py
+    - backend/src/juli_backend/services/operations/outcome_tracking.py
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - tests/unit/test_workflow_outcome_tracking_contract.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/execution/runner.py
+    - backend/src/juli_backend/services/execution/dispatch.py
+    - tests/unit/test_api_outcomes.py
+    - tests/unit/test_celery_tool_execution_contract.py
+    - .cursor/rules/patterns.mdc
+    - docs/architecture/import-boundaries.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-8:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/import-boundaries.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/api/MODULE.md
+    - backend/src/juli_backend/services/webhook/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/api/routes/webhook_tiktok.py
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/services/webhook/app.py
+    - backend/src/juli_backend/services/webhook/__init__.py
+    - backend/src/juli_backend/services/tiktok/oauth.py
+    - backend/src/juli_backend/integrations/tiktok/__init__.py
+    - tests/unit/test_api_webhook_tiktok.py
+    - tests/unit/test_webhook.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/etl/consumer.py
+    - backend/src/juli_backend/services/ingestion/handoff.py
+    - backend/src/juli_backend/api/app.py
+    - tests/unit/test_tiktok_webhook_services.py
+    - tests/unit/test_import_boundaries.py
+    - .importlinter.toml
+    - .cursor/rules/patterns.mdc
+    - .cursor/skills/domain/integrations/SKILL.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
