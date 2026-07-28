@@ -7,13 +7,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.ai.recommendations import (
-    get_host_product_matching,
-    get_product_push_suggestions,
-)
 from juli_backend.api.dependencies import get_active_shop
-from juli_backend.database import RecommendationsRepo, Shop, get_session
+from juli_backend.database import Shop, get_session
 from juli_backend.models.models import Recommendation
+from juli_backend.services.action_cards import persist_legacy_recommendations
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
@@ -53,7 +50,7 @@ async def list_recommendations(
     """Return current active recommendations with CTAs for the shop."""
     rows = await _list_active(session, shop.id)
     if not rows:
-        await _refresh_recommendations(session, shop.id)
+        await persist_legacy_recommendations(session, shop.id)
         rows = await _list_active(session, shop.id)
     return RecommendationsResponse(data=[_to_item(row) for row in rows])
 
@@ -64,9 +61,7 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
-async def _list_active(
-    session: AsyncSession, shop_id: uuid.UUID
-) -> list[Recommendation]:
+async def _list_active(session: AsyncSession, shop_id: uuid.UUID) -> list[Recommendation]:
     now = datetime.now(UTC)
     stmt = (
         select(Recommendation)
@@ -78,68 +73,7 @@ async def _list_active(
     )
     result = await session.execute(stmt)
     rows = list(result.scalars().all())
-    return [
-        row
-        for row in rows
-        if row.expires_at is None or _as_utc(row.expires_at) > now
-    ]
-
-
-async def _refresh_recommendations(session: AsyncSession, shop_id: uuid.UUID) -> None:
-    """Upsert rule-based recommendations from the recommendations engine."""
-    repo = RecommendationsRepo(session)
-    expires = datetime.now(UTC).replace(
-        hour=23, minute=59, second=59, microsecond=0
-    )
-
-    push_suggestions = await get_product_push_suggestions(session, shop_id, limit=5)
-    for suggestion in push_suggestions:
-        await repo.create(
-            shop_id=shop_id,
-            recommendation_type="product_push",
-            status="active",
-            expires_at=expires,
-            payload=json.dumps(
-                {
-                    "message": suggestion.message,
-                    "cta": suggestion.cta,
-                    "tiktok_product_id": suggestion.tiktok_product_id,
-                    "product_name": suggestion.product_name,
-                    "sku_id": suggestion.sku_id,
-                    "composite_score": suggestion.composite_score,
-                }
-            ),
-        )
-
-    matches = await get_host_product_matching(session, shop_id, limit=3)
-    for match in matches:
-        await repo.create(
-            shop_id=shop_id,
-            recommendation_type="host_product_match",
-            status="active",
-            expires_at=expires,
-            payload=json.dumps(
-                {
-                    "message": match.message,
-                    "cta": match.cta,
-                    "creator_id": match.creator_id,
-                    "creator_name": match.creator_name,
-                    "tiktok_product_id": match.tiktok_product_id,
-                    "product_name": match.product_name,
-                    "match_score": match.match_score,
-                    "source": match.source,
-                    "action_type": match.action_type,
-                    "confidence": match.confidence,
-                    "computed_at": match.computed_at.isoformat(),
-                    "predicted_outcome": {
-                        "gmv_vnd_week": match.predicted_outcome.gmv_vnd_week,
-                        "conversion_pct": match.predicted_outcome.conversion_pct,
-                        "engagement_index": match.predicted_outcome.engagement_index,
-                        "risk_factors": match.predicted_outcome.risk_factors,
-                    },
-                }
-            ),
-        )
+    return [row for row in rows if row.expires_at is None or _as_utc(row.expires_at) > now]
 
 
 def _to_item(row: Recommendation) -> RecommendationItem:

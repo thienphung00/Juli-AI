@@ -280,6 +280,9 @@ Lower tiers add **specs and precision** for implementation.
 - **Features:**
   - **Shipped:** Manual refresh pipeline; rules signals/recs/copy; Phase 1.5 trainers
     (dataset, features, seller_stage, anomaly, ad_performance, artifacts); recommendations helpers.
+  - **Decision persistence (MMU-11):** `services/action_cards` is the sole write owner for
+    `action_cards` and retained legacy `recommendations`; API routes delegate, scoring +
+    legacy persist stay in the owning module.
   - **In progress:** Fujiwa T1 experiment / backtest pathfinders as scheduled.
   - **Planned:** Phase 2.10-A KPI envelopes; 2.10-B rules wire + emission budget;
     Haiku copy (Phase 4); production inference schedule.
