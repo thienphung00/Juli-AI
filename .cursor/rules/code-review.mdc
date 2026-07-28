@@ -31,6 +31,21 @@ Code review is required for production-impacting changes.
 - **Performance**: bounded queries/results; no obvious N+1; avoid blocking I/O in async code.
 - **Tests**: new behaviors covered; tests deterministic.
 
+## Modular monolith review (required)
+
+Canonical source: [`docs/product/phases/modular-monolith-upgrade/PRD.md`](../../docs/product/phases/modular-monolith-upgrade/PRD.md)
+(§ PR review). Authors attest in [`.github/pull_request_template.md`](../../.github/pull_request_template.md);
+Review Agent verifies the same four questions (wording must match — no paraphrase drift).
+
+1. **Does it work?** — Tests (unit / integration / E2E as applicable).
+2. **Does it belong in this module?** — Ownership (routes, models, services, tables, tasks, Redis keys, integrations).
+3. **Did it create forbidden dependencies?** — Import-linter + cycle check.
+4. **Can this module still be extracted later?** — Architecture (deep module / facade discipline; no new god-file or cross-module internal reach-through).
+
+A green “tests only” PR that fails any of questions 2–4 is not merge-ready. Automated
+architecture gates (import-linter, cycles, ownership registry) are enforced in MMU-3 (#556);
+this checklist applies even when CI is not yet blocking.
+
 ## Severity levels
 
 - **CRITICAL**: security vulnerability, data-loss risk → block merge until fixed.

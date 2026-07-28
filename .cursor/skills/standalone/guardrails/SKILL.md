@@ -110,6 +110,20 @@ Schema: [`agent-runtime/docs/schemas/review-artifact.schema.json`](../../../agen
 4. Map AC **coverage** when Spec fidelity passed
 5. Emit ADR-003 review artifact
 
+### Modular monolith merge criteria (architecture axis)
+
+When the issue touches backend module boundaries, cross-check the author's
+[`.github/pull_request_template.md`](../../../.github/pull_request_template.md)
+attestation against [`.cursor/rules/code-review.mdc`](../../../.cursor/rules/code-review.mdc)
+— same four questions as intent-review step 0:
+
+1. **Does it work?** — Tests (unit / integration / E2E as applicable).
+2. **Does it belong in this module?** — Ownership (routes, models, services, tables, tasks, Redis keys, integrations).
+3. **Did it create forbidden dependencies?** — Import-linter + cycle check.
+4. **Can this module still be extracted later?** — Architecture (deep module / facade discipline; no new god-file or cross-module internal reach-through).
+
+Record gaps in `architectureFindings` on the review artifact; do not rephrase the questions.
+
 ## Validation Domains
 
 ### 1. Reliability
