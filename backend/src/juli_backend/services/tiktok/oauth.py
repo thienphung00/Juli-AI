@@ -12,16 +12,85 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import uuid
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from juli_backend.core.config.runtime import require_env
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.integrations.tiktok import (
     AuthenticationError,
     TikTokAuth,
 )
+from juli_backend.services.tiktok.app_review_store import persist_oauth_tokens
 from juli_backend.services.tiktok.schemas import TikTokOAuthCallbackResult
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_TIKTOK_BASE_URL = "https://open-api.tiktokglobalshop.com"
+DEFAULT_TIKTOK_AUTH_BASE_URL = "https://auth.tiktok-shops.com"
+
+
+class TikTokOAuthNotConfiguredError(RuntimeError):
+    """Raised when required TikTok OAuth environment variables are missing."""
+
+
+class TikTokOAuthTokenExchangeFailed(Exception):
+    """Raised when TikTok rejects an authorization code exchange."""
+
+
+def build_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
+    """Construct the OAuth callback service from runtime environment."""
+    try:
+        app_secret = require_env("TIKTOK_APP_SECRET")
+        app_key = require_env("TIKTOK_APP_KEY")
+    except RuntimeError as exc:
+        raise TikTokOAuthNotConfiguredError("TikTok OAuth is not configured") from exc
+
+    base_url = os.environ.get("TIKTOK_BASE_URL", DEFAULT_TIKTOK_BASE_URL).strip()
+    if not base_url:
+        base_url = DEFAULT_TIKTOK_BASE_URL
+
+    auth_base_url = os.environ.get("TIKTOK_AUTH_BASE_URL", DEFAULT_TIKTOK_AUTH_BASE_URL).strip()
+    if not auth_base_url:
+        auth_base_url = DEFAULT_TIKTOK_AUTH_BASE_URL
+
+    tiktok_auth = TikTokAuth(
+        app_key=app_key,
+        app_secret=app_secret,
+        base_url=base_url,
+        auth_base_url=auth_base_url,
+    )
+    return TikTokOAuthInfrastructureService(app_secret=app_secret, tiktok_auth=tiktok_auth)
+
+
+async def complete_tiktok_oauth_callback(
+    session: AsyncSession,
+    *,
+    code: str,
+    state: str | None = None,
+    app_key: str | None = None,
+    locale: str | None = None,
+    shop_region: str | None = None,
+    oauth_service: TikTokOAuthInfrastructureService | None = None,
+) -> TikTokOAuthCallbackResult:
+    """Exchange the authorization code and persist tokens for the callback owner."""
+    service = oauth_service or build_tiktok_oauth_service()
+    try:
+        result, token_data, user_id = await service.handle_callback(
+            code,
+            state,
+            app_key=app_key,
+            locale=locale,
+            shop_region=shop_region,
+        )
+    except AuthenticationError as exc:
+        raise TikTokOAuthTokenExchangeFailed from exc
+
+    await persist_oauth_tokens(session, token_data, user_id=user_id)
+    await session.commit()
+    return result
 
 
 class TikTokOAuthInfrastructureService:
