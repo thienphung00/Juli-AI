@@ -19,7 +19,7 @@
 
 | Issue | Title | Status | Branch | Worktree | GitHub ops |
 |-------|-------|--------|--------|----------|------------|
-| #551 | MMU-1 Ownership registry | **Meta ready → Executor** | `feature/issue-551-ownership-registry` | `.worktrees/issue-551` | pending PR |
+| #551 | MMU-1 Ownership registry | **PR open — validate PASS** | `feature/issue-551-ownership-registry` | `.worktrees/issue-551` | [PR #566](https://github.com/thienphung00/Juli-AI/pull/566) |
 | #552 | MMU-2 Import-linter contract | **Meta ready → Executor** | `feature/issue-552-import-linter` | `.worktrees/issue-552` | pending PR |
 | #554 | MMU-6 Celery async ports | **Meta ready → Executor** | `feature/issue-554-celery-async-ports` | `.worktrees/issue-554` | pending PR |
 
@@ -54,7 +54,7 @@
 |------------|-------|---------|-------|
 | 2026-07-28T02:32Z | Meta | `meta_prepare_executor` → readyForExecutor true (MMU-1/2/6) | #551/#552/#554 |
 | 2026-07-28T02:33Z | Meta | Worktrees from `origin/main` @ `95afca53` | #551/#552/#554 |
-| 2026-07-28T02:34Z | Meta | Sync harness+caches+PRD/audit into WTs; re-meta; launch Composer full-loop | #551/#552/#554 |
+| 2026-07-28T02:50Z | #551 Executor | `git push` + `gh pr create` → [PR #566](https://github.com/thienphung00/Juli-AI/pull/566) | #551 |
 
 ## References
 
