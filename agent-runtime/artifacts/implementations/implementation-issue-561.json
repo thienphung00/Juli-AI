@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 561,
+  "executorDomain": "backend",
+  "phaseRunId": "561-20260728T105700",
+  "startedAt": "2026-07-28T10:52:00Z",
+  "completedAt": "2026-07-28T11:00:00Z",
+  "executionDurationMs": 480000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 18,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 4,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 4,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 34,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-561.json",
+    "agent-runtime/config/slice-routing.yml",
+    "backend/src/juli_backend/api/MODULE.md",
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "docs/architecture/import-boundaries.md",
+    "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+    "backend/src/juli_backend/api/routes/auth_tiktok.py",
+    "backend/src/juli_backend/services/webhook/app.py",
+    "backend/src/juli_backend/services/tiktok/oauth.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+    "backend/src/juli_backend/api/routes/auth_tiktok.py",
+    "backend/src/juli_backend/services/webhook/deployed.py",
+    "backend/src/juli_backend/services/webhook/__init__.py",
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "backend/src/juli_backend/services/tiktok/oauth.py",
+    "tests/unit/test_api_route_public_entrypoints.py",
+    "tests/unit/test_tiktok_oauth_api_caller_facade.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_api_route_public_entrypoints.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_tiktok_oauth_api_caller_facade.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "3 failed in test_api_route_public_entrypoints.py — routes still imported EtlConsumer, integrations.tiktok, app_review_store, and webhook.app internals",
+      "passingTestEvidence": "46 passed — thin adapter import contract + existing webhook/auth regression suites green",
+      "refactorEvidence": "Moved ETL/DB assembly to services/webhook/deployed.py; OAuth factory + token persist to services/tiktok/oauth.py; routes remain HTTP-only",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_api_route_public_entrypoints.py -v",
+          "exitCode": 1,
+          "outputSummary": "3 failed, 1 passed — forbidden internal imports detected on webhook_tiktok.py and auth_tiktok.py"
+        },
+        {
+          "command": "python -m pytest tests/unit/test_api_route_public_entrypoints.py tests/unit/test_api_webhook_tiktok.py tests/unit/test_webhook.py tests/unit/test_tiktok_auth_callback.py tests/unit/test_tiktok_oauth_api_caller_facade.py -v",
+          "exitCode": 0,
+          "outputSummary": "46 passed in 12.89s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Thinned webhook_tiktok and auth_tiktok API routes to HTTP adapters. Webhook ingress delegates to handle_tiktok_webhook_delivery (services/webhook public API). TikTok OAuth callback delegates to build_tiktok_oauth_service and complete_tiktok_oauth_callback in services/tiktok/oauth.py. Added AST import-boundary tests asserting routes use owning service entrypoints only.",
+  "assumptions": [
+    "Business advertiser/account-holder auth routes remain out of MMU-8 scope; only auth_tiktok.py was thinned per issue requiredModules.",
+    "integrations.tiktok facade imports remain in services/tiktok/oauth.py per MMU-5 pattern from #557."
+  ],
+  "risks": [
+    "auth_tiktok_business_* routes still assemble OAuth clients inline — follow-up slice may thin those similarly."
+  ]
+}
