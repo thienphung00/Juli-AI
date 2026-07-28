@@ -44,7 +44,24 @@
     "tests/unit/test_tiktok_oauth.py"
   ],
   "redGreenRefactorEvidence": [
-    "tests/unit/test_oauth_facade_dual_writer.py"
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_mmu10_only_oauth_facade_may_call_repo_writes_for_connect_refresh failed: oauth.py still contained competing ShopsRepo/TikTokCredentialRepo writes",
+      "passingTestEvidence": "All MMU-10 OAuth facade contract tests pass after routing callback through TikTokOAuthService",
+      "refactorEvidence": "Delegated app_review_store.persist_oauth_tokens and oauth callback to Auth facade; updated ownership registry",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_oauth_facade_dual_writer.py -q",
+          "exitCode": 1,
+          "outputSummary": "competing OAuth connect/refresh writers outside Auth facade"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_oauth_facade_dual_writer.py -q",
+          "exitCode": 0,
+          "outputSummary": "8 passed"
+        }
+      ]
+    }
   ],
   "implementationSummary": "Collapse OAuth dual writers: route shop/credential persistence through TikTokOAuthService facade.",
   "assumptions": [],
