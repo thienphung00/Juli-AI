@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-533",
+  "issue": 533,
+  "timestamp": "2026-07-28T00:11:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "d6fbf682b898416805f81138f695231efcaf71d5",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff adds Celery Beat hourly entrypoint mock_analytics_hourly_reconcile scoped to DEMO_REFERENCE_SHOP_ID only (ADR-038 §5 narrow scheduler exception). Task resolves configured shop UUID to TikTok shop key and delegates to material_analytics_precompute_sync (#532) for shared upsert/cache refresh — idempotent with material webhooks. Does not fan out to all shops. MODULE.md documents Mock-mode reconciliation. 5 pytest cases cover beat schedule, configured-shop-only invoke, no fan-out, env skip, and shared precompute path.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "ADR-038 §5 — Mock reconciler scope",
+      "path": "backend/src/juli_backend/workers/MODULE.md",
+      "note": "Documents hourly reference-shop-only reconciliation; not global daily scoring.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "533-20260728T000400"
+}
