@@ -283,6 +283,9 @@ P2-B9:
 
 P2-6:
   executorDomain: ui-ux
+  # ADR-043: upstream reference skills before ui-ux-design / ui-ux executor assignment.
+  upstreamReferenceSkills:
+    - .cursor/skills/standalone/open-design-system/SKILL.md
   # Tiered: epic constants only in requiredDocs; component/screen docs in loadWhenNeeded.
   requiredDocs:
     - EXECUTION.md
@@ -300,6 +303,7 @@ P2-6:
     - packages/ui/MODULE.md
     - packages/utils/MODULE.md
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - docs/architecture/data-sources.md
     - docs/architecture/migration-plan.md
     - docs/product/design/README.md
@@ -737,6 +741,8 @@ BIZ-OAUTH-4:
 # Parent #499 — Demo static-asset delivery + VPS bridge release verification (ADR-035)
 DEMO-ASSET-1:
   executorDomain: ui-ux
+  upstreamReferenceSkills:
+    - .cursor/skills/standalone/open-design-system/SKILL.md
   requiredDocs:
     - "{handoffPath}"
     - docs/adr/035-public-release-evidence-and-automatic-rollback.md
@@ -751,6 +757,7 @@ DEMO-ASSET-1:
     - infra/scripts/provision-demo.sh
     - tests/unit/test_phase_2_6_demo_deploy_config.py
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - infra/scripts/build-frontend-review.sh
     - infra/systemd/juli-web.service
     - .cursor/skills/domain/testing-patterns/python-testing.md
@@ -791,6 +798,8 @@ DEMO-ASSET-2:
 
 DEMO-ASSET-3:
   executorDomain: ui-ux
+  upstreamReferenceSkills:
+    - .cursor/skills/standalone/open-design-system/SKILL.md
   requiredDocs:
     - "{handoffPath}"
     - docs/adr/035-public-release-evidence-and-automatic-rollback.md
@@ -803,6 +812,7 @@ DEMO-ASSET-3:
     - infra/scripts/deploy-demo-release.sh
     - tests/unit/test_phase_2_6_demo_deploy_config.py
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - apps/demo/e2e/exit-gate/decisions-journey.spec.ts
     - .cursor/rules/reliability.mdc
   doNotLoad:
@@ -925,6 +935,517 @@ META-4:
     - ios/
     - backend/src/juli_backend/
     - Sibling issue context caches
+# --- Modular Monolith Upgrade (#550) ---
+
+MMU-1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/workers/tasks/action_card_refresh.py
+    - backend/src/juli_backend/workers/tasks/tool_execution.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  loadWhenNeeded:
+    - docs/architecture/data-sources.md
+    - agent-runtime/scripts/ci/audit_module_drift.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - Sibling issue context caches
+
+MMU-2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+  requiredModules:
+    - backend/src/juli_backend/services
+    - backend/src/juli_backend/integrations
+    - backend/src/juli_backend/api
+    - backend/src/juli_backend/workers
+    - backend/src/juli_backend/core
+  loadWhenNeeded:
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - .cursor/rules/patterns.mdc
+    - docs/architecture/system-design.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - Sibling issue context caches
+
+MMU-6:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+  requiredModules:
+    - backend/src/juli_backend/services/action_cards/dispatch.py
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - backend/src/juli_backend/services/execution/dispatch.py
+    - backend/src/juli_backend/workers/tasks/action_card_refresh.py
+    - backend/src/juli_backend/workers/tasks/tool_execution.py
+  loadWhenNeeded:
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - tests/unit/test_action_cards_contract.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - Sibling issue context caches
+
+MMU-3:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/adr/003-ai-native-cicd-policy.md
+    - docs/adr/040-pr-safe-tests-lane.md
+    - .github/workflows/pr.yml
+    - .github/workflows/architecture-audit.yml
+    - docs/architecture/import-boundaries.md
+    - docs/architecture/ownership-registry.yml
+  requiredModules:
+    - .github/workflows/pr.yml
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - agent-runtime/scripts/ci/check_import_boundaries.py
+    - agent-runtime/scripts/ci/import_boundary_config.py
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - .importlinter.toml
+    - tests/unit/test_ownership_registry.py
+    - tests/unit/test_import_boundaries.py
+  loadWhenNeeded:
+    - docs/handoffs/worktree-branch-topology.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - agent-runtime/config/agent-runtime.config.yml
+    - tests/unit/test_phase_2_6_demo_exit_gate.py
+    - .cursor/rules/patterns.mdc
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - backend/src/juli_backend/
+    - docs/integrations/tiktok_api/
+    - docs/product/design/
+    - Sibling issue context caches
+MMU-9:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/database/MODULE.md
+    - .cursor/rules/patterns.mdc
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/database/__init__.py
+    - backend/src/juli_backend/database/migrations/env.py
+    - backend/src/juli_backend/services/etl/consumer.py
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - tests/unit/test_ownership_registry.py
+    - tests/unit/test_etl.py
+  loadWhenNeeded:
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/services/execution/MODULE.md
+    - backend/src/juli_backend/services/alerts/MODULE.md
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - .cursor/skills/domain/data-platform/SKILL.md
+    - agent-runtime/scripts/ci/audit_module_drift.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - web/
+    - ios/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-11:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - backend/src/juli_backend/services/scoring/MODULE.md
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/services/action_cards/__init__.py
+    - backend/src/juli_backend/services/action_cards/persist.py
+    - backend/src/juli_backend/services/action_cards/refresh.py
+    - backend/src/juli_backend/api/routes/recommendations.py
+    - backend/src/juli_backend/api/routes/action_cards.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/ai/recommendations/MODULE.md
+    - backend/src/juli_backend/api/MODULE.md
+    - backend/src/juli_backend/services/scoring/pipeline.py
+    - tests/unit/test_action_cards_contract.py
+    - tests/unit/test_api_alerts_recommendations_analytics.py
+    - tests/unit/test_api_recommendations.py
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - backend/src/juli_backend/services/etl/persistence/
+    - Sibling issue context caches
+
+MMU-5:
+  executorDomain: integrations
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/import-boundaries.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - .importlinter.toml
+  requiredModules:
+    - backend/src/juli_backend/integrations/tiktok/__init__.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/resources/__init__.py
+    - backend/src/juli_backend/integrations/tiktok/factories.py
+    - backend/src/juli_backend/integrations/tiktok/merchant.py
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - agent-runtime/scripts/ci/check_import_boundaries.py
+    - tests/unit/test_import_boundaries.py
+  loadWhenNeeded:
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/integrations/tiktok_api/authentication.md
+    - docs/architecture/data-sources.md
+    - .cursor/skills/domain/integrations/SKILL.md
+    - .cursor/rules/patterns.mdc
+    - backend/src/juli_backend/workers/services/polling/orchestrate.py
+    - backend/src/juli_backend/workers/services/polling/sync.py
+    - backend/src/juli_backend/services/tiktok/verify_connection.py
+    - backend/src/juli_backend/core/security/credential_resolver.py
+    - backend/src/juli_backend/repositories/repos.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - backend/src/juli_backend/ai/
+    - Sibling issue context caches
+
+MMU-12:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/ownership-registry.yml
+    - docs/adr/041-vps-redis-ephemeral-cache-and-celery.md
+    - docs/handoffs/modular-monolith-audit-data.json
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/integrations/tiktok/rate_limiter.py
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/services/analytics_kpi_cache/cache.py
+    - backend/src/juli_backend/services/analytics_kpi_cache/MODULE.md
+    - backend/src/juli_backend/services/webhook/material_gate.py
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/workers/README.md
+  loadWhenNeeded:
+    - docs/architecture/redis-namespace-policy.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - agent-runtime/scripts/ci/check_redis_key_prefixes.py
+    - backend/src/juli_backend/services/action_cards/refresh.py
+    - backend/src/juli_backend/services/webhook/material_worker.py
+    - backend/src/juli_backend/services/webhook/material_dispatch.py
+    - backend/src/juli_backend/api/main.py
+    - backend/src/juli_backend/api/routes/demo_analytics.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - Sibling issue context caches
+
+MMU-4:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - .cursor/rules/code-review.mdc
+    - .cursor/skills/standalone/intent-review/SKILL.md
+    - .cursor/skills/standalone/guardrails/SKILL.md
+  requiredModules:
+    - .github/pull_request_template.md
+    - .cursor/rules/code-review.mdc
+    - .cursor/skills/standalone/intent-review/SKILL.md
+    - .cursor/skills/standalone/guardrails/SKILL.md
+  loadWhenNeeded:
+    - docs/handoffs/modular-monolith-audit-data.json
+    - docs/architecture/map.md
+    - docs/architecture/import-boundaries.md
+    - .cursor/rules/patterns.mdc
+    - agent-runtime/docs/agent-runtime-artifacts.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - backend/src/juli_backend/
+    - docs/integrations/tiktok_api/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-7:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/services/execution/MODULE.md
+    - backend/src/juli_backend/services/operations/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/execution/__init__.py
+    - backend/src/juli_backend/services/execution/worker.py
+    - backend/src/juli_backend/services/execution/types.py
+    - backend/src/juli_backend/services/operations/__init__.py
+    - backend/src/juli_backend/services/operations/outcome_tracking.py
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - tests/unit/test_workflow_outcome_tracking_contract.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/execution/runner.py
+    - backend/src/juli_backend/services/execution/dispatch.py
+    - tests/unit/test_api_outcomes.py
+    - tests/unit/test_celery_tool_execution_contract.py
+    - .cursor/rules/patterns.mdc
+    - docs/architecture/import-boundaries.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-8:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/import-boundaries.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/api/MODULE.md
+    - backend/src/juli_backend/services/webhook/MODULE.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/api/routes/webhook_tiktok.py
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/services/webhook/app.py
+    - backend/src/juli_backend/services/webhook/__init__.py
+    - backend/src/juli_backend/services/tiktok/oauth.py
+    - backend/src/juli_backend/integrations/tiktok/__init__.py
+    - tests/unit/test_api_webhook_tiktok.py
+    - tests/unit/test_webhook.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/etl/consumer.py
+    - backend/src/juli_backend/services/ingestion/handoff.py
+    - backend/src/juli_backend/api/app.py
+    - tests/unit/test_tiktok_webhook_services.py
+    - tests/unit/test_import_boundaries.py
+    - .importlinter.toml
+    - .cursor/rules/patterns.mdc
+    - .cursor/skills/domain/integrations/SKILL.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-10:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - docs/handoffs/modular-monolith-audit-data.json
+    - backend/src/juli_backend/core/security/MODULE.md
+    - backend/src/juli_backend/services/tiktok/MODULE.md
+  requiredModules:
+    - docs/architecture/ownership-registry.yml
+    - backend/src/juli_backend/core/security/tiktok_oauth.py
+    - backend/src/juli_backend/services/tiktok/oauth.py
+    - backend/src/juli_backend/api/routes/auth_tiktok.py
+    - backend/src/juli_backend/repositories/repos.py
+    - tests/unit/test_tiktok_oauth.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/core/security/credential_resolver.py
+    - backend/src/juli_backend/integrations/tiktok/__init__.py
+    - tests/unit/test_tiktok_credential_isolation.py
+    - tests/unit/test_import_boundaries.py
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+    - .cursor/skills/domain/integrations/SKILL.md
+    - .cursor/rules/security.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-13:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - docs/architecture/ownership-registry.yml
+    - docs/architecture/import-boundaries.md
+    - docs/handoffs/modular-monolith-audit-data.json
+    - docs/handoffs/modular-monolith-boundary-audit.html
+  requiredModules:
+    - docs/architecture/MODULES.md
+    - docs/architecture/map.md
+    - backend/src/juli_backend/integrations/tiktok/MODULE.md
+    - backend/src/juli_backend/api/MODULE.md
+    - backend/src/juli_backend/services/webhook/MODULE.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/database/MODULE.md
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/tiktok/MODULE.md
+    - backend/src/juli_backend/core/security/MODULE.md
+    - agent-runtime/scripts/ci/audit_module_drift.py
+    - .cursor/rules/patterns.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
+
+MMU-14:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/modular-monolith-upgrade/PRD.md
+    - docs/architecture/MODULES.md
+    - docs/architecture/import-boundaries.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  requiredModules:
+    - tests/unit/test_import_boundaries.py
+    - tests/unit/test_ownership_registry.py
+    - .importlinter.toml
+    - agent-runtime/scripts/ci/check_import_boundaries.py
+    - agent-runtime/scripts/ci/check_ownership_registry.py
+  loadWhenNeeded:
+    - tests/integration/
+    - .github/workflows/pr.yml
+    - docs/architecture/ownership-registry.yml
+    - agent-runtime/scripts/ci/audit_cycles.py
+    - .cursor/rules/reliability.mdc
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - apps/demo/
+    - apps/landing/
+    - apps/dashboard/
+    - ios/
+    - web/
+    - docs/product/design/
+    - Sibling issue context caches
 
 # --- Demo Visual Refinement (#580) ---
 
@@ -934,7 +1455,7 @@ DVR-B1:
     - EXECUTION.md
     - "{handoffPath}"
     - docs/product/phases/demo-visual-refinement/PRD.md
-    - docs/adr/041-frontend-design-skill-wiring.md
+    - docs/adr/043-frontend-design-skill-wiring.md
     - docs/handoffs/demo-visual-refinement-issue-bodies/B1.md
     - CONTEXT.md
     - .cursor/skills/skill-catalog/SKILL.md
@@ -942,6 +1463,7 @@ DVR-B1:
     - agent-runtime/docs/agent-runtime.md
   requiredModules:
     - .cursor/skills/skill-catalog/SKILL.md
+    - .cursor/skills/standalone/open-design-system/SKILL.md
     - .cursor/skills/standalone/focus/SKILL.md
     - .cursor/skills/standalone/focus/routing-rules.md
     - .cursor/skills/standalone/ui-ux-design/SKILL.md
