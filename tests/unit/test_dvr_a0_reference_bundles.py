@@ -65,13 +65,15 @@ def bundle_readme() -> str:
 
 
 @pytest.mark.parametrize("filename", REQUIRED_BUNDLE_FILES)
-def test_dvr_a0_bundle_file_exists(filename: str):
+def test_reference_bundles_exist_for_home_analytics_recommendations(filename: str):
     """Each PRD-scoped reference bundle artifact exists on disk."""
     path = BUNDLE_DIR / filename
     assert path.is_file(), f"missing bundle file: {path.relative_to(REPO_ROOT)}"
 
 
-def test_dvr_a0_readme_documents_ephemeral_scope_and_destinations(bundle_readme: str):
+def test_bundles_are_prd_scoped_ephemeral_and_adapt_adr015_semantic_tokens(
+    bundle_readme: str,
+):
     """README states ephemeral scope, destinations, and ADR-015 adaptation."""
     lower = bundle_readme.lower()
     for marker in EPHEMERAL_MARKERS:
@@ -83,7 +85,7 @@ def test_dvr_a0_readme_documents_ephemeral_scope_and_destinations(bundle_readme:
     )
 
 
-def test_dvr_a0_bundles_document_copy_authority_and_mcp_provenance():
+def test_bundles_document_od_layouts_and_mobbin_screens_with_dictionary_copy():
     """Each destination bundle cites copy authority and external reference provenance."""
     for filename in ("home.md", "analytics.md", "recommendations.md"):
         text = (BUNDLE_DIR / filename).read_text(encoding="utf-8")
@@ -99,7 +101,15 @@ def test_dvr_a0_bundles_document_copy_authority_and_mcp_provenance():
             )
 
 
-def test_dvr_a0_hitl_waiver_documented():
+def test_vietnamese_copy_remains_dictionary_design_context_authority():
+    """Seller-facing copy authority stays dictionary.md + design-context.md."""
+    readme = (BUNDLE_DIR / "README.md").read_text(encoding="utf-8")
+    for marker in COPY_AUTHORITY_MARKERS:
+        assert marker in readme
+    assert "never" in readme.lower() or "not" in readme.lower()
+
+
+def test_product_design_sign_off_recorded_or_waived():
     """HITL product/design sign-off is waived and recorded in the handoff note."""
     note = (REPO_ROOT / "docs/handoffs/dvr-a0-handoff-note.md").read_text(encoding="utf-8")
     lower = note.lower()

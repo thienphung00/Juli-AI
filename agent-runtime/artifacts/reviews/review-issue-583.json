@@ -37,32 +37,32 @@
       "mappings": [
         {
           "criterion": "Reference bundles exist for Home, Analytics, Recommendations",
-          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_dvr_a0_bundle_file_exists"
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_reference_bundles_exist_for_home_analytics_recommendations"
         },
         {
           "criterion": "Bundles document OD layouts and Mobbin screens",
-          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_dvr_a0_bundles_document_copy_authority_and_mcp_provenance"
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_bundles_document_od_layouts_and_mobbin_screens_with_dictionary_copy"
         },
         {
           "criterion": "Output adapts to ADR-015 semantic tokens",
-          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_dvr_a0_readme_documents_ephemeral_scope_and_destinations"
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_bundles_are_prd_scoped_ephemeral_and_adapt_adr015_semantic_tokens"
         },
         {
           "criterion": "Vietnamese copy remains dictionary.md + design-context.md",
-          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_dvr_a0_bundles_document_copy_authority_and_mcp_provenance"
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_vietnamese_copy_remains_dictionary_design_context_authority"
         },
         {
           "criterion": "Bundles are PRD-scoped ephemeral",
-          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_dvr_a0_readme_documents_ephemeral_scope_and_destinations"
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_bundles_are_prd_scoped_ephemeral_and_adapt_adr015_semantic_tokens"
         },
         {
           "criterion": "Product/design sign-off recorded or waived",
-          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_dvr_a0_hitl_waiver_documented"
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_product_design_sign_off_recorded_or_waived"
         }
       ]
     },
     "unit": {
-      "passed": 6,
+      "passed": 8,
       "failed": 0
     }
   },
