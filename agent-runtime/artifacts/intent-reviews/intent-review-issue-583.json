@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-583",
+  "issue": 583,
+  "timestamp": "2026-07-29T06:33:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "7875964e33e734e89fed77733f96f182c55d5ec5",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff origin/main..de7315cb implements DVR-A0 ephemeral design reference bundles under docs/handoffs/dvr-a0-reference-bundles/ (Home, Analytics, Recommendations) with Mobbin + Open Design provenance, ADR-015 token adaptation tables, and dictionary/design-context copy authority. HITL product/design sign-off waived per Meta/user instruction and recorded in dvr-a0-handoff-note.md. Slice-routing adds DVR-A0/A1/A6 without dropping MMU rows (restored in de7315cb after accidental overwrite). Doc-contract pytest covers bundle presence and authority notes. No Demo UI / In Progress / Settings implementation — correctly out of scope.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "issue-workflow — shared slice-routing bootstrap",
+      "path": "agent-runtime/config/slice-routing.yml",
+      "note": "First executor briefly overwrote MMU rows from a stale primary checkout copy; fixed before ship. Keep append-only when adding DVR slices.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "583-20260729T062500"
+}

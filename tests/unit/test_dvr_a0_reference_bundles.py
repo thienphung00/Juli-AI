@@ -97,3 +97,11 @@ def test_dvr_a0_bundles_document_copy_authority_and_mcp_provenance():
             assert marker.lower() in text.lower(), (
                 f"{filename} missing destination marker: {marker}"
             )
+
+
+def test_dvr_a0_hitl_waiver_documented():
+    """HITL product/design sign-off is waived and recorded in the handoff note."""
+    note = (REPO_ROOT / "docs/handoffs/dvr-a0-handoff-note.md").read_text(encoding="utf-8")
+    lower = note.lower()
+    assert "waiv" in lower, "handoff note must record HITL waiver"
+    assert "583" in note or "DVR-A0" in note
