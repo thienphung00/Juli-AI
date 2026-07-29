@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.phase_scaffold
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_DIR = REPO_ROOT / "infra/deploy"
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
@@ -203,17 +205,13 @@ def test_smoke_test_covers_required_surface():
     assert "curl" in script, "smoke test must probe HTTPS endpoints"
     assert "app-juli.com" in script, "smoke test must load the frontend"
     assert "/health" in script, "smoke test must probe backend health"
-    assert "/v1/auth/tiktok/callback" in script, (
-        "smoke test must probe the OAuth callback route"
-    )
+    assert "/v1/auth/tiktok/callback" in script, "smoke test must probe the OAuth callback route"
     assert "/login" in script, "smoke test must probe reviewer login"
     assert "demo" in script.lower(), "smoke test must assert demo login entry"
-    assert (
-        "app/page" in script or "/_next/static/chunks/" in script
-    ), "smoke test must probe home route client chunks"
-    assert "access-control-allow-origin" in script.lower(), (
-        "smoke test must probe CORS preflight"
+    assert "app/page" in script or "/_next/static/chunks/" in script, (
+        "smoke test must probe home route client chunks"
     )
+    assert "access-control-allow-origin" in script.lower(), "smoke test must probe CORS preflight"
 
 
 def test_smoke_test_confirms_no_production_data_required():

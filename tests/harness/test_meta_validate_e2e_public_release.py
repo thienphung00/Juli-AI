@@ -134,7 +134,9 @@ class TestPublicReleaseMetaValidateE2E:
         assert matrix["status"] == "FAIL"
         assert matrix["failedChecks"] >= 1
         continuity = next(
-            check for check in matrix["checks"] if check["name"] == "release_evidence_plan_continuity"
+            check
+            for check in matrix["checks"]
+            if check["name"] == "release_evidence_plan_continuity"
         )
         assert continuity["status"] == "FAIL"
         assert "mismatch" in continuity["description"]
@@ -208,9 +210,7 @@ class TestNonPublicMetaValidateE2E:
         assert "releaseEvidencePlan" not in injection
         assert "releaseEvidencePlanId" not in injection
 
-    def test_non_public_evidence_plan_gate_skips(
-        self, repo_root: Path, patched_dirs: None
-    ) -> None:
+    def test_non_public_evidence_plan_gate_skips(self, repo_root: Path, patched_dirs: None) -> None:
         ensure_non_public_issue_cache(repo_root)
 
         passed, description, details = run_evidence_plan(NON_PUBLIC_ISSUE, repo_root=repo_root)
@@ -234,7 +234,9 @@ class TestNonPublicMetaValidateE2E:
         matrix = run_meta_validate_matrix(NON_PUBLIC_ISSUE, repo_root=repo_root)
 
         continuity = next(
-            check for check in matrix["checks"] if check["name"] == "release_evidence_plan_continuity"
+            check
+            for check in matrix["checks"]
+            if check["name"] == "release_evidence_plan_continuity"
         )
         assert continuity["status"] == "PASS"
         assert continuity["details"].get("skipped") is True
@@ -300,6 +302,64 @@ class TestNonPublicMetaValidateE2E:
 
 
 def test_meta_validate_checks_wired_in_generate_validation_artifact() -> None:
-    wired = meta_validate_check_names()
-    expected = [name for name, _ in META_VALIDATE_CHECKS]
-    assert wired == expected
+    """All META-4 validate scripts remain registered in generate_validation_artifact.CHECKS."""
+    from generate_validation_artifact import CHECKS, load_checker
+
+    required = [
+        ("public_release_classification", "check_public_release_classification.py"),
+        ("public_release_evidence_plan", "check_public_release_evidence_plan.py"),
+        ("implementation_schema_valid", "check_implementation_schema_valid.py"),
+        ("implementation_tdd_evidence", "check_implementation_tdd_evidence.py"),
+        ("executor_domain_matches_cache", "check_executor_domain_matches_cache.py"),
+        ("phase_run_correlation", "check_phase_run_correlation.py"),
+        ("release_evidence_plan_continuity", "check_release_evidence_plan_continuity.py"),
+        ("release_metadata_honesty", "check_release_metadata_honesty.py"),
+    ]
+    checks = dict(CHECKS)
+    for name, script in required:
+        assert checks.get(name) == script, f"CHECKS missing or wrong for {name}"
+        assert (VALIDATE_DIR / script).is_file(), f"missing script {script}"
+        assert callable(load_checker(script))
+    # E2E matrix subset still present
+    expected_matrix = [name for name, _ in META_VALIDATE_CHECKS]
+    assert meta_validate_check_names() == expected_matrix
+
+
+def test_generator_fails_when_check_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """generate_validation_artifact aggregates a failing check into FAIL status."""
+    import json
+    import sys
+
+    import common
+    import generate_validation_artifact as gva
+
+    validation_dir = tmp_path / "agent-runtime" / "artifacts" / "validation"
+    monkeypatch.setattr(common, "VALIDATION_DIR", validation_dir)
+    monkeypatch.setattr(gva, "VALIDATION_DIR", validation_dir)
+
+    def patched_load(script_name: str):
+        if script_name == "check_release_metadata_honesty.py":
+
+            def failing(_issue: int):
+                return False, "deliberate test failure", {"test": True}
+
+            return failing
+
+        def passing(_issue: int):
+            return True, "ok", {}
+
+        return passing
+
+    monkeypatch.setattr(gva, "load_checker", patched_load)
+    monkeypatch.setattr(sys, "argv", ["generate_validation_artifact.py", "--issue", "516"])
+
+    exit_code = gva.main()
+
+    artifact_path = validation_dir / "validation-issue-516.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 1
+    assert artifact["status"] == "FAIL"
+    assert artifact["failedChecks"] >= 1
+    failed_names = {check["name"] for check in artifact["checks"] if check["status"] == "FAIL"}
+    assert "release_metadata_honesty" in failed_names

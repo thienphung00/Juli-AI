@@ -1,5 +1,7 @@
 # Parallel status — MMU wave #551+#552+#554
 
+> **DVR-B1 (#581):** `feature/issue-581-dvr-b1` · worktree `.worktrees/issue-581` · validate PASS · parent [#580](https://github.com/thienphung00/Juli-AI/issues/580)
+
 **Started:** 2026-07-28 · **Parent PRD:** [#550](https://github.com/thienphung00/Juli-AI/issues/550) · Meta prepares; Executor TDD → Review → Validate → open PR
 
 ## Locked decisions

@@ -15,10 +15,11 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from juli_backend.core.config.runtime import sync_database_url
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
+
+from juli_backend.core.config.runtime import sync_database_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"

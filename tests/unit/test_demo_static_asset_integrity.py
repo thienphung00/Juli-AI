@@ -11,10 +11,14 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 VERIFY_SCRIPT_PATH = SCRIPTS_DIR / "verify-demo-static-assets.sh"
 SMOKE_DEMO_PATH = SCRIPTS_DIR / "smoke-test-demo.sh"
+
+pytestmark = pytest.mark.demo_contract
 
 HOME_JS = "/_next/static/chunks/home-abc123.js"
 HOME_CSS = "/_next/static/css/home-abc123.css"

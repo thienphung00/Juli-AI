@@ -23,6 +23,8 @@ SYSTEMD_DIR = REPO_ROOT / "infra/systemd"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/demo-deploy-runbook.md"
 NGINX_DEMO_PATH = NGINX_DIR / "demo.app-juli.com.conf"
 NGINX_APP_PATH = NGINX_DIR / "app-juli.com.conf"
+
+pytestmark = pytest.mark.demo_contract
 NGINX_API_PATH = NGINX_DIR / "api.app-juli.com.conf"
 SYSTEMD_DEMO_PATH = SYSTEMD_DIR / "juli-demo.service"
 SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-web.service"
@@ -71,7 +73,9 @@ def test_nginx_demo_vhost_routes_to_independent_upstream():
     conf = _read(NGINX_DEMO_PATH)
     assert DEMO_DOMAIN in conf
     assert f"127.0.0.1:{DEMO_PORT}" in conf
-    assert f"127.0.0.1:{FRONTEND_PORT}" not in conf, "demo vhost must not proxy to the App Review port"
+    assert f"127.0.0.1:{FRONTEND_PORT}" not in conf, (
+        "demo vhost must not proxy to the App Review port"
+    )
     assert f"127.0.0.1:{BACKEND_PORT}" not in conf, "demo vhost must not proxy to the API port"
 
 

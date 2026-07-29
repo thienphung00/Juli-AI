@@ -1,0 +1,391 @@
+{
+  "issueId": 581,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 581,
+    "parentIssueId": 580,
+    "sliceId": "DVR-B1",
+    "handoffPath": "docs/product/phases/demo-visual-refinement/PRD.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-580.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-581.json",
+    "parentCreatedOrRefreshed": true,
+    "childCreatedOrRefreshed": true,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 581,
+        "parentIssueId": 580,
+        "sliceId": "DVR-B1",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #580",
+            "fingerprint": "2bf5265776c05faf"
+          },
+          {
+            "path": "docs/product/phases/demo-visual-refinement/PRD.md",
+            "fingerprint": "6824d70a20c881b612cabb48b8b54347e5e8a745"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #581",
+            "fingerprint": "05ec6381fb8ba970"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-581.md",
+            "fingerprint": "29a0884f8d46901dcaca314f18dd01a66fd1a097"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 581,
+        "parentIssueId": 580,
+        "sliceId": "DVR-B1",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 DVR-B1",
+            "sliceId": "DVR-B1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-580",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #581",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/demo-visual-refinement/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 DVR-B1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-580",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #581",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/demo-visual-refinement/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 84fc10039d3b on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f",
+          "copiedAt": "2026-07-29T05:39:27Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f",
+        "pinnedCommitSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 581,
+        "parentIssueId": 580,
+        "sliceId": "DVR-B1",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/demo-visual-refinement/PRD.md",
+            "docs/adr/041-frontend-design-skill-wiring.md",
+            "docs/handoffs/demo-visual-refinement-issue-bodies/B1.md",
+            "CONTEXT.md",
+            ".cursor/skills/skill-catalog/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md",
+            "agent-runtime/docs/agent-runtime.md"
+          ],
+          "requiredModules": [
+            ".cursor/skills/skill-catalog/SKILL.md",
+            ".cursor/skills/standalone/focus/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md",
+            ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+            ".cursor/skills/domain/ui-ux/SKILL.md",
+            "agent-runtime/config/slice-routing.yml",
+            "agent-runtime/config/agent-runtime.config.yml"
+          ],
+          "acceptanceCriteria": [
+            "Open Design skill exists (or is restored) and is registered in skill-catalog with clear when guidance for design-reference tasks",
+            "Mobbin MCP is registered in skill-catalog and Focus routing for problem-section screen inspiration (reference-only, not binding specs)",
+            "Focus routing documents upstream order: Open Design + Mobbin \u2192 ui-ux-design \u2192 ui-ux executor with ADR-028 copy authorities loaded for implementation",
+            "slice-routing.yml design/ui-ux slices load upstream reference skills before executor assignment where applicable",
+            "No Airtable-first orchestration added to agent-runtime config or Meta prepare scripts",
+            "Routing acceptance verifiable by reading skill-catalog + Focus + slice-routing (no live Mobbin/OD calls required in CI)"
+          ],
+          "loadWhenNeeded": [
+            ".agents/skills/shadcn/SKILL.md",
+            ".cursor/skills/standalone/prompt-caching/SKILL.md",
+            "docs/product/design/README.md",
+            "dictionary.md",
+            "docs/product/design/design-context.md",
+            "docs/adr/015-design-system-token-foundation.md",
+            "docs/adr/023-four-destination-analytics-ownership.md",
+            "docs/adr/028-vietnamese-copy-dictionary-and-design-context.md"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "web/",
+            "ios/",
+            "backend/src/juli_backend/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/demo-visual-refinement/PRD.md",
+            "docs/adr/041-frontend-design-skill-wiring.md",
+            "docs/handoffs/demo-visual-refinement-issue-bodies/B1.md",
+            "CONTEXT.md",
+            ".cursor/skills/skill-catalog/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md",
+            "agent-runtime/docs/agent-runtime.md"
+          ],
+          "requiredModules": [
+            ".cursor/skills/skill-catalog/SKILL.md",
+            ".cursor/skills/standalone/focus/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md",
+            ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+            ".cursor/skills/domain/ui-ux/SKILL.md",
+            "agent-runtime/config/slice-routing.yml",
+            "agent-runtime/config/agent-runtime.config.yml"
+          ],
+          "acceptanceCriteria": [
+            "Open Design skill exists (or is restored) and is registered in skill-catalog with clear when guidance for design-reference tasks",
+            "Mobbin MCP is registered in skill-catalog and Focus routing for problem-section screen inspiration (reference-only, not binding specs)",
+            "Focus routing documents upstream order: Open Design + Mobbin \u2192 ui-ux-design \u2192 ui-ux executor with ADR-028 copy authorities loaded for implementation",
+            "slice-routing.yml design/ui-ux slices load upstream reference skills before executor assignment where applicable",
+            "No Airtable-first orchestration added to agent-runtime config or Meta prepare scripts",
+            "Routing acceptance verifiable by reading skill-catalog + Focus + slice-routing (no live Mobbin/OD calls required in CI)"
+          ],
+          "loadWhenNeeded": [
+            ".agents/skills/shadcn/SKILL.md",
+            ".cursor/skills/standalone/prompt-caching/SKILL.md",
+            "docs/product/design/README.md",
+            "dictionary.md",
+            "docs/product/design/design-context.md",
+            "docs/adr/015-design-system-token-foundation.md",
+            "docs/adr/023-four-destination-analytics-ownership.md",
+            "docs/adr/028-vietnamese-copy-dictionary-and-design-context.md"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 581,
+        "parentIssueId": 580,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 581 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 581,
+        "parentIssueId": 580,
+        "publicRelease": false,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #580 \u2014 Demo visual & Decisions copy refinement (constant)\n## Product boundary\n- Visual/copy/UX within ADR-023 IA; parallel-safe with Phase 2.10 / #534\n- Workstream B: durable Open Design + Mobbin upstream of ui-ux-design (ADR-041)\n- Workstream A: Home icons, Analytics polish, Recommendations + five-stage review, copy cleanup, Settings disabled-only\n## Explicit deferrals\n- In Progress tab untouched\n- No permanent Airtable Meta pipeline\n- No new recommendation engine\n- No wholesale Demo\u2192shadcn migration\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "web/",
+      "ios/",
+      "Sibling issue context caches",
+      "backend/src/juli_backend/"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/backend/SKILL.md",
+          "purpose": "Primary backend Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "backend",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/demo-visual-refinement/PRD.md",
+        "docs/adr/041-frontend-design-skill-wiring.md",
+        "docs/handoffs/demo-visual-refinement-issue-bodies/B1.md",
+        "CONTEXT.md",
+        ".cursor/skills/skill-catalog/SKILL.md",
+        ".cursor/skills/standalone/focus/routing-rules.md",
+        "agent-runtime/docs/agent-runtime.md"
+      ],
+      "requiredModules": [
+        ".cursor/skills/skill-catalog/SKILL.md",
+        ".cursor/skills/standalone/focus/SKILL.md",
+        ".cursor/skills/standalone/focus/routing-rules.md",
+        ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+        ".cursor/skills/domain/ui-ux/SKILL.md",
+        "agent-runtime/config/slice-routing.yml",
+        "agent-runtime/config/agent-runtime.config.yml"
+      ],
+      "acceptanceCriteria": [
+        "Open Design skill exists (or is restored) and is registered in skill-catalog with clear when guidance for design-reference tasks",
+        "Mobbin MCP is registered in skill-catalog and Focus routing for problem-section screen inspiration (reference-only, not binding specs)",
+        "Focus routing documents upstream order: Open Design + Mobbin \u2192 ui-ux-design \u2192 ui-ux executor with ADR-028 copy authorities loaded for implementation",
+        "slice-routing.yml design/ui-ux slices load upstream reference skills before executor assignment where applicable",
+        "No Airtable-first orchestration added to agent-runtime config or Meta prepare scripts",
+        "Routing acceptance verifiable by reading skill-catalog + Focus + slice-routing (no live Mobbin/OD calls required in CI)"
+      ],
+      "loadWhenNeeded": [
+        ".agents/skills/shadcn/SKILL.md",
+        ".cursor/skills/standalone/prompt-caching/SKILL.md",
+        "docs/product/design/README.md",
+        "dictionary.md",
+        "docs/product/design/design-context.md",
+        "docs/adr/015-design-system-token-foundation.md",
+        "docs/adr/023-four-destination-analytics-ownership.md",
+        "docs/adr/028-vietnamese-copy-dictionary-and-design-context.md"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #581\n\n- sliceId: DVR-B1\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #581 \u2014 DVR-B1\n\n## Parent\n#580\n\n## Executor domain\nbackend\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/demo-visual-refinement/PRD.md\n- docs/adr/041-frontend-design-skill-wiring.md\n- docs/handoffs/demo-visual-refinement-issue-bodies/B1.md\n- CONTEXT.md\n- .cursor/skills/skill-catalog/SKILL.md\n- .cursor/skills/standalone/focus/routing-rules.md\n- agent-runtime/docs/agent-runtime.md\n",
+    "executorDomain": "backend",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    }
+  },
+  "executorDomain": "backend"
+}

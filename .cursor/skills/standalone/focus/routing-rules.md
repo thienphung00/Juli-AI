@@ -19,10 +19,27 @@ Before loading feature docs for integration work, consult the project plugin ind
 | New/stale vendor API reference | `api-docs` | Context7 CLI when SDK/library refs needed |
 | Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
-| `apps/demo/` or `apps/dashboard/` Next.js UI (component, page, form) | `ui-ux-design`, `nextjs`, `react-best-practices` | — |
-| UI / frontend / copy / report / design-surface | **Required:** `dictionary.md`, `docs/product/design/design-context.md` | — |
+| Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
+| Mobbin problem-section screen inspiration | — | `Mobbin` (`search_screens`, `search_flows`, `search_sections`) |
+| `apps/demo/` or `apps/dashboard/` Next.js UI (component, page, form) | `open-design-system` + Mobbin when references needed → `ui-ux-design`, `nextjs`, `react-best-practices` | `open-design`, `Mobbin` if gathering refs; then — |
+| UI / frontend / copy / report / design-surface | **Required:** `dictionary.md`, `docs/product/design/design-context.md` (ADR-028 — not OD/Mobbin output) | — |
 | `apps/demo/` or `apps/dashboard/` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
-| shadcn registry primitive | `shadcn` (with `ui-ux-design`) | `shadcn` (prefer `user-shadcn`) |
+| shadcn registry primitive | `shadcn` (with `ui-ux-design`; atoms only → `@juli/ui`) | `shadcn` (prefer `user-shadcn`) |
+
+## Design-reference upstream stack (ADR-043)
+
+For **design-reference** tasks (layout exploration, component patterns, problem-section
+screen inspiration), load in this order **before** Meta assigns the `ui-ux` executor:
+
+1. **Open Design** — `open-design-system` skill + `open-design` MCP
+2. **Mobbin** — `Mobbin` MCP (reference-only; adapt to ADR-015 tokens)
+3. **`ui-ux-design`** — Next.js implementation skill
+4. **`ui-ux` executor** — product implementation in `apps/demo` / `apps/dashboard`
+5. **ADR-028 copy authorities** — `dictionary.md`, `docs/product/design/design-context.md`
+
+Mobbin and Open Design output are **never** copy or IA authority. Shadcn refines atoms
+only; fold into `@juli/ui`. Do **not** register the ephemeral Airtable-first Meta pipeline
+as permanent harness infrastructure (DVR-A0 only).
 | Sentry / prod errors | `sentry-workflow` → `sentry-python-sdk` or `sentry-nextjs-sdk` | `plugin-sentry-sentry` |
 | Figma | `figma-use` (required before `use_figma`) | `figma` |
 | E2E browser | — | `playwright` or `cursor-ide-browser` |

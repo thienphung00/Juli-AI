@@ -10,6 +10,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.phase_scaffold
+
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD_PKG = REPO_ROOT / "apps/dashboard/package.json"
 ROOT_PACKAGE_PATH = REPO_ROOT / "package.json"
@@ -40,16 +45,15 @@ def test_only_the_phase_2_6_demo_app_is_added():
     """Demo exists now; landing and mobile retain their later phase gates."""
     assert (REPO_ROOT / "apps/demo/package.json").is_file()
     for deferred_app in ("landing", "mobile"):
-        assert not (
-            REPO_ROOT / "apps" / deferred_app
-        ).exists(), f"apps/{deferred_app} is not in Phase 2.6"
+        assert not (REPO_ROOT / "apps" / deferred_app).exists(), (
+            f"apps/{deferred_app} is not in Phase 2.6"
+        )
 
 
 def test_phase_2_6_packages_are_real_consumed_workspace_members():
     """Shared packages are populated for Demo, not empty scaffold directories."""
     package_names = {
-        _read_json(path)["name"]
-        for path in (REPO_ROOT / "packages").glob("*/package.json")
+        _read_json(path)["name"] for path in (REPO_ROOT / "packages").glob("*/package.json")
     }
     assert package_names == {
         "@juli/contracts",

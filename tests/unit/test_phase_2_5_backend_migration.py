@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.phase_scaffold
+
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -33,10 +38,10 @@ def test_api_factory_auth_polling_etl_tiktok_repository_tests_pass():
     """Representative migrated suites remain importable from backend paths."""
     from juli_backend.api.app import create_app
     from juli_backend.core.security import get_current_user
-    from juli_backend.workers.services.polling import sync
-    from juli_backend.services.etl import EtlConsumer
     from juli_backend.integrations.tiktok.client import TikTokClient
     from juli_backend.repositories.repos import ShopScopedRepo
+    from juli_backend.services.etl import EtlConsumer
+    from juli_backend.workers.services.polling import sync
 
     assert callable(create_app)
     assert callable(get_current_user)

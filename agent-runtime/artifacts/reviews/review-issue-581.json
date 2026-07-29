@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "id": "review-issue-581",
+  "issue": 581,
+  "timestamp": "2026-07-29T05:51:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "summary": "Issue #581 DVR-B1: intent-review spec_fidelity=pass consumed as given. Restored open-design-system skill; registered Open Design + Mobbin in skill-catalog; Focus upstream routing documented; slice-routing upstreamReferenceSkills on ui-ux slices; no Airtable-first harness pipeline. 8 unit tests pass; no reliability/security blockers.",
+  "criticalFindings": [],
+  "findings": [],
+  "modulesTouched": [
+    ".cursor/skills/standalone/open-design-system/SKILL.md",
+    ".cursor/skills/skill-catalog/SKILL.md",
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/focus/routing-rules.md",
+    "agent-runtime/config/slice-routing.yml",
+    "tests/unit/test_frontend_design_skill_wiring.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Open Design skill exists and is registered in skill-catalog with clear when guidance",
+          "test": "tests/unit/test_frontend_design_skill_wiring.py::test_open_design_skill_exists"
+        },
+        {
+          "criterion": "Mobbin MCP is registered in skill-catalog and Focus routing",
+          "test": "tests/unit/test_frontend_design_skill_wiring.py::test_skill_catalog_registers_open_design_and_mobbin_mcps"
+        },
+        {
+          "criterion": "Focus routing documents upstream order with ADR-028 copy authorities",
+          "test": "tests/unit/test_frontend_design_skill_wiring.py::test_focus_documents_upstream_design_reference_order"
+        },
+        {
+          "criterion": "slice-routing design/ui-ux slices load upstream reference skills before executor",
+          "test": "tests/unit/test_frontend_design_skill_wiring.py::test_ui_ux_slices_load_upstream_reference_skills_before_executor"
+        },
+        {
+          "criterion": "No Airtable-first orchestration added to agent-runtime config or Meta prepare scripts",
+          "test": "tests/unit/test_frontend_design_skill_wiring.py::test_no_airtable_first_meta_pipeline_in_harness_config"
+        },
+        {
+          "criterion": "DVR-B1 slice includes open-design skill module path",
+          "test": "tests/unit/test_frontend_design_skill_wiring.py::test_dvr_b1_slice_includes_open_design_skill_module"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 8,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "84fc1003..29886ac7 on feature/issue-581-dvr-b1",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-581.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-581.json",
+  "reviewDurationMs": 180000,
+  "phaseRunId": "581-20260729T054500",
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

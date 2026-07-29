@@ -35,6 +35,7 @@ dev = [
     "pytest-mock>=3.12.0,<4.0.0",
     "pytest-asyncio>=0.24.0,<1.0.0",
     "pytest-cov>=5.0.0,<7.0.0",
+    "pytest-timeout>=2.3.0,<3.0.0",
     "responses>=0.25.0,<1.0.0",
     "ruff>=0.8.0,<0.16",
     "mypy>=1.13.0",
@@ -50,6 +51,13 @@ include = ["src/juli_backend", "README.md"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["../tests"]
+timeout = 30
+markers = [
+    "live: outbound TikTok Partner / sandbox HTTP (merge_group test-live-sandbox only)",
+    "demo_contract: Demo deploy/exit-gate contracts (demo CI jobs only)",
+    "migration_heavy: seeded Alembic round-trips (merge_group or migration-path PRs)",
+    "phase_scaffold: completed Phase 2.5 deploy doc/scaffold contracts (merge_group only)",
+]
 
 [tool.ruff]
 line-length = 100

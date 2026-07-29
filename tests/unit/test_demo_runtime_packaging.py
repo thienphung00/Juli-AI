@@ -19,6 +19,8 @@ SYSTEMD_WEB_PATH = REPO_ROOT / "infra/systemd/juli-web.service"
 NGINX_DEMO_PATH = REPO_ROOT / "infra/nginx/demo.app-juli.com.conf"
 BUILD_DEMO_PATH = REPO_ROOT / "infra/scripts/build-demo.sh"
 
+pytestmark = pytest.mark.demo_contract
+
 DEMO_PORT = "3001"
 RELEASE_APP_DIR = "releases/demo-current/apps/demo"
 
@@ -60,9 +62,9 @@ def build_demo_text() -> str:
 
 def test_next_config_uses_standard_build_not_standalone(next_config_text: str):
     assert NEXT_CONFIG_PATH.is_file()
-    assert not _has_standalone_output(
-        next_config_text
-    ), "Demo must not use output: standalone — use next start from apps/demo like juli-web"
+    assert not _has_standalone_output(next_config_text), (
+        "Demo must not use output: standalone — use next start from apps/demo like juli-web"
+    )
 
 
 def test_systemd_demo_runs_next_start_from_app_directory(systemd_demo_text: str):
@@ -104,7 +106,8 @@ def test_build_demo_validates_next_static_output(build_demo_text: str):
         "build-demo.sh must verify hashed static assets exist after next build"
     )
     assert "_demo_service_app_dir" in build_demo_text, (
-        "build-demo.sh must guard against building in canonical checkout while juli-demo serves demo-current"
+        "build-demo.sh must guard against building in canonical checkout "
+        "while juli-demo serves demo-current"
     )
     assert "TURBO_FORCE" in build_demo_text, (
         "release builds must force turbo rebuild to avoid shared worktree cache hits"
@@ -127,9 +130,7 @@ def test_nginx_proxies_all_paths_to_next_upstream():
     assert NGINX_DEMO_PATH.is_file()
     assert f"127.0.0.1:{DEMO_PORT}" in conf
     directive_lines = [
-        line
-        for line in conf.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
+        line for line in conf.splitlines() if line.strip() and not line.lstrip().startswith("#")
     ]
     directives = "\n".join(directive_lines).lower()
     assert " alias " not in f" {directives} ", (

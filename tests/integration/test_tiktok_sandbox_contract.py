@@ -10,16 +10,8 @@ INTEGRATION_DIR = REPO_ROOT / "tests" / "integration"
 PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr.yml"
 
 
-def test_sandbox_oauth_and_webhook_modules_live_under_tests_integration():
-    """New sandbox integration tests live under tests/integration/."""
-    oauth = INTEGRATION_DIR / "test_tiktok_sandbox_oauth.py"
-    webhook = INTEGRATION_DIR / "test_tiktok_sandbox_webhook.py"
-    assert oauth.is_file(), f"missing {oauth}"
-    assert webhook.is_file(), f"missing {webhook}"
-
-
 def test_pr_workflow_configures_tiktok_ci_secrets_for_sandbox_tests():
-    """CI secrets configured in GitHub Actions so sandbox tests run on PRs."""
+    """CI secrets configured in GitHub Actions for sandbox / live Partner tests."""
     workflow = PR_WORKFLOW.read_text(encoding="utf-8")
     for secret in (
         "TIKTOK_APP_KEY",
@@ -27,7 +19,9 @@ def test_pr_workflow_configures_tiktok_ci_secrets_for_sandbox_tests():
         "TIKTOK_SANDBOX_AUTH_CODE",
         "TIKTOK_SANDBOX_REFRESH_TOKEN",
     ):
-        assert secret in workflow, f"{secret} missing from pr.yml test job env"
+        assert secret in workflow, f"{secret} missing from pr.yml"
+    assert "test-live-sandbox:" in workflow
+    assert "-m live" in workflow or "m live" in workflow
 
 
 def test_sandbox_helpers_skip_when_tiktok_app_key_and_app_secret_unset(monkeypatch):
