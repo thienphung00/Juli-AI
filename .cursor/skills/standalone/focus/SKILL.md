@@ -89,7 +89,9 @@ for **technical / domain implementation**:
 | New vendor API | `api-docs` | Context7 **CLI** when SDK/library refs needed |
 | Seller/creator policy | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Library/framework during domain implementation | — | Context7 **CLI** (`npx ctx7@latest`) — Focus-selected |
-| `apps/demo` / `apps/dashboard` Next.js UI | `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `shadcn` |
+| Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-041) |
+| Mobbin problem-section screen inspiration | — | `Mobbin` |
+| `apps/demo` / `apps/dashboard` Next.js UI | `open-design-system` + Mobbin when refs needed → `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `open-design`, `Mobbin` then `shadcn` |
 | Supabase / migrations / RLS | `supabase`, `supabase-postgres-best-practices` | `supabase` |
 | Production error | `sentry-workflow` → platform SDK | `plugin-sentry-sentry` |
 | Figma design sync | `figma-use` (before `use_figma`) | `figma` |
@@ -111,7 +113,7 @@ Detect what the implementation involves:
 | Python code / FastAPI | → `backend` executor, `python-patterns`, `code-quality.mdc` |
 | Python tests / pytest | → `backend` executor, `python-testing`, `reliability.mdc` |
 | SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
-| Frontend component / page / form | → `ui-ux` executor, `ui-ux-design`, `apps/demo` or `apps/dashboard` `MODULE.md`; `shadcn` only if adding registry primitives |
+| Frontend component / page / form | → `ui-ux` executor; **design-reference:** `open-design-system` + Mobbin MCP **before** `ui-ux-design`; ADR-028 `dictionary.md` + `design-context.md` for implementation |
 | Background job | → Celery MCP, reliability, observability |
 | TikTok integration / webhook | → `integrations` executor, `docs/integrations/tiktok_api/`, `data-sources.md`, affected MODULE.md |
 | Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first |
@@ -186,7 +188,7 @@ Intelligence (src/intelligence/scoring):
   - Skip: in-stream websocket designs (forbidden)
 
 Interface (apps/demo, apps/dashboard, ios/):
-  - Load: MODULE.md for target app, ui-ux-design (Next.js apps) or swift-patterns (ios)
+  - Load: MODULE.md for target app; design-reference: open-design-system + Mobbin MCP before ui-ux-design; ui-ux-design (Next.js apps) or swift-patterns (ios); dictionary.md + design-context.md for copy (ADR-028)
   - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
 
 AI features (post-MVP / OpenAI):

@@ -283,6 +283,9 @@ P2-B9:
 
 P2-6:
   executorDomain: ui-ux
+  # ADR-041: upstream reference skills before ui-ux-design / ui-ux executor assignment.
+  upstreamReferenceSkills:
+    - .cursor/skills/standalone/open-design-system/SKILL.md
   # Tiered: epic constants only in requiredDocs; component/screen docs in loadWhenNeeded.
   requiredDocs:
     - EXECUTION.md
@@ -300,6 +303,7 @@ P2-6:
     - packages/ui/MODULE.md
     - packages/utils/MODULE.md
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - docs/architecture/data-sources.md
     - docs/architecture/migration-plan.md
     - docs/product/design/README.md
@@ -737,6 +741,8 @@ BIZ-OAUTH-4:
 # Parent #499 — Demo static-asset delivery + VPS bridge release verification (ADR-035)
 DEMO-ASSET-1:
   executorDomain: ui-ux
+  upstreamReferenceSkills:
+    - .cursor/skills/standalone/open-design-system/SKILL.md
   requiredDocs:
     - "{handoffPath}"
     - docs/adr/035-public-release-evidence-and-automatic-rollback.md
@@ -751,6 +757,7 @@ DEMO-ASSET-1:
     - infra/scripts/provision-demo.sh
     - tests/unit/test_phase_2_6_demo_deploy_config.py
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - infra/scripts/build-frontend-review.sh
     - infra/systemd/juli-web.service
     - .cursor/skills/domain/testing-patterns/python-testing.md
@@ -791,6 +798,8 @@ DEMO-ASSET-2:
 
 DEMO-ASSET-3:
   executorDomain: ui-ux
+  upstreamReferenceSkills:
+    - .cursor/skills/standalone/open-design-system/SKILL.md
   requiredDocs:
     - "{handoffPath}"
     - docs/adr/035-public-release-evidence-and-automatic-rollback.md
@@ -803,6 +812,7 @@ DEMO-ASSET-3:
     - infra/scripts/deploy-demo-release.sh
     - tests/unit/test_phase_2_6_demo_deploy_config.py
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - apps/demo/e2e/exit-gate/decisions-journey.spec.ts
     - .cursor/rules/reliability.mdc
   doNotLoad:
@@ -942,6 +952,7 @@ DVR-B1:
     - agent-runtime/docs/agent-runtime.md
   requiredModules:
     - .cursor/skills/skill-catalog/SKILL.md
+    - .cursor/skills/standalone/open-design-system/SKILL.md
     - .cursor/skills/standalone/focus/SKILL.md
     - .cursor/skills/standalone/focus/routing-rules.md
     - .cursor/skills/standalone/ui-ux-design/SKILL.md
