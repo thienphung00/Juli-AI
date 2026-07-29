@@ -287,22 +287,6 @@
   color: var(--juli-primary-strong);
 }
 
-.juli-badge--confidence-high {
-  background: var(--juli-success-tint);
-  color: var(--juli-success);
-}
-
-.juli-badge--confidence-medium {
-  background: var(--juli-warning-tint);
-  color: var(--juli-warning);
-}
-
-.juli-badge--confidence-low {
-  border: 1px solid var(--juli-border);
-  background: var(--juli-surface);
-  color: var(--juli-muted-foreground);
-}
-
 .juli-badge--capability {
   border: 1px solid var(--juli-border-accent);
   background: transparent;

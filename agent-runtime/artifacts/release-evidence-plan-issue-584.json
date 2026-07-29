@@ -1,0 +1,74 @@
+{
+  "planId": "rep-584-dvr-a1-strip-fbs-confidence",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions",
+    "demo.app-juli.com (Recommendations cards via @juli/ui RecommendationCard)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-recommendations-no-fbs-confidence",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "recommendation_cards_show_signal_plus_one_reason",
+          "banned_fbs_and_confidence_strings_absent_from_rendered_ui",
+          "tool_name_feature_id_jargon_absent_from_rendered_ui",
+          "in_progress_routes_untouched"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Copy + RecommendationCard presentation only; fixtures may retain machine fields; no DB or API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/ui test -- --run",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 584"
+  ],
+  "doNotInfer": [
+    "ECS/ALB cutover",
+    "new recommendation/ranking backend",
+    "In Progress tab changes",
+    "release evidence fields beyond this plan"
+  ]
+}

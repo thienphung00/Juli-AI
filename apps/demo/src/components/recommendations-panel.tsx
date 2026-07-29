@@ -176,12 +176,8 @@ export function RecommendationsPanel({
                   approveDisabledReason={
                     approveEnabled ? undefined : APPROVE_DISABLED_REASON
                   }
-                  capabilityLabel={fixture.capabilityLabel}
-                  confidenceLabel={fixture.confidenceLabel}
-                  confidenceLevel={fixture.confidenceLevel}
                   eligibility={fixture.eligibility}
                   evidence={fixture.evidence}
-                  expectedImpactLabel={fixture.expectedImpactLabel}
                   isHighlighted={isHighlighted}
                   isPriority={fixture.isPriority}
                   knownLimits={fixture.knownLimits}

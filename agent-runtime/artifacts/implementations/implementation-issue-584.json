@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 584,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "2026-07-29T0632Z",
+  "startedAt": "2026-07-29T06:32:58Z",
+  "completedAt": "2026-07-29T06:32:58Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [],
+  "skillsLoaded": [],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [],
+  "testsAdded": [],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [],
+  "implementationSummary": "",
+  "assumptions": [],
+  "risks": []
+}

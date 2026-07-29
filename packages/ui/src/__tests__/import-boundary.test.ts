@@ -44,7 +44,6 @@ describe("packages/ui import boundaries", () => {
   it("exports the core element families for apps/demo consumption", () => {
     expect(uiExports.Button).toBeTypeOf("function");
     expect(uiExports.Badge).toBeTypeOf("function");
-    expect(uiExports.ConfidenceBadge).toBeTypeOf("function");
     expect(uiExports.StatusChip).toBeTypeOf("function");
     expect(uiExports.FilterChip).toBeTypeOf("function");
     expect(uiExports.InputChip).toBeTypeOf("function");
