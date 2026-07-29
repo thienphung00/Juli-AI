@@ -48,3 +48,4 @@
 | [038](038-phase-2.10-dual-layer-pipeline.md) | Phase 2.10 dual-layer pipeline — precompute + required cache | Accepted |
 | [039](039-docp-phase-2.11-openobserve-posthog.md) | DOCP Phase 2.11 — OpenObserve + PostHog thin MVP | Accepted |
 | [040](040-pr-safe-tests-lane.md) | PR-safe Tests lane (markers, timeouts, live on merge_group) | Accepted |
+| [041](041-frontend-design-skill-wiring.md) | Frontend design skill wiring — Open Design + Mobbin upstream of ui-ux | Accepted |

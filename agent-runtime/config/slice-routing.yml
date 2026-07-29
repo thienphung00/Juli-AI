@@ -925,3 +925,42 @@ META-4:
     - ios/
     - backend/src/juli_backend/
     - Sibling issue context caches
+
+# --- Demo Visual Refinement (#580) ---
+
+DVR-B1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/demo-visual-refinement/PRD.md
+    - docs/adr/041-frontend-design-skill-wiring.md
+    - docs/handoffs/demo-visual-refinement-issue-bodies/B1.md
+    - CONTEXT.md
+    - .cursor/skills/skill-catalog/SKILL.md
+    - .cursor/skills/standalone/focus/routing-rules.md
+    - agent-runtime/docs/agent-runtime.md
+  requiredModules:
+    - .cursor/skills/skill-catalog/SKILL.md
+    - .cursor/skills/standalone/focus/SKILL.md
+    - .cursor/skills/standalone/focus/routing-rules.md
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
+    - .cursor/skills/domain/ui-ux/SKILL.md
+    - agent-runtime/config/slice-routing.yml
+    - agent-runtime/config/agent-runtime.config.yml
+  loadWhenNeeded:
+    - .agents/skills/shadcn/SKILL.md
+    - .cursor/skills/standalone/prompt-caching/SKILL.md
+    - docs/product/design/README.md
+    - dictionary.md
+    - docs/product/design/design-context.md
+    - docs/adr/015-design-system-token-foundation.md
+    - docs/adr/023-four-destination-analytics-ownership.md
+    - docs/adr/028-vietnamese-copy-dictionary-and-design-context.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - Sibling issue context caches

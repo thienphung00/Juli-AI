@@ -433,3 +433,23 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_api/
         - Sibling issue context caches
+
+    580:
+      defaultSliceId: DVR-B1
+      handoffPath: docs/product/phases/demo-visual-refinement/PRD.md
+      childSlices:
+        "581": DVR-B1
+        "582": DVR-A6
+        "583": DVR-A0
+        "584": DVR-A1
+        "585": DVR-A3
+        "586": DVR-A2
+        "587": DVR-A4
+        "588": DVR-A5
+      parentScopeBlock: "# Parent #580 — Demo visual & Decisions copy refinement (constant)\n## Product boundary\n- Visual/copy/UX within ADR-023 IA; parallel-safe with Phase 2.10 / #534\n- Workstream B: durable Open Design + Mobbin upstream of ui-ux-design (ADR-041)\n- Workstream A: Home icons, Analytics polish, Recommendations + five-stage review, copy cleanup, Settings disabled-only\n## Explicit deferrals\n- In Progress tab untouched\n- No permanent Airtable Meta pipeline\n- No new recommendation engine\n- No wholesale Demo→shadcn migration\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - web/
+        - ios/
+        - Sibling issue context caches

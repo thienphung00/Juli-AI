@@ -109,6 +109,34 @@ _Avoid_: target architecture (overloaded — use Phase 3 polyglot target)
 The public Interactive Demo (`demo.app-juli.com`) — ADR-023 four-destination IA (Home, Decisions, Analytics, Settings). Phase 2.6 mock data; **Phase 2.10** swaps agreed destinations to masked reference-shop KPIs without auth ([ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md)). Sign-in/OAuth and Landing remain Phase 3 ([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)).
 _Avoid_: the Demo (ambiguous with retired two-screen Home+Actions IA)
 
+**Durable design skill stack**:
+Focus/Meta routing for frontend design work — **Open Design** + **Mobbin** upstream for references; **`ui-ux-design`** + **`ui-ux` executor** for Next.js implementation; **`shadcn`** for atom-level registry primitives only, folded into `@juli/ui`. Open Design sits above `ui-ux-design` and does not replace it. See [ADR-041](docs/adr/041-frontend-design-skill-wiring.md).
+_Avoid_: Open Design as the Demo implementation skill, permanent Airtable-first Meta pipeline, wholesale Demo→shadcn migration
+
+**Design reference pipeline**:
+Ephemeral, PRD-scoped orchestration for one visual refinement pass — Airtable layout extract → Open Design components/layouts → Mobbin problem-section screen refs → Meta-prepared caches/artifacts → design sub-agents → Shadcn atom refinement → `@juli/ui` implementation. **Not** durable harness infrastructure; superseded after refinement by the **Durable design skill stack** ([ADR-041](docs/adr/041-frontend-design-skill-wiring.md)).
+_Avoid_: treating Airtable as copy SoT, treating this pipeline as permanent agent-runtime config
+
+**Airtable layout reference**:
+One-shot visual/layout inspiration for the Demo visual refinement PRD — extracts component and layout patterns into Open Design; **not** copy authority (`dictionary.md`), **not** IA authority (ADR-023). Discarded as a Meta stage after the PRD completes.
+_Avoid_: Airtable copy SoT, Airtable IA changes
+
+**Mobbin screen reference**:
+Reference-only UI inspiration from Mobbin search — adapted to Juli tokens ([ADR-015](docs/adr/015-design-system-token-foundation.md), `docs/product/design/`); never a 1:1 binding spec or copy source. Part of the **Durable design skill stack** ([ADR-041](docs/adr/041-frontend-design-skill-wiring.md)).
+_Avoid_: Mobbin as authoritative layout/copy, pixel-perfect Mobbin clones
+
+**Hybrid Juli UI model**:
+Demo composes from **`@juli/ui`** + **`@juli/theme`**; shadcn registry may refine atoms then migrate into `@juli/ui`. No wholesale replacement of Demo page scaffolding with raw shadcn. See [ADR-041](docs/adr/041-frontend-design-skill-wiring.md).
+_Avoid_: shadcn as Demo surface SoT, deleting `@juli/ui` for page composition
+
+**Five-stage decision review**:
+Seller-facing Recommendations detail flow — **Why → Analytics → Inputs → Preview → Approve** — using seller language; wired to existing Decision envelope/fixtures/Phase 2.10 feed when available. Does not change the **In Progress** sub-tab (deferred redesign).
+_Avoid_: backend step names in seller UI, inventing a new recommendation engine
+
+**Seller-surface copy**:
+Vietnamese Demo strings that are benefit-led, one idea per line, free of backend jargon (webhooks, endpoints, `feature_id`, tool names, FBS/FBT badges). Machine fields may remain in fixtures/code for dry-run but **never render** in Demo UI. Authority: **Copy dictionary** + **Design context** ([ADR-028](docs/adr/028-vietnamese-copy-dictionary-and-design-context.md)).
+_Avoid_: "Độ tin cậy" / "Có thể thực thi qua FBS" in seller UI, exposing `tool_name` or workflow internals on cards
+
 **`apps/landing`**:
 Public marketing site (`app-juli.com`). Own IA per Phase 2.7 PRD; reuses design tokens. **Not required for Phase 2.10.**
 _Avoid_: Landing Page IA inside `docs/product/design/Screens/`
