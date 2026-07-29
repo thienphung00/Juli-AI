@@ -1,4 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { useSearchParams } from "next/navigation";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -106,5 +108,14 @@ describe("Recommendations — copy guard", () => {
       ).not.toBeInTheDocument();
       expect(card.textContent).not.toContain("Tác động dự kiến:");
     });
+  });
+
+  it("leaves In Progress routes and components untouched by Recommendations changes", () => {
+    const panelSource = readFileSync(
+      join(process.cwd(), "src/components/recommendations-panel.tsx"),
+      "utf8",
+    );
+    expect(panelSource).not.toMatch(/in-progress/i);
+    expect(screen.queryByTestId("in-progress-panel")).not.toBeInTheDocument();
   });
 });

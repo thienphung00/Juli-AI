@@ -1,0 +1,85 @@
+{
+  "id": "review-issue-584",
+  "issue": 584,
+  "timestamp": "2026-07-29T07:10:30Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #584 DVR-A1: intent-review spec_fidelity=pass. FBS/confidence stripped; RecommendationCard signal+reason; copy-guard tests; releaseEvidencePlan present; 83 ui + 208 demo tests pass.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "dictionary.md",
+    "packages/ui/src/recommendation-card.tsx",
+    "packages/ui/src/badge.tsx",
+    "packages/ui/src/index.ts",
+    "packages/ui/styles.css",
+    "apps/demo/src/components/recommendations-panel.tsx",
+    "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx",
+    "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+    "agent-runtime/artifacts/release-evidence-plan-issue-584.json"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "packages/ui/src/recommendation-card.tsx",
+      "interface": "RecommendationCardProps",
+      "changeType": "modified",
+      "breaking": true,
+      "description": "Removed confidenceLabel, confidenceLevel, and capabilityLabel from public card props."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Banned FBS and confidence strings removed from dictionary and Demo render paths",
+          "test": "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx::does not render banned FBS or confidence strings in the recommendations panel"
+        },
+        {
+          "criterion": "RecommendationCard no longer requires or renders confidenceLabel confidenceLevel or FBS capability badges",
+          "test": "packages/ui/src/__tests__/recommendation-card.test.tsx::renders signal and one concise reason without confidence or capability badges"
+        },
+        {
+          "criterion": "Demo Recommendations UI shows signal and one reason per card",
+          "test": "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx::shows signal and one concise reason per card without confidence or capability badges"
+        },
+        {
+          "criterion": "Copy-guard tests fail if banned strings or backend jargon patterns appear in rendered Demo UI",
+          "test": "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx::does not render backend jargon patterns on recommendation card surfaces"
+        },
+        {
+          "criterion": "Existing Recommendations ordering and routing tests updated and green for signal reason cards",
+          "test": "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx::shows signal and one concise reason per card without confidence or capability badges"
+        },
+        {
+          "criterion": "In Progress routes and components untouched by Recommendations changes",
+          "test": "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx::leaves In Progress routes and components untouched by Recommendations changes"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 291,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 0,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..HEAD on feature/issue-584-dvr-a1-copy",
+  "phaseRunId": "584-20260729T0632Z",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}
