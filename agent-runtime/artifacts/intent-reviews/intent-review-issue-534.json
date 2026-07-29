@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-534",
+  "issue": 534,
+  "timestamp": "2026-07-28T07:12:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "d6fbf682",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "P2.10-A10: packages/contracts analytics envelope types use gmv_tiktok with GMV (TikTok) label and assertNoNetRevenueAlias guard. Demo Analytics fetches GET /v1/demo/analytics, maps live GMV/product/LIVE sections, keeps SPS/ROAS/CSAT and net-revenue unavailable, gates inventory/fulfillment on envelope availability. Fake Demo Refresh calls refreshAnalytics (GET only) before resetMockState — no force-recompute paths. Home/Settings untouched; Sign-in stub unchanged.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "MODULE.md — demo network boundary",
+      "path": "apps/demo/MODULE.md",
+      "note": "Documents Analytics-only GET /v1/demo/analytics; Decisions/Home/Settings remain mock.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "534-20260728T070900"
+}

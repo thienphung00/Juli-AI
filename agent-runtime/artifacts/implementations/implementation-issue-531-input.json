@@ -1,0 +1,63 @@
+{
+  "phaseRunId": "531-20260727T171330",
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-531.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-531.json",
+    "docs/product/phases/phase-2.10/PRD.md",
+    "docs/adr/037-phase-2.10-demo-real-data-no-auth.md",
+    "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+    "backend/src/juli_backend/api/MODULE.md",
+    "backend/src/juli_backend/services/analytics_kpi_cache/cache.py",
+    "backend/src/juli_backend/services/analytics_kpi_masking/mask.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-530.json"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc",
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/patterns.mdc"
+  ],
+  "filesModified": [
+    "backend/src/juli_backend/api/routes/demo_analytics.py",
+    "backend/src/juli_backend/api/app.py",
+    "backend/src/juli_backend/api/MODULE.md",
+    "tests/unit/test_api_demo_analytics.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_api_demo_analytics.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "5 failed — AttributeError: module 'juli_backend.api.routes' has no attribute 'demo_analytics'; GET /v1/demo/analytics returned 404",
+      "passingTestEvidence": "All 5 tests pass after demo_analytics route wired: masked envelope without auth, shop_id rejected 400, redis read-through, no precompute enqueue, range=30d filters series",
+      "refactorEvidence": "Extracted _apply_chart_range helper; registered demo router; updated api MODULE.md with ADR-037 public endpoint exception",
+      "commands": [
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/issue-531 && PYTHONPATH=backend/src python -m pytest tests/unit/test_api_demo_analytics.py -v --tb=short",
+          "exitCode": 1,
+          "outputSummary": "5 failed — route not mounted (404 / AttributeError on patch target)"
+        },
+        {
+          "command": "cd /Users/macos/Juli-AI-v2/.worktrees/issue-531 && PYTHONPATH=backend/src python -m pytest tests/unit/test_api_demo_analytics.py -v --tb=short",
+          "exitCode": 0,
+          "outputSummary": "5 passed in 1.48s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added unauthenticated GET /v1/demo/analytics route bound to DEMO_REFERENCE_SHOP_ID. Read path uses analytics_kpi_cache get_analytics_kpi_envelope (Redis read-through → Postgres SoT), applies mask_public_analytics_envelope before JSON response, optional range=7d|30d|90d chart window trim, rejects visitor shop_id with 400, and never enqueues precompute/compute.",
+  "assumptions": [
+    "DEMO_REFERENCE_SHOP_ID env var set in deployment to Fujiwa/production_read shop UUID",
+    "404 when no envelope exists is acceptable degraded state until precompute/webhooks populate SoT",
+    "Range filter trims series client-side windows only; does not trigger recompute"
+  ],
+  "risks": [
+    "Public endpoint exception to JWT invariant must stay limited to /v1/demo/analytics only",
+    "Missing DEMO_REFERENCE_SHOP_ID returns 503 at request time — ops must configure before Demo wire (#534)"
+  ]
+}

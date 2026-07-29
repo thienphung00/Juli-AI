@@ -1,5 +1,4 @@
 from juli_backend.services.tiktok.dispatcher import TikTokWebhookDispatcher
-from juli_backend.services.tiktok.oauth import TikTokOAuthInfrastructureService
 from juli_backend.services.tiktok.signature import TikTokWebhookSignatureVerifier
 from juli_backend.services.tiktok.webhook import (
     ACCOUNT_LIFECYCLE_CHANNEL,
@@ -19,7 +18,6 @@ __all__ = [
     "EVENT_CATEGORY_ROUTES",
     "PHASE2_CATALOG",
     "PHASE2_CATALOG_IDS",
-    "TikTokOAuthInfrastructureService",
     "TikTokWebhookDispatcher",
     "TikTokWebhookService",
     "TikTokWebhookSignatureVerifier",

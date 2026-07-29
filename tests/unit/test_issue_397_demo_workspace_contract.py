@@ -6,10 +6,6 @@ import json
 import re
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.demo_contract
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKSPACE_PACKAGES = (
     ROOT / "apps" / "demo",
@@ -212,7 +208,8 @@ def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:
 
 
 def test_demo_source_has_no_backend_or_secret_environment_dependency() -> None:
-    forbidden = re.compile(r"(NEXT_PUBLIC_API_URL|DATABASE_URL|TIKTOK_|SUPABASE_|process\.env)")
+    # Word-bound env-style prefixes only — product ids like GMV_TIKTOK_* must not match.
+    forbidden = re.compile(r"(NEXT_PUBLIC_API_URL|DATABASE_URL|\bTIKTOK_|\bSUPABASE_|process\.env)")
     sources = _source_files(ROOT / "apps" / "demo")
 
     assert sources

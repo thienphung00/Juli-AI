@@ -1,0 +1,223 @@
+{
+  "id": "review-issue-561",
+  "issue": 561,
+  "timestamp": "2026-07-28T11:10:32Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #561 MMU-8: intent-review spec_fidelity=pass consumed as given. webhook_tiktok.py and auth_tiktok.py thinned to HTTP adapters delegating to services.webhook.handle_tiktok_webhook_delivery and services.tiktok.oauth public entrypoints; ETL/OAuth assembly moved to services/webhook/deployed.py and oauth.py. AST import-boundary contract in test_api_route_public_entrypoints.py; 46 related pytest cases pass. No reliability/security/observability/performance blockers.",
+  "criticalFindings": [
+    {
+      "id": "561-info-slice-routing-divergent-change",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/config/slice-routing.yml",
+      "description": "Intent-review smell (non-blocking): uncommitted diff adds MMU-4, MMU-7, and MMU-8 routing blocks (+114 lines); only MMU-8 belongs to issue #561.",
+      "suggestion": "Split MMU-4/MMU-7 routing additions into their owning issue PRs to keep harness slice-routing diffs path-disjoint."
+    },
+    {
+      "id": "561-info-business-auth-routes-unthinned",
+      "type": "architecture",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "description": "Implementation assumption (non-blocking): business advertiser/account-holder auth routes still assemble OAuth clients inline; only auth_tiktok.py thinned per issue requiredModules though AC #2 wording is plural.",
+      "suggestion": "Track follow-up MMU slice to thin auth_tiktok_business_* routes similarly."
+    },
+    {
+      "id": "561-info-ast-import-heuristic-limits",
+      "type": "test_gap",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_api_route_public_entrypoints.py",
+      "description": "AST import scan only detects static import/from statements; dynamic __import__ or importlib usage in routes would evade the thin-adapter contract test.",
+      "suggestion": "Accept for MMU-8; extend with import-linter forbidden_edge checks (#552/#556) for defense in depth."
+    },
+    {
+      "id": "561-info-dlq-handoff-log-only",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/webhook/deployed.py",
+      "description": "_dlq_handoff relocated from route wiring logs webhook_etl_dlq but does not enqueue to a durable DLQ \u2014 pre-existing degradation path, not a #561 regression.",
+      "suggestion": "Track durable DLQ wiring under ingestion/ETL reliability slice if webhook loss on ETL failure becomes operational concern."
+    },
+    {
+      "id": "561-info-oauth-missing-state-warning",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/tiktok/oauth.py",
+      "description": "complete_tiktok_oauth_callback allows missing OAuth state (logs tiktok_oauth_callback_missing_state, proceeds without user_id binding) \u2014 pre-existing TikTok Partner Center compatibility behavior preserved after route thinning.",
+      "suggestion": "Document as accepted Partner Center edge case; tighten only if TikTok mandates state on all callbacks."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+    "backend/src/juli_backend/api/routes/auth_tiktok.py",
+    "backend/src/juli_backend/services/webhook/deployed.py",
+    "backend/src/juli_backend/services/webhook/__init__.py",
+    "backend/src/juli_backend/services/webhook/MODULE.md",
+    "backend/src/juli_backend/services/tiktok/oauth.py",
+    "tests/unit/test_api_route_public_entrypoints.py",
+    "tests/unit/test_tiktok_oauth_api_caller_facade.py",
+    "agent-runtime/config/slice-routing.yml"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/webhook",
+      "interface": "handle_tiktok_webhook_delivery",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Public entrypoint for main-API TikTok webhook ingress; re-exported from services.webhook __init__."
+    },
+    {
+      "module": "backend/src/juli_backend/services/tiktok/oauth.py",
+      "interface": "build_tiktok_oauth_service / complete_tiktok_oauth_callback",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Factory and callback orchestration extracted from auth_tiktok route for thin-adapter pattern."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Webhook route only wires HTTP \u2192 owning webhook/TikTok service public API.",
+          "test": "tests/unit/test_api_route_public_entrypoints.py::test_thin_adapter_route_imports_owning_service_public_api"
+        },
+        {
+          "criterion": "Auth TikTok callback routes call OAuth/store facade; no direct integrations.tiktok leaf imports in routes (use facade from #557).",
+          "test": "tests/unit/test_api_route_public_entrypoints.py::test_auth_tiktok_routes_use_oauth_facade_not_integrations_tiktok"
+        },
+        {
+          "criterion": "Route files do not import services.etl.consumer internals directly.",
+          "test": "tests/unit/test_api_route_public_entrypoints.py::test_webhook_route_avoids_etl_consumer_internals"
+        },
+        {
+          "criterion": "Existing webhook/auth tests still pass; add/adjust one test asserting router uses public service entrypoints.",
+          "test": "tests/unit/test_api_route_public_entrypoints.py::test_thin_adapter_route_imports_owning_service_public_api"
+        },
+        {
+          "criterion": "Path-disjoint from Demo 2.10 frontend work.",
+          "test": "tests/unit/test_api_route_public_entrypoints.py::test_path_disjoint_from_demo_frontend_work"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 46,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Split MMU-4/MMU-7 slice-routing blocks out of #561 PR when convenient",
+    "Plan follow-up to thin auth_tiktok_business_* routes",
+    "Rely on import-linter forbidden_edge gates (#552/#556) alongside AST route contract tests"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 1,
+    "conventionNotesImported": 3,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "uncommitted diff vs origin/main (02db92bfbe2c) on feature/issue-561 branch in .worktrees/issue-561",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-561.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-561.json",
+  "reviewDurationMs": 240000,
+  "phaseRunId": "561-20260728T105700",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "561-info-slice-routing-divergent-change",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/config/slice-routing.yml",
+      "description": "Intent-review smell (non-blocking): uncommitted diff adds MMU-4, MMU-7, and MMU-8 routing blocks (+114 lines); only MMU-8 belongs to issue #561.",
+      "suggestion": "Split MMU-4/MMU-7 routing additions into their owning issue PRs to keep harness slice-routing diffs path-disjoint."
+    },
+    {
+      "id": "561-info-business-auth-routes-unthinned",
+      "type": "architecture",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "description": "Implementation assumption (non-blocking): business advertiser/account-holder auth routes still assemble OAuth clients inline; only auth_tiktok.py thinned per issue requiredModules though AC #2 wording is plural.",
+      "suggestion": "Track follow-up MMU slice to thin auth_tiktok_business_* routes similarly."
+    },
+    {
+      "id": "561-info-ast-import-heuristic-limits",
+      "type": "test_gap",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_api_route_public_entrypoints.py",
+      "description": "AST import scan only detects static import/from statements; dynamic __import__ or importlib usage in routes would evade the thin-adapter contract test.",
+      "suggestion": "Accept for MMU-8; extend with import-linter forbidden_edge checks (#552/#556) for defense in depth."
+    },
+    {
+      "id": "561-info-dlq-handoff-log-only",
+      "type": "reliability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/webhook/deployed.py",
+      "description": "_dlq_handoff relocated from route wiring logs webhook_etl_dlq but does not enqueue to a durable DLQ \u2014 pre-existing degradation path, not a #561 regression.",
+      "suggestion": "Track durable DLQ wiring under ingestion/ETL reliability slice if webhook loss on ETL failure becomes operational concern."
+    },
+    {
+      "id": "561-info-oauth-missing-state-warning",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/tiktok/oauth.py",
+      "description": "complete_tiktok_oauth_callback allows missing OAuth state (logs tiktok_oauth_callback_missing_state, proceeds without user_id binding) \u2014 pre-existing TikTok Partner Center compatibility behavior preserved after route thinning.",
+      "suggestion": "Document as accepted Partner Center edge case; tighten only if TikTok mandates state on all callbacks."
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [
+    {
+      "id": "561-info-oauth-missing-state-warning",
+      "type": "security",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/tiktok/oauth.py",
+      "description": "complete_tiktok_oauth_callback allows missing OAuth state (logs tiktok_oauth_callback_missing_state, proceeds without user_id binding) \u2014 pre-existing TikTok Partner Center compatibility behavior preserved after route thinning.",
+      "suggestion": "Document as accepted Partner Center edge case; tighten only if TikTok mandates state on all callbacks."
+    }
+  ],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "id": "561-info-ast-import-heuristic-limits",
+      "type": "test_gap",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_api_route_public_entrypoints.py",
+      "description": "AST import scan only detects static import/from statements; dynamic __import__ or importlib usage in routes would evade the thin-adapter contract test.",
+      "suggestion": "Accept for MMU-8; extend with import-linter forbidden_edge checks (#552/#556) for defense in depth."
+    }
+  ],
+  "suggestedRemediation": [
+    "Split MMU-4/MMU-7 routing additions into their owning issue PRs to keep harness slice-routing diffs path-disjoint.",
+    "Track follow-up MMU slice to thin auth_tiktok_business_* routes similarly.",
+    "Accept for MMU-8; extend with import-linter forbidden_edge checks (#552/#556) for defense in depth.",
+    "Track durable DLQ wiring under ingestion/ETL reliability slice if webhook loss on ETL failure becomes operational concern.",
+    "Document as accepted Partner Center edge case; tighten only if TikTok mandates state on all callbacks."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}

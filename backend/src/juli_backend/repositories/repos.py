@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.token_crypto import decrypt_token, encrypt_token
-from juli_backend.integrations.tiktok.merchant import (
+from juli_backend.integrations.tiktok import (
     TikTokCapability,
     is_cross_merchant_lookup,
 )
@@ -21,6 +21,7 @@ from juli_backend.models.models import (
     AlertConfig,
     AlertHistory,
     AnalyticsBackfillPartition,
+    AnalyticsKpiEnvelope,
     AnalyticsPerformanceInterval,
     Campaign,
     Creator,
@@ -29,7 +30,6 @@ from juli_backend.models.models import (
     Livestream,
     Order,
     OrderItem,
-    ProcessedEvent,
     Product,
     Recommendation,
     Return,
@@ -126,9 +126,7 @@ class TikTokCredentialRepo:
     ) -> TikTokCredential:
         if merchant_authorization_id and capability:
             if is_cross_merchant_lookup(merchant_authorization_id, capability):
-                raise ValueError(
-                    "merchant_authorization_id and capability do not match"
-                )
+                raise ValueError("merchant_authorization_id and capability do not match")
 
         credential = TikTokCredential(
             id=uuid.uuid4(),
@@ -153,9 +151,7 @@ class TikTokCredentialRepo:
     ) -> TikTokCredential:
         """Return credential for a merchant authorization ID + capability pair."""
         capability_value = (
-            capability.value
-            if isinstance(capability, TikTokCapability)
-            else capability
+            capability.value if isinstance(capability, TikTokCapability) else capability
         )
         if is_cross_merchant_lookup(merchant_authorization_id, capability_value):
             raise NotFound(
@@ -166,8 +162,7 @@ class TikTokCredentialRepo:
         stmt = (
             select(TikTokCredential)
             .where(
-                TikTokCredential.merchant_authorization_id
-                == merchant_authorization_id,
+                TikTokCredential.merchant_authorization_id == merchant_authorization_id,
                 TikTokCredential.capability == capability_value,
             )
             .order_by(TikTokCredential.created_at.desc())
@@ -190,9 +185,7 @@ class TikTokCredentialRepo:
     ) -> TikTokCredential:
         """Return the most recent credential for a shop and capability."""
         capability_value = (
-            capability.value
-            if isinstance(capability, TikTokCapability)
-            else capability
+            capability.value if isinstance(capability, TikTokCapability) else capability
         )
         stmt = (
             select(TikTokCredential)
@@ -207,8 +200,7 @@ class TikTokCredentialRepo:
         credential = result.scalar_one_or_none()
         if credential is None:
             raise NotFound(
-                f"No credentials found for shop {shop_id} "
-                f"with capability {capability_value}"
+                f"No credentials found for shop {shop_id} with capability {capability_value}"
             )
         _hydrate_decrypted_tokens(credential)
         return credential
@@ -316,12 +308,8 @@ class TikTokSyncStateRepo:
 
 def _hydrate_decrypted_tokens(credential: TikTokCredential) -> None:
     """Expose plaintext tokens to callers without marking DB columns dirty."""
-    set_committed_value(
-        credential, "access_token", decrypt_token(credential.access_token)
-    )
-    set_committed_value(
-        credential, "refresh_token", decrypt_token(credential.refresh_token)
-    )
+    set_committed_value(credential, "access_token", decrypt_token(credential.access_token))
+    set_committed_value(credential, "refresh_token", decrypt_token(credential.refresh_token))
 
 
 # ---------------------------------------------------------------------------
@@ -365,9 +353,7 @@ class ShopScopedRepo(Generic[T]):
                     )
                 )
 
-        stmt = stmt.order_by(
-            self._model.created_at.desc(), self._model.id.desc()
-        ).limit(limit)
+        stmt = stmt.order_by(self._model.created_at.desc(), self._model.id.desc()).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
@@ -382,9 +368,7 @@ class ShopScopedRepo(Generic[T]):
         """Insert or update by ``_lookup_attr``, rejecting stale data via
         ``update_time`` when present."""
         if not self._lookup_attr:
-            raise NotImplementedError(
-                f"{type(self).__name__} does not support upsert"
-            )
+            raise NotImplementedError(f"{type(self).__name__} does not support upsert")
 
         lookup_value = kwargs[self._lookup_attr]
         lookup_col = getattr(self._model, self._lookup_attr)
@@ -477,22 +461,16 @@ class OrdersRepo(ShopScopedRepo[Order]):
                     )
                 )
 
-        stmt = stmt.order_by(
-            self._model.created_at.desc(), self._model.id.desc()
-        ).limit(limit)
+        stmt = stmt.order_by(self._model.created_at.desc(), self._model.id.desc()).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def confirm_shipment(
-        self, shop_id: uuid.UUID, order_id: uuid.UUID
-    ) -> Order:
+    async def confirm_shipment(self, shop_id: uuid.UUID, order_id: uuid.UUID) -> Order:
         """Mark an AWAITING_SHIPMENT order as SHIPPED. Raises NotFound or
         ValueError for invalid transitions."""
         order = await self.get(shop_id, order_id)
         if order.status != "AWAITING_SHIPMENT":
-            raise ValueError(
-                f"Cannot ship order in status '{order.status}'"
-            )
+            raise ValueError(f"Cannot ship order in status '{order.status}'")
         order.status = "SHIPPED"
         order.update_time = datetime.now(UTC)
         await self._session.flush()
@@ -570,9 +548,7 @@ class ProductsRepo(ShopScopedRepo[Product]):
                     )
                 )
 
-        stmt = stmt.order_by(
-            self._model.revenue.desc(), self._model.id.desc()
-        ).limit(limit)
+        stmt = stmt.order_by(self._model.revenue.desc(), self._model.id.desc()).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
@@ -607,6 +583,21 @@ class AnalyticsPerformanceRepo(ShopScopedRepo[AnalyticsPerformanceInterval]):
     _lookup_attr = "snapshot_key"
 
 
+class AnalyticsKpiEnvelopesRepo(ShopScopedRepo[AnalyticsKpiEnvelope]):
+    """Idempotent upsert/read for analytics_kpi_envelopes by (shop_id, kind)."""
+
+    _model = AnalyticsKpiEnvelope
+    _lookup_attr = "kind"
+
+    async def get_by_kind(self, shop_id: uuid.UUID, kind: str) -> AnalyticsKpiEnvelope | None:
+        stmt = select(AnalyticsKpiEnvelope).where(
+            AnalyticsKpiEnvelope.shop_id == shop_id,
+            AnalyticsKpiEnvelope.kind == kind,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+
 class AlertConfigsRepo(ShopScopedRepo[AlertConfig]):
     _model = AlertConfig
 
@@ -616,9 +607,7 @@ class AlertConfigsRepo(ShopScopedRepo[AlertConfig]):
         await self._session.flush()
         return entity
 
-    async def get_by_type(
-        self, shop_id: uuid.UUID, alert_type: str
-    ) -> AlertConfig | None:
+    async def get_by_type(self, shop_id: uuid.UUID, alert_type: str) -> AlertConfig | None:
         stmt = select(AlertConfig).where(
             AlertConfig.shop_id == shop_id,
             AlertConfig.alert_type == alert_type,
@@ -832,25 +821,9 @@ class GraphRepo:
         return campaign
 
 
-class ProcessedEventsRepo:
-    """Tracks consumed ingest event IDs for idempotent ETL (#32)."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def claim(self, *, event_id: str, shop_id: uuid.UUID) -> bool:
-        """Insert *event_id* if unseen. Returns False when already processed."""
-        stmt = select(ProcessedEvent).where(ProcessedEvent.event_id == event_id)
-        result = await self._session.execute(stmt)
-        if result.scalar_one_or_none() is not None:
-            return False
-        self._session.add(ProcessedEvent(event_id=event_id, shop_id=shop_id))
-        try:
-            async with self._session.begin_nested():
-                await self._session.flush()
-        except IntegrityError:
-            return False
-        return True
+from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401, I001
+    ProcessedEventsRepo,  # MMU-9a legacy shim
+)
 
 
 class WorkflowWebhookSignalsRepo:
@@ -880,9 +853,7 @@ class WorkflowWebhookSignalsRepo:
         event_id: str,
         payload_json: str,
     ) -> bool:
-        stmt = select(WorkflowWebhookSignal).where(
-            WorkflowWebhookSignal.event_id == event_id
-        )
+        stmt = select(WorkflowWebhookSignal).where(WorkflowWebhookSignal.event_id == event_id)
         result = await self._session.execute(stmt)
         if result.scalar_one_or_none() is not None:
             return False
@@ -1050,9 +1021,7 @@ class WorkflowOutcomeRecordsRepo:
         result = await self._session.execute(stmt)
         record = result.scalar_one_or_none()
         if record is None:
-            raise NotFound(
-                f"WorkflowOutcomeRecord for approval {approval_id} not found"
-            )
+            raise NotFound(f"WorkflowOutcomeRecord for approval {approval_id} not found")
         return record
 
     async def get_by_execution_id(
@@ -1094,10 +1063,7 @@ class AnalyticsBackfillPartitionsRepo:
     @staticmethod
     def _validate_bucket(bucket: str) -> None:
         if bucket not in _BACKFILL_BUCKETS:
-            msg = (
-                f"Invalid backfill bucket {bucket!r}; "
-                f"expected one of {sorted(_BACKFILL_BUCKETS)}"
-            )
+            msg = f"Invalid backfill bucket {bucket!r}; expected one of {sorted(_BACKFILL_BUCKETS)}"
             raise ValueError(msg)
 
     async def _get_row(

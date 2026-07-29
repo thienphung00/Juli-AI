@@ -21,13 +21,24 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from juli_backend.services.analytics_kpi_cache import (
+        close_shared_redis_client,
+        get_shared_redis_client,
+    )
+    from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
+
+    bind_celery_dispatchers()
+
     database_url = async_database_url(require_env("DATABASE_URL"))
     engine = create_engine(database_url)
     init_session_factory(create_session_factory(engine))
+    # Warm shared Redis client when REDIS_URL is set (fail-open if unset).
+    get_shared_redis_client()
     logger.info("api_startup_complete")
     try:
         yield
     finally:
+        await close_shared_redis_client()
         await engine.dispose()
         logger.info("api_shutdown_complete")
 

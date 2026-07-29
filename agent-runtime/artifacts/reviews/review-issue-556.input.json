@@ -1,0 +1,70 @@
+{
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #556 MMU-3: intent-review spec_fidelity=pass consumed as given. pr.yml architecture-gates job wires strict import boundaries, cycle audit --ci, and ownership registry drift on backend path filter with merge_group re-run via status-check. Agent-parseable violation output in CI scripts; Merge Queue status check names documented. 24 unit tests pass; no reliability/security blockers.",
+  "criticalFindings": [
+    {
+      "id": "556-info-preexisting-import-debt",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/scripts/ci/check_import_boundaries.py",
+      "description": "Strict import check reports ~97 pre-MM3 production violations; gate correctly fails closed on backend PRs until facade thinning lands.",
+      "suggestion": "Track remediation in follow-up MMU facade/API thinning slices; do not weaken gate to warn-only."
+    }
+  ],
+  "modulesTouched": [
+    ".github/workflows/pr.yml",
+    "agent-runtime/scripts/ci/audit_cycles.py",
+    "agent-runtime/scripts/ci/check_import_boundaries.py",
+    "agent-runtime/scripts/ci/check_ownership_registry.py",
+    "docs/architecture/import-boundaries.md",
+    "tests/unit/test_mmu3_architecture_gates_contract.py",
+    "tests/unit/test_audit_cycles_ci.py",
+    "tests/unit/test_import_boundaries.py",
+    "tests/unit/test_ownership_registry.py"
+  ],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "pr.yml runs import-linter + cycle check + ownership drift on backend path filter; failures block merge",
+          "test": "tests/unit/test_mmu3_architecture_gates_contract.py::test_architecture_gates_runs_cycle_and_ownership_checks"
+        },
+        {
+          "criterion": "merge_group re-runs the same architecture gates",
+          "test": "tests/unit/test_mmu3_architecture_gates_contract.py::test_architecture_gates_merge_group_requires_success"
+        },
+        {
+          "criterion": "Nightly audit may remain but is not the only enforcement",
+          "test": "tests/unit/test_import_boundaries.py::test_nightly_audit_remains_not_only_enforcement"
+        },
+        {
+          "criterion": "Artifact or log output names the violating edge/owner for agents",
+          "test": "tests/unit/test_import_boundaries.py::test_log_output_names_violating_edge_owner_for_agents"
+        },
+        {
+          "criterion": "Documented status-check names for Merge Queue requirements",
+          "test": "tests/unit/test_mmu3_architecture_gates_contract.py::test_import_boundaries_doc_documents_merge_queue_status_checks"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 24,
+      "failed": 0
+    }
+  },
+  "approvalReady": true,
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 2,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..HEAD on feature/issue-556-architecture-gates",
+  "phaseRunId": "556-20260728T051800"
+}

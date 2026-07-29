@@ -1,0 +1,85 @@
+{
+  "planId": "rep-534-demo-analytics-live-wire",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic (ECS candidate path deferred to #498); HITL smoke on #535",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-analytics-live-gmv-truthful-unavailable",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "live_gmv_or_product_or_live_rendered_from_api_when_available",
+          "unavailable_kpis_remain_truthful_no_silent_gmv_to_net_revenue",
+          "home_settings_unchanged_mock",
+          "sign_in_stub_non_functional"
+        ]
+      },
+      {
+        "name": "demo-fake-refresh-no-recompute",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "fake_refresh_re_fetches_get_v1_demo_analytics_only",
+          "fake_refresh_does_not_call_force_recompute_or_partner_fetch"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. packages/contracts + apps/demo live wire to existing GET /v1/demo/analytics; Fake Refresh is client re-fetch only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 534"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "ECS candidate verification / ALB cutover (deferred to #498)",
+    "prod Redis / DEMO_REFERENCE_SHOP_ID HITL (#535)",
+    "hourly Mock reconciler (#533)",
+    "user-traffic percentage canaries"
+  ]
+}

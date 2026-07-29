@@ -1,0 +1,68 @@
+{
+  "planId": "rep-564-test-layer-discipline",
+  "affectedPublicSurfaces": [
+    "none — backend CI/test harness only; classifier matched testing 'public surface' prose in #564 body"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/CI only — no public host cutover; unit + integration tests in PR fast CI",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "ci-unit-integration-contract-tests",
+        "entryUrl": "n/a — pytest in CI",
+        "assertions": [
+          "import_boundary_contract_tests_pass",
+          "ownership_registry_contract_tests_pass",
+          "integration_example_uses_public_facades_only"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "n/a — no static HTML surfaces in scope"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "n/a"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Testing guidance + contract tests only; no DB migrations or deploy config."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest tests/unit/test_import_boundaries.py tests/unit/test_ownership_registry.py -q",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 564"
+  ],
+  "doNotInfer": [
+    "public demo or API deploy",
+    "ECS/ALB cutover",
+    "static asset smoke on demo.app-juli.com",
+    "release evidence fields beyond this plan"
+  ]
+}

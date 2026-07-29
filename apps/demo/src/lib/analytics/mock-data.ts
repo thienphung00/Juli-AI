@@ -18,7 +18,7 @@ export interface KpiSnapshot {
   signal: string;
   dataSource: string;
   lastUpdated: string;
-  dataMode: "fixture";
+  dataMode: "fixture" | "live";
   partialNote?: string;
   workflowId?: string;
   decisionLabel?: string;
@@ -32,8 +32,8 @@ export interface KpiSnapshot {
 const FIXTURE_UPDATED_AT = "2026-07-20T08:30:00+07:00";
 
 interface RangeBundle {
-  netRevenue: number;
-  netRevenueDelta: string;
+  gmvTiktok: number;
+  gmvTiktokDelta: string;
   inventoryTurnover: number;
   inventoryDelta: string;
   fulfillmentAccuracy: number;
@@ -42,24 +42,24 @@ interface RangeBundle {
 
 const RANGE_VALUES: Record<AnalyticsRange, RangeBundle> = {
   "7d": {
-    netRevenue: 118_000_000,
-    netRevenueDelta: "▲ 8%",
+    gmvTiktok: 118_000_000,
+    gmvTiktokDelta: "▲ 8%",
     inventoryTurnover: 4.2,
     inventoryDelta: "▼ 12%",
     fulfillmentAccuracy: 96.8,
     fulfillmentDelta: "▼ 1.2 điểm %",
   },
   "30d": {
-    netRevenue: 485_000_000,
-    netRevenueDelta: "▲ 15%",
+    gmvTiktok: 485_000_000,
+    gmvTiktokDelta: "▲ 15%",
     inventoryTurnover: 3.1,
     inventoryDelta: "▼ 43%",
     fulfillmentAccuracy: 95.2,
     fulfillmentDelta: "▼ 3.4 điểm %",
   },
   "90d": {
-    netRevenue: 1_420_000_000,
-    netRevenueDelta: "▲ 22%",
+    gmvTiktok: 1_420_000_000,
+    gmvTiktokDelta: "▲ 22%",
     inventoryTurnover: 2.8,
     inventoryDelta: "▼ 48%",
     fulfillmentAccuracy: 94.5,
@@ -101,17 +101,17 @@ function buildPreviousSeries(
   }));
 }
 
-function netRevenueSnapshot(range: AnalyticsRange): KpiSnapshot {
+function gmvTiktokSnapshot(range: AnalyticsRange): KpiSnapshot {
   const bundle = RANGE_VALUES[range];
   const timeSeries = buildTimeSeries(range, 72, 8);
   const forecastSeries = buildForecastSeries(timeSeries, 6);
 
   return {
-    formattedValue: formatVND(bundle.netRevenue),
-    delta: bundle.netRevenueDelta,
+    formattedValue: formatVND(bundle.gmvTiktok),
+    delta: bundle.gmvTiktokDelta,
     trend: "positive",
     signal:
-      "Doanh thu thuần tăng mạnh → cơ hội tăng trưởng → xem xét mở rộng sản phẩm chủ lực",
+      "GMV TikTok tăng mạnh → cơ hội tăng trưởng → xem xét mở rộng sản phẩm chủ lực",
     dataSource: "TikTok Shop Order API (fixture)",
     lastUpdated: formatDateTime(FIXTURE_UPDATED_AT),
     dataMode: "fixture",
@@ -195,8 +195,8 @@ export function getKpiSnapshot(
   let snapshot: KpiSnapshot | null = null;
 
   switch (metricKey) {
-    case "net-revenue":
-      snapshot = netRevenueSnapshot(range);
+    case "gmv-tiktok":
+      snapshot = gmvTiktokSnapshot(range);
       break;
     case "inventory-turnover":
       snapshot = inventoryTurnoverSnapshot(range);

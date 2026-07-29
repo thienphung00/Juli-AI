@@ -31,7 +31,7 @@ export function buildPreventCancellationReviewInputDefaults(): Record<
 }
 
 export function getPreventCancellationReviewStages(
-  analyticsMetricKey = "net-revenue",
+  analyticsMetricKey = "gmv-tiktok",
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 

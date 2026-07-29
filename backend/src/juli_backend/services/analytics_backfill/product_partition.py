@@ -18,8 +18,10 @@ from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.integrations.tiktok.exceptions import TikTokAPIError
-from juli_backend.integrations.tiktok.mapping import expand_analytics_product_list_item
+from juli_backend.integrations.tiktok import (
+    TikTokAPIError,
+    expand_analytics_product_list_item,
+)
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
     AnalyticsPerformanceRepo,

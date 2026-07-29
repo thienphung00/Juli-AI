@@ -1,0 +1,197 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 557,
+  "executorDomain": "integrations",
+  "phaseRunId": "557-20260728T052700",
+  "releaseEvidencePlanId": "rep-557-tiktok-package-facade",
+  "startedAt": "2026-07-28T03:51:00Z",
+  "completedAt": "2026-07-28T05:27:00Z",
+  "executionDurationMs": 5760000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 28,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 6,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 22,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 14,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 10,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 80,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/release-evidence-plan-issue-557.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-557.json",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/docs/schemas/implementation-artifact.schema.json",
+    "docs/product/phases/modular-monolith-upgrade/PRD.md",
+    "docs/architecture/import-boundaries.md",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "backend/src/juli_backend/integrations/tiktok/__init__.py",
+    "backend/src/juli_backend/workers/services/polling/MODULE.md",
+    "tests/unit/test_import_boundaries.py",
+    "tests/unit/test_tiktok_public_facade.py",
+    "tests/unit/test_tiktok_oauth_api_caller_facade.py",
+    "tests/unit/test_tiktok_remaining_caller_facade.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/integrations/SKILL.md",
+    ".cursor/skills/standalone/focus/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/mcp-usage.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/integrations/tiktok/__init__.py",
+    "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+    "backend/src/juli_backend/api/routes/auth_tiktok.py",
+    "backend/src/juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+    "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+    "backend/src/juli_backend/api/routes/debug_tiktok.py",
+    "backend/src/juli_backend/core/security/credential_resolver.py",
+    "backend/src/juli_backend/core/security/tiktok_oauth.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/tiktok/oauth.py",
+    "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py",
+    "backend/src/juli_backend/services/tiktok/verify_connection.py",
+    "backend/src/juli_backend/services/tiktok/app_review_store.py",
+    "backend/src/juli_backend/services/execution/errors.py",
+    "backend/src/juli_backend/services/execution/inventory_leakage.py",
+    "backend/src/juli_backend/services/execution/listing.py",
+    "backend/src/juli_backend/services/execution/promotion_leakage.py",
+    "backend/src/juli_backend/services/execution/sandbox_guard.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/product_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/revenue_partition.py",
+    "backend/src/juli_backend/services/action_cards/refresh.py",
+    "backend/src/juli_backend/services/webhook/material_worker.py",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "tests/unit/test_tiktok_public_facade.py",
+    "tests/unit/test_tiktok_oauth_api_caller_facade.py",
+    "tests/unit/test_tiktok_remaining_caller_facade.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_public_facade.py",
+    "tests/unit/test_tiktok_oauth_api_caller_facade.py",
+    "tests/unit/test_tiktok_remaining_caller_facade.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_tiktok_public_facade.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "[packet 1 — package-root facade] 30 failed — empty __init__.py: AttributeError on all documented exports; test_tiktok_package_declares_documented_public_exports failed (no __all__)",
+      "passingTestEvidence": "30 passed — __all__ matches MODULE.md public surface; every export importable from package root; subprocess import probe reports no HTTP/Redis/DB/Celery side effects",
+      "refactorEvidence": "Facade uses explicit re-exports only; guarded_client/guards/capabilities remain internal (not re-exported)",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_public_facade.py -q",
+          "exitCode": 1,
+          "outputSummary": "30 failed in 2.56s — missing __all__ and exports on empty package __init__.py"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_public_facade.py -q",
+          "exitCode": 0,
+          "outputSummary": "30 passed in 1.34s"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "[packet 2 — OAuth/API caller migration] 14 failed — all seven bounded OAuth/API callers still deep-import TikTok leaf modules",
+      "passingTestEvidence": "14 passed — caller AST import probe confirms no forbidden leaf modules and required facade symbols present in all seven files; 231 passed across full TikTok unit suite including OAuth callbacks, verify_connection, and execution error taxonomy",
+      "refactorEvidence": "Import-only migration; runtime OAuth token handling, debug gates (verify_connection.tiktok_debug_enabled), exception semantics (AuthenticationError/TikTokAPIError propagation), and import-time side-effect profile unchanged",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_oauth_api_caller_facade.py -q",
+          "exitCode": 1,
+          "outputSummary": "14 failed in 1.45s — deep leaf imports and missing facade symbols on all OAuth/API caller files"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_oauth_api_caller_facade.py -q",
+          "exitCode": 0,
+          "outputSummary": "14 passed in 0.08s"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_public_facade.py tests/unit/test_tiktok_oauth_api_caller_facade.py tests/unit/test_tiktok*.py tests/unit/test_api_webhook_tiktok.py -q",
+          "exitCode": 0,
+          "outputSummary": "231 passed in 14.13s — no regressions in TikTok/OAuth/API tests"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "[packet 3 — remaining caller migration] 34 failed — 17 external callers still deep-import TikTok leaf modules",
+      "passingTestEvidence": "78 passed across facade contract tests (78 exports, 17 remaining-caller AST probes, 7 OAuth/API probes); 385 passed full TikTok unit suite; import-boundary integrations.tiktok leaf violations 31→0",
+      "refactorEvidence": "Extended facade with merchant isolation, API path constants, vendor→ingest mapping helpers, and client factories per polling MODULE.md; import-only caller migration across polling, ETL, analytics backfill, execution sandbox, core OAuth, repos, debug route; guarded_client/guards/capabilities remain internal",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_remaining_caller_facade.py -q",
+          "exitCode": 1,
+          "outputSummary": "34 failed in 0.54s — all 17 remaining callers still on leaf imports"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_public_facade.py tests/unit/test_tiktok_oauth_api_caller_facade.py tests/unit/test_tiktok_remaining_caller_facade.py -q",
+          "exitCode": 0,
+          "outputSummary": "78 passed in 1.87s — all facade contract tests green"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_tiktok_public_facade.py tests/unit/test_tiktok_oauth_api_caller_facade.py tests/unit/test_tiktok_remaining_caller_facade.py tests/unit/test_tiktok*.py tests/unit/test_api_webhook_tiktok.py -q",
+          "exitCode": 0,
+          "outputSummary": "385 passed in 8.39s — no regressions in TikTok/OAuth/polling/ETL tests"
+        },
+        {
+          "command": "python agent-runtime/scripts/ci/check_import_boundaries.py --strict",
+          "exitCode": 1,
+          "outputSummary": "55 violations (down from 81 baseline); integrations.tiktok leaf deep-import violations 31→0; 5 forbidden_edge remain (core/repos/workers→integrations.tiktok package root — separate allowed_edges owner)"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_import_boundaries.py -q",
+          "exitCode": 0,
+          "outputSummary": "5 passed in 0.60s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "MMU-5 delivers a complete TikTok package-root facade in integrations/tiktok/__init__.py with 78 documented __all__ exports: auth/client/signing/rate-limiter/resources/exceptions (packet 1), OAuth/API caller migration (packet 2), plus merchant isolation, API path constants, vendor→ingest mapping, and client factories (packet 3). All 24 external backend callers now import only from juli_backend.integrations.tiktok; zero integrations.tiktok.* leaf deep-import violations remain. Import-boundary strict scan: total violations 81→55; TikTok leaf violations 31→0. Five forbidden_edge violations remain where core/repos/workers import the facade but allowed_edges lacks integrations — out of #557 scope per MMU PRD edge-matrix ownership. guarded_client/guards/capabilities and .importlinter.toml unchanged.",
+  "assumptions": [
+    "Meta cache valid for integrations domain; release plan rep-557-tiktok-package-facade approved",
+    "Merchant, mapping, constants, and factory symbols are stable integration public surface per polling MODULE.md",
+    "Forbidden-edge remediation for core/repos/workers→integrations allowed_edges is owned by MMU boundary-contract follow-ups, not #557",
+    "Review/Validate intentionally skipped per executor instruction"
+  ],
+  "risks": [
+    "Five forbidden_edge violations remain: credential_resolver, tiktok_oauth, repos, polling orchestrate/sync importing integrations.tiktok from packages without integrations in allowed_edges",
+    "Large __all__ surface (78 symbols) increases facade maintenance burden — future slices should prefer narrow additions",
+    "Subprocess side-effect probe (packet 1) does not catch lazy side effects inside method calls"
+  ]
+}

@@ -43,6 +43,10 @@ _Avoid_: seller observability UI, cloning Analytics into PostHog, Sentry-as-DOCP
 Durable shop-scoped precomputed KPI/intelligence envelopes (Postgres SoT) plus mandatory Redis read-through cache — shared by Analytics and Decisions after transform→compute. See [ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md).
 _Avoid_: mock fixtures as Decision input after 2.10-A, separate ingest pipelines per layer, optional Redis for 2.10+ product reads
 
+**VPS Redis (ephemeral)**:
+Co-located Redis on the product VPS (loopback only) used as cache, TikTok rate-limit buckets, material coalesce gate, and Celery broker/result DBs — never product SoT; no RDB/AOF for Phase 2.10. Logical DBs: app `/0`, Celery broker `/1`, results `/2`. See [ADR-041](docs/adr/041-vps-redis-ephemeral-cache-and-celery.md).
+_Avoid_: Redis as durable store, public bind of 6379, treating App Review “skip Redis” as the 2.10 prod stance
+
 **Product Intelligence Layer**:
 The computed outputs that feed **Analytics Layer** (“what is happening?”) and **Decision Layer** (“what should happen next?”). Not a third UI destination — the shared intelligence stage after transform/compute.
 _Avoid_: conflating with Copy layer, treating Analytics and Decisions as separate ingest pipelines

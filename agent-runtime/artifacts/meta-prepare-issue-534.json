@@ -1,0 +1,614 @@
+{
+  "issueId": 534,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 534,
+    "parentIssueId": 524,
+    "sliceId": "P2.10-A10",
+    "handoffPath": "docs/product/phases/phase-2.10/PRD.md",
+    "executorDomain": "ui-ux",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-524.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-534.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 534,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A10",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #524",
+            "fingerprint": "09e3b5171b760997"
+          },
+          {
+            "path": "docs/product/phases/phase-2.10/PRD.md",
+            "fingerprint": "e19dc3a6ca824f771536cbd9088abf85d3633229"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "440b6bbf906eed8fd27615468ccf15c0249e4462"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #534",
+            "fingerprint": "c67afedccda8fafe"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-534.md",
+            "fingerprint": "a4384d79cf5c4fd09e5e033e932683ec6369079a"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 534,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A10",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2.10-A10",
+            "sliceId": "P2.10-A10"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-524",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #534",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.10/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 P2.10-A10"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-524",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #534",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/phase-2.10/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 5e0fef8783c1 on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "5e0fef8783c15020d6be54d74c59a5c17e7dfcfb",
+          "copiedAt": "2026-07-28T00:04:58Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/ui-ux/SKILL.md"
+        ],
+        "branchHeadSha": "5e0fef8783c15020d6be54d74c59a5c17e7dfcfb",
+        "pinnedCommitSha": "5e0fef8783c15020d6be54d74c59a5c17e7dfcfb",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "5e0fef8783c15020d6be54d74c59a5c17e7dfcfb"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 534,
+        "parentIssueId": 524,
+        "sliceId": "P2.10-A10",
+        "derivedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.10/PRD.md",
+            "docs/adr/037-phase-2.10-demo-real-data-no-auth.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            "docs/ml/visual_layer.md",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "apps/demo/MODULE.md",
+            "apps/demo/src/lib/analytics/main-kpis.ts",
+            "packages/contracts/"
+          ],
+          "acceptanceCriteria": [
+            "Demo Analytics renders live GMV/product/LIVE from API when available; unavailable KPIs stay truthful",
+            "Contract types include envelope fields needed for the table above (no silent GMV\u2192Net Revenue)",
+            "Fake Demo Refresh re-reads GET /v1/demo/analytics (cache path) and does not call any force-recompute endpoint",
+            "Home and Settings unchanged (mock); Sign-in remains non-functional stub",
+            "Frontend tests cover live render + Fake Refresh non-recompute behavior"
+          ],
+          "loadWhenNeeded": [
+            "docs/product/design/",
+            ".cursor/skills/standalone/ui-ux-design/SKILL.md"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "ios/",
+            "web/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/phase-2.10/PRD.md",
+            "docs/adr/037-phase-2.10-demo-real-data-no-auth.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            "docs/ml/visual_layer.md",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "apps/demo/MODULE.md",
+            "apps/demo/src/lib/analytics/main-kpis.ts",
+            "packages/contracts/"
+          ],
+          "acceptanceCriteria": [
+            "Demo Analytics renders live GMV/product/LIVE from API when available; unavailable KPIs stay truthful",
+            "Contract types include envelope fields needed for the table above (no silent GMV\u2192Net Revenue)",
+            "Fake Demo Refresh re-reads GET /v1/demo/analytics (cache path) and does not call any force-recompute endpoint",
+            "Home and Settings unchanged (mock); Sign-in remains non-functional stub",
+            "Frontend tests cover live render + Fake Refresh non-recompute behavior"
+          ],
+          "loadWhenNeeded": [
+            "docs/product/design/",
+            ".cursor/skills/standalone/ui-ux-design/SKILL.md"
+          ],
+          "releaseEvidencePlan": {
+            "planId": "rep-534-demo-analytics-live-wire",
+            "affectedPublicSurfaces": [
+              "demo.app-juli.com",
+              "demo.app-juli.com/analytics"
+            ],
+            "candidateVerificationJourney": {
+              "mode": "candidate_verification",
+              "stableTrafficPercent": 100,
+              "candidatePublicTrafficPercent": 0,
+              "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic (ECS candidate path deferred to #498); HITL smoke on #535",
+              "syntheticShopRequired": false,
+              "workersDisabledOnCandidate": true,
+              "apiSideEffectsInScope": false,
+              "journeys": [
+                {
+                  "name": "demo-analytics-live-gmv-truthful-unavailable",
+                  "entryUrl": "/analytics",
+                  "assertions": [
+                    "html_200",
+                    "live_gmv_or_product_or_live_rendered_from_api_when_available",
+                    "unavailable_kpis_remain_truthful_no_silent_gmv_to_net_revenue",
+                    "home_settings_unchanged_mock",
+                    "sign_in_stub_non_functional"
+                  ]
+                },
+                {
+                  "name": "demo-fake-refresh-no-recompute",
+                  "entryUrl": "/analytics",
+                  "assertions": [
+                    "fake_refresh_re_fetches_get_v1_demo_analytics_only",
+                    "fake_refresh_does_not_call_force_recompute_or_partner_fetch"
+                  ]
+                }
+              ]
+            },
+            "staticAssetChecks": {
+              "required": true,
+              "htmlRoutes": [
+                "/",
+                "/analytics"
+              ],
+              "discoverFromHtml": true,
+              "assetTypes": [
+                "css",
+                "js"
+              ],
+              "failOnMissing": true,
+              "failOnNon200": true
+            },
+            "migrationCompatibility": {
+              "schemaChangeInScope": false,
+              "expandContractOnly": true,
+              "stableAndCandidateCompatible": true,
+              "destructiveMigrationAllowed": false,
+              "notes": "No DB schema change. packages/contracts + apps/demo live wire to existing GET /v1/demo/analytics; Fake Refresh is client re-fetch only."
+            },
+            "rollbackAssertion": {
+              "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+              "postCutoverFailureBehavior": "restore_stable_listener",
+              "retainedStableRequired": true,
+              "automatic": false
+            },
+            "requiredArtifacts": {
+              "implementation": true,
+              "intentReview": true,
+              "review": true,
+              "validation": true,
+              "releaseMetadataHonest": true
+            },
+            "acceptanceCommands": [
+              "pnpm --filter @juli/demo test -- --run",
+              "pnpm --filter @juli/demo exec tsc --noEmit",
+              "python agent-runtime/scripts/validate/run_validate.py --issue 534"
+            ],
+            "doNotInfer": [
+              "release evidence fields",
+              "smoke asset lists",
+              "rollback behavior",
+              "ECS candidate verification / ALB cutover (deferred to #498)",
+              "prod Redis / DEMO_REFERENCE_SHOP_ID HITL (#535)",
+              "hourly Mock reconciler (#533)",
+              "user-traffic percentage canaries"
+            ]
+          }
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=True matches live classifier (1 reason(s))",
+      "details": {
+        "issueId": 534,
+        "parentIssueId": 524,
+        "live": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo"
+          ]
+        },
+        "cached": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo"
+          ]
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 534 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "releaseEvidencePlan present and schema-valid",
+      "details": {
+        "issueId": 534,
+        "parentIssueId": 524,
+        "publicRelease": true,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "missingFields": [],
+        "errors": [],
+        "resolution": "Complete issueLoadProfile.releaseEvidencePlan fields [], then re-run meta_prepare_executor --issue 534",
+        "planId": "rep-534-demo-analytics-live-wire"
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #524 \u2014 Phase 2.10 Demo dual-layer real data (2.10-A Analytics)\\\n## Product boundary\\\n- Masked reference-shop Analytics on public Demo (no OAuth); precompute Postgres + required Redis\\\n- Material webhooks + hourly Mock reconciler; Fake Demo Refresh; Home/Settings stay mock\\\n- 2.10-B Decision slices not filed yet\\\n## Schema law\\\n- New analytics_kpi_envelopes (shop_id, kind) + JSONB payload v1; not FeatureAggregateSnapshot\\\n## Public API\\\n- GET /v1/demo/analytics; DEMO_REFERENCE_SHOP_ID server-bound\\\n## ADRs\\\n- ADR-037 no-auth Demo \u00b7 ADR-038 dual-layer pipeline / Redis required / material set\\\n## Epic deferrals\\\n- 2.10-B Decisions \u00b7 Landing/Sign-in \u00b7 Ads ETL \u00b7 real Partner writes\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "apps/landing/",
+      "web/",
+      "ios/",
+      "Sibling issue context caches"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/ui-ux/SKILL.md",
+          "purpose": "Primary ui-ux Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "ui-ux",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/phase-2.10/PRD.md",
+        "docs/adr/037-phase-2.10-demo-real-data-no-auth.md",
+        "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+        "docs/ml/visual_layer.md",
+        "CONTEXT.md"
+      ],
+      "requiredModules": [
+        "apps/demo/MODULE.md",
+        "apps/demo/src/lib/analytics/main-kpis.ts",
+        "packages/contracts/"
+      ],
+      "acceptanceCriteria": [
+        "Demo Analytics renders live GMV/product/LIVE from API when available; unavailable KPIs stay truthful",
+        "Contract types include envelope fields needed for the table above (no silent GMV\u2192Net Revenue)",
+        "Fake Demo Refresh re-reads GET /v1/demo/analytics (cache path) and does not call any force-recompute endpoint",
+        "Home and Settings unchanged (mock); Sign-in remains non-functional stub",
+        "Frontend tests cover live render + Fake Refresh non-recompute behavior"
+      ],
+      "loadWhenNeeded": [
+        "docs/product/design/",
+        ".cursor/skills/standalone/ui-ux-design/SKILL.md"
+      ],
+      "releaseEvidencePlan": {
+        "planId": "rep-534-demo-analytics-live-wire",
+        "affectedPublicSurfaces": [
+          "demo.app-juli.com",
+          "demo.app-juli.com/analytics"
+        ],
+        "candidateVerificationJourney": {
+          "mode": "candidate_verification",
+          "stableTrafficPercent": 100,
+          "candidatePublicTrafficPercent": 0,
+          "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic (ECS candidate path deferred to #498); HITL smoke on #535",
+          "syntheticShopRequired": false,
+          "workersDisabledOnCandidate": true,
+          "apiSideEffectsInScope": false,
+          "journeys": [
+            {
+              "name": "demo-analytics-live-gmv-truthful-unavailable",
+              "entryUrl": "/analytics",
+              "assertions": [
+                "html_200",
+                "live_gmv_or_product_or_live_rendered_from_api_when_available",
+                "unavailable_kpis_remain_truthful_no_silent_gmv_to_net_revenue",
+                "home_settings_unchanged_mock",
+                "sign_in_stub_non_functional"
+              ]
+            },
+            {
+              "name": "demo-fake-refresh-no-recompute",
+              "entryUrl": "/analytics",
+              "assertions": [
+                "fake_refresh_re_fetches_get_v1_demo_analytics_only",
+                "fake_refresh_does_not_call_force_recompute_or_partner_fetch"
+              ]
+            }
+          ]
+        },
+        "staticAssetChecks": {
+          "required": true,
+          "htmlRoutes": [
+            "/",
+            "/analytics"
+          ],
+          "discoverFromHtml": true,
+          "assetTypes": [
+            "css",
+            "js"
+          ],
+          "failOnMissing": true,
+          "failOnNon200": true
+        },
+        "migrationCompatibility": {
+          "schemaChangeInScope": false,
+          "expandContractOnly": true,
+          "stableAndCandidateCompatible": true,
+          "destructiveMigrationAllowed": false,
+          "notes": "No DB schema change. packages/contracts + apps/demo live wire to existing GET /v1/demo/analytics; Fake Refresh is client re-fetch only."
+        },
+        "rollbackAssertion": {
+          "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+          "postCutoverFailureBehavior": "restore_stable_listener",
+          "retainedStableRequired": true,
+          "automatic": false
+        },
+        "requiredArtifacts": {
+          "implementation": true,
+          "intentReview": true,
+          "review": true,
+          "validation": true,
+          "releaseMetadataHonest": true
+        },
+        "acceptanceCommands": [
+          "pnpm --filter @juli/demo test -- --run",
+          "pnpm --filter @juli/demo exec tsc --noEmit",
+          "python agent-runtime/scripts/validate/run_validate.py --issue 534"
+        ],
+        "doNotInfer": [
+          "release evidence fields",
+          "smoke asset lists",
+          "rollback behavior",
+          "ECS candidate verification / ALB cutover (deferred to #498)",
+          "prod Redis / DEMO_REFERENCE_SHOP_ID HITL (#535)",
+          "hourly Mock reconciler (#533)",
+          "user-traffic percentage canaries"
+        ]
+      }
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #534\n\n- sliceId: P2.10-A10\n- executorDomain: ui-ux (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #534 \u2014 P2.10-A10\n\n## Parent\n#524\n\n## Executor domain\nui-ux\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/phase-2.10/PRD.md\n- docs/adr/037-phase-2.10-demo-real-data-no-auth.md\n- docs/adr/038-phase-2.10-dual-layer-pipeline.md\n- docs/ml/visual_layer.md\n- CONTEXT.md\n",
+    "executorDomain": "ui-ux",
+    "skillsPrimaryOnly": true,
+    "publicRelease": true,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    },
+    "releaseEvidencePlan": {
+      "planId": "rep-534-demo-analytics-live-wire",
+      "affectedPublicSurfaces": [
+        "demo.app-juli.com",
+        "demo.app-juli.com/analytics"
+      ],
+      "candidateVerificationJourney": {
+        "mode": "candidate_verification",
+        "stableTrafficPercent": 100,
+        "candidatePublicTrafficPercent": 0,
+        "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic (ECS candidate path deferred to #498); HITL smoke on #535",
+        "syntheticShopRequired": false,
+        "workersDisabledOnCandidate": true,
+        "apiSideEffectsInScope": false,
+        "journeys": [
+          {
+            "name": "demo-analytics-live-gmv-truthful-unavailable",
+            "entryUrl": "/analytics",
+            "assertions": [
+              "html_200",
+              "live_gmv_or_product_or_live_rendered_from_api_when_available",
+              "unavailable_kpis_remain_truthful_no_silent_gmv_to_net_revenue",
+              "home_settings_unchanged_mock",
+              "sign_in_stub_non_functional"
+            ]
+          },
+          {
+            "name": "demo-fake-refresh-no-recompute",
+            "entryUrl": "/analytics",
+            "assertions": [
+              "fake_refresh_re_fetches_get_v1_demo_analytics_only",
+              "fake_refresh_does_not_call_force_recompute_or_partner_fetch"
+            ]
+          }
+        ]
+      },
+      "staticAssetChecks": {
+        "required": true,
+        "htmlRoutes": [
+          "/",
+          "/analytics"
+        ],
+        "discoverFromHtml": true,
+        "assetTypes": [
+          "css",
+          "js"
+        ],
+        "failOnMissing": true,
+        "failOnNon200": true
+      },
+      "migrationCompatibility": {
+        "schemaChangeInScope": false,
+        "expandContractOnly": true,
+        "stableAndCandidateCompatible": true,
+        "destructiveMigrationAllowed": false,
+        "notes": "No DB schema change. packages/contracts + apps/demo live wire to existing GET /v1/demo/analytics; Fake Refresh is client re-fetch only."
+      },
+      "rollbackAssertion": {
+        "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+        "postCutoverFailureBehavior": "restore_stable_listener",
+        "retainedStableRequired": true,
+        "automatic": false
+      },
+      "requiredArtifacts": {
+        "implementation": true,
+        "intentReview": true,
+        "review": true,
+        "validation": true,
+        "releaseMetadataHonest": true
+      },
+      "acceptanceCommands": [
+        "pnpm --filter @juli/demo test -- --run",
+        "pnpm --filter @juli/demo exec tsc --noEmit",
+        "python agent-runtime/scripts/validate/run_validate.py --issue 534"
+      ],
+      "doNotInfer": [
+        "release evidence fields",
+        "smoke asset lists",
+        "rollback behavior",
+        "ECS candidate verification / ALB cutover (deferred to #498)",
+        "prod Redis / DEMO_REFERENCE_SHOP_ID HITL (#535)",
+        "hourly Mock reconciler (#533)",
+        "user-traffic percentage canaries"
+      ]
+    },
+    "releaseEvidencePlanId": "rep-534-demo-analytics-live-wire"
+  },
+  "executorDomain": "ui-ux"
+}

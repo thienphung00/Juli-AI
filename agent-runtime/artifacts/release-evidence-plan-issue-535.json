@@ -1,0 +1,85 @@
+{
+  "planId": "rep-535-vps-redis-shared-client",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics",
+    "api.app-juli.com/v1/demo/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "VPS HITL deploy of API with REDIS_URL + shared Redis client; zero public canary traffic (ECS candidate path deferred to #498)",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "redis-ping-and-demo-analytics-masked-gmv",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "redis_cli_ping_pong",
+          "api_health_ok_without_requiring_redis",
+          "get_v1_demo_analytics_200_masked_gmv_when_envelope_warm",
+          "sign_in_stub_non_functional"
+        ]
+      },
+      {
+        "name": "fake-refresh-no-partner-storm",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "fake_refresh_re_fetches_get_v1_demo_analytics_only",
+          "fake_refresh_does_not_trigger_partner_fetch_storm"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Shared async Redis client + ADR-041 ephemeral VPS Redis config; Postgres remains SoT; /health stays Redis-agnostic."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_kpi_cache.py tests/unit/test_api_demo_analytics.py -q",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 535",
+    "redis-cli PING"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "ECS candidate verification / ALB cutover (deferred to #498)",
+    "user-traffic percentage canaries",
+    "requirepass on loopback Redis",
+    "Redis RDB/AOF durability"
+  ]
+}

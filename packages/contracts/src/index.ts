@@ -1,4 +1,18 @@
 export type {
+  AnalyticsEnvelopeKpiKey,
+  AnalyticsKpiAvailability,
+  AnalyticsKpiEntry,
+  AnalyticsKpiSeriesPoint,
+  DemoAnalyticsEnvelope,
+  DemoAnalyticsEnvelopeMeta,
+} from "./analytics";
+export {
+  GMV_TIKTOK_ENVELOPE_KEY,
+  GMV_TIKTOK_LABEL,
+  assertNoNetRevenueAlias,
+  isAnalyticsKpiAvailable,
+} from "./analytics";
+export type {
   ExecutionLifecycleStatus,
   ExecutionRecord,
   ExecutionTimelineStep,

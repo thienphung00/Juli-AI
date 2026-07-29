@@ -18,23 +18,19 @@ from juli_backend.core.security.credential_resolver import (
     resolve_production_read_credential,
 )
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-from juli_backend.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok import (
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
+    PRODUCTION_AUTH_ID,
     RETURN_SEARCH_PATH,
-)
-from juli_backend.integrations.tiktok.factories import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
     ProductionReadResources,
-)
-from juli_backend.integrations.tiktok.merchant import (
-    PRODUCTION_AUTH_ID,
+    RateLimiter,
     TikTokCapability,
 )
-from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
 from juli_backend.services.ingestion.handoff import HandoffFn
@@ -87,8 +83,7 @@ def _assert_fujiwa_credential(credential: TikTokCredential) -> None:
         )
     if credential.capability != TikTokCapability.PRODUCTION_READ.value:
         raise ValueError(
-            "Fujiwa polling requires production_read capability; "
-            f"got {credential.capability}"
+            f"Fujiwa polling requires production_read capability; got {credential.capability}"
         )
 
 
@@ -158,6 +153,76 @@ async def _run_poll_step(
     )
 
 
+async def run_fujiwa_material_resource_fetch(
+    *,
+    session: AsyncSession,
+    config: FujiwaPollConfig,
+    oauth_service: TikTokOAuthService,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    resolve_credential: ResolveCredentialFn | None = None,
+    factory: ProductionReadClientFactory | None = None,
+    create_resources: CreateResourcesFn | None = None,
+    sync_state_repo: TikTokSyncStateRepo | None = None,
+    sleep: SleepFn = asyncio.sleep,
+) -> None:
+    """Fetch orders/products/returns/inventory + incremental analytics for material precompute."""
+    resolve = resolve_credential or resolve_production_read_credential
+    credential = await resolve(session)
+    _assert_fujiwa_credential(credential)
+
+    credential = await oauth_service.refresh_merchant_tokens(
+        PRODUCTION_AUTH_ID,
+        TikTokCapability.PRODUCTION_READ,
+    )
+
+    client_factory = factory or ProductionReadClientFactory()
+    build_resources = create_resources or client_factory.create_resources
+    resources = build_resources(_factory_config(config, credential))
+
+    repo = sync_state_repo or TikTokSyncStateRepo(session)
+    sync_state = await repo.load(credential.shop_id)
+
+    app_id = config.app_key
+    shop = await session.get(Shop, credential.shop_id)
+    if shop is None or not shop.tiktok_shop_id:
+        raise ValueError(
+            f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
+        )
+    shop_key = shop.tiktok_shop_id
+
+    for step in _FUJIWA_POLL_STEPS:
+        await _run_poll_step(
+            step,
+            resources=resources,
+            rate_limiter=rate_limiter,
+            handoff_fn=handoff_fn,
+            app_id=app_id,
+            shop_key=shop_key,
+            sync_state=sync_state,
+            sleep=sleep,
+        )
+
+    await _backoff_if_rate_limited(
+        rate_limiter,
+        app_id=app_id,
+        shop_id=shop_key,
+        endpoint=ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+        sleep=sleep,
+    )
+    await sync_analytics(
+        resource=resources.analytics,
+        promotion_resource=resources.promotion,
+        rate_limiter=rate_limiter,
+        handoff_fn=handoff_fn,
+        app_id=app_id,
+        shop_id=shop_key,
+        sync_state=sync_state,
+    )
+
+    await repo.save(credential.shop_id, sync_state)
+
+
 async def run_fujiwa_poll_cycle(
     *,
     session: AsyncSession,
@@ -192,8 +257,7 @@ async def run_fujiwa_poll_cycle(
     shop = await session.get(Shop, credential.shop_id)
     if shop is None or not shop.tiktok_shop_id:
         raise ValueError(
-            "Fujiwa polling requires a shop with tiktok_shop_id; "
-            f"shop_id={credential.shop_id}"
+            f"Fujiwa polling requires a shop with tiktok_shop_id; shop_id={credential.shop_id}"
         )
     shop_key = shop.tiktok_shop_id
 

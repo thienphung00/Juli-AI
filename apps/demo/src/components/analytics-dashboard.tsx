@@ -3,7 +3,7 @@
 import { FilterChip, LoadingSkeleton, StatusChip } from "@juli/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 
 import {
   ANALYTICS_RANGE_LABELS,
@@ -13,45 +13,54 @@ import {
   type MetricKey,
   getMainKpiDefinition,
   getSelectorMetricKeys,
-  isAvailableMetricKey,
   isValidMetricKey,
 } from "../lib/analytics/main-kpis";
-import { getKpiSnapshot } from "../lib/analytics/mock-data";
+import {
+  useAnalyticsBootstrap,
+  useAnalyticsData,
+} from "../lib/analytics/analytics-data-context";
+import {
+  buildLiveKpiSnapshot,
+  isSelectableMetricKey,
+  listSupplementaryCharts,
+} from "../lib/analytics/envelope-mapper";
 import { useDemoState } from "./demo-state";
 import { AnalyticsHeroChart } from "./analytics-charts";
 import { AnalyticsKpiCard } from "./analytics-kpi-card";
-
-export type AnalyticsLoadState = "ready" | "loading" | "partial" | "error";
+import { AnalyticsSupplementarySections } from "./analytics-supplementary-sections";
 
 interface AnalyticsDashboardProps {
   metricKey?: string;
-  initialLoadState?: AnalyticsLoadState;
 }
 
-export function AnalyticsDashboard({
-  metricKey: routeMetricKey,
-  initialLoadState = "ready",
-}: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashboardProps) {
   const router = useRouter();
   const heroHeadingId = useId();
   const heroRef = useRef<HTMLElement>(null);
   const { mutableState, updateMutableState } = useDemoState();
-  const [loadState, setLoadState] = useState<AnalyticsLoadState>(initialLoadState);
+  const { envelope, status, loadAnalytics } = useAnalyticsData();
 
-  const heroMetricKey = isAvailableMetricKey(mutableState.analyticsMetric)
-    ? mutableState.analyticsMetric
-    : routeMetricKey && isAvailableMetricKey(routeMetricKey)
-      ? routeMetricKey
-      : DEFAULT_METRIC_KEY;
   const range = mutableState.analyticsRange ?? DEFAULT_ANALYTICS_RANGE;
+  useAnalyticsBootstrap(range);
+
+  const heroMetricKey = isSelectableMetricKey(mutableState.analyticsMetric, envelope)
+    ? (mutableState.analyticsMetric as MetricKey)
+    : routeMetricKey && isSelectableMetricKey(routeMetricKey, envelope)
+      ? routeMetricKey
+      : isSelectableMetricKey(DEFAULT_METRIC_KEY, envelope)
+        ? DEFAULT_METRIC_KEY
+        : DEFAULT_METRIC_KEY;
+
   const compareEnabled = mutableState.analyticsComparisonEnabled ?? false;
   const invalidDeepLink =
     Boolean(routeMetricKey) &&
     (!isValidMetricKey(routeMetricKey!) ||
-      !isAvailableMetricKey(routeMetricKey!));
+      (status === "ready" &&
+        envelope !== null &&
+        !isSelectableMetricKey(routeMetricKey!, envelope)));
 
   useEffect(() => {
-    if (routeMetricKey && isAvailableMetricKey(routeMetricKey)) {
+    if (routeMetricKey && isSelectableMetricKey(routeMetricKey, envelope)) {
       updateMutableState((current) => {
         if (current.analyticsMetric === routeMetricKey) {
           return current;
@@ -64,27 +73,17 @@ export function AnalyticsDashboard({
         };
       });
     }
-  }, [routeMetricKey, updateMutableState]);
-
-  useEffect(() => {
-    if (initialLoadState !== "loading") {
-      return;
-    }
-
-    const timer = window.setTimeout(() => setLoadState("ready"), 0);
-    return () => window.clearTimeout(timer);
-  }, [initialLoadState]);
+  }, [envelope, routeMetricKey, updateMutableState]);
 
   const heroDefinition = getMainKpiDefinition(heroMetricKey);
   const snapshot =
-    loadState === "error"
+    status === "error" || !envelope
       ? null
-      : getKpiSnapshot(
-          heroMetricKey,
-          range,
-          loadState === "partial" ? { partial: true } : undefined,
-        );
+      : buildLiveKpiSnapshot(envelope, heroMetricKey, range);
+  const supplementaryCharts = listSupplementaryCharts(envelope);
   const selectorKeys = getSelectorMetricKeys(heroMetricKey);
+  const dataModeLabel =
+    snapshot?.dataMode === "live" ? "Dữ liệu thực" : "Dữ liệu mẫu";
 
   const focusHeroHeading = () => {
     heroRef.current
@@ -133,14 +132,14 @@ export function AnalyticsDashboard({
           Không có KPI chính nào khớp với đường dẫn{" "}
           <code>{routeMetricKey}</code>. Juli giữ nguyên URL để bạn hiểu lỗi này.
         </p>
-        <Link className="analytics-dashboard__recovery" href="/analytics/net-revenue">
-          Xem Doanh thu thuần
+        <Link className="analytics-dashboard__recovery" href="/analytics/gmv-tiktok">
+          Xem GMV (TikTok)
         </Link>
       </section>
     );
   }
 
-  if (loadState === "loading") {
+  if (status === "loading" || status === "idle") {
     return (
       <section
         aria-busy="true"
@@ -202,7 +201,7 @@ export function AnalyticsDashboard({
             {heroDefinition.name}
           </h2>
 
-          {loadState === "error" ? (
+          {status === "error" ? (
             <>
               <p className="analytics-hero__error">
                 Chưa thể tải dữ liệu KPI. Bạn vẫn giữ lựa chọn và khoảng thời gian
@@ -210,7 +209,7 @@ export function AnalyticsDashboard({
               </p>
               <button
                 className="demo-decisions__retry"
-                onClick={() => setLoadState("ready")}
+                onClick={() => void loadAnalytics(range)}
                 type="button"
               >
                 Thử lại
@@ -230,7 +229,7 @@ export function AnalyticsDashboard({
                 </p>
                 <p>
                   <strong>Cửa sổ:</strong> {ANALYTICS_RANGE_LABELS[range]} ·{" "}
-                  <StatusChip variant="info">Dữ liệu mẫu</StatusChip>
+                  <StatusChip variant="info">{dataModeLabel}</StatusChip>
                 </p>
                 {snapshot.partialNote ? (
                   <p className="analytics-hero__partial">{snapshot.partialNote}</p>
@@ -253,7 +252,9 @@ export function AnalyticsDashboard({
                 </Link>
               ) : null}
             </>
-          ) : null}
+          ) : (
+            <StatusChip variant="neutral">Chưa khả dụng</StatusChip>
+          )}
         </div>
 
         {snapshot ? (
@@ -285,6 +286,7 @@ export function AnalyticsDashboard({
         {selectorKeys.map((selectorKey) => (
           <div key={selectorKey} role="listitem">
             <AnalyticsKpiCard
+              envelope={envelope}
               metricKey={selectorKey}
               onSelect={handleSelectMetric}
               range={range}
@@ -292,6 +294,8 @@ export function AnalyticsDashboard({
           </div>
         ))}
       </div>
+
+      <AnalyticsSupplementarySections charts={supplementaryCharts} />
     </section>
   );
 }

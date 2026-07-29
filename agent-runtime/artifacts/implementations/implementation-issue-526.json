@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 526,
+  "executorDomain": "backend",
+  "phaseRunId": "526-20260727T071551",
+  "startedAt": "2026-07-27T07:35:00Z",
+  "completedAt": "2026-07-27T07:55:00Z",
+  "executionDurationMs": 1200000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 42,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 6,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 8,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 6,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 3,
+      "stage": "other"
+    },
+    {
+      "toolName": "Glob",
+      "count": 2,
+      "stage": "other"
+    },
+    {
+      "toolName": "UpdateCurrentStep",
+      "count": 4,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 71,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-526.json",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-526.json",
+    "agent-runtime/artifacts/workflow-cache/executor-handoff-issue-526.json",
+    "agent-runtime/artifacts/workflow-cache/scout-note-issue-526.json",
+    "agent-runtime/artifacts/workflow-cache/context7-sqlalchemy-upsert-526-527.txt",
+    "agent-runtime/artifacts/workflow-cache/context7-sqlalchemy-jsonb-526-527.txt",
+    "agent-runtime/docs/schemas/implementation-artifact.schema.json",
+    "docs/handoffs/phase-2.10-issue-bodies/525.md",
+    "docs/handoffs/phase-2.10-issue-bodies/526.md",
+    "EXECUTION.md",
+    "docs/product/phases/phase-2.10/PRD.md",
+    "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+    "docs/architecture/data-sources.md",
+    "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+    "backend/src/juli_backend/services/analytics_backfill/revenue_partition.py",
+    "backend/src/juli_backend/services/analytics_backfill/coverage.py",
+    "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+    "backend/src/juli_backend/integrations/tiktok/mapping.py",
+    "backend/src/juli_backend/database/migrations/versions/017_analytics_perf_intervals.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/__init__.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/gmv.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+    "tests/fixtures/analytics_backfill/revenue/a36_shop_performance.json",
+    "tests/unit/test_analytics_backfill_revenue_partition.py",
+    "tests/unit/test_analytics_backfill_coverage.py",
+    "tests/unit/test_feature_aggregates_contract.py",
+    "tests/unit/test_analytics_kpi_envelopes.py",
+    "tests/unit/test_analytics_kpi_precompute_gmv.py",
+    "tests/unit/conftest.py",
+    "origin/main:backend/src/juli_backend/repositories/repos.py",
+    "origin/main:backend/src/juli_backend/models/models.py",
+    "origin/main:backend/src/juli_backend/database/migrations/versions/020_analytics_kpi_envelopes.py",
+    "origin/main:tests/unit/test_analytics_kpi_envelopes.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/mcp-usage.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/analytics_kpi_precompute/__init__.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/gmv.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+    "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+    "tests/unit/test_analytics_kpi_precompute_gmv.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_analytics_kpi_precompute_gmv.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_analytics_kpi_precompute_gmv.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: No module named 'juli_backend.services.analytics_kpi_precompute' \u2014 package did not exist before green implementation",
+      "passingTestEvidence": "test_precompute_gmv_available_from_shop_intervals passes; GMV series from shop-grain interval seed",
+      "refactorEvidence": "Greenfield package: __init__.py re-export, gmv.py builder, precompute.py orchestrator with JSONB-safe payload merge via AnalyticsKpiEnvelopesRepo.upsert",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_kpi_precompute_gmv.py -q",
+          "exitCode": 1,
+          "outputSummary": "ModuleNotFoundError: analytics_kpi_precompute"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_kpi_precompute_gmv.py -q",
+          "exitCode": 0,
+          "outputSummary": "1 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Wave-2 gmv.py already returned unavailable without series; unavailable/label-law tests added in wave 3 (explicit RED skipped \u2014 behavior existed, tests were new assertions)",
+      "passingTestEvidence": "All three GMV precompute tests pass: available path, no intervals unavailable, null-gmv-only unavailable; label law asserts gmv_tiktok and no net_revenue alias",
+      "refactorEvidence": "Shared helpers _assert_gmv_tiktok_label_law and _assert_no_fabricated_gmv_series in test module",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_analytics_kpi_precompute_gmv.py -q",
+          "exitCode": 0,
+          "outputSummary": "3 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added analytics_kpi_precompute package with build_gmv_tiktok_kpi (shop-grain interval query) and precompute_shop_analytics_kpis orchestrator that merges gmv_tiktok into the analytics KPI envelope via AnalyticsKpiEnvelopesRepo.upsert without in-place JSONB mutation. Wave 2 TDD delivered available-path series from seeded AnalyticsPerformanceInterval; wave 3 extended tests for unavailable paths (no rows, null GMV only) and label law (GMV (TikTok), no net_revenue).",
+  "assumptions": [
+    "Branch cut from origin/main includes #525 AnalyticsKpiEnvelopesRepo and migration 020",
+    "All warm shop-grain rows with non-null gmv contribute to series (no rolling window cap per scout-note)",
+    "Currency defaults to VND via envelope base payload; gmv_currency from intervals not yet propagated to envelope currency field",
+    "Context7 CLI docs preloaded by Meta (upsert + JSONB artifacts) \u2014 executors read artifacts, no additional ctx7 queries at runtime",
+    "phaseRunId 526-20260727T071551 correlated from issue-context-cache-526.json (Meta prepare)"
+  ],
+  "risks": [
+    "Parallel #527 precompute slices must merge kpis keys without wiping gmv_tiktok \u2014 current merge preserves sibling keys but integration untested until #527 wire",
+    "Envelope currency not derived from interval gmv_currency rows \u2014 may diverge if multi-currency shops appear",
+    "Context loading gaps vs Meta baseline: CONTEXT.md, ADR-029, python-testing/focus/prompt-caching skills, tier-2 rules (code-quality, reliability, issue-workflow, patterns, context7-cli), parent-cache-issue-524.json not logged by executor sub-agents",
+    "Wave 3 unavailable tests did not run explicit RED before green \u2014 behavior pre-existed from wave 2 gmv.py stub"
+  ]
+}

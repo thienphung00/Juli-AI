@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-561",
+  "issue": 561,
+  "timestamp": "2026-07-28T11:05:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "origin/main (02db92bfbe2c98a13a9a90c63e5cd7781bf3af70)",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Uncommitted diff vs origin/main thins webhook_tiktok.py and auth_tiktok.py into HTTP adapters. Webhook ingress delegates to services.webhook.handle_tiktok_webhook_delivery (ETL/DB assembly moved to services/webhook/deployed.py). TikTok Shop OAuth callback delegates to build_tiktok_oauth_service and complete_tiktok_oauth_callback in services/tiktok/oauth.py; route no longer imports integrations.tiktok or app_review_store. Routes avoid services.etl.consumer. Added tests/unit/test_api_route_public_entrypoints.py (AST import-boundary contract); 46 related pytest cases pass. No frontend/Demo 2.10 paths touched. Business advertiser/account-holder callback routes remain unthinned — documented Executor assumption; issue requiredModules scoped to auth_tiktok.py only though AC #2 wording is plural.",
+  "smells": [
+    {
+      "name": "Divergent Change",
+      "path": "agent-runtime/config/slice-routing.yml",
+      "hunk": "+114 lines add MMU-4, MMU-7, and MMU-8 routing blocks; only MMU-8 belongs to issue #561",
+      "judgement": true,
+      "blocksMerge": false
+    }
+  ],
+  "convention_notes": [
+    {
+      "standard": "services/webhook/MODULE.md — public entrypoint",
+      "path": "backend/src/juli_backend/services/webhook/deployed.py",
+      "note": "handle_tiktok_webhook_delivery documented and re-exported from services.webhook __init__; matches modular-monolith thin-adapter pattern.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "MMU-5 / #557 facade — integrations.tiktok in service layer",
+      "path": "backend/src/juli_backend/services/tiktok/oauth.py",
+      "note": "integrations.tiktok imports remain in oauth.py (not routes); test_tiktok_oauth_api_caller_facade.py updated accordingly.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "api/MODULE.md — route as HTTP wiring",
+      "path": "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+      "note": "Route retains credential resolution and JSONResponse mapping only; owning service owns verify/dispatch/handoff/commit.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "561-20260728T105700"
+}

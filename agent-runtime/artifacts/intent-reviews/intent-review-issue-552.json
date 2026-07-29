@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-552",
+  "issue": 552,
+  "timestamp": "2026-07-28T02:40:33Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "95afca5349f4756172376b4ddce60162f67cb0aa",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "MMU-2 (#552): .importlinter.toml defines allowed edges for api/services/ai/integrations/workers/core (+ shared persistence packages). AST checker names importer file, importer package, and target module on forbidden deep imports. Synthetic fixture under tests/fixtures/import_boundaries/synthetic/ fails --strict. docs/architecture/import-boundaries.md documents matrix updates when MODULES.md gains a module. Warn-only default preserves single deployable; no pr.yml gate (deferred MMU-3).",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "patterns.mdc \u2014 public facade / deep import ban",
+      "path": ".importlinter.toml",
+      "note": "max_cross_package_depth=2 encodes package-root import policy from modular monolith patterns.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "552-20260728T023600"
+}

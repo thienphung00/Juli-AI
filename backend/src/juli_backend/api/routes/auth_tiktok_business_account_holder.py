@@ -18,10 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.config.runtime import require_env
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.database import get_session
-from juli_backend.integrations.tiktok.business_account_holder_auth import (
+from juli_backend.integrations.tiktok import (
+    AuthenticationError,
     TikTokBusinessAccountHolderAuth,
 )
-from juli_backend.integrations.tiktok.exceptions import AuthenticationError
 from juli_backend.services.tiktok.business_account_holder_store import (
     account_holder_merchant_id,
     persist_account_holder_tokens,
@@ -73,9 +73,7 @@ def _verify_state(state: str, app_secret: str) -> uuid.UUID:
         raise Unauthorized("Invalid OAuth state")
 
     encoded, signature = parts
-    expected = hmac.new(
-        app_secret.encode(), encoded.encode(), hashlib.sha256
-    ).hexdigest()
+    expected = hmac.new(app_secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(signature, expected):
         raise Unauthorized("Invalid OAuth state signature")
 
@@ -90,9 +88,7 @@ def _verify_state(state: str, app_secret: str) -> uuid.UUID:
 async def tiktok_business_account_holder_callback(
     auth_code: str | None = Query(default=None),
     state: str | None = Query(default=None),
-    auth_client: TikTokBusinessAccountHolderAuth = Depends(
-        get_business_account_holder_auth
-    ),
+    auth_client: TikTokBusinessAccountHolderAuth = Depends(get_business_account_holder_auth),
     session: AsyncSession = Depends(get_session),
 ) -> TikTokBusinessAccountHolderCallbackResult:
     """Accept TikTok Business account-holder redirect and exchange ``auth_code``."""
@@ -129,9 +125,7 @@ async def tiktok_business_account_holder_callback(
     )
 
     try:
-        token_data = await asyncio.to_thread(
-            auth_client.exchange_auth_code, auth_code
-        )
+        token_data = await asyncio.to_thread(auth_client.exchange_auth_code, auth_code)
     except AuthenticationError as exc:
         logger.warning(
             "tiktok_business_account_holder_token_exchange_failed",
@@ -149,9 +143,7 @@ async def tiktok_business_account_holder_callback(
     await persist_account_holder_tokens(session, token_data, user_id=user_id)
     await session.commit()
 
-    expires_in = token_data.get("expires_in") or token_data.get(
-        "access_token_expire_in"
-    )
+    expires_in = token_data.get("expires_in") or token_data.get("access_token_expire_in")
     subject_id = account_holder_merchant_id(token_data)
 
     logger.info(

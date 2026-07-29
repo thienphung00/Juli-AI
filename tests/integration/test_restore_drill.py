@@ -7,17 +7,16 @@ import shutil
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine, text
-
 from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.database.token_crypto import ENCRYPTED_TOKEN_PREFIX, encrypt_token
+from sqlalchemy import create_engine, text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
@@ -66,7 +65,7 @@ def _seed_encrypted_credential(engine) -> None:
     user_id = uuid.uuid4()
     shop_id = uuid.uuid4()
     cred_id = uuid.uuid4()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     token = encrypt_token("restore-drill-integration-token")
 
     with engine.begin() as conn:
@@ -213,7 +212,8 @@ if [ -z "$url" ] || [ -z "$file" ]; then
 fi
 internal="${{url/localhost:5433/localhost:5432}}"
 docker cp "$file" {DOCKER_PG_CONTAINER}:/tmp/restore-drill-restore.dump
-docker exec {DOCKER_PG_CONTAINER} pg_restore --no-owner --no-acl -d "$internal" --clean --if-exists /tmp/restore-drill-restore.dump
+docker exec {DOCKER_PG_CONTAINER} pg_restore --no-owner --no-acl \
+-d "$internal" --clean --if-exists /tmp/restore-drill-restore.dump
 """,
         encoding="utf-8",
     )
@@ -307,6 +307,7 @@ def _run_restore_drill(
         text=True,
         env=run_env,
         check=False,
+        timeout=180,
     )
 
 

@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.config.runtime import require_env
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.database import get_session
-from juli_backend.integrations.tiktok.business_advertiser_auth import (
+from juli_backend.integrations.tiktok import (
+    AuthenticationError,
     TikTokBusinessAdvertiserAuth,
 )
-from juli_backend.integrations.tiktok.exceptions import AuthenticationError
 from juli_backend.services.tiktok.advertiser_oauth_store import (
     persist_advertiser_oauth_tokens,
 )
@@ -37,9 +37,7 @@ def get_business_advertiser_oauth_service() -> TikTokBusinessAdvertiserOAuthServ
             detail="TikTok Business OAuth is not configured",
         ) from exc
 
-    base_url = os.environ.get(
-        "TIKTOK_BUSINESS_API_BASE_URL", DEFAULT_BUSINESS_API_BASE_URL
-    ).strip()
+    base_url = os.environ.get("TIKTOK_BUSINESS_API_BASE_URL", DEFAULT_BUSINESS_API_BASE_URL).strip()
     if not base_url:
         base_url = DEFAULT_BUSINESS_API_BASE_URL
 

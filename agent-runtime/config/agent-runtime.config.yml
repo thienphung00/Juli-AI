@@ -433,7 +433,36 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_api/
         - Sibling issue context caches
-
+    550:
+      defaultSliceId: MMU-1
+      handoffPath: docs/product/phases/modular-monolith-upgrade/PRD.md
+      childSlices:
+        "551": MMU-1
+        "552": MMU-2
+        "556": MMU-3
+        "553": MMU-4
+        "557": MMU-5
+        "554": MMU-6
+        "555": MMU-7
+        "561": MMU-8
+        "558": MMU-9
+        "562": MMU-10
+        "559": MMU-11
+        "560": MMU-12
+        "563": MMU-13
+        "564": MMU-14
+        "565": MMU-15
+      parentScopeBlock: "# Parent #550 — Modular Monolith Upgrade (constant)\\n## Product boundary\\n- Hard-shell modular monolith (~9/10); single backend deployable; NO microservices\\n- Enforce ownership (tables/tasks/Redis/integrations) + import contracts + thin Celery ports\\n## Parallel wave 1\\n- #551 MMU-1 ownership registry · #552 MMU-2 import-linter (warn-capable) · #554 MMU-6 Celery async ports\\n## Architecture authority\\n- MODULES.md (planning) · map.md (as-built) · modular-monolith-audit-data.json · PRD\\n## Epic deferrals\\n- MMU-3 required PR gates (#556) · facades/API thinning · models/repos split · Redis juli:<module>: policy · dual-writer collapse · Billing\\n- Phase 2.10/2.11 product slices (path-disjoint)\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - apps/demo/
+        - apps/landing/
+        - apps/dashboard/
+        - web/
+        - ios/
+        - docs/product/design/
+        - Sibling issue context caches
     580:
       defaultSliceId: DVR-B1
       handoffPath: docs/product/phases/demo-visual-refinement/PRD.md

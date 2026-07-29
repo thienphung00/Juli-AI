@@ -1,0 +1,15 @@
+# Synthetic packages for import-boundary contract tests (#552).
+
+[contract]
+root_package = "juli_backend"
+scan_root = "tests/fixtures/import_boundaries/synthetic/backend/src/juli_backend"
+
+[packages]
+top_level = ["api", "integrations"]
+
+[allowed_edges]
+api = ["integrations"]
+integrations = []
+
+[deep_imports]
+max_cross_package_depth = 2

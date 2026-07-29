@@ -13,9 +13,9 @@ from juli_backend.models.models import ToolExecution
 from juli_backend.repositories.repos import ToolExecutionsRepo
 from juli_backend.services.execution.dispatch import mark_execution_finished
 from juli_backend.services.execution.errors import classify_execution_error
+from juli_backend.services.execution.outcome_port import get_workflow_outcome_recorder
 from juli_backend.services.execution.runner import run_tool_async
 from juli_backend.services.execution.types import ExecutionStatus
-from juli_backend.services.operations.outcome_tracking import record_workflow_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +58,10 @@ async def run_approved_tool(session: AsyncSession, execution_id: uuid.UUID) -> N
             error_category=error_category.value,
         )
         try:
-            await record_workflow_outcome(
+            await get_workflow_outcome_recorder().record_workflow_outcome(
                 session,
                 record,
-                execution_status=ExecutionStatus.FAILED,
+                execution_status=ExecutionStatus.FAILED.value,
                 error_message=error_message,
             )
         except ValueError as outcome_exc:
@@ -83,10 +83,10 @@ async def run_approved_tool(session: AsyncSession, execution_id: uuid.UUID) -> N
         outcome=outcome,
     )
     try:
-        await record_workflow_outcome(
+        await get_workflow_outcome_recorder().record_workflow_outcome(
             session,
             record,
-            execution_status=ExecutionStatus.SUCCEEDED,
+            execution_status=ExecutionStatus.SUCCEEDED.value,
         )
     except ValueError as outcome_exc:
         logger.warning(

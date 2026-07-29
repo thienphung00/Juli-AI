@@ -25,6 +25,9 @@ When they disagree on **where code lives today**, `map.md` wins until this file 
 | Pipeline stage shapes / JSON envelopes | [`system-design.md`](system-design.md) |
 | Allowed / forbidden data sources | [`data-sources.md`](data-sources.md) |
 | Deployed paths, public surfaces, `MODULE.md` links | [`map.md`](map.md) |
+| Table / task / Redis / integration owners | [`ownership-registry.yml`](ownership-registry.yml) |
+| Import contract + deep-import policy | [`import-boundaries.md`](import-boundaries.md) |
+| Boundary audit baseline score | [modular-monolith-boundary-audit.html](../handoffs/modular-monolith-boundary-audit.html) · [#550](https://github.com/thienphung00/Juli-AI/issues/550) |
 | Why a constraint exists | [`docs/adr/`](../adr/README.md) |
 | Precise implementation contracts | Tier 3: issue AC, `**/MODULE.md`, `docs/api/`, curated `tiktok_api/` |
 
@@ -64,6 +67,38 @@ Lower tiers add **specs and precision** for implementation.
 
 **Architect / Developer planning read order:** EXECUTION → MODULES → system-design (if envelopes) → map (paths only).  
 **Executor read order:** issue AC + `MODULE.md` + contracts; load MODULES for goals / out-of-scope only.
+
+---
+
+## Modular monolith upgrade ([#550](https://github.com/thienphung00/Juli-AI/issues/550))
+
+Parent epic for hardening module boundaries without splitting deployables. Baseline
+**5.5 / 10** modular-monolith score from the
+[boundary audit](../handoffs/modular-monolith-boundary-audit.html)
+(2026-07-28); target **~9 / 10** when ownership and import contracts are
+enforceable — falsifiable exit criteria tracked in MMU-15 (#565).
+
+| Artifact | Role |
+|----------|------|
+| [Boundary audit](../handoffs/modular-monolith-boundary-audit.html) | Static-import graph + runtime write-path narrative (baseline score) |
+| [`modular-monolith-audit-data.json`](../handoffs/modular-monolith-audit-data.json) | Machine-readable modules, edges, enforcement snapshot |
+| [`ownership-registry.yml`](ownership-registry.yml) | Table / Celery task / Redis namespace / integration owners (MMU-1) |
+| [`import-boundaries.md`](import-boundaries.md) · [`.importlinter.toml`](../../.importlinter.toml) | Allowed dependency matrix + deep-import policy (MMU-2) |
+| [Modular Monolith Upgrade PRD](../product/phases/modular-monolith-upgrade/PRD.md) | Problem, slices, CI mindset |
+
+**Landings through MMU-8 (2026-07-28):** ownership registry; import-linter contract
+(warn-capable until MMU-3 #556); TikTok package facade (MMU-5); Celery dispatcher
+ports in Action Cards + Execution (MMU-6); one-way Execution → Operations outcome
+contract (MMU-7); thin webhook/TikTok-auth API adapters (MMU-8). Same wave also
+shipped decision-persistence centralization (MMU-11), ETL ingest-table ownership
+clarity (MMU-9), and Redis key namespace registry (MMU-12).
+
+**Cross-module rule:** callers import published package facades (`__init__.py`
+`__all__` / MODULE.md Public Interface) only — see
+[`ownership-registry.yml`](ownership-registry.yml) `boundaryGuidance.doNotImport`
+and `.cursor/rules/patterns.mdc`. The `workers` package owns Celery app wiring;
+domain modules own task semantics via thin `workers/tasks/*` wrappers listed in the
+registry.
 
 ---
 
@@ -154,17 +189,22 @@ Lower tiers add **specs and precision** for implementation.
 - **Purpose:** Versioned FastAPI REST surface (`/v1/*`) and ASGI entry for the modular monolith.
 - **Goals:**
   - Keep HTTP handlers thin — enqueue Celery; do not run scoring/tools inline.
+  - **MMU-8:** routers delegate to one owning application service; no leaf
+    `integrations/tiktok.*` or inline ETL/TikTok assembly in routes.
   - Stable shop-scoped envelopes for Frontend and iOS.
   - TBD (Architect): route surface cleanup vs legacy recommendation paths.
 - **Features:**
   - **Shipped:** shops, orders, products, creators, recommendations, action_cards,
-    executions, outcomes, workflow_outcomes, TikTok auth + webhook mounts, `/health`, CORS.
+    executions, outcomes, workflow_outcomes, TikTok auth + webhook mounts, `/health`, CORS;
+    MMU-8 thin adapters for webhook + TikTok OAuth routes.
   - **In progress:** TBD per active API issues.
   - **Planned:** Public Demo read APIs (masked envelopes, server-bound shop) for Phase 2.10;
     Login-mode routes in Phase 3.
 - **Related EXECUTION slices:** Phase 2 pipeline validation API work; Phase 2.10
 - **Out of scope:** Vendor signing/rate-limit internals (Integrations); Celery task bodies (Workers).
-- **Links:** [`api/MODULE.md`](../../backend/src/juli_backend/api/MODULE.md) · ADR-001, ADR-038
+- **Links:** [`api/MODULE.md`](../../backend/src/juli_backend/api/MODULE.md) ·
+  [`ownership-registry.yml`](ownership-registry.yml) · [`import-boundaries.md`](import-boundaries.md) ·
+  ADR-001, ADR-038
 
 ---
 
@@ -177,6 +217,10 @@ Lower tiers add **specs and precision** for implementation.
 - **Goals:**
   - AuthZ at service layer (not only routers).
   - Safe secret handling; no secrets in git.
+  - **Registry:** sole write owner for `users`, `shops`, `tiktok_credentials`
+    ([`ownership-registry.yml`](ownership-registry.yml)); dual-writer debt on
+    `shops` / `tiktok_credentials` (`core/security` OAuth vs `services/tiktok`) —
+    collapse tracked in MMU-10 (#562).
   - TBD (Architect): production auth UX beyond Demo/App Review patterns.
 - **Features:**
   - **Shipped:** JWT verify · TikTok Shop OAuth · Business holder/advertiser auth routes ·
@@ -186,7 +230,7 @@ Lower tiers add **specs and precision** for implementation.
 - **Related EXECUTION slices:** App Review / Phase 3 auth themes
 - **Out of scope:** Buyer PII stores; Seller Center scrape auth.
 - **Links:** [`core/security/MODULE.md`](../../backend/src/juli_backend/core/security/MODULE.md) ·
-  ADR-002, ADR-034
+  [`ownership-registry.yml`](ownership-registry.yml) · ADR-002, ADR-034
 
 ---
 
@@ -199,6 +243,11 @@ Lower tiers add **specs and precision** for implementation.
 - **Goals:**
   - Schema-only Alembic + migration safety gate on every upgrade.
   - Clear tenancy (shop-scoped) and decisioning tables for Action Cards / executions.
+  - **Registry:** Supabase Postgres session + Alembic infra owner; table-level
+    stewards live in [`ownership-registry.yml`](ownership-registry.yml) (logical
+    owners — physical `models/` / `repositories/` split deferred).
+  - **Facade:** lazy PEP 562 re-exports on `juli_backend.database` avoid import
+    cycles with `repositories.repos` at startup.
   - Plan polyglot only when volume/latency justify it.
 - **Features:**
   - **Shipped:** SQLAlchemy models/repos; Alembic; users/shops/credentials; commerce;
@@ -221,10 +270,13 @@ Lower tiers add **specs and precision** for implementation.
   polling under `workers/services/polling`
 - **Purpose:** Official TikTok → normalize → persist → aggregate spine that feeds scoring.
 - **Goals:**
-  - Idempotent ingest (`processed_events`); reliable handoff contracts.
+  - Idempotent ingest (`processed_events` — ETL exclusive per registry); reliable handoff contracts.
   - Keep polling + webhooks within rate budgets.
   - Phase 2.10: material-webhook enqueue → transform/compute → precompute; hourly Mock
     reconciliation for reference shop; #68 15‑min coalesce.
+  - **Registry:** sole write owner for commerce ingest tables, webhook audit tables,
+    and material-analytics Redis mutex/coalesce keys
+    ([`ownership-registry.yml`](ownership-registry.yml)).
   - Improve DLQ durability / replay semantics over time (refinement).
 - **Features:**
   - **Shipped:** Webhook verify→handoff; polling sync (orders/products/returns/…);
@@ -242,18 +294,25 @@ Lower tiers add **specs and precision** for implementation.
 ## 6. Integrations
 
 - **Status:** as-built (client) · partial (doc corpora)
-- **Path:** `backend/src/juli_backend/integrations/tiktok/`; adhoc crawlers under
+- **Path:** `backend/src/juli_backend/integrations/tiktok/`; OAuth/webhook domain
+  services under `services/tiktok/`; adhoc crawlers under
   `.worktrees/adhoc/scripts/{academy,partner,business}_crawler/`
 - **Purpose:** Vendor I/O boundary — TikTok Partner API client (auth, signing, rate limit,
-  resources) plus documentation corpora that will feed curated agent knowledge.
+  resources) plus OAuth/webhook domain services and documentation corpora for agent knowledge.
 - **Goals:**
-  - Keep `tiktok/` a leaf HTTP client (no DB / business rules inside).
+  - **MMU-5:** import HTTP client only via package-root facade
+    (`from juli_backend.integrations.tiktok import …`); leaf modules stay internal.
+  - Keep `integrations/tiktok/` a leaf HTTP client (no DB / business rules inside).
+  - `services/tiktok/` owns webhook catalog, signature verify, OAuth infrastructure —
+    API routes delegate (MMU-8).
   - Process Academy / Partner / Business crawled docs → promote curated subset → agent context
     (and later RAG).
   - Do not resurrect empty `identity/` / `catalog/` / `ordering/` folders as modules.
 - **Features:**
-  - **Shipped:** TikTok client + Redis token-bucket rate limiter; resource modules;
-    merchant/capability guards; webhook catalog mapping (in `services/tiktok`).
+  - **Shipped:** TikTok client package facade (`__all__` re-exports auth, client,
+    rate limiter, resources, factories, mapping, exceptions); Redis `ratelimit:*`
+    namespace (registry); resource modules; merchant/capability guards; webhook
+    catalog mapping in `services/tiktok`.
   - **In progress:** Adhoc crawls (~2.4k markdown) local-only; curated
     `docs/integrations/tiktok_api` + `tiktok_platform` on main.
   - **Planned:** Normalize/promote corpora via `api-docs` / `platform-docs`; optional RAG
@@ -268,7 +327,7 @@ Lower tiers add **specs and precision** for implementation.
 ## 7. Intelligence
 
 - **Status:** partial
-- **Path:** `services/scoring`, `backend/src/juli_backend/ai/*`, `docs/ml/`
+- **Path:** `services/scoring`, `services/action_cards`, `backend/src/juli_backend/ai/*`, `docs/ml/`
 - **Purpose:** Display-grade advisory — signals, ranked workflow recommendations, copy —
   plus trained artifact pipelines for later production inference.
 - **Goals:**
@@ -276,10 +335,18 @@ Lower tiers add **specs and precision** for implementation.
   - Preserve visual / ML / execution layer separation (advisory never auto-executes).
   - Phase 2.10: shared precompute feeds Analytics + Decisions; emission budget +
     threshold config; Demo dry-run only.
+  - **Registry:** sole write owner for `action_cards`, legacy `recommendations`,
+    `analytics_kpi_envelopes`, `campaigns`, `graph_edges`; Redis
+    `analytics:kpi_envelope:*` cache namespace.
+  - **Facades:** `services/scoring` and `services/action_cards` publish package-root
+    APIs; refresh enqueues via dispatcher port (MMU-6), not direct `workers.tasks` import.
   - Promote trained techniques only through gates; live ML inference per EXECUTION phase.
 - **Features:**
   - **Shipped:** Manual refresh pipeline; rules signals/recs/copy; Phase 1.5 trainers
     (dataset, features, seller_stage, anomaly, ad_performance, artifacts); recommendations helpers.
+  - **Decision persistence (MMU-11):** `services/action_cards` is the sole write owner for
+    `action_cards` and retained legacy `recommendations`; API routes delegate, scoring +
+    legacy persist stay in the owning module.
   - **In progress:** Fujiwa T1 experiment / backtest pathfinders as scheduled.
   - **Planned:** Phase 2.10-A KPI envelopes; 2.10-B rules wire + emission budget;
     Haiku copy (Phase 4); production inference schedule.
@@ -299,6 +366,12 @@ Lower tiers add **specs and precision** for implementation.
 - **Goals:**
   - HTTP never runs tools or scoring inline.
   - Idempotent tool executions with clear status/outcome records.
+  - **Registry:** write owner for `tool_executions`, `workflow_outcome_records`,
+    `tiktok_sync_state`; Celery broker key space.
+  - **MMU-6:** domain modules enqueue via dispatcher ports (`enqueue_approved_tool`,
+    `enqueue_action_card_refresh`); `workers/tasks/*` are thin wrappers only.
+  - **MMU-7:** Execution records workflow outcomes; Operations reads via one-way
+    public contract — no execution ↔ operations import cycle.
   - Expand tool handlers as execution-layer workflows go live.
 - **Features:**
   - **Shipped:** Celery app + Redis broker; `refresh_action_cards`; `execute_approved_tool`;
@@ -343,6 +416,9 @@ Lower tiers add **specs and precision** for implementation.
 - **Goals:**
   - Keep rate limiting, idempotency, and migration safety as named capabilities
     developers reuse instead of reinventing.
+  - **Registry:** `alert_configs` / `alert_history` write owner; Redis infra
+    consumer map; future app caches use `juli:<module>:` prefix (MMU-12) with
+    grandfathered allowlist for legacy keys — see [`ownership-registry.yml`](ownership-registry.yml).
   - Improve DLQ durability and observability deliberately (not via drive-by APM).
 - **Features:**
   - **Shipped:** Redis TikTok rate limiter; ingest + tool idempotency keys; CORS;
@@ -445,12 +521,14 @@ declaring this module healthy for heavier Phase 3+ reliance.
   - Curate TikTok API + platform docs for agents; promote from crawlers carefully.
 - **Features:**
   - **Shipped:** EXECUTION, architecture Tier 1 set, ADRs, integrations docs, ML/product
-    docs, CONTEXT, dictionary, design-context.
-  - **In progress:** This MODULES SoT + authority rewires.
+    docs, CONTEXT, dictionary, design-context; MMU-1 `ownership-registry.yml`;
+    MMU-2 `import-boundaries.md` + `.importlinter.toml`.
+  - **In progress:** MMU-15 exit scorecard vs boundary audit; MMU-3 required PR architecture gates.
   - **Planned:** Promote Academy/Partner/Business corpus subsets; close Seller Feature Guide gaps.
 - **Related EXECUTION slices:** documentation updates ride with phase work
 - **Out of scope:** Inventing Vietnamese copy outside `dictionary.md` governance.
-- **Links:** [`docs/README.md`](../README.md) · ADR-028, ADR-036
+- **Links:** [`docs/README.md`](../README.md) · [`ownership-registry.yml`](ownership-registry.yml) ·
+  [boundary audit](../handoffs/modular-monolith-boundary-audit.html) · ADR-028, ADR-036
 
 ---
 
@@ -466,7 +544,7 @@ declaring this module healthy for heavier Phase 3+ reliance.
 - **Features:**
   - **Shipped:** unit/integration/fixtures/harness tests; ruff/mypy/pytest in CI;
     validate checkers (TDD, module boundaries, ADR, release evidence, …); deploy config tests;
-    smoke runbooks.
+    smoke runbooks; import-boundary AST checker (`check_import_boundaries.py`).
   - **In progress:** Public-release verification depth.
   - **Planned:** TBD (Architect) E2E browser depth vs smoke balance.
 - **Related EXECUTION slices:** all implementation slices
@@ -486,24 +564,4 @@ declaring this module healthy for heavier Phase 3+ reliance.
 4. **Conflicts:** purpose/goals → MODULES; live paths → map; envelopes → system-design;
    allowed sources → data-sources; why → ADR.
 
-**Last seeded:** 2026-07-27 (mindmap + grill-with-docs → ADR-036).
-
-
-
-
-Agenda: (Add only, do not remove User inputs)
-
-Designing a session timeout for multi-device or multi-OAuth logins requires tracking active sessions independently using refresh tokens, implementing sliding windows, and handling concurrency limits. Key components include: 
-Independent session tokens
-Sliding expiration
-Concurrent session policies 
-Session Management Architecture
-Token separation: Issue a unique refresh token for each new login or device. Store these tokens in a database mapped to a specific session_id and user_id, rather than tying the session strictly to a single monolithic cookie or user state. 
-Database tracking: Save metadata for each active session (e.g., device_name, ip_address, created_at, last_active_at). This allows a user to see and revoke individual sessions from a settings page. 
-Expiration and Renewal
-Access tokens: Keep short lifespans (e.g., 15 minutes) for security. 
-Refresh tokens: Use a sliding window expiration (e.g., extend expiration by 7 days every time it is used) or an absolute timeout (e.g., expire completely after 30 days regardless of activity). 
-Independent updates: Using a client app or a new OAuth provider updates only that specific session's refresh token without logging out other active devices.
-Handling Multiple OAuth and Concurrent Logins
-Multi-provider mapping: Link multiple OAuth providers (e.g., Google, GitHub) to a single user_id in your user table. When a user logs in via a new provider, check if the user_id exists; if it does, generate a new distinct session record. 
-Concurrency rules: Decide if you want to allow unlimited active sessions or set a maximum limit (e.g., max 5 devices). If the limit is reached, either block the new login or automatically terminate the oldest session using the last_active_at timestamp. 
+**Last seeded:** 2026-07-28 (MMU-13 — sync to post-MMU-1..8 facades + ownership registry). 

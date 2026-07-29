@@ -1,12 +1,16 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
+    DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -25,9 +29,7 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     shops: Mapped[list["Shop"]] = relationship(back_populates="owner")
 
@@ -36,21 +38,15 @@ class Shop(Base):
     __tablename__ = "shops"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     shop_name: Mapped[str] = mapped_column(String(200), nullable=False)
     tiktok_shop_id: Mapped[str | None] = mapped_column(String(100), unique=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     owner: Mapped["User"] = relationship(back_populates="shops")
-    credentials: Mapped[list["TikTokCredential"]] = relationship(
-        back_populates="shop"
-    )
+    credentials: Mapped[list["TikTokCredential"]] = relationship(back_populates="shop")
 
     __table_args__ = (Index("ix_shops_user_id", "user_id"),)
 
@@ -59,9 +55,7 @@ class TikTokCredential(Base):
     __tablename__ = "tiktok_credentials"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     merchant_authorization_id: Mapped[str | None] = mapped_column(String(100))
     capability: Mapped[str | None] = mapped_column(String(50))
     shop_cipher: Mapped[str | None] = mapped_column(String(200))
@@ -70,9 +64,7 @@ class TikTokCredential(Base):
     token_expires_at: Mapped[datetime] = mapped_column(nullable=False)
     scopes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     shop: Mapped["Shop"] = relationship(back_populates="credentials")
 
@@ -92,14 +84,10 @@ class TikTokSyncState(Base):
     __tablename__ = "tiktok_sync_state"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     endpoint: Mapped[str] = mapped_column(String(50), nullable=False)
     last_update_time: Mapped[int] = mapped_column(nullable=False, default=0)
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index(
@@ -120,9 +108,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     buyer_id: Mapped[str | None] = mapped_column(String(100))
@@ -137,9 +123,7 @@ class Order(Base):
     is_seller_fault: Mapped[bool | None] = mapped_column(Boolean())
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     line_items: Mapped[list["OrderItem"]] = relationship(back_populates="order")
     returns: Mapped[list["Return"]] = relationship(back_populates="order")
@@ -154,12 +138,8 @@ class OrderItem(Base):
     __tablename__ = "order_items"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
-    order_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("orders.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), nullable=False)
     tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tiktok_product_id: Mapped[str | None] = mapped_column(String(100))
     tiktok_sku_id: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -168,9 +148,7 @@ class OrderItem(Base):
     line_total: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     order: Mapped["Order"] = relationship(back_populates="line_items")
 
@@ -190,9 +168,7 @@ class Return(Base):
     __tablename__ = "returns"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id"))
     tiktok_return_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -208,9 +184,7 @@ class Return(Base):
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     order: Mapped["Order | None"] = relationship(back_populates="returns")
 
@@ -229,9 +203,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
     title: Mapped[str | None] = mapped_column(String(500))
     category: Mapped[str | None] = mapped_column(String(200))
@@ -249,9 +221,7 @@ class Product(Base):
     units_sold: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_products_shop_created", "shop_id", "created_at"),
@@ -263,9 +233,7 @@ class InventoryItem(Base):
     __tablename__ = "inventory_items"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tiktok_sku_id: Mapped[str] = mapped_column(String(100), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
@@ -275,9 +243,7 @@ class InventoryItem(Base):
     )
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_inventory_shop_created", "shop_id", "created_at"),
@@ -298,9 +264,7 @@ class Settlement(Base):
     __tablename__ = "settlements"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_settlement_id: Mapped[str] = mapped_column(String(100), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -320,9 +284,7 @@ class Settlement(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column()
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_settlements_shop_created", "shop_id", "created_at"),
@@ -344,9 +306,7 @@ class Creator(Base):
     __tablename__ = "creators"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_creator_id: Mapped[str] = mapped_column(String(100), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     follower_count: Mapped[int | None] = mapped_column()
@@ -358,9 +318,7 @@ class Creator(Base):
     )
     update_time: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     livestreams: Mapped[list["Livestream"]] = relationship(back_populates="creator")
 
@@ -378,9 +336,7 @@ class Livestream(Base):
     __tablename__ = "livestreams"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_livestream_id: Mapped[str] = mapped_column(String(100), nullable=False)
     creator_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("creators.id"))
     title: Mapped[str | None] = mapped_column(String(500))
@@ -393,9 +349,7 @@ class Livestream(Base):
     revenue: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     update_time: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     creator: Mapped["Creator | None"] = relationship(back_populates="livestreams")
 
@@ -415,9 +369,7 @@ class AnalyticsPerformanceInterval(Base):
     __tablename__ = "analytics_performance_intervals"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     snapshot_key: Mapped[str] = mapped_column(String(300), nullable=False)
     grain: Mapped[str] = mapped_column(String(20), nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -445,9 +397,7 @@ class AnalyticsPerformanceInterval(Base):
     new_products: Mapped[int | None] = mapped_column()
     update_time: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index(
@@ -469,17 +419,13 @@ class AlertConfig(Base):
     __tablename__ = "alert_configs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     alert_type: Mapped[str] = mapped_column(String(50), nullable=False)
     channel: Mapped[str] = mapped_column(String(50), nullable=False)
     threshold_json: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     history: Mapped[list["AlertHistory"]] = relationship(back_populates="alert_config")
 
@@ -493,9 +439,7 @@ class AlertHistory(Base):
     __tablename__ = "alert_history"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     alert_config_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("alert_configs.id"), nullable=False
     )
@@ -512,29 +456,13 @@ class AlertHistory(Base):
     )
 
 
-class ProcessedEvent(Base):
-    """Idempotency ledger for ETL ingest consumers (#32)."""
-
-    __tablename__ = "processed_events"
-
-    event_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
-    processed_at: Mapped[datetime] = mapped_column(server_default=func.now())
-
-    __table_args__ = (Index("ix_processed_events_shop", "shop_id"),)
-
-
 class WorkflowWebhookSignal(Base):
     """Durable workflow-intent record emitted by Phase 2 catalog webhooks (#354)."""
 
     __tablename__ = "workflow_webhook_signals"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_shop_id: Mapped[str] = mapped_column(String(100), nullable=False)
     catalog_id: Mapped[int] = mapped_column(nullable=False)
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -584,9 +512,7 @@ class ToolExecution(Base):
     __tablename__ = "tool_executions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     approval_id: Mapped[str] = mapped_column(String(255), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
@@ -597,9 +523,7 @@ class ToolExecution(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     error_category: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_tool_executions_shop", "shop_id"),
@@ -613,9 +537,7 @@ class WorkflowOutcomeRecord(Base):
     __tablename__ = "workflow_outcome_records"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     approval_id: Mapped[str] = mapped_column(String(255), nullable=False)
     execution_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("tool_executions.id"), nullable=False
@@ -625,9 +547,7 @@ class WorkflowOutcomeRecord(Base):
     metrics_json: Mapped[str] = mapped_column(Text, nullable=False)
     executed_at: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_workflow_outcome_records_shop", "shop_id"),
@@ -646,9 +566,7 @@ class ActionCard(Base):
     __tablename__ = "action_cards"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     workflow_key: Mapped[str] = mapped_column(String(64), nullable=False)
     priority: Mapped[int] = mapped_column(nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -661,9 +579,7 @@ class ActionCard(Base):
     outcome: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_action_cards_shop", "shop_id"),
@@ -680,17 +596,13 @@ class Recommendation(Base):
     __tablename__ = "recommendations"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     recommendation_type: Mapped[str] = mapped_column(String(50), nullable=False)
     payload: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
 # ---------------------------------------------------------------------------
@@ -704,12 +616,8 @@ class Campaign(Base):
     __tablename__ = "campaigns"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
-    creator_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("creators.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    creator_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("creators.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     product_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     predicted_gmv: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
@@ -720,9 +628,7 @@ class Campaign(Base):
     started_at: Mapped[datetime | None] = mapped_column()
     completed_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_campaigns_shop_created", "shop_id", "created_at"),
@@ -742,9 +648,7 @@ class GraphEdge(Base):
     __tablename__ = "graph_edges"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     edge_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source_node_type: Mapped[str] = mapped_column(String(30), nullable=False)
     source_node_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
@@ -754,9 +658,7 @@ class GraphEdge(Base):
     metadata_json: Mapped[str | None] = mapped_column(Text)
     computed_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_graph_edges_shop_type", "shop_id", "edge_type"),
@@ -784,18 +686,14 @@ class AnalyticsBackfillPartition(Base):
     __tablename__ = "analytics_backfill_partitions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("shops.id"), nullable=False
-    )
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     bucket: Mapped[str] = mapped_column(String(20), nullable=False)
     partition_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     attempt_count: Mapped[int] = mapped_column(nullable=False, default=0)
     last_error: Mapped[str | None] = mapped_column(Text)
     retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index(
@@ -811,3 +709,40 @@ class AnalyticsBackfillPartition(Base):
             name="uq_analytics_backfill_partitions_shop_bucket_date",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Analytics KPI envelopes (P2.10-A1 — Issue #525)
+# ---------------------------------------------------------------------------
+
+
+class AnalyticsKpiEnvelope(Base):
+    """Shop-scoped precomputed Analytics KPI envelope (Postgres SoT for Redis/Demo)."""
+
+    __tablename__ = "analytics_kpi_envelopes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    envelope_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "shop_id",
+            "kind",
+            name="uq_analytics_kpi_envelopes_shop_kind",
+        ),
+    )
+
+
+from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401
+    ProcessedEvent,
+)

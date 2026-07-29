@@ -19,8 +19,9 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.exceptions import Unauthorized
-from juli_backend.integrations.tiktok.auth import TikTokAuth
-from juli_backend.integrations.tiktok.merchant import (
+from juli_backend.database.exceptions import NotFound
+from juli_backend.integrations.tiktok import (
+    TikTokAuth,
     TikTokCapability,
     resolve_merchant_context,
 )
@@ -67,22 +68,27 @@ class TikTokOAuthService:
         TikTokAuth, then creates (or reconnects) a Shop with its credential.
         """
         user_id = self._verify_state(state)
+        token_data = await asyncio.to_thread(self._tiktok_auth.exchange_code, code)
+        return await self.provision_shop_and_credentials(token_data, user_id=user_id)
 
-        token_data = await asyncio.to_thread(
-            self._tiktok_auth.exchange_code, code
-        )
+    async def provision_shop_and_credentials(
+        self,
+        token_data: dict,
+        *,
+        user_id: uuid.UUID,
+    ) -> Shop:
+        """Single write owner for ``shops`` + ``tiktok_credentials`` (Partner OAuth)."""
+        open_id = token_data.get("open_id")
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        if not open_id or not access_token or not refresh_token:
+            raise Unauthorized("Incomplete TikTok token payload")
 
-        tiktok_shop_id = token_data.get("open_id")
         seller_name = token_data.get("seller_name", "TikTok Shop")
-
         shops_repo = ShopsRepo(self._session)
         cred_repo = TikTokCredentialRepo(self._session)
 
-        existing = (
-            await shops_repo.get_by_tiktok_id(tiktok_shop_id)
-            if tiktok_shop_id
-            else None
-        )
+        existing = await shops_repo.get_by_tiktok_id(open_id)
 
         if existing and existing.user_id == user_id:
             shop = existing
@@ -90,37 +96,49 @@ class TikTokOAuthService:
             logger.warning(
                 "tiktok_shop_already_claimed",
                 extra={
-                    "tiktok_shop_id": tiktok_shop_id,
+                    "tiktok_shop_id": open_id,
                     "user_id": str(user_id),
                 },
             )
-            raise Unauthorized(
-                "This TikTok shop is already connected to another account"
-            )
+            raise Unauthorized("This TikTok shop is already connected to another account")
         else:
             shop = await shops_repo.create(
                 user_id=user_id,
                 shop_name=seller_name,
-                tiktok_shop_id=tiktok_shop_id,
+                tiktok_shop_id=open_id,
             )
 
-        expires_at = access_token_expires_at(
-            token_data.get("access_token_expire_in")
-        )
+        expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
+        merchant_authorization_id, capability = resolve_merchant_context(open_id)
+        scopes = token_data.get("scopes")
+        if scopes is None and token_data.get("granted_scopes") is not None:
+            granted = token_data.get("granted_scopes")
+            if isinstance(granted, list):
+                scopes = ",".join(str(scope) for scope in granted)
+            else:
+                scopes = str(granted)
 
-        merchant_authorization_id, capability = resolve_merchant_context(
-            tiktok_shop_id or ""
-        )
-
-        await cred_repo.create(
-            shop_id=shop.id,
-            access_token=token_data["access_token"],
-            refresh_token=token_data["refresh_token"],
-            token_expires_at=expires_at,
-            scopes=token_data.get("scopes"),
-            merchant_authorization_id=merchant_authorization_id,
-            capability=capability.value,
-        )
+        try:
+            existing_cred = await cred_repo.get_by_merchant(
+                merchant_authorization_id,
+                capability,
+            )
+            await cred_repo.update_tokens(
+                credential_id=existing_cred.id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_expires_at=expires_at,
+            )
+        except NotFound:
+            await cred_repo.create(
+                shop_id=shop.id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_expires_at=expires_at,
+                scopes=scopes,
+                merchant_authorization_id=merchant_authorization_id,
+                capability=capability.value,
+            )
 
         logger.info(
             "tiktok_oauth_completed",
@@ -141,9 +159,7 @@ class TikTokOAuthService:
     ) -> TikTokCredential:
         """Refresh tokens for a merchant authorization ID + capability pair."""
         cred_repo = TikTokCredentialRepo(self._session)
-        credential = await cred_repo.get_by_merchant(
-            merchant_authorization_id, capability
-        )
+        credential = await cred_repo.get_by_merchant(merchant_authorization_id, capability)
         return await self._refresh_credential(
             credential,
             shop_id=credential.shop_id,
@@ -169,9 +185,7 @@ class TikTokOAuthService:
             self._tiktok_auth.refresh_access_token, credential.refresh_token
         )
 
-        new_expires_at = access_token_expires_at(
-            token_data.get("access_token_expire_in")
-        )
+        new_expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
 
         updated = await cred_repo.update_tokens(
             credential_id=credential.id,
@@ -185,9 +199,7 @@ class TikTokOAuthService:
             log_extra["merchant_authorization_id"] = merchant_authorization_id
         if capability is not None:
             capability_value = (
-                capability.value
-                if isinstance(capability, TikTokCapability)
-                else capability
+                capability.value if isinstance(capability, TikTokCapability) else capability
             )
             log_extra["capability"] = capability_value
 
@@ -196,9 +208,7 @@ class TikTokOAuthService:
 
     def _build_state(self, user_id: uuid.UUID) -> str:
         """Build an HMAC-signed state parameter encoding user_id + nonce."""
-        payload = json.dumps(
-            {"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)}
-        )
+        payload = json.dumps({"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)})
         encoded = base64.urlsafe_b64encode(payload.encode()).decode()
         signature = hmac.new(
             self._app_secret.encode(), encoded.encode(), hashlib.sha256
@@ -212,9 +222,7 @@ class TikTokOAuthService:
             raise Unauthorized("Invalid OAuth state")
 
         encoded, signature = parts
-        expected = hmac.new(
-            self._app_secret.encode(), encoded.encode(), hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self._app_secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(signature, expected):
             raise Unauthorized("Invalid OAuth state signature")

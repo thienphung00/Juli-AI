@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-563",
+  "issue": 563,
+  "timestamp": "2026-07-28T13:45:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "50c114ca61417ab0e3d9bf2a34ab6111780bc239",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "HEAD 50c114ca: AC1 satisfied — integrations/tiktok, api, database, etl, webhook, core/security, services/tiktok MODULE.md aligned to package-root facades. AC2–AC4 satisfied: map.md/MODULES.md synced with ownership-registry links; audit_module_drift driftCount=0. P2.10-A slice removal matches main baseline (ADR-042).",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "patterns.mdc — package-root facade",
+      "path": "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "note": "Optional follow-up: trim leaf submodule enumeration to __all__-aligned facade list only.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "563-20260728T121800"
+}

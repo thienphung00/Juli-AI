@@ -8,17 +8,11 @@ import os
 
 import requests
 
-from juli_backend.integrations.tiktok.auth import (
+from juli_backend.integrations.tiktok import (
     DEFAULT_OPEN_API_BASE_URL,
-)
-from juli_backend.integrations.tiktok.client import TikTokClient
-from juli_backend.integrations.tiktok.exceptions import (
-    TikTokAPIError,
-)
-from juli_backend.integrations.tiktok.resources.authorization import (
     AuthorizationResource,
-)
-from juli_backend.integrations.tiktok.schemas import (
+    TikTokAPIError,
+    TikTokClient,
     TikTokSchemaError,
 )
 

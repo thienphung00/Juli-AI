@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ToolExecution
 from juli_backend.repositories.repos import WorkflowOutcomeRecordsRepo
-from juli_backend.services.execution.types import ExecutionStatus
 
 logger = logging.getLogger(__name__)
+
+TERMINAL_SUCCEEDED = "succeeded"
+TERMINAL_FAILED = "failed"
 
 VALIDATED_WORKFLOW_IDS = frozenset(
     {
@@ -105,19 +107,19 @@ def is_validated_workflow_id(workflow_id: str) -> bool:
 
 
 def _realtime_execution_status(
-    execution_status: ExecutionStatus,
+    execution_status: str,
     *,
     error_message: str | None,
 ) -> str:
-    if execution_status == ExecutionStatus.SUCCEEDED:
+    if execution_status == TERMINAL_SUCCEEDED:
         return "Tool execution completed successfully"
     if error_message:
         return f"Tool execution failed: {error_message}"
     return "Tool execution failed"
 
 
-def _realtime_reading_status(execution_status: ExecutionStatus) -> str:
-    if execution_status == ExecutionStatus.SUCCEEDED:
+def _realtime_reading_status(execution_status: str) -> str:
+    if execution_status == TERMINAL_SUCCEEDED:
         return "preliminary"
     return "needs_attention"
 
@@ -125,7 +127,7 @@ def _realtime_reading_status(execution_status: ExecutionStatus) -> str:
 def build_workflow_outcome_metrics(
     *,
     workflow_id: str,
-    execution_status: ExecutionStatus,
+    execution_status: str,
     executed_at: datetime,
     error_message: str | None = None,
 ) -> dict[str, Any]:
@@ -148,7 +150,7 @@ def build_workflow_outcome_metrics(
             "readings": [
                 {
                     "label": success_criteria["metric"],
-                    "value": "—" if execution_status == ExecutionStatus.SUCCEEDED else "n/a",
+                    "value": "—" if execution_status == TERMINAL_SUCCEEDED else "n/a",
                     "status": realtime_reading_status,
                 }
             ],
@@ -191,7 +193,7 @@ async def record_workflow_outcome(
     session: AsyncSession,
     execution: ToolExecution,
     *,
-    execution_status: ExecutionStatus,
+    execution_status: str,
     error_message: str | None = None,
 ) -> WorkflowOutcomeRecordResult:
     """Persist workflow outcome metrics after terminal tool execution (idempotent)."""
@@ -220,7 +222,7 @@ async def record_workflow_outcome(
         approval_id=execution.approval_id,
         execution_id=execution.id,
         workflow_id=workflow_id,
-        execution_status=execution_status.value,
+        execution_status=execution_status,
         metrics_json=json.dumps(metrics),
         executed_at=executed_at,
     )
@@ -231,7 +233,7 @@ async def record_workflow_outcome(
             "approval_id": execution.approval_id,
             "execution_id": str(execution.id),
             "workflow_id": workflow_id,
-            "execution_status": execution_status.value,
+            "execution_status": execution_status,
         },
     )
     return WorkflowOutcomeRecordResult(

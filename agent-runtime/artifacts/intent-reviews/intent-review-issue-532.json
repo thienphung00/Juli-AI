@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-532",
+  "issue": 532,
+  "timestamp": "2026-07-27T17:20:27Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "bd978e16c2b3d4379cfdc7be2c1470ca06bae448",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Issue #532 P2.10-A8: after material catalog ingest handoff (ProcessOutcome.PROCESSED), enqueue shop-scoped Celery job. Worker reuses run_fujiwa_material_resource_fetch (_FUJIWA_POLL_STEPS + incremental sync_analytics) then precompute_shop_analytics_kpis + Redis refresh. MATERIAL_CATALOG_IDS {1,2,5,12,27,39,67,68}; non-material ingest only. #68 coalesce 15min + per-shop mutex via InMemory/Redis gate. No Decision/scoring or demo GET route.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "532-20260727T171800"
+}

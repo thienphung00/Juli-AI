@@ -6,18 +6,30 @@ Ingestion consumer: deduplicates by `event_id`, transforms payloads, persists vi
 `juli_backend.repositories` and `juli_backend.models`. Webhook and polling services
 hand off validated payloads directly (no message bus). See [`EXECUTION.md`](../../../../../EXECUTION.md).
 
-## Public API
+## Public Interface
 
-- `EtlConsumer` — async consumer with per-shop ordering and backpressure
-  - `ingest(record: IngestRecord) -> ProcessOutcome`
-- `IngestRecord` — `channel`, `shop_key` (TikTok shop id), `value`, optional
-  `received_at` for latency checks
-- `ProcessOutcome` — `processed` | `duplicate` | `dlq`
-- `transform_for_channel(channel, payload)` — map payload to entity upsert kwargs
-- `RAW_CHANNELS`, `DLQ_CHANNEL` — routing constants in `channels.py`
-- Analytics ingest channels: `tiktok.analytics.{shop,product,sku,live}.raw` (#425)
-- `make_etl_handoff(consumer)` in `juli_backend.services.ingestion.handoff` — wires producers to
-  `EtlConsumer.ingest`
+Import from the package root only:
+
+```python
+from juli_backend.services.etl import EtlConsumer, IngestRecord, ...
+```
+
+### Package facade (`__init__.py`)
+
+Matches ``__all__`` — re-exports only:
+
+- ``EtlConsumer`` — async consumer with per-shop ordering and backpressure
+  (lazy export; ``ingest(record: IngestRecord) -> ProcessOutcome``)
+- ``IngestRecord`` — ``channel``, ``shop_key`` (TikTok shop id), ``value``, optional
+  ``received_at`` for latency checks
+- ``ProcessOutcome`` — ``processed`` | ``duplicate`` | ``dlq`` (lazy export)
+- ``transform_for_channel(channel, payload)`` — map payload to entity upsert kwargs
+- ``RAW_CHANNELS``, ``DLQ_CHANNEL`` — routing constants (``channels.py``)
+- ``KafkaRecord`` — deprecated alias for ``IngestRecord``
+- ``transform_for_topic`` — deprecated alias for ``transform_for_channel``
+
+Producer wiring: ``make_etl_handoff(consumer)`` lives in
+``juli_backend.services.ingestion`` (not re-exported from this package).
 
 ## Dependencies
 

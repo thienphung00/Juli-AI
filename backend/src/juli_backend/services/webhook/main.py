@@ -16,8 +16,8 @@ from juli_backend.database.database import (
     init_session_factory,
 )
 from juli_backend.services.etl.consumer import EtlConsumer
-from juli_backend.services.etl.record import IngestRecord
 from juli_backend.services.webhook.app import create_app
+from juli_backend.services.webhook.material_handoff import make_material_etl_handoff
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,8 @@ async def _handoff(channel: str, shop_key: str, payload: bytes) -> None:
 
     async with _session_factory() as session:
         consumer = EtlConsumer(session=session, dlq_handoff=_dlq_handoff)
-        await consumer.ingest(
-            IngestRecord(channel=channel, shop_key=shop_key, value=payload)
-        )
+        handoff = make_material_etl_handoff(consumer)
+        await handoff(channel, shop_key, payload)
 
 
 @asynccontextmanager

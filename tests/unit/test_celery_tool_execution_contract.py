@@ -64,9 +64,7 @@ async def auth_client(app, authenticated_user, shop):
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -183,7 +181,10 @@ async def test_celery_task_runs_tool_and_updates_status(session, shop, engine, m
     from juli_backend.repositories.repos import ToolExecutionsRepo
     from juli_backend.services.execution.dispatch import create_queued_execution
     from juli_backend.services.execution.types import ExecutionStatus
+    from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
     from juli_backend.workers.tasks import tool_execution
+
+    bind_celery_dispatchers()
 
     factory = create_session_factory(engine)
     init_session_factory(factory)
