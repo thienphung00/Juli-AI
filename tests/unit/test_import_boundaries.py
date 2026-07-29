@@ -83,6 +83,26 @@ def test_ci_architecture_gates_use_strict_import_check() -> None:
     )
 
 
+def test_strict_with_baseline_passes_for_known_production_debt() -> None:
+    """Strict + baseline passes when only grandfathered violations remain."""
+    baseline = ROOT / "docs/architecture/import-boundary-baseline.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CHECK_SCRIPT),
+            "--strict",
+            "--baseline-file",
+            str(baseline),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "import_boundaries: PASS" in result.stdout
+
+
 def test_log_output_names_violating_edge_owner_for_agents() -> None:
     """Strict mode prints importer package, target package, and module for agents."""
     result = subprocess.run(

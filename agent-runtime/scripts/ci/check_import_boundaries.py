@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -157,6 +158,34 @@ def collect_violations(
     return violations
 
 
+def violation_fingerprint(violation: ImportViolation) -> str:
+    return f"{violation.importer_file}|{violation.target_module}|{violation.kind}"
+
+
+def load_baseline_keys(path: Path) -> set[str]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return set(payload.get("violations", []))
+
+
+def write_baseline_file(path: Path, violations: list[ImportViolation]) -> None:
+    keys = sorted({violation_fingerprint(v) for v in violations})
+    payload = {
+        "schemaVersion": "1.0.0",
+        "description": "Known pre-MM3 import boundary debt; strict CI fails only on new violations.",
+        "violationCount": len(keys),
+        "violations": keys,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def filter_new_violations(
+    violations: list[ImportViolation],
+    baseline_keys: set[str],
+) -> list[ImportViolation]:
+    return [v for v in violations if violation_fingerprint(v) not in baseline_keys]
+
+
 def format_violation(violation: ImportViolation) -> str:
     return (
         f"edge={violation.importer_package}->{violation.target_package} "
@@ -181,11 +210,17 @@ def run_check(
     config_path: Path | None = None,
     scan_root: Path | None = None,
     strict: bool = False,
+    baseline_file: Path | None = None,
 ) -> tuple[bool, str, list[ImportViolation]]:
     config = load_import_boundary_config(config_path)
     root = (scan_root or config.scan_root).resolve()
     violations = collect_violations(root, config)
+    if baseline_file is not None:
+        baseline_keys = load_baseline_keys(baseline_file)
+        violations = filter_new_violations(violations, baseline_keys)
     if not violations:
+        if baseline_file is not None:
+            return True, "No new import boundary violations beyond baseline", violations
         return True, "Import boundaries respected", violations
     detail = f"{len(violations)} violation(s); first: {violations[0].message}"
     if strict:
@@ -212,12 +247,32 @@ def main() -> int:
         action="store_true",
         help="Exit non-zero when violations are found (PR gate mode)",
     )
+    parser.add_argument(
+        "--baseline-file",
+        type=Path,
+        default=None,
+        help="JSON file of known violation fingerprints; strict mode fails only on new edges",
+    )
+    parser.add_argument(
+        "--write-baseline",
+        type=Path,
+        default=None,
+        help="Write current violations to baseline JSON and exit 0 (maintainer bootstrap)",
+    )
     args = parser.parse_args()
+
+    if args.write_baseline is not None:
+        config = load_import_boundary_config(args.config)
+        root = (args.scan_root or config.scan_root).resolve()
+        write_baseline_file(args.write_baseline, collect_violations(root, config))
+        print(f"import_boundaries: wrote baseline {args.write_baseline}")
+        return 0
 
     passed, detail, violations = run_check(
         config_path=args.config,
         scan_root=args.scan_root,
         strict=args.strict,
+        baseline_file=args.baseline_file,
     )
     if violations and not args.strict:
         for violation in violations[:10]:

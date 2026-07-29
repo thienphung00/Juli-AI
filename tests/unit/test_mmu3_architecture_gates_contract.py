@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +25,7 @@ def test_architecture_gates_runs_import_boundaries_strict() -> None:
     text = PR_WORKFLOW.read_text(encoding="utf-8")
     assert "check_import_boundaries.py" in text
     assert "--strict" in text
+    assert "import-boundary-baseline.json" in text
 
 
 def test_architecture_gates_runs_cycle_and_ownership_checks() -> None:
@@ -42,6 +44,13 @@ def test_backend_path_filter_includes_architecture_contract_paths() -> None:
     text = PR_WORKFLOW.read_text(encoding="utf-8")
     assert ".importlinter.toml" in text
     assert "docs/architecture/ownership-registry.yml" in text
+
+
+def test_import_boundary_baseline_file_exists() -> None:
+    baseline = REPO_ROOT / "docs/architecture/import-boundary-baseline.json"
+    assert baseline.is_file()
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    assert payload.get("violationCount", 0) > 0
 
 
 def test_import_boundaries_doc_documents_merge_queue_status_checks() -> None:

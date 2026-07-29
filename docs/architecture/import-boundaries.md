@@ -39,6 +39,15 @@ python agent-runtime/scripts/ci/check_import_boundaries.py \
 and again on `merge_group`. Failures block merge via aggregate job `status-check`.
 Nightly `architecture-audit.yml` remains advisory; PR gates are the enforcement path.
 
+Strict mode uses [`import-boundary-baseline.json`](import-boundary-baseline.json) to
+grandfather pre-MM3 debt: CI fails only on **new** violations beyond the baseline.
+Regenerate the baseline after intentional remediation:
+
+```bash
+python agent-runtime/scripts/ci/check_import_boundaries.py \
+  --write-baseline docs/architecture/import-boundary-baseline.json
+```
+
 Strict failures print agent-parseable lines:
 
 ```

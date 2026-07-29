@@ -133,7 +133,9 @@ jobs:
       - name: Install dependencies
         run: pip install -e "./backend[dev]"
       - name: Import boundaries (strict)
-        run: python agent-runtime/scripts/ci/check_import_boundaries.py --strict
+        run: >-
+          python agent-runtime/scripts/ci/check_import_boundaries.py --strict
+          --baseline-file docs/architecture/import-boundary-baseline.json
       - name: Dependency cycle check
         run: python agent-runtime/scripts/ci/audit_cycles.py --ci
       - name: Ownership registry drift
