@@ -51,6 +51,7 @@ describe("packages/ui import boundaries", () => {
     expect(uiExports.RealEstimatedProgressBar).toBeTypeOf("function");
     expect(uiExports.HealthBar).toBeTypeOf("function");
     expect(uiExports.DestinationCard).toBeTypeOf("function");
+    expect(uiExports.DestinationIcon).toBeTypeOf("function");
     expect(uiExports.PrimaryNavigation).toBeTypeOf("function");
   });
 

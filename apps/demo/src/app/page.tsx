@@ -1,4 +1,4 @@
-import { DestinationCard } from "@juli/ui";
+import { DestinationCard, DestinationIcon } from "@juli/ui";
 import { formatDateTime } from "@juli/utils";
 
 import { demoSnapshot, homeDestinations } from "../lib/mock-data";
@@ -29,7 +29,7 @@ export default function HomePage() {
             description={destination.description}
             eyebrow={destination.eyebrow}
             href={destination.href}
-            icon={destination.icon}
+            icon={<DestinationIcon name={destination.icon} />}
             title={destination.label}
           />
         ))}
