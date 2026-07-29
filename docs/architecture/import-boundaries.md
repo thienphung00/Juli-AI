@@ -34,9 +34,32 @@ python agent-runtime/scripts/ci/check_import_boundaries.py \
   --strict
 ```
 
-Until MMU-3 (#556), production scans default to **warn-only**. Existing
-violations do not block merges; the synthetic fixture in
-`tests/fixtures/import_boundaries/synthetic/` proves the contract works.
+**MMU-3 (#556):** `pr.yml` job `architecture-gates` runs strict import boundaries,
+`audit_cycles.py --ci`, and `check_ownership_registry.py` on backend-touching PRs
+and again on `merge_group`. Failures block merge via aggregate job `status-check`.
+Nightly `architecture-audit.yml` remains advisory; PR gates are the enforcement path.
+
+Strict failures print agent-parseable lines:
+
+```
+edge=<importer_top>-><target_top> kind=<forbidden_edge|deep_import> importer=<file> target=<module>
+cycle=<n> modules=<module-a> -> <module-b> -> …
+databaseTables missing owner registration: table=<name>
+celeryTasks missing owner registration: task=<name>
+```
+
+## Merge Queue required status checks
+
+Configure GitHub Merge Queue on `main` to require:
+
+| Status check | Job | Purpose |
+|--------------|-----|---------|
+| `PR Validation / status-check` | `status-check` | Aggregate gate (required) |
+| `PR Validation / architecture-gates` | `architecture-gates` | Import contract, cycles, ownership drift |
+| `PR Validation / lint-and-typecheck` | `lint-and-typecheck` | Ruff + mypy |
+| `PR Validation / test` | `test` | Pytest + coverage floor |
+
+On `merge_group`, path-filter skips are disabled — `architecture-gates` always runs.
 
 ## Updating the matrix when MODULES.md gains a module
 
@@ -70,5 +93,8 @@ backend package tree only.
 
 - [`check_module_boundaries.py`](../../agent-runtime/scripts/validate/check_module_boundaries.py)
   — MODULE.md public-surface imports on changed files (separate gate).
-- [`audit_cycles.py`](../../agent-runtime/scripts/ci/audit_cycles.py) — nightly
-  Tarjan cycle audit from `map.md`.
+- [`audit_cycles.py`](../../agent-runtime/scripts/ci/audit_cycles.py) — Tarjan
+  cycle audit from `map.md` (PR `--ci` mode + nightly artifact).
+- [`check_ownership_registry.py`](../../agent-runtime/scripts/ci/check_ownership_registry.py)
+  — ORM table and Celery task owner drift vs
+  [`ownership-registry.yml`](ownership-registry.yml).

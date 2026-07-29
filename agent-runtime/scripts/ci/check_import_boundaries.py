@@ -157,6 +157,25 @@ def collect_violations(
     return violations
 
 
+def format_violation(violation: ImportViolation) -> str:
+    return (
+        f"edge={violation.importer_package}->{violation.target_package} "
+        f"kind={violation.kind} "
+        f"importer={violation.importer_file} "
+        f"target={violation.target_module}"
+    )
+
+
+def print_violations(violations: list[ImportViolation], *, limit: int = 25) -> None:
+    for violation in violations[:limit]:
+        print(format_violation(violation), file=sys.stderr)
+    if len(violations) > limit:
+        print(
+            f"import_boundaries: … and {len(violations) - limit} more violation(s)",
+            file=sys.stderr,
+        )
+
+
 def run_check(
     *,
     config_path: Path | None = None,
@@ -208,6 +227,8 @@ def main() -> int:
                 f"import_boundaries: WARN — … and {len(violations) - 10} more",
                 file=sys.stderr,
             )
+    elif violations and args.strict:
+        print_violations(violations)
     return print_check_result("import_boundaries", passed, detail)
 
 
