@@ -1,4 +1,4 @@
-# ADR-041: Frontend design skill wiring — Open Design + Mobbin upstream of ui-ux
+# ADR-043: Frontend design skill wiring — Open Design + Mobbin upstream of ui-ux
 
 **Status:** Accepted  
 **Date:** 2026-07-29  
