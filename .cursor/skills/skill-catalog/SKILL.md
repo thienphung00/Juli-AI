@@ -156,7 +156,7 @@ catalog:
       skills:
         - name: open-design-system
           path: .cursor/skills/standalone/open-design-system/SKILL.md
-          note: Load before Open Design MCP; upstream of ui-ux-design (ADR-041)
+          note: Load before Open Design MCP; upstream of ui-ux-design (ADR-043)
     - id: mobbin
       folder: user-Mobbin
       serverName: Mobbin
@@ -238,7 +238,7 @@ Machine-readable index for **focus** and agent-phase routing. Plugin skills ship
 | Alembic, RLS, Supabase auth | `supabase` | `supabase`, `supabase-postgres-best-practices` |
 | FastAPI / pytest change | — | `backend` executor, `.cursor/skills/domain/python-*` |
 | `apps/demo` or `apps/dashboard` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
-| Design-reference / layout inspiration before coding | `open-design`, `Mobbin` | `open-design-system` → Mobbin MCP → `ui-ux-design` (ADR-041; reference-only) |
+| Design-reference / layout inspiration before coding | `open-design`, `Mobbin` | `open-design-system` → Mobbin MCP → `ui-ux-design` (ADR-043; reference-only) |
 | Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `open-design-system` + Mobbin when references needed; then `ui-ux` executor, `ui-ux-design`, ADR-028 copy; `shadcn` atoms only |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
 | TikTok API / webhooks | — | `docs/integrations/tiktok_api/`, MODULE.md (no plugin) |

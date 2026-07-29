@@ -89,7 +89,7 @@ for **technical / domain implementation**:
 | New vendor API | `api-docs` | Context7 **CLI** when SDK/library refs needed |
 | Seller/creator policy | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Library/framework during domain implementation | — | Context7 **CLI** (`npx ctx7@latest`) — Focus-selected |
-| Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-041) |
+| Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
 | Mobbin problem-section screen inspiration | — | `Mobbin` |
 | `apps/demo` / `apps/dashboard` Next.js UI | `open-design-system` + Mobbin when refs needed → `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `open-design`, `Mobbin` then `shadcn` |
 | Supabase / migrations / RLS | `supabase`, `supabase-postgres-best-practices` | `supabase` |

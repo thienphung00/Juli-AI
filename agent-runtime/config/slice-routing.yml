@@ -283,7 +283,7 @@ P2-B9:
 
 P2-6:
   executorDomain: ui-ux
-  # ADR-041: upstream reference skills before ui-ux-design / ui-ux executor assignment.
+  # ADR-043: upstream reference skills before ui-ux-design / ui-ux executor assignment.
   upstreamReferenceSkills:
     - .cursor/skills/standalone/open-design-system/SKILL.md
   # Tiered: epic constants only in requiredDocs; component/screen docs in loadWhenNeeded.
@@ -303,6 +303,7 @@ P2-6:
     - packages/ui/MODULE.md
     - packages/utils/MODULE.md
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - docs/architecture/data-sources.md
     - docs/architecture/migration-plan.md
     - docs/product/design/README.md
@@ -756,6 +757,7 @@ DEMO-ASSET-1:
     - infra/scripts/provision-demo.sh
     - tests/unit/test_phase_2_6_demo_deploy_config.py
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - infra/scripts/build-frontend-review.sh
     - infra/systemd/juli-web.service
     - .cursor/skills/domain/testing-patterns/python-testing.md
@@ -810,6 +812,7 @@ DEMO-ASSET-3:
     - infra/scripts/deploy-demo-release.sh
     - tests/unit/test_phase_2_6_demo_deploy_config.py
   loadWhenNeeded:
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
     - apps/demo/e2e/exit-gate/decisions-journey.spec.ts
     - .cursor/rules/reliability.mdc
   doNotLoad:
@@ -1452,7 +1455,7 @@ DVR-B1:
     - EXECUTION.md
     - "{handoffPath}"
     - docs/product/phases/demo-visual-refinement/PRD.md
-    - docs/adr/041-frontend-design-skill-wiring.md
+    - docs/adr/043-frontend-design-skill-wiring.md
     - docs/handoffs/demo-visual-refinement-issue-bodies/B1.md
     - CONTEXT.md
     - .cursor/skills/skill-catalog/SKILL.md

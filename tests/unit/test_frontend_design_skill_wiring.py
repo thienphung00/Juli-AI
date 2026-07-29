@@ -1,4 +1,4 @@
-"""ADR-041 durable frontend design skill wiring (#581 / DVR-B1)."""
+"""ADR-043 durable frontend design skill wiring (#581 / DVR-B1)."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ def test_skill_catalog_registers_open_design_and_mobbin_mcps() -> None:
 
 def test_focus_documents_upstream_design_reference_order() -> None:
     routing = _read(ROUTING_RULES)
-    adr_section = routing.split("## Design-reference upstream stack (ADR-041)", 1)[-1]
+    adr_section = routing.split("## Design-reference upstream stack (ADR-043)", 1)[-1]
     focus = _read(FOCUS_SKILL)
     assert "Open Design" in adr_section
     assert "Mobbin" in adr_section

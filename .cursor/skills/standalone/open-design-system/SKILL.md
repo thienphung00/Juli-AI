@@ -25,7 +25,7 @@ catalog:
 
 # Open Design System (upstream reference)
 
-**ADR-041:** Open Design sits **above** `ui-ux-design`; it does **not** replace it.
+**ADR-043:** Open Design sits **above** `ui-ux-design`; it does **not** replace it.
 Gather references first; implement in Juli product apps with `ui-ux` executor +
 `ui-ux-design` + ADR-028 copy authorities.
 

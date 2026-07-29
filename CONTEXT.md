@@ -114,11 +114,11 @@ The public Interactive Demo (`demo.app-juli.com`) — ADR-023 four-destination I
 _Avoid_: the Demo (ambiguous with retired two-screen Home+Actions IA)
 
 **Durable design skill stack**:
-Focus/Meta routing for frontend design work — **Open Design** + **Mobbin** upstream for references; **`ui-ux-design`** + **`ui-ux` executor** for Next.js implementation; **`shadcn`** for atom-level registry primitives only, folded into `@juli/ui`. Open Design sits above `ui-ux-design` and does not replace it. See [ADR-041](docs/adr/041-frontend-design-skill-wiring.md).
+Focus/Meta routing for frontend design work — **Open Design** + **Mobbin** upstream for references; **`ui-ux-design`** + **`ui-ux` executor** for Next.js implementation; **`shadcn`** for atom-level registry primitives only, folded into `@juli/ui`. Open Design sits above `ui-ux-design` and does not replace it. See [ADR-043](docs/adr/043-frontend-design-skill-wiring.md).
 _Avoid_: Open Design as the Demo implementation skill, permanent Airtable-first Meta pipeline, wholesale Demo→shadcn migration
 
 **Design reference pipeline**:
-Ephemeral, PRD-scoped orchestration for one visual refinement pass — Airtable layout extract → Open Design components/layouts → Mobbin problem-section screen refs → Meta-prepared caches/artifacts → design sub-agents → Shadcn atom refinement → `@juli/ui` implementation. **Not** durable harness infrastructure; superseded after refinement by the **Durable design skill stack** ([ADR-041](docs/adr/041-frontend-design-skill-wiring.md)).
+Ephemeral, PRD-scoped orchestration for one visual refinement pass — Airtable layout extract → Open Design components/layouts → Mobbin problem-section screen refs → Meta-prepared caches/artifacts → design sub-agents → Shadcn atom refinement → `@juli/ui` implementation. **Not** durable harness infrastructure; superseded after refinement by the **Durable design skill stack** ([ADR-043](docs/adr/043-frontend-design-skill-wiring.md)).
 _Avoid_: treating Airtable as copy SoT, treating this pipeline as permanent agent-runtime config
 
 **Airtable layout reference**:
@@ -126,11 +126,11 @@ One-shot visual/layout inspiration for the Demo visual refinement PRD — extrac
 _Avoid_: Airtable copy SoT, Airtable IA changes
 
 **Mobbin screen reference**:
-Reference-only UI inspiration from Mobbin search — adapted to Juli tokens ([ADR-015](docs/adr/015-design-system-token-foundation.md), `docs/product/design/`); never a 1:1 binding spec or copy source. Part of the **Durable design skill stack** ([ADR-041](docs/adr/041-frontend-design-skill-wiring.md)).
+Reference-only UI inspiration from Mobbin search — adapted to Juli tokens ([ADR-015](docs/adr/015-design-system-token-foundation.md), `docs/product/design/`); never a 1:1 binding spec or copy source. Part of the **Durable design skill stack** ([ADR-043](docs/adr/043-frontend-design-skill-wiring.md)).
 _Avoid_: Mobbin as authoritative layout/copy, pixel-perfect Mobbin clones
 
 **Hybrid Juli UI model**:
-Demo composes from **`@juli/ui`** + **`@juli/theme`**; shadcn registry may refine atoms then migrate into `@juli/ui`. No wholesale replacement of Demo page scaffolding with raw shadcn. See [ADR-041](docs/adr/041-frontend-design-skill-wiring.md).
+Demo composes from **`@juli/ui`** + **`@juli/theme`**; shadcn registry may refine atoms then migrate into `@juli/ui`. No wholesale replacement of Demo page scaffolding with raw shadcn. See [ADR-043](docs/adr/043-frontend-design-skill-wiring.md).
 _Avoid_: shadcn as Demo surface SoT, deleting `@juli/ui` for page composition
 
 **Five-stage decision review**:

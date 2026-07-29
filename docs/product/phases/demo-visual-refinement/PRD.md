@@ -6,7 +6,7 @@
 > [ADR-028](../../../adr/028-vietnamese-copy-dictionary-and-design-context.md) (copy authority) ·
 > [ADR-037](../../../adr/037-phase-2.10-demo-real-data-no-auth.md) ·
 > [ADR-038](../../../adr/038-phase-2.10-dual-layer-pipeline.md) ·
-> [ADR-041](../../../adr/041-frontend-design-skill-wiring.md) (durable skill wiring) ·
+> [ADR-041](../../../adr/043-frontend-design-skill-wiring.md) (durable skill wiring) ·
 > [`docs/product/design/`](../../design/README.md) ·
 > [`CONTEXT.md`](../../../../CONTEXT.md).
 >
@@ -22,7 +22,7 @@
 - Copy authority stays `dictionary.md` + `design-context.md`; Airtable and Mobbin are never copy SoT.
 - Decision intelligence reuses existing Decision envelope, fixtures, and Phase 2.10 feed when available — no new ranking engine.
 - Default tests cover seller-surface copy guards, Recommendations routing/presentation, five-stage review navigation, Settings disabled state, and `@juli/ui` regressions on touched surfaces.
-- The **design reference pipeline** (Airtable extract) runs once for this PRD; **durable skill wiring** ([ADR-041](../../../adr/041-frontend-design-skill-wiring.md)) is a separate acceptance workstream.
+- The **design reference pipeline** (Airtable extract) runs once for this PRD; **durable skill wiring** ([ADR-041](../../../adr/043-frontend-design-skill-wiring.md)) is a separate acceptance workstream.
 
 ## Problem Statement
 
@@ -64,7 +64,7 @@ Within locked ADR-023 IA, ship a visual/copy/UX pass on **Home**, **Decisions
 
 ### Workstream B — Durable design skill wiring (harness)
 
-Implement [ADR-041](../../../adr/041-frontend-design-skill-wiring.md):
+Implement [ADR-041](../../../adr/043-frontend-design-skill-wiring.md):
 
 - Restore/add Open Design skill; register Open Design + Mobbin in skill-catalog and Focus
   for design-reference tasks.
@@ -117,7 +117,7 @@ Implement [ADR-041](../../../adr/041-frontend-design-skill-wiring.md):
 20. As a design agent, I want Mobbin screen references for problem sections, so that I can adapt proven patterns to Juli tokens — not clone them.
 21. As a design agent, I want Meta to pass prepared caches/artifacts and skill wiring to design sub-agents, so that reference gathering is not repeated ad hoc.
 22. As a design agent, I want Shadcn limited to atom refinement, so that page composition stays in `@juli/ui` and ADR-015 tokens.
-23. As an implementation agent, I want Focus to load Open Design + Mobbin before `ui-ux-design` on design tasks, so that references precede code ([ADR-041](../../../adr/041-frontend-design-skill-wiring.md)).
+23. As an implementation agent, I want Focus to load Open Design + Mobbin before `ui-ux-design` on design tasks, so that references precede code ([ADR-041](../../../adr/043-frontend-design-skill-wiring.md)).
 24. As an implementation agent, I want `dictionary.md` and `design-context.md` loaded for every copy touch, so that ADR-028 authority is preserved.
 25. As an implementation agent, I want hybrid `@juli/ui` + `@juli/theme` to remain the Demo composition surface, so that I do not rewrite pages in raw shadcn.
 
@@ -139,7 +139,7 @@ Implement [ADR-041](../../../adr/041-frontend-design-skill-wiring.md):
 
 ### Platform & harness
 
-36. As Meta, I want skill-catalog entries for Open Design and Mobbin on design-reference tasks, so that Focus routing is explicit ([ADR-041](../../../adr/041-frontend-design-skill-wiring.md)).
+36. As Meta, I want skill-catalog entries for Open Design and Mobbin on design-reference tasks, so that Focus routing is explicit ([ADR-041](../../../adr/043-frontend-design-skill-wiring.md)).
 37. As Meta, I want slice-routing updated for design slices, so that upstream references load before `ui-ux` executor assignment.
 38. As Meta, I want the Airtable-first pipeline **not** persisted in agent-runtime config after this PRD, so that harness complexity stays bounded.
 39. As a frontend engineer, I want Shadcn-refined atoms migrated into `@juli/ui` when touched, so that the package remains the long-lived primitive source.
@@ -167,7 +167,7 @@ This pipeline is **not** registered as permanent Meta/harness infrastructure.
 
 ### Durable skill wiring (Workstream B)
 
-Per [ADR-041](../../../adr/041-frontend-design-skill-wiring.md):
+Per [ADR-041](../../../adr/043-frontend-design-skill-wiring.md):
 
 - Restore/add Open Design skill; register OD + Mobbin in skill-catalog and Focus.
 - Open Design **upstream** of `ui-ux-design`; does not replace it.
@@ -242,7 +242,7 @@ fixture- or API-backed.
 
 Workstream A may begin reference extraction while Workstream B lands harness routing.
 Durable skill wiring (B) should complete before broad agent-driven polish so sub-agents
-follow ADR-041 consistently.
+follow ADR-043 consistently.
 
 ### Risks
 

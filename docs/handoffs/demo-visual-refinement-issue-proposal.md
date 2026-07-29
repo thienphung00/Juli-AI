@@ -2,14 +2,14 @@
 
 > **Parent PRD issue:** [#580](https://github.com/thienphung00/Juli-AI/issues/580)  
 > **Source PRD:** [`docs/product/phases/demo-visual-refinement/PRD.md`](../product/phases/demo-visual-refinement/PRD.md)  
-> **ADR:** [041 — frontend design skill wiring](../adr/041-frontend-design-skill-wiring.md)  
+> **ADR:** [043 — frontend design skill wiring](../adr/043-frontend-design-skill-wiring.md)  
 > **Status:** **Created** (2026-07-29, user-approved 8-slice breakdown)
 
 ## Created issues
 
 | Slice | Issue | Title |
 |-------|-------|-------|
-| DVR-B1 | [#581](https://github.com/thienphung00/Juli-AI/issues/581) | ADR-041 — Wire Open Design + Mobbin upstream of ui-ux-design |
+| DVR-B1 | [#581](https://github.com/thienphung00/Juli-AI/issues/581) | ADR-043 — Wire Open Design + Mobbin upstream of ui-ux-design |
 | DVR-A0 | [#583](https://github.com/thienphung00/Juli-AI/issues/583) | Ephemeral design reference bundles (Airtable → OD → Mobbin) |
 | DVR-A1 | [#584](https://github.com/thienphung00/Juli-AI/issues/584) | Strip FBS/confidence copy + RecommendationCard + guard tests |
 | DVR-A2 | [#586](https://github.com/thienphung00/Juli-AI/issues/586) | Home destination card icon refresh (@juli/ui) |

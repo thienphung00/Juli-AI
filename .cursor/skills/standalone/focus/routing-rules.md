@@ -19,14 +19,14 @@ Before loading feature docs for integration work, consult the project plugin ind
 | New/stale vendor API reference | `api-docs` | Context7 CLI when SDK/library refs needed |
 | Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
-| Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-041) |
+| Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
 | Mobbin problem-section screen inspiration | — | `Mobbin` (`search_screens`, `search_flows`, `search_sections`) |
 | `apps/demo/` or `apps/dashboard/` Next.js UI (component, page, form) | `open-design-system` + Mobbin when references needed → `ui-ux-design`, `nextjs`, `react-best-practices` | `open-design`, `Mobbin` if gathering refs; then — |
 | UI / frontend / copy / report / design-surface | **Required:** `dictionary.md`, `docs/product/design/design-context.md` (ADR-028 — not OD/Mobbin output) | — |
 | `apps/demo/` or `apps/dashboard/` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
 | shadcn registry primitive | `shadcn` (with `ui-ux-design`; atoms only → `@juli/ui`) | `shadcn` (prefer `user-shadcn`) |
 
-## Design-reference upstream stack (ADR-041)
+## Design-reference upstream stack (ADR-043)
 
 For **design-reference** tasks (layout exploration, component patterns, problem-section
 screen inspiration), load in this order **before** Meta assigns the `ui-ux` executor:
