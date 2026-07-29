@@ -1,6 +1,11 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const REPLENISH_INVENTORY_WORKFLOW_KEY = "replenish_inventory_3"; // gitleaks:allow — documented mock workflow key
 export const REPLENISH_INVENTORY_TOOL_NAME = "inventory.replenish";
@@ -25,7 +30,7 @@ export function buildReplenishInventoryReviewInputDefaults(): Record<
   return {
     sku_id: "SKU-SPF50-001",
     current_stock: "48",
-    warehouse_id: "WH-FBS-HCM-01",
+    warehouse_id: "WH-HCM-01",
     reorder_quantity: "",
     external_path: "",
     received_quantity: "",
@@ -41,12 +46,7 @@ export function getReplenishInventoryReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        replenishFixture.reasoning,
-        replenishFixture.signal,
-        replenishFixture.evidence,
-        replenishFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(replenishFixture),
     },
     {
       stage: "analytics",
@@ -60,10 +60,10 @@ export function getReplenishInventoryReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body: [
-        "SKU và tồn kho hiện tại được đọc từ kho FBS đã gán.",
-        "Số lượng đặt hàng lại cần shop xác nhận — ROP/EOQ chưa có mặc định khi chưa kết nối.",
-        "Đường NCC hoặc ERP được ghi nhãn Unresolved vì chưa có hợp đồng tích hợp có thẩm quyền.",
-        "Cập nhật tồn kho FBS chỉ chạy sau khi xác nhận số lượng nhận hàng thực tế.",
+        "SKU và tồn kho hiện tại được đọc từ kho giao hàng đã gán.",
+        "Số lượng đặt hàng lại cần shop xác nhận — chưa có mặc định khi chưa kết nối NCC/ERP.",
+        "Đường NCC hoặc ERP cần cấu hình thêm vì chưa có tích hợp có thẩm quyền.",
+        "Cập nhật tồn kho chỉ chạy sau khi xác nhận số lượng nhận hàng thực tế.",
       ].join("\n\n"),
       inputFields: [
         {
@@ -75,30 +75,29 @@ export function getReplenishInventoryReviewStages(
         },
         {
           key: "current_stock",
-          label: "Tồn kho hiện tại (FBS)",
+          label: "Tồn kho hiện tại",
           prefillValue: "48 đơn vị — đủ cho khoảng 4 ngày bán",
           required: true,
           editable: false,
         },
         {
           key: "warehouse_id",
-          label: "Kho FBS",
-          prefillValue: "WH-FBS-HCM-01 — Kho HCM (từ SKU, chỉ đọc)",
+          label: "Kho giao hàng",
+          prefillValue: "WH-HCM-01 — Kho HCM (từ SKU, chỉ đọc)",
           required: true,
           editable: false,
         },
         {
           key: "reorder_quantity",
           label: "Số lượng đặt hàng lại",
-          prefillValue: "Chưa có mặc định — ROP/EOQ chưa được kết nối",
+          prefillValue: "Chưa có mặc định — cần shop nhập sau khi xem dữ liệu",
           required: true,
           editable: true,
         },
         {
           key: "external_path",
           label: "Đường bên ngoài (NCC hoặc ERP)",
-          prefillValue:
-            "Unresolved — chọn NCC hoặc ERP khi có hợp đồng tích hợp",
+          prefillValue: "Chưa cấu hình — chọn NCC hoặc ERP khi có tích hợp",
           required: true,
           editable: true,
         },
@@ -114,23 +113,17 @@ export function getReplenishInventoryReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${replenishFixture.toolName}`,
-        `Khả năng: ${replenishFixture.capabilityLabel}`,
-        `Điều kiện: ${replenishFixture.eligibility}`,
-        replenishFixture.knownLimits,
-        `Luồng FBS: tra cứu tồn kho → xác nhận điều kiện → đường NCC/ERP (Unresolved) → tạo đơn mua/Purchase Request (Unresolved) → chờ giao → xác nhận nhận hàng → cập nhật tồn kho → đối soát webhook #27/#68.`,
-        `FBT intake \`${REPLENISH_INVENTORY_FBT_INTAKE_KEY}\`: Unresolved/Unfilled — không hiển thị như luồng có thể thực thi cho đến khi có hợp đồng tạo Inbound Shipment.`,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(replenishFixture, [
+        "Juli sẽ theo dõi đặt hàng lại, chờ giao và cập nhật tồn kho sau khi bạn xác nhận số lượng nhận.",
+        "Đường NCC/ERP và tạo đơn mua cần cấu hình thêm — Demo ghi nhận bước này.",
+      ]),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body: [
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện cho nhánh FBS.",
-        "Các bước NCC/ERP, tạo Purchase Order/Purchase Request, và theo dõi giao hàng NCC vẫn được ghi nhãn Unresolved — demo không gọi API bên thứ ba hay TikTok thật.",
-        "Không cam kết luồng FBT cho đến khi hợp đồng replenish_inventory_3b được xác định.",
-      ].join("\n\n"),
+      body: buildSellerApproveBody([
+        "Các bước NCC/ERP và theo dõi giao hàng cần cấu hình thêm trong Demo.",
+      ]),
     },
   ];
 }

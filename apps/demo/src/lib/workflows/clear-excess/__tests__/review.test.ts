@@ -35,8 +35,8 @@ describe("getClearExcessReviewStages", () => {
 
     expect(why?.body).toContain(clearExcessFixture!.reasoning);
     expect(why?.body).toContain(clearExcessFixture!.signal);
-    expect(why?.body).toContain(clearExcessFixture!.evidence);
     expect(why?.body).toContain(clearExcessFixture!.risks);
+    expect(why?.body).not.toMatch(/\bFBS\b/);
   });
 
   it("labels Flash Sale eligibility as unresolved and zero-floor stock as a later irreversible step", () => {
@@ -59,8 +59,8 @@ describe("getClearExcessReviewStages", () => {
     expect(zeroStockField?.editable).toBe(false);
     expect(zeroStockField?.prefillValue).toMatch(/bước sau|chưa phê duyệt/i);
 
-    expect(preview?.body).toContain(clearExcessFixture!.knownLimits);
-    expect(preview?.body).toMatch(/FBT.*chưa|Unresolved|Chưa được hỗ trợ/i);
+    expect(preview?.body).toContain(clearExcessFixture!.sellerReason);
+    expect(preview?.body).toMatch(/giao hàng do TikTok quản lý.*chưa có trong Demo/i);
   });
 
   it("does not invent markdown defaults or resolved sell-through thresholds", () => {

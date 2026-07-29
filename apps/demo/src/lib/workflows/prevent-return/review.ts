@@ -1,6 +1,11 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const PREVENT_RETURN_WORKFLOW_KEY = "prevent_return_8b";
 export const PREVENT_RETURN_FBT_INTAKE_KEY = "prevent_return_8b_fbt";
@@ -22,7 +27,7 @@ export function buildPreventReturnReviewInputDefaults(): Record<string, string> 
     order_id: "ORD-44102",
     return_reason: "Sản phẩm không đúng mô tả",
     decision_deadline: "2026-07-20 12:00",
-    rma_state: "Đang chờ hàng về kho FBS",
+    rma_state: "Đang chờ hàng về kho",
     risk_evidence: "Quy tắc: lần trả đầu — không có điểm ML giả",
     seller_decision: "",
     reject_reason: "",
@@ -41,12 +46,7 @@ export function getPreventReturnReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        preventReturnFixture.reasoning,
-        preventReturnFixture.signal,
-        preventReturnFixture.evidence,
-        preventReturnFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(preventReturnFixture),
     },
     {
       stage: "analytics",
@@ -60,7 +60,7 @@ export function getPreventReturnReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Không có mặc định Phê duyệt/Từ chối. Nhập lại kho FBS mặc định tắt đến khi kiểm tra thực tế; số lượng còn bán được cần nhập tường minh. Luồng FBT (prevent_return_8b_fbt) chỉ ghi nhận — không thực thi tại đây.",
+        "Không có mặc định Phê duyệt/Từ chối. Nhập lại kho mặc định tắt đến khi kiểm tra thực tế; số lượng còn bán được cần nhập tường minh. Luồng trả hàng qua giao hàng do TikTok quản lý chỉ ghi nhận — không thực thi tại đây.",
       inputFields: [
         {
           key: "return_id",
@@ -93,14 +93,14 @@ export function getPreventReturnReviewStages(
         {
           key: "rma_state",
           label: "Trạng thái RMA",
-          prefillValue: "Đang chờ hàng về kho FBS",
+          prefillValue: "Đang chờ hàng về kho",
           required: true,
           editable: false,
         },
         {
           key: "risk_evidence",
           label: "Bằng chứng rủi ro (theo quy tắc)",
-          prefillValue: "Quy tắc: lần trả đầu — không có điểm ML giả",
+          prefillValue: "Quy tắc: lần trả đầu — không có dấu hiệu gian lận",
           required: false,
           editable: false,
         },
@@ -127,7 +127,7 @@ export function getPreventReturnReviewStages(
         },
         {
           key: "restock_enabled",
-          label: "Nhập lại kho FBS sau kiểm tra",
+          label: "Nhập lại kho sau kiểm tra",
           prefillValue: "off",
           required: true,
           editable: true,
@@ -144,18 +144,12 @@ export function getPreventReturnReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${preventReturnFixture.toolName}`,
-        `Khả năng: ${preventReturnFixture.capabilityLabel}`,
-        `Điều kiện: ${preventReturnFixture.eligibility}`,
-        preventReturnFixture.knownLimits,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(preventReturnFixture),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body:
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện. Demo không gọi TikTok API thật.",
+      body: buildSellerApproveBody(),
     },
   ];
 }

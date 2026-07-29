@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecommendationReview } from "../components/recommendation-review";
 import { getWorkflowReviewStages } from "../lib/reviews";
+import { confirmApproveThroughGate } from "./review-test-helpers";
 import { UPDATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/update-activity";
 
 const push = vi.fn();
@@ -132,7 +133,7 @@ describe("Workflow 7c review → approve → In Progress", () => {
     render(<RecommendationReview workflowKey={UPDATE_ACTIVITY_WORKFLOW_KEY} />);
 
     await advanceToApprove(user);
-    await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+    await confirmApproveThroughGate(user);
 
     expect(mockStartExecution).toHaveBeenCalledTimes(1);
     expect(mockStartExecution).toHaveBeenCalledWith(UPDATE_ACTIVITY_WORKFLOW_KEY);

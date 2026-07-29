@@ -7,6 +7,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   FilterChip,
   PageHeader,
   TextField,
@@ -19,6 +20,7 @@ import {
   buildReviewInputDefaultsForWorkflow,
   getWorkflowReviewStages,
 } from "../lib/reviews";
+import { SELLER_APPROVE_GATE } from "../lib/review-seller-copy";
 import { buildDecisionsHighlightHref } from "../lib/recommendations";
 import { useDemoState } from "./demo-state";
 
@@ -37,6 +39,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
   const { mutableState, startExecution, updateMutableState } = useDemoState();
   const stages = getWorkflowReviewStages(workflowKey);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [approveGateOpen, setApproveGateOpen] = useState(false);
   const progressId = useId();
   const announcementId = useId();
 
@@ -90,7 +93,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
     setCurrentIndex(nextIndex);
   };
 
-  const handleApprove = () => {
+  const handleApproveConfirm = () => {
     const executionId = startExecution(workflowKey);
     router.push(`/decisions/in-progress/${executionId}`);
   };
@@ -221,7 +224,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
             Quay lại
           </Button>
           {isApproveStage ? (
-            <Button onClick={handleApprove} type="button">
+            <Button onClick={() => setApproveGateOpen(true)} type="button">
               Phê duyệt
             </Button>
           ) : (
@@ -234,6 +237,16 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
           )}
         </CardFooter>
       </Card>
+
+      <ConfirmDialog
+        cancelLabel={SELLER_APPROVE_GATE.cancelLabel}
+        confirmLabel={SELLER_APPROVE_GATE.confirmLabel}
+        description={SELLER_APPROVE_GATE.description}
+        onConfirm={handleApproveConfirm}
+        onOpenChange={setApproveGateOpen}
+        open={approveGateOpen}
+        title={SELLER_APPROVE_GATE.title}
+      />
     </section>
   );
 }

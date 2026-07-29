@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { recommendationFixtures } from "../../../recommendations";
+import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import {
   CREATE_ACTIVITY_WORKFLOW_KEY,
   defaultCreateActivityAnalyticsMetricKey,
@@ -37,8 +38,8 @@ describe("getCreateActivityReviewStages", () => {
 
     expect(why?.body).toContain(fixture!.reasoning);
     expect(why?.body).toContain(fixture!.signal);
-    expect(why?.body).toContain(fixture!.evidence);
     expect(why?.body).toContain(fixture!.risks);
+    expect(why?.body).not.toMatch(/\bFBS\b/);
   });
 
   it("requires shop-confirmed promotion inputs without invented discount defaults", () => {
@@ -69,7 +70,7 @@ describe("getCreateActivityReviewStages", () => {
     );
   });
 
-  it("labels FBT promotion scaffold as Unresolved/Unfilled in preview", () => {
+  it("uses seller-language preview without backend jargon", () => {
     const fixture = recommendationFixtures.find(
       (entry) => entry.workflowKey === CREATE_ACTIVITY_WORKFLOW_KEY,
     );
@@ -77,9 +78,9 @@ describe("getCreateActivityReviewStages", () => {
       (stage) => stage.stage === "preview",
     );
 
-    expect(preview?.body).toContain(fixture!.toolName);
-    expect(preview?.body).toContain(fixture!.capabilityLabel);
-    expect(preview?.body).toContain(fixture!.knownLimits);
-    expect(preview?.body).toMatch(/FBT.*Unresolved\/Unfilled/i);
+    expect(preview?.body).toContain(fixture!.sellerReason);
+    for (const pattern of REVIEW_UI_BANNED_PATTERNS) {
+      expect(preview?.body ?? "").not.toMatch(pattern);
+    }
   });
 });

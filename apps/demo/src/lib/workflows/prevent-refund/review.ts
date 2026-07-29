@@ -1,6 +1,11 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const PREVENT_REFUND_WORKFLOW_KEY = "prevent_refund_8c";
 export const PREVENT_REFUND_TOOL_NAME = "returns.prevent_refund";
@@ -38,12 +43,7 @@ export function getPreventRefundReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        preventRefundFixture.reasoning,
-        preventRefundFixture.signal,
-        preventRefundFixture.evidence,
-        preventRefundFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(preventRefundFixture),
     },
     {
       stage: "analytics",
@@ -127,18 +127,12 @@ export function getPreventRefundReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${preventRefundFixture.toolName}`,
-        `Khả năng: ${preventRefundFixture.capabilityLabel}`,
-        `Điều kiện: ${preventRefundFixture.eligibility}`,
-        preventRefundFixture.knownLimits,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(preventRefundFixture),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body:
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện. Demo không gọi TikTok API thật.",
+      body: buildSellerApproveBody(),
     },
   ];
 }

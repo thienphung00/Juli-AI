@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { recommendationFixtures } from "../../../recommendations";
+import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import {
   OPTIMIZE_PRODUCT_WORKFLOW_KEY,
   defaultOptimizeProductAnalyticsMetricKey,
@@ -47,11 +48,11 @@ describe("getOptimizeProductReviewStages", () => {
 
     expect(why?.body).toContain(fixture!.reasoning);
     expect(why?.body).toContain(fixture!.signal);
-    expect(why?.body).toContain(fixture!.evidence);
     expect(why?.body).toContain(fixture!.risks);
+    expect(why?.body).not.toMatch(/\bFBS\b/);
   });
 
-  it("describes editable Inputs fields with Get Product prefill and off-by-default assets", () => {
+  it("describes editable Inputs fields with product prefill and off-by-default assets", () => {
     const inputs = getOptimizeProductReviewStages().find(
       (stage) => stage.stage === "inputs",
     );
@@ -94,7 +95,7 @@ describe("getOptimizeProductReviewStages", () => {
     );
   });
 
-  it("labels FBT scaffold as unfilled and margin-floor guard in preview without inventing thresholds", () => {
+  it("uses seller-language preview with margin-floor guard and no backend jargon", () => {
     const fixture = recommendationFixtures.find(
       (entry) => entry.workflowKey === OPTIMIZE_PRODUCT_WORKFLOW_KEY,
     );
@@ -102,10 +103,10 @@ describe("getOptimizeProductReviewStages", () => {
       (stage) => stage.stage === "preview",
     );
 
-    expect(preview?.body).toContain(fixture!.toolName);
-    expect(preview?.body).toContain(fixture!.capabilityLabel);
-    expect(preview?.body).toContain(fixture!.knownLimits);
-    expect(preview?.body).toMatch(/FBT.*(?:chưa|Chưa|Unresolved|Unfilled)/i);
+    expect(preview?.body).toContain(fixture!.sellerReason);
     expect(preview?.body).toMatch(/sàn lợi nhuận/i);
+    for (const pattern of REVIEW_UI_BANNED_PATTERNS) {
+      expect(preview?.body ?? "").not.toMatch(pattern);
+    }
   });
 });

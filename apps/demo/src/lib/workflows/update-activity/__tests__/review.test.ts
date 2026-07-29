@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { recommendationFixtures } from "../../../recommendations";
+import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import {
   UPDATE_ACTIVITY_WORKFLOW_KEY,
   defaultUpdateActivityAnalyticsMetricKey,
@@ -56,11 +57,17 @@ describe("getUpdateActivityReviewStages", () => {
     );
   });
 
-  it("labels FBT promotion scaffold as Unresolved/Unfilled in preview", () => {
+  it("uses seller-language preview without backend jargon", () => {
+    const fixture = recommendationFixtures.find(
+      (entry) => entry.workflowKey === UPDATE_ACTIVITY_WORKFLOW_KEY,
+    );
     const preview = getUpdateActivityReviewStages().find(
       (stage) => stage.stage === "preview",
     );
 
-    expect(preview?.body).toMatch(/FBT.*Unresolved\/Unfilled/i);
+    expect(preview?.body).toContain(fixture!.sellerReason);
+    for (const pattern of REVIEW_UI_BANNED_PATTERNS) {
+      expect(preview?.body ?? "").not.toMatch(pattern);
+    }
   });
 });

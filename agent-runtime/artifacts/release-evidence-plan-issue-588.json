@@ -1,0 +1,78 @@
+{
+  "planId": "rep-588-dvr-a5-five-stage-review-seller-language",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-five-stage-review-why-to-approve",
+        "entryUrl": "/decisions/recommendations/fixture-recommendation",
+        "assertions": [
+          "html_200",
+          "stage_nav_why_analytics_inputs_preview_approve_vi_headings",
+          "analytics_stage_evidence_links_inspectable",
+          "inputs_preview_prefilled_editable_seller_fields",
+          "approve_opens_gate_routes_in_progress_on_success",
+          "banned_fbs_confidence_jargon_and_tool_names_absent",
+          "preview_to_approve_path_reachable",
+          "in_progress_execution_detail_ui_unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/recommendations/fixture-recommendation"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Five-stage review seller language + navigation only; reuses existing Decision payload and per-workflow review stage definitions; no new backend intelligence or DB/API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 588"
+  ],
+  "doNotInfer": [
+    "Recommendations list card layout (DVR-A4)",
+    "In Progress sub-tab presentation or route changes",
+    "New recommendation/ranking backend",
+    "Settings configuration UI",
+    "Home or Analytics polish (DVR-A2/A3)",
+    "ECS/ALB cutover",
+    "release evidence fields beyond this plan"
+  ]
+}

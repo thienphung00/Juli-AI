@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { recommendationFixtures } from "../../../recommendations";
+import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import {
-  PROCESS_ORDER_FBT_INTAKE_KEY,
   PROCESS_ORDER_WORKFLOW_KEY,
   defaultProcessOrderAnalyticsMetricKey,
   getProcessOrderReviewStages,
@@ -48,8 +48,8 @@ describe("getProcessOrderReviewStages", () => {
 
     expect(why?.body).toContain(fixture!.reasoning);
     expect(why?.body).toContain(fixture!.signal);
-    expect(why?.body).toContain(fixture!.evidence);
     expect(why?.body).toContain(fixture!.risks);
+    expect(why?.body).not.toMatch(/\bFBS\b/);
   });
 
   it("describes read-only T5 priority and off-by-default split/combine inputs", () => {
@@ -90,7 +90,7 @@ describe("getProcessOrderReviewStages", () => {
     );
   });
 
-  it("labels FBT scaffold as unfilled and cites unresolved SLA trigger without inventing thresholds", () => {
+  it("uses seller-language preview with fulfillment summary and no backend jargon", () => {
     const fixture = recommendationFixtures.find(
       (entry) => entry.workflowKey === PROCESS_ORDER_WORKFLOW_KEY,
     );
@@ -98,11 +98,10 @@ describe("getProcessOrderReviewStages", () => {
       (stage) => stage.stage === "preview",
     );
 
-    expect(preview?.body).toContain(fixture!.toolName);
-    expect(preview?.body).toContain(fixture!.capabilityLabel);
-    expect(preview?.body).toContain(fixture!.knownLimits);
-    expect(preview?.body).toContain(PROCESS_ORDER_FBT_INTAKE_KEY);
-    expect(preview?.body).toMatch(/Unresolved|Unfilled|chưa/i);
-    expect(fixture!.knownLimits).toMatch(/Ngưỡng.*chưa được xác định/i);
+    expect(preview?.body).toContain(fixture!.sellerReason);
+    expect(preview?.body).toMatch(/Ngưỡng thời gian.*chưa được xác định/i);
+    for (const pattern of REVIEW_UI_BANNED_PATTERNS) {
+      expect(preview?.body ?? "").not.toMatch(pattern);
+    }
   });
 });
