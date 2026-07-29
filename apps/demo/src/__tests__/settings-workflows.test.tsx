@@ -38,7 +38,7 @@ describe("Settings — visitor disabled placeholder", () => {
     push.mockClear();
     replace.mockClear();
   });
-  it("keeps Cài đặt heading and disabled tabs discoverable with aria-disabled", () => {
+  it("keeps Settings nav destination discoverable with Cài đặt heading and aria-disabled tabs", () => {
     renderSettings();
 
     expect(screen.getByRole("heading", { name: "Cài đặt" })).toBeInTheDocument();
