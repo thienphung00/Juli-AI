@@ -1,11 +1,11 @@
 {
   "id": "validation-issue-583",
   "issue": 583,
-  "timestamp": "2026-07-29T06:35:42Z",
+  "timestamp": "2026-07-29T06:38:47Z",
   "validatedBy": "validate skill",
-  "status": "FAIL",
-  "passedChecks": 20,
-  "failedChecks": 1,
+  "status": "PASS",
+  "passedChecks": 21,
+  "failedChecks": 0,
   "checks": [
     {
       "name": "review_artifact_present",
@@ -33,19 +33,13 @@
     },
     {
       "name": "acceptance_criteria_mapped",
-      "status": "FAIL",
-      "description": "Acceptance criteria mapping invalid",
+      "status": "PASS",
+      "description": "All acceptance criteria mapped to tests",
       "details": {
         "total": 6,
         "mapped": 6,
         "unmapped": [],
-        "problems": [
-          "criterion/test name mismatch: 'Reference bundles exist for Home, Analytics, Recommendations' -> test_dvr_a0_bundle_file_exists",
-          "criterion/test name mismatch: 'Output adapts to ADR-015 semantic tokens' -> test_dvr_a0_readme_documents_ephemeral_scope_and_destinations",
-          "criterion/test name mismatch: 'Vietnamese copy remains dictionary.md + design-context.md' -> test_dvr_a0_bundles_document_copy_authority_and_mcp_provenance",
-          "criterion/test name mismatch: 'Bundles are PRD-scoped ephemeral' -> test_dvr_a0_readme_documents_ephemeral_scope_and_destinations",
-          "criterion/test name mismatch: 'Product/design sign-off recorded or waived' -> test_dvr_a0_hitl_waiver_documented"
-        ]
+        "problems": []
       }
     },
     {
@@ -278,8 +272,8 @@
       }
     }
   ],
-  "overallSummary": "1 validation check(s) failed.",
-  "readyForMerge": false,
+  "overallSummary": "All validation checks passed.",
+  "readyForMerge": true,
   "warningGated": false,
   "mergeBlockedByWarnings": false,
   "mergeOverrideActive": false,
@@ -288,11 +282,11 @@
   "schemaVersion": "1.0.0",
   "artifactType": "validation",
   "sourceReviewArtifact": "agent-runtime/artifacts/reviews/review-issue-583.json",
-  "validationFailures": 1,
-  "readyForShip": false,
+  "validationFailures": 0,
+  "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 6,
-  "testsPassed": 6,
+  "testsExecuted": 8,
+  "testsPassed": 8,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
