@@ -1,5 +1,7 @@
 # Parallel status — TikTok Business OAuth (#489)
 
+> **DVR-B1 (#581):** `feature/issue-581-dvr-b1` · worktree `.worktrees/issue-581` · validate PASS · parent [#580](https://github.com/thienphung00/Juli-AI/issues/580)
+
 **Started:** 2026-07-23 · **Parent PRD:** [#489](https://github.com/thienphung00/Juli-AI/issues/489) · Meta prepares; Executor → Review → Ship
 
 ## Locked decisions
