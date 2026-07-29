@@ -139,6 +139,12 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - _Avoid_: Giải thích, Phân tích AI
 - Definition: The expandable explanation for a recommendation.
 
+**`decisions.seller_reason`**
+- EN: Seller reason
+- VI: Lý do nên làm
+- _Avoid_: Giải thích AI, Phân tích hệ thống
+- Definition: One concise benefit-led line on a recommendation card surface.
+
 **`decisions.status.needs_input`**
 - EN: Needs input
 - VI: Cần thêm thông tin

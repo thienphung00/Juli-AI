@@ -11,10 +11,42 @@ export interface RecommendationFixture {
   knownLimits: string;
   reasoning: string;
   risks: string;
+  sellerReason: string;
   signal: string;
   title: string;
   toolName: string;
   workflowKey: string;
+}
+
+export const DEMO_RECOMMENDATIONS_API_PATH = "/v1/demo/recommendations" as const;
+
+export class DemoRecommendationsFetchError extends Error {
+  constructor(public readonly status: number) {
+    super(`Demo recommendations fetch failed (${status})`);
+    this.name = "DemoRecommendationsFetchError";
+  }
+}
+
+export function buildRecommendationDetailHref(workflowKey: string): string {
+  return `/decisions/recommendations/${workflowKey}`;
+}
+
+export function buildDecisionsHighlightHref(workflowKey: string): string {
+  return `/decisions?highlight=${encodeURIComponent(workflowKey)}`;
+}
+
+export function toSellerFacingRecommendation(
+  fixture: RecommendationFixture,
+): Pick<
+  RecommendationFixture,
+  "sellerReason" | "signal" | "title" | "workflowKey"
+> {
+  return {
+    sellerReason: fixture.sellerReason,
+    signal: fixture.signal,
+    title: fixture.title,
+    workflowKey: fixture.workflowKey,
+  };
 }
 
 const FBS_EXECUTABLE = "Có thể thực thi qua FBS";
@@ -33,6 +65,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Juli phát hiện khoảng trống nhu cầu chưa được đáp ứng trong danh mục chăm sóc da.",
+    sellerReason:
+      "Thêm sản phẩm chăm sóc da giúp shop bắt kịp nhu cầu đang tăng.",
     evidence:
       "Đã theo dõi tín hiệu nhu cầu trong khoảng thời gian tối thiểu theo quy tắc hiện có; chưa có sản phẩm nào của shop đang hoạt động trong danh mục này.",
     eligibility:
@@ -55,6 +89,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: formatVND(2_100_000),
     reasoning:
       "Hiệu suất bán hàng thực tế cho thấy sản phẩm này có thể tối ưu tiêu đề, ảnh và giá.",
+    sellerReason:
+      "Chỉnh tiêu đề và ảnh có thể giúp sản phẩm này bán tốt hơn.",
     evidence:
       "Dữ liệu hiệu suất theo SKU và tỷ lệ chuyển đổi theo danh mục cho thấy sản phẩm chưa đạt mức kỳ vọng.",
     eligibility:
@@ -76,6 +112,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Tốc độ bán hiện tại cho thấy sản phẩm sẽ hết hàng trong vài ngày tới nếu không nhập thêm.",
+    sellerReason:
+      "Nhập thêm hàng kịp thời giúp tránh hết hàng trong vài ngày tới.",
     evidence: "Số lượng tồn kho hiện tại tại kho FBS và tốc độ bán gần đây.",
     eligibility:
       "Cần một SKU đã xác thực, kho FBS xác định, số liệu tồn kho hiện tại, và số lượng đặt hàng lại được duyệt.",
@@ -97,6 +135,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: formatVND(1_600_000),
     reasoning:
       "Hàng tồn lâu ngày đang chiếm kho và có thể được xả bằng khuyến mãi hoặc giảm giá.",
+    sellerReason:
+      "Giảm giá hoặc khuyến mãi có thể giúp xả hàng tồn lâu ngày nhanh hơn.",
     evidence:
       "Dữ liệu tuổi hàng tồn và tốc độ quay vòng cho thấy lô hàng này bán chậm hơn mức bình thường.",
     eligibility:
@@ -119,6 +159,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "Giảm rủi ro trễ hạn cho 6 đơn hàng",
     reasoning:
       "Các đơn hàng này đang ở trạng thái chờ giao và gần tới hạn xử lý theo SLA.",
+    sellerReason:
+      "Xử lý sớm 6 đơn này giúp giảm nguy cơ trễ hạn giao.",
     evidence:
       "Trạng thái đơn hàng, hạn chót, và loại vận chuyển được đọc trực tiếp từ đơn hàng đã xác thực.",
     eligibility:
@@ -141,6 +183,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Các SKU này đủ điều kiện chạy khuyến mãi và chưa có chương trình đang hoạt động trùng lặp.",
+    sellerReason:
+      "Chạy khuyến mãi tuần này có thể kích thích doanh số nhóm chăm sóc da.",
     evidence:
       "Giá và SKU hiện tại đã được xác thực; không có chương trình khuyến mãi trùng lặp đang hoạt động.",
     eligibility:
@@ -163,6 +207,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Activity đang hoạt động nhưng hiệu suất chưa đạt kỳ vọng — cần cập nhật cấu hình hoặc sản phẩm tham gia.",
+    sellerReason:
+      "Điều chỉnh chương trình đang chạy có thể cải thiện hiệu suất bán.",
     evidence:
       "activity_id ACT-8842 đã được theo dõi từ lần tạo trước; SKU và giá hiện tại đã xác thực.",
     eligibility:
@@ -185,6 +231,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Cửa sổ khuyến mãi đã qua hoặc chiến lược thay đổi — shop nên vô hiệu hoá activity để tránh giảm giá ngoài ý muốn.",
+    sellerReason:
+      "Kết thúc chương trình hết hạn giúp tránh giảm giá ngoài ý muốn.",
     evidence:
       "activity_id ACT-7720 đã được theo dõi; trạng thái hiện tại đọc qua Get Activity, không qua tìm kiếm.",
     eligibility:
@@ -206,6 +254,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Người mua đã gửi yêu cầu huỷ đơn trước khi hàng được giao; shop cần quyết định phê duyệt hoặc từ chối.",
+    sellerReason:
+      "Quyết định sớm giúp giữ đơn hoặc giải phóng hàng đúng hạn.",
     evidence:
       "Trạng thái yêu cầu, hạn xử lý, và lý do người mua nêu được đọc trực tiếp từ đơn hàng.",
     eligibility:
@@ -227,6 +277,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Người mua đã gửi yêu cầu trả hàng sau khi nhận hàng; cần xác minh tình trạng thực tế trước khi quyết định.",
+    sellerReason:
+      "Xác minh và quyết định kịp thời giúp xử lý trả hàng rõ ràng hơn.",
     evidence:
       "Trạng thái yêu cầu và lý do trả hàng được đọc trực tiếp; dữ liệu rủi ro dựa trên quy tắc hiện có, không phải điểm số dự đoán.",
     eligibility:
@@ -248,6 +300,8 @@ export const recommendationFixtures = [
     expectedImpactLabel: "—",
     reasoning:
       "Yêu cầu hoàn tiền đã được ghi nhận và có kết quả tính toán số tiền hợp lệ.",
+    sellerReason:
+      "Quyết định hoàn tiền đúng hạn giúp tránh leo thang tranh chấp.",
     evidence:
       "Yêu cầu được xác thực qua hệ thống hậu mãi; số tiền tính toán chỉ hiển thị khi có kết quả hợp lệ.",
     eligibility:
@@ -258,3 +312,33 @@ export const recommendationFixtures = [
       "Không có hoàn tiền nào được xác nhận đã thực hiện trước khi có xác nhận trạng thái cuối cùng; không có hành động tồn kho nào gắn với luồng này (được xử lý riêng ở luồng trả hàng).",
   },
 ] as const satisfies readonly RecommendationFixture[];
+
+export async function fetchRecommendations(
+  fetchImpl: typeof fetch = fetch,
+): Promise<readonly RecommendationFixture[]> {
+  try {
+    const response = await fetchImpl(DEMO_RECOMMENDATIONS_API_PATH, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new DemoRecommendationsFetchError(response.status);
+    }
+
+    const payload = (await response.json()) as {
+      recommendations?: RecommendationFixture[];
+    };
+
+    if (
+      Array.isArray(payload.recommendations) &&
+      payload.recommendations.length > 0
+    ) {
+      return payload.recommendations;
+    }
+  } catch {
+    // Phase 2.10 read path optional — fixtures remain authoritative in Demo.
+  }
+
+  return recommendationFixtures;
+}

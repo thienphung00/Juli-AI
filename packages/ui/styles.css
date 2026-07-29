@@ -392,6 +392,22 @@
   letter-spacing: -0.01em;
 }
 
+.juli-recommendation-card__title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.juli-recommendation-card__title-link:hover {
+  color: var(--juli-primary-strong);
+  text-decoration: underline;
+}
+
+.juli-recommendation-card__title-link:focus-visible {
+  border-radius: var(--juli-radius-sm);
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 2px;
+}
+
 .juli-recommendation-card__signal,
 .juli-recommendation-card__reasoning {
   margin: 0;
