@@ -1,0 +1,88 @@
+{
+  "id": "review-issue-583",
+  "issue": 583,
+  "timestamp": "2026-07-29T06:33:30Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #583 DVR-A0: intent-review spec_fidelity=pass. Ephemeral Home/Analytics/Recommendations reference bundles with Mobbin+OD provenance, ADR-015 adaptation, dictionary copy authority, HITL waiver documented. Slice-routing DVR-A0/A1/A6 append-only after MMU restore. 6 unit tests pass. No Demo UI or In Progress changes.",
+  "criticalFindings": [
+    {
+      "id": "583-info-slice-routing-restore",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "agent-runtime/config/slice-routing.yml",
+      "description": "Initial worktree bootstrap briefly deleted MMU rows; restored via follow-up commit before PR.",
+      "suggestion": "Copy slice-routing from origin/main before appending new rows in parallel worktrees."
+    }
+  ],
+  "modulesTouched": [
+    "docs/handoffs/dvr-a0-reference-bundles/README.md",
+    "docs/handoffs/dvr-a0-reference-bundles/home.md",
+    "docs/handoffs/dvr-a0-reference-bundles/analytics.md",
+    "docs/handoffs/dvr-a0-reference-bundles/recommendations.md",
+    "docs/handoffs/dvr-a0-handoff-note.md",
+    "tests/unit/test_dvr_a0_reference_bundles.py",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/artifacts/implementations/implementation-issue-583.json"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Reference bundles exist for Home, Analytics, Recommendations",
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_reference_bundles_exist_for_home_analytics_recommendations"
+        },
+        {
+          "criterion": "Bundles document OD layouts and Mobbin screens",
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_bundles_document_od_layouts_and_mobbin_screens_with_dictionary_copy"
+        },
+        {
+          "criterion": "Output adapts to ADR-015 semantic tokens",
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_bundles_are_prd_scoped_ephemeral_and_adapt_adr015_semantic_tokens"
+        },
+        {
+          "criterion": "Vietnamese copy remains dictionary.md + design-context.md",
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_vietnamese_copy_remains_dictionary_design_context_authority"
+        },
+        {
+          "criterion": "Bundles are PRD-scoped ephemeral",
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_bundles_are_prd_scoped_ephemeral_and_adapt_adr015_semantic_tokens"
+        },
+        {
+          "criterion": "Product/design sign-off recorded or waived",
+          "test": "tests/unit/test_dvr_a0_reference_bundles.py::test_product_design_sign_off_recorded_or_waived"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 8,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "A2/A3 should consume bundles under docs/handoffs/dvr-a0-reference-bundles/"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "origin/main..de7315cb on feature/issue-583-dvr-a0-refs",
+  "phaseRunId": "583-20260729T062500",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review"
+}
