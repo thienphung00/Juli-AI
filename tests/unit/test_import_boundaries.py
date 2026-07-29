@@ -64,16 +64,56 @@ def test_no_microservices_single_deployable_unchanged_by_import_checker() -> Non
     assert config.root_package == "juli_backend"
 
 
-def test_check_import_boundaries_warn_mode_exits_zero_on_repo_scan() -> None:
-    """Production tree may violate until MMU-3; default local run warns only."""
+def test_nightly_audit_remains_not_only_enforcement() -> None:
+    """Nightly architecture-audit.yml may remain; pr.yml gates enforce on PR."""
+    workflow = (ROOT / ".github/workflows/pr.yml").read_text(encoding="utf-8")
+    audit = (ROOT / ".github/workflows/architecture-audit.yml").read_text(encoding="utf-8")
+    assert "architecture-gates:" in workflow
+    assert "architecture-audit" in audit or "architecture-audit.yml" in str(
+        ROOT / ".github/workflows/architecture-audit.yml"
+    )
+
+
+def test_ci_architecture_gates_use_strict_import_check() -> None:
+    """MMU-3 wires --strict import boundaries in pr.yml architecture-gates job."""
+    workflow = (ROOT / ".github/workflows/pr.yml").read_text(encoding="utf-8")
+    assert "architecture-gates:" in workflow
+    assert "check_import_boundaries.py --strict" in workflow.replace("\n", " ") or (
+        "check_import_boundaries.py" in workflow and "--strict" in workflow
+    )
+
+
+def test_strict_with_baseline_passes_for_known_production_debt() -> None:
+    """Strict + baseline passes when only grandfathered violations remain."""
+    baseline = ROOT / "docs/architecture/import-boundary-baseline.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CHECK_SCRIPT),
+            "--strict",
+            "--baseline-file",
+            str(baseline),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "import_boundaries: PASS" in result.stdout
+
+
+def test_log_output_names_violating_edge_owner_for_agents() -> None:
+    """Strict mode prints importer package, target package, and module for agents."""
     result = subprocess.run(
         [
             sys.executable,
             str(CHECK_SCRIPT),
             "--config",
-            str(ROOT / ".importlinter.toml"),
+            str(SYNTHETIC_CONFIG),
             "--scan-root",
-            str(ROOT / "backend/src/juli_backend"),
+            str(SYNTHETIC_SCAN_ROOT),
+            "--strict",
         ],
         cwd=ROOT,
         capture_output=True,
@@ -81,5 +121,8 @@ def test_check_import_boundaries_warn_mode_exits_zero_on_repo_scan() -> None:
         check=False,
     )
 
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "import_boundaries: PASS" in result.stdout
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "edge=api->integrations" in combined
+    assert "kind=deep_import" in combined
+    assert "target=juli_backend.integrations.tiktok.client" in combined

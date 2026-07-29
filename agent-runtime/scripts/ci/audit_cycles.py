@@ -22,6 +22,11 @@ from common import (
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", default=date.today().isoformat())
+    parser.add_argument(
+        "--ci",
+        action="store_true",
+        help="PR gate mode: print cycle edges to stderr and skip artifact write",
+    )
     args = parser.parse_args()
 
     modules = parse_architecture_map()
@@ -32,6 +37,16 @@ def main() -> int:
             cycles.append(sorted(component))
         elif component[0] in graph.get(component[0], set()) and component[0] in graph[component[0]]:
             cycles.append(component)
+
+    if args.ci:
+        if cycles:
+            for idx, cycle in enumerate(cycles, start=1):
+                modules_in_cycle = " -> ".join(cycle)
+                print(f"cycle={idx} modules={modules_in_cycle}", file=sys.stderr)
+            print(f"dependency_cycles: FAIL — {len(cycles)} cycle(s)", file=sys.stderr)
+            return 1
+        print("dependency_cycles: PASS — no import cycles")
+        return 0
 
     payload = {
         "id": f"audit-cycles-{args.date}",

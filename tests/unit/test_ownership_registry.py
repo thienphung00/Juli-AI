@@ -117,6 +117,21 @@ def test_boundary_guidance_documented() -> None:
     assert guidance.get("readVsWrite"), "readVsWrite guidance required"
 
 
+def test_registry_cli_prints_check_result_prefix() -> None:
+    """CLI uses ownership_registry: PASS/FAIL prefix for CI log parsing."""
+    import subprocess
+
+    result = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "agent-runtime/scripts/ci/check_ownership_registry.py")],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ownership_registry: PASS" in result.stdout
+
+
 def test_registry_fails_when_celery_task_missing_from_registry() -> None:
     registry = load_ownership_registry()
     tasks = discover_celery_task_names()
@@ -127,4 +142,4 @@ def test_registry_fails_when_celery_task_missing_from_registry() -> None:
         "celeryTasks": {k: v for k, v in registry["celeryTasks"].items() if k != victim},
     }
     errors = validate_registry_completeness(broken)
-    assert any("Celery tasks missing" in err for err in errors)
+    assert any("celeryTasks missing owner registration" in err for err in errors)

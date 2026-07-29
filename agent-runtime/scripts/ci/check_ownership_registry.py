@@ -9,7 +9,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common import REPO_ROOT, print_check_result  # noqa: E402
+
 REGISTRY_PATH = REPO_ROOT / "docs" / "architecture" / "ownership-registry.yml"
 MODELS_PATH = REPO_ROOT / "backend" / "src" / "juli_backend" / "models" / "models.py"
 PERSISTENCE_ROOT = (
@@ -88,29 +90,41 @@ def validate_registry_completeness(registry: dict[str, Any] | None = None) -> li
     missing_tables = sorted(tables - registered_tables)
     extra_tables = sorted(registered_tables - tables)
     if missing_tables:
-        errors.append(f"ORM tables missing from registry: {', '.join(missing_tables)}")
+        errors.append(
+            "databaseTables missing owner registration: "
+            + ", ".join(f"table={name}" for name in missing_tables)
+        )
     if extra_tables:
-        errors.append(f"Registry lists unknown ORM tables: {', '.join(extra_tables)}")
+        errors.append(
+            "databaseTables unknown in ORM: "
+            + ", ".join(f"table={name}" for name in extra_tables)
+        )
 
     tasks = discover_celery_task_names()
     registered_tasks = set(reg.get("celeryTasks") or {})
     missing_tasks = sorted(tasks - registered_tasks)
     extra_tasks = sorted(registered_tasks - tasks)
     if missing_tasks:
-        errors.append(f"Celery tasks missing from registry: {', '.join(missing_tasks)}")
+        errors.append(
+            "celeryTasks missing owner registration: "
+            + ", ".join(f"task={name}" for name in missing_tasks)
+        )
     if extra_tasks:
-        errors.append(f"Registry lists unknown Celery tasks: {', '.join(extra_tasks)}")
+        errors.append(
+            "celeryTasks unknown in workers package: "
+            + ", ".join(f"task={name}" for name in extra_tasks)
+        )
 
     allowed = set(reg.get("planningModules") or [])
     for table, entry in (reg.get("databaseTables") or {}).items():
         owner = (entry or {}).get("owner")
         if owner not in allowed:
-            errors.append(f"databaseTables.{table} owner {owner!r} not in planningModules")
+            errors.append(f"databaseTables.{table} owner={owner!r} not in planningModules")
 
     for task, entry in (reg.get("celeryTasks") or {}).items():
         owner = (entry or {}).get("owner")
         if owner not in allowed:
-            errors.append(f"celeryTasks.{task} owner {owner!r} not in planningModules")
+            errors.append(f"celeryTasks.{task} owner={owner!r} not in planningModules")
 
     patterns = {e.get("pattern") for e in reg.get("redisNamespaces") or []}
     required_redis_patterns = {
@@ -166,15 +180,25 @@ def validate_registry_completeness(registry: dict[str, Any] | None = None) -> li
 
 def main() -> int:
     if not REGISTRY_PATH.is_file():
-        print(f"missing registry: {REGISTRY_PATH}", file=sys.stderr)
-        return 1
+        return print_check_result(
+            "ownership_registry",
+            False,
+            f"missing registry file: {REGISTRY_PATH.relative_to(REPO_ROOT)}",
+        )
     errors = validate_registry_completeness()
     if errors:
         for err in errors:
             print(err, file=sys.stderr)
-        return 1
-    print(f"ownership registry OK ({REGISTRY_PATH.relative_to(REPO_ROOT)})")
-    return 0
+        return print_check_result(
+            "ownership_registry",
+            False,
+            f"{len(errors)} drift item(s); first: {errors[0]}",
+        )
+    return print_check_result(
+        "ownership_registry",
+        True,
+        f"registry complete ({REGISTRY_PATH.relative_to(REPO_ROOT)})",
+    )
 
 
 if __name__ == "__main__":
