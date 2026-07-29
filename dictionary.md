@@ -110,6 +110,17 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - _Avoid_: Quy tắc tự động when no automation exists
 - Definition: Trigger and tolerance configuration within Settings.
 
+**`empty.settings.sign_in_required`**
+- EN: Workflow templates and thresholds require Sign-in. You can still explore the full Demo with mock data.
+- VI: Mẫu quy trình và ngưỡng yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.
+- _Avoid_: Đăng nhập để tiếp tục (when Sign-in is not yet available)
+- Definition: Honest visitor placeholder on the Settings destination.
+
+**`empty.settings.workflow_detail.sign_in_required`**
+- EN: Editing workflow templates requires Sign-in. You can still explore the full Demo with mock data.
+- VI: Chỉnh sửa mẫu quy trình yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.
+- Definition: Honest visitor placeholder on a Settings workflow detail route.
+
 **`common.juli_assistance`**
 - EN: Juli assistance
 - VI: Gợi ý từ Juli
