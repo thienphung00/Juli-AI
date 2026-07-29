@@ -924,6 +924,11 @@ def enrich_validation_artifact(
     artifact.setdefault("executionDurationMs", 0)
     if review and review.get("phaseRunId"):
         artifact["phaseRunId"] = review["phaseRunId"]
+    # Stamp releaseEvidencePlanId from implementation so ADR-035 continuity
+    # can verify the written validation artifact (generator runs gates first).
+    implementation = load_implementation_artifact(issue)
+    if implementation and implementation.get("releaseEvidencePlanId"):
+        artifact["releaseEvidencePlanId"] = implementation["releaseEvidencePlanId"]
     return artifact
 
 
