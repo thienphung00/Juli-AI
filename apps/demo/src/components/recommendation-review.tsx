@@ -19,6 +19,7 @@ import {
   buildReviewInputDefaultsForWorkflow,
   getWorkflowReviewStages,
 } from "../lib/reviews";
+import { buildDecisionsHighlightHref } from "../lib/recommendations";
 import { useDemoState } from "./demo-state";
 
 interface RecommendationReviewProps {
@@ -100,6 +101,12 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
         subtitle="Xem lý do, bằng chứng và thông tin cần xác nhận trước khi phê duyệt."
         title="Xem xét đề xuất"
       />
+
+      <p className="demo-review__back">
+        <Link href={buildDecisionsHighlightHref(workflowKey)}>
+          Về danh sách đề xuất
+        </Link>
+      </p>
 
       <nav
         aria-label="Tiến trình xem xét"

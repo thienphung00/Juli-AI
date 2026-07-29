@@ -7,6 +7,7 @@ import { Button } from "./button";
 
 export interface RecommendationCardProps {
   approveDisabledReason?: string;
+  detailHref?: string;
   eligibility: string;
   evidence: string;
   isHighlighted?: boolean;
@@ -17,6 +18,7 @@ export interface RecommendationCardProps {
   reasoning: string;
   rejectLabel?: string;
   risks: string;
+  sellerReason?: string;
   signal: string;
   title: string;
   workflowKey: string;
@@ -28,6 +30,7 @@ export const RecommendationCard = forwardRef<
 >(function RecommendationCard(
   {
     approveDisabledReason,
+    detailHref,
     eligibility,
     evidence,
     isHighlighted = false,
@@ -38,6 +41,7 @@ export const RecommendationCard = forwardRef<
     reasoning,
     rejectLabel = "Từ chối",
     risks,
+    sellerReason,
     signal,
     title,
     workflowKey,
@@ -50,6 +54,7 @@ export const RecommendationCard = forwardRef<
   const panelId = `${reactId}-panel`;
   const approveNoteId = `${reactId}-approve-note`;
   const approveEnabled = Boolean(onApprove);
+  const cardReason = sellerReason ?? reasoning;
 
   const classNames = [
     "juli-recommendation-card",
@@ -77,13 +82,19 @@ export const RecommendationCard = forwardRef<
         <div className="juli-recommendation-card__heading">
           {isPriority ? <Badge variant="priority">★ Ưu tiên</Badge> : null}
           <h3 className="juli-recommendation-card__title" id={titleId}>
-            {title}
+            {detailHref ? (
+              <a className="juli-recommendation-card__title-link" href={detailHref}>
+                {title}
+              </a>
+            ) : (
+              title
+            )}
           </h3>
         </div>
       </header>
 
       <p className="juli-recommendation-card__signal">{signal}</p>
-      <p className="juli-recommendation-card__reasoning">{reasoning}</p>
+      <p className="juli-recommendation-card__reasoning">{cardReason}</p>
 
       <div className="juli-recommendation-card__actions">
         <Button

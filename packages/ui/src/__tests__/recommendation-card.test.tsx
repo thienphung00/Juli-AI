@@ -11,6 +11,8 @@ const baseProps = {
   onReject: () => {},
   reasoning: "Juli phát hiện khoảng trống nhu cầu chưa được đáp ứng.",
   risks: "Rủi ro mẫu",
+  sellerReason:
+    "Thêm sản phẩm chăm sóc da giúp shop bắt kịp nhu cầu đang tăng.",
   signal:
     "Nhóm ngành chăm sóc da đang có nhu cầu tăng nhưng shop chưa có sản phẩm nào đáp ứng.",
   title: "Tạo sản phẩm nổi bật",
@@ -27,7 +29,7 @@ describe("RecommendationCard", () => {
       within(card).getByRole("heading", { level: 3, name: baseProps.title }),
     ).toBeInTheDocument();
     expect(within(card).getByText(baseProps.signal)).toBeInTheDocument();
-    expect(within(card).getByText(baseProps.reasoning)).toBeInTheDocument();
+    expect(within(card).getByText(baseProps.sellerReason)).toBeInTheDocument();
     expect(within(card).queryByText(/Độ tin cậy/i)).not.toBeInTheDocument();
     expect(
       within(card).queryByText(/Có thể thực thi qua FBS/i),
@@ -48,5 +50,22 @@ describe("RecommendationCard", () => {
     expect(within(card).getByText(baseProps.eligibility)).toBeInTheDocument();
     expect(within(card).getByText(baseProps.knownLimits)).toBeInTheDocument();
     expect(within(card).getByText(baseProps.risks)).toBeInTheDocument();
+  });
+
+  it("links the title to detailHref when provided", () => {
+    render(
+      <RecommendationCard
+        {...baseProps}
+        detailHref="/decisions/recommendations/create_hero_product_1"
+      />,
+    );
+
+    const card = screen.getByRole("article");
+    const titleLink = within(card).getByRole("link", { name: baseProps.title });
+
+    expect(titleLink).toHaveAttribute(
+      "href",
+      "/decisions/recommendations/create_hero_product_1",
+    );
   });
 });

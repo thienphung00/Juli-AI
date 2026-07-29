@@ -62,6 +62,20 @@ describe("Recommendations — copy guard", () => {
     localStorage.clear();
   });
 
+  it("copy guard tests from DVR-A1 remain green", () => {
+    renderView();
+
+    const text = recommendationsPanelText();
+
+    for (const banned of BANNED_COPY) {
+      if (typeof banned === "string") {
+        expect(text).not.toContain(banned);
+      } else {
+        expect(text).not.toMatch(banned);
+      }
+    }
+  });
+
   it("does not render banned FBS or confidence strings in the recommendations panel", () => {
     renderView();
 
@@ -89,7 +103,7 @@ describe("Recommendations — copy guard", () => {
     }
   });
 
-  it("shows signal and one concise reason per card without confidence or capability badges", () => {
+  it("shows signal and one concise benefit-led reason per card without confidence or capability badges", () => {
     renderView();
 
     recommendationFixtures.forEach((fixture) => {
@@ -99,7 +113,7 @@ describe("Recommendations — copy guard", () => {
         within(card).getByRole("heading", { level: 3, name: fixture.title }),
       ).toBeInTheDocument();
       expect(within(card).getByText(fixture.signal)).toBeInTheDocument();
-      expect(within(card).getByText(fixture.reasoning)).toBeInTheDocument();
+      expect(within(card).getByText(fixture.sellerReason)).toBeInTheDocument();
       expect(
         within(card).queryByText(fixture.confidenceLabel),
       ).not.toBeInTheDocument();

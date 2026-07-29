@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { recommendationFixtures } from "../lib/recommendations";
+import {
+  buildRecommendationDetailHref,
+  recommendationFixtures,
+} from "../lib/recommendations";
 import { APPROVABLE_WORKFLOW_KEYS } from "../lib/reviews";
 import { useDemoState } from "./demo-state";
 
@@ -176,6 +179,7 @@ export function RecommendationsPanel({
                   approveDisabledReason={
                     approveEnabled ? undefined : APPROVE_DISABLED_REASON
                   }
+                  detailHref={buildRecommendationDetailHref(fixture.workflowKey)}
                   eligibility={fixture.eligibility}
                   evidence={fixture.evidence}
                   isHighlighted={isHighlighted}
@@ -189,6 +193,7 @@ export function RecommendationsPanel({
                   onReject={() => handleReject(fixture.workflowKey)}
                   reasoning={fixture.reasoning}
                   risks={fixture.risks}
+                  sellerReason={fixture.sellerReason}
                   signal={fixture.signal}
                   title={fixture.title}
                   workflowKey={fixture.workflowKey}

@@ -95,7 +95,7 @@ describe("Decisions — Recommendations", () => {
     expect(replenishment?.expectedImpactLabel).toBe("—");
   });
 
-  it("shows title, signal, and one concise reason on every card", () => {
+  it("shows title, signal, and one concise benefit-led reason on every card", () => {
     renderView();
 
     recommendationFixtures.forEach((fixture) => {
@@ -105,11 +105,24 @@ describe("Decisions — Recommendations", () => {
         within(card).getByRole("heading", { level: 3, name: fixture.title }),
       ).toBeInTheDocument();
       expect(card).toHaveTextContent(fixture.signal);
-      expect(card).toHaveTextContent(fixture.reasoning);
+      expect(card).toHaveTextContent(fixture.sellerReason);
       expect(card).not.toHaveTextContent(fixture.confidenceLabel);
       expect(card).not.toHaveTextContent(fixture.capabilityLabel);
       expect(card.textContent).not.toContain("Tác động dự kiến:");
     });
+  });
+
+  it("routes list title links to the recommendation detail page", () => {
+    renderView();
+
+    const fixture = recommendationFixtures[0];
+    const card = findCard(fixture.workflowKey) as HTMLElement;
+    const titleLink = within(card).getByRole("link", { name: fixture.title });
+
+    expect(titleLink).toHaveAttribute(
+      "href",
+      `/decisions/recommendations/${fixture.workflowKey}`,
+    );
   });
 
   it("Expand reveals evidence, eligibility, known limits, and risks; collapsing hides them again", async () => {
@@ -137,6 +150,24 @@ describe("Decisions — Recommendations", () => {
       within(card).getByRole("button", { name: "Mở rộng" }),
     ).toHaveAttribute("aria-expanded", "false");
     expect(within(card).queryByText(fixture.evidence)).not.toBeInTheDocument();
+  });
+
+  it("reject and expand interactions behave with improved seller copy", async () => {
+    const user = userEvent.setup();
+    renderView();
+
+    const fixture = recommendationFixtures[1];
+    const card = findCard(fixture.workflowKey) as HTMLElement;
+
+    await user.click(within(card).getByRole("button", { name: "Mở rộng" }));
+    expect(within(card).getByText(fixture.evidence)).toBeInTheDocument();
+
+    await user.click(within(card).getByRole("button", { name: "Từ chối" }));
+
+    expect(findCard(fixture.workflowKey)).toBeUndefined();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      `Đã từ chối đề xuất ${fixture.title}.`,
+    );
   });
 
   it("removes a card immediately on Reject while leaving the rest unchanged", async () => {

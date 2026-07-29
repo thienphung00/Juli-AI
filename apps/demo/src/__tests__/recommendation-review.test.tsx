@@ -130,6 +130,17 @@ describe("RecommendationReview", () => {
     });
   });
 
+  it("links back to the decisions list with highlight query for the active workflow", () => {
+    renderReview();
+
+    expect(
+      screen.getByRole("link", { name: "Về danh sách đề xuất" }),
+    ).toHaveAttribute(
+      "href",
+      `/decisions?highlight=${CREATE_HERO_PRODUCT_WORKFLOW_KEY}`,
+    );
+  });
+
   it("renders all five stages in order via Next navigation", async () => {
     const user = userEvent.setup();
     const stages = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY);
