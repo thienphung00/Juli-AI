@@ -115,7 +115,8 @@ export function AnalyticsUnavailableChartPattern({
 }: AnalyticsUnavailableChartPatternProps) {
   return (
     <div
-      className="analytics-unavailable-chart"
+      aria-hidden="true"
+      className="analytics-unavailable-chart analytics-chart-chrome analytics-chart-chrome--empty"
       data-testid="analytics-unavailable-chart"
     >
       <p className="juli-sr-only">{label} — biểu đồ chưa khả dụng</p>
