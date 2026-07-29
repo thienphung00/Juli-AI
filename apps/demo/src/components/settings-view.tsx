@@ -1,26 +1,15 @@
 "use client";
 
-import { useId, useState } from "react";
-
 import { useDemoState } from "./demo-state";
-import { SettingsThresholdsPanel } from "./settings-thresholds-panel";
-import { SettingsWorkflowList } from "./settings-workflow-list";
 
-type SettingsSection = "templates" | "thresholds";
+export const SETTINGS_VISITOR_PLACEHOLDER =
+  "Mẫu quy trình và ngưỡng yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.";
+
+export const SETTINGS_WORKFLOW_DETAIL_VISITOR_PLACEHOLDER =
+  "Chỉnh sửa mẫu quy trình yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.";
 
 export function SettingsView() {
-  const { mutableState, updateMutableState } = useDemoState();
-  const templatesPanelId = useId();
-  const thresholdsPanelId = useId();
-  const activeSection: SettingsSection =
-    mutableState.settingsActiveSection ?? "templates";
-
-  const handleSelectSection = (section: SettingsSection) => {
-    updateMutableState((current) => ({
-      ...current,
-      settingsActiveSection: section,
-    }));
-  };
+  const { requestSignIn } = useDemoState();
 
   return (
     <section aria-labelledby="settings-title" className="settings-view">
@@ -39,22 +28,22 @@ export function SettingsView() {
         role="tablist"
       >
         <button
-          aria-controls={templatesPanelId}
-          aria-selected={activeSection === "templates"}
+          aria-disabled="true"
+          aria-selected="true"
           className="settings-view__tab"
           id="settings-tab-templates"
-          onClick={() => handleSelectSection("templates")}
+          onClick={requestSignIn}
           role="tab"
           type="button"
         >
           Mẫu quy trình
         </button>
         <button
-          aria-controls={thresholdsPanelId}
-          aria-selected={activeSection === "thresholds"}
+          aria-disabled="true"
+          aria-selected="false"
           className="settings-view__tab"
           id="settings-tab-thresholds"
-          onClick={() => handleSelectSection("thresholds")}
+          onClick={requestSignIn}
           role="tab"
           type="button"
         >
@@ -64,20 +53,13 @@ export function SettingsView() {
 
       <div
         aria-labelledby="settings-tab-templates"
-        hidden={activeSection !== "templates"}
-        id={templatesPanelId}
+        className="settings-view__placeholder"
+        id="settings-visitor-panel"
         role="tabpanel"
       >
-        <SettingsWorkflowList />
-      </div>
-
-      <div
-        aria-labelledby="settings-tab-thresholds"
-        hidden={activeSection !== "thresholds"}
-        id={thresholdsPanelId}
-        role="tabpanel"
-      >
-        <SettingsThresholdsPanel />
+        <p className="settings-view__visitor-notice" role="status">
+          {SETTINGS_VISITOR_PLACEHOLDER}
+        </p>
       </div>
     </section>
   );

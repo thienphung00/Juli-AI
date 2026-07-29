@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 582,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "582-20260729T0631Z",
+  "startedAt": "2026-07-29T06:21:00Z",
+  "completedAt": "2026-07-29T06:31:32Z",
+  "executionDurationMs": 632000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Shell",
+      "count": 3,
+      "stage": "implementation"
+    }
+  ],
+  "toolInvocationCount": 1,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-582.json",
+    "docs/handoffs/demo-visual-refinement-issue-bodies/A6.md",
+    "docs/product/phases/demo-visual-refinement/PRD.md",
+    "dictionary.md",
+    "apps/demo/MODULE.md",
+    "apps/demo/src/components/demo-shell.tsx",
+    "apps/demo/src/components/settings-view.tsx"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/src/components/settings-view.tsx",
+    "apps/demo/src/components/settings-workflow-detail.tsx",
+    "apps/demo/src/__tests__/settings-workflows.test.tsx",
+    "apps/demo/src/__tests__/settings-workflow-detail.test.tsx",
+    "dictionary.md",
+    "agent-runtime/artifacts/release-evidence-plan-issue-582.json"
+  ],
+  "testsAdded": [],
+  "testsUpdated": [
+    "apps/demo/src/__tests__/settings-workflows.test.tsx",
+    "apps/demo/src/__tests__/settings-workflow-detail.test.tsx"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Settings tests expected interactive workflow rows, editable fields, and save flows \u2014 6 failures before visitor-disabled gate",
+      "passingTestEvidence": "205 demo tests pass including disabled Settings placeholder, Sign-in tab stub feedback, and workflow detail recovery without editable forms",
+      "refactorEvidence": "Replaced interactive SettingsView tabs/panels with aria-disabled tabs + honest Vietnamese placeholder; gated SettingsWorkflowDetail to status-only recovery surface",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test -- --run settings-workflows settings-workflow-detail",
+          "exitCode": 1,
+          "outputSummary": "6 failed \u2014 interactive settings surfaces still rendered"
+        },
+        {
+          "command": "pnpm --filter @juli/demo test -- --run",
+          "exitCode": 0,
+          "outputSummary": "42 files, 205 tests passed"
+        },
+        {
+          "command": "pnpm --filter @juli/demo exec tsc --noEmit",
+          "exitCode": 0,
+          "outputSummary": "no errors"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "DVR-A6 gates public Demo Settings as a visitor-disabled placeholder matching the Sign-in stub: aria-disabled tabs route through requestSignIn, honest Vietnamese copy from new dictionary keys, no workflow/threshold/save navigation, and workflow detail routes show recovery-only placeholders. Four-destination nav unchanged; demo-shell Sign-in stub tests unregressed.",
+  "assumptions": [
+    "Demo mode is always mock for visitors \u2014 no conditional auth flag needed until Phase 3 Sign-in",
+    "settings-thresholds-panel.tsx and settings-workflow-list.tsx remain unused but preserved for post-Sign-in polish",
+    "release evidence plan committed separately; slice-routing DVR bootstrap excluded (#583)"
+  ],
+  "risks": [
+    "Direct /settings/workflows/* URLs still resolve but show placeholder \u2014 acceptable per AC",
+    "Future Sign-in implementation must re-enable gated components without losing dictionary copy keys"
+  ],
+  "releaseEvidencePlanId": "rep-582-dvr-a6-settings-disabled-gate"
+}

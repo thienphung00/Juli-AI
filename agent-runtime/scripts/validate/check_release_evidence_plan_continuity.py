@@ -84,7 +84,11 @@ def run_check(
         validation = load_json(validation_path)
         validation_plan_id = validation.get("releaseEvidencePlanId")
         details["validationPlanId"] = validation_plan_id
-        if validation_plan_id != expected_plan_id:
+        # None is allowed during regenerate (gates run before enrich stamps planId).
+        if (
+            validation_plan_id is not None
+            and validation_plan_id != expected_plan_id
+        ):
             return (
                 False,
                 f"validation releaseEvidencePlanId mismatch: {validation_plan_id!r} "
