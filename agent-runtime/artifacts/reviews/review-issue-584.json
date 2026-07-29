@@ -22,8 +22,8 @@
       "module": "packages/ui/src/recommendation-card.tsx",
       "interface": "RecommendationCardProps",
       "changeType": "modified",
-      "breaking": true,
-      "description": "Removed confidenceLabel, confidenceLevel, and capabilityLabel from public card props."
+      "breaking": false,
+      "description": "Dropped unused confidence/capability props from Demo seller card; call sites updated in-repo."
     }
   ],
   "moduleDrift": false,
