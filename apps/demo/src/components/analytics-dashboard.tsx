@@ -24,6 +24,7 @@ import {
   isSelectableMetricKey,
   listSupplementaryCharts,
 } from "../lib/analytics/envelope-mapper";
+import { analyticsDeltaClass } from "../lib/analytics/visual-polish";
 import { useDemoState } from "./demo-state";
 import { AnalyticsHeroChart } from "./analytics-charts";
 import { AnalyticsKpiCard } from "./analytics-kpi-card";
@@ -146,11 +147,14 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
         aria-labelledby="analytics-title"
         className="analytics-dashboard analytics-dashboard--loading"
       >
-        <LoadingSkeleton aria-label="Đang tải KPI chính" className="analytics-skeleton analytics-skeleton--hero" />
+        <LoadingSkeleton
+          aria-label="Đang tải KPI chính"
+          className="analytics-skeleton analytics-skeleton--hero analytics-skeleton--shimmer"
+        />
         <div className="analytics-kpi-grid">
           {Array.from({ length: 5 }, (_, index) => (
             <LoadingSkeleton
-              className="analytics-skeleton analytics-skeleton--card"
+              className="analytics-skeleton analytics-skeleton--card analytics-skeleton--shimmer"
               key={index}
             />
           ))}
@@ -218,7 +222,7 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
           ) : snapshot ? (
             <>
               <p className="analytics-hero__value">{snapshot.formattedValue}</p>
-              <p className="analytics-hero__delta">{snapshot.delta}</p>
+              <p className={analyticsDeltaClass(snapshot.trend)}>{snapshot.delta}</p>
               <p className="analytics-hero__signal">{snapshot.signal}</p>
               <div className="analytics-hero__provenance">
                 <p>
@@ -258,7 +262,10 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
         </div>
 
         {snapshot ? (
-          <div className="analytics-hero__chart">
+          <div
+            className="analytics-hero__chart analytics-chart-chrome"
+            data-testid="analytics-chart-chrome"
+          >
             <AnalyticsHeroChart
               chartKind={heroDefinition.chartKind}
               comparePreviousPeriod={compareEnabled}
@@ -278,22 +285,30 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
         ) : null}
       </article>
 
-      <div
-        aria-label="KPI chính khác"
-        className="analytics-kpi-grid"
-        role="list"
+      <section
+        aria-labelledby="analytics-kpi-section-title"
+        className="analytics-kpi-section"
       >
-        {selectorKeys.map((selectorKey) => (
-          <div key={selectorKey} role="listitem">
-            <AnalyticsKpiCard
-              envelope={envelope}
-              metricKey={selectorKey}
-              onSelect={handleSelectMetric}
-              range={range}
-            />
-          </div>
-        ))}
-      </div>
+        <h2 className="analytics-kpi-section__title" id="analytics-kpi-section-title">
+          KPI chính khác
+        </h2>
+        <div
+          aria-label="KPI chính khác"
+          className="analytics-kpi-grid"
+          role="list"
+        >
+          {selectorKeys.map((selectorKey) => (
+            <div key={selectorKey} role="listitem">
+              <AnalyticsKpiCard
+                envelope={envelope}
+                metricKey={selectorKey}
+                onSelect={handleSelectMetric}
+                range={range}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
 
       <AnalyticsSupplementarySections charts={supplementaryCharts} />
     </section>

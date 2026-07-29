@@ -3,6 +3,7 @@
 import { TrendAreaChart } from "@juli/ui";
 
 import type { SupplementaryChartSnapshot } from "../lib/analytics/envelope-mapper";
+import { analyticsDeltaClass } from "../lib/analytics/visual-polish";
 
 interface AnalyticsSupplementarySectionsProps {
   charts: readonly SupplementaryChartSnapshot[];
@@ -25,14 +26,17 @@ export function AnalyticsSupplementarySections({
           key={chart.envelopeKey}
         >
           <h2
-            className="analytics-hero__title"
+            className="analytics-supplementary__title"
             id={`analytics-${chart.envelopeKey}-title`}
           >
             {chart.label}
           </h2>
-          <p className="analytics-hero__value">{chart.formattedValue}</p>
-          <p className="analytics-hero__delta">{chart.delta}</p>
-          <div className="analytics-hero__chart">
+          <p className="analytics-supplementary__value">{chart.formattedValue}</p>
+          <p className={analyticsDeltaClass(chart.trend)}>{chart.delta}</p>
+          <div
+            className="analytics-chart-chrome"
+            data-testid={`analytics-chart-chrome-${chart.envelopeKey}`}
+          >
             <TrendAreaChart
               data={chart.timeSeries}
               delta={chart.delta}
@@ -42,7 +46,7 @@ export function AnalyticsSupplementarySections({
               width={320}
             />
           </div>
-          <div className="analytics-hero__provenance">
+          <div className="analytics-supplementary__provenance">
             <p>
               <strong>Nguồn dữ liệu:</strong> {chart.dataSource}
             </p>

@@ -654,6 +654,15 @@ a {
   max-width: 72rem;
 }
 
+.analytics-dashboard--invalid {
+  max-width: 38rem;
+}
+
+.analytics-dashboard--loading {
+  display: grid;
+  gap: var(--juli-space-5);
+}
+
 .analytics-range-controls {
   display: flex;
   flex-wrap: wrap;
@@ -667,31 +676,88 @@ a {
   margin-bottom: var(--juli-space-6);
   border: 1px solid var(--juli-border-accent);
   border-radius: var(--juli-radius-large);
-  background: var(--juli-surface);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--juli-primary-soft) 28%, var(--juli-surface)),
+      var(--juli-surface)
+    );
   padding: clamp(1rem, 4vw, 1.75rem);
   box-shadow: var(--juli-shadow-small);
 }
 
+.analytics-hero__summary {
+  display: grid;
+  gap: var(--juli-space-2);
+}
+
 .analytics-hero__title {
-  margin: 0 0 var(--juli-space-3);
-  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  margin: 0;
+  font-size: clamp(1.125rem, 3.5vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .analytics-hero__value {
-  margin: 0;
+  margin: var(--juli-space-2) 0 0;
   font-size: clamp(1.75rem, 6vw, 2.5rem);
   font-weight: 800;
   letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
-.analytics-hero__delta,
-.analytics-hero__signal,
+.analytics-delta {
+  margin: var(--juli-space-2) 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.analytics-delta--positive {
+  color: var(--juli-success);
+}
+
+.analytics-delta--negative {
+  color: var(--juli-destructive);
+}
+
+.analytics-delta--warning {
+  color: var(--juli-warning);
+}
+
+.analytics-delta--neutral {
+  color: var(--juli-muted-foreground);
+}
+
+.analytics-hero__signal {
+  margin: var(--juli-space-1) 0 0;
+  color: var(--juli-foreground);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.analytics-hero__provenance {
+  display: grid;
+  gap: var(--juli-space-1);
+  margin-top: var(--juli-space-3);
+  padding-top: var(--juli-space-3);
+  border-top: 1px solid var(--juli-border);
+}
+
 .analytics-hero__provenance p,
 .analytics-hero__partial,
 .analytics-hero__comparison-legend {
-  margin: var(--juli-space-2) 0 0;
+  margin: 0;
   color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
   line-height: 1.6;
+}
+
+.analytics-hero__partial {
+  margin-top: var(--juli-space-2);
+  color: var(--juli-warning);
+  font-weight: 600;
 }
 
 .analytics-hero__comparison {
@@ -701,6 +767,12 @@ a {
   gap: var(--juli-space-2);
   margin-top: var(--juli-space-4);
   cursor: pointer;
+}
+
+.analytics-hero__comparison input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--juli-primary);
 }
 
 .analytics-hero__decision-link {
@@ -722,10 +794,37 @@ a {
   min-width: 0;
 }
 
+.analytics-chart-chrome {
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius);
+  background: color-mix(in srgb, var(--juli-background) 72%, var(--juli-surface));
+  padding: var(--juli-space-3);
+}
+
+.analytics-chart-chrome--empty {
+  display: grid;
+  place-items: center;
+  min-height: 4.5rem;
+  background: color-mix(in srgb, var(--juli-muted) 40%, transparent);
+}
+
 .analytics-hero-chart__gauge-value {
   margin: var(--juli-space-2) 0 0;
   font-size: 1.5rem;
   font-weight: 700;
+}
+
+.analytics-kpi-section {
+  display: grid;
+  gap: var(--juli-space-3);
+  margin-top: var(--juli-space-2);
+}
+
+.analytics-kpi-section__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .analytics-kpi-grid {
@@ -738,24 +837,42 @@ a {
   position: relative;
   overflow: hidden;
   min-height: 100%;
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.analytics-kpi-card--available:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
+.analytics-kpi-card--available:hover {
+  box-shadow: var(--juli-shadow-medium);
+}
+
+.analytics-kpi-card--unavailable {
+  opacity: 0.92;
 }
 
 .analytics-kpi-card__description,
-.analytics-kpi-card__value,
-.analytics-kpi-card__delta {
+.analytics-kpi-card__value {
   position: relative;
   z-index: 1;
+}
+
+.analytics-kpi-card__description {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .analytics-kpi-card__value {
   margin: var(--juli-space-3) 0 0;
   font-size: 1.35rem;
   font-weight: 800;
-}
-
-.analytics-kpi-card__delta {
-  margin: var(--juli-space-1) 0 0;
-  color: var(--juli-muted-foreground);
+  letter-spacing: -0.02em;
 }
 
 .analytics-kpi-card__preview {
@@ -771,13 +888,57 @@ a {
 
 .analytics-unavailable-chart {
   margin-top: var(--juli-space-3);
-  opacity: 0.7;
 }
 
 .analytics-unavailable-chart svg {
   display: block;
   width: 100%;
   height: 2.5rem;
+  opacity: 0.75;
+}
+
+.analytics-supplementary {
+  display: grid;
+  gap: var(--juli-space-5);
+  margin-top: var(--juli-space-7);
+}
+
+.analytics-supplementary__section {
+  display: grid;
+  gap: var(--juli-space-3);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-large);
+  background: var(--juli-surface);
+  padding: clamp(1rem, 4vw, 1.5rem);
+  box-shadow: var(--juli-shadow-small);
+}
+
+.analytics-supplementary__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.analytics-supplementary__value {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.analytics-supplementary__provenance {
+  display: grid;
+  gap: var(--juli-space-1);
+  margin-top: var(--juli-space-2);
+  padding-top: var(--juli-space-2);
+  border-top: 1px solid var(--juli-border);
+}
+
+.analytics-supplementary__provenance p {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
+  line-height: 1.6;
 }
 
 .analytics-dashboard__recovery {
@@ -791,11 +952,39 @@ a {
 
 .analytics-skeleton--hero {
   min-height: 16rem;
-  margin-bottom: var(--juli-space-5);
 }
 
 .analytics-skeleton--card {
   min-height: 10rem;
+}
+
+.analytics-skeleton--shimmer {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--juli-muted) 55%, var(--juli-surface));
+}
+
+.analytics-skeleton--shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--juli-background) 65%, transparent),
+    transparent
+  );
+  animation: analytics-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes analytics-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
 }
 
 @media (min-width: 56rem) {
@@ -808,5 +997,9 @@ a {
 @media (max-width: 35rem) {
   .analytics-kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  .analytics-hero__value {
+    font-size: clamp(1.5rem, 8vw, 2rem);
   }
 }

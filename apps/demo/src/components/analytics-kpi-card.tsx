@@ -22,6 +22,7 @@ import {
   buildLiveKpiSnapshot,
   isSelectableMetricKey,
 } from "../lib/analytics/envelope-mapper";
+import { analyticsDeltaClass } from "../lib/analytics/visual-polish";
 import {
   AnalyticsPreviewChart,
   AnalyticsUnavailableChartPattern,
@@ -65,7 +66,9 @@ export function AnalyticsKpiCard({
         {isAvailable && liveSnapshot ? (
           <>
             <p className="analytics-kpi-card__value">{liveSnapshot.formattedValue}</p>
-            <p className="analytics-kpi-card__delta">{liveSnapshot.delta}</p>
+            <p className={analyticsDeltaClass(liveSnapshot.trend)}>
+              {liveSnapshot.delta}
+            </p>
             <AnalyticsPreviewChart
               delta={liveSnapshot.delta}
               label={definition.name}

@@ -1,0 +1,77 @@
+{
+  "planId": "rep-585-dvr-a3-analytics-visual-polish",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/analytics",
+    "demo.app-juli.com/analytics/[metricKey]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-analytics-visual-polish",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "six_main_kpi_keys_and_hero_selector_layout_preserved",
+          "spacing_hierarchy_chart_chrome_empty_loading_improved",
+          "no_gmv_to_net_revenue_remapping",
+          "focus_order_and_aria_labels_preserved",
+          "home_recommendations_settings_in_progress_untouched"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Analytics visual polish only; same six Main KPI contracts; no DB or API contract change; mock and #534 live paths both benefit."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/ui test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 585"
+  ],
+  "doNotInfer": [
+    "New KPIs or Analytics IA changes",
+    "Phase 2.10 API wiring (#534)",
+    "Recommendations copy (DVR-A4/A5)",
+    "ECS/ALB cutover",
+    "In Progress tab changes",
+    "release evidence fields beyond this plan"
+  ]
+}
