@@ -1,10 +1,5 @@
-export { Badge, ConfidenceBadge } from "./badge";
-export type {
-  BadgeProps,
-  BadgeVariant,
-  ConfidenceBadgeProps,
-  ConfidenceLevel,
-} from "./badge";
+export { Badge } from "./badge";
+export type { BadgeProps, BadgeVariant } from "./badge";
 export { Button } from "./button";
 export type { ButtonProps, ButtonSize, ButtonVariant } from "./button";
 export { FilterChip, InputChip, StatusChip } from "./chip";
@@ -29,10 +24,7 @@ export type {
   RealEstimatedProgressBarProps,
 } from "./progress-bar";
 export { RecommendationCard } from "./recommendation-card";
-export type {
-  RecommendationCardProps,
-  RecommendationConfidenceLevel,
-} from "./recommendation-card";
+export type { RecommendationCardProps } from "./recommendation-card";
 
 /* #413-A — Card, Dialog, Popover surface compositions */
 export {

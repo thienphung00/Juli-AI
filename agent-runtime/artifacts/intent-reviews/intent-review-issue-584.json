@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-584",
+  "issue": 584,
+  "timestamp": "2026-07-29T07:10:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "73c1fc2e",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff strips FBS/confidence from dictionary.md and Demo Recommendations; RecommendationCard reduced to signal + one reason without confidenceLabel/confidenceLevel/capability badges; copy-guard tests cover banned strings and jargon; In Progress untouched. Ui+demo tests green.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "584-20260729T0632Z"
+}

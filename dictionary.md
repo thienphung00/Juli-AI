@@ -13,7 +13,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: Recommendation
 - VI: Đề xuất
 - _Avoid_: Gợi ý hành động, Thẻ AI, Khuyến nghị
-- Definition: Seller-facing envelope wrapping workflow, reasoning, impact, and confidence.
+- Definition: Seller-facing envelope wrapping workflow, reasoning, and impact.
 
 **`decisions.approve`**
 - EN: Approve
@@ -133,12 +133,6 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - _Avoid_: Kết quả dự kiến, Lợi ích
 - Definition: Projected business value of a recommendation.
 
-**`decisions.confidence`**
-- EN: Confidence
-- VI: Độ tin cậy
-- _Avoid_: Xác suất, Chắc chắn
-- Definition: `high`, `medium`, or `low` confidence label.
-
 **`decisions.reasoning`**
 - EN: Reasoning
 - VI: Lý do đề xuất
@@ -241,7 +235,3 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`popover.unavailable_kpi.heading`**
 - EN: [KPI] unavailable
 - VI: [KPI] chưa khả dụng
-
-**`badge.confidence.high`**
-- EN: Confidence: High
-- VI: Độ tin cậy: Cao

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { Badge, ConfidenceBadge } from "../badge";
+import { Badge } from "../badge";
 import { loadUiStyles } from "./test-utils";
 
 const styles = loadUiStyles();
@@ -23,21 +23,6 @@ describe("Badge", () => {
     expect(screen.getByText("Cần chú ý")).toHaveClass("juli-badge--warning");
     expect(screen.getByText("Gợi ý Juli")).toHaveClass("juli-badge--info");
     expect(screen.getByText("Đang thực hiện")).toHaveClass("juli-badge--live");
-  });
-
-  it("renders confidence badges with Vietnamese text labels", () => {
-    render(
-      <>
-        <ConfidenceBadge level="high" />
-        <ConfidenceBadge level="medium" />
-        <ConfidenceBadge level="low" />
-      </>,
-    );
-
-    expect(screen.getByText("Độ tin cậy: Cao")).toBeInTheDocument();
-    expect(screen.getByText("Độ tin cậy: Trung bình")).toBeInTheDocument();
-    expect(screen.getByText("Độ tin cậy: Thấp")).toBeInTheDocument();
-    expect(screen.queryByText(/Confidence/i)).not.toBeInTheDocument();
   });
 
   it("uses theme tokens and disables live pulse under reduced motion", () => {

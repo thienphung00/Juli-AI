@@ -95,7 +95,7 @@ describe("Decisions — Recommendations", () => {
     expect(replenishment?.expectedImpactLabel).toBe("—");
   });
 
-  it("shows title, signal, expected impact, confidence, capability, and reasoning on every card", () => {
+  it("shows title, signal, and one concise reason on every card", () => {
     renderView();
 
     recommendationFixtures.forEach((fixture) => {
@@ -106,14 +106,9 @@ describe("Decisions — Recommendations", () => {
       ).toBeInTheDocument();
       expect(card).toHaveTextContent(fixture.signal);
       expect(card).toHaveTextContent(fixture.reasoning);
-      expect(card).toHaveTextContent(fixture.confidenceLabel);
-      expect(card).toHaveTextContent(fixture.capabilityLabel);
-      // formatVND uses a non-breaking space before "₫"; jest-dom's default
-      // whitespace normalization would rewrite that away, so compare the raw
-      // textContent instead of `toHaveTextContent`.
-      expect(card.textContent).toContain(
-        `Tác động dự kiến: ${fixture.expectedImpactLabel}`,
-      );
+      expect(card).not.toHaveTextContent(fixture.confidenceLabel);
+      expect(card).not.toHaveTextContent(fixture.capabilityLabel);
+      expect(card.textContent).not.toContain("Tác động dự kiến:");
     });
   });
 

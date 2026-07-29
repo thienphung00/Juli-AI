@@ -5,16 +5,10 @@ import { forwardRef, useId, useState } from "react";
 import { Badge } from "./badge";
 import { Button } from "./button";
 
-export type RecommendationConfidenceLevel = "high" | "medium" | "low";
-
 export interface RecommendationCardProps {
   approveDisabledReason?: string;
-  capabilityLabel: string;
-  confidenceLabel: string;
-  confidenceLevel: RecommendationConfidenceLevel;
   eligibility: string;
   evidence: string;
-  expectedImpactLabel: string;
   isHighlighted?: boolean;
   isPriority?: boolean;
   knownLimits: string;
@@ -34,12 +28,8 @@ export const RecommendationCard = forwardRef<
 >(function RecommendationCard(
   {
     approveDisabledReason,
-    capabilityLabel,
-    confidenceLabel,
-    confidenceLevel,
     eligibility,
     evidence,
-    expectedImpactLabel,
     isHighlighted = false,
     isPriority = false,
     knownLimits,
@@ -90,20 +80,10 @@ export const RecommendationCard = forwardRef<
             {title}
           </h3>
         </div>
-        <Badge variant={`confidence-${confidenceLevel}`}>
-          {confidenceLabel}
-        </Badge>
       </header>
 
       <p className="juli-recommendation-card__signal">{signal}</p>
       <p className="juli-recommendation-card__reasoning">{reasoning}</p>
-
-      <div className="juli-recommendation-card__impact-line">
-        <span className="juli-recommendation-card__impact">
-          Tác động dự kiến: {expectedImpactLabel}
-        </span>
-        <Badge variant="capability">{capabilityLabel}</Badge>
-      </div>
 
       <div className="juli-recommendation-card__actions">
         <Button
