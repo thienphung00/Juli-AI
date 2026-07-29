@@ -28,6 +28,20 @@ export async function advanceReviewToApproveStage(page: Page) {
   ).toBeVisible();
 }
 
+/** Open Approve-stage ConfirmDialog and confirm (DVR-A5 gate). */
+export async function confirmApproveThroughGate(page: Page) {
+  await page
+    .locator(".demo-review__actions")
+    .getByRole("button", { name: "Phê duyệt" })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", { name: "Xác nhận phê duyệt" }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Phê duyệt" }).click();
+}
+
 export async function approveFromRecommendations(
   page: Page,
   workflowKey: string,
@@ -43,10 +57,7 @@ export async function approveFromRecommendations(
     card.getByRole("button", { name: "Phê duyệt" }).click(),
   ]);
   await advanceReviewToApproveStage(page);
-  await page
-    .locator(".demo-review__actions")
-    .getByRole("button", { name: "Phê duyệt" })
-    .click();
+  await confirmApproveThroughGate(page);
   await expect(page).toHaveURL(/\/decisions\/in-progress\//);
 }
 

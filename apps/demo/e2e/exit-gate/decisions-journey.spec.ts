@@ -11,6 +11,7 @@ import {
 import {
   advanceReviewToApproveStage,
   approveFromRecommendations,
+  confirmApproveThroughGate,
 } from "../helpers/workflow-journey";
 
 test.describe("Phase 2.6 exit gate — Decisions journey", () => {
@@ -112,10 +113,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
         card.getByRole("button", { name: "Phê duyệt" }).click(),
       ]);
       await advanceReviewToApproveStage(page);
-      await page
-        .locator(".demo-review__actions")
-        .getByRole("button", { name: "Phê duyệt" })
-        .click();
+      await confirmApproveThroughGate(page);
       await expect(page).toHaveURL(/\/decisions\/in-progress\//);
       await expect(
         page.getByRole("heading", { name: fixture.title, level: 1 }),
