@@ -1,13 +1,15 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const CREATE_ACTIVITY_WORKFLOW_KEY = "create_activity_7a";
 export const CREATE_ACTIVITY_TOOL_NAME = "promotion.create_activity";
 export const defaultCreateActivityAnalyticsMetricKey = "revenue-by-sku";
-
-const FBT_PROMOTION_SCAFFOLD_UNFILLED =
-  "FBT (giao hàng do TikTok quản lý): khung luồng khuyến mãi mục tiêu chưa được điền — Unresolved/Unfilled. Không suy diễn parity từ FBS.";
 
 const createActivityFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === CREATE_ACTIVITY_WORKFLOW_KEY,
@@ -38,12 +40,7 @@ export function getCreateActivityReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        createActivityFixture.reasoning,
-        createActivityFixture.signal,
-        createActivityFixture.evidence,
-        createActivityFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(createActivityFixture),
     },
     {
       stage: "analytics",
@@ -103,19 +100,14 @@ export function getCreateActivityReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${createActivityFixture.toolName}`,
-        `Khả năng: ${createActivityFixture.capabilityLabel}`,
-        `Điều kiện: ${createActivityFixture.eligibility}`,
-        createActivityFixture.knownLimits,
-        FBT_PROMOTION_SCAFFOLD_UNFILLED,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(createActivityFixture, [
+        "Khuyến mãi mục tiêu qua giao hàng do TikTok quản lý chưa có trong Demo.",
+      ]),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body:
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện. Demo không gọi TikTok API thật; chỉ luồng FBS được hỗ trợ thực thi.",
+      body: buildSellerApproveBody(),
     },
   ];
 }

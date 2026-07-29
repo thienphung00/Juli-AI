@@ -2,6 +2,11 @@ import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "./recommendations";
 import {
+  buildSellerApproveBody,
+  buildSellerPreviewBody,
+  buildSellerWhyBody,
+} from "./review-seller-copy";
+import {
   buildCreateActivityReviewInputDefaults,
   CREATE_ACTIVITY_WORKFLOW_KEY,
   getCreateActivityReviewStages,
@@ -103,7 +108,7 @@ export function buildReviewInputDefaults(): Record<string, string> {
     seo_description:
       "Serum dưỡng ẩm giúp cân bằng độ ẩm, hỗ trợ hàng rào da nhạy cảm.",
     price: "289000",
-    warehouse_id: "WH-FBS-HCM-01",
+    warehouse_id: "WH-HCM-01",
   };
 }
 
@@ -175,12 +180,7 @@ export function getWorkflowReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        heroFixture.reasoning,
-        heroFixture.signal,
-        heroFixture.evidence,
-        heroFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(heroFixture),
     },
     {
       stage: "analytics",
@@ -194,7 +194,7 @@ export function getWorkflowReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Danh mục và thuộc tính được điền sẵn từ dữ liệu catalog; nhãn hiệu cần khớp đã xác nhận; ảnh do shop tải lên; giá theo khuyến nghị T9; kho FBS phải được gán.",
+        "Danh mục và thuộc tính được điền sẵn từ dữ liệu catalog; nhãn hiệu cần khớp đã xác nhận; ảnh do shop tải lên; giá theo khuyến nghị T9; kho giao hàng phải được gán.",
       inputFields: [
         {
           key: "category_id",
@@ -256,8 +256,8 @@ export function getWorkflowReviewStages(
         },
         {
           key: "warehouse_id",
-          label: "Kho FBS",
-          prefillValue: "WH-FBS-HCM-01 — Kho HCM (đã gán)",
+          label: "Kho giao hàng",
+          prefillValue: "WH-HCM-01 — Kho HCM (đã gán)",
           required: true,
           editable: false,
         },
@@ -266,18 +266,17 @@ export function getWorkflowReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${heroFixture.toolName}`,
-        `Khả năng: ${heroFixture.capabilityLabel}`,
-        `Điều kiện: ${heroFixture.eligibility}`,
-        heroFixture.knownLimits,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(heroFixture, [
+        "Shop cần đã xác thực, có đủ thuộc tính/nhãn hiệu/hình ảnh bắt buộc, và kho giao hàng đã được gán.",
+        "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định — Juli không tự suy diễn con số này.",
+      ]),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body:
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện. Demo không gọi TikTok API thật.",
+      body: buildSellerApproveBody([
+        "Giao hàng do TikTok quản lý cho sản phẩm mới chưa có trong Demo.",
+      ]),
     },
   ];
 }

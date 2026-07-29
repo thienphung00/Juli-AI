@@ -9,6 +9,11 @@ import {
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
   getWorkflowReviewStages,
 } from "../lib/reviews";
+import {
+  REVIEW_UI_BANNED_PATTERNS,
+  SELLER_APPROVE_GATE,
+} from "../lib/review-seller-copy";
+import { confirmApproveThroughGate } from "./review-test-helpers";
 
 const push = vi.fn();
 const mockStartExecution = vi.fn(() => "exec-create_hero_product_1-1");
@@ -172,7 +177,7 @@ describe("RecommendationReview", () => {
     });
   });
 
-  it("renders Preview-stage tool summary and draft values", async () => {
+  it("renders Preview-stage seller summary and draft values", async () => {
     const user = userEvent.setup();
     const preview = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
       (stage) => stage.stage === "preview",
@@ -197,9 +202,10 @@ describe("RecommendationReview", () => {
     renderReview();
     await advanceToStage(user, approve?.title ?? "");
 
-    expect(screen.getByTestId("review-stage-body")).toHaveTextContent(
-      approve?.body ?? "",
-    );
+    const stageBody = screen.getByTestId("review-stage-body");
+    approve?.body.split("\n\n").forEach((chunk) => {
+      expect(stageBody).toHaveTextContent(chunk);
+    });
     expect(
       screen.getByRole("button", { name: "Phê duyệt" }),
     ).toBeInTheDocument();
@@ -246,7 +252,7 @@ describe("RecommendationReview", () => {
     expect(mockStartExecution).not.toHaveBeenCalled();
   });
 
-  it("calls startExecution and routes to In Progress only on Approve click", async () => {
+  it("opens the approval gate before starting execution", async () => {
     const user = userEvent.setup();
     const approve = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
       (stage) => stage.stage === "approve",
@@ -256,6 +262,23 @@ describe("RecommendationReview", () => {
     await advanceToStage(user, approve?.title ?? "");
 
     await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      SELLER_APPROVE_GATE.description,
+    );
+    expect(mockStartExecution).not.toHaveBeenCalled();
+  });
+
+  it("calls startExecution and routes to In Progress only after gate confirm", async () => {
+    const user = userEvent.setup();
+    const approve = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
+      (stage) => stage.stage === "approve",
+    );
+
+    renderReview();
+    await advanceToStage(user, approve?.title ?? "");
+
+    await confirmApproveThroughGate(user);
 
     expect(mockStartExecution).toHaveBeenCalledTimes(1);
     expect(mockStartExecution).toHaveBeenCalledWith(
@@ -305,6 +328,25 @@ describe("RecommendationReview", () => {
       "href",
       analytics?.analyticsMetricHref,
     );
+  });
+
+  it("does not render banned jargon across all review stages", async () => {
+    const user = userEvent.setup();
+    const stages = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY);
+
+    renderReview();
+
+    for (const [index] of stages.entries()) {
+      const surfaceText = screen.getByTestId("review-stage-body").textContent ?? "";
+
+      for (const pattern of REVIEW_UI_BANNED_PATTERNS) {
+        expect(surfaceText).not.toMatch(pattern);
+      }
+
+      if (index < stages.length - 1) {
+        await user.click(screen.getByRole("button", { name: "Tiếp theo" }));
+      }
+    }
   });
 
   it("supports keyboard navigation between stages via Back and Next", async () => {

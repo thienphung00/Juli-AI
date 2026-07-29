@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecommendationReview } from "../components/recommendation-review";
 import { getWorkflowReviewStages } from "../lib/reviews";
+import { confirmApproveThroughGate } from "./review-test-helpers";
 import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
 
 const push = vi.fn();
@@ -134,7 +135,7 @@ describe("Workflow 3 review → approve → In Progress", () => {
     );
 
     await advanceToApprove(user);
-    await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+    await confirmApproveThroughGate(user);
 
     expect(mockStartExecution).toHaveBeenCalledTimes(1);
     expect(mockStartExecution).toHaveBeenCalledWith(

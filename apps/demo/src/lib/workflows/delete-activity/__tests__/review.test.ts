@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { recommendationFixtures } from "../../../recommendations";
+import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import {
   DELETE_ACTIVITY_WORKFLOW_KEY,
   defaultDeleteActivityAnalyticsMetricKey,
@@ -44,7 +45,7 @@ describe("getDeleteActivityReviewStages", () => {
       (stage) => stage.stage === "inputs",
     );
 
-    expect(inputs?.body).toMatch(/không có payload cấu hình/i);
+    expect(inputs?.body).toMatch(/không có cấu hình thêm/i);
     expect(inputs?.inputFields?.map((field) => field.key)).toEqual([
       "activity_id",
       "confirm_end",
@@ -54,11 +55,17 @@ describe("getDeleteActivityReviewStages", () => {
     ).toMatchObject({ editable: false });
   });
 
-  it("labels FBT promotion scaffold as Unresolved/Unfilled in preview", () => {
+  it("uses seller-language preview without backend jargon", () => {
+    const fixture = recommendationFixtures.find(
+      (entry) => entry.workflowKey === DELETE_ACTIVITY_WORKFLOW_KEY,
+    );
     const preview = getDeleteActivityReviewStages().find(
       (stage) => stage.stage === "preview",
     );
 
-    expect(preview?.body).toMatch(/FBT.*Unresolved\/Unfilled/i);
+    expect(preview?.body).toContain(fixture!.sellerReason);
+    for (const pattern of REVIEW_UI_BANNED_PATTERNS) {
+      expect(preview?.body ?? "").not.toMatch(pattern);
+    }
   });
 });

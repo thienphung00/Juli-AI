@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { recommendationFixtures } from "../../../recommendations";
+import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import {
-  REPLENISH_INVENTORY_TOOL_NAME,
   REPLENISH_INVENTORY_WORKFLOW_KEY,
   buildReplenishInventoryReviewInputDefaults,
   getReplenishInventoryReviewStages,
@@ -37,17 +37,18 @@ describe("getReplenishInventoryReviewStages", () => {
     );
 
     expect(why?.body).toContain(replenishFixture!.reasoning);
-    expect(why?.body).toContain(replenishFixture!.evidence);
+    expect(why?.body).toContain("kho giao hàng");
     expect(why?.body).toContain(replenishFixture!.signal);
+    expect(why?.body).not.toMatch(/\bFBS\b/);
   });
 
-  it("labels Supplier/ERP path and reorder quantity as unresolved in Inputs", () => {
+  it("labels Supplier/ERP path and reorder quantity as needing shop input in Inputs", () => {
     const inputs = getReplenishInventoryReviewStages().find(
       (stage) => stage.stage === "inputs",
     );
 
-    expect(inputs?.body).toMatch(/Unresolved/i);
     expect(inputs?.body).toMatch(/NCC|ERP/i);
+    expect(inputs?.body).not.toMatch(/Unresolved/i);
 
     expect(inputs?.inputFields).toEqual(
       expect.arrayContaining([
@@ -64,7 +65,7 @@ describe("getReplenishInventoryReviewStages", () => {
         }),
         expect.objectContaining({
           key: "external_path",
-          prefillValue: expect.stringMatching(/Unresolved/i),
+          prefillValue: expect.stringMatching(/Chưa cấu hình/i),
         }),
       ]),
     );
@@ -78,14 +79,12 @@ describe("getReplenishInventoryReviewStages", () => {
       (stage) => stage.stage === "approve",
     );
 
-    expect(preview?.body).toContain(REPLENISH_INVENTORY_TOOL_NAME);
-    expect(preview?.body).toMatch(/Unresolved/i);
-    expect(preview?.body).toContain("replenish_inventory_3b");
+    expect(preview?.body).toContain(replenishFixture!.sellerReason);
     expect(preview?.body).not.toMatch(/hợp đồng NCC đã kết nối|ERP đã kết nối/i);
-
-    expect(approve?.body).toMatch(/Unresolved/i);
-    expect(approve?.body).toMatch(/Purchase Order|đơn mua/i);
-    expect(approve?.body).not.toMatch(/API NCC|API ERP/i);
+    for (const pattern of REVIEW_UI_BANNED_PATTERNS) {
+      expect(preview?.body ?? "").not.toMatch(pattern);
+      expect(approve?.body ?? "").not.toMatch(pattern);
+    }
   });
 });
 
@@ -94,6 +93,6 @@ describe("buildReplenishInventoryReviewInputDefaults", () => {
     const defaults = buildReplenishInventoryReviewInputDefaults();
 
     expect(defaults.reorder_quantity).toBe("");
-    expect(defaults.warehouse_id).toMatch(/WH-FBS/);
+    expect(defaults.warehouse_id).toMatch(/WH-HCM/);
   });
 });

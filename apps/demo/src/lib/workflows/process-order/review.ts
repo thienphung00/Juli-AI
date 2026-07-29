@@ -1,6 +1,11 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const PROCESS_ORDER_WORKFLOW_KEY = "process_order_5";
 export const PROCESS_ORDER_TOOL_NAME = "fulfillment.process_order";
@@ -39,12 +44,7 @@ export function getProcessOrderReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        processOrderFixture.reasoning,
-        processOrderFixture.signal,
-        processOrderFixture.evidence,
-        processOrderFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(processOrderFixture),
     },
     {
       stage: "analytics",
@@ -118,23 +118,17 @@ export function getProcessOrderReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${processOrderFixture.toolName}`,
-        `Khả năng: ${processOrderFixture.capabilityLabel}`,
-        `Điều kiện: ${processOrderFixture.eligibility}`,
-        processOrderFixture.knownLimits,
-        "Luồng FBS: lấy danh sách/chi tiết đơn → chờ địa chỉ (#3) và AWAITING_SHIPMENT (#1) → sẵn sàng đóng gói → tách/gộp gói (nếu cần) → tạo gói → nhánh Ship by TikTok hoặc Ship by Seller (loại trừ lẫn nhau) → xác nhận giao → đọc chi tiết gói.",
-        `FBT intake \`${PROCESS_ORDER_FBT_INTAKE_KEY}\`: Unresolved/Unfilled — không hiển thị Create Packages, nhãn vận chuyển, ship, split, hoặc confirm cho đến khi có hợp đồng executor FBT.`,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(processOrderFixture, [
+        "Juli sẽ ưu tiên đơn theo thứ tự đã xếp hạng, đóng gói và giao theo loại vận chuyển bạn xác nhận.",
+        "Ngưỡng thời gian chính xác để tạo đề xuất này chưa được xác định.",
+      ]),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body: [
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện cho nhánh FBS.",
-        "Demo không gọi TikTok API thật; không tạo hoặc giao lô hàng khi đơn đang tạm giữ.",
-        "Không cam kết luồng FBT cho đến khi hợp đồng process_order_5b được xác định.",
-      ].join("\n\n"),
+      body: buildSellerApproveBody([
+        "Demo không tạo hoặc giao lô hàng khi đơn đang tạm giữ.",
+      ]),
     },
   ];
 }

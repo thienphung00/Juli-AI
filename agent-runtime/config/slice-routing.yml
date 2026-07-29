@@ -1719,3 +1719,52 @@ DVR-A4:
     - apps/demo/src/app/analytics/
     - packages/ui/src/destination-card.tsx
     - Sibling issue context caches
+
+DVR-A5:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/demo-visual-refinement/PRD.md
+    - docs/handoffs/demo-visual-refinement-issue-bodies/A5.md
+    - dictionary.md
+    - docs/product/design/design-context.md
+    - docs/adr/023-four-destination-analytics-ownership.md
+    - docs/adr/028-vietnamese-copy-dictionary-and-design-context.md
+    - CONTEXT.md
+    - apps/demo/MODULE.md
+    - docs/handoffs/dvr-a0-reference-bundles/recommendations.md
+  requiredModules:
+    - .cursor/skills/domain/ui-ux/SKILL.md
+    - apps/demo/src/components/recommendation-review.tsx
+    - apps/demo/src/lib/reviews.ts
+    - apps/demo/src/lib/workflows/
+    - apps/demo/src/app/decisions/recommendations/[recommendationId]/page.tsx
+    - apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx
+    - dictionary.md
+  loadWhenNeeded:
+    - docs/product/design/README.md
+    - docs/adr/015-design-system-token-foundation.md
+    - docs/adr/041-frontend-design-skill-wiring.md
+    - .agents/skills/shadcn/SKILL.md
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
+    - packages/ui/MODULE.md
+    - packages/ui/src/recommendation-card.tsx
+    - apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx
+    - apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx
+    - apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx
+    - apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx
+    - apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx
+    - apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - apps/demo/src/components/in-progress-panel.tsx
+    - apps/demo/src/app/decisions/in-progress/
+    - apps/demo/src/app/analytics/
+    - packages/ui/src/destination-card.tsx
+    - apps/demo/src/components/recommendations-panel.tsx
+    - Sibling issue context caches

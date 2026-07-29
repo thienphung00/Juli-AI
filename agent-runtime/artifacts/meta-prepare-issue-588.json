@@ -1,0 +1,657 @@
+{
+  "issueId": 588,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": null,
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 588,
+        "parentIssueId": 580,
+        "sliceId": "DVR-A5",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #580",
+            "fingerprint": "2bf5265776c05faf"
+          },
+          {
+            "path": "docs/product/phases/demo-visual-refinement/PRD.md",
+            "fingerprint": "4caa9dca5c497657fa9ea268ca6a919a5c5b353f"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #588",
+            "fingerprint": "c4d0b1deabf56e49"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-588.md",
+            "fingerprint": "7cb7dcb1060064d364afed5e9b78a9fddac14507"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 588,
+        "parentIssueId": 580,
+        "sliceId": "DVR-A5",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 DVR-A5",
+            "sliceId": "DVR-A5"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-580",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #588",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/demo-visual-refinement/PRD.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 DVR-A5"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-580",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #588",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/product/phases/demo-visual-refinement/PRD.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 4bfa2e61845b on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "4bfa2e61845b850a299695f75ef37cea1ca7ec84",
+          "copiedAt": "2026-07-29T09:34:08Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/ui-ux/SKILL.md"
+        ],
+        "branchHeadSha": "4bfa2e61845b850a299695f75ef37cea1ca7ec84",
+        "pinnedCommitSha": "4bfa2e61845b850a299695f75ef37cea1ca7ec84",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/open-design-system/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "4bfa2e61845b850a299695f75ef37cea1ca7ec84"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 588,
+        "parentIssueId": 580,
+        "sliceId": "DVR-A5",
+        "derivedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/demo-visual-refinement/PRD.md",
+            "docs/handoffs/demo-visual-refinement-issue-bodies/A5.md",
+            "dictionary.md",
+            "docs/product/design/design-context.md",
+            "docs/adr/023-four-destination-analytics-ownership.md",
+            "docs/adr/028-vietnamese-copy-dictionary-and-design-context.md",
+            "CONTEXT.md",
+            "apps/demo/MODULE.md",
+            "docs/handoffs/dvr-a0-reference-bundles/recommendations.md"
+          ],
+          "requiredModules": [
+            ".cursor/skills/domain/ui-ux/SKILL.md",
+            "apps/demo/src/components/recommendation-review.tsx",
+            "apps/demo/src/lib/reviews.ts",
+            "apps/demo/src/lib/workflows/",
+            "apps/demo/src/app/decisions/recommendations/[recommendationId]/page.tsx",
+            "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+            "dictionary.md"
+          ],
+          "acceptanceCriteria": [
+            "Review flow navigates Why \u2192 Analytics \u2192 Inputs \u2192 Preview \u2192 Approve with Vietnamese stage headings",
+            "Analytics stage links to inspectable evidence; Inputs/Preview use prefilled editable seller fields",
+            "Approve opens existing approval gate and routes to In Progress on success (behavioral tests updated)",
+            "No backend jargon, FBS/confidence strings, or internal workflow step names render in seller UI",
+            "Route transitions covered by behavioral tests; Preview \u2192 Approve path reachable",
+            "Compatible with fixture and Phase 2.10 (#534) Decision read paths",
+            "**In Progress execution detail UI unchanged** \u2014 only entry via Approve from review"
+          ],
+          "loadWhenNeeded": [
+            "docs/product/design/README.md",
+            "docs/adr/015-design-system-token-foundation.md",
+            "docs/adr/041-frontend-design-skill-wiring.md",
+            ".agents/skills/shadcn/SKILL.md",
+            ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+            "packages/ui/MODULE.md",
+            "packages/ui/src/recommendation-card.tsx",
+            "apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "web/",
+            "ios/",
+            "backend/src/juli_backend/",
+            "apps/demo/src/components/in-progress-panel.tsx",
+            "apps/demo/src/app/decisions/in-progress/",
+            "apps/demo/src/app/analytics/",
+            "packages/ui/src/destination-card.tsx",
+            "apps/demo/src/components/recommendations-panel.tsx",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "ui-ux",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/product/phases/demo-visual-refinement/PRD.md",
+            "docs/handoffs/demo-visual-refinement-issue-bodies/A5.md",
+            "dictionary.md",
+            "docs/product/design/design-context.md",
+            "docs/adr/023-four-destination-analytics-ownership.md",
+            "docs/adr/028-vietnamese-copy-dictionary-and-design-context.md",
+            "CONTEXT.md",
+            "apps/demo/MODULE.md",
+            "docs/handoffs/dvr-a0-reference-bundles/recommendations.md"
+          ],
+          "requiredModules": [
+            ".cursor/skills/domain/ui-ux/SKILL.md",
+            "apps/demo/src/components/recommendation-review.tsx",
+            "apps/demo/src/lib/reviews.ts",
+            "apps/demo/src/lib/workflows/",
+            "apps/demo/src/app/decisions/recommendations/[recommendationId]/page.tsx",
+            "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+            "dictionary.md"
+          ],
+          "acceptanceCriteria": [
+            "Review flow navigates Why \u2192 Analytics \u2192 Inputs \u2192 Preview \u2192 Approve with Vietnamese stage headings",
+            "Analytics stage links to inspectable evidence; Inputs/Preview use prefilled editable seller fields",
+            "Approve opens existing approval gate and routes to In Progress on success (behavioral tests updated)",
+            "No backend jargon, FBS/confidence strings, or internal workflow step names render in seller UI",
+            "Route transitions covered by behavioral tests; Preview \u2192 Approve path reachable",
+            "Compatible with fixture and Phase 2.10 (#534) Decision read paths",
+            "**In Progress execution detail UI unchanged** \u2014 only entry via Approve from review"
+          ],
+          "loadWhenNeeded": [
+            "docs/product/design/README.md",
+            "docs/adr/015-design-system-token-foundation.md",
+            "docs/adr/041-frontend-design-skill-wiring.md",
+            ".agents/skills/shadcn/SKILL.md",
+            ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+            "packages/ui/MODULE.md",
+            "packages/ui/src/recommendation-card.tsx",
+            "apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+            "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx"
+          ],
+          "releaseEvidencePlan": {
+            "planId": "rep-588-dvr-a5-five-stage-review-seller-language",
+            "affectedPublicSurfaces": [
+              "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+            ],
+            "candidateVerificationJourney": {
+              "mode": "candidate_verification",
+              "stableTrafficPercent": 100,
+              "candidatePublicTrafficPercent": 0,
+              "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+              "syntheticShopRequired": false,
+              "workersDisabledOnCandidate": true,
+              "apiSideEffectsInScope": false,
+              "journeys": [
+                {
+                  "name": "demo-five-stage-review-why-to-approve",
+                  "entryUrl": "/decisions/recommendations/fixture-recommendation",
+                  "assertions": [
+                    "html_200",
+                    "stage_nav_why_analytics_inputs_preview_approve_vi_headings",
+                    "analytics_stage_evidence_links_inspectable",
+                    "inputs_preview_prefilled_editable_seller_fields",
+                    "approve_opens_gate_routes_in_progress_on_success",
+                    "banned_fbs_confidence_jargon_and_tool_names_absent",
+                    "preview_to_approve_path_reachable",
+                    "in_progress_execution_detail_ui_unchanged"
+                  ]
+                }
+              ]
+            },
+            "staticAssetChecks": {
+              "required": true,
+              "htmlRoutes": [
+                "/decisions/recommendations/fixture-recommendation"
+              ],
+              "discoverFromHtml": true,
+              "assetTypes": [
+                "css",
+                "js"
+              ],
+              "failOnMissing": true,
+              "failOnNon200": true
+            },
+            "migrationCompatibility": {
+              "schemaChangeInScope": false,
+              "expandContractOnly": true,
+              "stableAndCandidateCompatible": true,
+              "destructiveMigrationAllowed": false,
+              "notes": "Five-stage review seller language + navigation only; reuses existing Decision payload and per-workflow review stage definitions; no new backend intelligence or DB/API contract change."
+            },
+            "rollbackAssertion": {
+              "preCutoverFailureBehavior": "revert_pr_branch",
+              "postCutoverFailureBehavior": "revert_merge_commit",
+              "retainedStableRequired": true,
+              "automatic": false
+            },
+            "requiredArtifacts": {
+              "implementation": true,
+              "intentReview": true,
+              "review": true,
+              "validation": true,
+              "releaseMetadataHonest": true
+            },
+            "acceptanceCommands": [
+              "pnpm --filter @juli/demo test -- --run",
+              "pnpm --filter @juli/demo exec tsc --noEmit",
+              "python agent-runtime/scripts/validate/run_validate.py --issue 588"
+            ],
+            "doNotInfer": [
+              "Recommendations list card layout (DVR-A4)",
+              "In Progress sub-tab presentation or route changes",
+              "New recommendation/ranking backend",
+              "Settings configuration UI",
+              "Home or Analytics polish (DVR-A2/A3)",
+              "ECS/ALB cutover",
+              "release evidence fields beyond this plan"
+            ]
+          }
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=True matches live classifier (1 reason(s))",
+      "details": {
+        "issueId": 588,
+        "parentIssueId": 580,
+        "live": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo"
+          ]
+        },
+        "cached": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "path:apps/demo"
+          ]
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 588 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "releaseEvidencePlan present and schema-valid",
+      "details": {
+        "issueId": 588,
+        "parentIssueId": 580,
+        "publicRelease": true,
+        "planSource": "agent-runtime/artifacts/release-evidence-plan-issue-588.json",
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "missingFields": [],
+        "errors": [],
+        "resolution": "Commit agent-runtime/artifacts/release-evidence-plan-issue-588.json (schema-valid releaseEvidencePlan), then re-run meta_prepare_executor --issue 588",
+        "planId": "rep-588-dvr-a5-five-stage-review-seller-language"
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #580 \u2014 Demo visual & Decisions copy refinement (constant)\n## Product boundary\n- Visual/copy/UX within ADR-023 IA; parallel-safe with Phase 2.10 / #534\n- Workstream B: durable Open Design + Mobbin upstream of ui-ux-design (ADR-043)\n- Workstream A: Home icons, Analytics polish, Recommendations + five-stage review, copy cleanup, Settings disabled-only\n## Explicit deferrals\n- In Progress tab untouched\n- No permanent Airtable Meta pipeline\n- No new recommendation engine\n- No wholesale Demo\u2192shadcn migration\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "web/",
+      "ios/",
+      "Sibling issue context caches",
+      "backend/src/juli_backend/",
+      "apps/demo/src/components/in-progress-panel.tsx",
+      "apps/demo/src/app/decisions/in-progress/",
+      "apps/demo/src/app/analytics/",
+      "packages/ui/src/destination-card.tsx",
+      "apps/demo/src/components/recommendations-panel.tsx"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/ui-ux/SKILL.md",
+          "purpose": "Primary ui-ux Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "ui-ux",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/product/phases/demo-visual-refinement/PRD.md",
+        "docs/handoffs/demo-visual-refinement-issue-bodies/A5.md",
+        "dictionary.md",
+        "docs/product/design/design-context.md",
+        "docs/adr/023-four-destination-analytics-ownership.md",
+        "docs/adr/028-vietnamese-copy-dictionary-and-design-context.md",
+        "CONTEXT.md",
+        "apps/demo/MODULE.md",
+        "docs/handoffs/dvr-a0-reference-bundles/recommendations.md"
+      ],
+      "requiredModules": [
+        ".cursor/skills/domain/ui-ux/SKILL.md",
+        "apps/demo/src/components/recommendation-review.tsx",
+        "apps/demo/src/lib/reviews.ts",
+        "apps/demo/src/lib/workflows/",
+        "apps/demo/src/app/decisions/recommendations/[recommendationId]/page.tsx",
+        "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+        "dictionary.md"
+      ],
+      "acceptanceCriteria": [
+        "Review flow navigates Why \u2192 Analytics \u2192 Inputs \u2192 Preview \u2192 Approve with Vietnamese stage headings",
+        "Analytics stage links to inspectable evidence; Inputs/Preview use prefilled editable seller fields",
+        "Approve opens existing approval gate and routes to In Progress on success (behavioral tests updated)",
+        "No backend jargon, FBS/confidence strings, or internal workflow step names render in seller UI",
+        "Route transitions covered by behavioral tests; Preview \u2192 Approve path reachable",
+        "Compatible with fixture and Phase 2.10 (#534) Decision read paths",
+        "**In Progress execution detail UI unchanged** \u2014 only entry via Approve from review"
+      ],
+      "loadWhenNeeded": [
+        "docs/product/design/README.md",
+        "docs/adr/015-design-system-token-foundation.md",
+        "docs/adr/041-frontend-design-skill-wiring.md",
+        ".agents/skills/shadcn/SKILL.md",
+        ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+        "packages/ui/MODULE.md",
+        "packages/ui/src/recommendation-card.tsx",
+        "apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx",
+        "apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx",
+        "apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx",
+        "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+        "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+        "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx"
+      ],
+      "releaseEvidencePlan": {
+        "planId": "rep-588-dvr-a5-five-stage-review-seller-language",
+        "affectedPublicSurfaces": [
+          "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+        ],
+        "candidateVerificationJourney": {
+          "mode": "candidate_verification",
+          "stableTrafficPercent": 100,
+          "candidatePublicTrafficPercent": 0,
+          "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+          "syntheticShopRequired": false,
+          "workersDisabledOnCandidate": true,
+          "apiSideEffectsInScope": false,
+          "journeys": [
+            {
+              "name": "demo-five-stage-review-why-to-approve",
+              "entryUrl": "/decisions/recommendations/fixture-recommendation",
+              "assertions": [
+                "html_200",
+                "stage_nav_why_analytics_inputs_preview_approve_vi_headings",
+                "analytics_stage_evidence_links_inspectable",
+                "inputs_preview_prefilled_editable_seller_fields",
+                "approve_opens_gate_routes_in_progress_on_success",
+                "banned_fbs_confidence_jargon_and_tool_names_absent",
+                "preview_to_approve_path_reachable",
+                "in_progress_execution_detail_ui_unchanged"
+              ]
+            }
+          ]
+        },
+        "staticAssetChecks": {
+          "required": true,
+          "htmlRoutes": [
+            "/decisions/recommendations/fixture-recommendation"
+          ],
+          "discoverFromHtml": true,
+          "assetTypes": [
+            "css",
+            "js"
+          ],
+          "failOnMissing": true,
+          "failOnNon200": true
+        },
+        "migrationCompatibility": {
+          "schemaChangeInScope": false,
+          "expandContractOnly": true,
+          "stableAndCandidateCompatible": true,
+          "destructiveMigrationAllowed": false,
+          "notes": "Five-stage review seller language + navigation only; reuses existing Decision payload and per-workflow review stage definitions; no new backend intelligence or DB/API contract change."
+        },
+        "rollbackAssertion": {
+          "preCutoverFailureBehavior": "revert_pr_branch",
+          "postCutoverFailureBehavior": "revert_merge_commit",
+          "retainedStableRequired": true,
+          "automatic": false
+        },
+        "requiredArtifacts": {
+          "implementation": true,
+          "intentReview": true,
+          "review": true,
+          "validation": true,
+          "releaseMetadataHonest": true
+        },
+        "acceptanceCommands": [
+          "pnpm --filter @juli/demo test -- --run",
+          "pnpm --filter @juli/demo exec tsc --noEmit",
+          "python agent-runtime/scripts/validate/run_validate.py --issue 588"
+        ],
+        "doNotInfer": [
+          "Recommendations list card layout (DVR-A4)",
+          "In Progress sub-tab presentation or route changes",
+          "New recommendation/ranking backend",
+          "Settings configuration UI",
+          "Home or Analytics polish (DVR-A2/A3)",
+          "ECS/ALB cutover",
+          "release evidence fields beyond this plan"
+        ]
+      }
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #588 (DVR-A5)\n\n- sliceId: DVR-A5\n- parentIssueId: 580\n- executorDomain: ui-ux (single primary)\n- readyForExecutor: true\n- publicRelease: true (path:apps/demo)\n- releaseEvidencePlanId: rep-588-dvr-a5-five-stage-review-seller-language\n- Worktree: .worktrees/issue-588 / feature/issue-588-dvr-a5-five-stage-review @ origin/main (4bfa2e61 + DVR-A5 slice-routing)\n- Paths: recommendation-review.tsx, reviews.ts, workflows/*/review.ts, recommendation detail page, workflow-*-review-approve-in-progress tests\n- Blocker #587 (DVR-A4) merged \u2014 unblocked\n- Isolate: after A4; do not edit recommendations-panel list layout; In Progress detail UI untouched\n- Design refs: docs/handoffs/dvr-a0-reference-bundles/recommendations.md\n- Pipeline: Executor TDD \u2192 intent-review \u2192 guardrails \u2192 validate\n- Acceptance cmds: pnpm --filter @juli/demo test -- --run; tsc --noEmit; run_validate.py --issue 588\n- preparedAt: 2026-07-29T09:34:09Z\n",
+    "promptCacheBlock": "# Issue #588 \u2014 DVR-A5\n\n## Parent\n#580\n\n## Executor domain\nui-ux\n\n## Required docs\n- EXECUTION.md\n- docs/product/phases/demo-visual-refinement/PRD.md\n- docs/handoffs/demo-visual-refinement-issue-bodies/A5.md\n- dictionary.md\n- docs/product/design/design-context.md\n- docs/adr/023-four-destination-analytics-ownership.md\n- docs/adr/028-vietnamese-copy-dictionary-and-design-context.md\n- CONTEXT.md\n- apps/demo/MODULE.md\n- docs/handoffs/dvr-a0-reference-bundles/recommendations.md\n",
+    "executorDomain": "ui-ux",
+    "skillsPrimaryOnly": true,
+    "publicRelease": true,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    },
+    "releaseEvidencePlan": {
+      "planId": "rep-588-dvr-a5-five-stage-review-seller-language",
+      "affectedPublicSurfaces": [
+        "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+      ],
+      "candidateVerificationJourney": {
+        "mode": "candidate_verification",
+        "stableTrafficPercent": 100,
+        "candidatePublicTrafficPercent": 0,
+        "restrictedRoute": "local/candidate Demo build \u2014 zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+        "syntheticShopRequired": false,
+        "workersDisabledOnCandidate": true,
+        "apiSideEffectsInScope": false,
+        "journeys": [
+          {
+            "name": "demo-five-stage-review-why-to-approve",
+            "entryUrl": "/decisions/recommendations/fixture-recommendation",
+            "assertions": [
+              "html_200",
+              "stage_nav_why_analytics_inputs_preview_approve_vi_headings",
+              "analytics_stage_evidence_links_inspectable",
+              "inputs_preview_prefilled_editable_seller_fields",
+              "approve_opens_gate_routes_in_progress_on_success",
+              "banned_fbs_confidence_jargon_and_tool_names_absent",
+              "preview_to_approve_path_reachable",
+              "in_progress_execution_detail_ui_unchanged"
+            ]
+          }
+        ]
+      },
+      "staticAssetChecks": {
+        "required": true,
+        "htmlRoutes": [
+          "/decisions/recommendations/fixture-recommendation"
+        ],
+        "discoverFromHtml": true,
+        "assetTypes": [
+          "css",
+          "js"
+        ],
+        "failOnMissing": true,
+        "failOnNon200": true
+      },
+      "migrationCompatibility": {
+        "schemaChangeInScope": false,
+        "expandContractOnly": true,
+        "stableAndCandidateCompatible": true,
+        "destructiveMigrationAllowed": false,
+        "notes": "Five-stage review seller language + navigation only; reuses existing Decision payload and per-workflow review stage definitions; no new backend intelligence or DB/API contract change."
+      },
+      "rollbackAssertion": {
+        "preCutoverFailureBehavior": "revert_pr_branch",
+        "postCutoverFailureBehavior": "revert_merge_commit",
+        "retainedStableRequired": true,
+        "automatic": false
+      },
+      "requiredArtifacts": {
+        "implementation": true,
+        "intentReview": true,
+        "review": true,
+        "validation": true,
+        "releaseMetadataHonest": true
+      },
+      "acceptanceCommands": [
+        "pnpm --filter @juli/demo test -- --run",
+        "pnpm --filter @juli/demo exec tsc --noEmit",
+        "python agent-runtime/scripts/validate/run_validate.py --issue 588"
+      ],
+      "doNotInfer": [
+        "Recommendations list card layout (DVR-A4)",
+        "In Progress sub-tab presentation or route changes",
+        "New recommendation/ranking backend",
+        "Settings configuration UI",
+        "Home or Analytics polish (DVR-A2/A3)",
+        "ECS/ALB cutover",
+        "release evidence fields beyond this plan"
+      ]
+    },
+    "releaseEvidencePlanId": "rep-588-dvr-a5-five-stage-review-seller-language"
+  },
+  "executorDomain": "ui-ux"
+}

@@ -1,6 +1,11 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const OPTIMIZE_PRODUCT_WORKFLOW_KEY = "optimize_product_2";
 export const OPTIMIZE_PRODUCT_TOOL_NAME = "listing.optimize_product";
@@ -37,12 +42,7 @@ export function getOptimizeProductReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        optimizeFixture.reasoning,
-        optimizeFixture.signal,
-        optimizeFixture.evidence,
-        optimizeFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(optimizeFixture),
     },
     {
       stage: "analytics",
@@ -56,7 +56,7 @@ export function getOptimizeProductReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body: [
-        "Giá trị hiện tại được tải từ Get Product; tiêu đề/mô tả SEO điền sẵn từ gợi ý TikTok.",
+        "Giá trị hiện tại được tải từ sản phẩm trên shop; tiêu đề/mô tả SEO điền sẵn từ gợi ý TikTok.",
         "Thay ảnh/tệp mặc định tắt — chỉ bật khi shop chọn thay thế hoặc bổ sung.",
         "Giá theo khuyến nghị T9 trong giới hạn sàn lợi nhuận đã cấu hình; mọi trường thay đổi vẫn có thể chỉnh trước khi phê duyệt.",
       ].join(" "),
@@ -109,20 +109,15 @@ export function getOptimizeProductReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${optimizeFixture.toolName}`,
-        `Khả năng: ${optimizeFixture.capabilityLabel}`,
-        `Điều kiện: ${optimizeFixture.eligibility}`,
-        optimizeFixture.knownLimits,
+      body: buildSellerPreviewBody(optimizeFixture, [
         "Giá phải ở trên mức sàn lợi nhuận đã cấu hình — thay đổi dưới sàn sẽ bị chặn khi phê duyệt.",
-        "Khung FBT (giao hàng do TikTok quản lý) cho tối ưu sản phẩm chưa được điền — không suy diễn luồng FBS hợp lệ cho ghi danh FBT.",
-      ].join("\n\n"),
+        "Giao hàng do TikTok quản lý cho tối ưu sản phẩm chưa có trong Demo.",
+      ]),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body:
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện. Demo không gọi TikTok API thật; chỉ luồng FBS được hỗ trợ thực thi.",
+      body: buildSellerApproveBody(),
     },
   ];
 }

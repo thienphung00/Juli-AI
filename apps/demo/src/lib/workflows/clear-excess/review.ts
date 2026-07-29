@@ -1,6 +1,11 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const CLEAR_EXCESS_WORKFLOW_KEY = "clear_excess_4";
 
@@ -15,9 +20,6 @@ if (!clearExcessFixtureEntry) {
 const clearExcessFixture = clearExcessFixtureEntry;
 
 export const defaultClearExcessAnalyticsMetricKey = "stock-health";
-
-const FBT_SCAFFOLD_UNFILLED =
-  "FBT (giao hàng do TikTok quản lý): khung luồng mục tiêu chưa được điền — không có executor cập nhật tồn kho phía seller; chỉ ghi nhận webhook cập nhật tồn kho FBT (#24).";
 
 export function buildClearExcessReviewInputDefaults(): Record<string, string> {
   return {
@@ -40,12 +42,7 @@ export function getClearExcessReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        clearExcessFixture.reasoning,
-        clearExcessFixture.signal,
-        clearExcessFixture.evidence,
-        clearExcessFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(clearExcessFixture),
     },
     {
       stage: "analytics",
@@ -64,7 +61,7 @@ export function getClearExcessReviewStages(
         "Cửa sổ khuyến mãi cần ngày bắt đầu và kết thúc rõ ràng.",
         "Flash Sale chỉ chọn được sau khi có kết quả kiểm tra điều kiện thật — Demo hiển thị trạng thái chờ kiểm tra, không giả lập “đủ điều kiện”.",
         "Ngưỡng tốc độ quay vòng/tuổi hàng để kích hoạt đề xuất này chưa được xác định.",
-        "Xoá tồn kho sàn FBS về 0 là bước sau, không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế, không được phê duyệt ngầm ở bước này.",
+        "Xoá tồn kho sàn về 0 là bước sau, không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế, không được phê duyệt ngầm ở bước này.",
       ].join("\n\n"),
       inputFields: [
         {
@@ -112,7 +109,7 @@ export function getClearExcessReviewStages(
         },
         {
           key: "zero_floor_stock_ack",
-          label: "Xoá tồn kho sàn FBS về 0",
+          label: "Xoá tồn kho sàn về 0",
           prefillValue: "Bước sau — chưa phê duyệt trước khi xả hàng",
           required: false,
           editable: false,
@@ -122,19 +119,16 @@ export function getClearExcessReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${clearExcessFixture.toolName}`,
-        `Khả năng: ${clearExcessFixture.capabilityLabel}`,
-        `Điều kiện: ${clearExcessFixture.eligibility}`,
-        clearExcessFixture.knownLimits,
-        FBT_SCAFFOLD_UNFILLED,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(clearExcessFixture, [
+        "Giao hàng do TikTok quản lý cho xả tồn chưa có trong Demo.",
+      ]),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body:
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện. Demo không gọi TikTok API thật; không giả lập kết quả đủ điều kiện Flash Sale.",
+      body: buildSellerApproveBody([
+        "Demo không giả lập kết quả đủ điều kiện Flash Sale.",
+      ]),
     },
   ];
 }

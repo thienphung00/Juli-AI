@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 588,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "588-dvr-a5-20260729T0947Z",
+  "startedAt": "2026-07-29T09:38:00Z",
+  "completedAt": "2026-07-29T09:47:10Z",
+  "executionDurationMs": 550000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 24,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 3,
+      "stage": "green"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 42,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "UpdateCurrentStep",
+      "count": 4,
+      "stage": "other"
+    }
+  ],
+  "toolInvocationCount": 85,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-588.json",
+    "agent-runtime/artifacts/release-evidence-plan-issue-588.json",
+    "docs/handoffs/demo-visual-refinement-issue-bodies/A5.md",
+    "docs/handoffs/dvr-a0-reference-bundles/recommendations.md",
+    "docs/product/design/design-context.md",
+    ".cursor/skills/domain/ui-ux/SKILL.md",
+    "apps/demo/src/components/recommendation-review.tsx",
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/lib/workflows/*/review.ts",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/ui-ux/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/mcp-usage.mdc",
+    ".cursor/rules/git-baseline.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/src/lib/review-seller-copy.ts",
+    "apps/demo/src/components/recommendation-review.tsx",
+    "apps/demo/src/lib/reviews.ts",
+    "apps/demo/src/lib/workflows/clear-excess/review.ts",
+    "apps/demo/src/lib/workflows/create-activity/review.ts",
+    "apps/demo/src/lib/workflows/delete-activity/review.ts",
+    "apps/demo/src/lib/workflows/optimize-product/review.ts",
+    "apps/demo/src/lib/workflows/prevent-cancellation/review.ts",
+    "apps/demo/src/lib/workflows/prevent-refund/review.ts",
+    "apps/demo/src/lib/workflows/prevent-return/review.ts",
+    "apps/demo/src/lib/workflows/process-order/review.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/review.ts",
+    "apps/demo/src/lib/workflows/update-activity/review.ts",
+    "apps/demo/src/__tests__/review-test-helpers.ts",
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/lib/workflows/clear-excess/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/create-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/delete-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/optimize-product/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/process-order/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/update-activity/__tests__/review.test.ts"
+  ],
+  "testsAdded": [
+    "apps/demo/src/__tests__/review-test-helpers.ts"
+  ],
+  "testsUpdated": [
+    "apps/demo/src/__tests__/recommendation-review.test.tsx",
+    "apps/demo/src/__tests__/workflow-2-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-3-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-4-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx",
+    "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx",
+    "apps/demo/src/lib/__tests__/executions.test.ts",
+    "apps/demo/src/lib/workflows/clear-excess/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/create-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/delete-activity/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/optimize-product/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/process-order/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/replenish-inventory/__tests__/review.test.ts",
+    "apps/demo/src/lib/workflows/update-activity/__tests__/review.test.ts"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "RED: added review copy-guard + approval-gate behavioral tests and updated workflow review unit tests expecting seller language (no tool_name/FBS/FBT). Baseline seller UI still rendered backend jargon in preview/approve stages and Approve called startExecution without ConfirmDialog.",
+      "passingTestEvidence": "GREEN: review-seller-copy helpers sanitize Why/Preview/Approve copy across all workflows; ConfirmDialog approval gate added; 224/224 demo tests pass.",
+      "refactorEvidence": "Shared buildSellerWhyBody/buildSellerPreviewBody/buildSellerApproveBody + confirmApproveThroughGate test helper deduplicate seller copy and gate interaction across behavioral tests.",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test -- --run",
+          "exitCode": 1,
+          "outputSummary": "3 failed — approve body whitespace, WH-HCM-01 default, sanitized Why evidence"
+        },
+        {
+          "command": "pnpm --filter @juli/demo test -- --run",
+          "exitCode": 0,
+          "outputSummary": "45 files, 224 passed"
+        },
+        {
+          "command": "pnpm --filter @juli/demo exec tsc --noEmit",
+          "exitCode": 0,
+          "outputSummary": "no errors"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "DVR-A5 seller-language five-stage review: added review-seller-copy helpers and sanitized Why/Preview/Approve/Inputs copy across hero + 10 workflow review definitions; wired ConfirmDialog approval gate on Approve CTA before startExecution→In Progress routing; updated behavioral and unit tests for stage order, analytics links, editable drafts, jargon absence, Preview→Approve path, and gate confirm.",
+  "assumptions": [
+    "Existing Decision fixtures unchanged — seller copy sanitized at review stage layer only",
+    "ConfirmDialog from @juli/ui satisfies existing approval gate contract for Demo",
+    "In Progress execution detail UI untouched per scope — only entry path via review Approve gate"
+  ],
+  "risks": [
+    "Why-stage sanitizeSellerReviewText may over-normalize rare legitimate seller phrases containing acronyms",
+    "Ship by TikTok / Ship by Seller labels retained in process_order inputs as TikTok product terms, not internal tool names"
+  ],
+  "releaseEvidencePlanId": "rep-588-dvr-a5-five-stage-review-seller-language"
+}

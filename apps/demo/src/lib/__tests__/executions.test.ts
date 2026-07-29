@@ -67,7 +67,7 @@ describe("startExecution", () => {
     expect(record.approvedInputs.brand_id).toBe("BR-9999 — Thương hiệu thử");
     expect(record.approvedInputs.price).toBe("315000");
     expect(record.approvedInputs.category_id).toBe("700648");
-    expect(record.approvedInputs.warehouse_id).toBe("WH-FBS-HCM-01");
+    expect(record.approvedInputs.warehouse_id).toBe("WH-HCM-01");
   });
 
   it("starts workflow 2 with optimize_product tool and eleven-step timeline", () => {

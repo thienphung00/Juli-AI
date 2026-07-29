@@ -1,13 +1,15 @@
 import type { ReviewStageContent } from "@juli/contracts";
 
 import { recommendationFixtures } from "../../recommendations";
+import {
+  buildSellerApproveBody,
+  buildSellerWhyBody,
+  buildSellerPreviewBody,
+} from "../../review-seller-copy";
 
 export const UPDATE_ACTIVITY_WORKFLOW_KEY = "update_activity_7c";
 export const UPDATE_ACTIVITY_TOOL_NAME = "promotion.update_activity";
 export const defaultUpdateActivityAnalyticsMetricKey = "revenue-by-sku";
-
-const FBT_PROMOTION_SCAFFOLD_UNFILLED =
-  "FBT (giao hàng do TikTok quản lý): khung luồng khuyến mãi mục tiêu chưa được điền — Unresolved/Unfilled. Không suy diễn parity từ FBS.";
 
 const updateActivityFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === UPDATE_ACTIVITY_WORKFLOW_KEY,
@@ -39,12 +41,7 @@ export function getUpdateActivityReviewStages(
     {
       stage: "why",
       title: "Vì sao đề xuất này",
-      body: [
-        updateActivityFixture.reasoning,
-        updateActivityFixture.signal,
-        updateActivityFixture.evidence,
-        updateActivityFixture.risks,
-      ].join("\n\n"),
+      body: buildSellerWhyBody(updateActivityFixture),
     },
     {
       stage: "analytics",
@@ -58,9 +55,9 @@ export function getUpdateActivityReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body: [
-        "activity_id đã biết được tải sẵn — không hỗ trợ tìm kiếm chương trình khuyến mãi.",
+        "Chương trình khuyến mãi đã biết được tải sẵn — không hỗ trợ tìm kiếm chương trình khuyến mãi.",
         "Loại khuyến mãi, SKU, giá/giảm giá và cửa sổ thời gian cần shop xác nhận — không có số tiền giảm giá mặc định.",
-        "Webhook Activity change (#63) cho chỉnh cấu hình được catalog nhưng hỗ trợ hiển thị là chưa xác định nếu môi trường hiện tại chưa đăng ký.",
+        "Cập nhật cấu hình khuyến mãi phụ thuộc môi trường đã đăng ký thông báo thay đổi.",
       ].join(" "),
       inputFields: [
         {
@@ -110,19 +107,16 @@ export function getUpdateActivityReviewStages(
     {
       stage: "preview",
       title: "Xem trước trước khi phê duyệt",
-      body: [
-        `Công cụ: ${updateActivityFixture.toolName}`,
-        `Khả năng: ${updateActivityFixture.capabilityLabel}`,
-        `Điều kiện: ${updateActivityFixture.eligibility}`,
-        updateActivityFixture.knownLimits,
-        FBT_PROMOTION_SCAFFOLD_UNFILLED,
-      ].join("\n\n"),
+      body: buildSellerPreviewBody(updateActivityFixture, [
+        "Khuyến mãi mục tiêu qua giao hàng do TikTok quản lý chưa có trong Demo.",
+      ]),
     },
     {
       stage: "approve",
       title: "Xác nhận phê duyệt",
-      body:
-        "Phê duyệt sẽ ghi nhận workflow_key và tool_name, sau đó mở luồng Đang thực hiện. Demo không gọi TikTok API thật; không hỗ trợ tìm kiếm activity.",
+      body: buildSellerApproveBody([
+        "Demo không hỗ trợ tìm kiếm chương trình khuyến mãi.",
+      ]),
     },
   ];
 }

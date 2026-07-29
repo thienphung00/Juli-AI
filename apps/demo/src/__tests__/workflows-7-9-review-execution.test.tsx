@@ -28,6 +28,7 @@ import {
   getWorkflowReviewStages,
   isReviewExecutableWorkflow,
 } from "../lib/reviews";
+import { confirmApproveThroughGate } from "./review-test-helpers";
 
 const push = vi.fn();
 
@@ -121,7 +122,7 @@ async function runReviewApproveInProgressCase({
   );
 
   await advanceToApprove(user);
-  await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+  await confirmApproveThroughGate(user);
 
   expect(push).toHaveBeenCalledWith(`/decisions/in-progress/${executionId}`);
 
