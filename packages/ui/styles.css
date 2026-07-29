@@ -58,7 +58,12 @@
   border-radius: 1rem;
   background: var(--juli-primary-soft);
   color: var(--juli-primary-strong);
-  font-size: 1.5rem;
+}
+
+.juli-destination-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--juli-primary-strong);
 }
 
 .juli-destination-card__eyebrow {

@@ -11,6 +11,11 @@ export type {
 } from "./chip";
 export { DestinationCard } from "./destination-card";
 export type { DestinationCardProps } from "./destination-card";
+export { DestinationIcon } from "./destination-icons";
+export type {
+  DestinationIconName,
+  DestinationIconProps,
+} from "./destination-icons";
 export { HealthBar } from "./health-bar";
 export type { HealthBarProps } from "./health-bar";
 export { PrimaryNavigation } from "./primary-navigation";

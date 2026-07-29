@@ -27,7 +27,53 @@ describe("Demo Home", () => {
     ).toHaveAttribute("href", "/analytics");
   });
 
-  it("keeps KPI, recommendation actions, and configuration off Home", () => {
+  it("keeps keyboard navigation and identifiable card targets on Home launchers", () => {
+    render(<HomePage />);
+
+    const launchers = within(
+      screen.getByRole("region", { name: "Điểm đến chính" }),
+    ).getAllByRole("link");
+
+    expect(launchers).toHaveLength(2);
+    for (const launcher of launchers) {
+      expect(launcher.tagName).toBe("A");
+      expect(launcher).toHaveAttribute("href");
+      expect(launcher.querySelector(".juli-destination-card__icon")).toBeTruthy();
+    }
+  });
+
+  it("uses @juli/ui Lucide icons instead of Unicode glyphs on Home launchers", () => {
+    render(<HomePage />);
+
+    const launchers = within(
+      screen.getByRole("region", { name: "Điểm đến chính" }),
+    ).getAllByRole("link");
+
+    for (const launcher of launchers) {
+      expect(launcher.querySelector(".juli-destination-icon")).toBeInTheDocument();
+    }
+
+    expect(document.body).not.toHaveTextContent("✓");
+    expect(document.body).not.toHaveTextContent("↗");
+  });
+
+  it("documents lucide icon choices without dvr a0 reference bundles when not landed", () => {
+    render(<HomePage />);
+
+    expect(
+      homeDestinations.every(
+        (destination) =>
+          destination.icon === "decisions" || destination.icon === "analytics",
+      ),
+    ).toBe(true);
+    expect(
+      screen.getByRole("link", { name: /Quyết định/ }).querySelector(
+        ".juli-destination-icon",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves in progress settings and recommendations surfaces untouched on Home", () => {
     render(<HomePage />);
 
     expect(screen.queryByText(/Phê duyệt|Từ chối|Mở rộng/)).not.toBeInTheDocument();

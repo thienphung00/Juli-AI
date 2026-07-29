@@ -1593,3 +1593,129 @@ DVR-A6:
     - apps/demo/src/components/in-progress-panel.tsx
     - apps/demo/src/app/decisions/in-progress/
     - Sibling issue context caches
+
+DVR-A2:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/demo-visual-refinement/PRD.md
+    - docs/handoffs/demo-visual-refinement-issue-bodies/A2.md
+    - docs/adr/015-design-system-token-foundation.md
+    - docs/adr/023-four-destination-analytics-ownership.md
+    - docs/adr/028-vietnamese-copy-dictionary-and-design-context.md
+    - docs/adr/041-frontend-design-skill-wiring.md
+    - dictionary.md
+    - docs/product/design/design-context.md
+    - CONTEXT.md
+    - apps/demo/MODULE.md
+    - packages/ui/MODULE.md
+  requiredModules:
+    - .cursor/skills/domain/ui-ux/SKILL.md
+    - packages/ui/src/destination-card.tsx
+    - packages/ui/styles.css
+    - packages/ui/src/index.ts
+    - apps/demo/src/lib/mock-data.ts
+    - apps/demo/src/app/page.tsx
+    - apps/demo/src/__tests__/home.test.tsx
+  loadWhenNeeded:
+    - docs/product/design/README.md
+    - .agents/skills/shadcn/SKILL.md
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
+    - apps/demo/e2e/exit-gate/decisions-journey.spec.ts
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - apps/demo/src/components/in-progress-panel.tsx
+    - apps/demo/src/app/decisions/in-progress/
+    - apps/demo/src/components/recommendations-panel.tsx
+    - apps/demo/src/app/analytics/
+    - Sibling issue context caches
+
+DVR-A3:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/demo-visual-refinement/PRD.md
+    - docs/handoffs/demo-visual-refinement-issue-bodies/A3.md
+    - docs/adr/015-design-system-token-foundation.md
+    - docs/adr/023-four-destination-analytics-ownership.md
+    - docs/adr/028-vietnamese-copy-dictionary-and-design-context.md
+    - dictionary.md
+    - docs/product/design/design-context.md
+    - CONTEXT.md
+    - apps/demo/MODULE.md
+    - packages/ui/MODULE.md
+  requiredModules:
+    - .cursor/skills/domain/ui-ux/SKILL.md
+    - apps/demo/src/app/analytics/page.tsx
+    - apps/demo/src/app/analytics/[metricKey]/page.tsx
+    - apps/demo/src/components/analytics-kpi-card.tsx
+    - apps/demo/src/components/analytics-charts.tsx
+    - apps/demo/src/components/analytics-dashboard.tsx
+    - apps/demo/src/lib/analytics/main-kpis.ts
+    - apps/demo/src/__tests__/analytics-dashboard.test.tsx
+    - packages/ui/src/chart.tsx
+  loadWhenNeeded:
+    - docs/product/design/README.md
+    - docs/adr/015-design-system-token-foundation.md
+    - .agents/skills/shadcn/SKILL.md
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
+    - packages/ui/src/page-header.tsx
+    - packages/ui/styles.css
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - apps/demo/src/components/in-progress-panel.tsx
+    - apps/demo/src/app/decisions/in-progress/
+    - apps/demo/src/components/recommendations-panel.tsx
+    - packages/ui/src/destination-card.tsx
+    - packages/ui/src/recommendation-card.tsx
+    - Sibling issue context caches
+
+DVR-A4:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/phases/demo-visual-refinement/PRD.md
+    - docs/handoffs/demo-visual-refinement-issue-bodies/A4.md
+    - dictionary.md
+    - docs/product/design/design-context.md
+    - docs/adr/023-four-destination-analytics-ownership.md
+    - docs/adr/028-vietnamese-copy-dictionary-and-design-context.md
+    - CONTEXT.md
+    - apps/demo/MODULE.md
+    - packages/ui/MODULE.md
+  requiredModules:
+    - .cursor/skills/domain/ui-ux/SKILL.md
+    - packages/ui/src/recommendation-card.tsx
+    - apps/demo/src/components/recommendations-panel.tsx
+    - apps/demo/src/components/recommendations-view.tsx
+    - apps/demo/src/lib/recommendations.ts
+    - apps/demo/src/app/decisions/recommendations/[recommendationId]/page.tsx
+    - apps/demo/src/__tests__/decisions-recommendations.test.tsx
+    - dictionary.md
+  loadWhenNeeded:
+    - docs/product/design/README.md
+    - docs/adr/015-design-system-token-foundation.md
+    - .agents/skills/shadcn/SKILL.md
+    - .cursor/skills/standalone/ui-ux-design/SKILL.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - web/
+    - ios/
+    - backend/src/juli_backend/
+    - apps/demo/src/components/in-progress-panel.tsx
+    - apps/demo/src/app/decisions/in-progress/
+    - apps/demo/src/app/analytics/
+    - packages/ui/src/destination-card.tsx
+    - Sibling issue context caches

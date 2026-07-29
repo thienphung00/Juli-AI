@@ -2,7 +2,7 @@ export interface HomeDestinationFixture {
   description: string;
   eyebrow: string;
   href: "/decisions" | "/analytics";
-  icon: string;
+  icon: "decisions" | "analytics";
   label: "Quyết định" | "Phân tích";
 }
 
@@ -16,12 +16,12 @@ const homeDestination = { href: "/", label: "Trang chủ", icon: "⌂" } as cons
 const decisionsDestination = {
   href: "/decisions",
   label: "Quyết định",
-  icon: "✓",
+  icon: "decisions",
 } as const;
 const analyticsDestination = {
   href: "/analytics",
   label: "Phân tích",
-  icon: "↗",
+  icon: "analytics",
 } as const;
 const settingsDestination = {
   href: "/settings",

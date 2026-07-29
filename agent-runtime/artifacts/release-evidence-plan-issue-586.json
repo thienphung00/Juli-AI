@@ -1,0 +1,75 @@
+{
+  "planId": "rep-586-dvr-a2-home-destination-icons",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/",
+    "demo.app-juli.com (Home destination launchers via @juli/ui DestinationCard)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-home-two-destination-icons",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "exactly_two_destination_launchers_decisions_and_analytics",
+          "icons_token_aligned_via_juli_ui",
+          "keyboard_nav_and_card_targets_identifiable",
+          "in_progress_settings_recommendations_untouched"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Home iconography via @juli/ui DestinationCard only; no DB or API contract change; ADR-023 sparse launchpad preserved."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/ui test -- --run",
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 586"
+  ],
+  "doNotInfer": [
+    "Analytics visual polish (DVR-A3)",
+    "Recommendations / five-stage review (DVR-A4/A5)",
+    "ECS/ALB cutover",
+    "In Progress tab changes",
+    "release evidence fields beyond this plan"
+  ]
+}
