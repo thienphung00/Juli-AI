@@ -32,7 +32,9 @@ def test_medallion_migration_creates_four_schemas():
 
 def test_medallion_migration_revokes_postgrest_roles_from_internal_layers():
     text = MIGRATION_PATH.read_text(encoding="utf-8")
-    assert 'f"REVOKE ALL ON SCHEMA {schema} FROM {role}"' in text
+    assert "REVOKE ALL ON SCHEMA {schema} FROM {role}" in text
+    assert "pg_roles" in text
+    assert "IF EXISTS" in text
     for schema in CLIENT_ISOLATED_SCHEMAS:
         assert schema in text
     for role in POSTGREST_CLIENT_ROLES:

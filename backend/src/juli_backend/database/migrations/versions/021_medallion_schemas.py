@@ -3,6 +3,9 @@
 Revision ID: 021_medallion_schemas
 Revises: 020_analytics_kpi_envelopes
 Create Date: 2026-07-30
+
+Supabase PostgREST roles (anon / authenticated / service_role) may be absent on
+plain Postgres CI. Privilege statements run only when the target role exists.
 """
 
 from collections.abc import Sequence
@@ -27,25 +30,57 @@ def _create_schemas() -> None:
 
 
 def _revoke_client_access(schema: str) -> None:
-    roles = ", ".join(POSTGREST_CLIENT_ROLES)
     for role in POSTGREST_CLIENT_ROLES:
-        op.execute(f"REVOKE ALL ON SCHEMA {schema} FROM {role}")
-        op.execute(f"REVOKE ALL ON ALL TABLES IN SCHEMA {schema} FROM {role}")
-        op.execute(f"REVOKE ALL ON ALL SEQUENCES IN SCHEMA {schema} FROM {role}")
-        op.execute(f"REVOKE ALL ON ALL FUNCTIONS IN SCHEMA {schema} FROM {role}")
-    op.execute(f"ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} REVOKE ALL ON TABLES FROM {roles}")
-    op.execute(f"ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} REVOKE ALL ON SEQUENCES FROM {roles}")
+        op.execute(
+            f"""
+DO $medallion$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    REVOKE ALL ON SCHEMA {schema} FROM {role};
+    REVOKE ALL ON ALL TABLES IN SCHEMA {schema} FROM {role};
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA {schema} FROM {role};
+    REVOKE ALL ON ALL FUNCTIONS IN SCHEMA {schema} FROM {role};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} REVOKE ALL ON TABLES FROM {role};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} REVOKE ALL ON SEQUENCES FROM {role};
+  END IF;
+END
+$medallion$;
+"""
+        )
 
 
 def _grant_service_role(schema: str) -> None:
-    op.execute(f"GRANT USAGE ON SCHEMA {schema} TO {SERVICE_ROLE}")
-    op.execute(f"GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO {SERVICE_ROLE}")
-    op.execute(f"GRANT ALL ON ALL SEQUENCES IN SCHEMA {schema} TO {SERVICE_ROLE}")
-    op.execute(f"GRANT ALL ON ALL FUNCTIONS IN SCHEMA {schema} TO {SERVICE_ROLE}")
-    op.execute(f"ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} GRANT ALL ON TABLES TO {SERVICE_ROLE}")
     op.execute(
-        f"ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} GRANT ALL ON SEQUENCES TO {SERVICE_ROLE}"
+        f"""
+DO $medallion$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{SERVICE_ROLE}') THEN
+    GRANT USAGE ON SCHEMA {schema} TO {SERVICE_ROLE};
+    GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO {SERVICE_ROLE};
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA {schema} TO {SERVICE_ROLE};
+    GRANT ALL ON ALL FUNCTIONS IN SCHEMA {schema} TO {SERVICE_ROLE};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} GRANT ALL ON TABLES TO {SERVICE_ROLE};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} GRANT ALL ON SEQUENCES TO {SERVICE_ROLE};
+  END IF;
+END
+$medallion$;
+"""
     )
+
+
+def _revoke_client_table(table: str) -> None:
+    for role in POSTGREST_CLIENT_ROLES:
+        op.execute(
+            f"""
+DO $medallion$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    REVOKE ALL ON TABLE {table} FROM {role};
+  END IF;
+END
+$medallion$;
+"""
+        )
 
 
 def upgrade() -> None:
@@ -79,8 +114,7 @@ def upgrade() -> None:
         schema="gold",
     )
 
-    for role in POSTGREST_CLIENT_ROLES:
-        op.execute(f"REVOKE ALL ON TABLE gold.ml_feature_snapshots FROM {role}")
+    _revoke_client_table("gold.ml_feature_snapshots")
 
 
 def downgrade() -> None:

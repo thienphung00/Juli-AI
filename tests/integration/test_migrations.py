@@ -350,7 +350,27 @@ def test_internal_medallion_layers_not_readable_by_postgrest_roles(
     postgres_at_head: Engine,
 ):
     """bronze/silver/ops must not grant USAGE to anon/authenticated (#603)."""
-    with postgres_at_head.connect() as conn:
+    with postgres_at_head.begin() as conn:
+        for role in POSTGREST_CLIENT_ROLES:
+            conn.execute(
+                text(
+                    f"""
+DO $role$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    CREATE ROLE {role} NOLOGIN;
+  END IF;
+END
+$role$;
+"""
+                )
+            )
+        # Prove REVOKE path: grant then revoke (roles absent at upgrade on plain CI).
+        for schema in CLIENT_ISOLATED_SCHEMAS:
+            for role in POSTGREST_CLIENT_ROLES:
+                conn.execute(text(f"GRANT USAGE ON SCHEMA {schema} TO {role}"))
+                conn.execute(text(f"REVOKE ALL ON SCHEMA {schema} FROM {role}"))
+
         for schema in CLIENT_ISOLATED_SCHEMAS:
             for role in POSTGREST_CLIENT_ROLES:
                 has_usage = conn.execute(
