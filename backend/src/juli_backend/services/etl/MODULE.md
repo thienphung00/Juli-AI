@@ -45,6 +45,32 @@ Producer wiring: ``make_etl_handoff(consumer)`` lives in
 - No broker client imported — callers inject handoff functions
 - **Silver cutover (#607):** domain order/return upserts write `silver.orders` / `silver.returns`; bronze promotion via `SilverOrdersReturnsPromoter`
 
+## One-writer map (CDP medallion — #608)
+
+Post-cutover **one writer per medallion table** is documented in
+[`database/MODULE.md`](../../database/MODULE.md) (authoritative map). This package owns:
+
+| Responsibility | Tables / repos |
+|----------------|----------------|
+| **Bronze append** (orders/returns raw payloads) | `BronzeOrderRawPayloadsRepo`, `BronzeReturnRawPayloadsRepo` — batched `append_batch` only |
+| **Silver domain upsert** | `OrdersRepo.upsert`, `ReturnsRepo.upsert` via `EtlConsumer` and `SilverOrdersReturnsPromoter` |
+
+Readers (gold compute, ML) must not write silver. Bronze promotion reads bronze append
+rows and writes silver only through the promoter — no reverse bronze writes from silver.
+
+### Shared Compute Orchestrator — Q4 stage hooks (A1)
+
+Full orchestrator runtime is **A1 Speed (#601)**; A0 seeds docs + repos only. Per material
+trigger, one shop-scoped job runs **bronze append → silver upsert → gold envelope** in
+order (ADR-046 Q4). Stage wiring targets:
+
+1. **Bronze** — append via bronze repos in this package (webhook/fetch handoff).
+2. **Silver** — `SilverOrdersReturnsPromoter.promote_order` / `promote_return`.
+3. **Gold** — `services/gold_kpi_envelope_serving.py` shell today; A1 Shared Compute gold
+   stage owns full `gold.kpi_envelopes` refresh.
+
+Do **not** wire Celery material webhook enqueue or cross-shop batch jobs in A0 (#608).
+
 ## Deprecated aliases
 
 - `KafkaRecord` → `IngestRecord`

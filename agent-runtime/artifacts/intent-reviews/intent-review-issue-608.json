@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-608",
+  "issue": 608,
+  "timestamp": "2026-07-30T10:34:12Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "190ebfe4d4a6aca2f8e0922be8007a2eacff4437",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Working tree vs origin/main (#608 CDP-A0-6). database/MODULE.md adds authoritative one-writer ownership map for bronze append, silver.orders/returns, gold.kpi_envelopes, ops.analytics_backfill_partitions, and gold.ml_feature_snapshots stub; documents Q4 Shared Compute Orchestrator three stages (bronze append \u2192 silver upsert \u2192 gold envelope) as A1 hooks only with explicit no deployed material webhook/Celery enqueue. services/etl/MODULE.md cross-links map and bronze/silver writer responsibilities. medallion_one_writer.py AST scanner enforces allowed writer module prefixes per repo write method; tests/unit/test_medallion_one_writer_ownership.py covers doc phrases, production-tree scan, synthetic forbidden/allowed writers, and CLI PASS. No runtime orchestrator, webhook enqueue, or demo wiring added.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "ADR-046 / implementation artifact \u2014 transitional gold dual-writer",
+      "path": "agent-runtime/scripts/ci/medallion_one_writer.py",
+      "note": "GoldKpiEnvelopesRepo and AnalyticsKpiEnvelopesRepo upsert allowed from gold_kpi_envelope_serving and analytics_kpi_precompute until A1 consolidates stage 3; documented in MODULE.md and implementation risks.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "database/MODULE.md \u2014 product lifecycle vs ingest writer",
+      "path": "backend/src/juli_backend/api/routes/orders.py",
+      "note": "OrdersRepo.confirm_shipment from API routes is documented as seller lifecycle outside medallion ingest upsert ownership; scanner correctly tracks upsert only, not confirm_shipment.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "ADR-047 \u2014 bronze append production callers deferred",
+      "path": "backend/src/juli_backend/services/etl/",
+      "note": "Bronze append repos have rules and tests but no production append_batch callers yet; enforcement activates when A1 wires bronze writer.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "2026-07-30T1030Z",
+  "summary": "Spec fidelity pass: one-writer map, static enforcement, Q4 stage documentation, and A0 doc-only boundary match #608 / ADR-046 Q4 intent."
+}
