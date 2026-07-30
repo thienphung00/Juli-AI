@@ -80,12 +80,11 @@ async def test_gold_repo_upsert_and_get_by_shop_id(session, shop) -> None:
 
 @pytest.mark.asyncio
 async def test_gold_repo_seed_shell_is_idempotent(session, shop) -> None:
-    from juli_backend.repositories.repos import GoldKpiEnvelopesRepo
+    from juli_backend.services.gold_kpi_envelope_serving import seed_unavailable_shell
 
-    repo = GoldKpiEnvelopesRepo(session)
-    first = await repo.seed_unavailable_shell(shop.id)
+    first = await seed_unavailable_shell(session, shop.id)
     await session.flush()
-    second = await repo.seed_unavailable_shell(shop.id)
+    second = await seed_unavailable_shell(session, shop.id)
     await session.flush()
 
     assert first.shop_id == second.shop_id

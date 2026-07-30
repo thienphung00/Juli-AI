@@ -122,6 +122,10 @@ databaseTables:
     owner: Data Pipeline
     access: write
     notes: Append-only bronze return/cancellation payloads (webhook landing).
+  kpi_envelopes:
+    owner: Intelligence
+    access: write
+    notes: Gold serving SoT for analytics KPI envelopes (#606).
   webhook_raw_events:
     owner: Data Pipeline
     access: write

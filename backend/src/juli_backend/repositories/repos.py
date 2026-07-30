@@ -626,26 +626,6 @@ class GoldKpiEnvelopesRepo:
         await self._session.refresh(entity)
         return entity
 
-    async def seed_unavailable_shell(self, shop_id: uuid.UUID) -> GoldKpiEnvelope:
-        """Seed honest-unavailable ADR-044 shell when no gold row exists."""
-        from juli_backend.services.gold_kpi_envelope_contract import (
-            ENVELOPE_VERSION,
-            build_honest_unavailable_shell_payload,
-        )
-
-        existing = await self.get(shop_id)
-        if existing is not None:
-            return existing
-
-        when = datetime.now(tz=UTC)
-        payload = build_honest_unavailable_shell_payload(shop_id=shop_id, computed_at=when)
-        return await self.upsert(
-            shop_id=shop_id,
-            envelope_version=ENVELOPE_VERSION,
-            payload=payload,
-            computed_at=when,
-        )
-
 
 def _gold_to_legacy_envelope(gold: GoldKpiEnvelope) -> AnalyticsKpiEnvelope:
     """Map gold serving row to legacy envelope shape for Demo/cache compat."""

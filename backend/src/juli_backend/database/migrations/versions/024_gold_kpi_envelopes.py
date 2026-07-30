@@ -130,7 +130,7 @@ def upgrade() -> None:
         """
         CREATE VIEW public.analytics_kpi_envelopes_compat AS
         SELECT
-            md5(g.shop_id::text || ':analytics')::uuid AS id,
+            md5(g.shop_id::text || chr(58) || 'analytics')::uuid AS id,
             g.shop_id,
             'analytics'::text AS kind,
             g.envelope_version,
