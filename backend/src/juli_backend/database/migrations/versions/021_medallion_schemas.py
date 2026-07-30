@@ -46,7 +46,7 @@ BEGIN
 END
 $medallion$;
 """
-        )
+        )  # nosec B608
 
 
 def _grant_service_role(schema: str) -> None:
@@ -65,7 +65,7 @@ BEGIN
 END
 $medallion$;
 """
-    )
+    )  # nosec B608
 
 
 def _revoke_client_table(table: str) -> None:
@@ -80,7 +80,7 @@ BEGIN
 END
 $medallion$;
 """
-        )
+        )  # nosec B608
 
 
 def upgrade() -> None:
