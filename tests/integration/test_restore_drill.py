@@ -36,7 +36,9 @@ def _postgres_reachable() -> bool:
         return False
     try:
         engine = create_engine(
-            sync_database_url(url), pool_pre_ping=True, connect_args={"connect_timeout": 3}
+            sync_database_url(url),
+            pool_pre_ping=True,
+            connect_args={"connect_timeout": 3},
         )
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -58,12 +60,10 @@ def _alembic_config() -> Config:
     return cfg
 
 
-def _reset_database(engine) -> None:
-    with engine.begin() as conn:
-        conn.execute(text("DROP SCHEMA public CASCADE"))
-        conn.execute(text("CREATE SCHEMA public"))
-        for schema in ("bronze", "silver", "gold", "ops"):
-            conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+def _reset_to_head() -> None:
+    cfg = _alembic_config()
+    command.downgrade(cfg, "base")
+    command.upgrade(cfg, "head")
 
 
 def _seed_encrypted_credential(engine) -> None:
@@ -81,7 +81,11 @@ def _seed_encrypted_credential(engine) -> None:
                 VALUES (:id, :phone, :display_name)
                 """
             ),
-            {"id": user_id, "phone": "+84936506666", "display_name": "Restore Drill User"},
+            {
+                "id": user_id,
+                "phone": "+84936506666",
+                "display_name": "Restore Drill User",
+            },
         )
         conn.execute(
             text(
@@ -318,13 +322,11 @@ def _run_restore_drill(
 
 @pytest.fixture
 def postgres_at_head():
-    cfg = _alembic_config()
+    _reset_to_head()
     engine = create_engine(sync_database_url(_database_url()), pool_pre_ping=True)
-    _reset_database(engine)
-    command.upgrade(cfg, "head")
     yield engine
-    _reset_database(engine)
     engine.dispose()
+    _reset_to_head()
 
 
 @pytest.fixture

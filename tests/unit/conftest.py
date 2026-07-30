@@ -34,9 +34,16 @@ def bind_celery_dispatchers_for_unit_tests():
 
 @pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine("sqlite+aiosqlite:///:memory:")
+    eng = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        execution_options={"schema_translate_map": {"ops": None}},
+    )
+
+    def _create_tables(sync_conn):
+        Base.metadata.create_all(sync_conn)
+
     async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_create_tables)
     yield eng
     await eng.dispose()
 
