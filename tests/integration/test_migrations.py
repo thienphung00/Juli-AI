@@ -21,6 +21,8 @@ from sqlalchemy.exc import IntegrityError
 
 from juli_backend.core.config.runtime import sync_database_url
 
+pytestmark = pytest.mark.migration_heavy
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 LATEST_REVISION = "021_medallion_schemas"

@@ -17,6 +17,8 @@ from sqlalchemy import create_engine, text
 
 from juli_backend.core.config.runtime import sync_database_url
 
+pytestmark = pytest.mark.migration_heavy
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
