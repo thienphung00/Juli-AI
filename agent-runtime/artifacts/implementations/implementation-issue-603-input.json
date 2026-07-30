@@ -1,0 +1,42 @@
+{
+  "phaseRunId": "603-20260730T0516Z",
+  "implementationSummary": "Alembic 021 creates bronze/silver/gold/ops schemas with service-role grants and anon/authenticated isolation on bronze/silver/ops; adds empty-OK gold.ml_feature_snapshots stub; MODULE.md documents silver as ML feature SoT. Harness CDP-A0 slice routing + epic #598 registry included for Meta CI.",
+  "filesModified": [
+    "backend/src/juli_backend/database/migrations/versions/021_medallion_schemas.py",
+    "backend/src/juli_backend/database/MODULE.md",
+    "tests/integration/test_migrations.py",
+    "tests/unit/test_medallion_schemas_migration.py",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml",
+    "docs/adr/046-cdp-medallion-physical-model.md",
+    "docs/adr/047-cdp-lambda-layers-prd-split.md",
+    "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md"
+  ],
+  "testsAdded": [
+    "tests/unit/test_medallion_schemas_migration.py"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_migrations.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "tests/unit/test_medallion_schemas_migration.py::test_medallion_migration_file_exists — missing 021_medallion_schemas.py",
+      "passingTestEvidence": "5/5 medallion contract tests pass; migration chains after 020_analytics_kpi_envelopes",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_medallion_schemas_migration.py -v",
+          "exitCode": 0,
+          "outputSummary": "5 passed"
+        }
+      ]
+    }
+  ],
+  "assumptions": [
+    "021 chains after existing 020_analytics_kpi_envelopes on main — no Alembic fork",
+    "Grant isolation uses Supabase roles anon/authenticated/service_role; integration tests skip without DATABASE_URL"
+  ],
+  "risks": [
+    "Supabase default privileges on new schemas should be re-verified when bronze/silver tables land in #605/#607"
+  ]
+}

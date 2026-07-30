@@ -482,3 +482,23 @@ workflow_prompt_cache:
         - web/
         - ios/
         - Sibling issue context caches
+    598:
+      defaultSliceId: CDP-A0-1
+      handoffPath: docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md
+      childSlices:
+        "603": CDP-A0-1
+        "604": CDP-A0-2
+        "605": CDP-A0-3
+        "606": CDP-A0-5
+        "607": CDP-A0-4
+        "608": CDP-A0-6
+      parentScopeBlock: "# Parent #598 — Phase 3.5-A0 CDP medallion foundation (constant)\\n## Product boundary\\n- Medallion schemas bronze/silver/gold/ops + serving gold contract (ADR-046/047)\\n- First domain cutover orders/returns; ops backfill partitions; no Speed/Batch wiring\\n- Fujiwa Mock Demo reference shop only; OAuth out of scope\\n## Architect locks\\n- webhook_raw_events = read-only audit shim; bronze = forward write path\\n- gold.kpi_envelopes shop-keyed flexible payload.kpis; five KPI precompute is A1\\n## Slices\\n- CDP-A0-1 schemas (#603) · CDP-A0-2 ops (#604) · CDP-A0-3 bronze (#605)\\n- CDP-A0-5 gold (#606) · CDP-A0-4 silver (#607) · CDP-A0-6 ownership (#608)\\n## Epic deferrals\\n- A1 Speed (#601) · A2 Batch (#602) · Decisions (#599) · Demo UI (#600)\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - docs/product/design/
+        - apps/landing/
+        - web/
+        - ios/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches

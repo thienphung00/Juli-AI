@@ -1,0 +1,373 @@
+{
+  "issueId": 603,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 603,
+    "parentIssueId": 598,
+    "sliceId": "CDP-A0-1",
+    "handoffPath": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+    "executorDomain": "data-platform",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-598.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-603.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": true,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 603,
+        "parentIssueId": 598,
+        "sliceId": "CDP-A0-1",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #598",
+            "fingerprint": "c051b29501ed5566"
+          },
+          {
+            "path": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "fingerprint": "780ea504432082fdf6956493b083c902c01374c4"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #603",
+            "fingerprint": "76bfc02cce41fc57"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-603.md",
+            "fingerprint": "4ac97af68fb886f67ab7b3313f365d6555629cce"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 603,
+        "parentIssueId": 598,
+        "sliceId": "CDP-A0-1",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CDP-A0-1",
+            "sliceId": "CDP-A0-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-598",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #603",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CDP-A0-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-598",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #603",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 5ff93418a86b on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b",
+          "copiedAt": "2026-07-30T05:07:17Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/data-platform/SKILL.md"
+        ],
+        "branchHeadSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b",
+        "pinnedCommitSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 603,
+        "parentIssueId": 598,
+        "sliceId": "CDP-A0-1",
+        "derivedProfile": {
+          "executorDomain": "data-platform",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "docs/adr/046-cdp-medallion-physical-model.md",
+            "docs/adr/047-cdp-lambda-layers-prd-split.md",
+            "docs/adr/027-database-migration-safety-pipeline.md",
+            "CONTEXT.md",
+            "docs/architecture/data-sources.md",
+            "backend/src/juli_backend/database/MODULE.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/database/MODULE.md",
+            "backend/src/juli_backend/models/models.py",
+            "backend/src/juli_backend/database/migrations/versions/",
+            "backend/src/juli_backend/repositories/repos.py"
+          ],
+          "acceptanceCriteria": [
+            "Alembic migration creates bronze, silver, gold, ops schemas.",
+            "Grants: bronze/silver/ops not readable by anon / PostgREST client roles; covered by automated grant/isolation tests.",
+            "gold.ml_feature_snapshots exists (empty OK); MODULE/docs note silver as ML feature SoT.",
+            "No Partner API calls; PR-safe lane only.",
+            "No long-term dual-write introduced (schemas only)."
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/system-design.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            ".cursor/skills/domain/testing-patterns/postgres-patterns.md",
+            "tests/integration/test_migrations.py"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "docs/product/design/",
+            "apps/demo/",
+            "apps/landing/",
+            "web/",
+            "ios/",
+            "docs/integrations/tiktok_corpora/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "data-platform",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "docs/adr/046-cdp-medallion-physical-model.md",
+            "docs/adr/047-cdp-lambda-layers-prd-split.md",
+            "docs/adr/027-database-migration-safety-pipeline.md",
+            "CONTEXT.md",
+            "docs/architecture/data-sources.md",
+            "backend/src/juli_backend/database/MODULE.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/database/MODULE.md",
+            "backend/src/juli_backend/models/models.py",
+            "backend/src/juli_backend/database/migrations/versions/",
+            "backend/src/juli_backend/repositories/repos.py"
+          ],
+          "acceptanceCriteria": [
+            "Alembic migration creates bronze, silver, gold, ops schemas.",
+            "Grants: bronze/silver/ops not readable by anon / PostgREST client roles; covered by automated grant/isolation tests.",
+            "gold.ml_feature_snapshots exists (empty OK); MODULE/docs note silver as ML feature SoT.",
+            "No Partner API calls; PR-safe lane only.",
+            "No long-term dual-write introduced (schemas only)."
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/system-design.md",
+            "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+            ".cursor/skills/domain/testing-patterns/postgres-patterns.md",
+            "tests/integration/test_migrations.py"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 603,
+        "parentIssueId": 598,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 603 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 603,
+        "parentIssueId": 598,
+        "publicRelease": false,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #598\n\n## Slice\n- Default slice: CDP-A0-1\n## Handoff\n- docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "Sibling issue context caches",
+      "docs/product/design/",
+      "apps/landing/",
+      "web/",
+      "ios/",
+      "docs/integrations/tiktok_corpora/",
+      "apps/demo/"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/data-platform/SKILL.md",
+          "purpose": "Primary data-platform Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "data-platform",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+        "docs/adr/046-cdp-medallion-physical-model.md",
+        "docs/adr/047-cdp-lambda-layers-prd-split.md",
+        "docs/adr/027-database-migration-safety-pipeline.md",
+        "CONTEXT.md",
+        "docs/architecture/data-sources.md",
+        "backend/src/juli_backend/database/MODULE.md"
+      ],
+      "requiredModules": [
+        "backend/src/juli_backend/database/MODULE.md",
+        "backend/src/juli_backend/models/models.py",
+        "backend/src/juli_backend/database/migrations/versions/",
+        "backend/src/juli_backend/repositories/repos.py"
+      ],
+      "acceptanceCriteria": [
+        "Alembic migration creates bronze, silver, gold, ops schemas.",
+        "Grants: bronze/silver/ops not readable by anon / PostgREST client roles; covered by automated grant/isolation tests.",
+        "gold.ml_feature_snapshots exists (empty OK); MODULE/docs note silver as ML feature SoT.",
+        "No Partner API calls; PR-safe lane only.",
+        "No long-term dual-write introduced (schemas only)."
+      ],
+      "loadWhenNeeded": [
+        "docs/architecture/system-design.md",
+        "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+        ".cursor/skills/domain/testing-patterns/postgres-patterns.md",
+        "tests/integration/test_migrations.py"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #603\n\n- sliceId: CDP-A0-1\n- executorDomain: data-platform (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #603 \u2014 CDP-A0-1\n\n## Parent\n#598\n\n## Executor domain\ndata-platform\n\n## Required docs\n- EXECUTION.md\n- docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md\n- docs/adr/046-cdp-medallion-physical-model.md\n- docs/adr/047-cdp-lambda-layers-prd-split.md\n- docs/adr/027-database-migration-safety-pipeline.md\n- CONTEXT.md\n- docs/architecture/data-sources.md\n- backend/src/juli_backend/database/MODULE.md\n",
+    "executorDomain": "data-platform",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    }
+  },
+  "executorDomain": "data-platform"
+}

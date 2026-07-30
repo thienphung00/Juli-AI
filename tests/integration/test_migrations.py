@@ -21,9 +21,11 @@ from sqlalchemy.exc import IntegrityError
 
 from juli_backend.core.config.runtime import sync_database_url
 
+pytestmark = pytest.mark.migration_heavy
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "020_analytics_kpi_envelopes"
+LATEST_REVISION = "021_medallion_schemas"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -60,6 +62,10 @@ REVISION_018_COLUMNS = (
 )
 REVISION_019_TABLE = "analytics_backfill_partitions"
 REVISION_020_TABLE = "analytics_kpi_envelopes"
+REVISION_021_TABLE = "ml_feature_snapshots"
+MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
+CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
+POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
 
 
 def _database_url() -> str:
@@ -116,6 +122,14 @@ def _table_has_column(engine: Engine, table: str, column: str) -> bool:
 
 def _table_exists(engine: Engine, table: str) -> bool:
     return table in inspect(engine).get_table_names()
+
+
+def _schema_exists(engine: Engine, schema: str) -> bool:
+    return schema in inspect(engine).get_schema_names()
+
+
+def _table_exists_in_schema(engine: Engine, schema: str, table: str) -> bool:
+    return table in inspect(engine).get_table_names(schema=schema)
 
 
 def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
@@ -321,6 +335,80 @@ def test_backfill_partitions_table_exists_at_head(postgres_at_head: Engine):
 
 
 @requires_postgres
+def test_medallion_schemas_exist_at_head(postgres_at_head: Engine):
+    """Revision 021 creates bronze/silver/gold/ops schemas (#603)."""
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+
+
+@requires_postgres
+def test_gold_ml_feature_snapshots_stub_exists_at_head(postgres_at_head: Engine):
+    """Revision 021 adds empty-OK gold.ml_feature_snapshots stub (#603)."""
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+
+
+@requires_postgres
+def test_internal_medallion_layers_not_readable_by_postgrest_roles(
+    postgres_at_head: Engine,
+):
+    """bronze/silver/ops must not grant USAGE to anon/authenticated (#603)."""
+    with postgres_at_head.begin() as conn:
+        for role in POSTGREST_CLIENT_ROLES:
+            conn.execute(
+                text(
+                    f"""
+DO $role$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    CREATE ROLE {role} NOLOGIN;
+  END IF;
+END
+$role$;
+"""
+                )
+            )
+        # Prove REVOKE path: grant then revoke (roles absent at upgrade on plain CI).
+        for schema in CLIENT_ISOLATED_SCHEMAS:
+            for role in POSTGREST_CLIENT_ROLES:
+                conn.execute(text(f"GRANT USAGE ON SCHEMA {schema} TO {role}"))
+                conn.execute(text(f"REVOKE ALL ON SCHEMA {schema} FROM {role}"))
+
+        for schema in CLIENT_ISOLATED_SCHEMAS:
+            for role in POSTGREST_CLIENT_ROLES:
+                has_usage = conn.execute(
+                    text("SELECT has_schema_privilege(:role, :schema, 'USAGE')"),
+                    {"role": role, "schema": schema},
+                ).scalar_one()
+                assert has_usage is False, f"{role} must not have USAGE on {schema}"
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_021_medallion(postgres_at_head: Engine):
+    """Downgrading head removes medallion schemas; 020 public tables remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+
+    command.downgrade(cfg, "-1")
+
+    for schema in MEDALLION_SCHEMAS:
+        assert not _schema_exists(postgres_at_head, schema)
+    assert _table_exists(postgres_at_head, REVISION_020_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists(postgres_at_head, REVISION_017_TABLE)
+
+    command.upgrade(cfg, "head")
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+
+
+@requires_postgres
 def test_analytics_kpi_envelopes_table_exists_at_head(postgres_at_head: Engine):
     """Revision 020 adds analytics_kpi_envelopes (#525)."""
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
@@ -340,14 +428,14 @@ def test_analytics_kpi_envelopes_table_exists_at_head(postgres_at_head: Engine):
 
 @requires_postgres
 def test_latest_downgrade_drops_only_revision_020_table(postgres_at_head: Engine):
-    """Downgrading head removes analytics_kpi_envelopes; 019 table remains."""
+    """Downgrading past 020 removes analytics_kpi_envelopes; 019 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "019_backfill_partitions")
 
     assert not _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
@@ -356,6 +444,8 @@ def test_latest_downgrade_drops_only_revision_020_table(postgres_at_head: Engine
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
 
 
 @requires_postgres

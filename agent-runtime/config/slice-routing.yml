@@ -1768,3 +1768,194 @@ DVR-A5:
     - packages/ui/src/destination-card.tsx
     - apps/demo/src/components/recommendations-panel.tsx
     - Sibling issue context caches
+
+# --- Phase 3.5-A0 CDP medallion foundation (#598) ---
+
+CDP-A0-1:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/adr/027-database-migration-safety-pipeline.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/versions/
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+    - tests/integration/test_migrations.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+CDP-A0-2:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+    - tests/integration/test_migrations.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+CDP-A0-3:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/integrations/tiktok_api/webhooks.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/database/migrations/versions/016_webhook_raw_events.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+CDP-A0-4:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - docs/api/data-models/canonical-entities.md
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/database/migrations/versions/002_add_commerce_analytics_tables.py
+    - backend/src/juli_backend/database/migrations/versions/007_order_items_returns.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+CDP-A0-5:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/adr/044-demo-analytics-main-kpi-override.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/architecture/system-design.md
+    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+    - tests/integration/test_migrations.py
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+CDP-A0-6:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - CONTEXT.md
+    - docs/architecture/MODULES.md
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/database/MODULE.md
+    - backend/src/juli_backend/services/etl/MODULE.md
+    - backend/src/juli_backend/repositories/repos.py
+  loadWhenNeeded:
+    - docs/architecture/map.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - agent-runtime/docs/agent-runtime.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

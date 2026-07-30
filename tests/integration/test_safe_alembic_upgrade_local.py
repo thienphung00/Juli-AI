@@ -13,8 +13,11 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from juli_backend.core.config.runtime import sync_database_url
 from sqlalchemy import create_engine, text
+
+from juli_backend.core.config.runtime import sync_database_url
+
+pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
@@ -232,6 +235,8 @@ def _reset_database(engine) -> None:
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA public CASCADE"))
         conn.execute(text("CREATE SCHEMA public"))
+        for schema in ("bronze", "silver", "gold", "ops"):
+            conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
 
 
 @pytest.fixture
