@@ -426,14 +426,14 @@ def test_analytics_kpi_envelopes_table_exists_at_head(postgres_at_head: Engine):
 
 @requires_postgres
 def test_latest_downgrade_drops_only_revision_020_table(postgres_at_head: Engine):
-    """Downgrading head removes analytics_kpi_envelopes; 019 table remains."""
+    """Downgrading past 020 removes analytics_kpi_envelopes; 019 table remains."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "019_backfill_partitions")
 
     assert not _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
@@ -442,6 +442,8 @@ def test_latest_downgrade_drops_only_revision_020_table(postgres_at_head: Engine
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
 
 
 @requires_postgres
