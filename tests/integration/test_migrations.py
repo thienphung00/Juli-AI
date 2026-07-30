@@ -229,10 +229,21 @@ def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
                 "is_active": True,
             },
         )
-        conn.execute(
-            text(
-                """
-                INSERT INTO silver.orders (
+        order_params = {
+            "id": order_id,
+            "shop_id": shop_id,
+            "tiktok_order_id": "migration_order_365",
+            "status": "COMPLETED",
+            "total_amount": Decimal("42.50"),
+            "currency": "USD",
+            "update_time": now,
+            "order_value": Decimal("42.50"),
+            "payment_time": now,
+            "cancel_reason": None,
+            "is_seller_fault": False,
+        }
+        order_insert = """
+                INSERT INTO {table} (
                     id, shop_id, tiktok_order_id, status, total_amount, currency,
                     update_time, order_value, payment_time, cancel_reason, is_seller_fault
                 )
@@ -241,21 +252,23 @@ def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
                     :update_time, :order_value, :payment_time, :cancel_reason, :is_seller_fault
                 )
                 """
-            ),
-            {
-                "id": order_id,
-                "shop_id": shop_id,
-                "tiktok_order_id": "migration_order_365",
-                "status": "COMPLETED",
-                "total_amount": Decimal("42.50"),
-                "currency": "USD",
-                "update_time": now,
-                "order_value": Decimal("42.50"),
-                "payment_time": now,
-                "cancel_reason": None,
-                "is_seller_fault": False,
-            },
-        )
+        if _table_exists_in_schema(engine, "silver", "orders"):
+            conn.execute(
+                text(order_insert.format(table="silver.orders")),
+                order_params,
+            )
+            # Mirror into public.orders so downgrade/upgrade round-trips repopulate silver.
+            conn.execute(text("SET LOCAL session_replication_role = 'replica'"))
+            conn.execute(
+                text(order_insert.format(table="orders")),
+                order_params,
+            )
+            conn.execute(text("SET LOCAL session_replication_role = 'origin'"))
+        else:
+            conn.execute(
+                text(order_insert.format(table="orders")),
+                order_params,
+            )
         conn.execute(
             text(
                 """
@@ -649,7 +662,8 @@ def test_latest_downgrade_drops_only_revision_024_gold(postgres_at_head: Engine)
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
     assert _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
 
-    command.downgrade(cfg, "-1")
+    # Head is 025; target 023 so 024 downgrade runs explicitly (not just 025 via -1).
+    command.downgrade(cfg, "023_bronze_orders_returns")
 
     assert not _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
     assert not _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
@@ -732,6 +746,7 @@ def test_legacy_public_orders_returns_writes_blocked_at_head(postgres_at_head: E
                     "update_time": now,
                 },
             )
+    with postgres_at_head.begin() as conn:
         with pytest.raises(Exception, match="read-only after silver cutover"):
             conn.execute(
                 text(
@@ -1030,7 +1045,7 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
             assert _table_has_column(postgres_at_head, table, column)
 
     with postgres_at_head.connect() as conn:
-        order_count = conn.execute(text("SELECT COUNT(*) FROM silver.orders")).scalar_one()
+        order_count = conn.execute(text("SELECT COUNT(*) FROM orders")).scalar_one()
         product_count = conn.execute(text("SELECT COUNT(*) FROM products")).scalar_one()
         sync_state_count = conn.execute(text("SELECT COUNT(*) FROM tiktok_sync_state")).scalar_one()
 
