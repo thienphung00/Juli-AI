@@ -31,8 +31,7 @@ def _create_schemas() -> None:
 
 def _revoke_client_access(schema: str) -> None:
     for role in POSTGREST_CLIENT_ROLES:
-        op.execute(
-            f"""
+        sql = f"""
 DO $medallion$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
@@ -45,13 +44,12 @@ BEGIN
   END IF;
 END
 $medallion$;
-"""
-        )  # nosec B608
+"""  # nosec B608 — schema/role are fixed module constants
+        op.execute(sql)
 
 
 def _grant_service_role(schema: str) -> None:
-    op.execute(
-        f"""
+    sql = f"""
 DO $medallion$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{SERVICE_ROLE}') THEN
@@ -64,14 +62,13 @@ BEGIN
   END IF;
 END
 $medallion$;
-"""
-    )  # nosec B608
+"""  # nosec B608 — schema/role are fixed module constants
+    op.execute(sql)
 
 
 def _revoke_client_table(table: str) -> None:
     for role in POSTGREST_CLIENT_ROLES:
-        op.execute(
-            f"""
+        sql = f"""
 DO $medallion$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
@@ -79,8 +76,8 @@ BEGIN
   END IF;
 END
 $medallion$;
-"""
-        )  # nosec B608
+"""  # nosec B608 — table/role are fixed module constants
+        op.execute(sql)
 
 
 def upgrade() -> None:
