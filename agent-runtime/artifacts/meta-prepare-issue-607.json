@@ -1,0 +1,378 @@
+{
+  "issueId": 607,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 607,
+    "parentIssueId": 598,
+    "sliceId": "CDP-A0-4",
+    "handoffPath": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+    "executorDomain": "data-platform",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-598.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-607.json",
+    "parentCreatedOrRefreshed": true,
+    "childCreatedOrRefreshed": true,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 607,
+        "parentIssueId": 598,
+        "sliceId": "CDP-A0-4",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #598",
+            "fingerprint": "9fe942e2df4ca5c8"
+          },
+          {
+            "path": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "fingerprint": "780ea504432082fdf6956493b083c902c01374c4"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #607",
+            "fingerprint": "ff7147a0cc302065"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-607.md",
+            "fingerprint": "b673d997d130f1ba2364615150dbb3cb189d938c"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 607,
+        "parentIssueId": 598,
+        "sliceId": "CDP-A0-4",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CDP-A0-4",
+            "sliceId": "CDP-A0-4"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-598",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #607",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CDP-A0-4"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-598",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #607",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 5ff93418a86b on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b",
+          "copiedAt": "2026-07-30T08:59:38Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/data-platform/SKILL.md"
+        ],
+        "branchHeadSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b",
+        "pinnedCommitSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "5ff93418a86b93813ac2d32390e1af5fe72a4b4b"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 607,
+        "parentIssueId": 598,
+        "sliceId": "CDP-A0-4",
+        "derivedProfile": {
+          "executorDomain": "data-platform",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "docs/adr/046-cdp-medallion-physical-model.md",
+            "docs/adr/047-cdp-lambda-layers-prd-split.md",
+            "CONTEXT.md",
+            "docs/architecture/data-sources.md",
+            "docs/api/data-models/canonical-entities.md",
+            "backend/src/juli_backend/database/MODULE.md",
+            "backend/src/juli_backend/services/etl/MODULE.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/database/MODULE.md",
+            "backend/src/juli_backend/models/models.py",
+            "backend/src/juli_backend/repositories/repos.py",
+            "backend/src/juli_backend/services/etl/MODULE.md",
+            "backend/src/juli_backend/database/migrations/versions/002_add_commerce_analytics_tables.py",
+            "backend/src/juli_backend/database/migrations/versions/007_order_items_returns.py"
+          ],
+          "acceptanceCriteria": [
+            "silver.orders / silver.returns exist with unique natural keys per shop.",
+            "Integration test: bronze append \u2192 silver upsert (minimal fixture; no gold KPI formulas; no live Partner).",
+            "After cutover window, legacy domain writers for orders/returns retired \u2014 no indefinite dual-write.",
+            "A1 reconcile / cancellation_rate precompute remains out of scope."
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/system-design.md",
+            ".cursor/skills/domain/testing-patterns/postgres-patterns.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "docs/product/design/",
+            "apps/demo/",
+            "apps/landing/",
+            "web/",
+            "ios/",
+            "docs/integrations/tiktok_corpora/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "data-platform",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+            "docs/adr/046-cdp-medallion-physical-model.md",
+            "docs/adr/047-cdp-lambda-layers-prd-split.md",
+            "CONTEXT.md",
+            "docs/architecture/data-sources.md",
+            "docs/api/data-models/canonical-entities.md",
+            "backend/src/juli_backend/database/MODULE.md",
+            "backend/src/juli_backend/services/etl/MODULE.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/database/MODULE.md",
+            "backend/src/juli_backend/models/models.py",
+            "backend/src/juli_backend/repositories/repos.py",
+            "backend/src/juli_backend/services/etl/MODULE.md",
+            "backend/src/juli_backend/database/migrations/versions/002_add_commerce_analytics_tables.py",
+            "backend/src/juli_backend/database/migrations/versions/007_order_items_returns.py"
+          ],
+          "acceptanceCriteria": [
+            "silver.orders / silver.returns exist with unique natural keys per shop.",
+            "Integration test: bronze append \u2192 silver upsert (minimal fixture; no gold KPI formulas; no live Partner).",
+            "After cutover window, legacy domain writers for orders/returns retired \u2014 no indefinite dual-write.",
+            "A1 reconcile / cancellation_rate precompute remains out of scope."
+          ],
+          "loadWhenNeeded": [
+            "docs/architecture/system-design.md",
+            ".cursor/skills/domain/testing-patterns/postgres-patterns.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 607,
+        "parentIssueId": 598,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 607 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 607,
+        "parentIssueId": 598,
+        "publicRelease": false,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "offlineBootstrap": true,
+  "note": "Bootstrapped with local GitHub issue bodies because gh keyring token is invalid",
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #598 \u2014 Phase 3.5-A0 CDP medallion foundation (constant)\\\n## Product boundary\\\n- Medallion schemas bronze/silver/gold/ops + serving gold contract (ADR-046/047)\\\n- First domain cutover orders/returns; ops backfill partitions; no Speed/Batch wiring\\\n- Fujiwa Mock Demo reference shop only; OAuth out of scope\\\n## Architect locks\\\n- webhook_raw_events = read-only audit shim; bronze = forward write path\\\n- gold.kpi_envelopes shop-keyed flexible payload.kpis; five KPI precompute is A1\\\n## Slices\\\n- CDP-A0-1 schemas (#603) \u00b7 CDP-A0-2 ops (#604) \u00b7 CDP-A0-3 bronze (#605)\\\n- CDP-A0-5 gold (#606) \u00b7 CDP-A0-4 silver (#607) \u00b7 CDP-A0-6 ownership (#608)\\\n## Epic deferrals\\\n- A1 Speed (#601) \u00b7 A2 Batch (#602) \u00b7 Decisions (#599) \u00b7 Demo UI (#600)\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "docs/product/design/",
+      "apps/landing/",
+      "web/",
+      "ios/",
+      "docs/integrations/tiktok_corpora/",
+      "Sibling issue context caches",
+      "apps/demo/"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/data-platform/SKILL.md",
+          "purpose": "Primary data-platform Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "data-platform",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+        "docs/adr/046-cdp-medallion-physical-model.md",
+        "docs/adr/047-cdp-lambda-layers-prd-split.md",
+        "CONTEXT.md",
+        "docs/architecture/data-sources.md",
+        "docs/api/data-models/canonical-entities.md",
+        "backend/src/juli_backend/database/MODULE.md",
+        "backend/src/juli_backend/services/etl/MODULE.md"
+      ],
+      "requiredModules": [
+        "backend/src/juli_backend/database/MODULE.md",
+        "backend/src/juli_backend/models/models.py",
+        "backend/src/juli_backend/repositories/repos.py",
+        "backend/src/juli_backend/services/etl/MODULE.md",
+        "backend/src/juli_backend/database/migrations/versions/002_add_commerce_analytics_tables.py",
+        "backend/src/juli_backend/database/migrations/versions/007_order_items_returns.py"
+      ],
+      "acceptanceCriteria": [
+        "silver.orders / silver.returns exist with unique natural keys per shop.",
+        "Integration test: bronze append \u2192 silver upsert (minimal fixture; no gold KPI formulas; no live Partner).",
+        "After cutover window, legacy domain writers for orders/returns retired \u2014 no indefinite dual-write.",
+        "A1 reconcile / cancellation_rate precompute remains out of scope."
+      ],
+      "loadWhenNeeded": [
+        "docs/architecture/system-design.md",
+        ".cursor/skills/domain/testing-patterns/postgres-patterns.md",
+        ".cursor/skills/domain/testing-patterns/python-testing.md"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #607\n\n- sliceId: CDP-A0-4\n- executorDomain: data-platform (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #607 \u2014 CDP-A0-4\n\n## Parent\n#598\n\n## Executor domain\ndata-platform\n\n## Required docs\n- EXECUTION.md\n- docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md\n- docs/adr/046-cdp-medallion-physical-model.md\n- docs/adr/047-cdp-lambda-layers-prd-split.md\n- CONTEXT.md\n- docs/architecture/data-sources.md\n- docs/api/data-models/canonical-entities.md\n- backend/src/juli_backend/database/MODULE.md\n- backend/src/juli_backend/services/etl/MODULE.md\n",
+    "executorDomain": "data-platform",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    }
+  },
+  "executorDomain": "data-platform"
+}
