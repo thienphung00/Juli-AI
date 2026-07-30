@@ -105,6 +105,8 @@ class TikTokSyncState(Base):
 
 
 class Order(Base):
+    """Silver domain order — idempotent upsert SoT (#607)."""
+
     __tablename__ = "orders"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -129,8 +131,13 @@ class Order(Base):
     returns: Mapped[list["Return"]] = relationship(back_populates="order")
 
     __table_args__ = (
-        Index("ix_orders_shop_created", "shop_id", "created_at"),
-        Index("ix_orders_shop_tiktok", "shop_id", "tiktok_order_id", unique=True),
+        Index("ix_silver_orders_shop_created", "shop_id", "created_at"),
+        UniqueConstraint(
+            "shop_id",
+            "tiktok_order_id",
+            name="uq_silver_orders_shop_tiktok",
+        ),
+        {"schema": "silver"},
     )
 
 
@@ -139,7 +146,10 @@ class OrderItem(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
-    order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), nullable=False)
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("silver.orders.id"),
+        nullable=False,
+    )
     tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tiktok_product_id: Mapped[str | None] = mapped_column(String(100))
     tiktok_sku_id: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -165,11 +175,13 @@ class OrderItem(Base):
 
 
 class Return(Base):
+    """Silver domain return/cancellation — idempotent upsert SoT (#607)."""
+
     __tablename__ = "returns"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
-    order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id"))
+    order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("silver.orders.id"))
     tiktok_return_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tiktok_order_id: Mapped[str] = mapped_column(String(100), nullable=False)
     buyer_id: Mapped[str | None] = mapped_column(String(100))
@@ -189,13 +201,13 @@ class Return(Base):
     order: Mapped["Order | None"] = relationship(back_populates="returns")
 
     __table_args__ = (
-        Index("ix_returns_shop_created", "shop_id", "created_at"),
-        Index(
-            "ix_returns_shop_tiktok",
+        Index("ix_silver_returns_shop_created", "shop_id", "created_at"),
+        UniqueConstraint(
             "shop_id",
             "tiktok_return_id",
-            unique=True,
+            name="uq_silver_returns_shop_tiktok",
         ),
+        {"schema": "silver"},
     )
 
 

@@ -43,6 +43,7 @@ Producer wiring: ``make_etl_handoff(consumer)`` lives in
 - Per-shop `asyncio.Lock` preserves ordering within a shop
 - Malformed or unknown-shop messages → DLQ via injected `dlq_handoff` (testable stub)
 - No broker client imported — callers inject handoff functions
+- **Silver cutover (#607):** domain order/return upserts write `silver.orders` / `silver.returns`; bronze promotion via `SilverOrdersReturnsPromoter`
 
 ## Deprecated aliases
 

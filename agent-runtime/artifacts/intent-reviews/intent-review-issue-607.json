@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-607",
+  "issue": 607,
+  "timestamp": "2026-07-30T09:15:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "30a98402b2425d0d7ee638541f7ae1322f360788",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff origin/main..143894d3 (#607 silver orders/returns cutover). Migration 025 creates silver.orders / silver.returns with UNIQUE (shop_id, tiktok_order_id) and UNIQUE (shop_id, tiktok_return_id), migrates legacy public rows preserving PKs, retargets order_items FK to silver.orders, revokes PostgREST on silver tables, and blocks public.orders / public.returns writes via triggers. Order / Return ORM models and OrdersRepo / ReturnsRepo now target silver schema. SilverOrdersReturnsPromoter plus bronze_order_to_upsert_kwargs / bronze_return_to_upsert_kwargs implement bronze append \u2192 silver upsert; unit tests cover order + return idempotent promotion and integration test test_bronze_to_silver_promotion_integration exercises Postgres bronze\u2192silver without gold KPI or Partner. No cancellation_rate / A1 reconcile logic. Legacy writer retirement is immediate post-migration (no indefinite dual-write).",
+  "summary": "Spec fidelity pass: silver domain SoT, natural keys, bronze\u2192silver promotion contract, legacy writer blocks, and scoped tests match #607 / A0 foundation intent.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "ADR-047 / A0 foundation \u2014 orchestrator wiring deferred to A1",
+      "path": "backend/src/juli_backend/services/etl/consumer.py",
+      "note": "EtlConsumer still upserts orders/returns directly via OrdersRepo/ReturnsRepo (now silver-backed) rather than bronze append + SilverOrdersReturnsPromoter; bronze\u2192silver path is proven by promoter + tests. Full bronze-first ingest wiring remains A1 Speed per ADR-047.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "services/etl/MODULE.md \u2014 silver cutover documentation",
+      "path": "backend/src/juli_backend/services/etl/MODULE.md",
+      "note": "MODULE documents silver SoT and SilverOrdersReturnsPromoter; consistent with database/MODULE.md silver domain notes.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "607-20260730T0909Z"
+}

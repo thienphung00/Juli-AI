@@ -21,6 +21,26 @@ from juli_backend.services.etl.channels import ANALYTICS_CHANNELS, RAW_CHANNELS
 TransformError = ValueError
 
 
+def bronze_order_to_upsert_kwargs(
+    payload: dict[str, Any],
+    *,
+    received_at: datetime,
+) -> dict[str, Any]:
+    """Map a bronze order raw payload to silver OrdersRepo upsert kwargs (#607)."""
+    wrapper = {"timestamp": received_at.timestamp()}
+    return _transform_order(payload, wrapper)
+
+
+def bronze_return_to_upsert_kwargs(
+    payload: dict[str, Any],
+    *,
+    received_at: datetime,
+) -> dict[str, Any]:
+    """Map a bronze return raw payload to silver ReturnsRepo upsert kwargs (#607)."""
+    wrapper = {"timestamp": received_at.timestamp()}
+    return _transform_return(payload, wrapper)
+
+
 def _unix_to_datetime(value: Any) -> datetime:
     if isinstance(value, datetime):
         if value.tzinfo is None:

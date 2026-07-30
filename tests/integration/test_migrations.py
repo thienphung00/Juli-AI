@@ -26,9 +26,10 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "024_gold_kpi_envelopes"
+LATEST_REVISION = "025_silver_orders_returns"
 REVISION_024_GOLD_TABLE = "kpi_envelopes"
 REVISION_024_COMPAT_VIEW = "analytics_kpi_envelopes_compat"
+REVISION_025_SILVER_TABLES = ("orders", "returns")
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -228,10 +229,21 @@ def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
                 "is_active": True,
             },
         )
-        conn.execute(
-            text(
-                """
-                INSERT INTO orders (
+        order_params = {
+            "id": order_id,
+            "shop_id": shop_id,
+            "tiktok_order_id": "migration_order_365",
+            "status": "COMPLETED",
+            "total_amount": Decimal("42.50"),
+            "currency": "USD",
+            "update_time": now,
+            "order_value": Decimal("42.50"),
+            "payment_time": now,
+            "cancel_reason": None,
+            "is_seller_fault": False,
+        }
+        order_insert = """
+                INSERT INTO {table} (
                     id, shop_id, tiktok_order_id, status, total_amount, currency,
                     update_time, order_value, payment_time, cancel_reason, is_seller_fault
                 )
@@ -240,21 +252,23 @@ def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
                     :update_time, :order_value, :payment_time, :cancel_reason, :is_seller_fault
                 )
                 """
-            ),
-            {
-                "id": order_id,
-                "shop_id": shop_id,
-                "tiktok_order_id": "migration_order_365",
-                "status": "COMPLETED",
-                "total_amount": Decimal("42.50"),
-                "currency": "USD",
-                "update_time": now,
-                "order_value": Decimal("42.50"),
-                "payment_time": now,
-                "cancel_reason": None,
-                "is_seller_fault": False,
-            },
-        )
+        if _table_exists_in_schema(engine, "silver", "orders"):
+            conn.execute(
+                text(order_insert.format(table="silver.orders")),
+                order_params,
+            )
+            # Mirror into public.orders so downgrade/upgrade round-trips repopulate silver.
+            conn.execute(text("SET LOCAL session_replication_role = 'replica'"))
+            conn.execute(
+                text(order_insert.format(table="orders")),
+                order_params,
+            )
+            conn.execute(text("SET LOCAL session_replication_role = 'origin'"))
+        else:
+            conn.execute(
+                text(order_insert.format(table="orders")),
+                order_params,
+            )
         conn.execute(
             text(
                 """
@@ -339,7 +353,7 @@ def test_seeded_rows_survive_latest_migration_round_trip(postgres_at_head: Engin
             text(
                 """
                 SELECT tiktok_order_id, total_amount, currency
-                FROM orders WHERE id = :id
+                FROM silver.orders WHERE id = :id
                 """
             ),
             {"id": ids["order_id"]},
@@ -504,7 +518,9 @@ def test_bronze_orders_returns_tables_exist_at_head(postgres_at_head: Engine):
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_023_bronze_tables(postgres_at_head: Engine):
+def test_latest_downgrade_drops_only_revision_023_bronze_tables(
+    postgres_at_head: Engine,
+):
     """Downgrading past 023 removes bronze raw tables; medallion schemas remain."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
@@ -615,7 +631,9 @@ def test_gold_kpi_envelopes_compat_view_payload_kpis(postgres_at_head: Engine):
 
 
 @requires_postgres
-def test_legacy_analytics_kpi_envelopes_writes_blocked_at_head(postgres_at_head: Engine):
+def test_legacy_analytics_kpi_envelopes_writes_blocked_at_head(
+    postgres_at_head: Engine,
+):
     """Legacy public table rejects writes after gold cutover (#606 AC4)."""
     ids = _seed_representative_rows(postgres_at_head)
     with postgres_at_head.begin() as conn:
@@ -644,7 +662,8 @@ def test_latest_downgrade_drops_only_revision_024_gold(postgres_at_head: Engine)
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
     assert _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
 
-    command.downgrade(cfg, "-1")
+    # Head is 025; target 023 so 024 downgrade runs explicitly (not just 025 via -1).
+    command.downgrade(cfg, "023_bronze_orders_returns")
 
     assert not _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
     assert not _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
@@ -655,6 +674,185 @@ def test_latest_downgrade_drops_only_revision_024_gold(postgres_at_head: Engine)
     command.upgrade(cfg, "head")
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
     assert _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
+
+
+@requires_postgres
+def test_silver_orders_returns_tables_exist_at_head(postgres_at_head: Engine):
+    """Revision 025 adds silver.orders / silver.returns with natural keys (#607)."""
+    for table in REVISION_025_SILVER_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "silver", table)
+    assert _table_has_column_in_schema(postgres_at_head, "silver", "orders", "tiktok_order_id")
+    assert _table_has_column_in_schema(postgres_at_head, "silver", "returns", "tiktok_return_id")
+
+
+@requires_postgres
+def test_silver_orders_returns_natural_key_unique(postgres_at_head: Engine):
+    """silver.orders / silver.returns enforce (shop_id, tiktok_*_id) uniqueness (#607)."""
+    ids = _seed_representative_rows(postgres_at_head)
+    with postgres_at_head.begin() as conn:
+        with pytest.raises(IntegrityError):
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO silver.orders (
+                        id, shop_id, tiktok_order_id, status, total_amount,
+                        currency, update_time
+                    )
+                    VALUES (
+                        :id, :shop_id, :tiktok_order_id, :status, :total_amount,
+                        :currency, :update_time
+                    )
+                    """
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "shop_id": ids["shop_id"],
+                    "tiktok_order_id": "migration_order_365",
+                    "status": "COMPLETED",
+                    "total_amount": Decimal("1.00"),
+                    "currency": "USD",
+                    "update_time": datetime.now(UTC).replace(tzinfo=None),
+                },
+            )
+
+
+@requires_postgres
+def test_legacy_public_orders_returns_writes_blocked_at_head(postgres_at_head: Engine):
+    """Legacy public.orders / public.returns reject writes after silver cutover (#607)."""
+    ids = _seed_representative_rows(postgres_at_head)
+    now = datetime.now(UTC).replace(tzinfo=None)
+    with postgres_at_head.begin() as conn:
+        with pytest.raises(Exception, match="read-only after silver cutover"):
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO orders (
+                        id, shop_id, tiktok_order_id, status, total_amount,
+                        currency, update_time
+                    )
+                    VALUES (
+                        :id, :shop_id, :tiktok_order_id, :status, :total_amount,
+                        :currency, :update_time
+                    )
+                    """
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "shop_id": ids["shop_id"],
+                    "tiktok_order_id": "blocked_order_607",
+                    "status": "COMPLETED",
+                    "total_amount": Decimal("1.00"),
+                    "currency": "USD",
+                    "update_time": now,
+                },
+            )
+    with postgres_at_head.begin() as conn:
+        with pytest.raises(Exception, match="read-only after silver cutover"):
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO returns (
+                        id, shop_id, tiktok_return_id, tiktok_order_id,
+                        return_type, refund_amount, status, update_time
+                    )
+                    VALUES (
+                        :id, :shop_id, :tiktok_return_id, :tiktok_order_id,
+                        :return_type, :refund_amount, :status, :update_time
+                    )
+                    """
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "shop_id": ids["shop_id"],
+                    "tiktok_return_id": "blocked_return_607",
+                    "tiktok_order_id": "migration_order_365",
+                    "return_type": "other",
+                    "refund_amount": Decimal("1.00"),
+                    "status": "pending_review",
+                    "update_time": now,
+                },
+            )
+
+
+@requires_postgres
+def test_bronze_to_silver_promotion_integration(postgres_at_head: Engine):
+    """Bronze append → silver upsert without gold KPI or live Partner (#607)."""
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from juli_backend.core.config.runtime import async_database_url
+    from juli_backend.repositories.repos import BronzeOrderRawPayloadsRepo
+    from juli_backend.services.etl.silver_promotion import SilverOrdersReturnsPromoter
+
+    ids = _seed_representative_rows(postgres_at_head)
+    shop_id = ids["shop_id"]
+    received_at = datetime(2026, 7, 30, 16, 0, tzinfo=UTC)
+
+    async def _run() -> None:
+        url = _database_url()
+        engine = create_async_engine(async_database_url(url))
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            bronze_repo = BronzeOrderRawPayloadsRepo(session)
+            promoter = SilverOrdersReturnsPromoter(session)
+            rows = await bronze_repo.append_batch(
+                [
+                    {
+                        "shop_id": shop_id,
+                        "ingest_source": "webhook",
+                        "payload": {
+                            "order_id": "607_integration_order",
+                            "order_status": "AWAITING_SHIPMENT",
+                            "total_amount": "55.00",
+                            "currency": "VND",
+                            "update_time": int(received_at.timestamp()),
+                        },
+                        "received_at": received_at,
+                        "tiktok_order_id": "607_integration_order",
+                        "source_event_id": "evt-607-integration",
+                    },
+                ]
+            )
+            order = await promoter.promote_order(rows[0])
+            await session.commit()
+            assert order.tiktok_order_id == "607_integration_order"
+
+        await engine.dispose()
+
+    asyncio.run(_run())
+
+    with postgres_at_head.connect() as conn:
+        count = conn.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM silver.orders
+                WHERE shop_id = :shop_id AND tiktok_order_id = :tiktok_order_id
+                """
+            ),
+            {"shop_id": shop_id, "tiktok_order_id": "607_integration_order"},
+        ).scalar_one()
+    assert count == 1
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_025_silver(postgres_at_head: Engine):
+    """Downgrading head removes silver orders/returns; gold tables remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for table in REVISION_025_SILVER_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "silver", table)
+
+    command.downgrade(cfg, "-1")
+
+    for table in REVISION_025_SILVER_TABLES:
+        assert not _table_exists_in_schema(postgres_at_head, "silver", table)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
+
+    command.upgrade(cfg, "head")
+    for table in REVISION_025_SILVER_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "silver", table)
 
 
 @requires_postgres
@@ -882,7 +1080,7 @@ def test_unique_constraints_enforced_after_migration_round_trip(
             conn.execute(
                 text(
                     """
-                    INSERT INTO orders (
+                    INSERT INTO silver.orders (
                         id, shop_id, tiktok_order_id, status, total_amount,
                         currency, update_time
                     )
