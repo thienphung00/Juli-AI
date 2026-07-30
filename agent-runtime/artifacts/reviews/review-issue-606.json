@@ -1,0 +1,75 @@
+{
+  "id": "review-issue-606",
+  "issue": 606,
+  "timestamp": "2026-07-30T06:47:09Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #606 CDP-A0-5 gold serving cutover: intent-review spec_fidelity=pass consumed as given. Migration 024 creates gold.kpi_envelopes, migrates legacy analytics rows, exposes compat view, blocks legacy writes. GoldKpiEnvelopesRepo + compat AnalyticsKpiEnvelopesRepo retire parallel SoT. 30 unit tests pass.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/database",
+    "backend/src/juli_backend/models",
+    "backend/src/juli_backend/repositories",
+    "backend/src/juli_backend/services"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "gold model exposes shop id pk and payload kpis map",
+          "test": "tests/unit/test_gold_kpi_envelopes.py::test_gold_model_exposes_shop_id_pk_and_payload_kpis_map"
+        },
+        {
+          "criterion": "compat adapter reads and writes gold not legacy",
+          "test": "tests/unit/test_gold_kpi_envelopes.py::test_compat_adapter_reads_and_writes_gold_not_legacy"
+        },
+        {
+          "criterion": "internal medallion layers not readable by postgrest roles",
+          "test": "tests/integration/test_migrations.py::test_internal_medallion_layers_not_readable_by_postgrest_roles"
+        },
+        {
+          "criterion": "legacy analytics kpi envelopes writes blocked at head",
+          "test": "tests/integration/test_migrations.py::test_legacy_analytics_kpi_envelopes_writes_blocked_at_head"
+        },
+        {
+          "criterion": "migration 024 gold kpi envelopes contract",
+          "test": "tests/unit/test_gold_kpi_envelopes_migration_contract.py::test_migration_024_gold_kpi_envelopes_contract"
+        },
+        {
+          "criterion": "scope excludes demo ui and partner",
+          "test": "tests/unit/test_gold_kpi_envelopes.py::test_scope_excludes_demo_ui_and_partner"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 30,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "606-20260730T132400",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-606.json"
+}

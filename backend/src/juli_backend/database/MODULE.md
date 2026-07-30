@@ -48,7 +48,8 @@ and ``init_session_factory`` are eager exports.
 ### Medallion schemas (Phase 3.5-A0 / ADR-046)
 - Four Postgres schemas: `bronze.*` (append-only raw), `silver.*` (idempotent domain upserts), `gold.*` (serving + ML stub), `ops.*` (pipeline checkpoints)
 - **ML feature source of truth:** `silver.*` only — training and inference read silver domain rows, never serving `gold.kpi_envelopes`; optional `gold.ml_feature_snapshots` is an acceleration stub (#603)
-- Grant isolation: `bronze`, `silver`, and `ops` are blocked from `anon` / `authenticated` PostgREST roles; backend writers use `service_role`
+- **Serving gold SoT:** `gold.kpi_envelopes` — PK `shop_id`, flexible `payload.kpis` jsonb (#606); legacy `public.analytics_kpi_envelopes` is read-only with compat view `analytics_kpi_envelopes_compat`
+- Grant isolation: `bronze`, `silver`, and `ops` are blocked from `anon` / `authenticated` PostgREST roles; `gold.kpi_envelopes` is client-readable with RLS
 
 ## Invariants
 - All repo queries are scoped by `user_id` (auth repos) or `shop_id` (commerce/analytics repos) — no cross-tenant data leakage
