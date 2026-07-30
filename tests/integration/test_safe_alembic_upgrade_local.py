@@ -37,7 +37,9 @@ def _postgres_reachable() -> bool:
         return False
     try:
         engine = create_engine(
-            sync_database_url(url), pool_pre_ping=True, connect_args={"connect_timeout": 3}
+            sync_database_url(url),
+            pool_pre_ping=True,
+            connect_args={"connect_timeout": 3},
         )
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -231,21 +233,18 @@ def _run_local_safe_upgrade(
     )
 
 
-def _reset_database(engine) -> None:
-    with engine.begin() as conn:
-        conn.execute(text("DROP SCHEMA public CASCADE"))
-        conn.execute(text("CREATE SCHEMA public"))
-        for schema in ("bronze", "silver", "gold", "ops"):
-            conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+def _reset_to_head() -> None:
+    cfg = _alembic_config()
+    command.downgrade(cfg, "base")
+    command.upgrade(cfg, "head")
 
 
 @pytest.fixture
 def postgres_at_head():
     cfg = _alembic_config()
     _remove_test_migration()
+    _reset_to_head()
     engine = create_engine(sync_database_url(_database_url()), pool_pre_ping=True)
-    _reset_database(engine)
-    command.upgrade(cfg, "head")
     yield engine
     try:
         with engine.connect() as conn:
@@ -256,7 +255,7 @@ def postgres_at_head():
             command.downgrade(cfg, "-1")
     finally:
         _remove_test_migration()
-        _reset_database(engine)
+        _reset_to_head()
         engine.dispose()
 
 

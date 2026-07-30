@@ -664,7 +664,9 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
 
 
 @requires_postgres
-def test_unique_constraints_enforced_after_migration_round_trip(postgres_at_head: Engine):
+def test_unique_constraints_enforced_after_migration_round_trip(
+    postgres_at_head: Engine,
+):
     """Unique indexes from earlier migrations remain enforced after a round trip."""
     ids = _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
@@ -697,9 +699,6 @@ def test_unique_constraints_enforced_after_migration_round_trip(postgres_at_head
                 },
             )
 
-    revision = (
-        postgres_at_head.connect()
-        .execute(text("SELECT version_num FROM alembic_version"))
-        .scalar_one()
-    )
+    with postgres_at_head.connect() as conn:
+        revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
     assert revision == LATEST_REVISION
