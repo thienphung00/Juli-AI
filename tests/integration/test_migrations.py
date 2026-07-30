@@ -25,7 +25,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "021_medallion_schemas"
+LATEST_REVISION = "022_ops_backfill_partitions"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -63,6 +63,7 @@ REVISION_018_COLUMNS = (
 REVISION_019_TABLE = "analytics_backfill_partitions"
 REVISION_020_TABLE = "analytics_kpi_envelopes"
 REVISION_021_TABLE = "ml_feature_snapshots"
+REVISION_022_SCHEMA = "ops"
 MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
 CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
 POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
@@ -329,9 +330,81 @@ def test_analytics_interval_backfill_columns_exist_at_head(postgres_at_head: Eng
 
 @requires_postgres
 def test_backfill_partitions_table_exists_at_head(postgres_at_head: Engine):
-    """Revision 019 adds analytics_backfill_partitions (#464)."""
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    """Revision 022 moves analytics_backfill_partitions to ops (#604)."""
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
+
+
+@requires_postgres
+def test_ops_backfill_partitions_data_migrated_at_head(postgres_at_head: Engine):
+    """Revision 022 preserves rows when moving public → ops (#604)."""
+    ids = _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+    partition_id = uuid.uuid4()
+    partition_date = "2026-01-20"
+
+    command.downgrade(cfg, "021_medallion_schemas")
+
+    with postgres_at_head.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO analytics_backfill_partitions (
+                    id, shop_id, bucket, partition_date, status
+                )
+                VALUES (:id, :shop_id, :bucket, :partition_date, :status)
+                """
+            ),
+            {
+                "id": partition_id,
+                "shop_id": ids["shop_id"],
+                "bucket": "revenue",
+                "partition_date": partition_date,
+                "status": "complete",
+            },
+        )
+
+    command.upgrade(cfg, "head")
+
+    with postgres_at_head.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT id, shop_id, bucket, partition_date, status
+                FROM ops.analytics_backfill_partitions
+                WHERE id = :id
+                """
+            ),
+            {"id": partition_id},
+        ).one()
+
+    assert row.id == partition_id
+    assert row.shop_id == ids["shop_id"]
+    assert row.bucket == "revenue"
+    assert row.status == "complete"
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_022_ops_table(postgres_at_head: Engine):
+    """Downgrading past 022 restores public table; ops copy removed (#604)."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
+
+    command.downgrade(cfg, "-1")
+
+    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+
+    command.upgrade(cfg, "head")
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
 
 
 @requires_postgres
@@ -392,27 +465,32 @@ def test_latest_downgrade_drops_only_revision_021_medallion(postgres_at_head: En
         assert _schema_exists(postgres_at_head, schema)
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "020_analytics_kpi_envelopes")
 
     for schema in MEDALLION_SCHEMAS:
         assert not _schema_exists(postgres_at_head, schema)
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
 
     command.upgrade(cfg, "head")
     for schema in MEDALLION_SCHEMAS:
         assert _schema_exists(postgres_at_head, schema)
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
 
 
 @requires_postgres
 def test_analytics_kpi_envelopes_table_exists_at_head(postgres_at_head: Engine):
     """Revision 020 adds analytics_kpi_envelopes (#525)."""
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     for column in (
         "id",
         "shop_id",
@@ -433,7 +511,8 @@ def test_latest_downgrade_drops_only_revision_020_table(postgres_at_head: Engine
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
 
     command.downgrade(cfg, "019_backfill_partitions")
 
@@ -443,7 +522,8 @@ def test_latest_downgrade_drops_only_revision_020_table(postgres_at_head: Engine
 
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     for schema in MEDALLION_SCHEMAS:
         assert _schema_exists(postgres_at_head, schema)
 
@@ -455,7 +535,8 @@ def test_latest_downgrade_drops_only_revision_019_table(postgres_at_head: Engine
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
@@ -470,7 +551,8 @@ def test_latest_downgrade_drops_only_revision_019_table(postgres_at_head: Engine
 
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
 
 
@@ -482,7 +564,8 @@ def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine
 
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
@@ -493,6 +576,7 @@ def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine
 
     assert not _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     assert _table_exists(postgres_at_head, REVISION_014_TABLE)
@@ -502,7 +586,8 @@ def test_latest_downgrade_drops_only_revision_017_table(postgres_at_head: Engine
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
@@ -515,7 +600,8 @@ def test_latest_downgrade_drops_only_revision_018_columns(postgres_at_head: Engi
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
@@ -530,7 +616,8 @@ def test_latest_downgrade_drops_only_revision_018_columns(postgres_at_head: Engi
 
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)
 
@@ -569,7 +656,8 @@ def test_latest_downgrade_drops_only_revision_015_columns(postgres_at_head: Engi
         assert _table_has_column(postgres_at_head, REVISION_012_TABLE, column)
     assert _table_exists(postgres_at_head, REVISION_016_TABLE)
     assert _table_exists(postgres_at_head, REVISION_017_TABLE)
-    assert _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     for column in REVISION_018_COLUMNS:
         assert _table_has_column(postgres_at_head, REVISION_017_TABLE, column)

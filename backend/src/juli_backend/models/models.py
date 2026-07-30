@@ -708,6 +708,7 @@ class AnalyticsBackfillPartition(Base):
             "partition_date",
             name="uq_analytics_backfill_partitions_shop_bucket_date",
         ),
+        {"schema": "ops"},
     )
 
 
