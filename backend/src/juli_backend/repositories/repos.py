@@ -27,6 +27,7 @@ from juli_backend.models.models import (
     BronzeReturnRawPayload,
     Campaign,
     Creator,
+    GoldKpiEnvelope,
     GraphEdge,
     InventoryItem,
     Livestream,
@@ -585,19 +586,102 @@ class AnalyticsPerformanceRepo(ShopScopedRepo[AnalyticsPerformanceInterval]):
     _lookup_attr = "snapshot_key"
 
 
-class AnalyticsKpiEnvelopesRepo(ShopScopedRepo[AnalyticsKpiEnvelope]):
-    """Idempotent upsert/read for analytics_kpi_envelopes by (shop_id, kind)."""
+class GoldKpiEnvelopesRepo:
+    """Serving gold.kpi_envelopes — one row per shop (#606)."""
 
-    _model = AnalyticsKpiEnvelope
-    _lookup_attr = "kind"
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, shop_id: uuid.UUID) -> GoldKpiEnvelope | None:
+        entity = await self._session.get(GoldKpiEnvelope, shop_id)
+        if entity is not None:
+            await self._session.refresh(entity)
+        return entity
+
+    async def upsert(
+        self,
+        *,
+        shop_id: uuid.UUID,
+        envelope_version: int,
+        payload: dict[str, Any],
+        computed_at: datetime,
+    ) -> GoldKpiEnvelope:
+        existing = await self.get(shop_id)
+        if existing is not None:
+            existing.envelope_version = envelope_version
+            existing.payload = payload
+            existing.computed_at = computed_at
+            await self._session.flush()
+            await self._session.refresh(existing)
+            return existing
+
+        entity = GoldKpiEnvelope(
+            shop_id=shop_id,
+            envelope_version=envelope_version,
+            payload=payload,
+            computed_at=computed_at,
+        )
+        self._session.add(entity)
+        await self._session.flush()
+        await self._session.refresh(entity)
+        return entity
+
+
+def _gold_to_legacy_envelope(gold: GoldKpiEnvelope) -> AnalyticsKpiEnvelope:
+    """Map gold serving row to legacy envelope shape for Demo/cache compat."""
+    return AnalyticsKpiEnvelope(
+        id=uuid.uuid5(uuid.NAMESPACE_OID, f"{gold.shop_id}:analytics"),
+        shop_id=gold.shop_id,
+        kind="analytics",
+        envelope_version=gold.envelope_version,
+        payload=gold.payload,
+        computed_at=gold.computed_at,
+        created_at=gold.created_at,
+        updated_at=gold.updated_at,
+    )
+
+
+class AnalyticsKpiEnvelopesRepo:
+    """Compat adapter — reads/writes gold.kpi_envelopes only (#606 cutover)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        self._gold = GoldKpiEnvelopesRepo(session)
 
     async def get_by_kind(self, shop_id: uuid.UUID, kind: str) -> AnalyticsKpiEnvelope | None:
-        stmt = select(AnalyticsKpiEnvelope).where(
-            AnalyticsKpiEnvelope.shop_id == shop_id,
-            AnalyticsKpiEnvelope.kind == kind,
+        if kind != "analytics":
+            return None
+        gold = await self._gold.get(shop_id)
+        if gold is None:
+            return None
+        return _gold_to_legacy_envelope(gold)
+
+    async def upsert(
+        self,
+        *,
+        shop_id: uuid.UUID,
+        kind: str,
+        envelope_version: int,
+        payload: dict[str, Any],
+        computed_at: datetime,
+    ) -> AnalyticsKpiEnvelope:
+        if kind != "analytics":
+            raise ValueError(f"unsupported envelope kind after gold cutover: {kind}")
+        gold = await self._gold.upsert(
+            shop_id=shop_id,
+            envelope_version=envelope_version,
+            payload=payload,
+            computed_at=computed_at,
         )
-        result = await self._session.execute(stmt)
-        return result.scalar_one_or_none()
+        envelope = _gold_to_legacy_envelope(gold)
+        envelope.computed_at = computed_at
+        return envelope
+
+    async def list(self, shop_id: uuid.UUID, *, limit: int = 50) -> list[AnalyticsKpiEnvelope]:
+        gold = await self._gold.get(shop_id)
+        if gold is None:
+            return []
+        return [_gold_to_legacy_envelope(gold)][:limit]
 
 
 class AlertConfigsRepo(ShopScopedRepo[AlertConfig]):

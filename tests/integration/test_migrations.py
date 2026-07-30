@@ -6,6 +6,7 @@ assertions. Skips when DATABASE_URL is not a reachable Postgres instance.
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from datetime import UTC, datetime
@@ -25,7 +26,9 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "023_bronze_orders_returns"
+LATEST_REVISION = "024_gold_kpi_envelopes"
+REVISION_024_GOLD_TABLE = "kpi_envelopes"
+REVISION_024_COMPAT_VIEW = "analytics_kpi_envelopes_compat"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -136,6 +139,55 @@ def _schema_exists(engine: Engine, schema: str) -> bool:
 
 def _table_exists_in_schema(engine: Engine, schema: str, table: str) -> bool:
     return table in inspect(engine).get_table_names(schema=schema)
+
+
+def _view_exists(engine: Engine, view: str, *, schema: str = "public") -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT 1 FROM information_schema.views
+                WHERE table_schema = :schema AND table_name = :view
+                """
+            ),
+            {"schema": schema, "view": view},
+        ).first()
+    return row is not None
+
+
+def _seed_legacy_analytics_envelope(engine: Engine, shop_id: uuid.UUID) -> None:
+    """Insert legacy envelope row (pre-024) for migration cutover tests."""
+    now = datetime.now(UTC).replace(tzinfo=None)
+    payload = {
+        "envelope_version": 1,
+        "kind": "analytics",
+        "shop_id": str(shop_id),
+        "computed_at": now.isoformat(),
+        "kpis": {
+            "gmv_tiktok": {
+                "availability": "available",
+                "label": "GMV (TikTok)",
+                "series": [{"t": "2026-07-01", "v": 100.0}],
+            }
+        },
+    }
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO analytics_kpi_envelopes (
+                    id, shop_id, kind, envelope_version, payload, computed_at
+                )
+                VALUES (:id, :shop_id, 'analytics', 1, CAST(:payload AS jsonb), :computed_at)
+                """
+            ),
+            {
+                "id": uuid.uuid4(),
+                "shop_id": shop_id,
+                "payload": json.dumps(payload),
+                "computed_at": now,
+            },
+        )
 
 
 def _seed_representative_rows(engine: Engine) -> dict[str, uuid.UUID]:
@@ -453,7 +505,7 @@ def test_bronze_orders_returns_tables_exist_at_head(postgres_at_head: Engine):
 
 @requires_postgres
 def test_latest_downgrade_drops_only_revision_023_bronze_tables(postgres_at_head: Engine):
-    """Downgrading head removes bronze raw tables; medallion schemas remain."""
+    """Downgrading past 023 removes bronze raw tables; medallion schemas remain."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
@@ -463,7 +515,8 @@ def test_latest_downgrade_drops_only_revision_023_bronze_tables(postgres_at_head
         assert _schema_exists(postgres_at_head, schema)
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
 
-    command.downgrade(cfg, "-1")
+    # Head may be past 023 (e.g. 024); target 022 so 023 downgrade runs explicitly.
+    command.downgrade(cfg, "022_ops_backfill_partitions")
 
     for table in REVISION_023_BRONZE_TABLES:
         assert not _table_exists_in_schema(postgres_at_head, "bronze", table)
@@ -512,14 +565,108 @@ $role$;
 
 
 @requires_postgres
+def test_gold_kpi_envelopes_table_exists_at_head(postgres_at_head: Engine):
+    """Revision 024 adds gold.kpi_envelopes serving contract (#606)."""
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
+    for column in ("shop_id", "computed_at", "envelope_version", "payload"):
+        cols = {
+            c["name"]
+            for c in inspect(postgres_at_head).get_columns(REVISION_024_GOLD_TABLE, schema="gold")
+        }
+        assert column in cols
+
+
+@requires_postgres
+def test_gold_kpi_envelopes_compat_view_payload_kpis(postgres_at_head: Engine):
+    """Compat view preserves payload.kpis shape for migrated legacy rows (#606)."""
+    cfg = _alembic_config()
+    command.downgrade(cfg, "021_medallion_schemas")
+    ids = _seed_representative_rows(postgres_at_head)
+    _seed_legacy_analytics_envelope(postgres_at_head, ids["shop_id"])
+    command.upgrade(cfg, "head")
+
+    assert _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
+    with postgres_at_head.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT payload->'kpis' AS kpis, kind
+                FROM analytics_kpi_envelopes_compat
+                WHERE shop_id = :shop_id
+                """
+            ),
+            {"shop_id": ids["shop_id"]},
+        ).one()
+        gold_row = conn.execute(
+            text(
+                """
+                SELECT payload->'kpis' AS kpis
+                FROM gold.kpi_envelopes
+                WHERE shop_id = :shop_id
+                """
+            ),
+            {"shop_id": ids["shop_id"]},
+        ).one()
+
+    assert row.kind == "analytics"
+    assert row.kpis is not None
+    assert row.kpis == gold_row.kpis
+    assert "gmv_tiktok" in row.kpis
+
+
+@requires_postgres
+def test_legacy_analytics_kpi_envelopes_writes_blocked_at_head(postgres_at_head: Engine):
+    """Legacy public table rejects writes after gold cutover (#606 AC4)."""
+    ids = _seed_representative_rows(postgres_at_head)
+    with postgres_at_head.begin() as conn:
+        with pytest.raises(Exception, match="read-only after gold cutover"):
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO analytics_kpi_envelopes (
+                        id, shop_id, kind, envelope_version, payload, computed_at
+                    )
+                    VALUES (
+                        :id, :shop_id, 'analytics', 1, '{}'::jsonb, now()
+                    )
+                    """
+                ),
+                {"id": uuid.uuid4(), "shop_id": ids["shop_id"]},
+            )
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_024_gold(postgres_at_head: Engine):
+    """Downgrading head removes gold.kpi_envelopes; medallion schemas remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
+    assert _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
+
+    command.downgrade(cfg, "-1")
+
+    assert not _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
+    assert not _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+
+    command.upgrade(cfg, "head")
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
+    assert _view_exists(postgres_at_head, REVISION_024_COMPAT_VIEW)
+
+
+@requires_postgres
 def test_latest_downgrade_drops_only_revision_021_medallion(postgres_at_head: Engine):
-    """Downgrading head removes medallion schemas; 020 public tables remain."""
+    """Downgrading past 024 then 021 removes medallion schemas; 020 public tables remain."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
     for schema in MEDALLION_SCHEMAS:
         assert _schema_exists(postgres_at_head, schema)
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
     assert _table_exists(postgres_at_head, REVISION_020_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
@@ -537,6 +684,7 @@ def test_latest_downgrade_drops_only_revision_021_medallion(postgres_at_head: En
     for schema in MEDALLION_SCHEMAS:
         assert _schema_exists(postgres_at_head, schema)
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
     assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
 

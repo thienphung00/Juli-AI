@@ -717,8 +717,26 @@ class AnalyticsBackfillPartition(Base):
 # ---------------------------------------------------------------------------
 
 
+class GoldKpiEnvelope(Base):
+    """Serving gold KPI envelope — one row per shop (ADR-046 Q3 / #606)."""
+
+    __tablename__ = "kpi_envelopes"
+    __table_args__ = {"schema": "gold"}
+
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), primary_key=True)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    envelope_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class AnalyticsKpiEnvelope(Base):
-    """Shop-scoped precomputed Analytics KPI envelope (Postgres SoT for Redis/Demo)."""
+    """Legacy public envelope table — read-only after gold cutover (#606)."""
 
     __tablename__ = "analytics_kpi_envelopes"
 

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 606,
+  "executorDomain": "data-platform",
+  "phaseRunId": "606-20260730T132400",
+  "startedAt": "2026-07-30T06:24:00Z",
+  "completedAt": "2026-07-30T06:40:00Z",
+  "executionDurationMs": 960000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 45,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-606.json",
+    "docs/handoffs/phase-3.5-prd-bodies/a0-foundation.md",
+    "docs/adr/046-cdp-medallion-physical-model.md",
+    "backend/src/juli_backend/database/migrations/versions/021_medallion_schemas.py",
+    "backend/src/juli_backend/database/migrations/versions/020_analytics_kpi_envelopes.py",
+    "tests/integration/test_migrations.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/data-platform/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/database/migrations/versions/024_gold_kpi_envelopes.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/gold_kpi_envelope_contract.py",
+    "backend/src/juli_backend/database/MODULE.md",
+    "tests/unit/test_gold_kpi_envelopes.py",
+    "tests/unit/test_gold_kpi_envelopes_migration_contract.py",
+    "tests/integration/test_migrations.py",
+    "tests/unit/conftest.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_gold_kpi_envelopes.py",
+    "tests/unit/test_gold_kpi_envelopes_migration_contract.py"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_migrations.py",
+    "tests/unit/conftest.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError gold_kpi_envelope_contract; sqlite unknown database gold before conftest schema strip",
+      "passingTestEvidence": "30 envelope-related unit tests pass including legacy compat adapter and demo/cache paths",
+      "refactorEvidence": "AnalyticsKpiEnvelopesRepo compat adapter delegates to GoldKpiEnvelopesRepo; migration contract + integration tests added",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_gold_kpi_envelopes.py tests/unit/test_gold_kpi_envelopes_migration_contract.py tests/unit/test_analytics_kpi_envelopes.py tests/unit/test_analytics_kpi_cache.py tests/unit/test_api_demo_analytics.py tests/unit/test_analytics_kpi_precompute_gmv.py -q",
+          "exitCode": 0,
+          "outputSummary": "30 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Added gold.kpi_envelopes migration (024) with legacy data migrate, RLS + client SELECT grants, analytics_kpi_envelopes_compat view, and read-only trigger on public.analytics_kpi_envelopes. Introduced GoldKpiEnvelope model/repo plus honest-unavailable shell contract; AnalyticsKpiEnvelopesRepo now reads/writes gold only (legacy writer retired).",
+  "assumptions": [],
+  "risks": []
+}
