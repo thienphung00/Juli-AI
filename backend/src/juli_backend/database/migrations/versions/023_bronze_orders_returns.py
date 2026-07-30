@@ -4,7 +4,7 @@ Revision ID: 023_bronze_orders_returns
 Revises: 021_medallion_schemas
 Create Date: 2026-07-30
 
-Parallel tip: down_revision points at 021_medallion_schemas while #604 lands
+Stacked after #604: down_revision = 022_ops_backfill_partitions
 022_ops_backfill_partitions. Meta rebases to 022 when opening the sequential PR.
 
 webhook_raw_events fate (Architect lock — option 2 from A0 PRD):
