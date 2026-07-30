@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-605",
+  "issue": 605,
+  "timestamp": "2026-07-30T06:39:38Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "ffafb255",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff ffafb255..HEAD (#605 CDP-A0-3). Alembic 023 creates bronze.order_raw_payloads and bronze.return_raw_payloads with shop-scoped (shop_id, received_at) indexes and PostgREST grant isolation. BronzeOrderRawPayload/BronzeReturnRawPayload ORM models (schema=bronze) and Bronze*RawPayloadsRepo.append_batch provide batched append writer separate from WebhookRawEventsRepo, whose docstring now states audit-shim-only / no indefinite double-write per Architect lock. Migration docstring documents webhook_raw_events read-only audit shim + bronze forward path and A1 out-of-scope. No silver/gold tables invented; no webhook enqueue or targeted-fetch orchestration wired.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "ADR-046 one writer per table",
+      "path": "backend/src/juli_backend/repositories/repos.py",
+      "note": "Bronze append repos are separate classes from WebhookRawEventsRepo; existing HTTP audit insert path untouched.",
+      "blocksMerge": false
+    },
+    {
+      "standard": "Parallel Alembic tip",
+      "path": "backend/src/juli_backend/database/migrations/versions/023_bronze_orders_returns.py",
+      "note": "down_revision=021_medallion_schemas documented for parallel #604/#605/#606 tips; Meta rebases to 022 at sequential PR.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "2026-07-30T0637Z"
+}

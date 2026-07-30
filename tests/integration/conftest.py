@@ -30,7 +30,7 @@ def token_encryption_key(monkeypatch):
 async def engine():
     eng = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
-        execution_options={"schema_translate_map": {"ops": None}},
+        execution_options={"schema_translate_map": {"ops": None, "bronze": None}},
     )
 
     def _create_tables(sync_conn):

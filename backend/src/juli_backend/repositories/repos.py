@@ -23,6 +23,8 @@ from juli_backend.models.models import (
     AnalyticsBackfillPartition,
     AnalyticsKpiEnvelope,
     AnalyticsPerformanceInterval,
+    BronzeOrderRawPayload,
+    BronzeReturnRawPayload,
     Campaign,
     Creator,
     GraphEdge,
@@ -873,8 +875,69 @@ class WorkflowWebhookSignalsRepo:
         return True
 
 
+class BronzeOrderRawPayloadsRepo:
+    """Batched append writer for bronze.order_raw_payloads (#605)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def append_batch(
+        self,
+        records: list[dict[str, Any]],
+    ) -> list[BronzeOrderRawPayload]:
+        if not records:
+            return []
+        rows = [
+            BronzeOrderRawPayload(
+                shop_id=record["shop_id"],
+                ingest_source=record["ingest_source"],
+                payload=record["payload"],
+                received_at=record.get("received_at") or datetime.now(UTC),
+                tiktok_order_id=record.get("tiktok_order_id"),
+                source_event_id=record.get("source_event_id"),
+            )
+            for record in records
+        ]
+        self._session.add_all(rows)
+        await self._session.flush()
+        return rows
+
+
+class BronzeReturnRawPayloadsRepo:
+    """Batched append writer for bronze.return_raw_payloads (#605)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def append_batch(
+        self,
+        records: list[dict[str, Any]],
+    ) -> list[BronzeReturnRawPayload]:
+        if not records:
+            return []
+        rows = [
+            BronzeReturnRawPayload(
+                shop_id=record["shop_id"],
+                ingest_source=record["ingest_source"],
+                payload=record["payload"],
+                received_at=record.get("received_at") or datetime.now(UTC),
+                tiktok_return_id=record.get("tiktok_return_id"),
+                tiktok_order_id=record.get("tiktok_order_id"),
+                source_event_id=record.get("source_event_id"),
+            )
+            for record in records
+        ]
+        self._session.add_all(rows)
+        await self._session.flush()
+        return rows
+
+
 class WebhookRawEventsRepo:
-    """Append-only archive of redacted TikTok webhook deliveries (#392)."""
+    """Read-only audit shim for redacted TikTok HTTP deliveries (#392).
+
+    Forward domain raw writes use ``BronzeOrderRawPayloadsRepo`` /
+    ``BronzeReturnRawPayloadsRepo`` — do not double-write indefinitely.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session

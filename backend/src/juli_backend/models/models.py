@@ -744,6 +744,62 @@ class AnalyticsKpiEnvelope(Base):
     )
 
 
+# ---------------------------------------------------------------------------
+# Bronze raw landing — orders/returns append-only (#605)
+# ---------------------------------------------------------------------------
+
+
+class BronzeOrderRawPayload(Base):
+    """Append-only raw order payloads from webhooks or targeted fetch."""
+
+    __tablename__ = "order_raw_payloads"
+    __table_args__ = (
+        Index(
+            "ix_bronze_order_raw_payloads_shop_received",
+            "shop_id",
+            "received_at",
+        ),
+        {"schema": "bronze"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    ingest_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    tiktok_order_id: Mapped[str | None] = mapped_column(String(100))
+    source_event_id: Mapped[str | None] = mapped_column(String(255))
+
+
+class BronzeReturnRawPayload(Base):
+    """Append-only raw return/cancellation payloads from webhooks or targeted fetch."""
+
+    __tablename__ = "return_raw_payloads"
+    __table_args__ = (
+        Index(
+            "ix_bronze_return_raw_payloads_shop_received",
+            "shop_id",
+            "received_at",
+        ),
+        {"schema": "bronze"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    ingest_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    tiktok_return_id: Mapped[str | None] = mapped_column(String(100))
+    tiktok_order_id: Mapped[str | None] = mapped_column(String(100))
+    source_event_id: Mapped[str | None] = mapped_column(String(255))
+
+
 from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401
     ProcessedEvent,
 )

@@ -114,6 +114,14 @@ databaseTables:
     owner: Data Pipeline
     access: write
     notes: Idempotency ledger — ETL exclusive.
+  order_raw_payloads:
+    owner: Data Pipeline
+    access: write
+    notes: Append-only bronze order payloads (webhook and targeted fetch landing).
+  return_raw_payloads:
+    owner: Data Pipeline
+    access: write
+    notes: Append-only bronze return/cancellation payloads (webhook landing).
   webhook_raw_events:
     owner: Data Pipeline
     access: write

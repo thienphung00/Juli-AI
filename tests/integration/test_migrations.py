@@ -25,7 +25,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "022_ops_backfill_partitions"
+LATEST_REVISION = "023_bronze_orders_returns"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -64,6 +64,7 @@ REVISION_019_TABLE = "analytics_backfill_partitions"
 REVISION_020_TABLE = "analytics_kpi_envelopes"
 REVISION_021_TABLE = "ml_feature_snapshots"
 REVISION_022_SCHEMA = "ops"
+REVISION_023_BRONZE_TABLES = ("order_raw_payloads", "return_raw_payloads")
 MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
 CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
 POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
@@ -119,6 +120,10 @@ def _reset_to_head() -> None:
 
 def _table_has_column(engine: Engine, table: str, column: str) -> bool:
     return column in {col["name"] for col in inspect(engine).get_columns(table)}
+
+
+def _table_has_column_in_schema(engine: Engine, schema: str, table: str, column: str) -> bool:
+    return column in {col["name"] for col in inspect(engine).get_columns(table, schema=schema)}
 
 
 def _table_exists(engine: Engine, table: str) -> bool:
@@ -387,7 +392,7 @@ def test_ops_backfill_partitions_data_migrated_at_head(postgres_at_head: Engine)
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_022_ops_table(postgres_at_head: Engine):
+def test_downgrade_022_restores_public_backfill_partitions(postgres_at_head: Engine):
     """Downgrading past 022 restores public table; ops copy removed (#604)."""
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
@@ -395,7 +400,8 @@ def test_latest_downgrade_drops_only_revision_022_ops_table(postgres_at_head: En
     assert not _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
 
-    command.downgrade(cfg, "-1")
+    # Head may be past 022 (e.g. 023); target 021 so 022 downgrade runs explicitly.
+    command.downgrade(cfg, "021_medallion_schemas")
 
     assert _table_exists(postgres_at_head, REVISION_019_TABLE)
     assert not _table_exists_in_schema(postgres_at_head, REVISION_022_SCHEMA, REVISION_019_TABLE)
@@ -418,6 +424,56 @@ def test_medallion_schemas_exist_at_head(postgres_at_head: Engine):
 def test_gold_ml_feature_snapshots_stub_exists_at_head(postgres_at_head: Engine):
     """Revision 021 adds empty-OK gold.ml_feature_snapshots stub (#603)."""
     assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+
+
+@requires_postgres
+def test_bronze_orders_returns_tables_exist_at_head(postgres_at_head: Engine):
+    """Revision 023 adds bronze order/return raw payload append tables (#605)."""
+    for table in REVISION_023_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+    for column in (
+        "id",
+        "shop_id",
+        "received_at",
+        "ingest_source",
+        "payload",
+        "source_event_id",
+    ):
+        assert _table_has_column_in_schema(postgres_at_head, "bronze", "order_raw_payloads", column)
+        assert _table_has_column_in_schema(
+            postgres_at_head, "bronze", "return_raw_payloads", column
+        )
+    assert _table_has_column_in_schema(
+        postgres_at_head, "bronze", "order_raw_payloads", "tiktok_order_id"
+    )
+    assert _table_has_column_in_schema(
+        postgres_at_head, "bronze", "return_raw_payloads", "tiktok_return_id"
+    )
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_023_bronze_tables(postgres_at_head: Engine):
+    """Downgrading head removes bronze raw tables; medallion schemas remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for table in REVISION_023_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+
+    command.downgrade(cfg, "-1")
+
+    for table in REVISION_023_BRONZE_TABLES:
+        assert not _table_exists_in_schema(postgres_at_head, "bronze", table)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_021_TABLE)
+
+    command.upgrade(cfg, "head")
+    for table in REVISION_023_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
 
 
 @requires_postgres
