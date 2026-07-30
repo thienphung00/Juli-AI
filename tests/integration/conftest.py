@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.database.database import Base
 from juli_backend.integrations.tiktok.auth import TikTokAuth
-
 from tests.integration.tiktok_sandbox import (
     sandbox_app_key,
     sandbox_app_secret,
@@ -24,16 +23,21 @@ def anyio_backend():
 
 @pytest.fixture(autouse=True)
 def token_encryption_key(monkeypatch):
-    monkeypatch.setenv(
-        "TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key"
-    )
+    monkeypatch.setenv("TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key")
 
 
 @pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine("sqlite+aiosqlite:///:memory:")
+    eng = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        execution_options={"schema_translate_map": {"ops": None}},
+    )
+
+    def _create_tables(sync_conn):
+        Base.metadata.create_all(sync_conn)
+
     async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_create_tables)
     yield eng
     await eng.dispose()
 
