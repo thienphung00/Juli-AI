@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 607,
+  "executorDomain": "data-platform",
+  "phaseRunId": "2026-07-30T0909Z",
+  "startedAt": "2026-07-30T09:09:03Z",
+  "completedAt": "2026-07-30T09:09:03Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [],
+  "skillsLoaded": [
+    ".cursor/skills/domain/data-platform/SKILL.md"
+  ],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/database/migrations/versions/025_silver_orders_returns.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/etl/silver_promotion.py",
+    "backend/src/juli_backend/services/etl/transform.py",
+    "backend/src/juli_backend/database/MODULE.md",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "tests/unit/test_silver_orders_returns.py",
+    "tests/integration/test_migrations.py",
+    "tests/unit/conftest.py",
+    "tests/integration/conftest.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_silver_orders_returns.py"
+  ],
+  "testsUpdated": [
+    "tests/integration/test_migrations.py",
+    "tests/unit/conftest.py",
+    "tests/integration/conftest.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "redCommand": "PYTHONPATH=backend/src python -m pytest tests/unit/test_silver_orders_returns.py -x -q",
+      "redResult": "ModuleNotFoundError: silver_promotion (expected red)",
+      "greenCommand": "PYTHONPATH=backend/src python -m pytest tests/unit/test_silver_orders_returns.py tests/unit/test_etl.py tests/unit/test_bronze_orders_returns.py -q",
+      "greenResult": "19 passed"
+    }
+  ],
+  "implementationSummary": "Silver orders/returns cutover (#607): migration 025 creates silver.orders/silver.returns with natural keys, migrates legacy public rows, blocks legacy writers via triggers, retargets order_items FK. OrdersRepo/ReturnsRepo ORM models point to silver schema. SilverOrdersReturnsPromoter promotes bronze append rows to silver upserts.",
+  "assumptions": [],
+  "risks": [
+    "Migration integration tests require reachable Postgres DATABASE_URL (skipped in CI lane without local Postgres)"
+  ]
+}

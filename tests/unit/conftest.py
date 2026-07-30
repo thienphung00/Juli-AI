@@ -22,7 +22,9 @@ def bind_celery_dispatchers_for_unit_tests():
     """Wire MMU-6/7 worker bindings so unit tests can run the execution worker."""
     from juli_backend.services.action_cards.dispatch import set_refresh_dispatcher
     from juli_backend.services.execution.dispatch import set_task_dispatcher
-    from juli_backend.services.execution.outcome_port import set_workflow_outcome_recorder
+    from juli_backend.services.execution.outcome_port import (
+        set_workflow_outcome_recorder,
+    )
     from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
 
     bind_celery_dispatchers()
@@ -37,7 +39,12 @@ async def engine():
     eng = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         execution_options={
-            "schema_translate_map": {"ops": None, "bronze": None, "gold": None}
+            "schema_translate_map": {
+                "ops": None,
+                "bronze": None,
+                "gold": None,
+                "silver": None,
+            }
         },
     )
 

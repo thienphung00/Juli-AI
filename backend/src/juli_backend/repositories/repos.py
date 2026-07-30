@@ -429,6 +429,18 @@ class OrdersRepo(ShopScopedRepo[Order]):
     _model = Order
     _lookup_attr = "tiktok_order_id"
 
+    async def get_by_tiktok_id(
+        self,
+        shop_id: uuid.UUID,
+        tiktok_order_id: str,
+    ) -> Order | None:
+        stmt = select(self._model).where(
+            self._model.shop_id == shop_id,
+            self._model.tiktok_order_id == tiktok_order_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list_filtered(
         self,
         shop_id: uuid.UUID,
