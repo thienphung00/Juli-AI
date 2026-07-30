@@ -45,6 +45,11 @@ and ``init_session_factory`` are eager exports.
 - `aiosqlite` — SQLite async driver (testing)
 - `alembic` — schema migrations
 
+### Medallion schemas (Phase 3.5-A0 / ADR-046)
+- Four Postgres schemas: `bronze.*` (append-only raw), `silver.*` (idempotent domain upserts), `gold.*` (serving + ML stub), `ops.*` (pipeline checkpoints)
+- **ML feature source of truth:** `silver.*` only — training and inference read silver domain rows, never serving `gold.kpi_envelopes`; optional `gold.ml_feature_snapshots` is an acceleration stub (#603)
+- Grant isolation: `bronze`, `silver`, and `ops` are blocked from `anon` / `authenticated` PostgREST roles; backend writers use `service_role`
+
 ## Invariants
 - All repo queries are scoped by `user_id` (auth repos) or `shop_id` (commerce/analytics repos) — no cross-tenant data leakage
 - `UsersRepo.get()` raises `NotFound` rather than returning `None`
