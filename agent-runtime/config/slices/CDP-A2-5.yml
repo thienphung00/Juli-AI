@@ -1,5 +1,5 @@
 CDP-A2-5:
-  executorDomain: backend
+  executorDomain: data-platform
   requiredDocs:
     - EXECUTION.md
     - "{handoffPath}"

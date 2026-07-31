@@ -19,12 +19,12 @@
 
 | Issue | Slice | Domain | Worktree / branch | Meta | Status |
 |-------|-------|--------|-------------------|------|--------|
-| [#618](https://github.com/thienphung00/Juli-AI/issues/618) | CDP-A2-4 | backend | `.worktrees/a2-wave/.worktrees/issue-618` / `feature/issue-618-shop-compute-mutex` | `readyForExecutor: true`; Review + Validate PASS | [PR #652](https://github.com/thienphung00/Juli-AI/pull/652) open; blocked because PR CI only targets `main` / `staging`, so `feature/a2-wave` reports no checks |
-| [#620](https://github.com/thienphung00/Juli-AI/issues/620) | CDP-A2-5 | data-platform | TBD | pending | blocked on #618 merge to A2 |
+| [#618](https://github.com/thienphung00/Juli-AI/issues/618) | CDP-A2-4 | backend | `.worktrees/a2-wave/.worktrees/issue-618` / `feature/issue-618-shop-compute-mutex` | `readyForExecutor: true`; Review + Validate PASS | [PR #652](https://github.com/thienphung00/Juli-AI/pull/652) merged to A2 at `95c6af9f` |
+| [#620](https://github.com/thienphung00/Juli-AI/issues/620) | CDP-A2-5 | data-platform | `.worktrees/issue-620` / `feature/issue-620-partition-checkpoints` | rerunning after domain correction | in progress |
 | [#624](https://github.com/thienphung00/Juli-AI/issues/624) | CDP-A2-6 | docs | TBD | pending | blocked on #620 merge to A2 |
 | [#619](https://github.com/thienphung00/Juli-AI/issues/619) | CDP-A2-7 | backend | TBD | pending | blocked on #624 merge to A2 |
 
 ## Ops lock
 
-**Holder:** Meta A2 (#618)  
+**Holder:** Meta A2 (#620)  
 **Rule:** stagger remote ops ≥30s vs Meta A1; one issue PR at a time on this track
