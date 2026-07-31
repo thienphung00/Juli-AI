@@ -3,6 +3,8 @@ from juli_backend.services.etl.record import IngestRecord, KafkaRecord
 from juli_backend.services.etl.transform import transform_for_channel, transform_for_topic
 
 _LAZY_EXPORTS = {
+    "append_targeted_order_payload": "juli_backend.services.etl.bronze_append",
+    "append_targeted_return_payload": "juli_backend.services.etl.bronze_append",
     "EtlConsumer": "juli_backend.services.etl.consumer",
     "ProcessOutcome": "juli_backend.services.etl.consumer",
 }
@@ -19,6 +21,8 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "append_targeted_order_payload",
+    "append_targeted_return_payload",
     "DLQ_CHANNEL",
     "RAW_CHANNELS",
     "EtlConsumer",

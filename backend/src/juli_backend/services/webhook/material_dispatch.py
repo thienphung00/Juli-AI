@@ -7,6 +7,7 @@ import os
 from dataclasses import dataclass
 from typing import Protocol
 
+from juli_backend.services.cdp_speed import webhook_catalog_enqueue_reason
 from juli_backend.services.tiktok.webhook_catalog import (
     catalog_id_for_event,
     is_material_catalog_id,
@@ -17,24 +18,50 @@ logger = logging.getLogger(__name__)
 
 
 class MaterialAnalyticsDispatcher(Protocol):
-    def enqueue(self, shop_key: str) -> str: ...
+    def enqueue(
+        self,
+        shop_key: str,
+        *,
+        event_type: str,
+        enqueue_reason: str,
+    ) -> str: ...
 
 
 @dataclass
 class CeleryMaterialAnalyticsDispatcher:
-    def enqueue(self, shop_key: str) -> str:
+    def enqueue(
+        self,
+        shop_key: str,
+        *,
+        event_type: str,
+        enqueue_reason: str,
+    ) -> str:
         from juli_backend.workers.tasks.material_analytics_precompute import (
             material_analytics_precompute,
         )
 
-        async_result = material_analytics_precompute.delay(shop_key)
+        async_result = material_analytics_precompute.delay(
+            shop_key,
+            event_type=event_type,
+            enqueue_reason=enqueue_reason,
+        )
         return async_result.id
 
 
 @dataclass
 class _DefaultMaterialAnalyticsDispatcher:
-    def enqueue(self, shop_key: str) -> str:
-        return CeleryMaterialAnalyticsDispatcher().enqueue(shop_key)
+    def enqueue(
+        self,
+        shop_key: str,
+        *,
+        event_type: str,
+        enqueue_reason: str,
+    ) -> str:
+        return CeleryMaterialAnalyticsDispatcher().enqueue(
+            shop_key,
+            event_type=event_type,
+            enqueue_reason=enqueue_reason,
+        )
 
 
 _dispatcher: MaterialAnalyticsDispatcher | None = None
@@ -120,4 +147,8 @@ def maybe_enqueue_material_analytics_compute(
     resolved_dispatcher = (
         dispatcher if dispatcher is not None else get_material_analytics_dispatcher()
     )
-    return resolved_dispatcher.enqueue(shop_key)
+    return resolved_dispatcher.enqueue(
+        shop_key,
+        event_type=event_type,
+        enqueue_reason=webhook_catalog_enqueue_reason(catalog_id),
+    )

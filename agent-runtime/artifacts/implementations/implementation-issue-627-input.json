@@ -1,0 +1,64 @@
+{
+  "implementationSummary": "Shared Compute Orchestrator (#627) review fix: production executes TargetedFetchPlan via bounded sync workers → bronze append handoff (no fabricated orders). Per-trigger idempotency_key scopes bronze source_event_id; silver promotes only current-stage row IDs. Tests inject fixture fetch fakes at the boundary only.",
+  "filesModified": [
+    "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+    "backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py",
+    "backend/src/juli_backend/services/cdp_speed/targeted_fetch_bronze_handoff.py",
+    "backend/src/juli_backend/services/cdp_speed/targeted_fetch_executor.py",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/services/etl/__init__.py",
+    "backend/src/juli_backend/services/etl/bronze_append.py",
+    "backend/src/juli_backend/services/webhook/material_worker.py",
+    "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+    "tests/unit/test_cdp_speed_shared_compute_orchestrator.py",
+    "tests/integration/test_material_shared_compute_handoff.py",
+    "tests/unit/test_material_analytics_enqueue.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_cdp_speed_shared_compute_orchestrator.py",
+    "tests/integration/test_material_shared_compute_handoff.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_material_analytics_enqueue.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Review block: production ORDER_FIXTURE_ID fabrication; coarse source_event_id suppressed legitimate triggers; silver reprocessed all targeted_fetch rows",
+      "passingTestEvidence": "69 tests pass: fake fetch boundary in tests only; per-idempotency_key bronze dedupe; distinct keys allow new triggers; silver promotes current row IDs; logs use correlation_id not shop_key",
+      "refactorEvidence": "Split targeted_fetch_executor + targeted_fetch_bronze_handoff; injectable fetch_executor; Celery bind=True supplies idempotency_key from task id",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/integration/test_material_shared_compute_handoff.py -q",
+          "exitCode": 0,
+          "outputSummary": "10 passed"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/integration/test_material_shared_compute_handoff.py tests/unit/test_material_analytics_enqueue.py tests/integration/test_material_deployed_webhook_handoff.py tests/unit/test_material_deployed_handoff.py -v",
+          "exitCode": 0,
+          "outputSummary": "69 passed"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m ruff check backend/src/juli_backend/services/cdp_speed/ backend/src/juli_backend/services/webhook/material_worker.py tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/integration/test_material_shared_compute_handoff.py",
+          "exitCode": 0,
+          "outputSummary": "All checks passed"
+        }
+      ]
+    }
+  ],
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-627.json",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/services/etl/silver_promotion.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "assumptions": [
+    "Production Partner fetch requires TikTok + Redis env; missing env yields zero bronze append (no fabrication)."
+  ],
+  "risks": [
+    "Analytics bronze persistence for shop/product list grains deferred — handoff currently covers orders/returns channels only.",
+    "Celery workers must redeploy with bind=True task for idempotency_key from request.id."
+  ]
+}

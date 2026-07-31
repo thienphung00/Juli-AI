@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 627,
+  "executorDomain": "backend",
+  "phaseRunId": "627-20260731T054500",
+  "startedAt": "2026-07-31T05:30:38Z",
+  "completedAt": "2026-07-31T05:45:00Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-627.json",
+    "backend/src/juli_backend/workers/services/polling/sync.py",
+    "backend/src/juli_backend/services/etl/silver_promotion.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+    "backend/src/juli_backend/services/cdp_speed/__init__.py",
+    "backend/src/juli_backend/services/cdp_speed/enqueue_reason.py",
+    "backend/src/juli_backend/services/cdp_speed/job_correlation.py",
+    "backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py",
+    "backend/src/juli_backend/services/cdp_speed/targeted_fetch_bronze_handoff.py",
+    "backend/src/juli_backend/services/cdp_speed/targeted_fetch_executor.py",
+    "backend/src/juli_backend/services/cdp_speed/targeted_fetch_sync.py",
+    "backend/src/juli_backend/services/etl/MODULE.md",
+    "backend/src/juli_backend/services/etl/__init__.py",
+    "backend/src/juli_backend/services/etl/bronze_append.py",
+    "backend/src/juli_backend/services/webhook/material_dispatch.py",
+    "backend/src/juli_backend/services/webhook/material_handoff.py",
+    "backend/src/juli_backend/services/webhook/material_worker.py",
+    "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+    "tests/unit/test_cdp_speed_shared_compute_orchestrator.py",
+    "tests/unit/test_cdp_speed_targeted_fetch_executor.py",
+    "tests/integration/test_material_shared_compute_handoff.py",
+    "tests/unit/test_material_analytics_enqueue.py",
+    "tests/unit/test_material_deployed_handoff.py",
+    "tests/integration/test_material_deployed_webhook_handoff.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_cdp_speed_shared_compute_orchestrator.py",
+    "tests/unit/test_cdp_speed_targeted_fetch_executor.py",
+    "tests/integration/test_material_shared_compute_handoff.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_material_analytics_enqueue.py",
+    "tests/unit/test_material_deployed_handoff.py",
+    "tests/integration/test_material_deployed_webhook_handoff.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: juli_backend.services.cdp_speed.shared_compute_orchestrator — greenfield orchestrator did not exist",
+      "passingTestEvidence": "Initial Shared Compute bronze→silver→gold orchestration with injectable fetch boundary",
+      "refactorEvidence": "Split targeted_fetch_executor + targeted_fetch_bronze_handoff; wired material_worker + Celery task",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/integration/test_material_shared_compute_handoff.py -q",
+          "exitCode": 0,
+          "outputSummary": "10 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Review block: production ORDER_FIXTURE_ID fabrication; coarse source_event_id; silver reprocessed all targeted_fetch rows",
+      "passingTestEvidence": "Fake fetch boundary in tests only; per-idempotency_key bronze dedupe; silver promotes current row IDs",
+      "refactorEvidence": "Removed production fixtures; job_correlation_token; shop-scoped credential isolation",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/integration/test_material_shared_compute_handoff.py tests/unit/test_material_analytics_enqueue.py tests/integration/test_material_deployed_webhook_handoff.py tests/unit/test_material_deployed_handoff.py -v",
+          "exitCode": 0,
+          "outputSummary": "69 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "Final blocking review: credential isolation; TargetedFetchExecutor __call__; raw idempotency_key in logs; private _handoff_analytics_rows import; gold_written on skip paths",
+      "passingTestEvidence": "75 passed: credential isolation; job_correlation_token; honest gold_written; ruff + mypy clean",
+      "refactorEvidence": "job_correlation.py; local analytics handoff removed; TargetedFetchExecutor Protocol __call__",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/unit/test_cdp_speed_targeted_fetch_executor.py tests/integration/test_material_shared_compute_handoff.py tests/unit/test_material_analytics_enqueue.py tests/integration/test_material_deployed_webhook_handoff.py tests/unit/test_material_deployed_handoff.py -v",
+          "exitCode": 0,
+          "outputSummary": "75 passed in 1.05s"
+        }
+      ]
+    },
+    {
+      "cycle": 4,
+      "failingTestEvidence": "Intent/structure blockers: hardcoded material_webhook_etl_success enqueue_reason; services/cdp_speed→workers.services.polling.sync import; deep core.security.tiktok_oauth import",
+      "passingTestEvidence": "77 passed: webhook_catalog:<id> through dispatch→Celery→SharedComputeJob; targeted_fetch_sync local helpers (orders/returns); cdp_speed facade imports; import_boundaries strict PASS; ruff + mypy clean",
+      "refactorEvidence": "enqueue_reason.py; targeted_fetch_sync.py; BRONZE_SUPPORTED_RESOURCE_ATTRS defers analytics/products/inventory/promotion; material_worker imports cdp_speed facade",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/unit/test_cdp_speed_targeted_fetch_executor.py tests/integration/test_material_shared_compute_handoff.py tests/unit/test_material_analytics_enqueue.py tests/integration/test_material_deployed_webhook_handoff.py tests/unit/test_material_deployed_handoff.py -v",
+          "exitCode": 0,
+          "outputSummary": "77 passed in 1.68s"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m ruff check backend/src/juli_backend/services/cdp_speed/ backend/src/juli_backend/services/webhook/material_worker.py backend/src/juli_backend/services/webhook/material_dispatch.py",
+          "exitCode": 0,
+          "outputSummary": "All checks passed!"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m mypy backend/src/juli_backend/services/cdp_speed/ backend/src/juli_backend/services/webhook/material_worker.py backend/src/juli_backend/services/webhook/material_dispatch.py",
+          "exitCode": 0,
+          "outputSummary": "Success: no issues found in 10 source files"
+        },
+        {
+          "command": "python agent-runtime/scripts/ci/check_import_boundaries.py --strict --config .importlinter.toml --baseline docs/architecture/import-boundary-baseline.json",
+          "exitCode": 0,
+          "outputSummary": "import_boundaries: PASS — No new import boundary violations beyond baseline"
+        }
+      ]
+    },
+    {
+      "cycle": 5,
+      "failingTestEvidence": "Fast CI found cdp_speed direct BronzeOrderRawPayloadsRepo/BronzeReturnRawPayloadsRepo writes violating the ETL one-writer rule; full mypy also found the hourly reconciler omitted new direct-call defaults.",
+      "passingTestEvidence": "93 passed across medallion ownership, hourly reconcile, Shared Compute unit/integration, and material-path regressions; scoped ruff and mypy pass.",
+      "refactorEvidence": "Moved bronze repository calls behind the ETL package facade and preserved cdp_speed as a handoff adapter; direct synchronous callers default to reconcile_hourly with a unique job key.",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_medallion_one_writer_ownership.py tests/unit/test_mock_analytics_hourly_reconcile.py tests/unit/test_cdp_speed_shared_compute_orchestrator.py tests/unit/test_cdp_speed_targeted_fetch_executor.py tests/integration/test_material_shared_compute_handoff.py tests/unit/test_material_analytics_enqueue.py tests/integration/test_material_deployed_webhook_handoff.py tests/unit/test_material_deployed_handoff.py -q",
+          "exitCode": 0,
+          "outputSummary": "93 passed in 9.41s"
+        },
+        {
+          "command": "PYTHONPATH=backend/src ruff check backend/src/juli_backend/services/cdp_speed backend/src/juli_backend/services/etl backend/src/juli_backend/services/webhook backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+          "exitCode": 0,
+          "outputSummary": "All checks passed!"
+        },
+        {
+          "command": "PYTHONPATH=backend/src mypy backend/src/juli_backend/services/cdp_speed backend/src/juli_backend/services/etl/bronze_append.py backend/src/juli_backend/services/webhook/material_worker.py backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+          "exitCode": 0,
+          "outputSummary": "Success: no issues found in 11 source files"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Shared Compute Orchestrator (#627): webhook enqueue_reason is webhook_catalog:<catalog_id> (reconcile_hourly preserved for hourly callers); bounded targeted_fetch_sync for orders/returns delegates bronze persistence to the ETL one-writer facade before current-row silver promotion and the gold hook; no full-poll, workers-service, or A2 imports.",
+  "assumptions": [
+    "Production Partner fetch requires TikTok + Redis env; missing env yields zero bronze append while the honest-unavailable gold shell hook still completes.",
+    "Direct hourly reconciliation defaults enqueue_reason to reconcile_hourly and derives a unique job key."
+  ],
+  "risks": [
+    "Bronze persistence deferred for analytics, products, inventory, and promotion plan resources until matching bronze tables exist.",
+    "Celery workers must redeploy with bind=True task; enqueue_reason now required on task signature (no material_webhook_etl_success default)."
+  ]
+}
