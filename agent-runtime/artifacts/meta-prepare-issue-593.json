@@ -1,0 +1,388 @@
+{
+  "issueId": 593,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 593,
+    "parentIssueId": 593,
+    "sliceId": "CORPORA-1",
+    "handoffPath": "docs/handoffs/issue-593.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-593.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-593.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 593,
+        "parentIssueId": 593,
+        "sliceId": "CORPORA-1",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #593",
+            "fingerprint": "cd6068be1402012d"
+          },
+          {
+            "path": "docs/handoffs/issue-593.md",
+            "fingerprint": "db81f5b1399f8ec6d6fe7bb02bf41035ca3f1eb5"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #593",
+            "fingerprint": "cd6068be1402012d"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-593.md",
+            "fingerprint": "46ee3f09de68cb2bad69e531f9ddb02ff80cdaa3"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 593,
+        "parentIssueId": 593,
+        "sliceId": "CORPORA-1",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CORPORA-1",
+            "sliceId": "CORPORA-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-593",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #593",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/issue-593.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CORPORA-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-593",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #593",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/issue-593.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 84fc10039d3b on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f",
+          "copiedAt": "2026-07-29T08:32:58Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f",
+        "pinnedCommitSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "84fc10039d3b955c6dc7e04b49c2fcc961fc8a0f"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 593,
+        "parentIssueId": 593,
+        "sliceId": "CORPORA-1",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "docs/handoffs/issue-593.md",
+            "docs/adr/051-tiktok-corpora-catalog-retrieval.md",
+            "docs/product/phases/tiktok-corpora-catalog/PRD.md",
+            "CONTEXT.md",
+            ".cursor/skills/standalone/focus/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md",
+            "agent-runtime/docs/agent-runtime.md"
+          ],
+          "requiredModules": [
+            "scripts/tiktok_corpora_catalog/",
+            "tests/unit/test_tiktok_corpora_catalog.py",
+            "docs/integrations/tiktok_corpora/",
+            ".cursor/skills/standalone/focus/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md"
+          ],
+          "acceptanceCriteria": [
+            "Three corpora reachable at the shared local root (move or symlink from adhoc); playbook documents path + env override.",
+            "Regen script produces business-catalog.json, academy-catalog.json, partner-catalog.json with ADR-051 minimum fields and **no** full page bodies.",
+            "Partner _raw/** entries are absent from the Partner catalog.",
+            "Catalogs + README playbook committed under docs/integrations/tiktok_corpora/ (protocol, authority split, phase gate, fail-soft missing bodies, distillate into ADRs/docs).",
+            "Focus (and related routing docs if needed) loads corpora for Architect/Meta only; Executor/Review Context Plans explicitly exclude corpus catalogs/bodies.",
+            "Crawler output root is updated or clearly documented to write under the shared local root.",
+            "Unit tests with fixture markdown cover: front-matter \u2192 catalog entry; _raw skip; catalogs contain no body text.",
+            "Manual verification (Architect/Meta path): Grep a catalog \u2192 Read one existing body page; with body deleted/missing, fail soft (state unavailable, no invented content)."
+          ],
+          "loadWhenNeeded": [
+            ".cursor/skills/domain/backend/SKILL.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            "docs/integrations/tiktok_api/README.md",
+            "docs/integrations/tiktok_platform/README.md",
+            ".cursor/rules/code-quality.mdc",
+            ".cursor/rules/reliability.mdc"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "apps/demo/",
+            "apps/landing/",
+            "apps/dashboard/",
+            "web/",
+            "ios/",
+            "backend/src/juli_backend/",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "docs/handoffs/issue-593.md",
+            "docs/adr/051-tiktok-corpora-catalog-retrieval.md",
+            "docs/product/phases/tiktok-corpora-catalog/PRD.md",
+            "CONTEXT.md",
+            ".cursor/skills/standalone/focus/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md",
+            "agent-runtime/docs/agent-runtime.md"
+          ],
+          "requiredModules": [
+            "scripts/tiktok_corpora_catalog/",
+            "tests/unit/test_tiktok_corpora_catalog.py",
+            "docs/integrations/tiktok_corpora/",
+            ".cursor/skills/standalone/focus/SKILL.md",
+            ".cursor/skills/standalone/focus/routing-rules.md"
+          ],
+          "acceptanceCriteria": [
+            "Three corpora reachable at the shared local root (move or symlink from adhoc); playbook documents path + env override.",
+            "Regen script produces business-catalog.json, academy-catalog.json, partner-catalog.json with ADR-051 minimum fields and **no** full page bodies.",
+            "Partner _raw/** entries are absent from the Partner catalog.",
+            "Catalogs + README playbook committed under docs/integrations/tiktok_corpora/ (protocol, authority split, phase gate, fail-soft missing bodies, distillate into ADRs/docs).",
+            "Focus (and related routing docs if needed) loads corpora for Architect/Meta only; Executor/Review Context Plans explicitly exclude corpus catalogs/bodies.",
+            "Crawler output root is updated or clearly documented to write under the shared local root.",
+            "Unit tests with fixture markdown cover: front-matter \u2192 catalog entry; _raw skip; catalogs contain no body text.",
+            "Manual verification (Architect/Meta path): Grep a catalog \u2192 Read one existing body page; with body deleted/missing, fail soft (state unavailable, no invented content)."
+          ],
+          "loadWhenNeeded": [
+            ".cursor/skills/domain/backend/SKILL.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            "docs/integrations/tiktok_api/README.md",
+            "docs/integrations/tiktok_platform/README.md",
+            ".cursor/rules/code-quality.mdc",
+            ".cursor/rules/reliability.mdc"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 593,
+        "parentIssueId": 593,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 593 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 593,
+        "parentIssueId": 593,
+        "publicRelease": false,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #593 \u2014 TikTok document corpora catalog retrieval (constant)\\\n## Product boundary\\\n- Architect/Meta catalog\u2192Grep\u2192selective Read only (ADR-051)\\\n- Bodies at Juli-AI-local/tiktok-corpora; thin catalogs on main under docs/integrations/tiktok_corpora/\\\n- Curated tiktok_api/tiktok_platform remain code SoT; distill findings to ADRs/docs\\\n## Phase gate\\\n- Executor and Review must NEVER open corpus catalogs/bodies\\\n## Explicit deferrals\\\n- Embedding RAG\\\n- Committing markdown bodies\\\n- New Cursor skill\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "apps/demo/",
+      "apps/landing/",
+      "apps/dashboard/",
+      "web/",
+      "ios/",
+      "backend/src/juli_backend/",
+      "Sibling issue context caches"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/backend/SKILL.md",
+          "purpose": "Primary backend Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "backend",
+      "requiredDocs": [
+        "docs/handoffs/issue-593.md",
+        "docs/adr/051-tiktok-corpora-catalog-retrieval.md",
+        "docs/product/phases/tiktok-corpora-catalog/PRD.md",
+        "CONTEXT.md",
+        ".cursor/skills/standalone/focus/SKILL.md",
+        ".cursor/skills/standalone/focus/routing-rules.md",
+        "agent-runtime/docs/agent-runtime.md"
+      ],
+      "requiredModules": [
+        "scripts/tiktok_corpora_catalog/",
+        "tests/unit/test_tiktok_corpora_catalog.py",
+        "docs/integrations/tiktok_corpora/",
+        ".cursor/skills/standalone/focus/SKILL.md",
+        ".cursor/skills/standalone/focus/routing-rules.md"
+      ],
+      "acceptanceCriteria": [
+        "Three corpora reachable at the shared local root (move or symlink from adhoc); playbook documents path + env override.",
+        "Regen script produces business-catalog.json, academy-catalog.json, partner-catalog.json with ADR-051 minimum fields and **no** full page bodies.",
+        "Partner _raw/** entries are absent from the Partner catalog.",
+        "Catalogs + README playbook committed under docs/integrations/tiktok_corpora/ (protocol, authority split, phase gate, fail-soft missing bodies, distillate into ADRs/docs).",
+        "Focus (and related routing docs if needed) loads corpora for Architect/Meta only; Executor/Review Context Plans explicitly exclude corpus catalogs/bodies.",
+        "Crawler output root is updated or clearly documented to write under the shared local root.",
+        "Unit tests with fixture markdown cover: front-matter \u2192 catalog entry; _raw skip; catalogs contain no body text.",
+        "Manual verification (Architect/Meta path): Grep a catalog \u2192 Read one existing body page; with body deleted/missing, fail soft (state unavailable, no invented content)."
+      ],
+      "loadWhenNeeded": [
+        ".cursor/skills/domain/backend/SKILL.md",
+        ".cursor/skills/domain/testing-patterns/python-testing.md",
+        "docs/integrations/tiktok_api/README.md",
+        "docs/integrations/tiktok_platform/README.md",
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #593\n\n- sliceId: CORPORA-1\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #593 \u2014 CORPORA-1\n\n## Parent\n#593\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/handoffs/issue-593.md\n- docs/adr/051-tiktok-corpora-catalog-retrieval.md\n- docs/product/phases/tiktok-corpora-catalog/PRD.md\n- CONTEXT.md\n- .cursor/skills/standalone/focus/SKILL.md\n- .cursor/skills/standalone/focus/routing-rules.md\n- agent-runtime/docs/agent-runtime.md\n",
+    "executorDomain": "backend",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    }
+  },
+  "executorDomain": "backend"
+}

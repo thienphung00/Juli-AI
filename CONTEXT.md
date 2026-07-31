@@ -327,6 +327,17 @@ _Avoid_: treating `migration-check` as a substitute for seeded row assertions on
 Completed Phase 2.5 deploy/doc scaffold contracts. Excluded from PR-safe Tests; run on merge_group only.
 _Avoid_: deleting these without a path-filtered or MQ replacement
 
+
+## Vendor document corpora
+
+**TikTok document corpora**:
+Three markdown archives for agent planning and ad-hoc verification — `business_documents/` (TikTok Business API), `academy_documents/` (TikTok Academy; UI/product), `partner_documents/` (TikTok Partner API + webhooks). Bodies live on a **shared local root** outside git: `/Users/macos/Juli-AI-local/tiktok-corpora/{business,academy,partner}_documents/` (not under any worktree). **Layered authority:** curated `docs/integrations/tiktok_api/` and `docs/integrations/tiktok_platform/` remain Juli implementation / code SoT; corpora supply vendor depth, gap-fill, and verification. On conflict, cite both — curated binds code until `api-docs` / `platform-docs` promotes a change. See [ADR-051](docs/adr/051-tiktok-corpora-catalog-retrieval.md).
+_Avoid_: dumping full corpora into context, treating raw corpora as code SoT, corpus overrides curated silently, committing corpus bodies to git, Business/Partner for UI copy, Academy for webhook schemas, keeping bodies only under `.worktrees/adhoc/`
+
+**Corpus catalog retrieval**:
+v1 agent access — thin per-corpus catalogs from YAML front matter, **committed on `main`** under `docs/integrations/tiktok_corpora/` (e.g. `{business,academy,partner}-catalog.json`); Focus routes catalog → Grep → selective Read of matched pages under the shared local corpus root. Cross-corpus answers search all three catalogs then open selected files. Embedding RAG is out of scope for v1. Regenerate catalogs after crawls; do not commit markdown bodies. Partner **`_raw/` is excluded** from catalogs and Focus Grep defaults (clean markdown only). **Harness wiring:** Focus Context Plan + `docs/integrations/tiktok_corpora/README.md` playbook + catalog regen script — **no** new Cursor skill in v1. **Phase gate:** only **Architect (Planning)** and **Meta** may open corpus catalogs/bodies; **Executor** and **Review** must not — they use curated `docs/integrations/` (and ADRs) only. **Downstream distillate:** Architect/Meta turn raw-page findings into **ADRs and curated docs**; lasting contracts promote into curated docs before implement. Task defaults: Academy → UI/product/seller policy; Business + Partner → webhooks/API/data-model; all three only for cross-surface synthesis or curated gap/conflict. **Missing bodies:** fail soft — catalogs still load for discovery; if a body path is absent, cite catalog metadata + curated docs and state corpus body unavailable; never invent page content. See [ADR-051](docs/adr/051-tiktok-corpora-catalog-retrieval.md).
+_Avoid_: RAG, vector store, loading whole documents or whole corpora by default, catalogs only on `Juli-AI-local` with no in-repo index, new `tiktok-corpora` skill unless protocol fails in practice, Executor/Review opening corpus pages, Composer executors ingesting raw corpora, passing raw corpus paths into Executor caches as a substitute for ADRs/docs, hallucinating vendor text when local root is missing, hard-failing all corpus answers when only bodies are absent, indexing Partner `_raw/` duplicates
+
 ## Agent runtime (Executor domains)
 
 **Domain executor skill**:

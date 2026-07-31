@@ -1,0 +1,164 @@
+{
+  "id": "review-issue-593",
+  "issue": 593,
+  "timestamp": "2026-07-29T08:56:57Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #593 CORPORA-1: intent-review spec_fidelity=pass consumed as given. Catalog builder + three committed indexes + playbook + Focus Architect/Meta-only phase gate match ADR-051. Unit tests pass; partner _raw=0; no reliability/security blockers for local harness/docs work. Manual Grep\u2192Read smoke and fail-soft missing body verified locally.",
+  "criticalFindings": [
+    {
+      "id": "593-info-duplicated-minimum-fields",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_tiktok_corpora_catalog.py",
+      "description": "Intent-review smell (non-blocking): MINIMUM_FIELDS duplicates REQUIRED_ENTRY_FIELDS from builder.py.",
+      "suggestion": "Optional: import REQUIRED_ENTRY_FIELDS in tests."
+    },
+    {
+      "id": "593-info-raw-skip-broader-than-adr",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "scripts/tiktok_corpora_catalog/builder.py",
+      "description": "_raw path skip applies to any corpus segment named _raw (stricter than partner-only ADR wording); acceptable over-exclusion.",
+      "suggestion": "No action required."
+    }
+  ],
+  "modulesTouched": [
+    "scripts/tiktok_corpora_catalog/",
+    "tests/unit/test_tiktok_corpora_catalog.py",
+    "tests/fixtures/tiktok_corpora_catalog/",
+    "docs/integrations/tiktok_corpora/",
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/focus/routing-rules.md",
+    "docs/adr/051-tiktok-corpora-catalog-retrieval.md",
+    "CONTEXT.md",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "scripts/tiktok_corpora_catalog",
+      "interface": "python -m tiktok_corpora_catalog",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Regen CLI writes thin {business,academy,partner}-catalog.json from local corpus front matter."
+    },
+    {
+      "module": ".cursor/skills/standalone/focus",
+      "interface": "Context Plan TikTok corpora routing",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Architect/Meta may load playbook+catalogs; Executor/Review DO NOT Load corpora."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 8,
+      "mapped": 8,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "corpus root default and env override",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_build_corpus_root_default_and_env_override",
+          "covered": true
+        },
+        {
+          "criterion": "catalog entries contain no body text",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_catalog_entries_contain_no_body_text",
+          "covered": true
+        },
+        {
+          "criterion": "partner skips raw paths",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_partner_skips_raw_paths",
+          "covered": true
+        },
+        {
+          "criterion": "business fixture catalog entry shape",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_business_fixture_catalog_entry_shape",
+          "covered": true
+        },
+        {
+          "criterion": "focus phase gate excludes executor review corpora",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_focus_phase_gate_excludes_executor_review_corpora",
+          "covered": true
+        },
+        {
+          "criterion": "playbook documents crawler output retarget",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_playbook_documents_crawler_output_retarget",
+          "covered": true
+        },
+        {
+          "criterion": "required entry fields match adr",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_required_entry_fields_match_adr",
+          "covered": true
+        },
+        {
+          "criterion": "playbook documents fail soft missing bodies",
+          "test": "tests/unit/test_tiktok_corpora_catalog.py::test_playbook_documents_fail_soft_missing_bodies",
+          "covered": true
+        }
+      ]
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "findings": [
+    {
+      "id": "593-info-duplicated-minimum-fields",
+      "type": "maintainability",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "tests/unit/test_tiktok_corpora_catalog.py",
+      "description": "Intent-review smell (non-blocking): MINIMUM_FIELDS duplicates REQUIRED_ENTRY_FIELDS from builder.py.",
+      "suggestion": "Optional: import REQUIRED_ENTRY_FIELDS in tests."
+    },
+    {
+      "id": "593-info-raw-skip-broader-than-adr",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "scripts/tiktok_corpora_catalog/builder.py",
+      "description": "_raw path skip applies to any corpus segment named _raw (stricter than partner-only ADR wording); acceptable over-exclusion.",
+      "suggestion": "No action required."
+    }
+  ],
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "id": "593-info-raw-skip-broader-than-adr",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "scripts/tiktok_corpora_catalog/builder.py",
+      "description": "_raw path skip applies to any corpus segment named _raw (stricter than partner-only ADR wording); acceptable over-exclusion.",
+      "suggestion": "No action required."
+    }
+  ],
+  "reviewFailures": 0,
+  "reviewDurationMs": 180000,
+  "phaseRunId": "593-20260729-corpora",
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "severity": "low",
+  "suggestedRemediation": [
+    "Optional: import REQUIRED_ENTRY_FIELDS in tests.",
+    "No action required."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-593.json"
+}
