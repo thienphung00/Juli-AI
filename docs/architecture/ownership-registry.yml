@@ -105,7 +105,9 @@ databaseTables:
   analytics_backfill_partitions:
     owner: Data Pipeline
     access: write
-    notes: Backfill partition ledger.
+    notes: >
+      Backfill partition ledger. Writers are services/analytics_backfill and the exact
+      services/cdp_batch/partition_checkpoints.py A2 transaction coordinator.
   analytics_kpi_envelopes:
     owner: Intelligence
     access: write
@@ -117,7 +119,10 @@ databaseTables:
   order_raw_payloads:
     owner: Data Pipeline
     access: write
-    notes: Append-only bronze order payloads (webhook and targeted fetch landing).
+    notes: >
+      Append-only bronze order payloads (webhook and targeted fetch landing). The exact
+      services/cdp_batch/partition_checkpoints.py A2 coordinator may append reconcile
+      pages in the same transaction as its ops checkpoint.
   return_raw_payloads:
     owner: Data Pipeline
     access: write
