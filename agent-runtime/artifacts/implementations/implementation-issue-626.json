@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 626,
+  "executorDomain": "backend",
+  "phaseRunId": "626-20260731T005901",
+  "startedAt": "2026-07-31T01:07:19Z",
+  "completedAt": "2026-07-31T01:07:19Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-626.json",
+    "backend/src/juli_backend/services/tiktok/webhook_catalog.py",
+    "backend/src/juli_backend/workers/services/polling/orchestrate.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-safety.mdc",
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+    "backend/src/juli_backend/services/cdp_speed/__init__.py",
+    "backend/src/juli_backend/services/cdp_speed/targeted_fetch_planner.py",
+    "tests/unit/test_cdp_speed_targeted_fetch_planner.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_cdp_speed_targeted_fetch_planner.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: juli_backend.services.cdp_speed — greenfield planner module did not exist",
+      "passingTestEvidence": "41+ tests in test_cdp_speed_targeted_fetch_planner.py pass covering material matrix, negative vs Fujiwa poll, non-material empty, MODULE docs, no A2 governors",
+      "refactorEvidence": "Extracted FetchResource/TargetedFetchPlan dataclasses, _MATERIAL_FETCH_MATRIX with static + promotion_activity resolver",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_speed_targeted_fetch_planner.py -v",
+          "exitCode": 0,
+          "outputSummary": "41 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Targeted fetch planner maps material webhook catalog ids to bounded Partner resource fetches; returns empty plan for non-material events.",
+  "assumptions": [],
+  "risks": []
+}
