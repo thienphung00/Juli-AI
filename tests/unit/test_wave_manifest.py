@@ -232,6 +232,20 @@ def test_wave_artifacts_fail_when_ready_for_merge_false(tmp_path: Path, monkeypa
     assert any("readyForMerge" in error for error in result["errors"])
 
 
+def test_do_not_modify_github_workflows_pr_yml_in_slice() -> None:
+    """AC5: validator under agent-runtime/scripts/ci; pr.yml wiring deferred to #660."""
+    module_path = (
+        Path(__file__).resolve().parents[2]
+        / "agent-runtime"
+        / "scripts"
+        / "ci"
+        / "wave_manifest.py"
+    )
+    assert module_path.is_file()
+    pr_workflow = REPO_ROOT / ".github" / "workflows" / "pr.yml"
+    assert pr_workflow.is_file()
+
+
 def test_wave_artifacts_fail_when_review_issue_mismatch(tmp_path: Path, monkeypatch) -> None:
     import wave_manifest
 
