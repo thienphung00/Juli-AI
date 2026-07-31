@@ -133,6 +133,19 @@ def test_non_material_catalog_id_returns_empty_plan() -> None:
     assert plan.is_empty
 
 
+def test_module_documents_event_resource_mapping_and_extension() -> None:
+    from pathlib import Path
+
+    module_md = (
+        Path(__file__).resolve().parents[2]
+        / "backend/src/juli_backend/services/cdp_speed/MODULE.md"
+    )
+    text = module_md.read_text(encoding="utf-8")
+    assert "Event → resource matrix" in text
+    assert "Extending the matrix" in text
+    assert "Forbidden on material path" in text
+
+
 def test_planner_module_has_no_a2_governors() -> None:
     import juli_backend.services.cdp_speed.targeted_fetch_planner as module
 
