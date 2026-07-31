@@ -6,6 +6,7 @@ PR-safe: InMemory + FakeSyncRedis only — no live Redis, Partner HTTP, or speed
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -14,6 +15,11 @@ import pytest_asyncio
 
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import AnalyticsKpiEnvelopesRepo
+from juli_backend.services.cdp_batch.shop_compute_mutex import (
+    _REFRESH_IF_OWNER_SCRIPT,
+    _RELEASE_IF_OWNER_SCRIPT,
+    compute_mutex_key,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_MD = REPO_ROOT / "backend/src/juli_backend/services/cdp_batch/MODULE.md"
@@ -21,26 +27,44 @@ MUTEX_PATH = REPO_ROOT / "backend/src/juli_backend/services/cdp_batch/shop_compu
 
 
 class FakeSyncRedis:
-    """Minimal sync Redis fake for ShopComputeMutex tests."""
+    """Minimal sync Redis fake with atomic Lua eval for ShopComputeMutex tests."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, return_bytes: bool = False) -> None:
         self._store: dict[str, str] = {}
         self._expiries: dict[str, int] = {}
+        self._return_bytes = return_bytes
 
-    def get(self, key: str) -> str | None:
-        return self._store.get(key)
+    def _encode(self, value: str) -> str | bytes:
+        if self._return_bytes:
+            return value.encode("utf-8")
+        return value
+
+    def _decode(self, value: str | bytes | None) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return value
+
+    def get(self, key: str) -> str | bytes | None:
+        raw = self._store.get(key)
+        if raw is None:
+            return None
+        return self._encode(raw)
 
     def set(
         self,
         key: str,
-        value: str,
+        value: str | bytes,
         *,
         nx: bool = False,
         ex: int | None = None,
     ) -> bool:
+        decoded = self._decode(value)
+        assert decoded is not None
         if nx and key in self._store:
             return False
-        self._store[key] = value
+        self._store[key] = decoded
         if ex is not None:
             self._expiries[key] = ex
         return True
@@ -48,6 +72,58 @@ class FakeSyncRedis:
     def delete(self, key: str) -> None:
         self._store.pop(key, None)
         self._expiries.pop(key, None)
+
+    def eval(self, script: str, numkeys: int, *args: str) -> int:
+        keys = args[:numkeys]
+        argv = args[numkeys:]
+        key = keys[0]
+
+        if "redis.call('del'" in script or 'redis.call("del"' in script:
+            owner = self._decode(argv[0])
+            current = self._decode(self.get(key))
+            if current == owner:
+                self.delete(key)
+                return 1
+            return 0
+
+        if "tonumber(ARGV[2])" in script:
+            owner = self._decode(argv[0])
+            ttl = int(argv[1])
+            current = self._decode(self.get(key))
+            if current == owner:
+                self._store[key] = owner
+                self._expiries[key] = ttl
+                return 1
+            return 0
+
+        raise AssertionError(f"unsupported lua script in fake redis: {script!r}")
+
+
+class LegacyRacyFakeSyncRedis(FakeSyncRedis):
+    """Simulates non-atomic GET-then-mutate patterns from the pre-Lua implementation."""
+
+    release_after_get: Callable[[], None] | None = None
+    refresh_after_get: Callable[[], None] | None = None
+
+    def legacy_release(self, key: str, owner: str) -> None:
+        current = self._decode(self.get(key))
+        if self.release_after_get is not None:
+            self.release_after_get()
+        if current == owner:
+            self.delete(key)
+
+    def legacy_refresh(self, key: str, owner: str, ttl: int) -> bool:
+        current = self._decode(self.get(key))
+        if self.refresh_after_get is not None:
+            self.refresh_after_get()
+        if current == owner:
+            self.set(key, owner, ex=ttl)
+            return True
+        return False
+
+
+def legacy_decode(redis: FakeSyncRedis, key: str) -> str | None:
+    return redis._decode(redis.get(key))
 
 
 def test_shop_compute_mutex_module_exists() -> None:
@@ -326,3 +402,92 @@ def test_does_not_implement_a1_material_webhook_handoff_or_speed_precompute() ->
     module_md = MODULE_MD.read_text(encoding="utf-8")
     assert "speed wiring is A1" in module_md
     assert "material_analytics:mutex" in module_md
+
+
+def test_redis_current_owner_normalizes_bytes_responses() -> None:
+    from juli_backend.services.cdp_batch.shop_compute_mutex import RedisShopComputeMutex
+
+    redis = FakeSyncRedis(return_bytes=True)
+    mutex = RedisShopComputeMutex(redis)
+    key = compute_mutex_key("shop-bytes")
+
+    redis.set(key, "speed", ex=600)
+
+    assert mutex.current_owner("shop-bytes") == "speed"
+
+
+def test_redis_stale_release_cannot_delete_opposite_owner_after_ttl_rollover() -> None:
+    from juli_backend.services.cdp_batch.shop_compute_mutex import RedisShopComputeMutex
+
+    key = compute_mutex_key("shop-stale-release")
+    redis = FakeSyncRedis()
+    mutex = RedisShopComputeMutex(redis, ttl_seconds=60)
+
+    assert mutex.try_acquire("shop-stale-release", "speed") is True
+    redis.delete(key)
+    assert mutex.try_acquire("shop-stale-release", "batch") is True
+    assert mutex.current_owner("shop-stale-release") == "batch"
+
+    mutex.release("shop-stale-release", "speed")
+
+    assert mutex.current_owner("shop-stale-release") == "batch"
+    assert legacy_decode(redis, key) == "batch"
+
+
+def test_redis_same_owner_refresh_cannot_clobber_opposite_owner_after_ttl_rollover() -> None:
+    from juli_backend.services.cdp_batch.shop_compute_mutex import RedisShopComputeMutex
+
+    key = compute_mutex_key("shop-stale-refresh")
+    redis = FakeSyncRedis()
+    mutex = RedisShopComputeMutex(redis, ttl_seconds=60)
+
+    assert mutex.try_acquire("shop-stale-refresh", "speed") is True
+    redis.delete(key)
+    assert mutex.try_acquire("shop-stale-refresh", "batch") is True
+    assert mutex.current_owner("shop-stale-refresh") == "batch"
+
+    assert mutex.try_acquire("shop-stale-refresh", "speed") is False
+
+    assert mutex.current_owner("shop-stale-refresh") == "batch"
+    assert legacy_decode(redis, key) == "batch"
+
+
+def test_legacy_get_delete_pattern_clobbers_opposite_owner_on_ttl_rollover() -> None:
+    key = compute_mutex_key("shop-legacy-release")
+    legacy = LegacyRacyFakeSyncRedis()
+
+    legacy.set(key, "speed", ex=60)
+
+    def rollover_to_batch() -> None:
+        legacy.delete(key)
+        legacy.set(key, "batch", ex=60)
+
+    legacy.release_after_get = rollover_to_batch
+    legacy.legacy_release(key, "speed")
+
+    assert legacy._decode(legacy.get(key)) is None
+
+
+def test_legacy_get_set_refresh_clobbers_opposite_owner_on_ttl_rollover() -> None:
+    key = compute_mutex_key("shop-legacy-refresh")
+    legacy = LegacyRacyFakeSyncRedis()
+
+    legacy.set(key, "speed", ex=60)
+
+    def rollover_to_batch() -> None:
+        legacy.delete(key)
+        legacy.set(key, "batch", ex=60)
+
+    legacy.refresh_after_get = rollover_to_batch
+    assert legacy.legacy_refresh(key, "speed", ttl=60) is True
+
+    assert legacy._decode(legacy.get(key)) == "speed"
+
+
+def test_redis_lua_scripts_are_owner_checked() -> None:
+    assert "redis.call('get', KEYS[1]) == ARGV[1]" in _RELEASE_IF_OWNER_SCRIPT
+    assert "redis.call('del', KEYS[1])" in _RELEASE_IF_OWNER_SCRIPT
+    assert "redis.call('get', KEYS[1]) == ARGV[1]" in _REFRESH_IF_OWNER_SCRIPT
+    assert (
+        "redis.call('set', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]))" in _REFRESH_IF_OWNER_SCRIPT
+    )

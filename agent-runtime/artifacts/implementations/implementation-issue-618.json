@@ -31,9 +31,9 @@
   "mcpsUsed": [],
   "filesModified": [
     "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
-    "backend/src/juli_backend/services/cdp_batch/__init__.py",
     "backend/src/juli_backend/services/cdp_batch/MODULE.md",
-    "tests/unit/test_cdp_batch_shop_compute_mutex.py"
+    "tests/unit/test_cdp_batch_shop_compute_mutex.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-618.json"
   ],
   "testsAdded": [
     "tests/unit/test_cdp_batch_shop_compute_mutex.py"
@@ -55,34 +55,42 @@
           "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_shop_compute_mutex.py tests/unit/test_cdp_batch_partner_budget.py -v",
           "exitCode": 0,
           "outputSummary": "23 passed"
-        },
-        {
-          "command": "ruff check backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py backend/src/juli_backend/services/cdp_batch/__init__.py tests/unit/test_cdp_batch_shop_compute_mutex.py",
-          "exitCode": 0,
-          "outputSummary": "All checks passed after --fix"
         }
       ]
     },
     {
       "cycle": 2,
-      "failingTestEvidence": "Review/validation AC mapping gaps for AC1 (acquire/release API documented) and AC5 (no A1 webhook/speed precompute)",
-      "passingTestEvidence": "23 passed after adding test_mutex_acquire_release_api_documented_for_batch_and_speed_callers and test_does_not_implement_a1_material_webhook_handoff_or_speed_precompute",
+      "failingTestEvidence": "Review/validation AC mapping gaps for AC1 and AC5",
+      "passingTestEvidence": "23 passed after AC-mapped test names added",
       "refactorEvidence": "Consolidated duplicate shop_compute_mutex imports in cdp_batch/__init__.py",
       "commands": [
         {
           "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_shop_compute_mutex.py tests/unit/test_cdp_batch_partner_budget.py -v",
           "exitCode": 0,
           "outputSummary": "23 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "Meta merge-block: non-atomic Redis GET+DELETE release and GET+SET refresh could clobber opposite owner after TTL rollover; bytes responses not normalized",
+      "passingTestEvidence": "29 passed \u2014 atomic Lua release/refresh, bytes normalization, legacy race reproduction tests prove old pattern clobbers while new impl preserves opposite owner",
+      "refactorEvidence": "FakeSyncRedis eval for Lua scripts; LegacyRacyFakeSyncRedis documents pre-fix failure mode",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_shop_compute_mutex.py tests/unit/test_cdp_batch_partner_budget.py -v",
+          "exitCode": 0,
+          "outputSummary": "29 passed in 0.75s"
         },
         {
-          "command": "ruff check backend/src/juli_backend/services/cdp_batch/__init__.py tests/unit/test_cdp_batch_shop_compute_mutex.py",
+          "command": "ruff check backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py tests/unit/test_cdp_batch_shop_compute_mutex.py",
           "exitCode": 0,
           "outputSummary": "All checks passed"
         }
       ]
     }
   ],
-  "implementationSummary": "Published ShopComputeMutex acquire/release API (InMemory + Redis backends) under cdp_batch with Redis key compute:{shop_id}, COMPUTE_MUTEX_TTL_SECONDS=600, and batch entry gate try_begin_batch_compute deferring with speed_mutex_active when speed owns the lock. AC-mapped tests cover documented batch/speed API exports and confirm no A1 webhook/speed precompute scope creep.",
+  "implementationSummary": "ShopComputeMutex with atomic Redis Lua compare-and-delete (release) and compare-and-expire (same-owner refresh), bytes-safe owner normalization, and deterministic TTL-rollover race tests. Batch entry gate unchanged; no A1 speed/webhook wiring.",
   "assumptions": [
     "600s TTL is sufficient for Shared Compute runs; refreshed on re-acquire by same owner",
     "Speed callers will import ShopComputeMutex from cdp_batch without duplicating mutex logic (A1 wires separately)"

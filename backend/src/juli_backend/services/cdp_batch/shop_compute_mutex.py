@@ -19,6 +19,35 @@ COMPUTE_MUTEX_TTL_SECONDS = 600
 
 ComputeOwner = Literal["speed", "batch"]
 
+# Atomic compare-and-delete: stale releaser cannot remove a new owner's lock.
+_RELEASE_IF_OWNER_SCRIPT = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+else
+    return 0
+end
+"""
+
+# Atomic compare-and-expire: same-owner refresh cannot clobber a new owner after TTL rollover.
+_REFRESH_IF_OWNER_SCRIPT = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('set', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]))
+else
+    return 0
+end
+"""
+
+
+def _normalize_owner(raw: object) -> ComputeOwner | None:
+    """Decode redis-py bytes responses and validate owner tokens."""
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8")
+    if isinstance(raw, str) and raw in ("speed", "batch"):
+        return raw
+    return None
+
 
 def compute_mutex_key(shop_id: str) -> str:
     """Redis key for shop-scoped Shared Compute exclusion."""
@@ -112,28 +141,25 @@ class RedisShopComputeMutex:
 
     def current_owner(self, shop_id: str) -> ComputeOwner | None:
         raw = self._redis.get(compute_mutex_key(shop_id))
-        if raw is None:
-            return None
-        if raw not in ("speed", "batch"):
-            return None
-        return raw
+        return _normalize_owner(raw)
 
     def try_acquire(self, shop_id: str, owner: ComputeOwner) -> bool:
         key = compute_mutex_key(shop_id)
         acquired = self._redis.set(key, owner, nx=True, ex=self._ttl)
         if acquired:
             return True
-        current = self._redis.get(key)
-        if current == owner:
-            self._redis.set(key, owner, ex=self._ttl)
-            return True
-        return False
+        refreshed = self._redis.eval(
+            _REFRESH_IF_OWNER_SCRIPT,
+            1,
+            key,
+            owner,
+            str(self._ttl),
+        )
+        return bool(refreshed)
 
     def release(self, shop_id: str, owner: ComputeOwner) -> None:
         key = compute_mutex_key(shop_id)
-        current = self._redis.get(key)
-        if current == owner:
-            self._redis.delete(key)
+        self._redis.eval(_RELEASE_IF_OWNER_SCRIPT, 1, key, owner)
 
 
 def try_begin_batch_compute(

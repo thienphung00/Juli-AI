@@ -53,6 +53,8 @@ the ETL ingest ``material_analytics:mutex:*`` gate or per-shop asyncio backpress
 - ``ShopComputeMutex.try_acquire(shop_id, owner)`` / ``release(shop_id, owner)``
   — ``owner`` is ``"speed"`` or ``"batch"`` (speed wiring is A1; API published here)
 - ``InMemoryShopComputeMutex`` / ``RedisShopComputeMutex`` — test and production backends
+- ``RedisShopComputeMutex`` uses atomic Lua compare-and-delete / compare-and-expire so
+  stale release or same-owner refresh cannot clobber a new owner after TTL rollover
 - ``SPEED_MUTEX_DEFER_REASON`` (package export) — constant ``"speed_mutex_active"``
 
 Structured log fields on defer: ``defer_reason``, ``stopped_reason``.
