@@ -13,12 +13,12 @@ from typing import Any
 from juli_backend.integrations.tiktok import (
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
+    FINANCE_STATEMENTS_PATH,
     INVENTORY_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
 )
-from juli_backend.integrations.tiktok.constants import FINANCE_STATEMENTS_PATH
 from juli_backend.services.cdp_batch.stagger_scheduler import ReconcileWindow
 
 DEFER_REASON = "gap_not_detected"
