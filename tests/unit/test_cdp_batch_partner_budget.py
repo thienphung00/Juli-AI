@@ -20,7 +20,7 @@ MODULE_MD = REPO_ROOT / "backend/src/juli_backend/services/cdp_batch/MODULE.md"
 PARTNER_BUDGET_PATH = REPO_ROOT / "backend/src/juli_backend/services/cdp_batch/partner_budget.py"
 
 
-def test_try_consume_succeeds_under_cap() -> None:
+def test_respects_soft_hard_caps_under_limit() -> None:
     gov = begin_partner_budget_run(max_attempts=5, hard_limit=8)
 
     for _ in range(4):
@@ -110,7 +110,7 @@ def test_begin_partner_budget_run_rejects_invalid_limits() -> None:
         begin_partner_budget_run(max_attempts=10, hard_limit=5)
 
 
-def test_module_md_documents_partner_api_budget_governor() -> None:
+def test_module_documents_dual_budget_separate_from_postgres_io() -> None:
     content = MODULE_MD.read_text(encoding="utf-8")
     assert "PartnerApiBudgetGovernor" in content
     assert "partner_budget_exhausted" in content
