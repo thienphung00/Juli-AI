@@ -24,6 +24,7 @@ def test_replica_isolation_deferred_to_3_5_c_not_a2_exit_gate() -> None:
     """AC1: MODULE and ADR state replica isolation is 3.5-C deferred — not A2 exit gate."""
     module = _read(MODULE_PATH)
     adr = _read(ADR_050_PATH)
+    adr_plain = adr.replace("**", "")
 
     assert "Read-replica isolation (3.5-C deferred)" in module
     assert "Not an A2 exit gate" in module
@@ -31,7 +32,7 @@ def test_replica_isolation_deferred_to_3_5_c_not_a2_exit_gate() -> None:
     assert "primary postgres" in module.lower()
 
     assert "Read-replica isolation (C2 infrastructure — deferred from A2)" in adr
-    assert "not an A2 Batch exit gate" in adr
+    assert "not an A2 Batch exit gate" in adr_plain
     assert "documentation only" in adr.lower()
 
 
