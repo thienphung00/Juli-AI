@@ -114,6 +114,30 @@ Orthogonal to ``PartnerApiBudgetGovernor`` (#616) — dual budgets required for 
 - ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
 - ``BatchReconcileOrchestrator`` — shop-scoped fetch → Shared Compute → gold
 
+## Read-replica isolation (3.5-C deferred)
+
+**Not an A2 exit gate.** Read-replica routing for batch read pressure is Phase 3 /
+**3.5-C C2** infrastructure ([#602](https://github.com/thienphung00/Juli-AI/issues/602)
+US #14, [ADR-050](../../../docs/adr/050-cdp-slice-3-5-c-two-gated-exits.md) C2,
+[ADR-047](../../../docs/adr/047-cdp-lambda-layers-prd-split.md) §3). A2 batch exit proves
+stagger scheduler, dual budgets, and Shared Compute gold writes on **primary Postgres** — no
+replica provisioning required in this slice ([#624](https://github.com/thienphung00/Juli-AI/issues/624)).
+
+When replica infra exists (3.5-C C2 fleet scale), batch reconcile should offload
+**read-heavy** stages to the replica; **all writes** stay on primary:
+
+| Stage | Connection | Notes |
+|-------|------------|-------|
+| Gap detection, envelope freshness scan | Replica read | ``BatchReconcileOrchestrator`` planning |
+| ``BatchFetchPlanner`` — partition/cursor/gap input | Replica read | Bounded reconcile resource list |
+| Existing silver/bronze idempotency checks | Replica read | Pre-fetch dedup only |
+| Bronze append (reconcile pages) | Primary write | Append-only |
+| Silver upsert / promotion | Primary write | Under ``PostgresIoBudgetGovernor`` |
+| Shared Compute → ``gold.kpi_envelopes`` | Primary write | Same serving contract as Speed |
+| ``ops.*`` partition / checkpoint cursors | Primary write | Durability; not replica-lagged |
+
+No connection-pool or Supabase replica wiring in A2 — documentation only.
+
 ## Scheduler deployment
 
 **Celery Beat / periodic ``is_due`` is deferred** — this slice only defines
