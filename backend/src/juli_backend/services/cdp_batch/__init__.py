@@ -1,5 +1,20 @@
 """CDP batch layer — fleet throughput reconcile (Phase 3.5-A2)."""
 
+from juli_backend.services.cdp_batch.batch_fetch_planner import (
+    DEFER_REASON as GAP_NOT_DETECTED_DEFER_REASON,
+)
+from juli_backend.services.cdp_batch.batch_fetch_planner import (
+    DOMAIN_GAP_KINDS,
+    FORBIDDEN_TRIGGER_SOURCES,
+    MAX_BATCH_RESOURCES,
+    P1_DEFERRED_GAP_KINDS,
+    BatchFetchPlan,
+    BatchFetchPlanner,
+    BatchFetchPlannerForbiddenTriggerError,
+    BatchFetchResource,
+    is_batch_fetch_trigger_allowed,
+    plan_batch_fetch,
+)
 from juli_backend.services.cdp_batch.partition_checkpoints import (
     BATCH_RECONCILE_INGEST_SOURCE,
     BatchPartitionCheckpointsRepo,
@@ -45,14 +60,23 @@ from juli_backend.services.cdp_batch.stagger_scheduler import (
 __all__ = [
     "BATCH_RECONCILE_INGEST_SOURCE",
     "BatchComputeEntryResult",
+    "BatchFetchPlanner",
+    "BatchFetchPlannerForbiddenTriggerError",
+    "BatchFetchPlan",
+    "BatchFetchResource",
     "BatchPartitionCheckpointsRepo",
     "BatchPartitionReconcileResult",
     "COMPUTE_MUTEX_TTL_SECONDS",
     "ComputeOwner",
     "DEFER_REASON",
-    "PartitionPageCheckpoint",
+    "DOMAIN_GAP_KINDS",
+    "FORBIDDEN_TRIGGER_SOURCES",
+    "GAP_NOT_DETECTED_DEFER_REASON",
     "InMemoryShopComputeMutex",
+    "MAX_BATCH_RESOURCES",
     "MINUTES_PER_UTC_DAY",
+    "P1_DEFERRED_GAP_KINDS",
+    "PartitionPageCheckpoint",
     "POSTGRES_IO_DEFER_REASON",
     "PartnerApiBudgetGovernor",
     "PartnerBudgetStopReason",
@@ -67,6 +91,8 @@ __all__ = [
     "begin_partner_budget_run",
     "begin_postgres_io_budget_run",
     "compute_mutex_key",
+    "is_batch_fetch_trigger_allowed",
+    "plan_batch_fetch",
     "reconcile_partition_with_checkpoints",
     "try_begin_batch_compute",
     "window_minute_for_shop",

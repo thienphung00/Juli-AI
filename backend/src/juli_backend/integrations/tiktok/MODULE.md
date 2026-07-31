@@ -28,8 +28,9 @@ Matches ``__all__`` — re-exports only:
   ``ANALYTICS_BESTSELLING_VIDEOS_PATH``, ``ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH``,
   ``ANALYTICS_LIVE_PERFORMANCE_LIST_PATH``, ``ANALYTICS_SHOP_PERFORMANCE_PATH``,
   ``ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH``, ``ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH``,
-  ``INVENTORY_SEARCH_PATH``, ``MARKETPLACE_CREATORS_SEARCH_PATH``, ``ORDER_SEARCH_PATH``,
-  ``PRODUCT_SEARCH_PATH``, ``RETURN_SEARCH_PATH``,
+  ``FINANCE_STATEMENTS_PATH``, ``INVENTORY_SEARCH_PATH``,
+  ``MARKETPLACE_CREATORS_SEARCH_PATH``, ``ORDER_SEARCH_PATH``, ``PRODUCT_SEARCH_PATH``,
+  ``RETURN_SEARCH_PATH``,
   ``analytics_shop_performance_per_hour_path``, ``analytics_shop_product_performance_path``,
   ``analytics_shop_sku_performance_path``, ``promotion_activity_path``
 - **Client factories** — ``ClientFactoryConfig``, ``ProductionReadClientFactory``,
