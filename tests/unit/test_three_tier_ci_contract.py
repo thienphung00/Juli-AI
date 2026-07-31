@@ -71,6 +71,23 @@ def test_main_tier_has_full_premerge_gates() -> None:
     ):
         assert job in workflow
     assert "needs.classify-tier.outputs.tier == 'main'" in workflow
+    assert 'require "dependency-validation" "$deps" "false"' in workflow
+    assert 'require "test-live-sandbox" "$live_sandbox"' in workflow
+
+
+def test_issue_policy_accepts_repository_feature_branch_convention() -> None:
+    workflow = _workflow()
+
+    assert '[[ "$HEAD_REF" == feature/* ]]' in workflow
+    assert "Issue-tier PR branch must contain issue-N" in workflow
+
+
+def test_performance_smoke_is_bounded_and_excludes_migration_heavy() -> None:
+    workflow = _workflow()
+
+    assert "timeout 5m python -m pytest" in workflow
+    assert "test_material_deployed_webhook_handoff.py" in workflow
+    assert '"not live and not migration_heavy"' in workflow
 
 
 def test_pr_workflow_never_deploys() -> None:

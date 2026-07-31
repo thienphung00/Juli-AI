@@ -538,8 +538,8 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
         run: |
-          [[ "$HEAD_REF" == feature/issue-* ]] || {
-            echo "Issue-tier PRs must use feature/issue-* branches (got $HEAD_REF)"
+          [[ "$HEAD_REF" == feature/* ]] || {
+            echo "Issue-tier PRs must use feature/* branches (got $HEAD_REF)"
             exit 1
           }
           [[ -n "$ISSUE_NUMBER" ]] || {
@@ -595,7 +595,9 @@ jobs:
   dependency-validation:
     runs-on: ubuntu-latest
     needs: classify-tier
-    if: needs.classify-tier.outputs.tier == 'wave'
+    if: >-
+      needs.classify-tier.outputs.tier == 'wave'
+      || needs.classify-tier.outputs.tier == 'main'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -732,8 +734,11 @@ jobs:
         run: pip install -e "./backend[dev]"
       - name: Bounded integration runtime smoke
         run: >-
-          timeout 5m python -m pytest tests/integration -q --tb=short
-          -m "not live" --durations=20
+          timeout 5m python -m pytest
+          tests/integration/test_material_deployed_webhook_handoff.py
+          tests/integration/test_inventory_poll_etl_upsert.py
+          tests/integration/test_analytics_poll_etl_upsert.py
+          -q --tb=short -m "not live and not migration_heavy" --durations=20
 
   security-scan:
     runs-on: ubuntu-latest
@@ -788,6 +793,7 @@ jobs:
       - bandit
       - gitleaks
       - test
+      - test-live-sandbox
       - integration-tests
       - dependency-validation
       - cross-module-contracts
@@ -815,6 +821,7 @@ jobs:
           bandit="${{ needs.bandit.result }}"
           gitleaks="${{ needs.gitleaks.result }}"
           test="${{ needs.test.result }}"
+          live_sandbox="${{ needs.test-live-sandbox.result }}"
           integration="${{ needs.integration-tests.result }}"
           deps="${{ needs.dependency-validation.result }}"
           contracts="${{ needs.cross-module-contracts.result }}"
@@ -875,6 +882,12 @@ jobs:
             require "performance-smoke" "$perf" "false"
             require "security-scan" "$security" "false"
             require "deployment-checks" "$deployment" "false"
+            if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+              require "test-live-sandbox" "$live_sandbox" "false"
+            else
+              require "test-live-sandbox" "$live_sandbox" "true"
+            fi
+            require "dependency-validation" "$deps" "false"
           else
             fail "Unknown CI tier: $tier"
           fi
