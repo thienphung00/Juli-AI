@@ -53,6 +53,33 @@ Additional locks:
 - Rate limiter key migration (shop-scoped → credential-scoped) lands in C2 when fleet
   cold-start and multi-credential contention matter.
 
+## Read-replica isolation (C2 infrastructure — deferred from A2)
+
+Read-replica routing for **batch read pressure** is **not** part of C1 warm Sign-in and is
+**not** an A2 Batch exit gate ([#602](https://github.com/thienphung00/Juli-AI/issues/602)
+US #14). Supabase read-replica provisioning and connection routing land with **C2 cold-start
+fleet** when self-serve shop scale makes primary read pressure material. Until then, A2 exit
+remains valid on **primary Postgres** with dual budgets (Partner API + Postgres I/O) per
+[ADR-047](047-cdp-lambda-layers-prd-split.md) Batch layer boundary.
+
+When replica infra exists, batch reconcile should offload **read-heavy** stages to the replica;
+**all medallion writes** stay on primary (ADR-046 one-writer cutover):
+
+| Batch stage | Target (when replica exists) | Rationale |
+|-------------|------------------------------|-----------|
+| Gap detection / reconcile planning | **Replica reads** | Scan `gold.kpi_envelopes`, `silver.*`, `ops.*` cursors without adding primary read load |
+| `BatchFetchPlanner` input | **Replica reads** | Read partition state, last-good envelopes, gap windows |
+| Partner fetch (HTTP) | N/A (external) | Out of Postgres |
+| Bronze append (reconcile pages) | **Primary writes** | Append-only ingest; WAL on primary |
+| Silver promotion / upsert | **Primary writes** | Medallion promotion under Postgres I/O budget |
+| Shared Compute → `gold.kpi_envelopes` | **Primary writes** | Serving SoT stays on primary |
+| `ops.*` checkpoint / partition cursor updates | **Primary writes** | Job durability must not lag replica replication |
+
+Implementation detail lives in
+[`backend/src/juli_backend/services/cdp_batch/MODULE.md`](../../backend/src/juli_backend/services/cdp_batch/MODULE.md)
+— **Read-replica isolation (3.5-C deferred)**. Slice [#624](https://github.com/thienphung00/Juli-AI/issues/624)
+is documentation only — no replica provisioning.
+
 ## Options considered
 
 | Option | Outcome |
