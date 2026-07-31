@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 616,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-31T0104Z",
+  "startedAt": "2026-07-31T01:04:57Z",
+  "completedAt": "2026-07-31T01:04:57Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "docs/handoffs/phase-3.5-prd-bodies/a2-batch.md",
+    "backend/src/juli_backend/services/analytics_backfill/budget.py",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/cdp_batch/partner_budget.py"
+  ],
+  "skillsLoaded": [],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/cdp_batch/partner_budget.py",
+    "backend/src/juli_backend/services/cdp_batch/__init__.py",
+    "tests/unit/test_cdp_batch_partner_budget.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_cdp_batch_partner_budget.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: No module named 'juli_backend.services.cdp_batch.partner_budget' before implementation (red on test collection)",
+      "passingTestEvidence": "11 passed in test_cdp_batch_partner_budget.py — soft/hard caps, defer path, structured logs, dual-budget separation",
+      "refactorEvidence": "Thin PartnerApiBudgetGovernor facade wrapping CallBudgetGovernor; DEFER_REASON constant and batch-facing try_consume/finish API",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_partner_budget.py -v",
+          "exitCode": 2,
+          "outputSummary": "ModuleNotFoundError: No module named 'juli_backend.services.cdp_batch.partner_budget' (red)"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_partner_budget.py -v",
+          "exitCode": 0,
+          "outputSummary": "11 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "PartnerApiBudgetGovernor (#616): wraps analytics_backfill CallBudgetGovernor with batch defer semantics — try_consume/finish(partner_budget_exhausted), implies_partition_complete=False on exhaustion, structured log fields without PII. analytics_backfill/budget.py untouched.",
+  "assumptions": [],
+  "risks": []
+}
