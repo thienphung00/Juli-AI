@@ -19,6 +19,7 @@ Before loading feature docs for integration work, consult the project plugin ind
 | New/stale vendor API reference | `api-docs` | Context7 CLI when SDK/library refs needed |
 | Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
+| TikTok vendor depth / cross-corpus verification (Architect/Meta only) | — | — (`docs/integrations/tiktok_corpora/README.md` + selected catalog(s); ADR-051) |
 | Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
 | Mobbin problem-section screen inspiration | — | `Mobbin` (`search_screens`, `search_flows`, `search_sections`) |
 | `apps/demo/` or `apps/dashboard/` Next.js UI (component, page, form) | `open-design-system` + Mobbin when references needed → `ui-ux-design`, `nextjs`, `react-best-practices` | `open-design`, `Mobbin` if gathering refs; then — |
@@ -64,6 +65,38 @@ product API or schema work). TikTok docs are issue loads under
 
 Path-prefix scoring: `agent-runtime.config.yml` → `routing.domain_mappings.integrations`
 (longest prefix wins over generic `services/` / `workers/` backend prefixes).
+
+## TikTok document corpora (ADR-051)
+
+Raw TikTok markdown archives (~2.5k pages) for **Architect/Meta planning and ad-hoc
+vendor verification** only. Curated `docs/integrations/tiktok_api/` and
+`docs/integrations/tiktok_platform/` remain **code SoT** for Executor and Review.
+
+| Agent phase | Load playbook + catalogs | Read local corpus bodies |
+|-------------|--------------------------|--------------------------|
+| Architect (Planning) | Yes — selected `{business,academy,partner}-catalog.json` | Yes — selective Read after Grep |
+| Meta (planning / ad-hoc TikTok depth) | Yes | Yes |
+| Executor | **DO NOT Load** | **NEVER Read** |
+| Review | **DO NOT Load** | **NEVER Read** |
+
+**Protocol (Architect/Meta):** `docs/integrations/tiktok_corpora/README.md` → catalog
+→ Grep → selective Read under `JULI_TIKTOK_CORPORA_ROOT` (default
+`/Users/macos/Juli-AI-local/tiktok-corpora/{business,academy,partner}_documents/`).
+
+**Task → corpus defaults:**
+
+| Task signal | Default catalog(s) |
+|-------------|-------------------|
+| UI, product copy, seller policy | Academy |
+| Webhooks, API contracts, data model | Business + Partner |
+| Cross-surface synthesis, curated gap/conflict | All three |
+
+**Invariants:**
+
+- Partner `partner_documents/_raw/**` excluded from catalogs and default Grep.
+- Missing local bodies → fail soft; cite catalog metadata + curated docs; never invent text.
+- Distill corpus findings into ADRs/curated docs before Executor — no raw corpus paths in Executor caches.
+- Crawler output should target the shared local root (see playbook); regen catalogs after crawls.
 
 ## Detection Patterns → Context Mapping
 

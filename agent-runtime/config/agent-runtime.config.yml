@@ -502,3 +502,20 @@ workflow_prompt_cache:
         - ios/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+
+    593:
+      defaultSliceId: CORPORA-1
+      handoffPath: docs/handoffs/issue-593.md
+      childSlices:
+        "593": CORPORA-1
+      parentScopeBlock: "# Parent #593 — TikTok document corpora catalog retrieval (constant)\n## Product boundary\n- Architect/Meta catalog→Grep→selective Read only (ADR-051)\n- Bodies at Juli-AI-local/tiktok-corpora; thin catalogs on main under docs/integrations/tiktok_corpora/\n- Curated tiktok_api/tiktok_platform remain code SoT; distill findings to ADRs/docs\n## Phase gate\n- Executor and Review must NEVER open corpus catalogs/bodies\n## Explicit deferrals\n- Embedding RAG\n- Committing markdown bodies\n- New Cursor skill\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - apps/demo/
+        - apps/landing/
+        - apps/dashboard/
+        - web/
+        - ios/
+        - backend/src/juli_backend/
+        - Sibling issue context caches

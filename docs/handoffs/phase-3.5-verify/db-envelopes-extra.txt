@@ -1,0 +1,86 @@
+=== analytics_kpi_envelopes ===
+  id: uuid/uuid
+  shop_id: uuid/uuid
+  kind: text/text
+  envelope_version: integer/int4
+  payload: jsonb/jsonb
+  computed_at: timestamp with time zone/timestamptz
+  created_at: timestamp with time zone/timestamptz
+  updated_at: timestamp with time zone/timestamptz
+  rows=0
+  idx analytics_kpi_envelopes_pkey: CREATE UNIQUE INDEX analytics_kpi_envelopes_pkey ON public.analytics_kpi_envelopes USING btree (id)
+  idx uq_analytics_kpi_envelopes_shop_kind: CREATE UNIQUE INDEX uq_analytics_kpi_envelopes_shop_kind ON public.analytics_kpi_envelopes USING btree (shop_id, kind)
+=== action_cards ===
+  id: uuid/uuid
+  shop_id: uuid/uuid
+  workflow_key: character varying/varchar
+  priority: integer/int4
+  severity: character varying/varchar
+  title: character varying/varchar
+  description: text/text
+  recommendation_payload: text/text
+  status: character varying/varchar
+  approved_at: timestamp without time zone/timestamp
+  executed_at: timestamp without time zone/timestamp
+  outcome: text/text
+  metadata_json: text/text
+  created_at: timestamp without time zone/timestamp
+  updated_at: timestamp without time zone/timestamp
+  rows=0
+  idx action_cards_pkey: CREATE UNIQUE INDEX action_cards_pkey ON public.action_cards USING btree (id)
+  idx uq_action_cards_shop_workflow: CREATE UNIQUE INDEX uq_action_cards_shop_workflow ON public.action_cards USING btree (shop_id, workflow_key)
+  idx ix_action_cards_shop: CREATE INDEX ix_action_cards_shop ON public.action_cards USING btree (shop_id)
+  idx ix_action_cards_shop_status: CREATE INDEX ix_action_cards_shop_status ON public.action_cards USING btree (shop_id, status)
+=== analytics_backfill_partitions ===
+  id: uuid/uuid
+  shop_id: uuid/uuid
+  bucket: character varying/varchar
+  partition_date: date/date
+  status: character varying/varchar
+  attempt_count: integer/int4
+  last_error: text/text
+  retryable: boolean/bool
+  updated_at: timestamp without time zone/timestamp
+  rows=512
+  idx analytics_backfill_partitions_pkey: CREATE UNIQUE INDEX analytics_backfill_partitions_pkey ON public.analytics_backfill_partitions USING btree (id)
+  idx uq_analytics_backfill_partitions_shop_bucket_date: CREATE UNIQUE INDEX uq_analytics_backfill_partitions_shop_bucket_date ON public.analytics_backfill_partitions USING btree (shop_id, bucket, partition_date)
+  idx ix_analytics_backfill_partitions_shop_bucket_date: CREATE INDEX ix_analytics_backfill_partitions_shop_bucket_date ON public.analytics_backfill_partitions USING btree (shop_id, bucket, partition_date)
+payload_keys(payload): []
+kpis_keys: []
+=== GRANTS (selected) ===
+  ('action_cards', 'REFERENCES')
+  ('action_cards', 'REFERENCES')
+  ('action_cards', 'REFERENCES')
+  ('action_cards', 'TRIGGER')
+  ('action_cards', 'TRIGGER')
+  ('action_cards', 'TRIGGER')
+  ('action_cards', 'TRUNCATE')
+  ('action_cards', 'TRUNCATE')
+  ('action_cards', 'TRUNCATE')
+  ('analytics_kpi_envelopes', 'REFERENCES')
+  ('analytics_kpi_envelopes', 'REFERENCES')
+  ('analytics_kpi_envelopes', 'REFERENCES')
+  ('analytics_kpi_envelopes', 'TRIGGER')
+  ('analytics_kpi_envelopes', 'TRIGGER')
+  ('analytics_kpi_envelopes', 'TRIGGER')
+  ('analytics_kpi_envelopes', 'TRUNCATE')
+  ('analytics_kpi_envelopes', 'TRUNCATE')
+  ('analytics_kpi_envelopes', 'TRUNCATE')
+  ('orders', 'REFERENCES')
+  ('orders', 'REFERENCES')
+  ('orders', 'REFERENCES')
+  ('orders', 'TRIGGER')
+  ('orders', 'TRIGGER')
+  ('orders', 'TRIGGER')
+  ('orders', 'TRUNCATE')
+  ('orders', 'TRUNCATE')
+  ('orders', 'TRUNCATE')
+  ('webhook_raw_events', 'REFERENCES')
+  ('webhook_raw_events', 'REFERENCES')
+  ('webhook_raw_events', 'REFERENCES')
+  ('webhook_raw_events', 'TRIGGER')
+  ('webhook_raw_events', 'TRIGGER')
+  ('webhook_raw_events', 'TRIGGER')
+  ('webhook_raw_events', 'TRUNCATE')
+  ('webhook_raw_events', 'TRUNCATE')
+  ('webhook_raw_events', 'TRUNCATE')

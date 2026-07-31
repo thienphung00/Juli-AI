@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MMU-15 — Modular Monolith Exit Scorecard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2332;
+    --border: #2d3a4f;
+    --text: #e7ecf3;
+    --muted: #8b9bb4;
+    --accent: #5b9fd4;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--font); background: var(--bg); color: var(--text);
+    line-height: 1.55; font-size: 15px;
+  }
+  header {
+    padding: 2.5rem 2rem 1.5rem; border-bottom: 1px solid var(--border);
+    background: linear-gradient(160deg, #1a2740 0%, #0f1419 70%);
+  }
+  header h1 { margin: 0 0 0.4rem; font-size: 1.85rem; font-weight: 650; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); max-width: 75ch; }
+  .score-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.1rem; }
+  .score-pill {
+    display: inline-flex; align-items: baseline; gap: 0.5rem;
+    padding: 0.55rem 1rem; border-radius: 999px; background: #243044; border: 1px solid var(--border);
+  }
+  .score-pill strong { font-size: 1.6rem; }
+  .score-pill.before strong { color: var(--warn); }
+  .score-pill.after strong { color: var(--ok); }
+  .score-pill.target strong { color: var(--accent); }
+  nav.toc {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: rgba(15,20,25,0.92); backdrop-filter: blur(8px); z-index: 10;
+  }
+  nav.toc a {
+    color: var(--accent); text-decoration: none; font-size: 0.85rem; padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  nav.toc a:hover { background: var(--panel); }
+  main { padding: 1.5rem 2rem 4rem; max-width: 1200px; margin: 0 auto; }
+  section { margin: 2.5rem 0; }
+  h2 { font-size: 1.35rem; margin: 0 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem;
+  }
+  .card h3 { margin-top: 0; }
+  .stat { font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; }
+  .stat.ok { color: var(--ok); } .stat.warn { color: var(--warn); } .stat.bad { color: var(--bad); }
+  .muted { color: var(--muted); }
+  .small { font-size: 0.82rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  code { font-family: var(--mono); font-size: 0.8em; background: #0d1218; padding: 0.1em 0.35em; border-radius: 4px; }
+  a { color: var(--accent); }
+  .badge {
+    display: inline-block; padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .badge.pass { background: #064e3b; color: var(--ok); }
+  .badge.partial { background: #78350f; color: var(--warn); }
+  .badge.fail { background: #7f1d1d; color: var(--bad); }
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--panel); padding: 0.85rem 1rem; border-radius: 0 8px 8px 0;
+    margin: 1rem 0;
+  }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.ok { border-left-color: var(--ok); }
+  .verdict {
+    display: grid; grid-template-columns: 120px 1fr; gap: 1.2rem; align-items: start;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;
+  }
+  .verdict .big { font-size: 3.5rem; font-weight: 800; color: var(--ok); line-height: 1; }
+  .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; max-width: 420px; }
+  ul.tight li { margin: 0.35rem 0; }
+  footer { color: var(--muted); font-size: 0.8rem; padding: 2rem; text-align: center; border-top: 1px solid var(--border); }
+  .hitl {
+    border: 1px dashed var(--warn); background: #1c1910; border-radius: 10px; padding: 1rem 1.1rem; margin-top: 1rem;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>MMU-15 Exit Scorecard</h1>
+  <p>
+    Falsifiable comparison of post-upgrade <code>main</code> against the
+    <a href="./modular-monolith-boundary-audit.html">2026-07-28 boundary audit</a>
+    (score 5.5/10 → target ~9/10). Issue <a href="https://github.com/thienphung00/Juli-AI/issues/565">#565</a>
+    · Parent epic <a href="https://github.com/thienphung00/Juli-AI/issues/550">#550</a>.
+    Measured at commit <code>90345688</code> (2026-07-29).
+  </p>
+  <div class="score-row">
+    <div class="score-pill before">Audit baseline <strong>5.5</strong> <span class="muted">/ 10</span></div>
+    <div class="score-pill after">Post-upgrade <strong>8.2</strong> <span class="muted">/ 10</span></div>
+    <div class="score-pill target">PRD target <strong>~9</strong> <span class="muted">/ 10</span></div>
+  </div>
+</header>
+<nav class="toc">
+  <a href="#assertions">Hard assertions</a>
+  <a href="#top5">Top-5 scorecard</a>
+  <a href="#scoring">Scoring rationale</a>
+  <a href="#phase210">Phase 2.10</a>
+  <a href="#evidence">Evidence index</a>
+  <a href="#gaps">Remaining gaps</a>
+  <a href="#hitl">HITL sign-off</a>
+</nav>
+<main>
+
+<section id="assertions">
+  <h2>1. Hard assertions (must remain true)</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>One deployable retained</h3>
+      <p><span class="badge pass">PASS</span></p>
+      <p class="small">
+        Still a single Python backend package (<code>backend/src/juli_backend</code>), one Postgres,
+        shared Celery/Redis workers — <strong>no microservices extracted</strong>, no polyglot DB split,
+        no new deployable services introduced by MMU-1…MMU-14.
+      </p>
+      <p class="muted small">Falsify by: find a new independently deployed service/repo split from MMU PRs #566–#579 / #569–#572.</p>
+    </div>
+    <div class="card">
+      <h3>Modular monolith (not rewrite)</h3>
+      <p><span class="badge pass">PASS</span></p>
+      <p class="small">
+        Upgrade landed as ownership registry, import gates, facades, cycle breaks, and thin adapters
+        inside the existing monolith — matching PRD constraint “no microservices.”
+      </p>
+      <p class="muted small">Falsify by: production topology requiring &gt;1 backend deploy unit for Juli API.</p>
+    </div>
+    <div class="card">
+      <h3>Path-disjoint vs Phase 2.10</h3>
+      <p><span class="badge pass">PASS</span></p>
+      <p class="small">
+        Phase 2.10 Demo analytics slices (#525–#535 → PRs #537–#549) merged 2026-07-27…28
+        <em>in parallel</em> with MMU slices on disjoint paths (demo/analytics vs architecture/CI/facades).
+        MMU did not block 2.10 shipping.
+      </p>
+      <p class="muted small">See <a href="#phase210">§4</a>. Falsify by: merge conflicts or blocked 2.10 PRs caused by MMU ownership of the same paths.</p>
+    </div>
+  </div>
+</section>
+
+<section id="top5">
+  <h2>2. Top-5 audit fix areas — pass / fail / partial</h2>
+  <p class="muted small">
+    Source: audit <code>top5</code> in
+    <a href="./modular-monolith-audit-data.json">modular-monolith-audit-data.json</a>
+    and assessment §10 of the boundary audit HTML.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Audit fix area</th>
+        <th>Verdict</th>
+        <th>Post-upgrade evidence</th>
+        <th>How to falsify</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><strong>Import-linter / forbidden-edge CI on PRs</strong></td>
+        <td><span class="badge pass">PASS</span></td>
+        <td class="small">
+          MMU-2 <a href="https://github.com/thienphung00/Juli-AI/pull/567">#567</a> (<code>.importlinter.toml</code>);
+          MMU-3 <a href="https://github.com/thienphung00/Juli-AI/pull/579">#579</a> required
+          <code>architecture-gates</code> on <code>pr.yml</code> + <code>merge_group</code>
+          (strict import boundaries w/ baseline, <code>audit_cycles.py --ci</code>, ownership registry).
+          Local re-run on <code>90345688</code>:
+          <code>import_boundaries: PASS — No new … beyond baseline</code>.
+          Baseline still lists <strong>55</strong> grandfathered violations
+          (<code>docs/architecture/import-boundary-baseline.json</code>) — gate blocks <em>new</em> edges only.
+        </td>
+        <td class="small muted">Land a PR that adds a forbidden edge without failing <code>architecture-gates</code>.</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><strong>Split god <code>models.py</code> / <code>repos.py</code> by ownership</strong></td>
+        <td><span class="badge partial">PARTIAL</span></td>
+        <td class="small">
+          Progress via MMU-9 ETL persistence move <a href="https://github.com/thienphung00/Juli-AI/pull/570">#570</a>
+          (<code>services/etl/persistence</code> and MMU-11 recommendation persistence
+          <a href="https://github.com/thienphung00/Juli-AI/pull/571">#571</a>.
+          Shared megafiles remain: <code>models/models.py</code> <strong>748 LOC</strong> (was ~813),
+          <code>repositories/repos.py</code> <strong>1169 LOC</strong> (was ~1203) — still central packages, not fully domain-owned.
+        </td>
+        <td class="small muted">Claim PASS while LOC stays &gt;500 in both god files without domain packages owning the majority of tables.</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><strong>Package-root imports only (ban deep submodule imports)</strong></td>
+        <td><span class="badge partial">PARTIAL</span></td>
+        <td class="small">
+          Import-linter contract + TikTok facade MMU-5 <a href="https://github.com/thienphung00/Juli-AI/pull/569">#569</a>;
+          docs sync MMU-13 <a href="https://github.com/thienphung00/Juli-AI/pull/578">#578</a>.
+          New deep imports fail CI; historical deep edges remain in the 55-item baseline until facade-thinning burns them down.
+        </td>
+        <td class="small muted">Add a deep <code>integrations.tiktok.*</code> import that CI accepts as “new” without baseline update review.</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><strong>Break import cycles</strong> (execution↔ops, security↔tiktok, domain↔workers)</td>
+        <td><span class="badge pass">PASS</span></td>
+        <td class="small">
+          MMU-6 Celery async ports <a href="https://github.com/thienphung00/Juli-AI/pull/568">#568</a>;
+          MMU-7 one-way execution→operations <a href="https://github.com/thienphung00/Juli-AI/pull/574">#574</a>;
+          OAuth dual-writer collapse MMU-10 <a href="https://github.com/thienphung00/Juli-AI/pull/576">#576</a>.
+          Local: <code>dependency_cycles: PASS — no import cycles</code>.
+        </td>
+        <td class="small muted"><code>audit_cycles.py --ci</code> returns FAIL on current <code>main</code>.</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><strong>Thin API routes</strong> — one owning service; no direct integrations/models in routes</td>
+        <td><span class="badge partial">PARTIAL</span></td>
+        <td class="small">
+          Critical adapters done: MMU-8 webhook + TikTok auth
+          <a href="https://github.com/thienphung00/Juli-AI/pull/575">#575</a>.
+          Not every router is proven thin; remaining API surfaces may still multi-import.
+          Contract tests MMU-14 <a href="https://github.com/thienphung00/Juli-AI/pull/577">#577</a> lock layer rules for new work.
+        </td>
+        <td class="small muted">Show a critical route still importing <code>integrations.tiktok</code> leaf modules or models directly after MMU-8 claims coverage for that route.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Supporting gates (not in original top-5, now enforced)</h3>
+  <table>
+    <thead>
+      <tr><th>Area</th><th>Verdict</th><th>Evidence</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Ownership registry (tables, tasks, Redis, integrations)</td>
+        <td><span class="badge pass">PASS</span></td>
+        <td class="small">MMU-1 <a href="https://github.com/thienphung00/Juli-AI/pull/566">#566</a>;
+          <code>ownership_registry: PASS</code>; Redis namespace MMU-12 <a href="https://github.com/thienphung00/Juli-AI/pull/572">#572</a>.</td>
+      </tr>
+      <tr>
+        <td>PR review ritual (modular questions)</td>
+        <td><span class="badge pass">PASS</span></td>
+        <td class="small">MMU-4 <a href="https://github.com/thienphung00/Juli-AI/pull/573">#573</a> PR template questions.</td>
+      </tr>
+      <tr>
+        <td>Docs / map sync to facades</td>
+        <td><span class="badge pass">PASS</span></td>
+        <td class="small">MMU-13 <a href="https://github.com/thienphung00/Juli-AI/pull/578">#578</a>.</td>
+      </tr>
+      <tr>
+        <td>Test-layer discipline</td>
+        <td><span class="badge pass">PASS</span></td>
+        <td class="small">MMU-14 <a href="https://github.com/thienphung00/Juli-AI/pull/577">#577</a>.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="scoring">
+  <h2>3. Scoring rationale (5.5 → 8.2)</h2>
+  <div class="verdict">
+    <div class="big">8.2</div>
+    <div>
+      <p>
+        <strong>As a modular monolith after MMU-1…14:</strong> hard shells are now <em>enforced on the PR path</em>
+        (registry + import-linter + cycles + ownership), critical facades and cycle breaks landed, and Demo 2.10
+        continued in parallel. Score stops short of ~9 because god persistence files and 55 baseline import
+        violations remain — boundaries are gated for regression, not fully cleaned.
+      </p>
+      <div class="grid" style="margin-top:1rem">
+        <div class="chart-wrap">
+          <canvas id="scoreChart" height="220"></canvas>
+        </div>
+        <div>
+          <h3>Delta model (transparent)</h3>
+          <table>
+            <thead><tr><th>Factor</th><th>Δ</th></tr></thead>
+            <tbody>
+              <tr><td>Baseline audit</td><td>5.5</td></tr>
+              <tr><td>+ PR-blocking architecture gates (imports, cycles, ownership)</td><td>+1.2</td></tr>
+              <tr><td>+ Cycle breaks + Celery/OAuth ports</td><td>+0.7</td></tr>
+              <tr><td>+ Facades / thin critical API / docs+tests</td><td>+0.6</td></tr>
+              <tr><td>+ Persistence ownership progress (ETL / recommendations)</td><td>+0.4</td></tr>
+              <tr><td>− Residual god files + 55 baseline edges</td><td>−0.2</td></tr>
+              <tr><td><strong>Post-upgrade</strong></td><td><strong>8.2</strong></td></tr>
+            </tbody>
+          </table>
+          <p class="muted small">Architect may adjust ±0.3 on HITL review; do not close #550 on an unverified “9/10” claim.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="phase210">
+  <h2>4. Phase 2.10 — path-disjoint delivery note</h2>
+  <div class="callout ok">
+    <strong>PM / Architect note:</strong> Modular monolith upgrade work was path-disjoint from Phase 2.10
+    Demo dual-layer analytics where claimed. 2.10 product slices continued to merge while MMU architecture
+    slices landed the same week — upgrade was <em>non-blocking</em> for Demo/API shipping.
+  </div>
+  <table>
+    <thead>
+      <tr><th>Track</th><th>Paths (typical)</th><th>Merged window</th><th>Examples</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Phase 2.10</td>
+        <td class="small"><code>apps/demo</code>, analytics precompute, Redis KPI cache, demo analytics API</td>
+        <td class="small">2026-07-27 → 07-28</td>
+        <td class="small">PRs #538–#549 (issues #525–#535); planning #537</td>
+      </tr>
+      <tr>
+        <td>MMU upgrade</td>
+        <td class="small"><code>docs/architecture/*</code>, <code>.github/workflows/pr.yml</code>, facades, CI scripts, persistence ownership</td>
+        <td class="small">2026-07-28 → 07-29</td>
+        <td class="small">PRs #566–#579, #569–#572 (issues #551–#564, #556)</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="small muted">
+    Overlap risk was limited to shared infra (e.g. Redis client #549 / MMU-12 namespace #572) — complementary,
+    not serial blockers. No evidence that MMU held Merge Queue / sync-before-merge for 2.10 Demo delivery.
+  </p>
+</section>
+
+<section id="evidence">
+  <h2>5. Evidence index (reproducible commands)</h2>
+  <div class="card">
+    <pre class="small" style="white-space:pre-wrap;font-family:var(--mono);margin:0"># On main @ 90345688 (or newer)
+python agent-runtime/scripts/ci/audit_cycles.py --ci
+# → dependency_cycles: PASS — no import cycles
+
+python agent-runtime/scripts/ci/check_ownership_registry.py
+# → ownership_registry: PASS — registry complete
+
+python agent-runtime/scripts/ci/check_import_boundaries.py \
+  --strict --baseline-file docs/architecture/import-boundary-baseline.json
+# → import_boundaries: PASS — No new import boundary violations beyond baseline
+
+# Required PR status checks (documented with MMU-3):
+#   PR Validation / architecture-gates
+#   PR Validation / status-check
+#   PR Validation / lint-and-typecheck
+#   PR Validation / test</pre>
+  </div>
+  <ul class="tight small">
+    <li>Baseline audit: <a href="./modular-monolith-boundary-audit.html">modular-monolith-boundary-audit.html</a> · <a href="./modular-monolith-audit-data.json">modular-monolith-audit-data.json</a></li>
+    <li>PRD: <code>docs/product/phases/modular-monolith-upgrade/PRD.md</code></li>
+    <li>SoT: <code>docs/architecture/MODULES.md</code>, <code>map.md</code>, <code>ownership-registry.yml</code></li>
+  </ul>
+</section>
+
+<section id="gaps">
+  <h2>6. Remaining gaps to ~9/10</h2>
+  <ol class="tight">
+    <li>Burn down <strong>55</strong> grandfathered import-boundary baseline violations (or shrink via facade migrations).</li>
+    <li>Finish domain ownership split of <code>models/models.py</code> / <code>repositories/repos.py</code> (still &gt;700 / &gt;1100 LOC).</li>
+    <li>Extend thin-adapter proof beyond webhook + TikTok auth to remaining multi-module routers.</li>
+    <li>Optional: raise CI from “no new violations” to progressive baseline ratchet in Merge Queue.</li>
+  </ol>
+  <div class="callout warn">
+    Claiming <strong>9/10</strong> today would be non-falsifiable marketing. <strong>8.2/10</strong> is the
+    evidence-backed score; Architect HITL may accept epic closure at 8.2 with documented residual debt,
+    or hold #550 open until gap #1–#2 shrink further.
+  </div>
+</section>
+
+<section id="hitl">
+  <h2>7. HITL Architect sign-off</h2>
+  <div class="hitl">
+    <p><strong>Status:</strong> <span class="badge partial">AWAITING ARCHITECT</span> — document published; epic #550 must not close until explicit approval.</p>
+    <ul class="tight">
+      <li>□ Accept post-upgrade score <strong>8.2 / 10</strong> (or write revised score with rationale).</li>
+      <li>□ Confirm <strong>one deployable / no microservices</strong>.</li>
+      <li>□ Confirm <strong>Phase 2.10 path-disjoint / non-blocking</strong> note.</li>
+      <li>□ Accept residual debt list (§6) as follow-ups outside epic closure, <em>or</em> require more burn-down before close.</li>
+      <li>□ Approve closing <a href="https://github.com/thienphung00/Juli-AI/issues/565">#565</a> then <a href="https://github.com/thienphung00/Juli-AI/issues/550">#550</a>.</li>
+    </ul>
+    <p class="muted small">Sign-off: ______________________ date: __________ (comment on #565 or commit amendment).</p>
+  </div>
+</section>
+
+</main>
+<footer>
+  MMU-15 exit scorecard · Companion to boundary audit · Generated 2026-07-29 for issue #565 ·
+  Not a substitute for Architect HITL approval
+</footer>
+<script>
+  new Chart(document.getElementById('scoreChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Audit 2026-07-28', 'Post-MMU (now)', 'PRD target'],
+      datasets: [{
+        label: 'Modular monolith score',
+        data: [5.5, 8.2, 9.0],
+        backgroundColor: ['#fbbf24', '#34d399', '#5b9fd4']
+      }]
+    },
+    options: {
+      scales: {
+        y: { min: 0, max: 10, ticks: { color: '#8b9bb4' }, grid: { color: '#2d3a4f' } },
+        x: { ticks: { color: '#8b9bb4' }, grid: { display: false } }
+      },
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'Score trajectory', color: '#e7ecf3' }
+      }
+    }
+  });
+</script>
+</body>
+</html>
