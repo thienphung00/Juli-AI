@@ -56,6 +56,7 @@ def make_material_etl_handoff(
                     "shop_key": shop_key,
                     "event_type": event_type,
                     "task_id": task_id,
+                    "enqueue_reason": "material_webhook_etl_success",
                 },
             )
 

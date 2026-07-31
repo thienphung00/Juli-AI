@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -10,6 +12,8 @@ from juli_backend.services.tiktok.webhook_catalog import (
     is_material_catalog_id,
 )
 from juli_backend.services.webhook.material_gate import MaterialEnqueueGate
+
+logger = logging.getLogger(__name__)
 
 
 class MaterialAnalyticsDispatcher(Protocol):
@@ -75,6 +79,19 @@ def set_material_enqueue_gate(gate: MaterialEnqueueGate | None) -> None:
     _gate = gate
 
 
+def material_compute_env_ready() -> bool:
+    """Return True when TikTok + Redis env is configured for material compute."""
+    return all(
+        os.getenv(name, "").strip()
+        for name in (
+            "TIKTOK_APP_KEY",
+            "TIKTOK_APP_SECRET",
+            "TIKTOK_REDIRECT_URI",
+            "REDIS_URL",
+        )
+    )
+
+
 def maybe_enqueue_material_analytics_compute(
     shop_key: str,
     event_type: str,
@@ -85,6 +102,17 @@ def maybe_enqueue_material_analytics_compute(
     """Enqueue shop Analytics compute when event type is material and gate allows."""
     catalog_id = catalog_id_for_event(event_type)
     if catalog_id is None or not is_material_catalog_id(catalog_id):
+        return None
+
+    if not material_compute_env_ready():
+        logger.info(
+            "material_enqueue_skipped",
+            extra={
+                "shop_key": shop_key,
+                "event_type": event_type,
+                "enqueue_reason": "missing_tiktok_or_redis_env",
+            },
+        )
         return None
 
     resolved_gate = gate if gate is not None else get_material_enqueue_gate()
