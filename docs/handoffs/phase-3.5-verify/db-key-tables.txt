@@ -1,0 +1,250 @@
+public.action_cards: 15 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  workflow_key: character varying/varchar null=NO
+  priority: integer/int4 null=NO
+  severity: character varying/varchar null=NO
+  title: character varying/varchar null=NO
+  description: text/text null=NO
+  recommendation_payload: text/text null=NO
+  status: character varying/varchar null=NO
+  approved_at: timestamp without time zone/timestamp null=YES
+  executed_at: timestamp without time zone/timestamp null=YES
+  outcome: text/text null=YES
+  metadata_json: text/text null=YES
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+public.recommendations: 8 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  recommendation_type: character varying/varchar null=NO
+  payload: text/text null=YES
+  status: character varying/varchar null=NO
+  expires_at: timestamp without time zone/timestamp null=YES
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+public.analytics_performance_intervals: 30 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  snapshot_key: character varying/varchar null=NO
+  grain: character varying/varchar null=NO
+  start_date: date/date null=NO
+  end_date: date/date null=YES
+  hour_index: integer/int4 null=YES
+  tiktok_product_id: character varying/varchar null=YES
+  tiktok_sku_id: character varying/varchar null=YES
+  tiktok_live_id: character varying/varchar null=YES
+  gmv: numeric/numeric null=YES
+  gmv_currency: character varying/varchar null=YES
+  ctr: numeric/numeric null=YES
+  click_through_rate: numeric/numeric null=YES
+  click_order_rate: numeric/numeric null=YES
+  click_to_order_rate: numeric/numeric null=YES
+  sku_orders: integer/int4 null=YES
+  items_sold: integer/int4 null=YES
+  orders_count: integer/int4 null=YES
+  customers: integer/int4 null=YES
+  visitors: integer/int4 null=YES
+  impressions: integer/int4 null=YES
+  conversion_rate: numeric/numeric null=YES
+  update_time: timestamp without time zone/timestamp null=NO
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+  live_hours: numeric/numeric null=YES
+  live_sessions: integer/int4 null=YES
+  active_products: integer/int4 null=YES
+  new_products: integer/int4 null=YES
+public.analytics_backfill_partitions: 9 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  bucket: character varying/varchar null=NO
+  partition_date: date/date null=NO
+  status: character varying/varchar null=NO
+  attempt_count: integer/int4 null=NO
+  last_error: text/text null=YES
+  retryable: boolean/bool null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+public.orders: 17 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  tiktok_order_id: character varying/varchar null=NO
+  status: character varying/varchar null=NO
+  buyer_id: character varying/varchar null=YES
+  total_amount: numeric/numeric null=NO
+  currency: character varying/varchar null=NO
+  update_time: timestamp without time zone/timestamp null=NO
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+  order_value: numeric/numeric null=YES
+  payment_time: timestamp without time zone/timestamp null=YES
+  ship_time: timestamp without time zone/timestamp null=YES
+  delivery_time: timestamp without time zone/timestamp null=YES
+  tiktok_created_at: timestamp without time zone/timestamp null=YES
+  cancel_reason: character varying/varchar null=YES
+  is_seller_fault: boolean/bool null=YES
+public.returns: 16 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  order_id: uuid/uuid null=YES
+  tiktok_return_id: character varying/varchar null=NO
+  tiktok_order_id: character varying/varchar null=NO
+  buyer_id: character varying/varchar null=YES
+  tiktok_product_id: character varying/varchar null=YES
+  tiktok_sku_id: character varying/varchar null=YES
+  return_type: character varying/varchar null=NO
+  return_condition: character varying/varchar null=NO
+  return_reason: character varying/varchar null=YES
+  refund_amount: numeric/numeric null=NO
+  status: character varying/varchar null=NO
+  update_time: timestamp without time zone/timestamp null=NO
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+public.webhook_raw_events: 11 cols
+  id: uuid/uuid null=NO
+  received_at: timestamp without time zone/timestamp null=NO
+  tiktok_shop_id: character varying/varchar null=YES
+  event_type: character varying/varchar null=YES
+  event_id: character varying/varchar null=YES
+  signature_header: text/text null=YES
+  headers: text/text null=YES
+  raw_body: text/text null=YES
+  http_status: integer/int4 null=NO
+  processing_status: character varying/varchar null=NO
+  parse_version: integer/int4 null=NO
+public.processed_events: 3 cols
+  event_id: character varying/varchar null=NO
+  shop_id: uuid/uuid null=NO
+  processed_at: timestamp without time zone/timestamp null=NO
+public.workflow_webhook_signals: 10 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  tiktok_shop_id: character varying/varchar null=NO
+  catalog_id: integer/int4 null=NO
+  event_type: character varying/varchar null=NO
+  workflow_keys: text/text null=NO
+  intent: character varying/varchar null=NO
+  event_id: character varying/varchar null=NO
+  payload: text/text null=YES
+  created_at: timestamp without time zone/timestamp null=NO
+public.shops: 7 cols
+  id: uuid/uuid null=NO
+  user_id: uuid/uuid null=NO
+  shop_name: character varying/varchar null=NO
+  tiktok_shop_id: character varying/varchar null=YES
+  is_active: boolean/bool null=NO
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+public.tool_executions: 13 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  approval_id: character varying/varchar null=NO
+  tool_name: character varying/varchar null=NO
+  payload_json: text/text null=NO
+  status: character varying/varchar null=NO
+  celery_task_id: character varying/varchar null=YES
+  outcome_json: text/text null=YES
+  error_message: text/text null=YES
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+  idempotency_key: character varying/varchar null=YES
+  error_category: character varying/varchar null=YES
+public.workflow_outcome_records: 10 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  approval_id: character varying/varchar null=NO
+  execution_id: uuid/uuid null=NO
+  workflow_id: character varying/varchar null=NO
+  execution_status: character varying/varchar null=NO
+  metrics_json: text/text null=NO
+  executed_at: timestamp without time zone/timestamp null=NO
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+public.inventory_items: 9 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  tiktok_product_id: character varying/varchar null=NO
+  tiktok_sku_id: character varying/varchar null=NO
+  quantity: integer/int4 null=NO
+  warehouse_id: character varying/varchar null=YES
+  update_time: timestamp without time zone/timestamp null=NO
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+public.livestreams: 15 cols
+  id: uuid/uuid null=NO
+  shop_id: uuid/uuid null=NO
+  tiktok_livestream_id: character varying/varchar null=NO
+  creator_id: uuid/uuid null=YES
+  title: character varying/varchar null=YES
+  start_time: timestamp without time zone/timestamp null=YES
+  end_time: timestamp without time zone/timestamp null=YES
+  viewer_count: integer/int4 null=YES
+  order_count: integer/int4 null=YES
+  revenue: numeric/numeric null=YES
+  update_time: timestamp without time zone/timestamp null=YES
+  created_at: timestamp without time zone/timestamp null=NO
+  updated_at: timestamp without time zone/timestamp null=NO
+  peak_concurrent_viewers: integer/int4 null=YES
+  click_count: integer/int4 null=YES
+
+=== ROW COUNTS ===
+action_cards: 0
+recommendations: 0
+orders: 1
+returns: 0
+webhook_raw_events: 1936
+analytics_performance_intervals: 6662
+analytics_backfill_partitions: 512
+shops: 3
+processed_events: 0
+workflow_webhook_signals: 0
+tool_executions: 0
+
+=== INDEXES ===
+action_cards.action_cards_pkey
+  CREATE UNIQUE INDEX action_cards_pkey ON public.action_cards USING btree (id)
+action_cards.ix_action_cards_shop
+  CREATE INDEX ix_action_cards_shop ON public.action_cards USING btree (shop_id)
+action_cards.ix_action_cards_shop_status
+  CREATE INDEX ix_action_cards_shop_status ON public.action_cards USING btree (shop_id, status)
+action_cards.uq_action_cards_shop_workflow
+  CREATE UNIQUE INDEX uq_action_cards_shop_workflow ON public.action_cards USING btree (shop_id, workflow_key)
+analytics_backfill_partitions.analytics_backfill_partitions_pkey
+  CREATE UNIQUE INDEX analytics_backfill_partitions_pkey ON public.analytics_backfill_partitions USING btree (id)
+analytics_backfill_partitions.ix_analytics_backfill_partitions_shop_bucket_date
+  CREATE INDEX ix_analytics_backfill_partitions_shop_bucket_date ON public.analytics_backfill_partitions USING btree (shop_id, bucket, partition_date)
+analytics_backfill_partitions.uq_analytics_backfill_partitions_shop_bucket_date
+  CREATE UNIQUE INDEX uq_analytics_backfill_partitions_shop_bucket_date ON public.analytics_backfill_partitions USING btree (shop_id, bucket, partition_date)
+analytics_performance_intervals.analytics_performance_intervals_pkey
+  CREATE UNIQUE INDEX analytics_performance_intervals_pkey ON public.analytics_performance_intervals USING btree (id)
+analytics_performance_intervals.ix_analytics_perf_shop_grain_date
+  CREATE INDEX ix_analytics_perf_shop_grain_date ON public.analytics_performance_intervals USING btree (shop_id, grain, start_date)
+analytics_performance_intervals.ix_analytics_perf_shop_snapshot
+  CREATE UNIQUE INDEX ix_analytics_perf_shop_snapshot ON public.analytics_performance_intervals USING btree (shop_id, snapshot_key)
+orders.ix_orders_shop_created
+  CREATE INDEX ix_orders_shop_created ON public.orders USING btree (shop_id, created_at)
+orders.ix_orders_shop_tiktok
+  CREATE UNIQUE INDEX ix_orders_shop_tiktok ON public.orders USING btree (shop_id, tiktok_order_id)
+orders.orders_pkey
+  CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)
+processed_events.ix_processed_events_shop
+  CREATE INDEX ix_processed_events_shop ON public.processed_events USING btree (shop_id)
+processed_events.processed_events_pkey
+  CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (event_id)
+recommendations.ix_recommendations_shop
+  CREATE INDEX ix_recommendations_shop ON public.recommendations USING btree (shop_id)
+recommendations.recommendations_pkey
+  CREATE UNIQUE INDEX recommendations_pkey ON public.recommendations USING btree (id)
+returns.ix_returns_shop_created
+  CREATE INDEX ix_returns_shop_created ON public.returns USING btree (shop_id, created_at)
+returns.ix_returns_shop_tiktok
+  CREATE UNIQUE INDEX ix_returns_shop_tiktok ON public.returns USING btree (shop_id, tiktok_return_id)
+returns.returns_pkey
+  CREATE UNIQUE INDEX returns_pkey ON public.returns USING btree (id)
+webhook_raw_events.ix_webhook_raw_events_event_type
+  CREATE INDEX ix_webhook_raw_events_event_type ON public.webhook_raw_events USING btree (event_type)
+webhook_raw_events.ix_webhook_raw_events_received_at
+  CREATE INDEX ix_webhook_raw_events_received_at ON public.webhook_raw_events USING btree (received_at)
+webhook_raw_events.ix_webhook_raw_events_tiktok_shop_id
+  CREATE INDEX ix_webhook_raw_events_tiktok_shop_id ON public.webhook_raw_events USING btree (tiktok_shop_id)
+webhook_raw_events.webhook_raw_events_pkey
+  CREATE UNIQUE INDEX webhook_raw_events_pkey ON public.webhook_raw_events USING btree (id)
