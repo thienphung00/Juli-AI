@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 BATCH_RECONCILE_INGEST_SOURCE = "batch_reconcile"
 BATCH_RECONCILE_META_KEY = "_batch_reconcile"
-_CHECKPOINT_PREFIX = "batch_checkpoint:v1:"
+_CHECKPOINT_PREFIX = "batch_checkpoint_v1|"
 _PAGE_TOKEN_START = "__start__"
 
 BronzeAppendFn = Callable[[list[dict[str, Any]]], Awaitable[int]]

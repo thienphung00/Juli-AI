@@ -44,8 +44,10 @@ def _normalize_owner(raw: object) -> ComputeOwner | None:
         return None
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8")
-    if isinstance(raw, str) and raw in ("speed", "batch"):
-        return raw
+    if raw == "speed":
+        return "speed"
+    if raw == "batch":
+        return "batch"
     return None
 
 
