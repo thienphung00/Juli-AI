@@ -113,6 +113,68 @@ _Avoid_: target architecture (overloaded — use Phase 3 polyglot target)
 The public Interactive Demo (`demo.app-juli.com`) — ADR-023 four-destination IA (Home, Decisions, Analytics, Settings). Phase 2.6 mock data; **Phase 2.10** swaps agreed destinations to masked reference-shop KPIs without auth ([ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md)). Sign-in/OAuth and Landing remain Phase 3 ([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)).
 _Avoid_: the Demo (ambiguous with retired two-screen Home+Actions IA)
 
+
+**Commerce data pipeline (CDP)**:
+The production commerce-data path — TikTok webhooks + targeted Partner fetch → raw Postgres → transform/aggregate → compute → precomputed envelopes (+ Redis read-through) — shared by Analytics and Decisions. **Continuous wire sequencing is Analytics-first, then Decisions next.** “CDP” here means Juli’s **commerce data pipeline**, not a third-party customer-data platform product. Physical Postgres layout: **CDP medallion model** ([ADR-046](docs/adr/046-cdp-medallion-physical-model.md)). See [ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md), [ADR-048](docs/adr/048-cdp-webhook-first-spine-dual-credential.md).
+_Avoid_: marketplace CDP SaaS products, treating Demo mock fixtures as Decision SoT after continuous wire
+
+**CDP medallion physical model**:
+Phase 3.5-A Postgres layout — four schemas in one Supabase project: **`bronze.*`** append-only raw, **`silver.*`** idempotent domain upserts, **`gold.*`** precomputed forks, **`ops.*`** pipeline checkpoints (not customer data). One-way deps bronze→silver→gold; **one writer per table**; shop-scoped **Shared Compute Orchestrator** (not Postgres materialized views). Supabase clients see **gold only** (views/RPC + RLS). **Per-domain cutover**; Demo/Mock stays green via serving gold or a short-lived compat view; **no long-term dual-write**. Serving **`gold.kpi_envelopes`** uses flexible **`payload.kpis`**. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md).
+
+**Bronze layer**:
+Append-only raw landing in Postgres — webhook payloads, targeted Partner fetch rows, reconcile snapshots, cold-start backfill pages. Ingest never upserts over history. Feeds silver via orchestrator jobs only. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md).
+
+**Silver layer**:
+Idempotent domain upserts after dedupe/normalize — canonical one row per domain key. ML **feature sources** read silver only. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md).
+
+**Gold layer**:
+Precomputed outputs forked from silver — not refreshed via Postgres materialized views. **Serving gold:** `gold.kpi_envelopes` for Analytics/Decisions/Demo/Redis. **ML gold (optional/stub):** `gold.ml_feature_snapshots`. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md).
+
+**Ops schema**:
+Pipeline and orchestration state — e.g. `analytics_backfill_partitions`, shop/domain checkpoints. Not seller-facing; service-role only. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md).
+
+**One writer per table**:
+Each medallion table has exactly **one owning writer** (service/module). Downstream layers may read upstream; no reverse writes. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md).
+
+**Serving vs ML gold fork**:
+**Serving** (`gold.kpi_envelopes`) powers product reads and Redis; **ML gold** may persist promoted snapshots later. **ML reads silver, never serving gold**. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md).
+
+**Serving KPI envelope contract**:
+Locked shape for `gold.kpi_envelopes`: `shop_id` with `computed_at`, `envelope_version`, and **`payload` jsonb** containing **`kpis`** keyed by stable `metric_id`. [ADR-049](docs/adr/049-demo-analytics-main-kpi-override.md) B′ **five** are **initial catalog keys**, not frozen DB columns. See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md) (Q3).
+
+**Shared Compute Orchestrator**:
+Shop-scoped job runner — **one job per material trigger** — bronze append → silver upsert → gold envelope write (idempotent stages). Same trigger serves Analytics-first then Decisions ([ADR-048](docs/adr/048-cdp-webhook-first-spine-dual-credential.md)). See [ADR-046](docs/adr/046-cdp-medallion-physical-model.md) (Q4).
+
+**Speed / Batch / Serving layers**:
+Freshness architecture **orthogonal to medallion schemas** ([ADR-047](docs/adr/047-cdp-lambda-layers-prd-split.md)) — **Speed** (webhook → targeted fetch → Shared Compute → gold), **Batch** (daily staggered reconcile → same gold), **Serving** (`gold.kpi_envelopes` + Redis).
+
+**Serving layer**:
+Product read model — **`gold.kpi_envelopes`** plus required Redis read-through. Established in **3.5-A0**; populated by Speed (**A1**) and healed by Batch (**A2**). See [ADR-047](docs/adr/047-cdp-lambda-layers-prd-split.md).
+
+**Phase 3.5-A (Analytics CDP split)**:
+**A0 Foundation** — medallion schemas, serving gold contract, per-domain cutover ([#598](https://github.com/thienphung00/Juli-AI/issues/598)); **A1 Speed** — material handoff, targeted fetch, five Demo KPIs ([#601](https://github.com/thienphung00/Juli-AI/issues/601)); **A2 Batch** — daily staggered reconcile ([#602](https://github.com/thienphung00/Juli-AI/issues/602)). **3.5-B** (#599) blocked on **A1**, not A2. See [ADR-047](docs/adr/047-cdp-lambda-layers-prd-split.md).
+
+**Webhook-first continuous spine**:
+Material TikTok webhooks enqueue ETL handoff and shop-scoped fetch-then-precompute; polling is gap reconciliation. See [ADR-048](docs/adr/048-cdp-webhook-first-spine-dual-credential.md).
+
+**Targeted fetch**:
+Post-webhook or post-reconcile Partner reads limited to resources implicated by the triggering event or gap. See [ADR-048](docs/adr/048-cdp-webhook-first-spine-dual-credential.md).
+
+**Daily staggered reconcile**:
+Multi-shop gap-reconciliation scheduler — one shop-scoped window per day, staggered across the fleet. See [ADR-048](docs/adr/048-cdp-webhook-first-spine-dual-credential.md).
+
+**Demo Main KPI set (B′)**:
+Five CDP-envelope-backed Main KPIs for **`apps/demo` Analytics**: GMV (TikTok), AOV, CTOR, LIVE hours, and Cancellation rate — exactly five. Each maps to a **`metric_id`** in `gold.kpi_envelopes.payload.kpis`. See [ADR-049](docs/adr/049-demo-analytics-main-kpi-override.md).
+
+**Demo dual credential model**:
+**Mock mode (default):** shared masked reference-shop precompute via **`production_read`**; webhook-first material events + reconcile. **Login mode (3.5-C):** session-bound shop reads via **`seller_connect`**. See [ADR-048](docs/adr/048-cdp-webhook-first-spine-dual-credential.md), [ADR-050](docs/adr/050-cdp-slice-3-5-c-two-gated-exits.md).
+
+**seller_connect credential**:
+Per-shop TikTok Shop OAuth credential rows for Sign-in shops — must not cross-mix with **`production_read`**. See [ADR-048](docs/adr/048-cdp-webhook-first-spine-dual-credential.md).
+
+**TikTok document corpora**:
+Large local markdown archives (Business / Academy / Partner) for **Architect/Meta** vendor-depth verification only — catalog → Grep → selective Read. Executor/Review use curated `tiktok_api` / `tiktok_platform` only. See [ADR-051](docs/adr/051-tiktok-corpora-catalog-retrieval.md).
+
 **Durable design skill stack**:
 Focus/Meta routing for frontend design work — **Open Design** + **Mobbin** upstream for references; **`ui-ux-design`** + **`ui-ux` executor** for Next.js implementation; **`shadcn`** for atom-level registry primitives only, folded into `@juli/ui`. Open Design sits above `ui-ux-design` and does not replace it. See [ADR-043](docs/adr/043-frontend-design-skill-wiring.md).
 _Avoid_: Open Design as the Demo implementation skill, permanent Airtable-first Meta pipeline, wholesale Demo→shadcn migration
