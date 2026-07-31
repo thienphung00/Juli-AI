@@ -14,7 +14,11 @@
   },
   "toolsUsed": [],
   "toolInvocationCount": 0,
-  "contextFilesLoaded": [],
+  "contextFilesLoaded": [
+    "docs/handoffs/phase-3.5-prd-bodies/a2-batch.md",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/cdp_batch/stagger_scheduler.py"
+  ],
   "skillsLoaded": [],
   "rulesLoaded": [],
   "mcpsUsed": [],

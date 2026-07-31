@@ -5,7 +5,9 @@ PR-safe: no Partner API, Postgres fleet, or live credentials.
 
 from __future__ import annotations
 
+import importlib
 from datetime import date
+from pathlib import Path
 
 from juli_backend.services.cdp_batch.stagger_scheduler import (
     MINUTES_PER_UTC_DAY,
@@ -13,6 +15,12 @@ from juli_backend.services.cdp_batch.stagger_scheduler import (
     StaggerScheduler,
     assign_window,
     window_minute_for_shop,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MODULE_MD = REPO_ROOT / "backend/src/juli_backend/services/cdp_batch/MODULE.md"
+STAGGER_SCHEDULER_PATH = (
+    REPO_ROOT / "backend/src/juli_backend/services/cdp_batch/stagger_scheduler.py"
 )
 
 
@@ -97,3 +105,36 @@ def test_does_not_use_python_builtin_hash() -> None:
     # If implementation accidentally used hash(), values would still match in-process
     # but differ across processes — covered by stable hashlib in implementation.
     assert 0 <= expected < MINUTES_PER_UTC_DAY
+
+
+def test_pr_safe_no_partner_api_or_postgres() -> None:
+    """PR-safe lane: pure in-memory module without Partner API or Postgres fleet."""
+    source = STAGGER_SCHEDULER_PATH.read_text(encoding="utf-8").lower()
+    for forbidden in ("httpx", "sqlalchemy", "asyncpg", "psycopg", "redis", "celery"):
+        assert forbidden not in source
+    mod = importlib.import_module("juli_backend.services.cdp_batch.stagger_scheduler")
+    assert assign_window("shop-pr-safe", date(2026, 7, 31)) == mod.assign_window(
+        "shop-pr-safe", date(2026, 7, 31)
+    )
+
+
+def test_module_documents_public_interface_and_deferred_scheduler() -> None:
+    """MODULE.md documents public interface; Beat/cron wiring explicitly deferred."""
+    text = MODULE_MD.read_text(encoding="utf-8")
+    lowered = text.lower()
+    assert "assign_window" in lowered
+    assert "window_minute_for_shop" in lowered
+    assert "staggerscheduler" in lowered.replace(" ", "")
+    assert "deferred" in lowered
+    assert "celery beat" in lowered or "beat / periodic" in lowered
+
+
+def test_out_of_scope_no_fujiwa_hourly_exception() -> None:
+    """Does not implement hourly Fujiwa exception — A1 Speed owns that path."""
+    module_text = MODULE_MD.read_text(encoding="utf-8").lower()
+    scheduler_text = STAGGER_SCHEDULER_PATH.read_text(encoding="utf-8").lower()
+    assert "fujiwa" in module_text
+    assert "hourly" in module_text
+    assert "out of scope" in module_text
+    assert "hourly" not in scheduler_text
+    assert "fujiwa" not in scheduler_text
