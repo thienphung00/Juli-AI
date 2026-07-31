@@ -3,15 +3,14 @@
 AC1 → each locked material catalog id enqueues exactly one compute job after ETL
 AC2 → #68 coalesce: burst yields ≤1 enqueue per shop per 15 minutes
 AC3 → concurrent material events do not fan out unbounded jobs (shop mutex)
-AC4 → deployed assembly (TikTokWebhookService → ETL handoff) enqueues compute
+AC4 → deployed assembly enqueues compute
+    (see tests/integration/test_material_deployed_webhook_handoff.py)
 AC5 → missing TikTok+Redis env skips enqueue with logged reason
 AC6 → material handoff path does not call forbidden poll/sync helpers
 """
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -25,8 +24,6 @@ from juli_backend.services.tiktok.webhook_catalog import (
     catalog_id_for_event,
     is_material_catalog_id,
 )
-from juli_backend.services.webhook.app import WEBHOOK_PATH, build_webhook_service
-from juli_backend.services.webhook.deployed import handle_tiktok_webhook_delivery
 from juli_backend.services.webhook.material_dispatch import (
     material_compute_env_ready,
     maybe_enqueue_material_analytics_compute,
@@ -76,11 +73,6 @@ def _event_payload(event_type: str, shop_id: str = "tiktok_shop_625") -> bytes:
             "update_time": 1_700_000_000,
         }
     return json.dumps(body).encode()
-
-
-def _sign(body: bytes) -> str:
-    sign_string = f"{APP_KEY}{WEBHOOK_PATH}{body.decode()}"
-    return hmac.new(APP_SECRET.encode(), sign_string.encode(), hashlib.sha256).hexdigest()
 
 
 @pytest.fixture
@@ -202,73 +194,6 @@ class TestConcurrentMaterialMutex:
         assert dispatcher.enqueue.call_count == 1
 
 
-class TestDeployedWebhookAssembly:
-    @pytest.mark.asyncio
-    async def test_ac4_deployed_delivery_enqueues_after_etl(
-        self, session, material_env, monkeypatch
-    ):
-        from juli_backend.services.webhook import material_dispatch
-
-        dispatcher = MagicMock()
-        dispatcher.enqueue.return_value = "deployed-task-625"
-        gate = InMemoryMaterialEnqueueGate()
-        monkeypatch.setattr(material_dispatch, "_dispatcher", dispatcher)
-        monkeypatch.setattr(material_dispatch, "_gate", gate)
-
-        ingest_outcomes = iter([ProcessOutcome.PROCESSED])
-
-        async def fake_ingest(self, _record):
-            return next(ingest_outcomes)
-
-        monkeypatch.setattr(
-            "juli_backend.services.etl.consumer.EtlConsumer.ingest",
-            fake_ingest,
-        )
-
-        body = _event_payload("ORDER_STATUS_CHANGE")
-        result = await handle_tiktok_webhook_delivery(
-            session=session,
-            app_key=APP_KEY,
-            app_secret=APP_SECRET,
-            body=body,
-            signature=_sign(body),
-            headers={"Content-Type": "application/json"},
-        )
-
-        assert result.status_code == 200
-        dispatcher.enqueue.assert_called_once_with("tiktok_shop_625")
-
-    @pytest.mark.asyncio
-    async def test_ac4_build_webhook_service_uses_material_handoff(self, material_env, monkeypatch):
-        from juli_backend.services.webhook import material_dispatch
-
-        dispatcher = MagicMock()
-        dispatcher.enqueue.return_value = "assembly-task-625"
-        gate = InMemoryMaterialEnqueueGate()
-        monkeypatch.setattr(material_dispatch, "_dispatcher", dispatcher)
-        monkeypatch.setattr(material_dispatch, "_gate", gate)
-
-        consumer = MagicMock()
-        consumer.ingest = AsyncMock(return_value=ProcessOutcome.PROCESSED)
-
-        service = build_webhook_service(
-            app_key=APP_KEY,
-            app_secret=APP_SECRET,
-            handoff_fn=make_material_etl_handoff(consumer),  # same wiring as deployed.py
-        )
-
-        body = _event_payload("PRODUCT_STATUS_CHANGE")
-        result = await service.handle(
-            body=body,
-            signature=_sign(body),
-            headers={"Content-Type": "application/json"},
-        )
-
-        assert result.status_code == 200
-        consumer.ingest.assert_awaited_once()
-        dispatcher.enqueue.assert_called_once_with("tiktok_shop_625")
-
-
 class TestMissingEnvSkipsEnqueue:
     def test_ac5_missing_env_does_not_enqueue(self, monkeypatch, caplog):
         monkeypatch.delenv("TIKTOK_APP_KEY", raising=False)
@@ -354,6 +279,10 @@ class TestForbiddenPollHelpersNotCalled:
                 "juli_backend.workers.services.polling._FUJIWA_POLL_STEPS",
                 create=True,
             ) as poll_steps,
+            patch(
+                "juli_backend.workers.services.polling.sync.sync_analytics",
+                create=True,
+            ) as sync_analytics,
         ):
             handoff = make_material_etl_handoff(consumer)
             await handoff(
@@ -364,3 +293,4 @@ class TestForbiddenPollHelpersNotCalled:
 
         poll_cycle.assert_not_called()
         poll_steps.assert_not_called()
+        sync_analytics.assert_not_called()
