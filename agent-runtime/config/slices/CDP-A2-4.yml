@@ -11,9 +11,9 @@ CDP-A2-4:
     - backend/src/juli_backend/services/cdp_batch/MODULE.md
     - backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py
     - backend/src/juli_backend/services/cdp_batch/__init__.py
-    - backend/src/juli_backend/services/webhook/material_gate.py
     - tests/unit/test_cdp_batch_shop_compute_mutex.py
   loadWhenNeeded:
+    - backend/src/juli_backend/services/webhook/material_gate.py
     - docs/architecture/map.md
     - .cursor/skills/domain/testing-patterns/python-testing.md
     - .cursor/skills/domain/testing-patterns/python-patterns.md
