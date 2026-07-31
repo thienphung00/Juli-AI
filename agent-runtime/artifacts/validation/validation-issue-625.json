@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-625",
   "issue": 625,
-  "timestamp": "2026-07-31T00:54:47Z",
+  "timestamp": "2026-07-31T00:57:10Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 21,
@@ -25,8 +25,8 @@
         "executorDomain": "backend",
         "phaseRunId": "625-20260731T002942",
         "executionDurationMs": 0,
-        "contextFileCount": 7,
-        "rulesLoadedCount": 2,
+        "contextFileCount": 6,
+        "rulesLoadedCount": 0,
         "mcpsUsedCount": 0,
         "tokenUsageTotal": 0
       }
@@ -242,8 +242,9 @@
           },
           "validation": {
             "required": false,
-            "present": false,
-            "status": "skipped"
+            "present": true,
+            "phaseRunId": "625-20260731T002942",
+            "status": "matched"
           }
         }
       }
