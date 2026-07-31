@@ -1,0 +1,29 @@
+CDP-A2-2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/029-phase-2.9-analytics-historical-backfill.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/integrations/tiktok_api/rate-limits.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+  requiredModules:
+    - backend/src/juli_backend/services/analytics_backfill/budget.py
+    - backend/src/juli_backend/services/cdp_batch/MODULE.md
+    - backend/src/juli_backend/services/cdp_batch/partner_budget.py
+    - backend/src/juli_backend/services/cdp_batch/__init__.py
+    - tests/unit/test_cdp_batch_partner_budget.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/analytics_backfill/MODULE.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
