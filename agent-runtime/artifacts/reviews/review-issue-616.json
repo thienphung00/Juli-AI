@@ -1,0 +1,89 @@
+{
+  "id": "review-issue-616",
+  "issue": 616,
+  "timestamp": "2026-07-31T01:14:41Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #616 PartnerApiBudgetGovernor: intent-review spec_fidelity=pass consumed as given. Wrap-only facade over CallBudgetGovernor; 11 unit tests map all ACs. No reliability/security/observability/performance blockers. analytics_backfill/budget.py untouched. Modular monolith four questions satisfied.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/cdp_batch/partner_budget.py",
+    "backend/src/juli_backend/services/cdp_batch/__init__.py",
+    "tests/unit/test_cdp_batch_partner_budget.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/cdp_batch",
+      "interface": "PartnerApiBudgetGovernor / begin_partner_budget_run / DEFER_REASON",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Per-run Partner HTTP attempt budget with batch defer semantics for CDP reconcile (#616)."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Governor tracks attempts per run and respects configurable soft/hard caps (reuse or wrap existing 400/499 pattern where appropriate).",
+          "test": "tests/unit/test_cdp_batch_partner_budget.py::test_respects_soft_hard_caps_under_limit"
+        },
+        {
+          "criterion": "On exhaustion: defer semantics \u2014 job/partition not marked complete; finish(\"partner_budget_exhausted\") emitted in structured logs.",
+          "test": "tests/unit/test_cdp_batch_partner_budget.py::test_finish_partner_budget_exhausted_defers_partition"
+        },
+        {
+          "criterion": "Unit tests: budget cap reached \u2192 defer path; under cap \u2192 consume succeeds \u2014 no live Partner HTTP in PR lane.",
+          "test": "tests/unit/test_cdp_batch_partner_budget.py::test_try_consume_defers_at_hard_cap"
+        },
+        {
+          "criterion": "Observability fields include attempts, successes, defer reason; never log tokens/PII.",
+          "test": "tests/unit/test_cdp_batch_partner_budget.py::test_structured_log_fields_never_include_secrets"
+        },
+        {
+          "criterion": "Does not absorb Postgres I/O throttling (A2 owns dual budgets separately).",
+          "test": "tests/unit/test_cdp_batch_partner_budget.py::test_module_documents_dual_budget_separate_from_postgres_io"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 11,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "6516116f...HEAD on feature/issue-616-partner-budget (fixedPoint #615 tip)",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-616.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-616.json",
+  "reviewDurationMs": 120000,
+  "phaseRunId": "2026-07-31T0104Z",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [],
+  "severity": "none",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "suggestedRemediation": []
+}
