@@ -1220,10 +1220,19 @@ class AnalyticsBackfillPartitionsRepo:
         self._session = session
 
     @staticmethod
-    def _validate_bucket(bucket: str) -> None:
+    def validate_bucket(bucket: str) -> None:
         if bucket not in _BACKFILL_BUCKETS:
             msg = f"Invalid backfill bucket {bucket!r}; expected one of {sorted(_BACKFILL_BUCKETS)}"
             raise ValueError(msg)
+
+    async def get_partition(
+        self,
+        shop_id: uuid.UUID,
+        bucket: str,
+        partition_date: date,
+    ) -> AnalyticsBackfillPartition | None:
+        """Return the durable partition row for ``(shop_id, bucket, partition_date)``."""
+        return await self._get_row(shop_id, bucket, partition_date)
 
     async def _get_row(
         self,
@@ -1231,7 +1240,7 @@ class AnalyticsBackfillPartitionsRepo:
         bucket: str,
         partition_date: date,
     ) -> AnalyticsBackfillPartition | None:
-        self._validate_bucket(bucket)
+        self.validate_bucket(bucket)
         stmt = select(AnalyticsBackfillPartition).where(
             AnalyticsBackfillPartition.shop_id == shop_id,
             AnalyticsBackfillPartition.bucket == bucket,
@@ -1246,7 +1255,7 @@ class AnalyticsBackfillPartitionsRepo:
         bucket: str,
         partition_date: date,
     ) -> AnalyticsBackfillPartition:
-        self._validate_bucket(bucket)
+        self.validate_bucket(bucket)
         row = await self._get_row(shop_id, bucket, partition_date)
         if row is None:
             row = AnalyticsBackfillPartition(
@@ -1273,7 +1282,7 @@ class AnalyticsBackfillPartitionsRepo:
         *,
         retryable: bool = True,
     ) -> AnalyticsBackfillPartition:
-        self._validate_bucket(bucket)
+        self.validate_bucket(bucket)
         row = await self._get_row(shop_id, bucket, partition_date)
         if row is None:
             row = AnalyticsBackfillPartition(
@@ -1310,7 +1319,7 @@ class AnalyticsBackfillPartitionsRepo:
         start: date,
         end: date,
     ) -> list[AnalyticsBackfillPartition]:
-        self._validate_bucket(bucket)
+        self.validate_bucket(bucket)
         if end < start:
             return []
         stmt = (

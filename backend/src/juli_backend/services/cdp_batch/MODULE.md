@@ -59,6 +59,33 @@ the ETL ingest ``material_analytics:mutex:*`` gate or per-shop asyncio backpress
 
 Structured log fields on defer: ``defer_reason``, ``stopped_reason``.
 
+### Partition checkpoints (#620)
+
+Partition-resumable batch reconcile via ``ops.analytics_backfill_partitions`` only
+(A0 #604 — no ``public`` dual-write). Reuses ADR-029 partition patterns via public
+``AnalyticsBackfillPartitionsRepo.get_partition`` / ``validate_bucket``; mid-partition
+page cursors encoded in ``last_error`` while status is ``pending``.
+
+- ``BatchPartitionCheckpointsRepo(session)`` — ``get_checkpoint`` / ``save_checkpoint`` /
+  ``mark_complete`` / ``is_complete`` on ``ops.analytics_backfill_partitions`` only
+- ``reconcile_partition_with_checkpoints(...)`` — orchestrator hook: paginated fetch →
+  append-only bronze ingest; partial failure or Partner budget defer persists cursor;
+  next run resumes without re-fetching completed pages
+- ``append_reconcile_bronze_page(...)`` — one bronze row per fetched page; idempotent
+  by deterministic ``source_event_id`` (``batch-reconcile:{date}:page:{token}``)
+- ``recover_checkpoint_from_bronze(...)`` — rebuilds cursor from bronze ``_batch_reconcile``
+  metadata when ops checkpoint missing after crash
+- ``PartitionPageCheckpoint`` — ``page_token`` + ``pages_completed``
+- ``BATCH_RECONCILE_INGEST_SOURCE`` — bronze ``ingest_source`` constant (``batch_reconcile``)
+
+**Transaction contract:** bronze append and ops checkpoint writes share one
+``AsyncSession``; callers ``commit`` once after the orchestrator returns. Rollback
+discards both. Crash after bronze commit without ops checkpoint is recovered via
+page-level idempotency + bronze metadata — completed pages are never re-appended.
+
+Structured log fields: ``shop_id``, ``bucket``, ``partition_date``, ``pages_completed``,
+``page_token``, ``defer_reason``. Never logs tokens or PII.
+
 ### Deferred (later A2 slices)
 
 - ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
@@ -92,3 +119,6 @@ Pure in-memory; no I/O. Safe for PR CI without live credentials.
 - ``tests/unit/test_cdp_batch_shop_compute_mutex.py`` — batch defer on
   ``speed_mutex_active``, contention with speed owner, last-good gold unchanged;
   InMemory + FakeSyncRedis only.
+- ``tests/unit/test_cdp_batch_partition_checkpoints.py`` — ops-only partition repo,
+  mid-partition failure → resume without duplicating bronze pages, crash-after-bronze
+  recovery, shared-session rollback contract, budget defer; fixture fetchers only.

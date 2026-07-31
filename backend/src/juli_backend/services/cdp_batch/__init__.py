@@ -1,5 +1,12 @@
 """CDP batch layer — fleet throughput reconcile (Phase 3.5-A2)."""
 
+from juli_backend.services.cdp_batch.partition_checkpoints import (
+    BATCH_RECONCILE_INGEST_SOURCE,
+    BatchPartitionCheckpointsRepo,
+    BatchPartitionReconcileResult,
+    PartitionPageCheckpoint,
+    reconcile_partition_with_checkpoints,
+)
 from juli_backend.services.cdp_batch.partner_budget import (
     DEFER_REASON,
     PartnerApiBudgetGovernor,
@@ -28,10 +35,14 @@ from juli_backend.services.cdp_batch.stagger_scheduler import (
 )
 
 __all__ = [
+    "BATCH_RECONCILE_INGEST_SOURCE",
     "BatchComputeEntryResult",
+    "BatchPartitionCheckpointsRepo",
+    "BatchPartitionReconcileResult",
     "COMPUTE_MUTEX_TTL_SECONDS",
     "ComputeOwner",
     "DEFER_REASON",
+    "PartitionPageCheckpoint",
     "InMemoryShopComputeMutex",
     "MINUTES_PER_UTC_DAY",
     "PartnerApiBudgetGovernor",
@@ -44,6 +55,7 @@ __all__ = [
     "assign_window",
     "begin_partner_budget_run",
     "compute_mutex_key",
+    "reconcile_partition_with_checkpoints",
     "try_begin_batch_compute",
     "window_minute_for_shop",
 ]
