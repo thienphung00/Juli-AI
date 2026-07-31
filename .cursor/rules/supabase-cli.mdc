@@ -1,0 +1,59 @@
+---
+description: >-
+  Supabase CLI for schema, RLS, auth, and local DB ops across plan, implement,
+  and debug/fix. Focus/Meta selects — never always-on. Not an MCP.
+alwaysApply: false
+---
+
+# Supabase CLI (Focus-selected only)
+
+**Do not use unless Focus/Meta selected Supabase** for this turn (Context Plan or
+explicit data-platform / schema / auth need). Prefer repo Alembic migrations,
+`MODULE.md`, and ADRs when they already answer the question.
+
+**Use for (plan / implement / debug-fix):**
+- Planning: schema/RLS/auth feasibility (`--help`, `status`, migration list)
+- Implementation: Supabase-specific ops (migration helpers, local `db` commands)
+- Debug/fix: `status`, logs, SQL/advisors via CLI to verify fixes
+
+**Do not use for:** ad-hoc chat without plan/implement/debug need, review-only
+smell passes, product-policy prose, or when Alembic + repo docs already suffice.
+
+## Invocation
+
+Canonical (harness contract):
+
+```bash
+npx --yes supabase@latest <command>
+```
+
+PATH `supabase` is fine when present. Discover commands via `--help` — never guess
+subcommands; CLI structure changes between versions.
+
+```bash
+npx --yes supabase@latest --help
+npx --yes supabase@latest --version
+npx --yes supabase@latest status
+npx --yes supabase@latest migration --help
+npx --yes supabase@latest db --help
+```
+
+Shell needs unrestricted network / home-dir writes for first `npx` fetch and
+CLI state under `~/.supabase`.
+
+## MCP is not used in this workspace
+
+Do **not** call Supabase MCP tools (`apply_migration`, `execute_sql`,
+`get_advisors`, etc.) and do **not** follow plugin-skill MCP fallbacks. Use this
+CLI, repo Alembic/scripts, or `psql` instead.
+
+Plugin skills (`supabase`, `supabase-postgres-best-practices`) remain for
+guidance; execution is CLI-only.
+
+## Safety
+
+- Never print or commit service-role / secret keys.
+- Review SQL before destructive ops; prefer reversible Alembic migrations.
+- Prefer local DB / project-linked CLI over remote production changes.
+
+Catalog entry: [skill-catalog](../skills/skill-catalog/SKILL.md) `catalog.cliTools`.

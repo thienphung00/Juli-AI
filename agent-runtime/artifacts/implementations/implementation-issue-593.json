@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 593,
+  "executorDomain": "backend",
+  "phaseRunId": "593-20260729-corpora",
+  "startedAt": "2026-07-29T08:30:00Z",
+  "completedAt": "2026-07-29T08:50:00Z",
+  "executionDurationMs": 1200000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Write",
+      "count": 20,
+      "stage": "green"
+    },
+    {
+      "toolName": "Shell",
+      "count": 12,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Read",
+      "count": 25,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Grep",
+      "count": 8,
+      "stage": "other"
+    },
+    {
+      "toolName": "StrReplace",
+      "count": 10,
+      "stage": "green"
+    }
+  ],
+  "toolInvocationCount": 75,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/meta-prepare-issue-593.json",
+    "docs/adr/051-tiktok-corpora-catalog-retrieval.md",
+    "docs/handoffs/issue-593.md",
+    "docs/product/phases/tiktok-corpora-catalog/PRD.md",
+    "CONTEXT.md",
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/standalone/focus/SKILL.md"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md",
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/intent-review/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/core-orchestration.mdc",
+    ".cursor/rules/git-baseline.mdc",
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "scripts/tiktok_corpora_catalog/__init__.py",
+    "scripts/tiktok_corpora_catalog/__main__.py",
+    "scripts/tiktok_corpora_catalog/builder.py",
+    "tests/unit/test_tiktok_corpora_catalog.py",
+    "tests/fixtures/tiktok_corpora_catalog/",
+    "docs/integrations/tiktok_corpora/README.md",
+    "docs/integrations/tiktok_corpora/business-catalog.json",
+    "docs/integrations/tiktok_corpora/academy-catalog.json",
+    "docs/integrations/tiktok_corpora/partner-catalog.json",
+    ".cursor/skills/standalone/focus/SKILL.md",
+    ".cursor/skills/standalone/focus/routing-rules.md",
+    "docs/adr/051-tiktok-corpora-catalog-retrieval.md",
+    "docs/adr/README.md",
+    "CONTEXT.md",
+    "docs/product/phases/tiktok-corpora-catalog/PRD.md",
+    "docs/handoffs/issue-593.md",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/config/agent-runtime.config.yml"
+  ],
+  "testsAdded": [
+    "tests/unit/test_tiktok_corpora_catalog.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "Fixture tests for front-matter→entry, _raw skip, and no body leakage written before builder (RED).",
+      "passingTestEvidence": "12 passed in tests/unit/test_tiktok_corpora_catalog.py after builder GREEN + doc-contract tests; real corpora regen produced 882/839/365 catalog entries with 0 partner _raw paths.",
+      "refactorEvidence": "CLI package under scripts/tiktok_corpora_catalog/; Focus phase gate + playbook documented without new Cursor skill.",
+      "commands": [
+        {
+          "command": ".venv/bin/python -m pytest tests/unit/test_tiktok_corpora_catalog.py -q",
+          "exitCode": 0,
+          "outputSummary": "9 passed"
+        },
+        {
+          "command": "PYTHONPATH=scripts .venv/bin/python -m tiktok_corpora_catalog --output docs/integrations/tiktok_corpora",
+          "exitCode": 0,
+          "outputSummary": "Wrote business/academy/partner-catalog.json; partner _raw excluded"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "CORPORA-1 wires ADR-051 catalog retrieval: TDD catalog builder regenerates thin JSON indexes from local TikTok corpora (skip _raw, no bodies); playbook + Focus route Architect/Meta only; Executor/Review DO NOT Load corpora. Meta epic 593 + CORPORA-1 slice routing registered. Manual smoke: Grep catalog→Read existing body OK; missing body fail-soft stated.",
+  "assumptions": [
+    "Corpus bodies remain outside git at /Users/macos/Juli-AI-local/tiktok-corpora/ (symlinks from adhoc).",
+    "phaseRunId 593-20260729-corpora correlates Meta/Executor/Review/Validate.",
+    "Local-only commit of harness/docs/catalogs; no public surfaces."
+  ],
+  "risks": [
+    "Catalogs drift if crawl happens without regen.",
+    "Machines without Juli-AI-local corpora fail soft on body Read (by design)."
+  ]
+}

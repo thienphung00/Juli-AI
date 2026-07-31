@@ -85,7 +85,8 @@ for **technical / domain implementation**:
 
 | Task signal | Plugin skill(s) | MCP / CLI |
 |-------------|-----------------|-----------|
-| TikTok API / webhooks | — | — (use `docs/integrations/tiktok_api/`, MODULE.md) |
+| TikTok API / webhooks (Executor/Review) | — | — (use `docs/integrations/tiktok_api/`, `tiktok_platform/`, MODULE.md) |
+| TikTok vendor depth / cross-corpus verification (Architect/Meta only) | — | — (`docs/integrations/tiktok_corpora/README.md` + selected catalog(s); ADR-051) |
 | New vendor API | `api-docs` | Context7 **CLI** when SDK/library refs needed |
 | Seller/creator policy | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Library/framework during domain implementation | — | Context7 **CLI** (`npx ctx7@latest`) — Focus-selected |
@@ -115,7 +116,8 @@ Detect what the implementation involves:
 | SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
 | Frontend component / page / form | → `ui-ux` executor; **design-reference:** `open-design-system` + Mobbin MCP **before** `ui-ux-design`; ADR-028 `dictionary.md` + `design-context.md` for implementation |
 | Background job | → Celery MCP, reliability, observability |
-| TikTok integration / webhook | → `integrations` executor, `docs/integrations/tiktok_api/`, `data-sources.md`, affected MODULE.md |
+| TikTok integration / webhook | → `integrations` executor, `docs/integrations/tiktok_api/`, `tiktok_platform/`, `data-sources.md`, affected MODULE.md |
+| TikTok vendor depth, gap-fill, cross-corpus synthesis | → **Architect/Meta only:** `docs/integrations/tiktok_corpora/README.md` + selected `{business,academy,partner}-catalog.json` → Grep → selective Read (ADR-051). **Executor/Review: DO NOT Load corpora.** |
 | Net-new vendor API / stale `docs/*_api/` | → `api-docs` skill first |
 | Marketplace policy / feature guide | → `platform-docs`; `docs/<vendor>_platform/` |
 | Automation / hooks changes | → `.cursor/rules/hooks.mdc` |
@@ -149,6 +151,20 @@ ALWAYS load:
 LOAD WHEN VENDOR/PLATFORM WORK:
   - docs/<vendor>_api/*.md as needed (auth, webhooks, endpoints, rate-limits)
   - docs/<vendor>_platform/*/implementation-hooks.md (guardrails, alerts, gates)
+
+LOAD WHEN ARCHITECT/META + TIKTOK VENDOR DEPTH (ADR-051; Planning or ad-hoc Meta only):
+  - docs/integrations/tiktok_corpora/README.md (playbook)
+  - Selected docs/integrations/tiktok_corpora/{business,academy,partner}-catalog.json
+  - Protocol: catalog → Grep → selective Read of matched pages under JULI_TIKTOK_CORPORA_ROOT
+    (default /Users/macos/Juli-AI-local/tiktok-corpora/{business,academy,partner}_documents/)
+  - Task defaults: Academy → UI/product/seller policy; Business+Partner → webhooks/API/data-model;
+    all three → cross-surface synthesis or curated gap/conflict
+  - Fail soft when local bodies missing — never invent page content
+
+PHASE GATE — EXECUTOR/REVIEW MUST NOT (TikTok corpora):
+  - Load docs/integrations/tiktok_corpora/*-catalog.json or this README for implementation/review
+  - Read markdown under JULI_TIKTOK_CORPORA_ROOT or Juli-AI-local/tiktok-corpora/
+  - Use raw corpus paths in Executor/Review caches — curated tiktok_api/tiktok_platform + ADRs only
 
 LOAD IF EXISTS (legacy only):
   - docs/product/features/<feature-name>/*.md — historical attachments; prefer canonical docs
@@ -239,6 +255,9 @@ Explicitly DO NOT load:
 - Historical context from previous unrelated work
 - Full codebase structure (only affected modules)
 - Completed/merged feature specs (unless referenced)
+- **Executor/Review:** `docs/integrations/tiktok_corpora/*-catalog.json`, corpus playbook for
+  vendor lookup, and any markdown under `JULI_TIKTOK_CORPORA_ROOT` / `Juli-AI-local/tiktok-corpora/`
+  (ADR-051 phase gate — use curated `tiktok_api` / `tiktok_platform` + ADRs only)
 
 ## Context Budget
 
@@ -307,6 +326,7 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 - Unselected marketplace plugin skills
 - MCP tool schemas for servers not listed above
 - Shopee/Lazada connector docs (out of scope per data-sources.md #13)
+- **Executor/Review (ADR-051):** `docs/integrations/tiktok_corpora/*`, `JULI_TIKTOK_CORPORA_ROOT` bodies
 ```
 
 ## Integration with Agent Roles
