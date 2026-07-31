@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-627",
   "issue": 627,
-  "timestamp": "2026-07-31T05:51:34Z",
+  "timestamp": "2026-07-31T06:20:27Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 21,
@@ -204,12 +204,15 @@
           "backend/src/juli_backend/services/cdp_speed/targeted_fetch_bronze_handoff.py",
           "backend/src/juli_backend/services/cdp_speed/targeted_fetch_executor.py",
           "backend/src/juli_backend/services/cdp_speed/targeted_fetch_sync.py",
+          "backend/src/juli_backend/services/etl/MODULE.md",
+          "backend/src/juli_backend/services/etl/__init__.py",
+          "backend/src/juli_backend/services/etl/bronze_append.py",
           "backend/src/juli_backend/services/webhook/material_dispatch.py",
           "backend/src/juli_backend/services/webhook/material_handoff.py",
           "backend/src/juli_backend/services/webhook/material_worker.py",
           "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py"
         ],
-        "cycleCount": 4
+        "cycleCount": 5
       }
     },
     {
@@ -251,8 +254,9 @@
           },
           "validation": {
             "required": false,
-            "present": false,
-            "status": "skipped"
+            "present": true,
+            "phaseRunId": "627-20260731T054500",
+            "status": "matched"
           }
         }
       }
@@ -297,8 +301,8 @@
   "validationFailures": 0,
   "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 77,
-  "testsPassed": 77,
+  "testsExecuted": 93,
+  "testsPassed": 93,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",

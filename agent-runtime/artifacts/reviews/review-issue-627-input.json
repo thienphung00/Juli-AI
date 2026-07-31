@@ -1,10 +1,11 @@
 {
   "reviewedBy": "guardrails skill",
   "status": "PASS",
-  "summary": "Issue #627 implements a shop-scoped Shared Compute speed job with strict bronze-to-silver-to-gold order, bounded orders/returns Partner fetch, per-trigger idempotency, safe structured logs, and material webhook/Celery wiring. Intent review passed; 77 related tests, ruff, mypy, and strict import-boundary checks pass.",
+  "summary": "Issue #627 implements a shop-scoped Shared Compute speed job with strict bronze-to-silver-to-gold order, bounded orders/returns Partner fetch, ETL-owned bronze persistence, per-trigger idempotency, safe structured logs, and material webhook/Celery wiring. Intent review passed; 93 related tests, ruff, mypy, medallion one-writer, and strict import-boundary checks pass.",
   "criticalFindings": [],
   "modulesTouched": [
     "backend/src/juli_backend/services/cdp_speed",
+    "backend/src/juli_backend/services/etl",
     "backend/src/juli_backend/services/webhook",
     "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
     "tests/unit",
@@ -57,7 +58,7 @@
       ]
     },
     "unit": {
-      "passed": 77,
+      "passed": 93,
       "failed": 0
     }
   },

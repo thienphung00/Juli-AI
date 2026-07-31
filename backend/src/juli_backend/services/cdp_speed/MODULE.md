@@ -39,7 +39,8 @@ from juli_backend.services.cdp_speed import (
 - ``job_correlation_token(shop_id, idempotency_key)`` — bounded log/bronze correlation token.
 - ``execute_targeted_fetch_to_bronze`` — production fetch boundary via ``targeted_fetch_sync``
   (orders/returns only; no workers imports).
-- ``make_targeted_fetch_bronze_handoff`` — append-only bronze writer for Partner rows.
+- ``make_targeted_fetch_bronze_handoff`` — Speed-layer adapter that delegates append-only
+  persistence to the ETL-owned bronze writer.
 - ``SharedComputeJob`` — ``shop_id``, ``shop_key``, ``enqueue_reason`` (``webhook_catalog:<id>`` or
   ``reconcile_hourly``), ``fetch_plan``, ``idempotency_key``, optional ``event_type``.
 - ``SharedComputeResult`` — ``bronze_appended``, ``silver_promoted``, ``gold_written``.
@@ -87,6 +88,7 @@ planner — batch gap plans live under ``cdp_batch`` (A2).
 
 - ``juli_backend.services.tiktok.webhook_catalog`` — material classification + event lookup
 - ``juli_backend.integrations.tiktok.constants`` — Partner API path constants
+- ``juli_backend.services.etl`` — one-writer-owned bronze append facade
 
 ## Must not
 

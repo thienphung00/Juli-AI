@@ -1,6 +1,6 @@
 # Parallel status — Meta A1 issue #627
 
-**Status: VALIDATED · READY TO COMMIT** (2026-07-31)
+**Status: PR OPEN · LOCAL FAST CI GREEN** (2026-07-31)
 **Parent PRD:** [#601](https://github.com/thienphung00/Juli-AI/issues/601)  
 **Slice:** `CDP-A1-3` Shared Compute Orchestrator  
 **Path fence:** `cdp_speed`, webhook material handoff, and related tests only
@@ -25,5 +25,14 @@
 - [x] Intent review
 - [x] Guardrails review
 - [x] Deterministic validation — PASS (21/21)
+- [x] Full fast functional suite — 1,479 passed, 7 skipped
+- [x] Full backend mypy — 285 source files clean
+- [x] PR opened — [#653](https://github.com/thienphung00/Juli-AI/pull/653)
 - [ ] PR CI green
 - [ ] Merged into `feature/a1-wave`
+
+## CI note
+
+GitHub reports no checks for PR #653 because the repository's PR Validation
+workflow does not trigger for the `feature/a1-wave` base. Local equivalents are
+green; merge remains gated on recording this branch-policy limitation.

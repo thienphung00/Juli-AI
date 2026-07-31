@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -54,15 +55,16 @@ def material_analytics_precompute_sync(
     shop_key: str,
     *,
     event_type: str | None = None,
-    enqueue_reason: str,
-    idempotency_key: str,
+    enqueue_reason: str = "reconcile_hourly",
+    idempotency_key: str | None = None,
 ) -> None:
+    job_key = idempotency_key or f"direct:{uuid.uuid4()}"
     asyncio.run(
         _compute_async(
             shop_key,
             event_type=event_type,
             enqueue_reason=enqueue_reason,
-            idempotency_key=idempotency_key,
+            idempotency_key=job_key,
         )
     )
 
