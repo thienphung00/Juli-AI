@@ -1,0 +1,156 @@
+{
+  "id": "review-issue-618",
+  "issue": 618,
+  "timestamp": "2026-07-31T05:30:43Z",
+  "reviewedBy": "review skill",
+  "status": "PASS",
+  "summary": "Issue #618 ShopComputeMutex: intent-review spec_fidelity=pass consumed as given. All five ACs mapped to gate-valid pytest nodes; 23/23 focused tests pass; ruff clean. Prior FAIL on AC1/AC5 test_gap superseded by Executor repair. No reliability/security/observability/performance blockers.",
+  "criticalFindings": [
+    {
+      "id": "618-info-redis-release-non-atomic",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
+      "description": "RedisShopComputeMutex.release uses get-then-delete rather than atomic compare-and-del Lua; acceptable for v1 mutex with TTL safety net.",
+      "suggestion": "Optional A1 follow-up: Lua compare-and-del if speed/batch release races become observable."
+    },
+    {
+      "id": "618-info-speed-wiring-deferred",
+      "type": "architecture",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
+      "description": "Speed acquire/release callers not wired in this slice; API published on cdp_batch package for A1 per issue scope.",
+      "suggestion": "Wire speed Shared Compute to ShopComputeMutex in A1 without duplicating mutex logic."
+    }
+  ],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
+    "backend/src/juli_backend/services/cdp_batch/__init__.py",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "tests/unit/test_cdp_batch_shop_compute_mutex.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/cdp_batch",
+      "interface": "ShopComputeMutex / try_begin_batch_compute / compute_mutex_key",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Shared Redis mutex API for batch and speed Shared Compute exclusion (#618)."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Mutex acquire/release API documented for batch and speed callers.",
+          "test": "tests/unit/test_cdp_batch_shop_compute_mutex.py::test_mutex_acquire_release_api_documented_for_batch_and_speed_callers"
+        },
+        {
+          "criterion": "Batch entry: lock held \u2192 defer with speed_mutex_active; lock free \u2192 batch proceeds.",
+          "test": "tests/unit/test_cdp_batch_shop_compute_mutex.py::test_batch_entry_defers_when_speed_active"
+        },
+        {
+          "criterion": "Unit/integration tests with Redis fake or test container: contention defers batch; no concurrent batch+speed compute for same shop_id in test scenario.",
+          "test": "tests/unit/test_cdp_batch_shop_compute_mutex.py::test_speed_and_batch_cannot_both_hold_lock"
+        },
+        {
+          "criterion": "Negative test: active speed lock \u2192 batch job deferred, last-good gold unchanged.",
+          "test": "tests/unit/test_cdp_batch_shop_compute_mutex.py::test_active_speed_lock_leaves_last_good_gold_unchanged"
+        },
+        {
+          "criterion": "Does not implement A1 material webhook handoff or speed precompute (A1 scope).",
+          "test": "tests/unit/test_cdp_batch_shop_compute_mutex.py::test_does_not_implement_a1_material_webhook_handoff_or_speed_precompute"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 23,
+      "failed": 0
+    }
+  },
+  "recommendations": [
+    "Commit working-tree changes before PR so CI gates see tracked diff",
+    "Wire speed Shared Compute to ShopComputeMutex in A1 (#601 family)"
+  ],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [
+    {
+      "id": "618-test-gap-ac1-api-docs",
+      "description": "AC1 lacked validate-gate-aligned pytest node mapping",
+      "resolved": true,
+      "resolvedInCommit": "uncommitted Executor repair"
+    },
+    {
+      "id": "618-test-gap-ac5-a1-scope",
+      "description": "AC5 lacked validate-gate-aligned pytest node mapping",
+      "resolved": true,
+      "resolvedInCommit": "uncommitted Executor repair"
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "intentReviewHandoff": {
+    "spec_fidelity": "pass",
+    "smellsImported": 0,
+    "conventionNotesImported": 1,
+    "blockingSmellsFolded": 0,
+    "acCoverageSkipped": false
+  },
+  "reviewBasis": "feature/a2-wave@47b8aac9..working-tree on feature/issue-618-shop-compute-mutex (uncommitted tracked + untracked)",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-618.json",
+  "intentReviewRef": "agent-runtime/artifacts/intent-reviews/intent-review-issue-618.json",
+  "reviewDurationMs": 90000,
+  "phaseRunId": "2026-07-31T0524Z",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "findings": [
+    {
+      "id": "618-info-redis-release-non-atomic",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
+      "description": "RedisShopComputeMutex.release uses get-then-delete rather than atomic compare-and-del Lua; acceptable for v1 mutex with TTL safety net.",
+      "suggestion": "Optional A1 follow-up: Lua compare-and-del if speed/batch release races become observable."
+    },
+    {
+      "id": "618-info-speed-wiring-deferred",
+      "type": "architecture",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
+      "description": "Speed acquire/release callers not wired in this slice; API published on cdp_batch package for A1 per issue scope.",
+      "suggestion": "Wire speed Shared Compute to ShopComputeMutex in A1 without duplicating mutex logic."
+    }
+  ],
+  "severity": "low",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "id": "618-info-redis-release-non-atomic",
+      "type": "other",
+      "severity": "INFO",
+      "actionRequired": false,
+      "module": "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
+      "description": "RedisShopComputeMutex.release uses get-then-delete rather than atomic compare-and-del Lua; acceptable for v1 mutex with TTL safety net.",
+      "suggestion": "Optional A1 follow-up: Lua compare-and-del if speed/batch release races become observable."
+    }
+  ],
+  "suggestedRemediation": [
+    "Optional A1 follow-up: Lua compare-and-del if speed/batch release races become observable.",
+    "Wire speed Shared Compute to ShopComputeMutex in A1 without duplicating mutex logic."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true
+}

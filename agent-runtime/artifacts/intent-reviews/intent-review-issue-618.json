@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-618",
+  "issue": 618,
+  "timestamp": "2026-07-31T05:30:43Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "47b8aac99f9ef1c7f84c6596997b06928b618dd2",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Working tree vs feature/a2-wave@47b8aac9 (#618 CDP-A2-4). shop_compute_mutex.py publishes ShopComputeMutex acquire/release (InMemory + Redis backends), compute:{shop_id} key with COMPUTE_MUTEX_TTL_SECONDS=600, try_begin_batch_compute batch entry gate deferring with speed_mutex_active when speed owns lock, and package exports including SPEED_MUTEX_DEFER_REASON. MODULE.md documents API, TTL, defer fields, and distinction from material_analytics ingest mutex. Executor repair adds gate-aligned tests test_mutex_acquire_release_api_documented_for_batch_and_speed_callers and test_does_not_implement_a1_material_webhook_handoff_or_speed_precompute; 23/23 tests pass. No A1 speed wiring or webhook handoff imports.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "code-quality.mdc \u2014 import layout",
+      "path": "backend/src/juli_backend/services/cdp_batch/__init__.py",
+      "note": "Two import blocks from shop_compute_mutex remain (DEFER_REASON alias); minor style only.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "2026-07-31T0524Z",
+  "summary": "Spec fidelity pass: ShopComputeMutex API, batch defer gate, MODULE docs, gate-aligned AC tests, and scope exclusion match #618 intent; prior AC-mapping FAIL superseded by Executor repair."
+}

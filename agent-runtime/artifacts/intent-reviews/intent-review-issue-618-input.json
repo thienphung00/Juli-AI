@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "fixedPoint": "47b8aac99f9ef1c7f84c6596997b06928b618dd2",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Working tree vs feature/a2-wave@47b8aac9 (#618 CDP-A2-4). shop_compute_mutex.py publishes ShopComputeMutex acquire/release (InMemory + Redis backends), compute:{shop_id} key with COMPUTE_MUTEX_TTL_SECONDS=600, try_begin_batch_compute batch entry gate deferring with speed_mutex_active when speed owns lock, and package exports including SPEED_MUTEX_DEFER_REASON alias distinct from partner DEFER_REASON. MODULE.md documents API, TTL, defer fields, and distinction from material_analytics ingest mutex. 12 unit tests + partner budget regression (23 passed). No A1 speed wiring, webhook handoff, or cdp_speed imports.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "code-quality.mdc — import layout",
+      "path": "backend/src/juli_backend/services/cdp_batch/__init__.py",
+      "note": "Two separate import blocks from shop_compute_mutex (one for DEFER_REASON alias); could merge into one import without behaviour change.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "2026-07-31T0524Z",
+  "summary": "Spec fidelity pass: ShopComputeMutex API, batch defer gate, MODULE docs, and PR-safe tests match #618 / a2-batch.md CDP-A2-4 intent; speed side intentionally deferred to A1."
+}
