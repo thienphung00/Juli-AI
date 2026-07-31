@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-620",
+  "issue": 620,
+  "timestamp": "2026-07-31T06:15:50Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "f9bcde06",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Uncommitted diff vs f9bcde06 implements CDP-A2-5 repairs: BatchPartitionCheckpointsRepo uses public AnalyticsBackfillPartitionsRepo.get_partition/validate_bucket; reconcile_partition_with_checkpoints lands idempotent append-only bronze pages (deterministic source_event_id + _batch_reconcile metadata), persists batch_checkpoint:v1 cursors in last_error, recovers from bronze when ops checkpoint missing, and documents shared-session commit/rollback contract. Matches #620 partition-resumable checkpoint intent without BatchReconcileOrchestrator scope creep.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "cdp_batch MODULE.md \u2014 partition checkpoint transaction contract",
+      "path": "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+      "note": "MODULE.md documents append_reconcile_bronze_page, recover_checkpoint_from_bronze, shared AsyncSession commit/rollback semantics, and crash-after-bronze recovery path",
+      "blocksMerge": false
+    },
+    {
+      "standard": "ADR-029 / Phase 2.9 partition patterns \u2014 cursor in durable store",
+      "path": "backend/src/juli_backend/services/cdp_batch/partition_checkpoints.py",
+      "note": "Ops cursor encoded in last_error while pending; bronze metadata fallback when checkpoint absent after crash",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "620-20260731T060732",
+  "modularMonolithAttestation": {
+    "doesItWork": "36 focused/regression pytest nodes pass including crash-after-bronze recovery and shared-session rollback",
+    "belongsInModule": "cdp_batch owns checkpoint hook; public repo adapter on AnalyticsBackfillPartitionsRepo keeps partition access in repos layer",
+    "forbiddenDependencies": "module_boundaries gate PASS after repos.py public get_partition/validate_bucket addition",
+    "extractableLater": "Protocol fetcher, injectable budget, append_reconcile_bronze_page helper \u2014 orchestrator wiring deferred"
+  }
+}

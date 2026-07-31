@@ -91,9 +91,58 @@ Structured defer: ``gap_not_detected`` when no gap requires fetch. Fake Refresh 
 public Demo traffic must **not** invoke the planner — use
 ``is_batch_fetch_trigger_allowed`` before calling ``plan_batch_fetch``.
 
+### Partition checkpoints (#620)
+
+Partition-resumable batch reconcile via ``ops.analytics_backfill_partitions`` only
+(A0 #604 — no ``public`` dual-write). Reuses ADR-029 partition patterns via public
+``AnalyticsBackfillPartitionsRepo.get_partition`` / ``validate_bucket``; mid-partition
+page cursors encoded in ``last_error`` while status is ``pending``.
+
+- ``BatchPartitionCheckpointsRepo(session)`` — ``get_checkpoint`` / ``save_checkpoint`` /
+  ``mark_complete`` / ``is_complete`` on ``ops.analytics_backfill_partitions`` only
+- ``reconcile_partition_with_checkpoints(...)`` — orchestrator hook: paginated fetch →
+  append-only bronze ingest; partial failure or Partner budget defer persists cursor;
+  next run resumes without re-fetching completed pages
+- ``append_reconcile_bronze_page(...)`` — one bronze row per fetched page; idempotent
+  by deterministic ``source_event_id`` (``batch-reconcile:{date}:page:{token}``)
+- ``recover_checkpoint_from_bronze(...)`` — rebuilds cursor from bronze ``_batch_reconcile``
+  metadata when ops checkpoint missing after crash
+- ``PartitionPageCheckpoint`` — ``page_token`` + ``pages_completed``
+- ``BATCH_RECONCILE_INGEST_SOURCE`` — bronze ``ingest_source`` constant (``batch_reconcile``)
+
+**Transaction contract:** bronze append and ops checkpoint writes share one
+``AsyncSession``; callers ``commit`` once after the orchestrator returns. Rollback
+discards both. Crash after bronze commit without ops checkpoint is recovered via
+page-level idempotency + bronze metadata — completed pages are never re-appended.
+
+Structured log fields: ``shop_id``, ``bucket``, ``partition_date``, ``pages_completed``,
+``page_token``, ``defer_reason``. Never logs tokens or PII.
+
+### PostgresIoBudgetGovernor (#617)
+
+Per-run Postgres I/O caps for batch reconcile bronze flush, silver upsert batch,
+and concurrent shop jobs. Independent from Partner API budget.
+
+- ``begin_postgres_io_budget_run(...)`` → fresh governor (env knobs:
+  ``BATCH_BRONZE_ROWS_PER_FLUSH``, ``BATCH_SILVER_UPSERT_BATCH_SIZE``,
+  ``BATCH_MAX_CONCURRENT_SHOPS``)
+- ``try_bronze_flush(row_count)`` → ``True`` when row count ≤ flush cap
+- ``try_silver_upsert(row_count)`` → ``True`` when row count ≤ batch cap
+- ``try_acquire_shop()`` / ``release_shop()`` — concurrent shop slot tracking
+- ``should_defer()`` → ``True`` once any I/O dimension rejects an operation
+- ``finish("postgres_io_throttled")`` → structured logs; partition **not** complete
+- ``finish("complete")`` → ``implies_partition_complete`` is ``True``
+- ``POSTGRES_IO_DEFER_REASON`` / ``DEFER_REASON`` — constant ``"postgres_io_throttled"``
+
+Structured log fields: ``bronze_flush_size``, ``silver_batch_size``,
+``concurrent_shop_count``, ``batch_postgres_io_deferred_total``, ``stopped_reason``,
+``defer_reason``. Never logs tokens or PII.
+
+Orthogonal to ``PartnerApiBudgetGovernor`` (#616) — dual budgets required for A2 exit.
+**Partner-only budget without I/O governor is not sufficient for A2 exit.**
+
 ### Deferred (later A2 slices)
 
-- ``PostgresIoBudgetGovernor`` — bronze/silver I/O throttle (#617)
 - ``BatchReconcileOrchestrator`` — shop-scoped fetch → Shared Compute → gold
 
 ## Scheduler deployment
@@ -108,7 +157,7 @@ matches ``minute_of_day``. Mechanism is flexible; determinism is not.
 - Hourly Fujiwa exception (remains **A1 Speed** per ADR-048)
 - Partner API calls, Postgres fleet queries, Redis mutex
 - ``is_due`` slot runner, Celery Beat schedule wiring
-- Postgres I/O governor (#617) and batch orchestrator (CDP-A2-3+)
+- Batch orchestrator (CDP-A2-4+)
 
 ## Dependencies
 
@@ -126,3 +175,8 @@ Pure in-memory; no I/O. Safe for PR CI without live credentials.
 - ``tests/unit/test_cdp_batch_fetch_planner.py`` — gap-gated bounded plans,
   ``gap_not_detected`` defer, P1 finance/video sequencing, A1 boundary negative
   tests, Fake Refresh guard; no live Partner HTTP.
+- ``tests/unit/test_cdp_batch_partition_checkpoints.py`` — ops-only partition repo,
+  mid-partition failure → resume without duplicating bronze pages, crash-after-bronze
+  recovery, shared-session rollback contract, budget defer; fixture fetchers only.
+- ``tests/unit/test_cdp_batch_postgres_io_budget.py`` — I/O cap defer,
+  under-cap promotion, concurrent shop slots, dual-budget negative AC; no live Supabase.
