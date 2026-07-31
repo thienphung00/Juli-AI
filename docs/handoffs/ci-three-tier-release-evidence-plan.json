@@ -1,0 +1,71 @@
+{
+  "planId": "ci-three-tier-gates-2026-07-31",
+  "affectedPublicSurfaces": [
+    "GitHub pull-request merge gates for issue, wave, and main branches",
+    "Production release eligibility after merge to main"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "GitHub Actions checks on feature/ci-three-tier-gates and wave branches",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "three-tier-ci-candidate",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "issue pull requests receive fast checks",
+          "wave pushes receive integration checks",
+          "wave-to-main pull requests receive full pre-merge checks",
+          "pull-request workflows never deploy"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "GitHub Actions workflow visualization"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "workflow-yaml"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No database or API schema changes; the change only expands CI triggers and gates."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge the CI pull request; existing two-tier workflow remains active.",
+    "postCutoverFailureBehavior": "Revert the CI workflow commit and resync wave branches from main.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_three_tier_ci_contract.py -q",
+    "python -m pytest tests/unit/test_mmu3_architecture_gates_contract.py tests/unit/test_issue_397_demo_workspace_contract.py -q",
+    "actionlint .github/workflows/pr.yml"
+  ],
+  "doNotInfer": [
+    "pull-request checks deploy production",
+    "runtime smoke tests prove production p95 or throughput",
+    "wave branches are protected by GitHub rulesets",
+    "live TikTok sandbox calls run on issue or wave tiers"
+  ]
+}
