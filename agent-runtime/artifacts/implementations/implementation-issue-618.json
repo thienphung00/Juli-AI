@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 618,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-31T0524Z",
+  "startedAt": "2026-07-31T05:24:30Z",
+  "completedAt": "2026-07-31T05:24:30Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/config/slices/CDP-A2-4.yml",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/webhook/material_gate.py",
+    "docs/handoffs/phase-3.5-prd-bodies/a2-batch.md",
+    "tests/unit/test_cdp_batch_partner_budget.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "tests/unit/test_cdp_batch_shop_compute_mutex.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-618.json"
+  ],
+  "testsAdded": [
+    "tests/unit/test_cdp_batch_shop_compute_mutex.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "12 failed \u2014 ModuleNotFoundError for shop_compute_mutex; MODULE.md missing speed_mutex_active docs before implementation",
+      "passingTestEvidence": "23 passed (12 mutex + 11 partner budget regression) covering batch defer on speed_mutex_active, speed/batch contention, Redis fake, TTL expiry, last-good gold unchanged",
+      "refactorEvidence": "Separated SPEED_MUTEX_DEFER_REASON package export from partner DEFER_REASON; ruff format/fix on imports",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_shop_compute_mutex.py -v (RED)",
+          "exitCode": 1,
+          "outputSummary": "12 failed \u2014 module missing"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_shop_compute_mutex.py tests/unit/test_cdp_batch_partner_budget.py -v",
+          "exitCode": 0,
+          "outputSummary": "23 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Review/validation AC mapping gaps for AC1 and AC5",
+      "passingTestEvidence": "23 passed after AC-mapped test names added",
+      "refactorEvidence": "Consolidated duplicate shop_compute_mutex imports in cdp_batch/__init__.py",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_shop_compute_mutex.py tests/unit/test_cdp_batch_partner_budget.py -v",
+          "exitCode": 0,
+          "outputSummary": "23 passed"
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "failingTestEvidence": "Meta merge-block: non-atomic Redis GET+DELETE release and GET+SET refresh could clobber opposite owner after TTL rollover; bytes responses not normalized",
+      "passingTestEvidence": "29 passed \u2014 atomic Lua release/refresh, bytes normalization, legacy race reproduction tests prove old pattern clobbers while new impl preserves opposite owner",
+      "refactorEvidence": "FakeSyncRedis eval for Lua scripts; LegacyRacyFakeSyncRedis documents pre-fix failure mode",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_shop_compute_mutex.py tests/unit/test_cdp_batch_partner_budget.py -v",
+          "exitCode": 0,
+          "outputSummary": "29 passed in 0.75s"
+        },
+        {
+          "command": "ruff check backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py tests/unit/test_cdp_batch_shop_compute_mutex.py",
+          "exitCode": 0,
+          "outputSummary": "All checks passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "ShopComputeMutex with atomic Redis Lua compare-and-delete (release) and compare-and-expire (same-owner refresh), bytes-safe owner normalization, and deterministic TTL-rollover race tests. Batch entry gate unchanged; no A1 speed/webhook wiring.",
+  "assumptions": [
+    "600s TTL is sufficient for Shared Compute runs; refreshed on re-acquire by same owner",
+    "Speed callers will import ShopComputeMutex from cdp_batch without duplicating mutex logic (A1 wires separately)"
+  ],
+  "risks": [
+    "RedisShopComputeMutex uses sync redis client matching material_gate pattern; async callers must wrap or inject appropriately"
+  ]
+}

@@ -40,11 +40,29 @@ Structured log fields: ``attempts``, ``successes``, ``failures``, ``rate_limited
 
 Orthogonal to ``PostgresIoBudgetGovernor`` (#617) — dual budgets, separate modules.
 
+### ShopComputeMutex (#618)
+
+Shared Redis mutex between batch and speed Shared Compute paths. Key pattern
+``compute:{shop_id}`` with ``COMPUTE_MUTEX_TTL_SECONDS`` (600s default). **Not**
+the ETL ingest ``material_analytics:mutex:*`` gate or per-shop asyncio backpressure.
+
+- ``compute_mutex_key(shop_id)`` → Redis key string
+- ``try_begin_batch_compute(mutex, shop_id)`` → ``BatchComputeEntryResult`` —
+  defers with ``speed_mutex_active`` when speed holds the lock; acquires batch
+  ownership when free
+- ``ShopComputeMutex.try_acquire(shop_id, owner)`` / ``release(shop_id, owner)``
+  — ``owner`` is ``"speed"`` or ``"batch"`` (speed wiring is A1; API published here)
+- ``InMemoryShopComputeMutex`` / ``RedisShopComputeMutex`` — test and production backends
+- ``RedisShopComputeMutex`` uses atomic Lua compare-and-delete / compare-and-expire so
+  stale release or same-owner refresh cannot clobber a new owner after TTL rollover
+- ``SPEED_MUTEX_DEFER_REASON`` (package export) — constant ``"speed_mutex_active"``
+
+Structured log fields on defer: ``defer_reason``, ``stopped_reason``.
+
 ### Deferred (later A2 slices)
 
 - ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
 - ``PostgresIoBudgetGovernor`` — bronze/silver I/O throttle (#617)
-- ``ShopComputeMutex`` — defer when speed compute active
 - ``BatchReconcileOrchestrator`` — shop-scoped fetch → Shared Compute → gold
 
 ## Scheduler deployment
@@ -71,3 +89,6 @@ Pure in-memory; no I/O. Safe for PR CI without live credentials.
   collision-free stub fleet (100 shops), spread across 1440 minutes.
 - ``tests/unit/test_cdp_batch_partner_budget.py`` — soft/hard cap defer,
   under-cap consume, structured log fields; no live Partner HTTP.
+- ``tests/unit/test_cdp_batch_shop_compute_mutex.py`` — batch defer on
+  ``speed_mutex_active``, contention with speed owner, last-good gold unchanged;
+  InMemory + FakeSyncRedis only.
