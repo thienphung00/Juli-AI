@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
+
 from juli_backend.models.models import Shop, User
 from juli_backend.services.etl.consumer import ProcessOutcome
 from juli_backend.services.tiktok.webhook_catalog import (
@@ -52,6 +53,15 @@ MATERIAL_TYPES = (
     "REFUND_SUCCESS",  # 67
     "INVENTORY_CHANGED",  # 68
 )
+
+
+@pytest.fixture(autouse=True)
+def _material_compute_env(monkeypatch):
+    """Material enqueue requires TikTok + Redis env (#625)."""
+    monkeypatch.setenv("TIKTOK_APP_KEY", "test_app_key")
+    monkeypatch.setenv("TIKTOK_APP_SECRET", "test_app_secret")
+    monkeypatch.setenv("TIKTOK_REDIRECT_URI", "https://example.com/callback")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
 
 
 def _event_payload(event_type: str, shop_id: str = "tiktok_shop_532") -> bytes:

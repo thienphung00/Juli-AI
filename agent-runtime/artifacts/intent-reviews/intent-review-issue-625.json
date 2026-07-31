@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-625",
+  "issue": 625,
+  "timestamp": "2026-07-31T00:51:16Z",
+  "reviewedBy": "intent-review skill (Review Agent Composer)",
+  "fixedPoint": "033ba4ec13f11fbf9f4d46ac7385b738fe7485eb",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "CDP-A1-1 intent satisfied: deployed TikTok webhook path now uses make_material_etl_handoff (replacing make_etl_handoff) so locked material catalog IDs enqueue material_analytics_precompute after successful ETL. material_compute_env_ready gates enqueue on TIKTOK_APP_KEY/SECRET, TIKTOK_REDIRECT_URI, REDIS_URL with structured material_enqueue_skipped logging. No forbidden _FUJIWA_POLL_STEPS / run_fujiwa_poll_cycle / sync_analytics on material path. Parent #601 architect locks preserved.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "patterns.mdc \u2014 module ownership",
+      "path": "backend/src/juli_backend/services/webhook/deployed.py",
+      "note": "Handoff wiring stays in webhook module; ETL consumer injected \u2014 correct module boundary.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "625-20260731T002942",
+  "acceptanceCriteriaJudgement": {
+    "ac1_material_catalog_enqueue": "pass",
+    "ac2_catalog_68_coalesce": "pass",
+    "ac3_shop_mutex": "pass",
+    "ac4_deployed_assembly": "pass",
+    "ac5_env_skip_logged": "pass",
+    "ac6_no_forbidden_poll": "pass"
+  },
+  "recommendedFollowUps": []
+}

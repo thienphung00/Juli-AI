@@ -8,11 +8,11 @@ from collections.abc import Mapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.etl.consumer import EtlConsumer
-from juli_backend.services.ingestion.handoff import make_etl_handoff
 from juli_backend.services.tiktok.webhook import WebhookProcessResult
 from juli_backend.services.tiktok.webhook_handlers import DatabaseWebhookSideEffects
 from juli_backend.services.tiktok.webhook_raw_log import DatabaseRawWebhookEventRecorder
 from juli_backend.services.webhook.app import build_webhook_service
+from juli_backend.services.webhook.material_handoff import make_material_etl_handoff
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def handle_tiktok_webhook_delivery(
     service = build_webhook_service(
         app_key=app_key,
         app_secret=app_secret,
-        handoff_fn=make_etl_handoff(consumer),
+        handoff_fn=make_material_etl_handoff(consumer),
         side_effects=DatabaseWebhookSideEffects(session),
         raw_event_recorder=DatabaseRawWebhookEventRecorder(session),
     )
