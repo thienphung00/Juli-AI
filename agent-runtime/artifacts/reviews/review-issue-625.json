@@ -1,0 +1,97 @@
+{
+  "id": "review-issue-625",
+  "issue": 625,
+  "timestamp": "2026-07-31T00:53:22Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #625 CDP-A1-1: intent-review spec_fidelity=pass consumed as given. Deployed webhook wired to material ETL handoff with env gate, shop mutex, and #68 coalesce. All six acceptance criteria mapped to unit/integration tests; 60/60 focused tests pass. No reliability/security/observability blockers.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/webhook/deployed.py",
+    "backend/src/juli_backend/services/webhook/material_dispatch.py",
+    "backend/src/juli_backend/services/webhook/material_handoff.py",
+    "tests/unit/test_material_deployed_handoff.py",
+    "tests/unit/test_material_analytics_enqueue.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/services/webhook/material_dispatch",
+      "interface": "material_compute_env_ready()",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Env readiness gate before Celery enqueue; logs material_enqueue_skipped when TikTok+Redis env missing."
+    },
+    {
+      "module": "backend/src/juli_backend/services/webhook/deployed",
+      "interface": "handle_tiktok_webhook_delivery",
+      "changeType": "modified",
+      "breaking": false,
+      "description": "Production handoff switched from make_etl_handoff to make_material_etl_handoff."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 6,
+      "mapped": 6,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Each locked material catalog id enqueues exactly one compute job after successful ETL; non-material types do not enqueue",
+          "test": "tests/unit/test_material_deployed_handoff.py::test_ac1_each_material_type_enqueues_once_after_etl",
+          "covered": true
+        },
+        {
+          "criterion": "#68 coalesce \u2014 burst of inventory events yields \u22641 enqueue per shop per 15 minutes",
+          "test": "tests/unit/test_material_deployed_handoff.py::test_ac2_coalesce_blocks_burst_within_15_minutes",
+          "covered": true
+        },
+        {
+          "criterion": "Concurrent material events do not fan out unbounded jobs (shop-scoped mutex/gate)",
+          "test": "tests/unit/test_material_deployed_handoff.py::test_ac3_mutex_blocks_concurrent_enqueues",
+          "covered": true
+        },
+        {
+          "criterion": "Integration: deployed webhook assembly path enqueues compute \u2014 not test-only factory wiring",
+          "test": "tests/unit/test_material_deployed_handoff.py::test_ac4_deployed_delivery_enqueues_after_etl",
+          "covered": true
+        },
+        {
+          "criterion": "Fake Refresh / missing TikTok+Redis env skips enqueue with logged reason",
+          "test": "tests/unit/test_material_deployed_handoff.py::test_ac5_missing_env_does_not_enqueue",
+          "covered": true
+        },
+        {
+          "criterion": "Does not call _FUJIWA_POLL_STEPS, run_fujiwa_poll_cycle, or unbounded sync_analytics on material path",
+          "test": "tests/unit/test_material_deployed_handoff.py::test_ac6_handoff_does_not_call_forbidden_poll_helpers",
+          "covered": true
+        }
+      ]
+    },
+    "unit": {
+      "passed": 60,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "phaseRunId": "625-20260731T002942",
+  "architectureFindings": [],
+  "securityFindings": [],
+  "maintainabilityFindings": [],
+  "findings": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "severity": "none",
+  "suggestedRemediation": [],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-625.json"
+}

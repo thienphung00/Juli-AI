@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 625,
+  "executorDomain": "backend",
+  "phaseRunId": "625-20260731T002942",
+  "startedAt": "2026-07-31T00:45:51Z",
+  "completedAt": "2026-07-31T00:45:51Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-625.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-601.json",
+    "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+    "backend/src/juli_backend/services/webhook/deployed.py",
+    "backend/src/juli_backend/services/webhook/material_handoff.py",
+    "backend/src/juli_backend/services/webhook/material_dispatch.py",
+    "tests/unit/test_material_deployed_handoff.py"
+  ],
+  "skillsLoaded": [
+    "backend"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/webhook/deployed.py",
+    "backend/src/juli_backend/services/webhook/material_dispatch.py",
+    "backend/src/juli_backend/services/webhook/material_handoff.py",
+    "tests/unit/test_material_deployed_handoff.py",
+    "tests/unit/test_material_analytics_enqueue.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_material_deployed_handoff.py"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_material_analytics_enqueue.py"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "test_material_deployed_handoff.py failed: deployed.py used make_etl_handoff; material_compute_env_ready missing",
+      "passingTestEvidence": "60/60 material handoff + enqueue tests pass after wiring make_material_etl_handoff and env gate",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_material_deployed_handoff.py tests/unit/test_material_analytics_enqueue.py -v",
+          "exitCode": 0,
+          "outputSummary": "60 passed in 8.70s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Production deployed TikTok webhook path now uses make_material_etl_handoff so locked material catalog IDs enqueue material_analytics_precompute after successful ETL. Enqueue skipped with logged enqueue_reason when TikTok+Redis env is missing.",
+  "assumptions": [
+    "Env gate matches material_worker _poll_env_ready vars (TIKTOK_APP_KEY/SECRET, TIKTOK_REDIRECT_URI, REDIS_URL)",
+    "Celery material_analytics_precompute task remains the compute entrypoint (not run_fujiwa_poll_cycle)"
+  ],
+  "risks": [
+    "Deploy environments without REDIS_URL will ingest webhooks but never enqueue compute until env is configured"
+  ]
+}
