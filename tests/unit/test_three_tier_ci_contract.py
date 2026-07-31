@@ -90,6 +90,14 @@ def test_performance_smoke_is_bounded_and_excludes_migration_heavy() -> None:
     assert '"not live and not migration_heavy"' in workflow
 
 
+def test_full_regression_isolates_unit_and_integration_processes() -> None:
+    workflow = _workflow()
+
+    assert "-m pytest tests/unit -v" in workflow
+    assert "-m pytest tests/integration -v" in workflow
+    assert "--cov-append" in workflow
+
+
 def test_pr_workflow_never_deploys() -> None:
     workflow = _workflow()
     release = RELEASE_WORKFLOW.read_text(encoding="utf-8")

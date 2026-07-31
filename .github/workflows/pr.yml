@@ -685,10 +685,15 @@ jobs:
       - name: Install PostgreSQL client 16
         run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
       - name: Full non-live regression suite
-        run: >-
-          python -X faulthandler -m pytest tests/ -v --tb=short
-          -m "not live and not demo_contract"
-          --cov=juli_backend --cov-report=term-missing --cov-fail-under=80
+        run: |
+          coverage erase
+          python -X faulthandler -m pytest tests/unit -v --tb=short \
+            -m "not live and not demo_contract" \
+            --cov=juli_backend --cov-report= --cov-fail-under=0
+          python -X faulthandler -m pytest tests/integration -v --tb=short \
+            -m "not live and not demo_contract" \
+            --cov=juli_backend --cov-append \
+            --cov-report=term-missing --cov-fail-under=80
 
   performance-smoke:
     runs-on: ubuntu-latest
