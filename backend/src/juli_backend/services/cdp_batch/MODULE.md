@@ -21,10 +21,28 @@ Orthogonal to A1 Speed; writes the same `gold.kpi_envelopes` via Shared Compute
 
 ``ReconcileWindow`` fields: ``shop_id``, ``day`` (UTC date), ``minute_of_day``.
 
+### PartnerApiBudgetGovernor (#616)
+
+Per-run Partner HTTP attempt caps for batch reconcile. Wraps
+``analytics_backfill.budget.CallBudgetGovernor`` (ADR-029 400/499 soft/hard
+pattern) with batch-facing ``try_consume`` / ``finish``.
+
+- ``begin_partner_budget_run(max_attempts=400, hard_limit=499)`` → fresh governor
+- ``try_consume()`` → ``True`` under hard cap; ``False`` when hard cap reached
+- ``should_defer()`` → ``True`` once soft target reached (orchestrator should defer)
+- ``record_success`` / ``record_failure`` / ``record_rate_limited`` — outcome counters
+- ``finish("partner_budget_exhausted")`` → structured logs; partition **not** complete
+- ``finish("complete")`` → ``implies_partition_complete`` is ``True``
+- ``DEFER_REASON`` — constant ``"partner_budget_exhausted"``
+
+Structured log fields: ``attempts``, ``successes``, ``failures``, ``rate_limited``,
+``stopped_reason``, ``defer_reason``. Never logs tokens or PII.
+
+Orthogonal to ``PostgresIoBudgetGovernor`` (#617) — dual budgets, separate modules.
+
 ### Deferred (later A2 slices)
 
 - ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
-- ``PartnerApiBudgetGovernor`` — per-credential Partner call caps (#616)
 - ``PostgresIoBudgetGovernor`` — bronze/silver I/O throttle (#617)
 - ``ShopComputeMutex`` — defer when speed compute active
 - ``BatchReconcileOrchestrator`` — shop-scoped fetch → Shared Compute → gold
@@ -41,7 +59,7 @@ matches ``minute_of_day``. Mechanism is flexible; determinism is not.
 - Hourly Fujiwa exception (remains **A1 Speed** per ADR-048)
 - Partner API calls, Postgres fleet queries, Redis mutex
 - ``is_due`` slot runner, Celery Beat schedule wiring
-- Budget governors and batch orchestrator (CDP-A2-2+)
+- Postgres I/O governor (#617) and batch orchestrator (CDP-A2-3+)
 
 ## Dependencies
 
@@ -49,5 +67,7 @@ Pure in-memory; no I/O. Safe for PR CI without live credentials.
 
 ## Tests
 
-``tests/unit/test_cdp_batch_stagger_scheduler.py`` — stability, range,
-collision-free stub fleet (100 shops), spread across 1440 minutes.
+- ``tests/unit/test_cdp_batch_stagger_scheduler.py`` — stability, range,
+  collision-free stub fleet (100 shops), spread across 1440 minutes.
+- ``tests/unit/test_cdp_batch_partner_budget.py`` — soft/hard cap defer,
+  under-cap consume, structured log fields; no live Partner HTTP.
