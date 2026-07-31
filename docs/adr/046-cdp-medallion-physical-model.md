@@ -8,9 +8,9 @@
 
 **Builds on:** [ADR-002](002-supabase-backend-service.md), [ADR-013](013-operations-pipeline-spine.md),
 [ADR-029](029-phase-2.9-analytics-historical-backfill.md), [ADR-038](038-phase-2.10-dual-layer-pipeline.md),
-[ADR-043](043-cdp-webhook-first-spine-dual-credential.md), [ADR-044](044-demo-analytics-main-kpi-override.md).  
+[ADR-048](048-cdp-webhook-first-spine-dual-credential.md), [ADR-049](049-demo-analytics-main-kpi-override.md).  
 **Amends:** [ADR-038](038-phase-2.10-dual-layer-pipeline.md) — names the Postgres **schema layers**
-behind “raw → transform → precomputed envelopes”; [ADR-043](043-cdp-webhook-first-spine-dual-credential.md) —
+behind “raw → transform → precomputed envelopes”; [ADR-048](048-cdp-webhook-first-spine-dual-credential.md) —
 physical home for webhook/targeted-fetch/reconcile/cold-start ingest and A-7 merge.  
 **Relates to:** CDP slice **3.5-A0** (#598 — medallion foundation & serving gold), **3.5-A1 Speed**
  ([#601](https://github.com/thienphung00/Juli-AI/issues/601)) and **3.5-A2 Batch**
@@ -18,8 +18,8 @@ physical home for webhook/targeted-fetch/reconcile/cold-start ingest and A-7 mer
 Decisions on same compute trigger), **Demo UI fix** (#600 — separate Track B; consumes serving gold only).
 **Lambda vs medallion:** bronze/silver/gold/ops are **storage layers**; Speed/Batch/Serving are
 **freshness layers** — orthogonal naming ([ADR-047](047-cdp-lambda-layers-prd-split.md)).  
-**Does not change:** Redis read-through (not SoT); webhook-first + targeted fetch policy (ADR-043);
-Demo dual credential model; Phase 3.5-C OAuth/cold-start PRD (ADR-045); EXECUTION Phase 3.5 dashboard rebuild.
+**Does not change:** Redis read-through (not SoT); webhook-first + targeted fetch policy (ADR-048);
+Demo dual credential model; Phase 3.5-C OAuth/cold-start PRD (ADR-050); EXECUTION Phase 3.5 dashboard rebuild.
 
 ## Context
 
@@ -71,13 +71,13 @@ Alternatives considered:
    - **Expose only gold** to client roles — via views and/or RPC wrappers.
    - **`bronze`, `silver`, `ops` unreachable** to `anon` / PostgREST direct access.
    - **RLS on gold** — Mock/reference shop for public Demo now; session-bound `shop_id` when
-     Login mode ships (ADR-043 / 3.5-C).
+     Login mode ships (ADR-048 / 3.5-C).
 
 6. **Migration policy:** **Per-domain incremental cutover** — see [Migration / cutover](#migration--cutover-q2--locked). **No long-term dual-write.**
 
 7. **Ingest paths map to bronze:**
    - Material webhooks → bronze append
-   - Targeted fetch (ADR-043) → bronze append
+   - Targeted fetch (ADR-048) → bronze append
    - Daily staggered reconcile → bronze append
    - Cold-start backfill (3.5-C) → bronze append with `ops` checkpoints
 
@@ -134,7 +134,7 @@ not a single fleet-wide flag day.
 **In scope for first prove-out:**
 
 - Material **webhook** events + raw payloads → bronze append
-- **Targeted Partner fetch** raw payloads for domains needed by the [ADR-044](044-demo-analytics-main-kpi-override.md)
+- **Targeted Partner fetch** raw payloads for domains needed by the [ADR-049](049-demo-analytics-main-kpi-override.md)
   Demo Main KPI set → bronze append:
   - Orders / cancellations (A-7, webhook #11)
   - Product performance (A-34 — CTOR)
@@ -143,7 +143,7 @@ not a single fleet-wide flag day.
 
 **Defer unless needed for Fujiwa prove-out:**
 
-- Cold-start backfill pages → bronze (3.5-C / ADR-045)
+- Cold-start backfill pages → bronze (3.5-C / ADR-050)
 - Daily staggered **reconcile** snapshots → bronze
 
 If Fujiwa reference-shop envelopes require historical rows not covered by webhook + targeted
@@ -208,9 +208,9 @@ inside a JSON payload.
   - **`label`** (required) — seller-facing display name
   - **`series?`** — optional time series for chart cards
   - **`value?`** — optional scalar/structured current value when available
-  - **`meta?`** — optional provenance, units, insight hints (not shop-readiness — see ADR-043)
+  - **`meta?`** — optional provenance, units, insight hints (not shop-readiness — see ADR-048)
 
-The [ADR-044](044-demo-analytics-main-kpi-override.md) **Demo Main KPI set** (GMV, AOV, CTOR,
+The [ADR-049](049-demo-analytics-main-kpi-override.md) **Demo Main KPI set** (GMV, AOV, CTOR,
 LIVE hours, Cancellation rate — **exactly five KPIs**; no sixth card) is the **initial catalog** —
 first keys in `payload.kpis` for the reference shop — **not** frozen physical columns.
 **Bestselling (A-38/A-39) is not** an initial serving-gold key (marketplace/platform metric ≠
@@ -221,7 +221,7 @@ merchant shop KPI).
 Adding, removing, or replacing a served KPI is a **catalog + payload** change only:
 
 1. Add/remove/rename keys in `payload.kpis` (compute job writes the new map).
-2. Update Demo/product catalog and ADR-044 (or successor ADR) when Demo selector changes.
+2. Update Demo/product catalog and ADR-049 (or successor ADR) when Demo selector changes.
 3. **No** Alembic column add/drop on `gold.kpi_envelopes` per KPI swap.
 
 Authenticated/dashboard catalogs may diverge from Demo B′ without schema churn — different
@@ -253,7 +253,7 @@ to read **`silver.*` only**; optional `gold.ml_feature_snapshots` remains a sepa
   orchestrator continues to function during migration.
 - ML module docs (`docs/ml/ml_layer.md`) should treat **silver** as feature-source SoT;
   `gold.ml_feature_snapshots` is optional acceleration, not the inference read path.
-- Serving gold envelope contract is **locked** (Q3 — flexible `payload.kpis` map; ADR-044 B′ five
+- Serving gold envelope contract is **locked** (Q3 — flexible `payload.kpis` map; ADR-049 B′ five
   as initial catalog keys, not DB columns). Shared Compute job boundary is **locked** (Q4 — one
   shop-scoped job per material trigger; bronze append → silver upsert → gold envelope write).
   Demo Main KPI catalog count is **locked at five** (Q5 — no sixth card; Bestselling removed).
@@ -263,4 +263,4 @@ to read **`silver.*` only**; optional `gold.ml_feature_snapshots` remains a sepa
 - Ubiquitous language: [`CONTEXT.md`](../../CONTEXT.md) — Bronze/Silver/Gold/Ops, one-writer rule,
   serving vs ML gold fork, **Serving KPI envelope contract** (Q3), **Shared Compute Orchestrator**
   job boundary (Q4).
-- Pipeline spine: [ADR-038](038-phase-2.10-dual-layer-pipeline.md), [ADR-043](043-cdp-webhook-first-spine-dual-credential.md).
+- Pipeline spine: [ADR-038](038-phase-2.10-dual-layer-pipeline.md), [ADR-048](048-cdp-webhook-first-spine-dual-credential.md).

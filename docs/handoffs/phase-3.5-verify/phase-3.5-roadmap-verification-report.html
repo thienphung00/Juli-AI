@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Phase 3.5 PRD Design Readiness — Issues #598–602</title>
+<style>
+  :root {
+    --ink: #1a1f1c;
+    --muted: #5a635c;
+    --paper: #f3efe6;
+    --panel: #fffdf8;
+    --line: #d5cfc0;
+    --pass: #1f6b3a;
+    --pass-bg: #e4f3e9;
+    --partial: #8a5a00;
+    --partial-bg: #fff1d6;
+    --fail: #8b1e1e;
+    --fail-bg: #f8e4e4;
+    --crit: #9b2c2c;
+    --accent: #0e5c4a;
+    --accent-soft: #d7ebe4;
+    --mono: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+    --sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    font: 16px/1.55 var(--sans);
+    background:
+      radial-gradient(1200px 500px at 10% -10%, #dceee7 0%, transparent 55%),
+      radial-gradient(900px 400px at 100% 0%, #efe6d4 0%, transparent 50%),
+      var(--paper);
+  }
+  header {
+    padding: 2.5rem 1.5rem 1.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  header h1 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+    line-height: 1.15;
+    margin: 0 0 0.6rem;
+    letter-spacing: -0.02em;
+  }
+  header .lede {
+    max-width: 68ch;
+    color: var(--muted);
+    margin: 0;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-top: 1.25rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .meta code { font-family: var(--mono); font-size: 0.82em; color: var(--ink); }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.25rem 1.35rem 1.4rem;
+    margin: 1rem 0;
+    box-shadow: 0 1px 0 rgba(26, 31, 28, 0.04);
+  }
+  h2 {
+    font-family: var(--display);
+    font-size: 1.35rem;
+    margin: 0 0 0.75rem;
+    letter-spacing: -0.01em;
+  }
+  h3 { font-size: 1.05rem; margin: 1.1rem 0 0.5rem; }
+  p { margin: 0.4rem 0 0.7rem; }
+  ul, ol { margin: 0.3rem 0 0.7rem; padding-left: 1.2rem; }
+  li { margin: 0.25rem 0; }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  .pass { color: var(--pass); background: var(--pass-bg); border-color: #b7dfc4; }
+  .partial { color: var(--partial); background: var(--partial-bg); border-color: #efd39a; }
+  .fail { color: var(--fail); background: var(--fail-bg); border-color: #e4b4b4; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+  }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    background: #fff;
+  }
+  .card .issue { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+  .card .title { font-weight: 600; margin: 0.35rem 0 0.55rem; font-size: 0.95rem; line-height: 1.3; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+  }
+  th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .sev-critical { color: var(--crit); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 0.85rem 1rem;
+    border-radius: 0 8px 8px 0;
+    margin: 0.8rem 0;
+  }
+  .callout strong { color: var(--accent); }
+  pre.graph {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    background: #1a1f1c;
+    color: #e8efe9;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    line-height: 1.45;
+  }
+  .footer-note {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 1.5rem;
+  }
+  a { color: var(--accent); }
+  .legend { font-size: 0.88rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Phase 3.5 PRD Design Readiness</h1>
+  <p class="lede">
+    Drafting-phase review of issues <strong>#598–#602</strong>: are objectives aligned with ADRs,
+    and are designs clear enough that an Executor cannot miss ACs or take lazy shortcuts?
+    <em>Not an implementation progress audit</em> — code/DB baselines only inform what PRDs
+    must name explicitly (legacy tables, cutover, forbidden paths).
+  </p>
+  <div class="meta">
+    <span>Date: 2026-07-30</span>
+    <span>Lens: Executor-ready designs · performance &amp; scalability</span>
+    <span>Live Supabase + Context7 used as reference anchors</span>
+    <span>Report: <code>docs/handoffs/phase-3.5-verify/</code></span>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>How to read this report</h2>
+    <p class="legend">
+      <span class="badge pass">READY</span> PRD design is Executor-safe as written ·
+      <span class="badge partial">HARDEN</span> objectives aligned, but missing AC/design detail that invites miss or lazy work ·
+      <span class="badge fail">GAP</span> critical ambiguity or contradiction that must be fixed before Meta→Executor
+    </p>
+    <div class="callout">
+      <strong>Framing:</strong> Implementation has not started. Scores judge PRD clarity and
+      objective alignment — not whether modules exist yet. Existing tables
+      (<code>public.analytics_kpi_envelopes</code>, <code>action_cards</code>, partitions)
+      are <em>cutover constraints the PRD must specify</em>, not failed delivery.
+    </div>
+  </section>
+
+  <section>
+    <h2>Executive verdict</h2>
+    <p>
+      Objectives across A0 / A1 / A2 / B / Demo UI <strong>align with ADR-046/047</strong>.
+      The dependency graph is <span class="badge pass">READY</span>.
+      Several PRDs still need design hardening so Executors do not invent DDL, reuse poll-heavy paths,
+      or mis-gate Decisions on Batch.
+    </p>
+    <div class="grid" style="margin-top:1rem">
+      <div class="card">
+        <div class="issue">#598 · A0 Foundation</div>
+        <div class="title">Medallion + serving gold</div>
+        <span class="badge partial">HARDEN</span>
+      </div>
+      <div class="card">
+        <div class="issue">#601 · A1 Speed</div>
+        <div class="title">Webhook-first freshness</div>
+        <span class="badge partial">HARDEN</span>
+      </div>
+      <div class="card">
+        <div class="issue">#602 · A2 Batch</div>
+        <div class="title">Fleet throughput / dual budgets</div>
+        <span class="badge partial">HARDEN</span>
+      </div>
+      <div class="card">
+        <div class="issue">#599 · 3.5-B Decisions</div>
+        <div class="title">Shared compute + emission</div>
+        <span class="badge partial">HARDEN</span>
+      </div>
+      <div class="card">
+        <div class="issue">#600 · Demo UI Track B</div>
+        <div class="title">CDP-honest Analytics/UX</div>
+        <span class="badge pass">READY</span>
+      </div>
+      <div class="card">
+        <div class="issue">Graph ADR-047</div>
+        <div class="title">A0→A1→B ; A2 ∥</div>
+        <span class="badge pass">READY</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Objective alignment (spec ↔ PRD)</h2>
+    <table>
+      <thead>
+        <tr><th>Spec lock</th><th>PRD coverage</th><th>Aligned?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ADR-046 medallion + flexible <code>payload.kpis</code></td>
+          <td>#598 owns schemas/contract; #601 populates five keys</td>
+          <td><span class="badge pass">YES</span></td>
+        </tr>
+        <tr>
+          <td>ADR-047 Speed vs Batch vs Serving</td>
+          <td>#601 / #602 / serving in #598</td>
+          <td><span class="badge pass">YES</span></td>
+        </tr>
+        <tr>
+          <td>Decisions on same compute trigger after A1</td>
+          <td>#599 Comment + ADR-047</td>
+          <td><span class="badge pass">YES*</span> body still says “3.5-A”</td>
+        </tr>
+        <tr>
+          <td>ADR-049 exactly five Demo KPIs; no Bestselling</td>
+          <td>#601, #600, #602 OOS</td>
+          <td><span class="badge pass">YES</span></td>
+        </tr>
+        <tr>
+          <td>Emission budget ≠ KPI freshness (ADR-038)</td>
+          <td>#599 themes + defaults</td>
+          <td><span class="badge pass">YES</span> schema AC incomplete</td>
+        </tr>
+        <tr>
+          <td>No warehouse / OAuth in A0–A2</td>
+          <td>All five issues OOS</td>
+          <td><span class="badge pass">YES</span></td>
+        </tr>
+        <tr>
+          <td>Performance &amp; scalability (fleet) lives in Batch</td>
+          <td>#602 dual budgets + stagger</td>
+          <td><span class="badge partial">PARTIAL</span> I/O budget not Executor-specified</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Dependency graph (locked — keep)</h2>
+    <pre class="graph">A0 Foundation (#598) ──→ A1 Speed (#601) ──→ B Decisions (#599)
+         │
+         └──→ A2 Batch (#602)     [parallel after A0; does NOT block B]
+
+#600 Demo UI  ∥  fixtures until A1 envelope contract</pre>
+  </section>
+
+  <section>
+    <h2>Critical PRD gaps (fix before Executor)</h2>
+    <p>These are design holes — not “work not done.” Leaving them invites missed ACs or lazy reuse of poll paths.</p>
+
+    <h3 class="sev-critical">Must-fix items — <span class="badge pass">APPLIED</span> to GitHub PRDs (2026-07-30)</h3>
+    <ol>
+      <li>
+        <strong>#599 gate language</strong> — Body now <strong>blocked on A1 Speed (#601)</strong>;
+        US#30 clarifies A2 is not an exit gate. Emission persistence, Redis≠SoT, mutex, dry-run isolation ACs landed.
+      </li>
+      <li>
+        <strong>#598 legacy→gold cutover</strong> — Maps
+        <code>public.analytics_kpi_envelopes (shop_id, kind)</code> → <code>gold.kpi_envelopes</code>
+        + compat view; first-slice DDL; <code>webhook_raw_events</code> fate; one-writer map;
+        ops move of partitions as A0 exit AC.
+      </li>
+      <li>
+        <strong>#601 forbid full poll on material path</strong> — Reusing
+        <code>_FUJIWA_POLL_STEPS</code> / full poll / unbounded <code>sync_analytics</code> is
+        <em>out of AC</em>. Locked webhook catalog + five <code>metric_id</code> keys.
+      </li>
+      <li>
+        <strong>#601 negative AC (Speed/Batch split)</strong> — A1 must not defer/batch/coalesce
+        beyond #68’s 15-min window for cost/fleet/I/O reasons — that is A2’s job. Silent
+        OLTP→OLAP conflation is a Must-fix violation, not a naming hint.
+      </li>
+      <li>
+        <strong>#599 emission + Redis SoT</strong> — Candidate vs surfaced persistence;
+        Postgres SoT; Redis read-through for public gated GET only (Envelope Cache discipline).
+      </li>
+      <li>
+        <strong>#599 dry-run isolation AC</strong> — Must not call
+        <code>/v1/executions</code> / Partner tool workers; CI guard named.
+      </li>
+      <li>
+        <strong>#602 Postgres I/O budget</strong> — Independent of Partner budget: knobs,
+        defer reason codes, metrics, deep modules (StaggerScheduler, governors, mutex).
+      </li>
+      <li>
+        <strong>#600 wording sync</strong> — Related-track lines updated to A0/A1/A2 split;
+        live envelope swap gated on A1.
+      </li>
+    </ol>
+    <p>Canonical PRD copies: <code>docs/handoffs/phase-3.5-prd-bodies/</code></p>
+  </section>
+
+  <section>
+    <h2>Per-issue design readiness</h2>
+
+    <h3>#598 A0 — <span class="badge partial">HARDEN</span></h3>
+    <p><strong>Aligned:</strong> schemas, serving contract, first-domain cutover, exit without Speed/Batch.</p>
+    <p><strong>Missing design so Executor won’t invent:</strong> DDL names; legacy envelope shape migration;
+      raw-table fate; one-writer ownership; optional index/batch-append ACs for bronze volume.</p>
+
+    <h3>#601 A1 — <span class="badge partial">HARDEN</span></h3>
+    <p><strong>Aligned:</strong> material handoff → targeted fetch → Shared Compute → five KPIs; hourly Fujiwa only; B blocked after exit.</p>
+    <p><strong>Missing design so Executor won’t take lazy path:</strong> explicit ban on full Fujiwa poll;
+      webhook type list; metric_id keys; reconciler task contract; shared orchestrator interface vs A0 boundary.</p>
+
+    <h3>#602 A2 — <span class="badge partial">HARDEN</span></h3>
+    <p><strong>Aligned:</strong> stagger, same gold, dual budgets intent, does not block #599, no warehouse.</p>
+    <p><strong>Missing design for scalability Executors:</strong> Postgres I/O knobs/defer codes;
+      stagger algorithm; shop mutex vs ETL lock; Context7 patterns (GIN, COPY/batch insert, pooler) as ACs.</p>
+
+    <h3>#599 Decisions — <span class="badge partial">HARDEN</span></h3>
+    <p><strong>Aligned:</strong> shared trigger, emission as surfacing throttle, dry-run, rules-only, blocked on continuous Analytics spine (A1 per ADR-047).</p>
+    <p><strong>Missing design so Executor won’t miss ACs:</strong> amend stale gate language; emission schema;
+      mutex; public Demo envelope contract; dry-run isolation; Redis SoT clarification.</p>
+
+    <h3>#600 Demo UI — <span class="badge pass">READY</span></h3>
+    <p><strong>Aligned:</strong> parallel fixtures; consume serving gold / Decision APIs; no A0–A2 bleed; emission stays backend.</p>
+    <p><strong>Minor:</strong> ensure related-issue wording matches A0/A1 split; fixture→live swap contract once #599 publishes API shape.</p>
+  </section>
+
+  <section>
+    <h2>Reference baseline (informs cutover text only)</h2>
+    <p>
+      Live project still has flat <code>public</code> (expected pre-implementation).
+      PRDs should <em>name</em> these as migration sources: empty
+      <code>analytics_kpi_envelopes</code>, empty <code>action_cards</code>,
+      512-row <code>analytics_backfill_partitions</code>, existing
+      <code>webhook_raw_events</code> / interval tables.
+    </p>
+  </section>
+
+  <section>
+    <h2>Recommended drafting order</h2>
+    <ol>
+      <li>Patch #599 gate language + emission/dry-run/mutex ACs</li>
+      <li>Harden #598 cutover + DDL + one-writer map</li>
+      <li>Harden #601 anti-poll + catalog + metric_ids + reconciler</li>
+      <li>Harden #602 I/O budget + modules + stagger/mutex</li>
+      <li>Light #600 wording sync; publish Decision envelope contract when #599 ready</li>
+    </ol>
+  </section>
+
+  <p class="footer-note">
+    Revised framing: PRD design readiness for Meta→Executor, not delivery scorecard.
+    Prior “as-built missing module” findings are retained only as cutover/forbidden-path
+    constraints to write into the PRDs.
+  </p>
+</main>
+</body>
+</html>

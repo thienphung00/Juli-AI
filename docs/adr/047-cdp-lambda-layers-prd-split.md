@@ -4,9 +4,9 @@
 **Date:** 2026-07-30  
 **Deciders:** grill-with-docs (Architect)
 
-**Builds on:** [ADR-038](038-phase-2.10-dual-layer-pipeline.md), [ADR-043](043-cdp-webhook-first-spine-dual-credential.md),
-[ADR-044](044-demo-analytics-main-kpi-override.md), [ADR-046](046-cdp-medallion-physical-model.md).  
-**Amends:** [ADR-043](043-cdp-webhook-first-spine-dual-credential.md) — names **Speed** vs **Batch**
+**Builds on:** [ADR-038](038-phase-2.10-dual-layer-pipeline.md), [ADR-048](048-cdp-webhook-first-spine-dual-credential.md),
+[ADR-049](049-demo-analytics-main-kpi-override.md), [ADR-046](046-cdp-medallion-physical-model.md).  
+**Amends:** [ADR-048](048-cdp-webhook-first-spine-dual-credential.md) — names **Speed** vs **Batch**
 compute paths and PRD sequencing; [ADR-046](046-cdp-medallion-physical-model.md) — clarifies that
 medallion schemas are **orthogonal** to Lambda layer naming; splits former monolithic **3.5-A**
 into three PRD slices.  
@@ -16,8 +16,8 @@ into three PRD slices.
 **3.5-B** ([#599](https://github.com/thienphung00/Juli-AI/issues/599)),
 **Demo UI fix** Track B ([#600](https://github.com/thienphung00/Juli-AI/issues/600)).  
 **Does not change:** Medallion four-schema layout (ADR-046); flexible `gold.kpi_envelopes.payload.kpis`
-(Q3); Shared Compute Orchestrator job boundary (Q4); Demo Main KPI set of **exactly five** (ADR-044);
-OAuth / Sign-in scope (3.5-C / ADR-045); columnar warehouse requirement.
+(Q3); Shared Compute Orchestrator job boundary (Q4); Demo Main KPI set of **exactly five** (ADR-049);
+OAuth / Sign-in scope (3.5-C / ADR-050); columnar warehouse requirement.
 
 ## Context
 
@@ -60,7 +60,7 @@ Alternatives considered:
 2. **Speed layer (OLTP-shaped):** Deployed material webhook handoff → ETL → enqueue → **targeted
    Partner fetch** → Shared Compute Orchestrator (bronze append → silver upsert → gold envelope
    write). Primary freshness driver for Mock Fujiwa prove-out. **Hourly Mock reference-shop reconcile**
-   remains the narrow speed-adjacent exception (single tenant, ADR-043).
+   remains the narrow speed-adjacent exception (single tenant, ADR-048).
 
 3. **Batch layer (OLAP-shaped):** **Daily staggered per-shop reconcile**, cold-start checkpoint
    pages (when required), and partition-resumable backfill — scheduled throughput jobs that write the
@@ -77,7 +77,7 @@ Alternatives considered:
 | PRD | Name | Scope | Exit gate | Depends on |
 |-----|------|-------|-----------|------------|
 | **3.5-A0** | Foundation — Medallion + serving | `bronze`/`silver`/`gold`/`ops` schemas; flexible `gold.kpi_envelopes`; per-domain one-writer cutover (ADR-046); gold client exposure; ML gold stub OK | Schemas + first domain cutover + serving gold contract live; **no** full speed webhook path required | — |
-| **3.5-A1** | Speed layer | Deployed material handoff → targeted fetch → Shared Compute → gold; **five Demo KPIs** (ADR-044); hourly Fujiwa only | Webhook-driven `computed_at` advances on Demo Analytics for B′ five KPIs | **A0** |
+| **3.5-A1** | Speed layer | Deployed material handoff → targeted fetch → Shared Compute → gold; **five Demo KPIs** (ADR-049); hourly Fujiwa only | Webhook-driven `computed_at` advances on Demo Analytics for B′ five KPIs | **A0** |
 | **3.5-A2** | Batch layer | Daily staggered reconcile; cold-start checkpoints when needed; dual budgets (Partner API + Postgres I/O); batch writes same gold | Fleet backstop scheduler + budget guards proven; reconcile heals gaps without speed-path duplication | **A0**; may **parallel A1** after A0 |
 | **3.5-B** | Decisions | Rules scoring on shared compute trigger ([#599](https://github.com/thienphung00/Juli-AI/issues/599)) | Decision feed freshness on continuous spine | **A1** (not full A2) |
 | **Demo UI** | Track B ([#600](https://github.com/thienphung00/Juli-AI/issues/600)) | CDP-honest Analytics + Decision automation UX | Browser-verified Demo | Parallel; fixtures until A1 contract |
@@ -96,7 +96,7 @@ A0 (Foundation) ──→ A1 (Speed) ──→ B (Decisions #599)
   exit — Decisions need continuous KPI envelopes from the speed path, not full batch fleet reconcile.
 - **A2 Batch** does not block B or Demo UI exit.
 - **Read-replica isolation** for cold-start fleet scale is **Phase 3 / 3.5-C** scope — not an A2 exit
-  requirement (ADR-045 C2).
+  requirement (ADR-050 C2).
 
 ### 4. Scope moves from former monolithic 3.5-A
 
@@ -116,8 +116,8 @@ A0 (Foundation) ──→ A1 (Speed) ──→ B (Decisions #599)
 ### 5. Explicit non-requirements
 
 - **No columnar warehouse** for Phase 3.5 Analytics exit.
-- **No OAuth / seller_connect** in A0–A2 (ADR-043, ADR-045).
-- **No Bestselling (A-38/A-39)** as Demo KPI — five KPIs only (ADR-044).
+- **No OAuth / seller_connect** in A0–A2 (ADR-048, ADR-050).
+- **No Bestselling (A-38/A-39)** as Demo KPI — five KPIs only (ADR-049).
 - **ML gold stub** (`gold.ml_feature_snapshots`) allowed empty in A0; ML reads **silver** only.
 
 ## Consequences
@@ -133,5 +133,5 @@ A0 (Foundation) ──→ A1 (Speed) ──→ B (Decisions #599)
 
 - Ubiquitous language: [`CONTEXT.md`](../../CONTEXT.md) — Speed/Batch/Serving layers, medallion model.
 - Physical model: [ADR-046](046-cdp-medallion-physical-model.md).
-- Ingest policy: [ADR-043](043-cdp-webhook-first-spine-dual-credential.md).
-- Demo KPI catalog: [ADR-044](044-demo-analytics-main-kpi-override.md).
+- Ingest policy: [ADR-048](048-cdp-webhook-first-spine-dual-credential.md).
+- Demo KPI catalog: [ADR-049](049-demo-analytics-main-kpi-override.md).
