@@ -502,3 +502,46 @@ workflow_prompt_cache:
         - ios/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+
+    602:
+      defaultSliceId: CDP-A2-1
+      handoffPath: docs/handoffs/phase-3.5-prd-bodies/a2-batch.md
+      childSlices:
+        "615": CDP-A2-1
+        "616": CDP-A2-2
+        "617": CDP-A2-3
+        "618": CDP-A2-4
+        "619": CDP-A2-5
+        "620": CDP-A2-6
+        "621": CDP-A2-7
+        "622": CDP-A2-8
+        "623": CDP-A2-9
+        "624": CDP-A2-10
+      parentScopeBlock: "# Parent #602 — Phase 3.5-A2 CDP Batch layer (constant)\\n## Product boundary\\n- Fleet throughput: daily staggered reconcile, dual budgets (Partner + Postgres I/O), same gold.kpi_envelopes\\n- Orthogonal to A1 Speed; parallel after A0; does not block #599/#600\\n## Architect locks\\n- Stagger: hash(shop_id) % 1440; one window/shop/UTC day\\n- Defer codes: partner_budget_exhausted, postgres_io_throttled, speed_mutex_active\\n- Prior art: analytics_backfill CallBudgetGovernor (ADR-029)\\n## Slices (wave 1 — Meta A2 track)\\n- CDP-A2-1 StaggerScheduler (#615) · CDP-A2-2 PartnerApiBudgetGovernor (#616) · CDP-A2-3 PostgresIoBudgetGovernor (#617)\\n## Epic deferrals\\n- A1 Speed (#601) · Decisions (#599) · Demo UI (#600) · read-replica (#624)\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - docs/product/design/
+        - apps/demo/
+        - apps/landing/
+        - web/
+        - ios/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+
+    593:
+      defaultSliceId: CORPORA-1
+      handoffPath: docs/handoffs/issue-593.md
+      childSlices:
+        "593": CORPORA-1
+      parentScopeBlock: "# Parent #593 — TikTok document corpora catalog retrieval (constant)\n## Product boundary\n- Architect/Meta catalog→Grep→selective Read only (ADR-051)\n- Bodies at Juli-AI-local/tiktok-corpora; thin catalogs on main under docs/integrations/tiktok_corpora/\n- Curated tiktok_api/tiktok_platform remain code SoT; distill findings to ADRs/docs\n## Phase gate\n- Executor and Review must NEVER open corpus catalogs/bodies\n## Explicit deferrals\n- Embedding RAG\n- Committing markdown bodies\n- New Cursor skill\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - apps/demo/
+        - apps/landing/
+        - apps/dashboard/
+        - web/
+        - ios/
+        - backend/src/juli_backend/
+        - Sibling issue context caches
