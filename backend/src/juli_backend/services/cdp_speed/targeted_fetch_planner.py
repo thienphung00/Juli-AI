@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from juli_backend.integrations.tiktok.constants import (
+from juli_backend.integrations.tiktok import (
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
