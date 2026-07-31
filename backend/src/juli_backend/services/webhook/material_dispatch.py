@@ -58,8 +58,6 @@ def set_material_analytics_dispatcher(
 def get_material_enqueue_gate() -> MaterialEnqueueGate:
     global _gate
     if _gate is None:
-        import os
-
         redis_url = os.getenv("REDIS_URL", "").strip()
         if redis_url:
             import redis
