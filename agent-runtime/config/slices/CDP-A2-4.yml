@@ -1,0 +1,30 @@
+CDP-A2-4:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/adr/048-cdp-webhook-first-spine-dual-credential.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+  requiredModules:
+    - backend/src/juli_backend/services/cdp_batch/MODULE.md
+    - backend/src/juli_backend/services/cdp_batch/shop_compute_mutex.py
+    - backend/src/juli_backend/services/cdp_batch/__init__.py
+    - backend/src/juli_backend/services/webhook/material_gate.py
+    - tests/unit/test_cdp_batch_shop_compute_mutex.py
+  loadWhenNeeded:
+    - docs/architecture/map.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+    - backend/src/juli_backend/services/cdp_speed/
