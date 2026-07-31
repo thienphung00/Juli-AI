@@ -1960,6 +1960,115 @@ CDP-A0-6:
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
 
+# Phase 3.5-A1 CDP Speed layer (#601) — wave 1 Meta A1 track
+CDP-A1-1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/adr/048-cdp-webhook-first-spine-dual-credential.md
+    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+  requiredModules:
+    - backend/src/juli_backend/services/webhook/MODULE.md
+    - backend/src/juli_backend/services/webhook/deployed.py
+    - backend/src/juli_backend/services/webhook/material_handoff.py
+    - backend/src/juli_backend/services/webhook/material_dispatch.py
+    - backend/src/juli_backend/services/webhook/material_gate.py
+    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
+    - tests/unit/test_material_deployed_handoff.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/webhook/main.py
+    - backend/src/juli_backend/services/tiktok/webhook.py
+    - backend/src/juli_backend/workers/tasks/material_analytics_precompute.py
+    - docs/architecture/map.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+    - backend/src/juli_backend/services/cdp_batch/
+
+CDP-A1-2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/adr/048-cdp-webhook-first-spine-dual-credential.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+  requiredModules:
+    - backend/src/juli_backend/services/cdp_speed/MODULE.md
+    - backend/src/juli_backend/services/cdp_speed/targeted_fetch_planner.py
+    - backend/src/juli_backend/services/cdp_speed/__init__.py
+    - backend/src/juli_backend/services/tiktok/webhook_catalog.py
+    - tests/unit/test_cdp_speed_targeted_fetch_planner.py
+  loadWhenNeeded:
+    - docs/architecture/map.md
+    - docs/integrations/tiktok_api/endpoints.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+    - backend/src/juli_backend/services/cdp_batch/
+
+CDP-A1-3:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/adr/048-cdp-webhook-first-spine-dual-credential.md
+    - CONTEXT.md
+    - docs/architecture/data-sources.md
+  requiredModules:
+    - backend/src/juli_backend/services/cdp_speed/MODULE.md
+    - backend/src/juli_backend/services/cdp_speed/__init__.py
+    - backend/src/juli_backend/services/cdp_speed/targeted_fetch_planner.py
+    - backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py
+    - backend/src/juli_backend/services/etl/silver_promotion.py
+    - backend/src/juli_backend/services/gold_kpi_envelope_serving.py
+    - backend/src/juli_backend/services/webhook/material_dispatch.py
+    - tests/unit/test_cdp_speed_shared_compute_orchestrator.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/workers/tasks/material_analytics_precompute.py
+    - backend/src/juli_backend/services/webhook/material_worker.py
+    - tests/integration/test_material_deployed_webhook_handoff.py
+    - docs/architecture/map.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/landing/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+    - backend/src/juli_backend/services/cdp_batch/
+
 # TikTok document corpora catalog retrieval (#593 / ADR-051)
 CORPORA-1:
   executorDomain: backend
