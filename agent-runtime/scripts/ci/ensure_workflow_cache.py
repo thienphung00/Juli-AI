@@ -42,6 +42,7 @@ from workflow_cache_store import (  # noqa: E402
 )
 
 DEFAULT_CONFIG = REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml"
+ISSUE_PREPARE_DIR = REPO_ROOT / "agent-runtime" / "config" / "issue-prepare"
 
 PARENT_LINE_RE = re.compile(
     r"(?im)^(?:##\s*Parent\s*\n+\s*#?|#?\s*Parent\s*[:#]\s*|Part of\s+#?)(\d+)\b"
@@ -133,6 +134,18 @@ def resolve_parent_from_epic_registry(
     return None
 
 
+def load_issue_prepare_overlay(
+    issue_id: int, repo_root: Path = REPO_ROOT
+) -> dict[str, Any]:
+    path = repo_root / "agent-runtime" / "config" / "issue-prepare" / f"{issue_id}.yml"
+    if not path.is_file():
+        return {}
+    data = load_simple_yaml(path)
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
 def resolve_linkage(
     *,
     issue_id: int,
@@ -141,9 +154,16 @@ def resolve_linkage(
     parent_issue_id: int | None = None,
     slice_id: str | None = None,
     handoff_path: str | None = None,
+    repo_root: Path = REPO_ROOT,
 ) -> dict[str, Any]:
+    prepare_overlay = load_issue_prepare_overlay(issue_id, repo_root)
+    overlay_parent = prepare_overlay.get("parentIssueId")
+    if overlay_parent is not None:
+        overlay_parent = int(overlay_parent)
+
     resolved_parent = (
         parent_issue_id
+        or overlay_parent
         or parse_parent_issue_id(issue_body)
         or resolve_parent_from_epic_registry(config, issue_id)
     )
@@ -160,8 +180,13 @@ def resolve_linkage(
         or child_slices.get(str(issue_id))
         or child_slices.get(f'"{issue_id}"')
     )
+    overlay_slice = prepare_overlay.get("sliceId")
+    if isinstance(overlay_slice, str):
+        overlay_slice = overlay_slice.strip() or None
+
     resolved_slice = (
         slice_id
+        or overlay_slice
         or parse_slice_id(issue_body)
         or registry_child_slice
         or epic.get("sliceId")
@@ -174,8 +199,13 @@ def resolve_linkage(
             "workflow_prompt_cache.epicRegistry."
         )
 
+    overlay_handoff = prepare_overlay.get("handoffPath")
+    if isinstance(overlay_handoff, str):
+        overlay_handoff = overlay_handoff.strip() or None
+
     resolved_handoff = (
         handoff_path
+        or overlay_handoff
         or epic.get("handoffPath")
         or f"docs/handoffs/issue-{resolved_parent}.md"
     )
@@ -594,6 +624,7 @@ def ensure_workflow_caches(
         parent_issue_id=parent_issue_id,
         slice_id=slice_id,
         handoff_path=handoff_path,
+        repo_root=repo_root,
     )
     parent_cache, parent_path, parent_created = ensure_parent_cache(
         linkage=linkage,
