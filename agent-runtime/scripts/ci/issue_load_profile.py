@@ -22,6 +22,23 @@ CHECKBOX_RE = re.compile(r"^[-*]\s+(?:\[[ xX]\]\s*)?(?P<text>.+?)\s*$")
 SLICE_ROUTING_CONFIG = (
     Path(__file__).resolve().parents[2] / "config" / "slice-routing.yml"
 )
+SLICES_OVERLAY_DIR = Path(__file__).resolve().parents[2] / "config" / "slices"
+
+
+def _merge_slice_overlay_rules(
+    rules: dict[str, dict[str, Any]], overlay_dir: Path
+) -> dict[str, dict[str, Any]]:
+    if not overlay_dir.is_dir():
+        return rules
+    merged = dict(rules)
+    for overlay_file in sorted(overlay_dir.glob("*.yml")):
+        overlay_rules = load_simple_yaml(overlay_file)
+        if not isinstance(overlay_rules, dict):
+            continue
+        for slice_id, rule in overlay_rules.items():
+            if isinstance(rule, dict):
+                merged[slice_id] = rule
+    return merged
 
 
 def load_slice_routing_rules(config_path: Path | None = None) -> dict[str, dict[str, Any]]:
@@ -29,7 +46,8 @@ def load_slice_routing_rules(config_path: Path | None = None) -> dict[str, dict[
     rules = load_simple_yaml(path)
     if not isinstance(rules, dict):
         raise ValueError(f"slice-routing config must be a mapping: {path}")
-    return rules
+    overlay_dir = path.parent / "slices" if config_path is not None else SLICES_OVERLAY_DIR
+    return _merge_slice_overlay_rules(rules, overlay_dir)
 
 
 def parse_acceptance_criteria(issue_body: str) -> list[str]:

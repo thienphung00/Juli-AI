@@ -15,11 +15,14 @@ sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts"))
 
 from ensure_workflow_cache import (  # noqa: E402
     ensure_workflow_caches,
+    load_issue_prepare_overlay,
     load_runtime_config,
     parse_parent_issue_id,
     parse_slice_id,
+    resolve_linkage,
     single_domain_harness_utility,
 )
+from issue_load_profile import load_slice_routing_rules  # noqa: E402
 
 
 def test_parse_parent_and_slice_from_issue_body() -> None:
@@ -269,3 +272,90 @@ def test_ensure_persists_label_only_public_release(
     child = json.loads((repo / summary["childCachePath"]).read_text(encoding="utf-8"))
     assert child["publicRelease"] is True
     assert "label:public-release" in child["publicReleaseReasons"]
+
+
+def test_resolve_linkage_reads_issue_prepare_overlay(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    prepare_dir = repo / "agent-runtime" / "config" / "issue-prepare"
+    prepare_dir.mkdir(parents=True)
+    (prepare_dir / "615.yml").write_text(
+        "\n".join(
+            [
+                "parentIssueId: 602",
+                "sliceId: CDP-A2-1",
+                "handoffPath: docs/handoffs/phase-3.5-prd-bodies/a2-batch.md",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cfg = {"workflow_prompt_cache": {"epicRegistry": {}}}
+
+    linkage = resolve_linkage(
+        issue_id=615,
+        issue_body="## Acceptance criteria\n- stagger scheduler\n",
+        config=cfg,
+        repo_root=repo,
+    )
+
+    assert linkage["parentIssueId"] == 602
+    assert linkage["sliceId"] == "CDP-A2-1"
+    assert linkage["handoffPath"] == "docs/handoffs/phase-3.5-prd-bodies/a2-batch.md"
+
+
+def test_load_slice_routing_rules_merges_overlay(tmp_path: Path) -> None:
+    config_dir = tmp_path / "agent-runtime" / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "slice-routing.yml").write_text(
+        "BASE-SLICE:\n  executorDomain: backend\n  requiredDocs: []\n  requiredModules: []\n",
+        encoding="utf-8",
+    )
+    slices_dir = config_dir / "slices"
+    slices_dir.mkdir()
+    (slices_dir / "CDP-A2-1.yml").write_text(
+        "\n".join(
+            [
+                "CDP-A2-1:",
+                "  executorDomain: backend",
+                "  requiredDocs:",
+                "    - EXECUTION.md",
+                "  requiredModules:",
+                "    - backend/src/juli_backend/services/cdp_batch/stagger_scheduler.py",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    rules = load_slice_routing_rules(config_dir / "slice-routing.yml")
+
+    assert "BASE-SLICE" in rules
+    assert rules["CDP-A2-1"]["requiredModules"] == [
+        "backend/src/juli_backend/services/cdp_batch/stagger_scheduler.py"
+    ]
+
+
+def test_issue_prepare_overlay_cli_precedence(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    prepare_dir = repo / "agent-runtime" / "config" / "issue-prepare"
+    prepare_dir.mkdir(parents=True)
+    (prepare_dir / "615.yml").write_text(
+        "parentIssueId: 602\nsliceId: CDP-A2-1\nhandoffPath: docs/from-overlay.md\n",
+        encoding="utf-8",
+    )
+    cfg = {"workflow_prompt_cache": {"epicRegistry": {}}}
+
+    linkage = resolve_linkage(
+        issue_id=615,
+        issue_body="",
+        config=cfg,
+        parent_issue_id=999,
+        slice_id="CLI-SLICE",
+        handoff_path="docs/from-cli.md",
+        repo_root=repo,
+    )
+
+    assert linkage["parentIssueId"] == 999
+    assert linkage["sliceId"] == "CLI-SLICE"
+    assert linkage["handoffPath"] == "docs/from-cli.md"
+    assert load_issue_prepare_overlay(615, repo)["sliceId"] == "CDP-A2-1"
