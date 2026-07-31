@@ -1,0 +1,71 @@
+=== auth (23) ===
+  table: audit_log_entries
+  table: custom_oauth_providers
+  table: flow_state
+  table: identities
+  table: instances
+  table: mfa_amr_claims
+  table: mfa_challenges
+  table: mfa_factors
+  table: oauth_authorizations
+  table: oauth_client_states
+  table: oauth_clients
+  table: oauth_consents
+  table: one_time_tokens
+  table: refresh_tokens
+  table: saml_providers
+  table: saml_relay_states
+  table: schema_migrations
+  table: sessions
+  table: sso_domains
+  table: sso_providers
+  table: users
+  table: webauthn_challenges
+  table: webauthn_credentials
+=== extensions (2) ===
+  view: pg_stat_statements
+  view: pg_stat_statements_info
+=== public (27) ===
+  table: action_cards
+  table: alembic_version
+  table: alert_configs
+  table: alert_history
+  table: analytics_backfill_partitions
+  table: analytics_kpi_envelopes
+  table: analytics_performance_intervals
+  table: campaigns
+  table: creators
+  table: graph_edges
+  table: inventory_items
+  table: livestreams
+  table: order_items
+  table: orders
+  table: processed_events
+  table: products
+  table: recommendations
+  table: returns
+  table: settlements
+  table: shops
+  table: tiktok_credentials
+  table: tiktok_sync_state
+  table: tool_executions
+  table: users
+  table: webhook_raw_events
+  table: workflow_outcome_records
+  table: workflow_webhook_signals
+=== realtime (3) ===
+  partitioned: messages
+  table: schema_migrations
+  table: subscription
+=== storage (8) ===
+  table: buckets
+  table: buckets_analytics
+  table: buckets_vectors
+  table: migrations
+  table: objects
+  table: s3_multipart_uploads
+  table: s3_multipart_uploads_parts
+  table: vector_indexes
+=== vault (2) ===
+  view: decrypted_secrets
+  table: secrets

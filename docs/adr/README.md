@@ -46,7 +46,13 @@
 | [036](036-modules-tier1-planning-sot.md) | MODULES.md Tier-1 module planning SoT + doc tier ladder | Accepted |
 | [037](037-phase-2.10-demo-real-data-no-auth.md) | Phase 2.10 — Demo real-data KPI wire without auth | Accepted |
 | [038](038-phase-2.10-dual-layer-pipeline.md) | Phase 2.10 dual-layer pipeline — precompute + required cache | Accepted |
+| [039](039-docp-phase-2.11-openobserve-posthog.md) | DOCP Phase 2.11 — OpenObserve + PostHog thin MVP | Accepted |
 | [040](040-pr-safe-tests-lane.md) | PR-safe Tests lane (markers, timeouts, live on merge_group) | Accepted |
 | [041](041-vps-redis-ephemeral-cache-and-celery.md) | VPS Redis — ephemeral cache + Celery DB split (Phase 2.10 A11) | Accepted |
 | [042](042-module-docs-facade-sync.md) | MODULE.md + map.md sync to enforced facades (MMU-13) | Accepted |
 | [043](043-frontend-design-skill-wiring.md) | Frontend design skill wiring — Open Design + Mobbin upstream of ui-ux | Accepted |
+| [046](046-cdp-medallion-physical-model.md) | CDP medallion physical model — bronze / silver / gold / ops | Accepted |
+| [047](047-cdp-lambda-layers-prd-split.md) | CDP Lambda layers and Phase 3.5 Analytics PRD split (A0 / A1 / A2) | Accepted |
+| [048](048-cdp-webhook-first-spine-dual-credential.md) | Webhook-first CDP continuous spine and Demo dual credential model | Accepted |
+| [049](049-demo-analytics-main-kpi-override.md) | Demo Analytics Main KPI override (CDP-backed Option B′) | Accepted |
+| [050](050-cdp-slice-3-5-c-two-gated-exits.md) | CDP slice 3.5-C — two gated exits (C1 warm Sign-in, C2 cold-start) | Accepted |
