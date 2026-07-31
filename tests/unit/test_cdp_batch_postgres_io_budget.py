@@ -99,7 +99,7 @@ def test_finish_complete_allows_partition_complete() -> None:
     assert fields["concurrent_shop_count"] == 1
 
 
-def test_structured_log_fields_never_include_secrets() -> None:
+def test_structured_log_metrics_bronze_silver_concurrent_no_tokens() -> None:
     gov = begin_postgres_io_budget_run()
     gov.try_bronze_flush(10)
     fields = gov.finish("complete")
