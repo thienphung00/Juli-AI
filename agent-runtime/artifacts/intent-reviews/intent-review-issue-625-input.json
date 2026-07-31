@@ -1,9 +1,6 @@
 {
   "schemaVersion": "1.0.0",
   "artifactType": "intent_review",
-  "id": "intent-review-issue-625",
-  "issue": 625,
-  "timestamp": "2026-07-31T03:35:48Z",
   "reviewedBy": "intent-review skill",
   "fixedPoint": "0dbbe707",
   "spec_fidelity": "pass",
@@ -11,7 +8,7 @@
   "smells": [],
   "convention_notes": [
     {
-      "standard": "testing-patterns \u2014 integration vs unit boundary",
+      "standard": "testing-patterns — integration vs unit boundary",
       "path": "tests/integration/test_material_deployed_webhook_handoff.py",
       "note": "AC4 correctly lives under tests/integration/ with shared conftest session fixtures; unit file retains AC1-AC3/AC5-AC6 dispatch/handoff coverage.",
       "blocksMerge": false

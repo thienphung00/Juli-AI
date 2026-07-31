@@ -66,6 +66,7 @@ Orthogonal to ``PartnerApiBudgetGovernor`` (#616) — dual budgets required for 
 ### Deferred (later A2 slices)
 
 - ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
+- ``PostgresIoBudgetGovernor`` — bronze/silver I/O throttle (#617)
 - ``ShopComputeMutex`` — defer when speed compute active
 - ``BatchReconcileOrchestrator`` — shop-scoped fetch → Shared Compute → gold
 

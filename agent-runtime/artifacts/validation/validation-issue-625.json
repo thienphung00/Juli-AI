@@ -1,7 +1,7 @@
 {
   "id": "validation-issue-625",
   "issue": 625,
-  "timestamp": "2026-07-31T00:57:10Z",
+  "timestamp": "2026-07-31T03:37:07Z",
   "validatedBy": "validate skill",
   "status": "PASS",
   "passedChecks": 21,
@@ -23,10 +23,10 @@
       "description": "Implementation artifact present; domain backend",
       "details": {
         "executorDomain": "backend",
-        "phaseRunId": "625-20260731T002942",
-        "executionDurationMs": 0,
-        "contextFileCount": 6,
-        "rulesLoadedCount": 0,
+        "phaseRunId": "625-20260731T1032Z-residual",
+        "executionDurationMs": 348000,
+        "contextFileCount": 7,
+        "rulesLoadedCount": 2,
         "mcpsUsedCount": 0,
         "tokenUsageTotal": 0
       }
@@ -191,16 +191,12 @@
     {
       "name": "implementation_tdd_evidence",
       "status": "PASS",
-      "description": "TDD evidence present for in-scope code changes",
+      "description": "No in-scope code changes \u2014 TDD evidence not required",
       "details": {
         "issueId": 625,
-        "requiresTddEvidence": true,
-        "matchedPaths": [
-          "backend/src/juli_backend/services/webhook/deployed.py",
-          "backend/src/juli_backend/services/webhook/material_dispatch.py",
-          "backend/src/juli_backend/services/webhook/material_handoff.py"
-        ],
-        "cycleCount": 1
+        "requiresTddEvidence": false,
+        "matchedPaths": [],
+        "skipped": true
       }
     },
     {
@@ -216,34 +212,34 @@
     {
       "name": "phase_run_correlation",
       "status": "PASS",
-      "description": "phaseRunId 625-20260731T002942 correlated across present artifacts",
+      "description": "phaseRunId 625-20260731T1032Z-residual correlated across present artifacts",
       "details": {
         "issueId": 625,
-        "canonicalPhaseRunId": "625-20260731T002942",
+        "canonicalPhaseRunId": "625-20260731T1032Z-residual",
         "planSource": null,
         "artifacts": {
           "implementation": {
             "required": true,
             "present": true,
-            "phaseRunId": "625-20260731T002942",
+            "phaseRunId": "625-20260731T1032Z-residual",
             "status": "matched"
           },
           "intent_review": {
             "required": false,
             "present": true,
-            "phaseRunId": "625-20260731T002942",
+            "phaseRunId": "625-20260731T1032Z-residual",
             "status": "matched"
           },
           "review": {
             "required": false,
             "present": true,
-            "phaseRunId": "625-20260731T002942",
+            "phaseRunId": "625-20260731T1032Z-residual",
             "status": "matched"
           },
           "validation": {
             "required": false,
             "present": true,
-            "phaseRunId": "625-20260731T002942",
+            "phaseRunId": "625-20260731T1032Z-residual",
             "status": "matched"
           }
         }
@@ -289,11 +285,11 @@
   "validationFailures": 0,
   "readyForShip": true,
   "retryCount": 0,
-  "testsExecuted": 60,
-  "testsPassed": 60,
+  "testsExecuted": 27,
+  "testsPassed": 27,
   "testsFailed": 0,
   "coveragePercentage": 0,
   "benchmarkStatus": "not_run",
   "executionDurationMs": 0,
-  "phaseRunId": "625-20260731T002942"
+  "phaseRunId": "625-20260731T1032Z-residual"
 }
