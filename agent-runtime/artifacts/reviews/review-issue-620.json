@@ -1,0 +1,99 @@
+{
+  "id": "review-issue-620",
+  "issue": 620,
+  "timestamp": "2026-07-31T06:15:51Z",
+  "reviewedBy": "guardrails skill",
+  "status": "PASS",
+  "summary": "Issue #620 CDP-A2-5 (post-repair): intent-review spec_fidelity=pass consumed as given. BatchPartitionCheckpointsRepo reads/writes ops.analytics_backfill_partitions only via public repo methods; reconcile_partition_with_checkpoints uses idempotent append-only bronze pages, bronze metadata recovery for crash-after-bronze, and shared-session atomicity. 36 focused/regression tests pass; ruff clean; module_boundaries PASS; implementation schema/TDD gates PASS.",
+  "criticalFindings": [],
+  "modulesTouched": [
+    "backend/src/juli_backend/services/cdp_batch/partition_checkpoints.py",
+    "backend/src/juli_backend/services/cdp_batch/__init__.py",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/repositories/repos.py",
+    "tests/unit/test_cdp_batch_partition_checkpoints.py"
+  ],
+  "interfaceChanges": [
+    {
+      "module": "backend/src/juli_backend/repositories/repos.py",
+      "interface": "AnalyticsBackfillPartitionsRepo.get_partition / validate_bucket",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Public partition row accessor and bucket validator replace private reach-through from cdp_batch."
+    },
+    {
+      "module": "backend/src/juli_backend/services/cdp_batch",
+      "interface": "append_reconcile_bronze_page / recover_checkpoint_from_bronze / reconcile_partition_with_checkpoints",
+      "changeType": "added",
+      "breaking": false,
+      "description": "Partition-resumable batch reconcile hook with idempotent bronze landing and crash recovery."
+    }
+  ],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 5,
+      "mapped": 5,
+      "unmapped": [],
+      "mappings": [
+        {
+          "criterion": "Batch partition repo reads/writes ops.analytics_backfill_partitions only (no long-term public dual-write).",
+          "test": "tests/unit/test_cdp_batch_partition_checkpoints.py::test_reads_and_writes_ops_partitions_only"
+        },
+        {
+          "criterion": "partial failure resume checkpoint cursor orchestrator hook",
+          "test": "tests/unit/test_cdp_batch_partition_checkpoints.py::test_mid_partition_failure_then_resume_without_duplicating_pages"
+        },
+        {
+          "criterion": "simulated mid partition failure resume without duplicating completed pages",
+          "test": "tests/unit/test_cdp_batch_partition_checkpoints.py::test_mid_partition_failure_then_resume_without_duplicating_pages"
+        },
+        {
+          "criterion": "append only bronze reconcile ingest preserved fixture path",
+          "test": "tests/unit/test_cdp_batch_partition_checkpoints.py::test_append_reconcile_bronze_page_is_idempotent_by_source_event_id"
+        },
+        {
+          "criterion": "Depends on A0 ops partition migration (#604); no live Partner in PR lane.",
+          "test": "tests/unit/test_cdp_batch_partition_checkpoints.py::test_no_live_partner_http_in_unit_tests"
+        }
+      ]
+    },
+    "unit": {
+      "passed": 36,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": {
+    "reviewer": "guardrails",
+    "signedAt": "2026-07-31T06:15:00Z"
+  },
+  "ownerSignoff": {
+    "owner": "executor",
+    "signedAt": "2026-07-31T06:15:00Z"
+  },
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "schemaVersion": "1.0.0",
+  "artifactType": "review",
+  "architectureFindings": [],
+  "securityFindings": [],
+  "maintainabilityFindings": [],
+  "findings": [],
+  "phaseRunId": "620-20260731T060732",
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-620.json",
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": true,
+  "crashBoundaryVerification": {
+    "sharedSessionRollback": "test_shared_session_rollback_discards_bronze_and_checkpoint",
+    "crashAfterBronzeRecovery": "test_crash_after_bronze_before_checkpoint_resume_no_duplicate",
+    "idempotentPageLanding": "test_append_reconcile_bronze_page_is_idempotent_by_source_event_id",
+    "bronzeMetadataRecovery": "test_recover_checkpoint_from_bronze_reads_next_page_token"
+  },
+  "reviewStatus": "PASS",
+  "reviewFailures": 0,
+  "severity": "none",
+  "suggestedRemediation": []
+}
