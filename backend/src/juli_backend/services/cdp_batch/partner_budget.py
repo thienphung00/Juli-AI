@@ -11,11 +11,12 @@ Independent from ``PostgresIoBudgetGovernor`` (#617) — dual budgets stay separ
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 from juli_backend.services.analytics_backfill.budget import (
     BudgetExhaustedError,
     CallBudgetGovernor,
+    StoppedReason,
     begin_run,
 )
 
@@ -89,7 +90,9 @@ class PartnerApiBudgetGovernor:
     def finish(self, reason: PartnerBudgetStopReason) -> dict[str, int | str | None]:
         """Set terminal stop reason and return structured log fields."""
         self._finish_reason = reason
-        internal_reason = "budget" if reason == DEFER_REASON else reason
+        internal_reason: StoppedReason = (
+            "budget" if reason == DEFER_REASON else cast(StoppedReason, reason)
+        )
         self._governor.finish(internal_reason)
         return self.structured_log_fields()
 
