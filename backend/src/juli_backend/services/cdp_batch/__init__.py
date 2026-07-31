@@ -13,6 +13,14 @@ from juli_backend.services.cdp_batch.partner_budget import (
     PartnerBudgetStopReason,
     begin_partner_budget_run,
 )
+from juli_backend.services.cdp_batch.postgres_io_budget import (
+    DEFER_REASON as POSTGRES_IO_DEFER_REASON,
+)
+from juli_backend.services.cdp_batch.postgres_io_budget import (
+    PostgresIoBudgetGovernor,
+    PostgresIoBudgetStopReason,
+    begin_postgres_io_budget_run,
+)
 from juli_backend.services.cdp_batch.shop_compute_mutex import (
     COMPUTE_MUTEX_TTL_SECONDS,
     BatchComputeEntryResult,
@@ -45,8 +53,11 @@ __all__ = [
     "PartitionPageCheckpoint",
     "InMemoryShopComputeMutex",
     "MINUTES_PER_UTC_DAY",
+    "POSTGRES_IO_DEFER_REASON",
     "PartnerApiBudgetGovernor",
     "PartnerBudgetStopReason",
+    "PostgresIoBudgetGovernor",
+    "PostgresIoBudgetStopReason",
     "RedisShopComputeMutex",
     "ReconcileWindow",
     "SPEED_MUTEX_DEFER_REASON",
@@ -54,6 +65,7 @@ __all__ = [
     "StaggerScheduler",
     "assign_window",
     "begin_partner_budget_run",
+    "begin_postgres_io_budget_run",
     "compute_mutex_key",
     "reconcile_partition_with_checkpoints",
     "try_begin_batch_compute",

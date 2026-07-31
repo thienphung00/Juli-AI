@@ -86,10 +86,32 @@ page-level idempotency + bronze metadata — completed pages are never re-append
 Structured log fields: ``shop_id``, ``bucket``, ``partition_date``, ``pages_completed``,
 ``page_token``, ``defer_reason``. Never logs tokens or PII.
 
+### PostgresIoBudgetGovernor (#617)
+
+Per-run Postgres I/O caps for batch reconcile bronze flush, silver upsert batch,
+and concurrent shop jobs. Independent from Partner API budget.
+
+- ``begin_postgres_io_budget_run(...)`` → fresh governor (env knobs:
+  ``BATCH_BRONZE_ROWS_PER_FLUSH``, ``BATCH_SILVER_UPSERT_BATCH_SIZE``,
+  ``BATCH_MAX_CONCURRENT_SHOPS``)
+- ``try_bronze_flush(row_count)`` → ``True`` when row count ≤ flush cap
+- ``try_silver_upsert(row_count)`` → ``True`` when row count ≤ batch cap
+- ``try_acquire_shop()`` / ``release_shop()`` — concurrent shop slot tracking
+- ``should_defer()`` → ``True`` once any I/O dimension rejects an operation
+- ``finish("postgres_io_throttled")`` → structured logs; partition **not** complete
+- ``finish("complete")`` → ``implies_partition_complete`` is ``True``
+- ``POSTGRES_IO_DEFER_REASON`` / ``DEFER_REASON`` — constant ``"postgres_io_throttled"``
+
+Structured log fields: ``bronze_flush_size``, ``silver_batch_size``,
+``concurrent_shop_count``, ``batch_postgres_io_deferred_total``, ``stopped_reason``,
+``defer_reason``. Never logs tokens or PII.
+
+Orthogonal to ``PartnerApiBudgetGovernor`` (#616) — dual budgets required for A2 exit.
+**Partner-only budget without I/O governor is not sufficient for A2 exit.**
+
 ### Deferred (later A2 slices)
 
 - ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
-- ``PostgresIoBudgetGovernor`` — bronze/silver I/O throttle (#617)
 - ``BatchReconcileOrchestrator`` — shop-scoped fetch → Shared Compute → gold
 
 ## Scheduler deployment
@@ -104,7 +126,7 @@ matches ``minute_of_day``. Mechanism is flexible; determinism is not.
 - Hourly Fujiwa exception (remains **A1 Speed** per ADR-048)
 - Partner API calls, Postgres fleet queries, Redis mutex
 - ``is_due`` slot runner, Celery Beat schedule wiring
-- Postgres I/O governor (#617) and batch orchestrator (CDP-A2-3+)
+- Batch orchestrator (CDP-A2-4+)
 
 ## Dependencies
 
@@ -122,3 +144,5 @@ Pure in-memory; no I/O. Safe for PR CI without live credentials.
 - ``tests/unit/test_cdp_batch_partition_checkpoints.py`` — ops-only partition repo,
   mid-partition failure → resume without duplicating bronze pages, crash-after-bronze
   recovery, shared-session rollback contract, budget defer; fixture fetchers only.
+- ``tests/unit/test_cdp_batch_postgres_io_budget.py`` — I/O cap defer,
+  under-cap promotion, concurrent shop slots, dual-budget negative AC; no live Supabase.
