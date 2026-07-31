@@ -1,7 +1,4 @@
 {
-  "id": "review-issue-625",
-  "issue": 625,
-  "timestamp": "2026-07-31T03:37:01Z",
   "reviewedBy": "guardrails skill",
   "status": "PASS",
   "summary": "Issue #625 residual follow-up: intent-review spec_fidelity=pass consumed as given. AC4 integration test uses handle_tiktok_webhook_delivery + real EtlConsumer.ingest (orders + webhook signals persisted); Celery mocked only at material_dispatch._dispatcher enqueue boundary. Factory handoff_fn AC4 unit stubs removed. AC6 extended to assert sync_analytics not called. 27 tests pass (1 integration + 26 unit).",
@@ -64,11 +61,5 @@
   "architectureFindings": [],
   "maintainabilityFindings": [],
   "staticAnalysisExecuted": true,
-  "dynamicTestsExecuted": true,
-  "schemaVersion": "1.0.0",
-  "artifactType": "review",
-  "reviewStatus": "PASS",
-  "findings": [],
-  "severity": "none",
-  "suggestedRemediation": []
+  "dynamicTestsExecuted": true
 }
