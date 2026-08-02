@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-660",
+  "issue": 660,
+  "phaseRunId": "660-20260802T075454",
+  "timestamp": "2026-08-02T00:00:00Z",
+  "reviewedBy": "review-agent",
+  "fixedPoint": "main",
+  "spec_fidelity": "fail",
+  "specFidelityNotes": "Most ACs are correctly implemented (issue-tier minimal job set, artifact-gate rename + main-only + deterministic wave_manifest.py check, policy-checks manifest membership, gitleaks always-on unconditional job, status-check tier-aware aggregation, RED->GREEN contract tests). Two findings keep this at fail: (1) AC2's skip_unchanged_head mechanism reads github.event.before/after on a pull_request 'synchronize' action, but GitHub only fires 'synchronize' when the PR's own head SHA changes -- by definition before != after whenever that event fires. The ADR-052 intent ('sibling merged into wave base, this PR's head did not move') describes a base-only update, which is not what triggers a pull_request synchronize event; there is no known GitHub webhook path that delivers a synchronize event with before == after. The code is safe (fails closed: it just never skips), but the stated behavior in the AC ('base-only synchronization... skips issue-tier work safely') is very unlikely to ever be exercised in production -- looks done, but does not deliver the described optimization. (2) AC6/audit addendum's main_via_wave discriminator checks github.event.merge_group.head_ref against 'feature/*-wave', but GitHub's documented merge_group.head_ref format is the synthetic queue ref (e.g. 'refs/heads/gh-readonly-queue/main/pr-<n>-<sha>'), not the source branch name. So main_via_wave will be false for actual merge_group runs (only true for the wave->main pull_request review event), meaning lint/typecheck/frontend/demo-frontend still re-run at the merge_group step even for wave-originated changes -- the 'no CI double-run' AC is only partially achieved (safe/over-inclusive direction, not a correctness/security gap, but the audit item is not fully closed). Both are intent-vs-implementation gaps, not security holes -- flagging as required follow-up rather than blocking on a rewrite here per review-agent scope limits.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": ".cursor/rules/patterns.mdc / existing pr.yml bash conventions",
+      "path": ".github/workflows/pr.yml",
+      "note": "New classify-tier bash blocks (skip_unchanged_head, main_via_wave) follow the existing set -euo pipefail / GITHUB_OUTPUT idiom used elsewhere in the file. No deviation found."
+    }
+  ]
+}

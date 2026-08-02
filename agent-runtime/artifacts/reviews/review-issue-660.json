@@ -1,0 +1,103 @@
+{
+  "id": "review-issue-660",
+  "issue": 660,
+  "phaseRunId": "660-20260802T075454",
+  "timestamp": "2026-08-02T08:37:00Z",
+  "reviewedBy": "guardrails skill",
+  "status": "FAIL",
+  "summary": "Guardrails findings folded from intent-review (spec_fidelity: fail). Two intent-vs-implementation gaps in .github/workflows/pr.yml classify-tier logic: AC2 skip_unchanged_head relies on a pull_request synchronize before==after signal that GitHub does not emit in practice (synchronize only fires on head SHA change), so the base-only-skip optimization is effectively unreachable in production (safe/fail-closed direction, no missed-failure risk). AC6/audit-addendum main_via_wave relies on github.event.merge_group.head_ref matching feature/*-wave, but GitHub's merge_group.head_ref is the synthetic gh-readonly-queue ref, not the source branch, so the no-double-run optimization does not apply during actual merge_group runs (again safe/over-inclusive, not a coverage hole). No security, secrets, or reliability findings; gitleaks job is unconditional across all tiers with no if: gate; artifact-gate job is fully deterministic (calls wave_manifest.py --check-artifacts only, no LLM invocation). AC coverage mapping skipped per handoff rule 3 (spec_fidelity == fail) until the two intent gaps above are resolved or explicitly accepted.",
+  "criticalFindings": [
+    {
+      "type": "other",
+      "module": ".github/workflows/pr.yml",
+      "description": "Imported from intent-review (spec_fidelity: fail). AC2's skip_unchanged_head (classify-tier job) gates on `EVENT_ACTION == \"synchronize\" && EVENT_BEFORE == EVENT_AFTER`. GitHub only fires pull_request `synchronize` when the PR's head SHA changes, so before always != after when that event fires; there is no documented GitHub webhook path that delivers `synchronize` with unchanged head. Result: the base-only-skip path described in ADR-052 / AC2 (\"sibling merged into wave base, this PR's head did not move\") is implemented but very unlikely to ever execute, so the stated CI-cost-avoidance behavior is not actually delivered. Safe direction only (never skips when it shouldn't; may just never skip when the ADR wanted it to) \u2014 not a security or false-green risk.",
+      "severity": "CRITICAL",
+      "actionRequired": true,
+      "suggestion": "Re-derive the base-only signal from a mechanism GitHub actually emits (e.g. compare github.event.pull_request.base.sha across a stored/previous value, or drop this optimization and rely on skip_unchanged_head remaining a documented no-op) rather than pull_request synchronize before/after, which are head-ref fields."
+    },
+    {
+      "type": "other",
+      "module": ".github/workflows/pr.yml",
+      "description": "Imported from intent-review (spec_fidelity: fail). The folded-audit-AC/AC6 main_via_wave discriminator (classify-tier job) checks merge_group.head_ref against `feature/*-wave`, but GitHub's merge_group event head_ref is the synthetic queue ref (e.g. `refs/heads/gh-readonly-queue/main/pr-<n>-<sha>`), not the wave branch name. So main_via_wave is true only for the wave->main pull_request review run, not for the subsequent merge_group run \u2014 lint/typecheck/frontend/demo-frontend still re-execute at merge_group time even though they already ran at issue tier. The 'no CI double-run' goal from the cleanliness-audit addendum is only partially achieved. Safe/over-inclusive direction (extra CI cost, not a missed-failure risk).",
+      "severity": "WARNING",
+      "actionRequired": true,
+      "suggestion": "Derive main_via_wave for merge_group from github.event.merge_group.base_sha/base_ref plus a lookup of the queued PR's head ref (e.g. via the merge_group base_ref and matching open PR), or accept the residual merge_group re-run as intentional and update the ADR/AC wording to scope the optimization to the pull_request review event only."
+    }
+  ],
+  "modulesTouched": [
+    ".github/workflows/pr.yml",
+    "tests/unit/test_three_tier_ci_contract.py"
+  ],
+  "interfaceChanges": [],
+  "moduleDrift": false,
+  "driftDetails": [],
+  "testCoverage": {
+    "acceptance": {
+      "total": 0,
+      "mapped": 0,
+      "unmapped": [],
+      "mappings": [],
+      "note": "AC coverage-gap mapping skipped per guardrails handoff rule (spec_fidelity == fail on intent-review) \u2014 fix or explicitly accept the two intent gaps first, then re-run guardrails to map AC coverage."
+    },
+    "unit": {
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "recommendations": [],
+  "approvalReady": true,
+  "reviewerSignoff": null,
+  "ownerSignoff": null,
+  "mlGates": null,
+  "priorReviewBlockers": [],
+  "artifactType": "review",
+  "securityFindings": [],
+  "architectureFindings": [],
+  "maintainabilityFindings": [
+    {
+      "type": "other",
+      "module": ".github/workflows/pr.yml",
+      "description": "Imported from intent-review (spec_fidelity: fail). AC2's skip_unchanged_head (classify-tier job) gates on `EVENT_ACTION == \"synchronize\" && EVENT_BEFORE == EVENT_AFTER`. GitHub only fires pull_request `synchronize` when the PR's head SHA changes, so before always != after when that event fires; there is no documented GitHub webhook path that delivers `synchronize` with unchanged head. Result: the base-only-skip path described in ADR-052 / AC2 (\"sibling merged into wave base, this PR's head did not move\") is implemented but very unlikely to ever execute, so the stated CI-cost-avoidance behavior is not actually delivered. Safe direction only (never skips when it shouldn't; may just never skip when the ADR wanted it to) \u2014 not a security or false-green risk.",
+      "severity": "CRITICAL",
+      "actionRequired": true,
+      "suggestion": "Re-derive the base-only signal from a mechanism GitHub actually emits (e.g. compare github.event.pull_request.base.sha across a stored/previous value, or drop this optimization and rely on skip_unchanged_head remaining a documented no-op) rather than pull_request synchronize before/after, which are head-ref fields."
+    },
+    {
+      "type": "other",
+      "module": ".github/workflows/pr.yml",
+      "description": "Imported from intent-review (spec_fidelity: fail). The folded-audit-AC/AC6 main_via_wave discriminator (classify-tier job) checks merge_group.head_ref against `feature/*-wave`, but GitHub's merge_group event head_ref is the synthetic queue ref (e.g. `refs/heads/gh-readonly-queue/main/pr-<n>-<sha>`), not the wave branch name. So main_via_wave is true only for the wave->main pull_request review run, not for the subsequent merge_group run \u2014 lint/typecheck/frontend/demo-frontend still re-execute at merge_group time even though they already ran at issue tier. The 'no CI double-run' goal from the cleanliness-audit addendum is only partially achieved. Safe/over-inclusive direction (extra CI cost, not a missed-failure risk).",
+      "severity": "WARNING",
+      "actionRequired": true,
+      "suggestion": "Derive main_via_wave for merge_group from github.event.merge_group.base_sha/base_ref plus a lookup of the queued PR's head ref (e.g. via the merge_group base_ref and matching open PR), or accept the residual merge_group re-run as intentional and update the ADR/AC wording to scope the optimization to the pull_request review event only."
+    }
+  ],
+  "reviewFailures": 2,
+  "findings": [
+    {
+      "type": "other",
+      "module": ".github/workflows/pr.yml",
+      "description": "Imported from intent-review (spec_fidelity: fail). AC2's skip_unchanged_head (classify-tier job) gates on `EVENT_ACTION == \"synchronize\" && EVENT_BEFORE == EVENT_AFTER`. GitHub only fires pull_request `synchronize` when the PR's head SHA changes, so before always != after when that event fires; there is no documented GitHub webhook path that delivers `synchronize` with unchanged head. Result: the base-only-skip path described in ADR-052 / AC2 (\"sibling merged into wave base, this PR's head did not move\") is implemented but very unlikely to ever execute, so the stated CI-cost-avoidance behavior is not actually delivered. Safe direction only (never skips when it shouldn't; may just never skip when the ADR wanted it to) \u2014 not a security or false-green risk.",
+      "severity": "CRITICAL",
+      "actionRequired": true,
+      "suggestion": "Re-derive the base-only signal from a mechanism GitHub actually emits (e.g. compare github.event.pull_request.base.sha across a stored/previous value, or drop this optimization and rely on skip_unchanged_head remaining a documented no-op) rather than pull_request synchronize before/after, which are head-ref fields."
+    },
+    {
+      "type": "other",
+      "module": ".github/workflows/pr.yml",
+      "description": "Imported from intent-review (spec_fidelity: fail). The folded-audit-AC/AC6 main_via_wave discriminator (classify-tier job) checks merge_group.head_ref against `feature/*-wave`, but GitHub's merge_group event head_ref is the synthetic queue ref (e.g. `refs/heads/gh-readonly-queue/main/pr-<n>-<sha>`), not the wave branch name. So main_via_wave is true only for the wave->main pull_request review run, not for the subsequent merge_group run \u2014 lint/typecheck/frontend/demo-frontend still re-execute at merge_group time even though they already ran at issue tier. The 'no CI double-run' goal from the cleanliness-audit addendum is only partially achieved. Safe/over-inclusive direction (extra CI cost, not a missed-failure risk).",
+      "severity": "WARNING",
+      "actionRequired": true,
+      "suggestion": "Derive main_via_wave for merge_group from github.event.merge_group.base_sha/base_ref plus a lookup of the queued PR's head ref (e.g. via the merge_group base_ref and matching open PR), or accept the residual merge_group re-run as intentional and update the ADR/AC wording to scope the optimization to the pull_request review event only."
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "reviewStatus": "FAIL",
+  "severity": "critical",
+  "suggestedRemediation": [
+    "Re-derive the base-only signal from a mechanism GitHub actually emits (e.g. compare github.event.pull_request.base.sha across a stored/previous value, or drop this optimization and rely on skip_unchanged_head remaining a documented no-op) rather than pull_request synchronize before/after, which are head-ref fields.",
+    "Derive main_via_wave for merge_group from github.event.merge_group.base_sha/base_ref plus a lookup of the queued PR's head ref (e.g. via the merge_group base_ref and matching open PR), or accept the residual merge_group re-run as intentional and update the ADR/AC wording to scope the optimization to the pull_request review event only."
+  ],
+  "staticAnalysisExecuted": true,
+  "dynamicTestsExecuted": false,
+  "sourceImplementationArtifact": "agent-runtime/artifacts/implementations/implementation-issue-660.json"
+}
