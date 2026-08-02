@@ -1,0 +1,339 @@
+{
+  "issueId": 659,
+  "halt": true,
+  "readyForExecutor": false,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 659,
+    "parentIssueId": 658,
+    "sliceId": "CI-WAVE-1",
+    "handoffPath": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-658.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-659.json",
+    "parentCreatedOrRefreshed": true,
+    "childCreatedOrRefreshed": true,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 659,
+        "parentIssueId": 658,
+        "sliceId": "CI-WAVE-1",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #658",
+            "fingerprint": "2dbcade9f4a88d80"
+          },
+          {
+            "path": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+            "fingerprint": "82d00b213a1a295c386f7b3bd2a2d9f5e453bc1a"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #659",
+            "fingerprint": "0c245ef29e3338bc"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-659.md",
+            "fingerprint": "368bdd807be296b733f65340742e0460b66ad9a3"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 659,
+        "parentIssueId": 658,
+        "sliceId": "CI-WAVE-1",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CI-WAVE-1",
+            "sliceId": "CI-WAVE-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-658",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #659",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CI-WAVE-1"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-658",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #659",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to 1b1b47a2293a on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "1b1b47a2293a0df27cd56a6d152ab8cfa87208ae",
+          "copiedAt": "2026-07-31T09:29:42Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "1b1b47a2293a0df27cd56a6d152ab8cfa87208ae",
+        "pinnedCommitSha": "1b1b47a2293a0df27cd56a6d152ab8cfa87208ae",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/open-design-system/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "1b1b47a2293a0df27cd56a6d152ab8cfa87208ae"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 659,
+        "parentIssueId": 658,
+        "sliceId": "CI-WAVE-1",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+            "docs/adr/003-ai-native-cicd-policy.md",
+            "agent-runtime/docs/agent-runtime-artifacts.md",
+            "agent-runtime/docs/schemas/review-artifact.schema.json",
+            "agent-runtime/docs/schemas/validation-artifact.schema.json",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "agent-runtime/scripts/ci/",
+            "agent-runtime/artifacts/waves/",
+            "tests/unit/test_wave_manifest_validator.py"
+          ],
+          "acceptanceCriteria": [
+            "Define the minimal committed wave-<id>.json contract with a non-empty, unique, positive integer issues list and branch/wave identity sufficient to reject the wrong manifest.",
+            "Provide one deterministic CLI/module that supports (a) issue membership policy and (b) wave\u2192main artifact existence/status validation.",
+            "Artifact validation requires review-issue-N.json.status == PASS and validation-issue-N.json.status == PASS with readyForMerge == true; malformed/missing/wrong-issue files fail closed.",
+            "Add focused RED\u2192GREEN tests for valid manifest, duplicate/invalid issues, missing issue membership, missing artifacts, non-PASS status, and readyForMerge false.",
+            "Do not modify .github/workflows/pr.yml in this slice."
+          ],
+          "loadWhenNeeded": [
+            "agent-runtime/docs/schemas/",
+            "tests/unit/test_three_tier_ci_contract.py",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            ".cursor/skills/domain/testing-patterns/python-patterns.md",
+            ".cursor/rules/reliability.mdc",
+            ".cursor/rules/code-quality.mdc"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "docs/product/design/",
+            "apps/demo/",
+            "apps/landing/",
+            "apps/dashboard/",
+            "web/",
+            "ios/",
+            "backend/src/juli_backend/",
+            "docs/integrations/tiktok_api/",
+            "docs/integrations/tiktok_corpora/",
+            ".github/workflows/pr.yml",
+            "Sibling issue context caches"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+            "docs/adr/003-ai-native-cicd-policy.md",
+            "agent-runtime/docs/agent-runtime-artifacts.md",
+            "agent-runtime/docs/schemas/review-artifact.schema.json",
+            "agent-runtime/docs/schemas/validation-artifact.schema.json",
+            "CONTEXT.md"
+          ],
+          "requiredModules": [
+            "agent-runtime/scripts/ci/",
+            "agent-runtime/artifacts/waves/",
+            "tests/unit/test_wave_manifest_validator.py"
+          ],
+          "acceptanceCriteria": [
+            "Define the minimal committed wave-<id>.json contract with a non-empty, unique, positive integer issues list and branch/wave identity sufficient to reject the wrong manifest.",
+            "Provide one deterministic CLI/module that supports (a) issue membership policy and (b) wave\u2192main artifact existence/status validation.",
+            "Artifact validation requires review-issue-N.json.status == PASS and validation-issue-N.json.status == PASS with readyForMerge == true; malformed/missing/wrong-issue files fail closed.",
+            "Add focused RED\u2192GREEN tests for valid manifest, duplicate/invalid issues, missing issue membership, missing artifacts, non-PASS status, and readyForMerge false.",
+            "Do not modify .github/workflows/pr.yml in this slice."
+          ],
+          "loadWhenNeeded": [
+            "agent-runtime/docs/schemas/",
+            "tests/unit/test_three_tier_ci_contract.py",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            ".cursor/skills/domain/testing-patterns/python-patterns.md",
+            ".cursor/rules/reliability.mdc",
+            ".cursor/rules/code-quality.mdc"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=True matches live classifier (4 reason(s))",
+      "details": {
+        "issueId": 659,
+        "parentIssueId": 658,
+        "live": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "body:candidate_verification",
+            "body:public_surface",
+            "body:rollback",
+            "body:deploy"
+          ]
+        },
+        "cached": {
+          "publicRelease": true,
+          "publicReleaseReasons": [
+            "body:candidate_verification",
+            "body:public_surface",
+            "body:rollback",
+            "body:deploy"
+          ]
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 659 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": false,
+      "description": "publicRelease=true but releaseEvidencePlan invalid/missing; missingFields=['planId', 'affectedPublicSurfaces', 'candidateVerificationJourney', 'staticAssetChecks', 'migrationCompatibility', 'rollbackAssertion', 'requiredArtifacts', 'acceptanceCommands', 'doNotInfer']",
+      "details": {
+        "issueId": 659,
+        "parentIssueId": 658,
+        "publicRelease": true,
+        "planSource": null,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "missingFields": [
+          "planId",
+          "affectedPublicSurfaces",
+          "candidateVerificationJourney",
+          "staticAssetChecks",
+          "migrationCompatibility",
+          "rollbackAssertion",
+          "requiredArtifacts",
+          "acceptanceCommands",
+          "doNotInfer"
+        ],
+        "errors": [
+          "releaseEvidencePlan missing or not an object"
+        ],
+        "resolution": "Commit agent-runtime/artifacts/release-evidence-plan-issue-659.json (schema-valid releaseEvidencePlan), then re-run meta_prepare_executor --issue 659",
+        "halt": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "failedGate": "public_release_evidence_plan",
+  "missingFields": [
+    "planId",
+    "affectedPublicSurfaces",
+    "candidateVerificationJourney",
+    "staticAssetChecks",
+    "migrationCompatibility",
+    "rollbackAssertion",
+    "requiredArtifacts",
+    "acceptanceCommands",
+    "doNotInfer"
+  ],
+  "resolution": "Commit agent-runtime/artifacts/release-evidence-plan-issue-659.json (schema-valid releaseEvidencePlan), then re-run meta_prepare_executor --issue 659"
+}
