@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 617,
+  "executorDomain": "backend",
+  "phaseRunId": "617-20260731T013826",
+  "startedAt": "2026-07-31T01:22:56Z",
+  "completedAt": "2026-07-31T01:22:56Z",
+  "executionDurationMs": 480000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    {"toolName": "Read", "count": 4, "stage": "implementation"},
+    {"toolName": "Shell", "count": 3, "stage": "green"},
+    {"toolName": "StrReplace", "count": 5, "stage": "implementation"}
+  ],
+  "toolInvocationCount": 12,
+  "contextFilesLoaded": [
+    "docs/handoffs/phase-3.5-prd-bodies/a2-batch.md",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/cdp_batch/partner_budget.py",
+    "backend/src/juli_backend/services/cdp_batch/postgres_io_budget.py"
+  ],
+  "skillsLoaded": [".cursor/skills/domain/backend/SKILL.md"],
+  "rulesLoaded": [".cursor/rules/code-quality.mdc", ".cursor/rules/reliability.mdc"],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/cdp_batch/__init__.py",
+    "backend/src/juli_backend/services/cdp_batch/postgres_io_budget.py",
+    "tests/unit/test_cdp_batch_postgres_io_budget.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_cdp_batch_postgres_io_budget.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ModuleNotFoundError: No module named 'juli_backend.services.cdp_batch.postgres_io_budget' before implementation (red on test collection)",
+      "passingTestEvidence": "17 passed in test_cdp_batch_postgres_io_budget.py — bronze/silver/concurrency caps, defer path postgres_io_throttled, structured metrics, dual-budget negative AC",
+      "refactorEvidence": "PostgresIoBudgetGovernor dataclass with try_bronze_flush/try_silver_upsert/try_acquire_shop/finish; env knobs BATCH_BRONZE_ROWS_PER_FLUSH / BATCH_SILVER_UPSERT_BATCH_SIZE / BATCH_MAX_CONCURRENT_SHOPS; orthogonal to PartnerApiBudgetGovernor",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_postgres_io_budget.py -v",
+          "exitCode": 2,
+          "outputSummary": "ModuleNotFoundError: No module named 'juli_backend.services.cdp_batch.postgres_io_budget' (red)"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_postgres_io_budget.py -q",
+          "exitCode": 0,
+          "outputSummary": "17 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "PostgresIoBudgetGovernor (#617 / CDP-A2-3): per-run caps on bronze flush rows, silver upsert batch size, and concurrent shop jobs with defer semantics finish(postgres_io_throttled). Independent module from PartnerApiBudgetGovernor (#616). Env-configurable knobs; structured log fields without PII.",
+  "assumptions": [
+    "Orchestrator wiring deferred to CDP-A2-4+; this slice delivers governor + tests only."
+  ],
+  "risks": []
+}

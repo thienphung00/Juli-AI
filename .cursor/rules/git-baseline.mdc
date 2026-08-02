@@ -7,19 +7,33 @@ alwaysApply: true
 
 ## Version control
 
-- Use short-lived `feature/<short-desc>` (optional `feature/be-…` / `feature/fe-…`) cut from `main`; delete branch + worktree after merge. Never push directly to `main`/`master`.
+- Use short-lived `feature/<short-desc>` (optional `feature/be-…` / `feature/fe-…`) cut from `main`. Never push directly to `main`/`master`. Worktree/branch lifecycle below.
 - Persistent helper slots only: `agent/runtime`, `scratch/debug`, `local/adhoc` — see [`docs/handoffs/worktree-branch-topology.md`](../../docs/handoffs/worktree-branch-topology.md). Never push `local/adhoc`.
 - Keep commits small and atomic — one logical change per commit.
+
+### Two lanes: implementation vs fast-track docs (always on)
+
+Choose the lane by **what the diff touches** — full commands in [`docs/handoffs/worktree-branch-topology.md`](../../docs/handoffs/worktree-branch-topology.md):
+
+- **Standard lane — any code change, or mixed code + docs.** One `feature/<short-desc>` branch/worktree per task, cut from latest `main` (`git worktree add .worktrees/<task> -b feature/<desc> origin/main`), then `pre-commit install` (hooks are per-checkout). Atomic conventional commits → sync before merge (`git fetch origin && git rebase origin/main`; Merge Queue is dormant on this user-owned repo) → push → PR → land on green. **Close on merge (required):** `python agent-runtime/scripts/git/worktree_gc.py --close <task>` — prunes, verifies merged (incl. squash) + clean, removes worktree + branch.
+- **Fast-track lane — non-code only.** Eligible: `*.md` / `*.mdc` / `*.txt` and other document files, `docs/**`, `.cursor/rules/**`, `.cursor/skills/**` — with **zero** edits to code (`.py`, `.ts`, `.tsx`, `.js`, `.sql`, `.sh`, or code configs). Short branch → commit → push → `gh pr create` → immediate self-merge `gh pr merge --squash --delete-branch --admin`. Still a PR: keeps CI (where paths trigger it), audit trail, and revert-via-PR — it just skips the worktree and review ceremony. **If the diff touches any code file, it is the standard lane.**
+
+Both lanes: **never push to `main` directly**; every change lands via a PR (§ Pull requests).
+
+### Cleanup autonomy & safety (always on)
+
+- The agent may auto-run prune/close for worktrees/branches **it created** that are **merged AND clean**. It must **surface and confirm** before deleting anything human-created, anything with uncommitted or unpushed work, or a branch whose PR is closed-not-merged. Never delete `agent/runtime`, `scratch/debug`, `local/adhoc`, or `main`. Force flags (`-D`, `--force`, `push -f`) always need explicit human sign-off.
+- `worktree_gc.py --report` classifies every worktree/branch (safe-to-close / needs-confirm / keep) and deletes nothing; `--sweep` closes all merged+clean at once, listing the rest for confirmation.
 - Conventional commits: `<type>: <description>` — types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`.
 - **Local pre-commit required** in every checkout/worktree: `pip install pre-commit` then `pre-commit install` (see topology handoff). Runs **ruff check + format** on staged Python under `backend/`, `tests/`, `scripts/` only; **commit-msg** enforces conventional types above. Mypy, Bandit, Gitleaks, and full tests stay in CI / Merge Queue.
 - Tag releases and maintain a changelog.
 
 ## Pull requests
 
-- All production changes go through PRs — no exceptions.
+- All production changes go through PRs — no exceptions (including fast-track docs).
 - PR description summarizes **why** and what it affects; include a test plan.
 - Keep PRs reviewable (prefer <400 lines).
-- Reviewers check correctness, readability, test coverage, and security.
+- **Standard-lane** PRs get review: reviewers check correctness, readability, test coverage, and security. **Fast-track** (non-code) PRs may self-merge without review (`--admin`) — the diff is document-only, so audit + revert-via-PR are the safeguard, not human review. Any code file in the diff disqualifies fast-track.
 
 ## Research & reuse
 

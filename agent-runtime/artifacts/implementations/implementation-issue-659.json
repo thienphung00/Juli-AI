@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 659,
+  "executorDomain": "backend",
+  "phaseRunId": "659-20260731T0932Z",
+  "startedAt": "2026-07-31T09:00:00Z",
+  "completedAt": "2026-07-31T09:24:18Z",
+  "executionDurationMs": 1458000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-659.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-658.json",
+    "agent-runtime/artifacts/release-evidence-plan-issue-659.json",
+    "docs/handoffs/issue-658.md",
+    "docs/adr/003-ai-native-cicd-policy.md",
+    "docs/handoffs/ci-three-tier-release-evidence-plan.json",
+    "agent-runtime/scripts/ci/common.py",
+    "agent-runtime/scripts/ci/json_schema_validate.py"
+  ],
+  "skillsLoaded": [
+    ".cursor/skills/domain/backend/SKILL.md"
+  ],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "agent-runtime/scripts/ci/wave_manifest.py",
+    "agent-runtime/docs/schemas/wave-manifest.schema.json",
+    "agent-runtime/scripts/ci/json_schema_validate.py",
+    "agent-runtime/config/slice-routing.yml",
+    "agent-runtime/artifacts/release-evidence-plan-issue-659.json",
+    "docs/handoffs/issue-658.md",
+    "tests/unit/test_wave_manifest.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_wave_manifest.py"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "wave_manifest module and schema absent \u2014 validate_wave_manifest / check_issue_membership tests fail on import or assertion",
+      "passingTestEvidence": "18 unit tests pass: valid manifest, duplicate/invalid issues, identity mismatch, issue membership, missing/non-PASS/wrong-issue artifacts, readyForMerge false",
+      "commands": [
+        {
+          "command": "python -m pytest tests/unit/test_wave_manifest.py -q",
+          "exitCode": 0,
+          "outputSummary": "18 passed in 0.51s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "CI-WAVE-1 (#659): committed wave-manifest JSON schema, deterministic wave_manifest.py validator with issue membership policy and wave\u2192main review/validation PASS gate, stdlib json_schema_validate reuse, CI-WAVE-1..4 slice routing profiles, issue-658 handoff doc, and 18 focused unit tests. No pr.yml wiring (deferred to #660).",
+  "assumptions": [
+    "Wave manifest files under agent-runtime/artifacts/waves/ land in CI-WAVE-2 (#660)",
+    "ADR-052 formal doc may land with CI-WAVE-4; epic decisions captured in docs/handoffs/issue-658.md",
+    "publicRelease=true per classifier; release-evidence plan documents GitHub Actions merge-eligibility surface only"
+  ],
+  "risks": [],
+  "releaseEvidencePlanId": "ci-wave-1-manifest-validator-2026-07-31"
+}
