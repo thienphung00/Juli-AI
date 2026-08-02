@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 660,
+  "executorDomain": "backend",
+  "phaseRunId": "660-20260802T075454",
+  "startedAt": "2026-08-02T08:23:30Z",
+  "completedAt": "2026-08-02T08:23:30Z",
+  "executionDurationMs": 0,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [
+    "Read",
+    "Edit",
+    "Bash",
+    "Write"
+  ],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-660.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-658.json",
+    "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+    "docs/adr/003-ai-native-cicd-policy.md",
+    "docs/adr/040-pr-safe-tests-lane.md",
+    "docs/handoffs/ci-three-tier-release-evidence-plan.json",
+    ".github/workflows/pr.yml",
+    "agent-runtime/scripts/ci/wave_manifest.py",
+    "tests/unit/test_three_tier_ci_contract.py",
+    "tests/unit/test_wave_manifest.py",
+    "agent-runtime/docs/schemas/wave-manifest.schema.json"
+  ],
+  "skillsLoaded": [
+    "backend-executor"
+  ],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    ".github/workflows/pr.yml",
+    "tests/unit/test_three_tier_ci_contract.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_three_tier_ci_contract.py::test_issue_tier_does_not_block_on_artifact_validate_or_generate_jobs",
+    "tests/unit/test_three_tier_ci_contract.py::test_base_only_unchanged_head_skips_issue_tier_work",
+    "tests/unit/test_three_tier_ci_contract.py::test_policy_checks_enforces_wave_manifest_membership_via_ci_wave1_validator",
+    "tests/unit/test_three_tier_ci_contract.py::test_artifact_gate_renamed_from_ai_review_and_runs_on_main_tier_only",
+    "tests/unit/test_three_tier_ci_contract.py::test_status_check_requires_artifact_gate_on_main_not_ai_review",
+    "tests/unit/test_three_tier_ci_contract.py::test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave",
+    "tests/unit/test_three_tier_ci_contract.py::test_gitleaks_stays_always_on_across_tiers"
+  ],
+  "testsUpdated": [
+    "tests/unit/test_three_tier_ci_contract.py::test_issue_tier_has_required_fast_checks",
+    "tests/unit/test_three_tier_ci_contract.py::test_main_tier_has_full_premerge_gates"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "phase": "red",
+      "note": "Added 7 new/updated pytest assertions against pr.yml text (skip_unchanged_head, wave_manifest.py wiring in policy-checks, artifact-gate rename, main_via_wave dedup, gitleaks always-on) before touching pr.yml. 6 of 9 workflow-scoped tests failed as expected (missing job/logic).",
+      "command": "python -m pytest tests/unit/test_three_tier_ci_contract.py -q"
+    },
+    {
+      "phase": "green",
+      "note": "Edited .github/workflows/pr.yml: classify-tier now emits skip_unchanged_head and main_via_wave outputs; lint/typecheck/test/frontend/demo-frontend/policy-checks gated on skip_unchanged_head; lint/typecheck/frontend/demo-frontend main-tier condition excludes main_via_wave; removed validate-artifacts and generate-validation-artifact jobs; renamed ai-review to artifact-gate (tier=='main' only, calls wave_manifest.py --check-artifacts); policy-checks calls wave_manifest.py --issue for manifest membership; status-check updated needs/require lines accordingly; deployment-checks allows skipped for frontend/demo-frontend.",
+      "command": "python -m pytest tests/unit/test_three_tier_ci_contract.py tests/unit/test_wave_manifest.py -q"
+    },
+    {
+      "phase": "refactor",
+      "note": "actionlint clean run against pr.yml; yaml.safe_load sanity parse; verified job dependency graph has no dangling 'needs' references after removing validate-artifacts/generate-validation-artifact/ai-review and adding artifact-gate.",
+      "command": "actionlint .github/workflows/pr.yml"
+    }
+  ],
+  "implementationSummary": "CI-WAVE-2: reworked .github/workflows/pr.yml per ADR-052. classify-tier gained skip_unchanged_head (skips issue-tier heavy jobs when a pull_request synchronize event leaves head SHA unchanged, base-only advance) and main_via_wave (true when main-tier is reached via a feature/*-wave head, i.e. wave->main) outputs. lint/typecheck/test/frontend/demo-frontend/policy-checks now gate on skip_unchanged_head. lint/typecheck/frontend/demo-frontend skip on main tier when main_via_wave is true, closing the CI double-run from the #658 audit addendum (status-check and deployment-checks now allow their 'skipped' result). validate-artifacts and generate-validation-artifact (heavy per-issue meta_prepare_executor/check_*.py re-run) were removed from issue tier entirely per ADR-052 point 6 (no full re-validation in CI at any tier). ai-review was renamed to artifact-gate, deferred to tier=='main' only, and calls agent-runtime/scripts/ci/wave_manifest.py --check-artifacts (the CI-WAVE-1 validator) against the wave manifest resolved from the wave branch name -- deterministic existence+status check, no LLM step. policy-checks now also calls wave_manifest.py --issue to enforce manifest membership for the target wave branch, in addition to the existing feature/*-issue-N branch-linkage check. gitleaks remains unconditional. Left artifact-gate's manifest resolution as a single, isolated step so #670 can later swap the read source to a compact status/issue-<N>.json record without touching the rest of the job.",
+  "assumptions": [
+    "GitHub's pull_request webhook payload provides 'before'/'after' SHA fields on 'synchronize' actions (per GitHub API docs); this is the mechanism used to detect base-only PR updates with an unchanged head.",
+    "Direct-to-main/staging PRs not originating from a feature/*-wave head branch are treated as main_via_wave=false and still run lint/typecheck/frontend/demo-frontend at main tier (no issue-tier run preceded them, so no double-run to dedup)."
+  ],
+  "risks": [
+    "actionlint could not be executed against a live GitHub Actions run; only static lint + yaml parse + job-graph consistency were verified locally (no repo network to trigger an actual PR event).",
+    "docs/adr/052-wave-free-merge-deferred-artifact-gate.md, CONTEXT.md, and docs/handoffs/issue-658.md still reference the old 'ai-review' job name; these are outside the cleared file list for this issue and were left untouched -- flagged for a follow-up docs pass.",
+    "#670 (P1 Option A) will change what artifact-gate reads to a compact agent-runtime/artifacts/status/issue-<N>.json; only the manifest-resolution + wave_manifest.py call step was built here, intentionally minimal, per the issue's SEAM note."
+  ]
+}
