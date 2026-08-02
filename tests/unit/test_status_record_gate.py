@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = REPO_ROOT / "agent-runtime" / "scripts" / "ci"
 sys.path.insert(0, str(CI_DIR))
@@ -25,7 +27,13 @@ from generate_status_records import build_status_record, migrate  # noqa: E402
 from json_schema_validate import validate_json_schema  # noqa: E402
 from wave_manifest import validate_wave_artifacts  # noqa: E402
 
-BODY_DIRS = ("reviews", "implementations", "intent-reviews", "validation", "optimization")
+BODY_DIRS = (
+    "reviews",
+    "implementations",
+    "intent-reviews",
+    "validation",
+    "optimization",
+)
 STATUS_SCHEMA_PATH = REPO_ROOT / "agent-runtime" / "docs" / "schemas" / "status-record.schema.json"
 
 
@@ -91,7 +99,14 @@ def test_status_dir_has_one_record_per_migrated_issue_pair() -> None:
         if p.stem.rsplit("-", 1)[-1].isdigit()
     }
     expected_issues = review_issues & validation_issues
-    assert expected_issues, "expected at least one review+validation pair on disk"
+    if not expected_issues:
+        pytest.skip(
+            "no review+validation pair present on disk (expected on a clean checkout: "
+            "#670 gitignores the five verbose body dirs, so nothing is tracked in git "
+            "for them to be present from). This consistency check only applies when "
+            "bodies happen to be present locally, e.g. right after running "
+            "generate_status_records.py on a dev machine."
+        )
 
     status_issues = {
         int(p.stem.rsplit("-", 1)[-1])
@@ -227,7 +242,12 @@ def test_built_status_record_validates_against_schema(tmp_path: Path, monkeypatc
         }
     ).encode("utf-8")
     validation_bytes = json.dumps(
-        {"issue": 7, "status": "PASS", "readyForMerge": True, "timestamp": "2026-08-02T00:00:01Z"}
+        {
+            "issue": 7,
+            "status": "PASS",
+            "readyForMerge": True,
+            "timestamp": "2026-08-02T00:00:01Z",
+        }
     ).encode("utf-8")
     (reviews / "review-issue-7.json").write_bytes(review_bytes)
     (validation / "validation-issue-7.json").write_bytes(validation_bytes)
@@ -271,6 +291,8 @@ def test_review_artifact_readable_from_disk_when_dir_is_gitignored(
     # And confirm the real repo actually gitignores this directory, so the
     # guarantee we just exercised in tmp_path matches production behavior.
     result = _git(
-        "check-ignore", "--quiet", "agent-runtime/artifacts/reviews/review-issue-670.json"
+        "check-ignore",
+        "--quiet",
+        "agent-runtime/artifacts/reviews/review-issue-670.json",
     )
     assert result.returncode == 0
