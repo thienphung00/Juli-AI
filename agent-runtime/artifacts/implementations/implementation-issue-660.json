@@ -13,9 +13,9 @@
     "total": 0
   },
   "toolsUsed": [
-    { "toolName": "Read", "count": 1, "stage": "red" },
-    { "toolName": "Edit", "count": 1, "stage": "green" },
-    { "toolName": "Bash", "count": 1, "stage": "refactor" },
+    { "toolName": "Read", "count": 3, "stage": "red" },
+    { "toolName": "Edit", "count": 5, "stage": "green" },
+    { "toolName": "Bash", "count": 6, "stage": "refactor" },
     { "toolName": "Write", "count": 1, "stage": "other" }
   ],
   "toolInvocationCount": 0,
@@ -43,7 +43,7 @@
   ],
   "testsAdded": [
     "tests/unit/test_three_tier_ci_contract.py::test_issue_tier_does_not_block_on_artifact_validate_or_generate_jobs",
-    "tests/unit/test_three_tier_ci_contract.py::test_base_only_unchanged_head_skips_issue_tier_work",
+    "tests/unit/test_three_tier_ci_contract.py::test_base_only_skip_is_retired_as_unreachable",
     "tests/unit/test_three_tier_ci_contract.py::test_policy_checks_enforces_wave_manifest_membership_via_ci_wave1_validator",
     "tests/unit/test_three_tier_ci_contract.py::test_artifact_gate_renamed_from_ai_review_and_runs_on_main_tier_only",
     "tests/unit/test_three_tier_ci_contract.py::test_status_check_requires_artifact_gate_on_main_not_ai_review",
@@ -52,7 +52,9 @@
   ],
   "testsUpdated": [
     "tests/unit/test_three_tier_ci_contract.py::test_issue_tier_has_required_fast_checks",
-    "tests/unit/test_three_tier_ci_contract.py::test_main_tier_has_full_premerge_gates"
+    "tests/unit/test_three_tier_ci_contract.py::test_main_tier_has_full_premerge_gates",
+    "tests/unit/test_three_tier_ci_contract.py::test_base_only_skip_is_retired_as_unreachable (rework #660: renamed from test_base_only_unchanged_head_skips_issue_tier_work; now asserts skip_unchanged_head is absent from classify-tier outputs and from lint/typecheck/test/policy-checks job conditions, per maintainer-approved AC2 narrowing)",
+    "tests/unit/test_three_tier_ci_contract.py::test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave (rework #660: now also asserts MERGE_GROUP_HEAD_REF and merge_group are absent from the main_via_wave derivation, per maintainer-approved AC6 narrowing to the pull_request path; merge_group over-run tracked in #671)"
   ],
   "redGreenRefactorEvidence": [
     {
@@ -65,17 +67,30 @@
         { "command": "python -m pytest tests/unit/test_three_tier_ci_contract.py tests/unit/test_wave_manifest.py -q", "exitCode": 0, "outputSummary": "35 passed (GREEN)" },
         { "command": "actionlint .github/workflows/pr.yml", "exitCode": 0, "outputSummary": "clean" }
       ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "Rework #660 (maintainer-approved AC narrowing, see gh issue view 660 comments). Rewrote test_base_only_unchanged_head_skips_issue_tier_work -> test_base_only_skip_is_retired_as_unreachable to assert skip_unchanged_head is fully absent (output + all job gates), and rewrote test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave to additionally assert MERGE_GROUP_HEAD_REF/merge_group are absent from the main_via_wave derivation, before touching pr.yml. Both failed against the pre-rework pr.yml (skip_unchanged_head still present; MERGE_GROUP_HEAD_REF still present) -- 2 of 16 tests in the file failed as expected (RED).",
+      "passingTestEvidence": "Edited .github/workflows/pr.yml classify-tier job: removed the skip_unchanged_head output entirely (before/after SHA comparison was unreachable -- GitHub only fires synchronize on a head-SHA move) and removed every 'needs.classify-tier.outputs.skip_unchanged_head != true' gate from lint/typecheck/test/frontend/demo-frontend/policy-checks via a targeted sed line-delete, verified no stray references remain. Added an inline comment above the tier-classify script and on the main_via_wave output block documenting that sibling base-reruns are prevented by ADR-052's removal of 'up-to-date-with-base' on feature/*-wave, not by an event-level skip. Removed the merge_group branch of the main_via_wave wave_head derivation (MERGE_GROUP_HEAD_REF env var and its assignment) so main_via_wave is now pull_request-only; merge_group's head_ref is a synthetic gh-readonly-queue/... ref that never matched feature/*-wave, so this was dead code -- merge_group re-running lint/typecheck/frontend/demo-frontend is an accepted safe over-run, tracked in follow-up #671.",
+      "refactorEvidence": "Removed two now-empty blank-line/indent artifacts left by the deletions (classify-tier run block) that were tripping the test's job-boundary text-split heuristic; re-verified actionlint stays clean and the job dependency graph is unaffected (no job referenced skip_unchanged_head or MERGE_GROUP_HEAD_REF outside classify-tier/resolve-issue/artifact-gate, and resolve-issue/artifact-gate's own MERGE_GROUP_HEAD_REF usage -- unrelated to main_via_wave -- was left untouched, out of scope for this rework).",
+      "commands": [
+        { "command": "python -m pytest tests/unit/test_three_tier_ci_contract.py -q", "exitCode": 1, "outputSummary": "2 of 16 tests failed as expected (RED) after rewriting the two AC tests" },
+        { "command": "python -m pytest tests/unit/test_three_tier_ci_contract.py tests/unit/test_wave_manifest.py -q", "exitCode": 0, "outputSummary": "35 passed (GREEN)" },
+        { "command": "actionlint .github/workflows/pr.yml", "exitCode": 0, "outputSummary": "clean" }
+      ]
     }
   ],
-  "implementationSummary": "CI-WAVE-2: reworked .github/workflows/pr.yml per ADR-052. classify-tier gained skip_unchanged_head (skips issue-tier heavy jobs when a pull_request synchronize event leaves head SHA unchanged, base-only advance) and main_via_wave (true when main-tier is reached via a feature/*-wave head, i.e. wave->main) outputs. lint/typecheck/test/frontend/demo-frontend/policy-checks now gate on skip_unchanged_head. lint/typecheck/frontend/demo-frontend skip on main tier when main_via_wave is true, closing the CI double-run from the #658 audit addendum (status-check and deployment-checks now allow their 'skipped' result). validate-artifacts and generate-validation-artifact (heavy per-issue meta_prepare_executor/check_*.py re-run) were removed from issue tier entirely per ADR-052 point 6 (no full re-validation in CI at any tier). ai-review was renamed to artifact-gate, deferred to tier=='main' only, and calls agent-runtime/scripts/ci/wave_manifest.py --check-artifacts (the CI-WAVE-1 validator) against the wave manifest resolved from the wave branch name -- deterministic existence+status check, no LLM step. policy-checks now also calls wave_manifest.py --issue to enforce manifest membership for the target wave branch, in addition to the existing feature/*-issue-N branch-linkage check. gitleaks remains unconditional. Left artifact-gate's manifest resolution as a single, isolated step so #670 can later swap the read source to a compact status/issue-<N>.json record without touching the rest of the job.",
+  "implementationSummary": "CI-WAVE-2: reworked .github/workflows/pr.yml per ADR-052. classify-tier emits a main_via_wave output (true when main-tier is reached via a feature/*-wave head, i.e. wave->main). lint/typecheck/frontend/demo-frontend skip on main tier when main_via_wave is true, closing the CI double-run from the #658 audit addendum (status-check and deployment-checks allow their 'skipped' result). validate-artifacts and generate-validation-artifact (heavy per-issue meta_prepare_executor/check_*.py re-run) were removed from issue tier entirely per ADR-052 point 6. ai-review was renamed to artifact-gate, deferred to tier=='main' only, and calls agent-runtime/scripts/ci/wave_manifest.py --check-artifacts (the CI-WAVE-1 validator). policy-checks calls wave_manifest.py --issue to enforce manifest membership. gitleaks remains unconditional. REWORK (#660, maintainer-approved AC narrowing per gh issue view 660 comments, kept mechanical/scoped): (1) AC2 retired as a documented no-op -- removed the skip_unchanged_head output and every skip_unchanged_head != 'true' gate on lint/typecheck/test/frontend/demo-frontend/policy-checks, since GitHub only fires pull_request 'synchronize' when the head SHA moves, so before == after is unreachable and a base-only base advance fires no PR event at all; added an inline comment on classify-tier documenting that sibling base-reruns are instead prevented by ADR-052's removal of 'up-to-date-with-base' on feature/*-wave. (2) AC6 narrowed to the pull_request path -- removed the merge_group branch of the main_via_wave wave_head derivation (MERGE_GROUP_HEAD_REF compared against a synthetic gh-readonly-queue/... ref that never matches feature/*-wave, so it was dead code); kept the working pull_request wave->main dedup intact; merge_group re-running those four jobs is an accepted safe over-run tracked in follow-up #671. All other #660 behavior (issue-tier minimal job set, ai-review->artifact-gate rename, removed validate-artifacts/generate-validation-artifact, policy-checks manifest-membership, unconditional gitleaks, tier-aware status-check, the #670 artifact-gate read-path seam) is untouched.",
   "assumptions": [
-    "GitHub's pull_request webhook payload provides 'before'/'after' SHA fields on 'synchronize' actions (per GitHub API docs); this is the mechanism used to detect base-only PR updates with an unchanged head.",
-    "Direct-to-main/staging PRs not originating from a feature/*-wave head branch are treated as main_via_wave=false and still run lint/typecheck/frontend/demo-frontend at main tier (no issue-tier run preceded them, so no double-run to dedup)."
+    "Direct-to-main/staging PRs not originating from a feature/*-wave head branch are treated as main_via_wave=false and still run lint/typecheck/frontend/demo-frontend at main tier (no issue-tier run preceded them, so no double-run to dedup).",
+    "REWORK (#660): the maintainer's AC narrowing comment on issue #660 constitutes explicit approval to retire AC2 as a documented no-op and to scope AC6's dedup to the pull_request path only, deferring the merge_group case to #671."
   ],
   "risks": [
     "actionlint could not be executed against a live GitHub Actions run; only static lint + yaml parse + job-graph consistency were verified locally (no repo network to trigger an actual PR event).",
     "docs/adr/052-wave-free-merge-deferred-artifact-gate.md, CONTEXT.md, and docs/handoffs/issue-658.md still reference the old 'ai-review' job name; these are outside the cleared file list for this issue and were left untouched -- flagged for a follow-up docs pass.",
-    "#670 (P1 Option A) will change what artifact-gate reads to a compact agent-runtime/artifacts/status/issue-<N>.json; only the manifest-resolution + wave_manifest.py call step was built here, intentionally minimal, per the issue's SEAM note."
+    "#670 (P1 Option A) will change what artifact-gate reads to a compact agent-runtime/artifacts/status/issue-<N>.json; only the manifest-resolution + wave_manifest.py call step was built here, intentionally minimal, per the issue's SEAM note.",
+    "REWORK (#660): merge_group runs of lint/typecheck/frontend/demo-frontend will now re-run unconditionally (main_via_wave is always false on merge_group since MERGE_GROUP_HEAD_REF was removed from its derivation) -- this is the accepted safe over-run scoped to follow-up #671, not a regression of the pull_request dedup.",
+    "REWORK (#660): resolve-issue and artifact-gate jobs retain their own, unrelated MERGE_GROUP_HEAD_REF usage for issue-number/wave-branch resolution on merge_group events -- left untouched as out of scope; only the main_via_wave derivation's merge_group branch was removed."
   ],
   "releaseEvidencePlanId": "rep-660-ci-wave-2-free-merge-deferred-gate"
 }

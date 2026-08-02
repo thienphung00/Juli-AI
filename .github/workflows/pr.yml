@@ -32,25 +32,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tier: ${{ steps.classify.outputs.tier }}
-      # ADR-052: base-only PR synchronize (sibling merged into the wave base,
-      # this PR's head SHA did not move) skips issue-tier heavy work.
-      skip_unchanged_head: ${{ steps.classify.outputs.skip_unchanged_head }}
-      # True when the main-tier run is reached via a feature/*-wave head
-      # (wave->main), which already ran lint/typecheck/frontend/demo-frontend
-      # per-issue at issue tier — avoids the CI double-run (#658 audit addendum).
+      # True when the main-tier run is reached via a feature/*-wave head on
+      # the pull_request path (wave->main), which already ran
+      # lint/typecheck/frontend/demo-frontend per-issue at issue tier —
+      # avoids the CI double-run (#658 audit addendum). Scoped to
+      # pull_request only: merge_group's head_ref is a synthetic
+      # gh-readonly-queue/... ref that never matches feature/*-wave, so that
+      # path is out of scope here (follow-up #671).
       main_via_wave: ${{ steps.classify.outputs.main_via_wave }}
     steps:
       - name: Classify CI tier
         id: classify
         env:
           EVENT_NAME: ${{ github.event_name }}
-          EVENT_ACTION: ${{ github.event.action }}
-          EVENT_BEFORE: ${{ github.event.before }}
-          EVENT_AFTER: ${{ github.event.after }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
           REF_NAME: ${{ github.ref_name }}
-          MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "merge_group" ]]; then
@@ -65,22 +62,16 @@ jobs:
             echo "Unsupported CI flow: event=$EVENT_NAME base=$BASE_REF head=$HEAD_REF ref=$REF_NAME"
             exit 1
           fi
-
-          # ADR-052 free-merge: a synchronize event whose before/after SHAs are
-          # identical means only the PR base advanced (wave absorbed a sibling
-          # merge); this PR's own head did not change, so issue-tier work is
-          # safe to skip. Any real head change (before != after) still runs it.
-          if [[ "$EVENT_NAME" == "pull_request" && "$EVENT_ACTION" == "synchronize" \
-                && -n "$EVENT_BEFORE" && "$EVENT_BEFORE" == "$EVENT_AFTER" ]]; then
-            echo "skip_unchanged_head=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip_unchanged_head=false" >> "$GITHUB_OUTPUT"
-          fi
-
+          # Note (ADR-052 / #660 rework): sibling base-reruns within a wave
+          # are prevented at the branch-protection layer by ADR-052's
+          # removal of "up-to-date-with-base" on feature/*-wave, NOT by an
+          # event-level skip here. GitHub fires `synchronize` only when the
+          # head SHA changes, so a before-SHA == after-SHA check on
+          # synchronize is unreachable: a base-only advance (no head move)
+          # fires no PR event at all. The retired signal from a prior
+          # revision has been removed along with its job gates.
           wave_head=""
-          if [[ "$EVENT_NAME" == "merge_group" ]]; then
-            wave_head="$MERGE_GROUP_HEAD_REF"
-          elif [[ "$EVENT_NAME" == "pull_request" && ( "$BASE_REF" == "main" || "$BASE_REF" == "staging" ) ]]; then
+          if [[ "$EVENT_NAME" == "pull_request" && ( "$BASE_REF" == "main" || "$BASE_REF" == "staging" ) ]]; then
             wave_head="$HEAD_REF"
           fi
           if [[ "$wave_head" == feature/*-wave ]]; then
@@ -183,7 +174,6 @@ jobs:
       (needs.classify-tier.outputs.tier == 'issue'
       || (needs.classify-tier.outputs.tier == 'main'
           && needs.classify-tier.outputs.main_via_wave != 'true'))
-      && needs.classify-tier.outputs.skip_unchanged_head != 'true'
       && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -204,7 +194,6 @@ jobs:
       (needs.classify-tier.outputs.tier == 'issue'
       || (needs.classify-tier.outputs.tier == 'main'
           && needs.classify-tier.outputs.main_via_wave != 'true'))
-      && needs.classify-tier.outputs.skip_unchanged_head != 'true'
       && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -271,7 +260,6 @@ jobs:
     needs: [classify-tier, changes]
     if: >-
       needs.classify-tier.outputs.tier == 'issue'
-      && needs.classify-tier.outputs.skip_unchanged_head != 'true'
       && needs.changes.outputs.backend == 'true'
     # ADR-040: PR-safe Tests — fail-fast if a test hangs (healthy suite ~4–5 min).
     timeout-minutes: 15
@@ -384,7 +372,6 @@ jobs:
       (needs.classify-tier.outputs.tier == 'issue'
       || (needs.classify-tier.outputs.tier == 'main'
           && needs.classify-tier.outputs.main_via_wave != 'true'))
-      && needs.classify-tier.outputs.skip_unchanged_head != 'true'
       && needs.changes.outputs.dashboard == 'true'
     defaults:
       run:
@@ -417,7 +404,6 @@ jobs:
       (needs.classify-tier.outputs.tier == 'issue'
       || (needs.classify-tier.outputs.tier == 'main'
           && needs.classify-tier.outputs.main_via_wave != 'true'))
-      && needs.classify-tier.outputs.skip_unchanged_head != 'true'
       && needs.changes.outputs.demo == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -521,7 +507,6 @@ jobs:
     needs: [classify-tier, resolve-issue]
     if: >-
       needs.classify-tier.outputs.tier == 'issue'
-      && needs.classify-tier.outputs.skip_unchanged_head != 'true'
     steps:
       - name: Require issue branch and issue linkage
         env:

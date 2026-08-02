@@ -84,16 +84,21 @@ def test_issue_tier_does_not_block_on_artifact_validate_or_generate_jobs() -> No
     assert "generate-validation-artifact:" not in workflow
 
 
-def test_base_only_unchanged_head_skips_issue_tier_work() -> None:
-    """AC2: base-only synchronize (before == after) skips issue-tier heavy jobs."""
+def test_base_only_skip_is_retired_as_unreachable() -> None:
+    """AC2 (narrowed): base-only-skip is retired — GitHub only fires
+    `synchronize` when the head SHA moves, so before == after never occurs
+    and a base-only advance fires no PR event at all. Issue-tier heavy jobs
+    (lint/typecheck/test/policy-checks) are no longer gated on a
+    head-unchanged signal; sibling base-reruns are instead prevented by
+    ADR-052's removal of "up-to-date-with-base" on feature/*-wave.
+    """
     workflow = _workflow()
 
-    assert "skip_unchanged_head" in workflow
-    assert (
-        'EVENT_ACTION == "synchronize"' in workflow or '$EVENT_ACTION" == "synchronize"' in workflow
-    )
-    assert '"$EVENT_BEFORE" == "$EVENT_AFTER"' in workflow
-    assert "needs.classify-tier.outputs.skip_unchanged_head != 'true'" in workflow
+    assert "skip_unchanged_head" not in workflow
+    assert "needs.classify-tier.outputs.skip_unchanged_head" not in workflow
+    for job in ("lint", "typecheck", "test", "policy-checks"):
+        job_block = workflow.split(f"\n  {job}:", 1)[1].split("\n\n  ", 1)[0]
+        assert "skip_unchanged_head" not in job_block
 
 
 def test_policy_checks_enforces_wave_manifest_membership_via_ci_wave1_validator() -> None:
@@ -128,10 +133,20 @@ def test_status_check_requires_artifact_gate_on_main_not_ai_review() -> None:
 
 
 def test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave() -> None:
-    """Folded audit AC: no CI double-run of lint/typecheck/frontend/demo-frontend."""
+    """AC6 (narrowed to pull_request): no CI double-run of
+    lint/typecheck/frontend/demo-frontend when main tier is reached via a
+    wave->main pull_request (head_ref matches feature/*-wave). The
+    merge_group branch of this dedup is out of #658 scope — merge_group's
+    head_ref is a synthetic `gh-readonly-queue/...` ref that never matches
+    feature/*-wave, so those four jobs may safely re-run on merge_group
+    (acceptable over-run, tracked in #671)."""
     workflow = _workflow()
 
     assert "main_via_wave" in workflow
+    classify_job = workflow.split("classify-tier:", 1)[1].split("\n\n  ", 1)[0]
+    assert "MERGE_GROUP_HEAD_REF" not in classify_job
+    wave_head_block = classify_job.split("wave_head=", 1)[1]
+    assert "merge_group" not in wave_head_block
 
     status_job = workflow.split("status-check:", 1)[1]
     main_block = status_job.split('"$tier" == "main"', 1)[1]
