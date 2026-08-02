@@ -1,0 +1,57 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(rg:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format --check:*)",
+      "Bash(mypy:*)",
+      "Bash(python agent-runtime/scripts/meta_prepare_executor.py:*)",
+      "Bash(python agent-runtime/scripts/validate/:*)",
+      "Bash(python agent-runtime/scripts/ci/:*)",
+      "Bash(python agent-runtime/scripts/harness_config.py:*)",
+      "Bash(python agent-runtime/scripts/sync_claude_skill_pointers.py:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(npx ctx7@latest:*)",
+      "Bash(npx --yes supabase@latest --help:*)",
+      "Bash(npx --yes supabase@latest status:*)",
+      "Bash(npx --yes supabase@latest migration list:*)",
+      "Bash(pnpm -w turbo run build:*)",
+      "Bash(pnpm --filter:*)",
+      "Bash(alembic history:*)",
+      "Bash(alembic current:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(git push --force:*)",
+      "Bash(gh pr merge:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/executor_cache_gate.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
