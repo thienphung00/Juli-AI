@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 306,
+  "metrics": {
+    "acceptanceMapped": 2,
+    "acceptanceTotal": 2,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/operations/outcome_tracking.py",
+      "backend/src/juli_backend/services/operations/MODULE.md",
+      "backend/src/juli_backend/services/execution/worker.py",
+      "backend/src/juli_backend/api/routes/workflow_outcomes.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "backend/src/juli_backend/database/migrations/versions/013_workflow_outcome_records.py",
+      "tests/unit/test_workflow_outcome_tracking_contract.py",
+      "tests/integration/test_migrations.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-306.json",
+    "sha256": "c89b416e852b9c274951f66da64192334c7788adc764dd8b875bf53f78548ccd",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-12T11:08:24Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-306.json",
+    "sha256": "678fe02d994cb7e13ff63aacd1386cb93af4aa645c01dfcf48b4bef285802496",
+    "status": "PASS"
+  },
+  "wave": null
+}

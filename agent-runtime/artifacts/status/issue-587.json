@@ -1,0 +1,34 @@
+{
+  "gateVersion": 1,
+  "issue": 587,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "dictionary.md",
+      "packages/ui/src/recommendation-card.tsx",
+      "packages/ui/styles.css",
+      "apps/demo/src/lib/recommendations.ts",
+      "apps/demo/src/components/recommendations-panel.tsx",
+      "apps/demo/src/components/recommendation-review.tsx",
+      "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+      "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx",
+      "apps/demo/src/__tests__/recommendations-routing.test.ts",
+      "apps/demo/src/__tests__/recommendation-review.test.tsx",
+      "agent-runtime/artifacts/release-evidence-plan-issue-587.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-587.json",
+    "sha256": "9e753bd10197ad6b9f7a097bd19309287bebc1fafcf50c1a4c5e2084b5015956",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T09:00:12Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-587.json",
+    "sha256": "63f04b4acc17ec9c8ec18e6a7bb962c0efdc4e614e4e9260a838c613745ed799",
+    "status": "PASS"
+  },
+  "wave": null
+}

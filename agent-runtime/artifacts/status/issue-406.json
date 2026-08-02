@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 406,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "infra/nginx",
+      "infra/systemd",
+      "infra/scripts",
+      "docs/runbooks",
+      "tests/unit",
+      ".github/workflows/pr.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-406.json",
+    "sha256": "2ec2d850cee1f0a78a16a7d475a3b8f8004be2447f5b86871b9973fcb8b458b7",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-21T11:02:02Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-406.json",
+    "sha256": "b2ee6ac06308859baf100bc4b5d8b903c71437a282df60f4e7235d6b38f21837",
+    "status": "PASS"
+  },
+  "wave": null
+}

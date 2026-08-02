@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 584,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "dictionary.md",
+      "packages/ui/src/recommendation-card.tsx",
+      "packages/ui/src/badge.tsx",
+      "packages/ui/src/index.ts",
+      "packages/ui/styles.css",
+      "apps/demo/src/components/recommendations-panel.tsx",
+      "apps/demo/src/__tests__/recommendations-copy-guard.test.tsx",
+      "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+      "agent-runtime/artifacts/release-evidence-plan-issue-584.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-584.json",
+    "sha256": "ef5051078decbb0524b8e15fae593ba3d07d0a8ae71931173bb08759305a9bff",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T07:10:35Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-584.json",
+    "sha256": "2f44f1563bcbaf6dbf629ced7a722e79128d3c8758906e9019c72f32498b991a",
+    "status": "PASS"
+  },
+  "wave": null
+}

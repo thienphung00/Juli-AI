@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 585,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo/src/__tests__/analytics-dashboard.test.tsx",
+      "apps/demo/src/app/globals.css",
+      "apps/demo/src/components/analytics-charts.tsx",
+      "apps/demo/src/components/analytics-dashboard.tsx",
+      "apps/demo/src/components/analytics-kpi-card.tsx",
+      "apps/demo/src/components/analytics-supplementary-sections.tsx",
+      "apps/demo/src/lib/analytics/visual-polish.ts",
+      "apps/demo/src/lib/analytics/__tests__/visual-polish.test.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-585.json",
+    "sha256": "19ffa26c57425d17a583fd411419fb324ee9281b3ad8722097fb9316c9c86256",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T08:57:42Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-585.json",
+    "sha256": "a605903abedd9f09887e5a1e5031240833e98c8a376f61cfccc88eff107c8eaa",
+    "status": "PASS"
+  },
+  "wave": null
+}

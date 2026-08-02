@@ -1,0 +1,40 @@
+{
+  "gateVersion": 1,
+  "issue": 528,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/analytics_kpi_precompute/unavailable_contract.py",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/__init__.py",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+      "tests/unit/test_analytics_kpi_unavailable_contract.py",
+      "apps/demo/src/lib/analytics/main-kpis.ts",
+      "apps/demo/src/lib/analytics/mock-data.ts",
+      "apps/demo/src/lib/analytics/__tests__/main-kpis.test.ts",
+      "apps/demo/src/lib/analytics/__tests__/mock-data.test.ts",
+      "apps/demo/src/app/analytics/page.tsx",
+      "apps/demo/src/components/analytics-dashboard.tsx",
+      "apps/demo/src/components/demo-state.tsx",
+      "apps/demo/src/lib/reviews.ts",
+      "apps/demo/src/__tests__/analytics-dashboard.test.tsx",
+      "apps/demo/src/lib/workflows/prevent-return/review.ts",
+      "apps/demo/src/lib/workflows/prevent-refund/review.ts",
+      "apps/demo/src/lib/workflows/prevent-cancellation/review.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-528.json",
+    "sha256": "99cbe927769e3c2b993c32a18f34df2a21228812e3d0d6d12e45e259f9454c2d",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-27T09:47:26Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-528.json",
+    "sha256": "5c7cb5a2d5773c2a94b11b0277c3749d01ca4a1b4af5656e9085e71d75fd11c1",
+    "status": "PASS"
+  },
+  "wave": null
+}

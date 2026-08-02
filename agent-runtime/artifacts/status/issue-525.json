@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 525,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/MODULE.md",
+      "backend/src/juli_backend/database/migrations/versions/020_analytics_kpi_envelopes.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/integration/test_migrations.py",
+      "tests/unit/test_analytics_kpi_envelopes.py",
+      "tests/unit/test_analytics_kpi_envelopes_migration_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-525.json",
+    "sha256": "7316ef42fef45002799a8901cc397170815dea1357367566ffa985cde19aef99",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-27T07:01:35Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-525.json",
+    "sha256": "b670d4c6ba5c2a2b57d9476a06bdac6ff236ab411323288e95ee76c09638b777",
+    "status": "PASS"
+  },
+  "wave": null
+}

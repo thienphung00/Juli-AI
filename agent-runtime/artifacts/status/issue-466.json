@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 466,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+      "backend/src/juli_backend/services/analytics_backfill/revenue_partition.py",
+      "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "tests/unit/test_analytics_backfill_revenue_partition.py",
+      "tests/fixtures/analytics_backfill/revenue/a36_shop_performance.json",
+      "tests/fixtures/analytics_backfill/revenue/a37_shop_performance_per_hour.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-466.json",
+    "sha256": "2bfd38a488659336cd7c40e563c9b4e90b931d2ba3cc8a70e0db8face5a6d272",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-22T09:29:31Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-466.json",
+    "sha256": "bd4eaf0abf2c66a3c5fda4d47c57b0a12b32e114911a012ba2784bbf105d113b",
+    "status": "PASS"
+  },
+  "wave": null
+}

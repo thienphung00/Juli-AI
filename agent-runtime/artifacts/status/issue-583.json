@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 583,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "docs/handoffs/dvr-a0-reference-bundles/README.md",
+      "docs/handoffs/dvr-a0-reference-bundles/home.md",
+      "docs/handoffs/dvr-a0-reference-bundles/analytics.md",
+      "docs/handoffs/dvr-a0-reference-bundles/recommendations.md",
+      "docs/handoffs/dvr-a0-handoff-note.md",
+      "tests/unit/test_dvr_a0_reference_bundles.py",
+      "agent-runtime/config/slice-routing.yml",
+      "agent-runtime/artifacts/implementations/implementation-issue-583.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-583.json",
+    "sha256": "7eeaa42962008eb8d135ecf307e64846c9557e2d17379760421e7551f4d96e16",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T06:38:47Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-583.json",
+    "sha256": "9a28199b6fe2fccedef26e0b2db3b86be87d16a66572f4c6f93a7e1b258ce572",
+    "status": "PASS"
+  },
+  "wave": null
+}

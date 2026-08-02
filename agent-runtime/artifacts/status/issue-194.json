@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 194,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/lib/operations/todays-report.ts",
+      "web/src/components/home/todays-report/TodaysReportPanel.tsx",
+      "web/src/components/home/todays-report/TodaysReportDomainCard.tsx",
+      "web/src/components/workflows/operations/HomeSummaryShell.tsx",
+      "web/src/hooks/use-prefers-reduced-motion.ts",
+      "web/src/lib/operations/MODULE.md",
+      "web/src/app/globals.css",
+      "web/src/__tests__/test_issue194_todays_report.test.tsx",
+      "web/src/__tests__/test_operations_todays_report.test.ts",
+      "web/src/__tests__/setup.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-194.json",
+    "sha256": "7d189e3a80cb2f028e3c4a76cb4e5470ea607bfb1d0f54a3a06f518a11691479",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-12T04:52:29Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-194.json",
+    "sha256": "f1c8431f58cc9a6497d8c7e1961b605e05fd0329da3cca986cc536816ac1f011",
+    "status": "PASS"
+  },
+  "wave": null
+}

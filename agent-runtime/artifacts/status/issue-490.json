@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 490,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "backend/src/juli_backend/integrations/tiktok/business_advertiser_auth.py",
+      "backend/src/juli_backend/services/tiktok/advertiser_oauth_store.py",
+      "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py",
+      "backend/src/juli_backend/api/app.py",
+      "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "tests/unit/test_tiktok_business_advertiser_callback.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-490.json",
+    "sha256": "18959cef00c6b5c8e73a6dbe1a551e2298ed0b57637c057acfa2f520c330f404",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-23T14:28:03Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-490.json",
+    "sha256": "57337226031774ecdfecfbc01ac61873893204bfe6b74a159064be95e6edef65",
+    "status": "PASS"
+  },
+  "wave": null
+}
