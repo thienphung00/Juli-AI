@@ -54,13 +54,16 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], *, path: str = "
         if "minimum" in schema and instance < schema["minimum"]:
             err(f"value {instance} below minimum {schema['minimum']}")
 
-    if isinstance(instance, list) and "items" in schema:
-        item_schema = schema["items"]
-        if isinstance(item_schema, dict):
-            for index, item in enumerate(instance):
-                errors.extend(
-                    validate_json_schema(item, item_schema, path=f"{path}[{index}]")
-                )
+    if isinstance(instance, list):
+        if "minItems" in schema and len(instance) < int(schema["minItems"]):
+            err(f"array shorter than minItems {schema['minItems']}")
+        if "items" in schema:
+            item_schema = schema["items"]
+            if isinstance(item_schema, dict):
+                for index, item in enumerate(instance):
+                    errors.extend(
+                        validate_json_schema(item, item_schema, path=f"{path}[{index}]")
+                    )
 
     if isinstance(instance, dict):
         required = schema.get("required") or []

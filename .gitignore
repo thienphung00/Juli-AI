@@ -73,3 +73,6 @@ agent-runtime/artifacts/grill-cache/
 apps/demo/test-results/
 apps/demo/playwright-report/
 apps/demo/blob-report/
+
+# Claude Code local overrides (machine-specific; never source control)
+.claude/settings.local.json
