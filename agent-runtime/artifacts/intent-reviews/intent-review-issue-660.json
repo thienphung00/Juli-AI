@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-660",
+  "issue": 660,
+  "phaseRunId": "660-20260802T075454",
+  "timestamp": "2026-08-02T09:30:51Z",
+  "reviewedBy": "review-agent",
+  "fixedPoint": "main",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Re-review of rework commit 36f3ef09 (prior impl c77ff130, prior review f247e32f). Both prior findings are resolved via maintainer-approved AC narrowing recorded on gh issue #660 ('AC narrowing (maintainer decision, post-review c77ff130→f247e32f)'). (1) AC2 (base-only-skip) is RETIRED as a documented no-op: the skip_unchanged_head output, its EVENT_ACTION/EVENT_BEFORE/EVENT_AFTER env wiring, and every 'needs.classify-tier.outputs.skip_unchanged_head != true' job gate (lint, typecheck, test, policy-checks, frontend, demo-frontend, resolve-issue) are fully removed from .github/workflows/pr.yml -- confirmed via grep, zero residual references. An inline comment above the classify-tier script now correctly documents that ADR-052's removal of 'up-to-date-with-base' branch-protection on feature/*-wave is the actual mechanism preventing sibling base-reruns, not an event-level skip. test_base_only_skip_is_retired_as_unreachable asserts full absence of skip_unchanged_head from the workflow text and from the lint/typecheck/test/policy-checks job blocks specifically. (2) AC6 (no-double-run) is NARROWED to the pull_request wave->main path: the merge_group branch of the main_via_wave wave_head derivation (MERGE_GROUP_HEAD_REF env var + assignment) is removed from classify-tier; the working pull_request dedup (HEAD_REF matched against feature/*-wave when BASE_REF is main/staging) is untouched and still gates lint/typecheck/frontend/demo-frontend correctly on the main tier. resolve-issue and artifact-gate retain their own, unrelated MERGE_GROUP_HEAD_REF usage (issue-number/wave-branch resolution on merge_group events) -- confirmed by inspection this is a different job and a different purpose, correctly left alone. An inline comment scopes the optimization to pull_request only and points to follow-up #671 for the merge_group case. test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave now additionally asserts MERGE_GROUP_HEAD_REF and 'merge_group' are absent from the classify-tier job block and from the wave_head derivation specifically. Direct-to-main PRs (not wave-originated) still run all four heavy jobs (main_via_wave defaults false when wave_head is empty), so no new coverage hole. No new smells introduced; the sed-based line removal left no dangling blank-line artifacts (verified via actionlint clean run). All previously-passing ACs (issue-tier minimal job set, artifact-gate rename + main-only + deterministic wave_manifest.py check, policy-checks manifest membership, unconditional gitleaks, tier-aware status-check, RED->GREEN contract tests) are unchanged by this rework and not re-litigated here.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": ".cursor/rules/patterns.mdc / existing pr.yml bash conventions",
+      "path": ".github/workflows/pr.yml",
+      "note": "Rework's comment additions and the sed-based removal of skip_unchanged_head/MERGE_GROUP_HEAD_REF follow the existing set -euo pipefail / GITHUB_OUTPUT idiom used elsewhere in the file. No deviation found."
+    }
+  ]
+}

@@ -39,8 +39,9 @@ def test_issue_tier_has_required_fast_checks() -> None:
         "lint:",
         "typecheck:",
         "test:",
-        "ai-review:",
         "policy-checks:",
+        "frontend:",
+        "demo-frontend:",
     ):
         assert job in workflow
     assert "needs.classify-tier.outputs.tier == 'issue'" in workflow
@@ -73,6 +74,96 @@ def test_main_tier_has_full_premerge_gates() -> None:
     assert "needs.classify-tier.outputs.tier == 'main'" in workflow
     assert 'require "dependency-validation" "$deps" "false"' in workflow
     assert 'require "test-live-sandbox" "$live_sandbox"' in workflow
+
+
+def test_issue_tier_does_not_block_on_artifact_validate_or_generate_jobs() -> None:
+    """AC1: validate/generate artifact jobs are not issue-tier blockers."""
+    workflow = _workflow()
+
+    assert "validate-artifacts:" not in workflow
+    assert "generate-validation-artifact:" not in workflow
+
+
+def test_base_only_skip_is_retired_as_unreachable() -> None:
+    """AC2 (narrowed): base-only-skip is retired — GitHub only fires
+    `synchronize` when the head SHA moves, so before == after never occurs
+    and a base-only advance fires no PR event at all. Issue-tier heavy jobs
+    (lint/typecheck/test/policy-checks) are no longer gated on a
+    head-unchanged signal; sibling base-reruns are instead prevented by
+    ADR-052's removal of "up-to-date-with-base" on feature/*-wave.
+    """
+    workflow = _workflow()
+
+    assert "skip_unchanged_head" not in workflow
+    assert "needs.classify-tier.outputs.skip_unchanged_head" not in workflow
+    for job in ("lint", "typecheck", "test", "policy-checks"):
+        job_block = workflow.split(f"\n  {job}:", 1)[1].split("\n\n  ", 1)[0]
+        assert "skip_unchanged_head" not in job_block
+
+
+def test_policy_checks_enforces_wave_manifest_membership_via_ci_wave1_validator() -> None:
+    """AC3: policy-checks requires feature/issue-N* linkage and manifest membership."""
+    workflow = _workflow()
+
+    policy_job = workflow.split("policy-checks:", 1)[1].split("\n\n  ", 1)[0]
+    assert "wave_manifest.py" in policy_job
+    assert "--issue" in policy_job
+    assert "--wave-id" in policy_job
+
+
+def test_artifact_gate_renamed_from_ai_review_and_runs_on_main_tier_only() -> None:
+    """AC4/AC5: ai-review is renamed to artifact-gate; deferred to wave->main."""
+    workflow = _workflow()
+
+    assert "ai-review:" not in workflow
+    assert "artifact-gate:" in workflow
+
+    gate_job = workflow.split("artifact-gate:", 1)[1].split("\n\n  ", 1)[0]
+    assert "needs.classify-tier.outputs.tier == 'main'" in gate_job
+    assert "wave_manifest.py" in gate_job
+    assert "--check-artifacts" in gate_job
+
+
+def test_status_check_requires_artifact_gate_on_main_not_ai_review() -> None:
+    workflow = _workflow()
+
+    status_job = workflow.split("status-check:", 1)[1]
+    assert "ai-review" not in status_job
+    assert 'require "artifact-gate"' in status_job
+
+
+def test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave() -> None:
+    """AC6 (narrowed to pull_request): no CI double-run of
+    lint/typecheck/frontend/demo-frontend when main tier is reached via a
+    wave->main pull_request (head_ref matches feature/*-wave). The
+    merge_group branch of this dedup is out of #658 scope — merge_group's
+    head_ref is a synthetic `gh-readonly-queue/...` ref that never matches
+    feature/*-wave, so those four jobs may safely re-run on merge_group
+    (acceptable over-run, tracked in #671)."""
+    workflow = _workflow()
+
+    assert "main_via_wave" in workflow
+    classify_job = workflow.split("classify-tier:", 1)[1].split("\n\n  ", 1)[0]
+    assert "MERGE_GROUP_HEAD_REF" not in classify_job
+    wave_head_block = classify_job.split("wave_head=", 1)[1]
+    assert "merge_group" not in wave_head_block
+
+    status_job = workflow.split("status-check:", 1)[1]
+    main_block = status_job.split('"$tier" == "main"', 1)[1]
+    assert 'require "lint" "$lint" "true"' in main_block
+    assert 'require "typecheck" "$typecheck" "true"' in main_block
+    assert 'require "frontend" "$fe" "true"' in main_block
+    assert 'require "demo-frontend" "$demo" "true"' in main_block
+
+
+def test_gitleaks_stays_always_on_across_tiers() -> None:
+    workflow = _workflow()
+
+    gitleaks_job = workflow.split("gitleaks:", 1)[1].split("\n\n  ", 1)[0]
+    assert "needs.classify-tier" not in gitleaks_job
+    assert "if:" not in gitleaks_job
+    status_job = workflow.split("status-check:", 1)[1]
+    assert 'require "gitleaks" "$gitleaks" "false"' in status_job
 
 
 def test_issue_policy_accepts_repository_feature_branch_convention() -> None:

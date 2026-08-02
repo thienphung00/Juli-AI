@@ -32,6 +32,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tier: ${{ steps.classify.outputs.tier }}
+      # True when the main-tier run is reached via a feature/*-wave head on
+      # the pull_request path (wave->main), which already ran
+      # lint/typecheck/frontend/demo-frontend per-issue at issue tier —
+      # avoids the CI double-run (#658 audit addendum). Scoped to
+      # pull_request only: merge_group's head_ref is a synthetic
+      # gh-readonly-queue/... ref that never matches feature/*-wave, so that
+      # path is out of scope here (follow-up #671).
+      main_via_wave: ${{ steps.classify.outputs.main_via_wave }}
     steps:
       - name: Classify CI tier
         id: classify
@@ -53,6 +61,23 @@ jobs:
           else
             echo "Unsupported CI flow: event=$EVENT_NAME base=$BASE_REF head=$HEAD_REF ref=$REF_NAME"
             exit 1
+          fi
+          # Note (ADR-052 / #660 rework): sibling base-reruns within a wave
+          # are prevented at the branch-protection layer by ADR-052's
+          # removal of "up-to-date-with-base" on feature/*-wave, NOT by an
+          # event-level skip here. GitHub fires `synchronize` only when the
+          # head SHA changes, so a before-SHA == after-SHA check on
+          # synchronize is unreachable: a base-only advance (no head move)
+          # fires no PR event at all. The retired signal from a prior
+          # revision has been removed along with its job gates.
+          wave_head=""
+          if [[ "$EVENT_NAME" == "pull_request" && ( "$BASE_REF" == "main" || "$BASE_REF" == "staging" ) ]]; then
+            wave_head="$HEAD_REF"
+          fi
+          if [[ "$wave_head" == feature/*-wave ]]; then
+            echo "main_via_wave=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "main_via_wave=false" >> "$GITHUB_OUTPUT"
           fi
 
   changes:
@@ -147,7 +172,8 @@ jobs:
     needs: [classify-tier, changes]
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
-      || needs.classify-tier.outputs.tier == 'main')
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.classify-tier.outputs.main_via_wave != 'true'))
       && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -166,7 +192,8 @@ jobs:
     needs: [classify-tier, changes]
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
-      || needs.classify-tier.outputs.tier == 'main')
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.classify-tier.outputs.main_via_wave != 'true'))
       && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -343,7 +370,8 @@ jobs:
     needs: [classify-tier, changes]
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
-      || needs.classify-tier.outputs.tier == 'main')
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.classify-tier.outputs.main_via_wave != 'true'))
       && needs.changes.outputs.dashboard == 'true'
     defaults:
       run:
@@ -374,7 +402,8 @@ jobs:
     needs: [classify-tier, changes]
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
-      || needs.classify-tier.outputs.tier == 'main')
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.classify-tier.outputs.main_via_wave != 'true'))
       && needs.changes.outputs.demo == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -439,18 +468,17 @@ jobs:
       - name: Demo exit-gate contract tests (#407)
         run: python -m pytest tests/unit/test_phase_2_6_demo_exit_gate.py -q
 
-  validate-artifacts:
+  # ADR-052: artifact validate/generate is deferred to the wave->main
+  # artifact-gate job below — it is no longer an issue-tier blocker.
+  # Deterministic existence+status check only (no meta_prepare_executor /
+  # check_*.py re-run per issue push); see wave_manifest.py (CI-WAVE-1).
+  artifact-gate:
     runs-on: ubuntu-latest
-    needs: [classify-tier, resolve-issue]
-    if: >-
-      needs.classify-tier.outputs.tier == 'issue'
-      && needs.resolve-issue.outputs.issue_number != ''
+    needs: [classify-tier]
+    if: needs.classify-tier.outputs.tier == 'main'
     env:
-      ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
-      GITHUB_BASE_REF: ${{ github.base_ref }}
-      GITHUB_HEAD_REF: ${{ github.head_ref }}
-      # Required for meta_prepare_executor / fingerprint gates (gh issue view).
-      GH_TOKEN: ${{ github.token }}
+      HEAD_REF: ${{ github.head_ref }}
+      MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -458,80 +486,27 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Run validate gates
+      - name: Validate wave manifest issue artifacts (existence + PASS status)
         run: |
-          issue="${ISSUE_NUMBER}"
-          failed=0
-          # Workflow caches are gitignored (machine-local). Bootstrap before gates
-          # so check_workflow_cache_* / issue_load_profile can run in CI.
-          echo "==> agent-runtime/scripts/meta_prepare_executor.py --issue $issue"
-          python agent-runtime/scripts/meta_prepare_executor.py --issue "$issue" || failed=1
-          for script in agent-runtime/scripts/validate/check_*.py; do
-            echo "==> $script"
-            python "$script" --issue "$issue" || failed=1
-          done
-          echo "==> agent-runtime/scripts/ci/normalize_review_artifacts.py --check"
-          python agent-runtime/scripts/ci/normalize_review_artifacts.py --issue "$issue" --check || failed=1
-          exit "$failed"
-
-  generate-validation-artifact:
-    runs-on: ubuntu-latest
-    needs: [classify-tier, resolve-issue, validate-artifacts]
-    if: >-
-      needs.classify-tier.outputs.tier == 'issue'
-      && needs.resolve-issue.outputs.issue_number != ''
-    env:
-      ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
-      GITHUB_BASE_REF: ${{ github.base_ref }}
-      GITHUB_HEAD_REF: ${{ github.head_ref }}
-      # Required for meta_prepare_executor / fingerprint gates (gh issue view).
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - name: Generate validation artifact
-        run: |
-          issue="${ISSUE_NUMBER}"
-          # Workflow caches are gitignored (machine-local). Bootstrap before
-          # CHECKS that load child cache (public_release_*, executor_domain,
-          # phase_run_correlation, release_evidence_plan_continuity).
-          echo "==> agent-runtime/scripts/meta_prepare_executor.py --issue $issue"
-          python agent-runtime/scripts/meta_prepare_executor.py --issue "$issue"
-          echo "==> agent-runtime/scripts/ci/generate_validation_artifact.py --issue $issue"
-          python agent-runtime/scripts/ci/generate_validation_artifact.py --issue "$issue"
-      - name: Upload validation artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: validation-issue-${{ needs.resolve-issue.outputs.issue_number }}
-          path: agent-runtime/artifacts/validation/validation-issue-${{ needs.resolve-issue.outputs.issue_number }}.json
-
-  ai-review:
-    runs-on: ubuntu-latest
-    needs: [classify-tier, validate-artifacts, generate-validation-artifact]
-    if: always() && needs.classify-tier.outputs.tier == 'issue'
-    steps:
-      - name: Require AI review and validation artifacts
-        env:
-          VALIDATE_RESULT: ${{ needs.validate-artifacts.result }}
-          GENERATE_RESULT: ${{ needs.generate-validation-artifact.result }}
-        run: |
-          [[ "$VALIDATE_RESULT" == "success" ]] || {
-            echo "validate-artifacts: $VALIDATE_RESULT"
-            exit 1
-          }
-          [[ "$GENERATE_RESULT" == "success" ]] || {
-            echo "generate-validation-artifact: $GENERATE_RESULT"
-            exit 1
-          }
+          branch="$HEAD_REF"
+          if [[ -z "$branch" ]]; then
+            branch="$MERGE_GROUP_HEAD_REF"
+          fi
+          if [[ ! "$branch" =~ ^feature/.+-wave$ ]]; then
+            echo "artifact-gate: head '$branch' is not a wave branch; nothing to validate."
+            exit 0
+          fi
+          mid="${branch#feature/}"
+          mid="${mid%-wave}"
+          wave_id="wave-${mid}"
+          python agent-runtime/scripts/ci/wave_manifest.py \
+            --wave-id "$wave_id" --branch "$branch" --check-artifacts
 
   policy-checks:
     runs-on: ubuntu-latest
     needs: [classify-tier, resolve-issue]
-    if: needs.classify-tier.outputs.tier == 'issue'
+    if: >-
+      needs.classify-tier.outputs.tier == 'issue'
     steps:
       - name: Require issue branch and issue linkage
         env:
@@ -546,6 +521,22 @@ jobs:
             echo "Issue-tier PR branch must contain issue-N"
             exit 1
           }
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Require issue present in target wave manifest (CI-WAVE-1 validator)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
+        run: |
+          mid="${BASE_REF#feature/}"
+          mid="${mid%-wave}"
+          wave_id="wave-${mid}"
+          python agent-runtime/scripts/ci/wave_manifest.py \
+            --wave-id "$wave_id" --branch "$BASE_REF" --issue "$ISSUE_NUMBER"
 
   integration-tests:
     runs-on: ubuntu-latest
@@ -779,12 +770,18 @@ jobs:
           DEMO_RESULT: ${{ needs.demo-frontend.result }}
           DEPLOY_CONTRACT_RESULT: ${{ needs.demo-deploy-contracts.result }}
         run: |
-          for result in "$DASHBOARD_RESULT" "$DEMO_RESULT" "$DEPLOY_CONTRACT_RESULT"; do
-            [[ "$result" == "success" ]] || {
+          # frontend/demo-frontend may report "skipped" here on wave->main
+          # (main_via_wave) — they already ran per issue at issue tier.
+          for result in "$DASHBOARD_RESULT" "$DEMO_RESULT"; do
+            [[ "$result" == "success" || "$result" == "skipped" ]] || {
               echo "deployment readiness dependency: $result"
               exit 1
             }
           done
+          [[ "$DEPLOY_CONTRACT_RESULT" == "success" ]] || {
+            echo "deployment readiness dependency: $DEPLOY_CONTRACT_RESULT"
+            exit 1
+          }
 
   status-check:
     runs-on: ubuntu-latest
@@ -809,9 +806,7 @@ jobs:
       - demo-frontend
       - demo-deploy-contracts
       - demo-e2e
-      - validate-artifacts
-      - generate-validation-artifact
-      - ai-review
+      - artifact-gate
       - policy-checks
       - security-scan
       - deployment-checks
@@ -837,9 +832,7 @@ jobs:
           demo="${{ needs.demo-frontend.result }}"
           demo_deploy="${{ needs.demo-deploy-contracts.result }}"
           demo_e2e="${{ needs.demo-e2e.result }}"
-          val="${{ needs.validate-artifacts.result }}"
-          gen="${{ needs.generate-validation-artifact.result }}"
-          ai_review="${{ needs.ai-review.result }}"
+          artifact_gate="${{ needs.artifact-gate.result }}"
           policy="${{ needs.policy-checks.result }}"
           security="${{ needs.security-scan.result }}"
           deployment="${{ needs.deployment-checks.result }}"
@@ -863,9 +856,6 @@ jobs:
             require "test" "$test" "true"
             require "frontend" "$fe" "true"
             require "demo-frontend" "$demo" "true"
-            require "validate-artifacts" "$val" "false"
-            require "generate-validation-artifact" "$gen" "false"
-            require "ai-review" "$ai_review" "false"
             require "policy-checks" "$policy" "false"
           elif [[ "$tier" == "wave" ]]; then
             require "integration-tests" "$integration" "true"
@@ -874,19 +864,23 @@ jobs:
             require "architecture-gates" "$arch" "true"
           elif [[ "$tier" == "main" ]]; then
             # merge_group requires success for the same main-tier gates.
-            require "lint" "$lint" "false"
-            require "typecheck" "$typecheck" "false"
+            # lint/typecheck/frontend/demo-frontend allow "skipped": when
+            # reached via wave->main (main_via_wave) they already ran per
+            # issue at issue tier — no CI double-run (#658 audit addendum).
+            require "lint" "$lint" "true"
+            require "typecheck" "$typecheck" "true"
             require "architecture-gates" "$arch" "false"
             require "bandit" "$bandit" "false"
             require "full-regression" "$regression" "false"
             require "migration-check" "$mig" "false"
-            require "frontend" "$fe" "false"
-            require "demo-frontend" "$demo" "false"
+            require "frontend" "$fe" "true"
+            require "demo-frontend" "$demo" "true"
             require "demo-deploy-contracts" "$demo_deploy" "false"
             require "demo-e2e" "$demo_e2e" "false"
             require "performance-smoke" "$perf" "false"
             require "security-scan" "$security" "false"
             require "deployment-checks" "$deployment" "false"
+            require "artifact-gate" "$artifact_gate" "false"
             if [[ "${{ github.event_name }}" == "merge_group" ]]; then
               require "test-live-sandbox" "$live_sandbox" "false"
             else
