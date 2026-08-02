@@ -1,13 +1,16 @@
-# Two-tier CI:
-# - pull_request: path-filtered fast tier (skip unrelated packages) + always-on gitleaks.
-# - merge_group: full required suite (no path skips).
-# Enable GitHub Merge Queue on main and require this workflow's status-check job.
+# Three-tier CI:
+# - issue PR -> feature/*-wave: affected-package unit, review, and policy checks.
+# - push -> feature/*-wave: integration, dependency, contract, and architecture checks.
+# - wave PR -> main: full pre-merge regression, E2E, runtime smoke, security, and deploy checks.
+# release.yml remains the only workflow that deploys after merge to main.
 
 name: PR Validation
 
 on:
   pull_request:
-    branches: [main, staging]
+    branches: [main, staging, "feature/*-wave"]
+  push:
+    branches: ["feature/*-wave"]
   merge_group:
     branches: [main]
 
@@ -15,6 +18,8 @@ concurrency:
   group: >-
     ${{ github.event_name == 'merge_group'
         && format('merge-group-{0}', github.ref)
+        || github.event_name == 'push'
+        && format('wave-{0}', github.ref)
         || format('pr-{0}', github.head_ref) }}
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
@@ -23,8 +28,36 @@ permissions:
   pull-requests: read
 
 jobs:
+  classify-tier:
+    runs-on: ubuntu-latest
+    outputs:
+      tier: ${{ steps.classify.outputs.tier }}
+    steps:
+      - name: Classify CI tier
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "merge_group" ]]; then
+            echo "tier=main" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "push" && "$REF_NAME" == feature/*-wave ]]; then
+            echo "tier=wave" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "pull_request" && "$BASE_REF" == feature/*-wave ]]; then
+            echo "tier=issue" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "pull_request" && ( "$BASE_REF" == "main" || "$BASE_REF" == "staging" ) ]]; then
+            echo "tier=main" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported CI flow: event=$EVENT_NAME base=$BASE_REF head=$HEAD_REF ref=$REF_NAME"
+            exit 1
+          fi
+
   changes:
     runs-on: ubuntu-latest
+    needs: classify-tier
     outputs:
       backend: ${{ steps.set-outputs.outputs.backend }}
       migrations: ${{ steps.set-outputs.outputs.migrations }}
@@ -36,7 +69,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dorny/paths-filter@v4
-        if: github.event_name != 'merge_group'
+        if: needs.classify-tier.outputs.tier == 'issue'
         id: filter
         with:
           filters: |
@@ -70,17 +103,19 @@ jobs:
       - name: Set path-filter outputs
         id: set-outputs
         run: |
-          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
-            for key in backend migrations dashboard demo agent; do
-              echo "${key}=true" >> "$GITHUB_OUTPUT"
-            done
-          else
-            echo "backend=${{ steps.filter.outputs.backend }}" >> "$GITHUB_OUTPUT"
-            echo "migrations=${{ steps.filter.outputs.migrations }}" >> "$GITHUB_OUTPUT"
-            echo "dashboard=${{ steps.filter.outputs.dashboard }}" >> "$GITHUB_OUTPUT"
-            echo "demo=${{ steps.filter.outputs.demo }}" >> "$GITHUB_OUTPUT"
-            echo "agent=${{ steps.filter.outputs.agent }}" >> "$GITHUB_OUTPUT"
-          fi
+          {
+            if [[ "${{ needs.classify-tier.outputs.tier }}" != "issue" ]]; then
+              for key in backend migrations dashboard demo agent; do
+                echo "${key}=true"
+              done
+            else
+              echo "backend=${{ steps.filter.outputs.backend }}"
+              echo "migrations=${{ steps.filter.outputs.migrations }}"
+              echo "dashboard=${{ steps.filter.outputs.dashboard }}"
+              echo "demo=${{ steps.filter.outputs.demo }}"
+              echo "agent=${{ steps.filter.outputs.agent }}"
+            fi
+          } >> "$GITHUB_OUTPUT"
 
   resolve-issue:
     runs-on: ubuntu-latest
@@ -89,13 +124,17 @@ jobs:
     steps:
       - name: Resolve issue number from branch
         id: issue
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          branch="${{ github.head_ref }}"
+          branch="$HEAD_REF"
           if [[ -z "$branch" ]]; then
-            branch="${{ github.event.merge_group.head_ref }}"
+            branch="$MERGE_GROUP_HEAD_REF"
           fi
           if [[ -z "$branch" ]]; then
-            branch="${{ github.ref_name }}"
+            branch="$REF_NAME"
           fi
           if [[ "$branch" =~ issue-([0-9]+) ]]; then
             echo "number=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
@@ -103,10 +142,13 @@ jobs:
             echo "number=" >> "$GITHUB_OUTPUT"
           fi
 
-  lint-and-typecheck:
+  lint:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.backend == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      (needs.classify-tier.outputs.tier == 'issue'
+      || needs.classify-tier.outputs.tier == 'main')
+      && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -118,13 +160,31 @@ jobs:
           pip install -e "./backend[dev]"
       - name: Ruff
         run: ruff check backend/src/juli_backend tests scripts
+
+  typecheck:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      (needs.classify-tier.outputs.tier == 'issue'
+      || needs.classify-tier.outputs.tier == 'main')
+      && needs.changes.outputs.backend == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e "./backend[dev]"
       - name: Mypy
         run: mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type
 
   architecture-gates:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.backend == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      (needs.classify-tier.outputs.tier == 'wave'
+      || needs.classify-tier.outputs.tier == 'main')
+      && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -143,8 +203,10 @@ jobs:
 
   bandit:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.backend == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -168,8 +230,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.backend == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'issue'
+      && needs.changes.outputs.backend == 'true'
     # ADR-040: PR-safe Tests — fail-fast if a test hangs (healthy suite ~4–5 min).
     timeout-minutes: 15
     services:
@@ -213,28 +277,17 @@ jobs:
       - name: Install PostgreSQL client 16
         run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
       - name: Pytest with coverage (PR-safe Tests)
-        # ADR-040: exclude live + demo_contract.
-        # PR also excludes migration_heavy + phase_scaffold (run on MQ / path jobs).
+        # ADR-040: issue tier excludes live, deploy contracts, and heavy suites.
         # Floor set 5 points below the measured juli_backend baseline (85%, 2026-07-09).
         # timeout=30 comes from pytest.ini (pytest-timeout).
         run: |
-          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
-            MARKERS='not live and not demo_contract'
-          else
-            MARKERS='not live and not demo_contract and not migration_heavy and not phase_scaffold'
-          fi
           python -X faulthandler -m pytest tests/ -v --tb=short \
-            -m "$MARKERS" \
+            -m "not live and not demo_contract and not migration_heavy and not phase_scaffold" \
             --cov=juli_backend --cov-report=term-missing --cov-fail-under=80
-      - name: Pytest migration-heavy (migration paths on PR)
-        if: >-
-          github.event_name == 'pull_request'
-          && needs.changes.outputs.migrations == 'true'
-        run: python -m pytest tests/ -v --tb=short -m migration_heavy
 
   test-live-sandbox:
     runs-on: ubuntu-latest
-    needs: changes
+    needs: [classify-tier, changes]
     # ADR-040: live Partner oauth only on merge_group (not every PR push).
     if: github.event_name == 'merge_group'
     timeout-minutes: 15
@@ -255,11 +308,11 @@ jobs:
 
   migration-check:
     runs-on: ubuntu-latest
-    needs: changes
+    needs: [classify-tier, changes]
     if: >-
-      github.event_name == 'merge_group'
-      || needs.changes.outputs.migrations == 'true'
-      || needs.changes.outputs.backend == 'true'
+      needs.classify-tier.outputs.tier == 'main'
+      && (needs.changes.outputs.migrations == 'true'
+      || needs.changes.outputs.backend == 'true')
     services:
       postgres:
         image: postgres:16
@@ -287,8 +340,11 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.dashboard == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      (needs.classify-tier.outputs.tier == 'issue'
+      || needs.classify-tier.outputs.tier == 'main')
+      && needs.changes.outputs.dashboard == 'true'
     defaults:
       run:
         working-directory: apps/dashboard
@@ -315,8 +371,11 @@ jobs:
 
   demo-frontend:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.demo == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      (needs.classify-tier.outputs.tier == 'issue'
+      || needs.classify-tier.outputs.tier == 'main')
+      && needs.changes.outputs.demo == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -334,8 +393,10 @@ jobs:
 
   demo-deploy-contracts:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.demo == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.demo == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -350,8 +411,10 @@ jobs:
 
   demo-e2e:
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.demo == 'true'
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.demo == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -378,8 +441,10 @@ jobs:
 
   validate-artifacts:
     runs-on: ubuntu-latest
-    needs: resolve-issue
-    if: needs.resolve-issue.outputs.issue_number != ''
+    needs: [classify-tier, resolve-issue]
+    if: >-
+      needs.classify-tier.outputs.tier == 'issue'
+      && needs.resolve-issue.outputs.issue_number != ''
     env:
       ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
       GITHUB_BASE_REF: ${{ github.base_ref }}
@@ -411,8 +476,10 @@ jobs:
 
   generate-validation-artifact:
     runs-on: ubuntu-latest
-    needs: [resolve-issue, validate-artifacts]
-    if: needs.resolve-issue.outputs.issue_number != ''
+    needs: [classify-tier, resolve-issue, validate-artifacts]
+    if: >-
+      needs.classify-tier.outputs.tier == 'issue'
+      && needs.resolve-issue.outputs.issue_number != ''
     env:
       ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
       GITHUB_BASE_REF: ${{ github.base_ref }}
@@ -442,16 +509,301 @@ jobs:
           name: validation-issue-${{ needs.resolve-issue.outputs.issue_number }}
           path: agent-runtime/artifacts/validation/validation-issue-${{ needs.resolve-issue.outputs.issue_number }}.json
 
+  ai-review:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, validate-artifacts, generate-validation-artifact]
+    if: always() && needs.classify-tier.outputs.tier == 'issue'
+    steps:
+      - name: Require AI review and validation artifacts
+        env:
+          VALIDATE_RESULT: ${{ needs.validate-artifacts.result }}
+          GENERATE_RESULT: ${{ needs.generate-validation-artifact.result }}
+        run: |
+          [[ "$VALIDATE_RESULT" == "success" ]] || {
+            echo "validate-artifacts: $VALIDATE_RESULT"
+            exit 1
+          }
+          [[ "$GENERATE_RESULT" == "success" ]] || {
+            echo "generate-validation-artifact: $GENERATE_RESULT"
+            exit 1
+          }
+
+  policy-checks:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, resolve-issue]
+    if: needs.classify-tier.outputs.tier == 'issue'
+    steps:
+      - name: Require issue branch and issue linkage
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          ISSUE_NUMBER: ${{ needs.resolve-issue.outputs.issue_number }}
+        run: |
+          [[ "$HEAD_REF" == feature/* ]] || {
+            echo "Issue-tier PRs must use feature/* branches (got $HEAD_REF)"
+            exit 1
+          }
+          [[ -n "$ISSUE_NUMBER" ]] || {
+            echo "Issue-tier PR branch must contain issue-N"
+            exit 1
+          }
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'wave'
+      && needs.changes.outputs.backend == 'true'
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379
+      TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+      TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -e "./backend[dev]"
+      - name: Integration tests without live Partner calls
+        run: python -m pytest tests/integration -v --tb=short -m "not live"
+
+  dependency-validation:
+    runs-on: ubuntu-latest
+    needs: classify-tier
+    if: >-
+      needs.classify-tier.outputs.tier == 'wave'
+      || needs.classify-tier.outputs.tier == 'main'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Validate Python dependency graph
+        run: |
+          pip install -e "./backend[dev]"
+          pip check
+      - name: Validate pnpm lock graph
+        run: pnpm install --frozen-lockfile --filter @juli/demo...
+      - name: Validate dashboard npm lock
+        working-directory: apps/dashboard
+        run: npm ci --ignore-scripts
+
+  cross-module-contracts:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'wave'
+      && needs.changes.outputs.backend == 'true'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -e "./backend[dev]"
+      - name: Cross-module contract tests
+        run: >-
+          python -m pytest tests/unit -q --tb=short
+          -k "contract or boundary or ownership"
+
+  full-regression:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.backend == 'true'
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379
+      TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+      TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -e "./backend[dev]"
+      - name: Install PostgreSQL client 16
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+      - name: Full non-live regression suite
+        run: |
+          coverage erase
+          python -X faulthandler -m pytest tests/unit -v --tb=short \
+            -m "not live and not demo_contract" \
+            --cov=juli_backend --cov-report= --cov-fail-under=0
+          python -X faulthandler -m pytest tests/integration -v --tb=short \
+            -m "not live and not demo_contract" \
+            --cov=juli_backend --cov-append \
+            --cov-report=term-missing --cov-fail-under=80
+
+  performance-smoke:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.backend == 'true'
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379
+      TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+      TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -e "./backend[dev]"
+      - name: Bounded integration runtime smoke
+        run: >-
+          timeout 5m python -m pytest
+          tests/integration/test_material_deployed_webhook_handoff.py
+          tests/integration/test_inventory_poll_etl_upsert.py
+          tests/integration/test_analytics_poll_etl_upsert.py
+          -q --tb=short -m "not live and not migration_heavy" --durations=20
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, bandit, gitleaks]
+    if: always() && needs.classify-tier.outputs.tier == 'main'
+    steps:
+      - name: Require code and secret scanning
+        env:
+          BANDIT_RESULT: ${{ needs.bandit.result }}
+          GITLEAKS_RESULT: ${{ needs.gitleaks.result }}
+        run: |
+          [[ "$BANDIT_RESULT" == "success" ]] || {
+            echo "bandit: $BANDIT_RESULT"
+            exit 1
+          }
+          [[ "$GITLEAKS_RESULT" == "success" ]] || {
+            echo "gitleaks: $GITLEAKS_RESULT"
+            exit 1
+          }
+
+  deployment-checks:
+    runs-on: ubuntu-latest
+    needs:
+      - classify-tier
+      - frontend
+      - demo-frontend
+      - demo-deploy-contracts
+    if: always() && needs.classify-tier.outputs.tier == 'main'
+    steps:
+      - name: Require production builds and deploy contracts
+        env:
+          DASHBOARD_RESULT: ${{ needs.frontend.result }}
+          DEMO_RESULT: ${{ needs.demo-frontend.result }}
+          DEPLOY_CONTRACT_RESULT: ${{ needs.demo-deploy-contracts.result }}
+        run: |
+          for result in "$DASHBOARD_RESULT" "$DEMO_RESULT" "$DEPLOY_CONTRACT_RESULT"; do
+            [[ "$result" == "success" ]] || {
+              echo "deployment readiness dependency: $result"
+              exit 1
+            }
+          done
+
   status-check:
     runs-on: ubuntu-latest
     needs:
+      - classify-tier
       - changes
       - resolve-issue
-      - lint-and-typecheck
+      - lint
+      - typecheck
       - architecture-gates
       - bandit
       - gitleaks
       - test
+      - test-live-sandbox
+      - integration-tests
+      - dependency-validation
+      - cross-module-contracts
+      - full-regression
+      - performance-smoke
       - migration-check
       - frontend
       - demo-frontend
@@ -459,16 +811,27 @@ jobs:
       - demo-e2e
       - validate-artifacts
       - generate-validation-artifact
+      - ai-review
+      - policy-checks
+      - security-scan
+      - deployment-checks
     if: always()
     steps:
-      - name: Require all jobs
+      - name: Require tier jobs
         run: |
-          event="${{ github.event_name }}"
-          lint="${{ needs.lint-and-typecheck.result }}"
+          tier="${{ needs.classify-tier.outputs.tier }}"
+          lint="${{ needs.lint.result }}"
+          typecheck="${{ needs.typecheck.result }}"
           arch="${{ needs.architecture-gates.result }}"
           bandit="${{ needs.bandit.result }}"
           gitleaks="${{ needs.gitleaks.result }}"
           test="${{ needs.test.result }}"
+          live_sandbox="${{ needs.test-live-sandbox.result }}"
+          integration="${{ needs.integration-tests.result }}"
+          deps="${{ needs.dependency-validation.result }}"
+          contracts="${{ needs.cross-module-contracts.result }}"
+          regression="${{ needs.full-regression.result }}"
+          perf="${{ needs.performance-smoke.result }}"
           mig="${{ needs.migration-check.result }}"
           fe="${{ needs.frontend.result }}"
           demo="${{ needs.demo-frontend.result }}"
@@ -476,17 +839,16 @@ jobs:
           demo_e2e="${{ needs.demo-e2e.result }}"
           val="${{ needs.validate-artifacts.result }}"
           gen="${{ needs.generate-validation-artifact.result }}"
-          issue='${{ needs.resolve-issue.outputs.issue_number }}'
+          ai_review="${{ needs.ai-review.result }}"
+          policy="${{ needs.policy-checks.result }}"
+          security="${{ needs.security-scan.result }}"
+          deployment="${{ needs.deployment-checks.result }}"
 
           fail() { echo "$1"; exit 1; }
 
-          # merge_group: full suite must succeed (skipped = fail).
-          # pull_request: path-filtered jobs may be skipped; gitleaks always required.
           require() {
             local name="$1" result="$2" allow_skip="$3"
-            if [[ "$event" == "merge_group" ]]; then
-              [[ "$result" == "success" ]] || fail "$name: $result (merge_group requires success, not skipped)"
-            elif [[ "$allow_skip" == "true" ]]; then
+            if [[ "$allow_skip" == "true" ]]; then
               [[ "$result" == "success" || "$result" == "skipped" ]] || fail "$name: $result"
             else
               [[ "$result" == "success" ]] || fail "$name: $result"
@@ -494,25 +856,45 @@ jobs:
           }
 
           require "gitleaks" "$gitleaks" "false"
-          require "lint-and-typecheck" "$lint" "true"
-          require "architecture-gates" "$arch" "true"
-          require "bandit" "$bandit" "true"
-          require "test" "$test" "true"
-          require "migration-check" "$mig" "true"
-          require "frontend" "$fe" "true"
-          require "demo-frontend" "$demo" "true"
-          require "demo-deploy-contracts" "$demo_deploy" "true"
-          require "demo-e2e" "$demo_e2e" "true"
 
-          if [[ -n "$issue" ]]; then
+          if [[ "$tier" == "issue" ]]; then
+            require "lint" "$lint" "true"
+            require "typecheck" "$typecheck" "true"
+            require "test" "$test" "true"
+            require "frontend" "$fe" "true"
+            require "demo-frontend" "$demo" "true"
             require "validate-artifacts" "$val" "false"
             require "generate-validation-artifact" "$gen" "false"
-          else
-            echo "Skipping artifact gates (no issue-N in branch ref)"
-            if [[ "$event" == "pull_request" ]]; then
-              [[ "$val" == "success" || "$val" == "skipped" ]] || fail "validate-artifacts: $val"
-              [[ "$gen" == "success" || "$gen" == "skipped" ]] || fail "generate-validation-artifact: $gen"
+            require "ai-review" "$ai_review" "false"
+            require "policy-checks" "$policy" "false"
+          elif [[ "$tier" == "wave" ]]; then
+            require "integration-tests" "$integration" "true"
+            require "dependency-validation" "$deps" "false"
+            require "cross-module-contracts" "$contracts" "true"
+            require "architecture-gates" "$arch" "true"
+          elif [[ "$tier" == "main" ]]; then
+            # merge_group requires success for the same main-tier gates.
+            require "lint" "$lint" "false"
+            require "typecheck" "$typecheck" "false"
+            require "architecture-gates" "$arch" "false"
+            require "bandit" "$bandit" "false"
+            require "full-regression" "$regression" "false"
+            require "migration-check" "$mig" "false"
+            require "frontend" "$fe" "false"
+            require "demo-frontend" "$demo" "false"
+            require "demo-deploy-contracts" "$demo_deploy" "false"
+            require "demo-e2e" "$demo_e2e" "false"
+            require "performance-smoke" "$perf" "false"
+            require "security-scan" "$security" "false"
+            require "deployment-checks" "$deployment" "false"
+            if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+              require "test-live-sandbox" "$live_sandbox" "false"
+            else
+              require "test-live-sandbox" "$live_sandbox" "true"
             fi
+            require "dependency-validation" "$deps" "false"
+          else
+            fail "Unknown CI tier: $tier"
           fi
 
-          echo "All required checks passed."
+          echo "All required $tier-tier checks passed."

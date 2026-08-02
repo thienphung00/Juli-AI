@@ -13,11 +13,59 @@ Trunk-based slots with a frozen shared core. No persistent `product/frontend` or
 | Debug / hotfix | `scratch/debug` | `.worktrees/debug` | Yes → short PR; reset after merge. Skip ADR-003 artifacts per `agent-runtime.config.yml` → `artifact_gates.quickCommitSkip` (branch must lack `issue-<N>`; CI mirror in `pr.yml`). Do not edit `pr.yml`/rules here — promote via `agent/runtime`. |
 | Ad-hoc / reports | `local/adhoc` | `.worktrees/adhoc` | **Never** |
 
-## Product work (ephemeral)
+## Two lanes: pick by what the diff touches
+
+| Lane | When | Isolation | Merge | Cleanup |
+|------|------|-----------|-------|---------|
+| **Standard** | Any code change, or mixed code + docs | Branch / worktree per task | PR → green → land (sync-before-merge; MQ dormant) | `worktree_gc.py --close <task>` |
+| **Fast-track** | **Non-code only** (docs/rules/skills/text) | Short branch, no worktree | PR → immediate `--admin` self-merge | branch auto-deleted on merge |
+
+If a changeset touches **any** code file (`.py`, `.ts`, `.tsx`, `.js`, `.sql`, `.sh`, code configs), it is **standard lane** — even if it also edits docs.
+
+## Product work — standard lane (ephemeral)
 
 - Branch: `feature/<short-desc>` (optional `feature/be-…` / `feature/fe-…`).
 - Cut from latest `main`; one worktree **per task** when agents run in parallel.
-- Delete branch + worktree after merge. Do not accumulate lane history.
+- Delete branch + worktree after merge (`worktree_gc.py --close`). Do not accumulate lane history.
+
+## Fast-track lane — non-code docs (no worktree)
+
+For changesets touching **only** document files — `*.md`, `*.mdc`, `*.txt`, `docs/**`,
+`.cursor/rules/**`, `.cursor/skills/**`, READMEs, ADRs, handoffs — and **no** code. Still a
+PR (audit + CI-where-applicable + revert-via-PR), just without the worktree or review wait:
+
+```bash
+git switch -c docs/<short-desc> origin/main   # short branch off latest main
+# …edit the document files, then:
+git add -A && git commit -m "docs: <what changed>"
+git push -u origin docs/<short-desc>
+gh pr create --fill
+gh pr merge --squash --delete-branch --admin  # immediate; --admin merges before a
+                                              # never-running required check blocks a docs-only PR
+```
+
+- `--admin` uses the owner's ruleset bypass to merge right away; for `.cursor/**` /
+  `agent-runtime/**` PRs (which **do** trigger CI) prefer letting checks go green first, or
+  use `--admin` knowingly.
+- `allow_auto_merge` and `delete_branch_on_merge` are **off** repo-wide, so `--auto` is not
+  available and `--delete-branch` must be explicit.
+- **Guard:** if `git diff --name-only origin/main` shows any code path, abort the fast-track
+  and switch to the standard lane.
+
+### Mid-code doc fix (stash, don't branch)
+
+Halfway through a coding session and spot a doc error to fix now — don't spin up a worktree:
+
+```bash
+git stash push -m "wip: <feature>"     # pause + hide current code changes
+git switch -c docs/<short-desc> origin/main
+# …edit docs, then commit / push / PR / --admin merge as above…
+git switch -                           # back to your feature branch
+git stash pop                          # restore paused work
+```
+
+Use when: mid-implementation but a documentation fix must ship immediately without mixing
+into your feature's commits.
 
 ## Local pre-commit (every worktree)
 
@@ -69,10 +117,43 @@ Flow: shared-core PR → merge → reset task worktrees → feature PR.
 
 ## After each merge (task worktree)
 
+Governed cleanup trigger — run the moment a task's PR merges:
+
 ```bash
-git checkout main && git pull
-git worktree remove .worktrees/<task>   # if used
-git branch -d feature/<short-desc>      # after remote delete / PR merge
+# From ANY worktree — does not require checking out main (main lives in its own worktree)
+python agent-runtime/scripts/git/worktree_gc.py --close <task>
 ```
+
+Equivalent manual form (only if the script is unavailable):
+
+```bash
+git fetch --prune
+git worktree remove .worktrees/<task>       # --force ONLY to intentionally discard changes
+git branch -D feature/<short-desc>          # -d MISSES squash-merges; verify via `gh pr` first
+```
+
+> Why not `git checkout main && git branch -d`: `git checkout main` fails when `main` is
+> checked out in another worktree (the normal topology here), and `git branch -d` refuses
+> squash-merged branches (this repo squash-merges), so both silently leave branches behind.
+
+### Safe-close verification (what `--close` enforces)
+
+A worktree/branch is auto-closed only when **all four** hold; otherwise the script reports
+it and the agent must confirm with the user before deleting:
+
+1. **PR merged** — `gh pr list --state merged --head <branch>` non-empty (catches squash).
+2. **Clean** — `git -C <wt> status --porcelain` empty (no uncommitted changes).
+3. **No unpushed commits** — `git -C <wt> rev-list @{u}..HEAD` == 0.
+4. **Not protected** — never `main`, `agent/runtime`, `scratch/debug`, or `local/adhoc`.
+
+A branch with no upstream and no merged PR, or a **closed-not-merged** PR, is left in place
+for a human decision. `worktree_gc.py --report` shows this classification for everything;
+`--sweep` closes all safe ones and lists the rest.
+
+### Prune cadence
+
+`--close`, `--sweep`, and `--report` each run `git fetch --prune origin` first, so
+gone-upstream refs never accumulate. There is no separate scheduled prune — hygiene rides
+on the post-merge close.
 
 Reset `scratch/debug` to `main` after each shipped hotfix.

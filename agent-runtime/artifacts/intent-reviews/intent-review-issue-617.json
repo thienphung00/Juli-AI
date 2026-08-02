@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-617",
+  "issue": 617,
+  "timestamp": "2026-07-31T01:43:14Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "77ba8910",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff 77ba8910..HEAD (#617 CDP-A2-3). PostgresIoBudgetGovernor adds independent per-run I/O caps on bronze flush (try_bronze_flush), silver upsert batch (try_silver_upsert), and concurrent shop slots (try_acquire_shop/release_shop). finish(postgres_io_throttled) sets implies_partition_complete=False with defer_reason; finish(complete) allows partition complete. Env knobs BATCH_BRONZE_ROWS_PER_FLUSH / BATCH_SILVER_UPSERT_BATCH_SIZE / BATCH_MAX_CONCURRENT_SHOPS with positive-value validation. Structured log fields: bronze_flush_size, silver_batch_size, concurrent_shop_count, batch_postgres_io_deferred_total, stopped_reason, defer_reason \u2014 no tokens/PII. MODULE.md documents dual-budget requirement and Partner-only insufficiency. Package __init__ exports governor + begin_postgres_io_budget_run. Orthogonal to PartnerApiBudgetGovernor (#616); no A1 webhook/cdp_speed paths touched.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "patterns.mdc \u2014 deep module / facade discipline",
+      "path": "backend/src/juli_backend/services/cdp_batch/postgres_io_budget.py",
+      "note": "Pure in-memory governor mirrors partner_budget.py shape; no cross-module internal reach-through.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "617-20260731T013826"
+}

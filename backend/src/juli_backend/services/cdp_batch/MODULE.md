@@ -40,6 +40,29 @@ Structured log fields: ``attempts``, ``successes``, ``failures``, ``rate_limited
 
 Orthogonal to ``PostgresIoBudgetGovernor`` (#617) — dual budgets, separate modules.
 
+### PostgresIoBudgetGovernor (#617)
+
+Per-run Postgres I/O caps for batch reconcile bronze flush, silver upsert batch,
+and concurrent shop jobs. Independent from Partner API budget.
+
+- ``begin_postgres_io_budget_run(...)`` → fresh governor (env knobs:
+  ``BATCH_BRONZE_ROWS_PER_FLUSH``, ``BATCH_SILVER_UPSERT_BATCH_SIZE``,
+  ``BATCH_MAX_CONCURRENT_SHOPS``)
+- ``try_bronze_flush(row_count)`` → ``True`` when row count ≤ flush cap
+- ``try_silver_upsert(row_count)`` → ``True`` when row count ≤ batch cap
+- ``try_acquire_shop()`` / ``release_shop()`` — concurrent shop slot tracking
+- ``should_defer()`` → ``True`` once any I/O dimension rejects an operation
+- ``finish("postgres_io_throttled")`` → structured logs; partition **not** complete
+- ``finish("complete")`` → ``implies_partition_complete`` is ``True``
+- ``POSTGRES_IO_DEFER_REASON`` / ``DEFER_REASON`` — constant ``"postgres_io_throttled"``
+
+Structured log fields: ``bronze_flush_size``, ``silver_batch_size``,
+``concurrent_shop_count``, ``batch_postgres_io_deferred_total``, ``stopped_reason``,
+``defer_reason``. Never logs tokens or PII.
+
+Orthogonal to ``PartnerApiBudgetGovernor`` (#616) — dual budgets required for A2 exit.
+**Partner-only budget without I/O governor is not sufficient for A2 exit.**
+
 ### Deferred (later A2 slices)
 
 - ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
@@ -59,7 +82,7 @@ matches ``minute_of_day``. Mechanism is flexible; determinism is not.
 - Hourly Fujiwa exception (remains **A1 Speed** per ADR-048)
 - Partner API calls, Postgres fleet queries, Redis mutex
 - ``is_due`` slot runner, Celery Beat schedule wiring
-- Postgres I/O governor (#617) and batch orchestrator (CDP-A2-3+)
+- Postgres I/O governor (#617) and batch orchestrator (CDP-A2-4+)
 
 ## Dependencies
 
@@ -71,3 +94,5 @@ Pure in-memory; no I/O. Safe for PR CI without live credentials.
   collision-free stub fleet (100 shops), spread across 1440 minutes.
 - ``tests/unit/test_cdp_batch_partner_budget.py`` — soft/hard cap defer,
   under-cap consume, structured log fields; no live Partner HTTP.
+- ``tests/unit/test_cdp_batch_postgres_io_budget.py`` — I/O cap defer,
+  under-cap promotion, concurrent shop slots, dual-budget negative AC; no live Supabase.

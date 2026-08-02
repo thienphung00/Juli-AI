@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-659",
+  "issue": 659,
+  "timestamp": "2026-07-31T09:34:07Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "9d68bfe4f2bd6f3d737d200820a7584dcc02d612",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "Diff 9d68bfe4..32045580 (#659 CI-WAVE-1). AC1: wave-manifest.schema.json defines committed wave-<id>.json with waveId, branch, non-empty positive integer issues; validate_wave_manifest enforces schema plus duplicate detection; identity checks reject wrong waveId/branch. AC2: wave_manifest.py CLI/module exposes check_issue_membership and validate_wave_artifacts for issue-tier policy and wave\u2192main artifact gate. AC3: _validate_issue_artifacts requires review.status==PASS, validation.status==PASS, readyForMerge==true; missing/malformed/wrong-issue fail closed. AC4: 18 focused unit tests cover valid/invalid manifest, membership, missing artifacts, non-PASS, readyForMerge false. AC5: commit 32045580 does not touch .github/workflows/pr.yml. Harness adds CI-WAVE-1..4 slice profiles and issue-658 handoff.",
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "slice-routing.yml CI-WAVE-1 requiredModules",
+      "path": "tests/unit/test_wave_manifest.py",
+      "note": "Slice profile lists tests/unit/test_three_tier_ci_contract.py; implementation test file is test_wave_manifest.py. Acceptable for CI-WAVE-1 scope; optional follow-up to align routing profile name with test_wave_manifest_validator.py convention.",
+      "blocksMerge": false
+    }
+  ],
+  "phaseRunId": "659-20260731T0932Z"
+}
