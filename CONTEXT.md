@@ -307,8 +307,20 @@ _Avoid_: direct Juli→GMV as the only story, Value calculator assumption tabs a
 
 ## CI / test lanes
 
+**Three-tier CI**:
+Branch validation in `pr.yml` (#657+): **issue** (`pull_request` → `feature/*-wave`), **wave** (`push` → `feature/*-wave`), **main** (`pull_request` / `merge_group` → `main`/`staging`). Cheap path-filtered checks on issue; integration/architecture on wave push; full regression/E2E/security on wave→main. See [ADR-052](docs/adr/052-wave-free-merge-deferred-artifact-gate.md). Extends ADR-003 / ADR-040 / #657.
+_Avoid_: assuming local `main` worktrees match `origin/main`, calling `ai-review` an LLM step, requiring issue PRs to re-green after sibling merges into wave, skipping artifact CI entirely (option B)
+
+**Wave artifact gate (D)**:
+On wave→main, CI reads a committed manifest on the wave branch (e.g. `agent-runtime/artifacts/waves/wave-<id>.json` with `{ "issues": […] }`) and checks each listed issue has review/validation artifacts with `status: PASS` (existence + status; not full `meta_prepare_executor` / check suite on every issue push). Issue→wave (**A**): `classify-tier`, `changes`, `gitleaks`, `policy-checks`, plus path-filtered `lint` / `typecheck` / `test` / `frontend` / `demo-frontend` — no artifact jobs. **Manifest ownership (B):** each issue→wave PR must bump the wave manifest to include its issue number; `policy-checks` fails if missing. **Wave push** path-filters **before→after** for integration/architecture/contracts only. Full regression/E2E/security + artifact-gate on **wave→main**. Parallel-status handoffs stay human ops UI — not the CI parser. See [ADR-052](docs/adr/052-wave-free-merge-deferred-artifact-gate.md).
+_Avoid_: per-push issue-tier validate-artifacts as the merge SoT, trusting agent-local artifacts with no CI check at main, parsing `parallel-status*.md` as the artifact SoT, forcing all path filters true on every wave push, post-merge-only manifest edits as the primary path
+
+**Free-merge (wave)**:
+Path-disjoint issue PRs may merge into `feature/*-wave` without forcing siblings to update-from-base and re-wait CI. Mechanism: **skip issue-tier workflow (or heavy jobs) when only the base advanced** — head SHA unchanged; no “up to date with base” ruleset on `feature/*-wave`. Wave push path-filters against **before→after** of that push (domains just landed). Wave→main runs main-tier gates (full / path-aware as today) plus the wave artifact gate. See [ADR-052](docs/adr/052-wave-free-merge-deferred-artifact-gate.md).
+_Avoid_: sync-before-merge between sibling issue PRs on the same wave, treating base-only CI re-runs as merge blockers, requiring up-to-date with wave, diffing wave vs main on every wave push
+
 **PR-safe Tests**:
-The default GitHub Actions `test` job on pull requests — unit + non-live integration, with `pytest-timeout` (30s/test) and a 15-minute job cap; runs `-m "not live and not demo_contract"` and keeps `--cov-fail-under=80`. Extends the two-tier CI model in ADR-003 / `pr.yml` without replacing merge_group fullness. See [ADR-040](docs/adr/040-pr-safe-tests-lane.md).
+The default GitHub Actions `test` job on issue-tier (and related) pulls — unit + non-live integration, with `pytest-timeout` (30s/test) and a 15-minute job cap; runs `-m "not live and not demo_contract"` (plus heavier marker excludes on issue tier) and keeps `--cov-fail-under=80`. See [ADR-040](docs/adr/040-pr-safe-tests-lane.md).
 _Avoid_: calling the whole `tests/` tree “PR tests”, assuming live Partner calls belong here
 
 **live (pytest marker)**:
