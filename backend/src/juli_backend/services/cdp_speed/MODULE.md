@@ -44,6 +44,13 @@ from juli_backend.services.cdp_speed import (
 - ``SharedComputeJob`` — ``shop_id``, ``shop_key``, ``enqueue_reason`` (``webhook_catalog:<id>`` or
   ``reconcile_hourly``), ``fetch_plan``, ``idempotency_key``, optional ``event_type``.
 - ``SharedComputeResult`` — ``bronze_appended``, ``silver_promoted``, ``gold_written``.
+- ``QUOTA_GUARDED_RESOURCE_NAMES`` — frozenset of resource names blocked on routine
+  material/hourly paths: A-38/A-39 bestselling ranks (ops-only, never a Demo KPI input)
+  and A-31/A-33 unbounded order/video detail fan-out. Standalone module with no
+  orchestrator dependency — reusable by the hourly Fujiwa Mock reconciler (#632).
+- ``is_quota_guarded(resource_name)`` → ``bool`` — O(1) membership check.
+- ``quota_guard_reason(resource_name)`` → structured defer reason string; raises
+  ``KeyError`` if the resource isn't guarded (call after ``is_quota_guarded``).
 
 ## Event → resource matrix (material catalog)
 
