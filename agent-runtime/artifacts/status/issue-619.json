@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 619,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/cdp_batch/batch_fetch_planner.py",
+      "backend/src/juli_backend/services/cdp_batch/__init__.py",
+      "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+      "tests/unit/test_cdp_batch_fetch_planner.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-619.json",
+    "sha256": "4c7f09a51a7ac6e76362b0037dd7391c5a72d0d2058b622424adf1871f780c6c",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-31T06:19:14Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-619.json",
+    "sha256": "18635efe2c18dd26b18d590d4d5d05fc6e21b7455e7343882834241676c386ad",
+    "status": "PASS"
+  },
+  "wave": null
+}
