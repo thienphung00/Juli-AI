@@ -138,3 +138,24 @@ async def compute_demo_main_kpis_payload(
             "notes": ["A1 five-KPI precompute (#630)"],
         },
     }
+
+
+async def write_demo_main_kpis_envelope(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> GoldKpiEnvelope:
+    """Compute and persist the five Demo Main KPIs gold envelope (#630).
+
+    Sole gold.kpi_envelopes writer entrypoint for this payload — keeps the
+    upsert inside this module per the medallion one-writer ownership gate
+    (agent-runtime/scripts/ci/medallion_one_writer.py).
+    """
+    computed_at = datetime.now(tz=UTC)
+    payload = await compute_demo_main_kpis_payload(session, shop_id, computed_at=computed_at)
+    repo = GoldKpiEnvelopesRepo(session)
+    return await repo.upsert(
+        shop_id=shop_id,
+        envelope_version=ENVELOPE_VERSION,
+        payload=payload,
+        computed_at=computed_at,
+    )
