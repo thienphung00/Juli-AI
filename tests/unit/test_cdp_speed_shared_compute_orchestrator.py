@@ -354,3 +354,23 @@ async def test_missing_env_skips_fetch_but_completes_gold_stage(medallion_sessio
     assert result.silver_promoted == 0
     assert result.gold_written is True
     assert await session.get(GoldKpiEnvelope, shop.id) is not None
+
+
+def test_quota_guard_module_must_be_reusable_by_hourly_reconciler():
+    """Quota guard is a standalone module for reuse by #632 hourly reconciler."""
+    from juli_backend.services.cdp_speed.quota_guard import (
+        QUOTA_GUARDED_RESOURCE_NAMES,
+        is_quota_guarded,
+        quota_guard_reason,
+    )
+
+    # Guards are defined and callable
+    assert callable(is_quota_guarded)
+    assert callable(quota_guard_reason)
+    assert len(QUOTA_GUARDED_RESOURCE_NAMES) > 0
+    # No direct dependency on orchestrator
+    import juli_backend.services.cdp_speed.quota_guard as guard_module
+
+    source = open(guard_module.__file__, encoding="utf-8").read()
+    assert "SharedComputeJob" not in source
+    assert "SharedComputeOrchestrator" not in source
