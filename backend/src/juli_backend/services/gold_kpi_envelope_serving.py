@@ -149,27 +149,13 @@ async def write_demo_main_kpis_envelope(
     Sole gold.kpi_envelopes writer entrypoint for this payload — keeps the
     upsert inside this module per the medallion one-writer ownership gate
     (agent-runtime/scripts/ci/medallion_one_writer.py).
-
-    On successful upsert, refreshes the Redis cache (#631) to keep Demo reads fast.
-    Cache refresh fails gracefully (logged) and does not block the write.
     """
     computed_at = datetime.now(tz=UTC)
     payload = await compute_demo_main_kpis_payload(session, shop_id, computed_at=computed_at)
     repo = GoldKpiEnvelopesRepo(session)
-    envelope = await repo.upsert(
+    return await repo.upsert(
         shop_id=shop_id,
         envelope_version=ENVELOPE_VERSION,
         payload=payload,
         computed_at=computed_at,
     )
-
-    # Refresh Redis cache after successful Postgres upsert (fail-open, non-blocking)
-    from juli_backend.services.gold_kpi_cache import (
-        get_shared_redis_client,
-        refresh_gold_kpi_envelope_cache,
-    )
-
-    redis_client = get_shared_redis_client()
-    await refresh_gold_kpi_envelope_cache(shop_id, envelope, redis_client=redis_client)
-
-    return envelope
