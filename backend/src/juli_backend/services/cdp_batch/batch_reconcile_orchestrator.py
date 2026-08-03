@@ -203,7 +203,15 @@ class BatchReconcileOrchestrator:
             # Check Postgres I/O budget for this write (only if there's data to write)
             if compute_result.silver_promoted > 0:
                 if not self._postgres_budget.try_silver_upsert(compute_result.silver_promoted):
-                    self._postgres_budget.finish(POSTGRES_IO_DEFER_REASON)
+                    postgres_log_fields = self._postgres_budget.finish(POSTGRES_IO_DEFER_REASON)
+                    logger.info(
+                        "batch_reconcile_deferred_postgres_io_throttled",
+                        extra={
+                            "shop_id": shop_id_str,
+                            "defer_reason": POSTGRES_IO_DEFER_REASON,
+                            **postgres_log_fields,
+                        },
+                    )
                     return BatchReconcileResult(
                         acquired=True,
                         deferred=True,
@@ -213,9 +221,21 @@ class BatchReconcileOrchestrator:
                         silver_promoted=compute_result.silver_promoted,
                     )
 
-            # Success: mark budgets complete
-            self._partner_budget.finish("complete")
-            self._postgres_budget.finish("complete")
+            # Success: mark budgets complete and log metrics
+            partner_log_fields = self._partner_budget.finish("complete")
+            postgres_log_fields = self._postgres_budget.finish("complete")
+            logger.info(
+                "batch_reconcile_completed",
+                extra={
+                    "shop_id": shop_id_str,
+                    "pages_fetched": partition_result.pages_fetched,
+                    "bronze_rows_appended": partition_result.bronze_rows_appended,
+                    "silver_promoted": compute_result.silver_promoted,
+                    "gold_written": compute_result.gold_written,
+                    **partner_log_fields,
+                    **postgres_log_fields,
+                },
+            )
 
             return BatchReconcileResult(
                 acquired=True,
