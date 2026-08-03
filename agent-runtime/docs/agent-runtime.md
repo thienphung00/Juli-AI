@@ -186,10 +186,12 @@ security, and final synthesis.
 
 Declarative policy: [`agent-runtime.config.yml`](../config/agent-runtime.config.yml) →
 `artifact_gates.quickCommitSkip`. When the session is under `.worktrees/debug` and the
-branch name lacks `issue-<N>`, agents skip ADR-003 artifact emit; CI already skips
-`validate-artifacts` for those branch names (`pr.yml`). **Do not** change `pr.yml` or
-Tier-1 rules from the debug slot (it resets to `main`); promote harness/config edits via
-`agent/runtime`.
+branch name lacks `issue-<N>`, agents skip ADR-003 artifact emit. Issue-tier CI runs no
+artifact validate/generate jobs for **any** branch ([ADR-052](../../docs/adr/052-wave-free-merge-deferred-artifact-gate.md));
+enforcement is deferred to wave→main's **`artifact-gate`** job, which reads the wave
+manifest — a `scratch/debug` branch is never on a manifest, so it is inherently excluded
+there too. **Do not** change `pr.yml` or Tier-1 rules from the debug slot (it resets to
+`main`); promote harness/config edits via `agent/runtime`.
 
 ---
 
