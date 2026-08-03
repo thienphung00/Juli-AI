@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 177,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/lib/operations/classification.ts",
+      "web/src/lib/operations/workflow-catalog.ts",
+      "web/src/lib/operations/thresholds.ts",
+      "web/src/lib/operations/boundary-fixtures.ts",
+      "web/src/lib/operations/index.ts",
+      "web/src/lib/operations/MODULE.md",
+      "web/src/__tests__/test_operations_classification.test.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-177.json",
+    "sha256": "fc17353f9b107a4bd5b58aafbbb4ea068943a306460b6ceb707b90f6cbf9efec",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-12T01:57:47Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-177.json",
+    "sha256": "3491a3923615340735c6e99b4d3b7a031b2cd95646564fdfc5135fd6069d332a",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 252,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/api",
+      "backend/workers",
+      "backend/integrations",
+      "backend/database",
+      "src/",
+      "docs/architecture/map.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-252.json",
+    "sha256": "61974dfd20ab6ec12295bede42f8f361e97ee398d99fd8ed8eabd84a348e8245",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-02T10:41:55Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-252.json",
+    "sha256": "ecd9058774e4f5e681af57eefbc27ed9adb17f5f42b96813d19c3175cd1e6962",
+    "status": "FAIL"
+  },
+  "wave": null
+}

@@ -1,0 +1,34 @@
+{
+  "gateVersion": 1,
+  "issue": 251,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "pnpm-workspace.yaml",
+      "turbo.json",
+      "package.json",
+      "pnpm-lock.yaml",
+      ".npmrc",
+      "apps/",
+      "packages/",
+      "web/",
+      "docs/product/phases/phase-2.5-deployment.md",
+      "docs/architecture/migration-plan.md",
+      "tests/unit/test_phase_2_5_workspace_tooling.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-251.json",
+    "sha256": "306f140296dc9a9119f89971b3fefb26c1be9472e5d39bf6b9c052ff76b2660a",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-01T01:48:31Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-251.json",
+    "sha256": "83cb1fe8261ad10ae46d9ebc0b49de7c907c46f493438b33d4f0168831cee9c8",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 564,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      ".cursor/skills/domain/testing-patterns/python-testing.md",
+      "tests/unit/test_modular_monolith_test_layers.py",
+      "tests/integration/test_modular_monolith_public_facades.py",
+      "agent-runtime/config/slice-routing.yml",
+      "agent-runtime/config/agent-runtime.config.yml",
+      "agent-runtime/artifacts/release-evidence-plan-issue-564.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-564.json",
+    "sha256": "a28f0c22c5dd120ec2c3c78433e54f69d2617b1efc45166b11a9f8d0ce42f7d4",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T12:39:08Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-564.json",
+    "sha256": "323c0d05f85c6224fc77c9d5f7a2b3245281b9b55c10cd5a7427f6c820804e32",
+    "status": "PASS"
+  },
+  "wave": null
+}

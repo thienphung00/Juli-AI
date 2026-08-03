@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 526,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/analytics_kpi_precompute/__init__.py",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/gmv.py",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/precompute.py",
+      "backend/src/juli_backend/services/analytics_kpi_precompute/MODULE.md",
+      "tests/unit/test_analytics_kpi_precompute_gmv.py",
+      "agent-runtime/artifacts/implementations/implementation-issue-526.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-526.json",
+    "sha256": "280564928adafa196782a70a2ec2b0c84f47025b538c9078aeb5b584f8279ba2",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-27T08:12:15Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-526.json",
+    "sha256": "f3ebd3dec32799ca808ce7e5b99ec97d62fd324a9c980918c3c239d501df5f0a",
+    "status": "PASS"
+  },
+  "wave": null
+}

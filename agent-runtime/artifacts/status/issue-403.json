@@ -1,0 +1,36 @@
+{
+  "gateVersion": 1,
+  "issue": 403,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo/MODULE.md",
+      "apps/demo/src/lib/reviews.ts",
+      "apps/demo/src/lib/executions.ts",
+      "apps/demo/src/components/recommendation-review.tsx",
+      "apps/demo/src/components/recommendations-panel.tsx",
+      "apps/demo/src/components/demo-state.tsx",
+      "apps/demo/src/__tests__/workflows-7-9-review-execution.test.tsx",
+      "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+      "apps/demo/src/__tests__/recommendation-review.test.tsx",
+      "apps/demo/src/lib/__tests__/reviews.test.ts",
+      "apps/demo/src/lib/__tests__/executions.test.ts",
+      "packages/contracts/src/execution.ts",
+      "packages/contracts/src/__tests__/execution.test.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-403.json",
+    "sha256": "3a22202d5199a194aed7fd13a6091ef6275f54b2d9d21c98212b934a74d58333",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-21T10:22:12Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-403.json",
+    "sha256": "e55e8d8f70d546c3c347b3dcd16be21717eff3e594ddf984c6d3253e34de6458",
+    "status": "PASS"
+  },
+  "wave": null
+}

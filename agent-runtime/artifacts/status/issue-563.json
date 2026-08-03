@@ -1,0 +1,35 @@
+{
+  "gateVersion": 1,
+  "issue": 563,
+  "metrics": {
+    "acceptanceMapped": 0,
+    "acceptanceTotal": 0,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "docs/architecture/MODULES.md",
+      "docs/architecture/map.md",
+      "backend/src/juli_backend/api/MODULE.md",
+      "backend/src/juli_backend/core/security/MODULE.md",
+      "backend/src/juli_backend/database/MODULE.md",
+      "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "backend/src/juli_backend/services/etl/MODULE.md",
+      "backend/src/juli_backend/services/tiktok/MODULE.md",
+      "backend/src/juli_backend/services/webhook/MODULE.md",
+      "agent-runtime/config/slice-routing.yml",
+      "agent-runtime/config/agent-runtime.config.yml",
+      "agent-runtime/artifacts/validation/audit-drift-2026-07-28.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-563.json",
+    "sha256": "6b6c70872a53564eba01817bda6463e201887eca19f21ff6188b3c8f027b7be9",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T12:39:34Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-563.json",
+    "sha256": "56c11c7b6afa7b5dea81be359d395a091a47f47959c80d3570fba03a9918a66d",
+    "status": "PASS"
+  },
+  "wave": null
+}

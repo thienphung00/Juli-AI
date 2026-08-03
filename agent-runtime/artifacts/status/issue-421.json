@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 421,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "infra/scripts/restore-drill.sh",
+      "infra/scripts/safe_alembic_helpers.py",
+      "infra/systemd/juli-restore-drill.service",
+      "infra/systemd/juli-restore-drill.timer",
+      "tests/integration/test_restore_drill.py",
+      "tests/unit/test_restore_drill_contract.py",
+      "docs/runbooks/app-review-runbook.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-421.json",
+    "sha256": "deda3f98b49208dd930a81e40948e3e405a42e5915f5c7288baa777f29ddbb75",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-16T06:52:06Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-421.json",
+    "sha256": "37d39da74db17f2c3320b17cb161ca2c74a8c251f553ac56c4e084da282c9b02",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 465,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/analytics_backfill/__init__.py",
+      "backend/src/juli_backend/services/analytics_backfill/budget.py",
+      "backend/src/juli_backend/services/analytics_backfill/MODULE.md",
+      "tests/unit/test_analytics_backfill_budget.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-465.json",
+    "sha256": "d8074fbc44f1971831e017d33c0f2ca371788510353cccfbe58e6f129df5f649",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-22T08:03:37Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-465.json",
+    "sha256": "835b0b80610e4271fb26b8e74f766d31217c19bf1c6f5a9378f414fd70da3aa4",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,36 @@
+{
+  "gateVersion": 1,
+  "issue": 404,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo/src/app/analytics/page.tsx",
+      "apps/demo/src/app/analytics/[metricKey]/page.tsx",
+      "apps/demo/src/app/globals.css",
+      "apps/demo/src/components/analytics-charts.tsx",
+      "apps/demo/src/components/analytics-dashboard.tsx",
+      "apps/demo/src/components/analytics-kpi-card.tsx",
+      "apps/demo/src/components/demo-shell.tsx",
+      "apps/demo/src/components/demo-state.tsx",
+      "apps/demo/src/lib/analytics/main-kpis.ts",
+      "apps/demo/src/lib/analytics/mock-data.ts",
+      "apps/demo/src/lib/analytics/__tests__/main-kpis.test.ts",
+      "apps/demo/src/lib/analytics/__tests__/mock-data.test.ts",
+      "apps/demo/src/__tests__/analytics-dashboard.test.tsx"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-404.json",
+    "sha256": "c876f1844e5512e4f4ecdc52aeef7a1ebf418cc7550b5c07cffef5e22b60a452",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-21T11:02:38Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-404.json",
+    "sha256": "e50581183b604b6a6b692686ba8fe0cbd4212cdebcdb3000a05db374b3251b29",
+    "status": "PASS"
+  },
+  "wave": null
+}

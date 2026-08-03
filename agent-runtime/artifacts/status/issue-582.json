@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 582,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo/src/components/settings-view.tsx",
+      "apps/demo/src/components/settings-workflow-detail.tsx",
+      "apps/demo/src/__tests__/settings-workflows.test.tsx",
+      "apps/demo/src/__tests__/settings-workflow-detail.test.tsx",
+      "dictionary.md",
+      "agent-runtime/artifacts/release-evidence-plan-issue-582.json",
+      "agent-runtime/artifacts/implementations/implementation-issue-582.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-582.json",
+    "sha256": "ac10b82badfb4d8b500da390fdd09a7362c3dc6828fb3343b161dd521918ec87",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T06:59:46Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-582.json",
+    "sha256": "c424a0d6618ed4fb7a47b04bf5089ae39bf669be619c5db44e98e9a5f37ae3b0",
+    "status": "PASS"
+  },
+  "wave": null
+}

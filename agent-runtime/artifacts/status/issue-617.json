@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 617,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+      "backend/src/juli_backend/services/cdp_batch/__init__.py",
+      "backend/src/juli_backend/services/cdp_batch/postgres_io_budget.py",
+      "tests/unit/test_cdp_batch_postgres_io_budget.py",
+      "agent-runtime/artifacts/implementations/implementation-issue-617.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-617.json",
+    "sha256": "fcbc8d66535deff64cbc153de825b54658677d1e322ef6dbf8d6279442d8703b",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-31T01:43:53Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-617.json",
+    "sha256": "77959202814bbee3e955635ef587fcba5151b92a1ac83c02e7726053d5343107",
+    "status": "PASS"
+  },
+  "wave": null
+}
