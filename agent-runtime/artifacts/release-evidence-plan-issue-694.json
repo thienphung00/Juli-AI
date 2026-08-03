@@ -1,0 +1,71 @@
+{
+  "planId": "rep-694-dux-5-decisions-density",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "decisions-header-density-stat-row",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "standalone_intro_paragraph_removed",
+          "stat_row_directly_under_header_shows_open_recommendations_and_in_progress_totals",
+          "sub_tab_deep_linking_still_works",
+          "no_new_data_source_stat_row_uses_already_computed_values"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Layout-only change in RecommendationsView; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 694"
+  ],
+  "doNotInfer": [
+    "Home activity summary tiles (DUX-6/#695) — prerequisite consumer, not built here",
+    "In Progress card redesign (DUX-7/#696)",
+    "release evidence fields beyond this plan"
+  ]
+}

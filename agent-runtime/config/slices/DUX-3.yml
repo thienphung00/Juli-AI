@@ -1,0 +1,23 @@
+DUX-3:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/049-demo-analytics-main-kpi-override.md
+    - docs/adr/028-vietnamese-copy-dictionary-and-design-context.md
+    - docs/product/design/Screens/analytics.md
+    - docs/product/design/Components/cards.md
+    - docs/product/design/design.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/lib/analytics/envelope-mapper.ts
+    - apps/demo/src/lib/analytics/__tests__/envelope-mapper.test.ts
+  loadWhenNeeded:
+    - apps/demo/src/components/analytics-kpi-card.tsx
+    - apps/demo/src/components/analytics-supplementary-sections.tsx
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - Sibling issue context caches

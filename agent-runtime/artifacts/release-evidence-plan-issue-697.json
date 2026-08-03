@@ -1,0 +1,70 @@
+{
+  "planId": "rep-697-dux-8-execution-detail-seller-safe",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/in-progress/[executionId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "execution-detail-seller-safe",
+        "entryUrl": "/decisions/in-progress/fixture-execution",
+        "assertions": [
+          "html_200",
+          "no_banned_strings_workflow_key_công_cụ_khả_năng",
+          "juli_handles_all_confirm_copy_present_no_you_vs_juli_checklist",
+          "policy_badge_and_cancel_rollback_always_visible",
+          "every_valid_execution_id_resolves_no_404"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/in-progress/fixture-execution"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Copy and route-resolution fix in decisions/in-progress/[executionId]/page.tsx; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 697"
+  ],
+  "doNotInfer": [
+    "Execution progress card list redesign (DUX-7/#696)",
+    "release evidence fields beyond this plan"
+  ]
+}

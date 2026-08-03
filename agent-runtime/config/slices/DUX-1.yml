@@ -1,0 +1,23 @@
+DUX-1:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/049-demo-analytics-main-kpi-override.md
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/lib/analytics/analytics-data-context.tsx
+    - apps/demo/src/lib/analytics/api-client.ts
+    - apps/demo/src/lib/analytics/envelope-mapper.ts
+  loadWhenNeeded:
+    - docs/product/design/Screens/analytics.md
+    - docs/product/design/Components/cards.md
+    - apps/demo/src/__tests__/analytics-dashboard.test.tsx
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - Sibling issue context caches
