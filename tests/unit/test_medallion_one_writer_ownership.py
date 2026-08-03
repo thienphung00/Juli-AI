@@ -83,6 +83,22 @@ async def rogue_write(session):
     assert any("juli_backend.services.aggregates.rogue" in v for v in violations)
 
 
+def test_batch_partition_checkpoint_writer_is_narrowly_allowed() -> None:
+    allowed_module = "juli_backend.services.cdp_batch.partition_checkpoints"
+    batch_rules = [
+        rule
+        for rule in MEDALLION_WRITE_RULES
+        if rule.repo_class in {"BronzeOrderRawPayloadsRepo", "AnalyticsBackfillPartitionsRepo"}
+    ]
+
+    assert batch_rules
+    assert all(allowed_module in rule.allowed_module_prefixes for rule in batch_rules)
+    assert all(
+        "juli_backend.services.cdp_batch" not in rule.allowed_module_prefixes
+        for rule in batch_rules
+    )
+
+
 def test_synthetic_allowed_etl_silver_writer_passes() -> None:
     synthetic = """
 from juli_backend.repositories.repos import OrdersRepo

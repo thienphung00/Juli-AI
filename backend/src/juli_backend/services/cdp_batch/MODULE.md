@@ -40,6 +40,84 @@ Structured log fields: ``attempts``, ``successes``, ``failures``, ``rate_limited
 
 Orthogonal to ``PostgresIoBudgetGovernor`` (#617) — dual budgets, separate modules.
 
+### ShopComputeMutex (#618)
+
+Shared Redis mutex between batch and speed Shared Compute paths. Key pattern
+``compute:{shop_id}`` with ``COMPUTE_MUTEX_TTL_SECONDS`` (600s default). **Not**
+the ETL ingest ``material_analytics:mutex:*`` gate or per-shop asyncio backpressure.
+
+- ``compute_mutex_key(shop_id)`` → Redis key string
+- ``try_begin_batch_compute(mutex, shop_id)`` → ``BatchComputeEntryResult`` —
+  defers with ``speed_mutex_active`` when speed holds the lock; acquires batch
+  ownership when free
+- ``ShopComputeMutex.try_acquire(shop_id, owner)`` / ``release(shop_id, owner)``
+  — ``owner`` is ``"speed"`` or ``"batch"`` (speed wiring is A1; API published here)
+- ``InMemoryShopComputeMutex`` / ``RedisShopComputeMutex`` — test and production backends
+- ``RedisShopComputeMutex`` uses atomic Lua compare-and-delete / compare-and-expire so
+  stale release or same-owner refresh cannot clobber a new owner after TTL rollover
+- ``SPEED_MUTEX_DEFER_REASON`` (package export) — constant ``"speed_mutex_active"``
+
+Structured log fields on defer: ``defer_reason``, ``stopped_reason``.
+
+### BatchFetchPlanner (#619)
+
+Gap-gated bounded Partner fetch plans for daily batch reconcile. Broader than
+A1 ``plan_targeted_fetch`` (webhook-first material triggers) but still capped —
+no full Fujiwa poll quadruple or unbounded ``sync_analytics`` A-31–A-39 fan-out.
+
+**Boundary vs A1 targeted fetch:** A1 owns webhook-first targeted plans under
+``cdp_speed/targeted_fetch_planner.py`` (material catalog id → minimal resources).
+BatchFetchPlanner owns **gap-detected reconcile** for stagger-scheduled fleet
+windows — domain gaps (orders/products/returns/inventory) plus speed-deferred
+P1 batch fetches (``finance_statements``, ``analytics_videos``). Do not duplicate
+A1 material-path plans; batch orchestrator calls this module only from scheduled
+reconcile entrypoints.
+
+- ``plan_batch_fetch(*, shop_id, detected_gaps, reconcile_window=None, trigger_source="batch_reconcile")``
+  → ``BatchFetchPlan`` — empty resources + ``defer_reason="gap_not_detected"`` when
+  ``detected_gaps`` is empty (does not pull 3.5-C cold-start fleet scope)
+- ``BatchFetchPlanner.plan(...)`` — class wrapper for orchestrator injection
+- ``BatchFetchPlan`` — ``shop_id``, ``resources``, optional ``defer_reason``,
+  ``reconcile_window`` (from ``StaggerScheduler``); ``should_fetch`` when resources
+  present and not deferred
+- ``BatchFetchResource`` — ``name``, ``endpoint_path``, ``resource_attr``, ``params``
+- ``is_batch_fetch_trigger_allowed(trigger_source)`` — guard for PRD US #25; rejects
+  ``fake_refresh``, ``demo_public``, ``visitor_refresh``, ``public_demo``
+- ``FORBIDDEN_TRIGGER_SOURCES`` — frozenset documented for orchestrator guards
+- ``DOMAIN_GAP_KINDS`` / ``P1_DEFERRED_GAP_KINDS`` — allowed gap fixture keys
+- ``MAX_BATCH_RESOURCES`` — hard cap (8) on plan size
+
+Structured defer: ``gap_not_detected`` when no gap requires fetch. Fake Refresh /
+public Demo traffic must **not** invoke the planner — use
+``is_batch_fetch_trigger_allowed`` before calling ``plan_batch_fetch``.
+
+### Partition checkpoints (#620)
+
+Partition-resumable batch reconcile via ``ops.analytics_backfill_partitions`` only
+(A0 #604 — no ``public`` dual-write). Reuses ADR-029 partition patterns via public
+``AnalyticsBackfillPartitionsRepo.get_partition`` / ``validate_bucket``; mid-partition
+page cursors encoded in ``last_error`` while status is ``pending``.
+
+- ``BatchPartitionCheckpointsRepo(session)`` — ``get_checkpoint`` / ``save_checkpoint`` /
+  ``mark_complete`` / ``is_complete`` on ``ops.analytics_backfill_partitions`` only
+- ``reconcile_partition_with_checkpoints(...)`` — orchestrator hook: paginated fetch →
+  append-only bronze ingest; partial failure or Partner budget defer persists cursor;
+  next run resumes without re-fetching completed pages
+- ``append_reconcile_bronze_page(...)`` — one bronze row per fetched page; idempotent
+  by deterministic ``source_event_id`` (``batch-reconcile:{date}:page:{token}``)
+- ``recover_checkpoint_from_bronze(...)`` — rebuilds cursor from bronze ``_batch_reconcile``
+  metadata when ops checkpoint missing after crash
+- ``PartitionPageCheckpoint`` — ``page_token`` + ``pages_completed``
+- ``BATCH_RECONCILE_INGEST_SOURCE`` — bronze ``ingest_source`` constant (``batch_reconcile``)
+
+**Transaction contract:** bronze append and ops checkpoint writes share one
+``AsyncSession``; callers ``commit`` once after the orchestrator returns. Rollback
+discards both. Crash after bronze commit without ops checkpoint is recovered via
+page-level idempotency + bronze metadata — completed pages are never re-appended.
+
+Structured log fields: ``shop_id``, ``bucket``, ``partition_date``, ``pages_completed``,
+``page_token``, ``defer_reason``. Never logs tokens or PII.
+
 ### PostgresIoBudgetGovernor (#617)
 
 Per-run Postgres I/O caps for batch reconcile bronze flush, silver upsert batch,
@@ -65,10 +143,31 @@ Orthogonal to ``PartnerApiBudgetGovernor`` (#616) — dual budgets required for 
 
 ### Deferred (later A2 slices)
 
-- ``BatchFetchPlanner`` — event/gap → bounded Partner resource list
-- ``PostgresIoBudgetGovernor`` — bronze/silver I/O throttle (#617)
-- ``ShopComputeMutex`` — defer when speed compute active
 - ``BatchReconcileOrchestrator`` — shop-scoped fetch → Shared Compute → gold
+
+## Read-replica isolation (3.5-C deferred)
+
+**Not an A2 exit gate.** Read-replica routing for batch read pressure is Phase 3 /
+**3.5-C C2** infrastructure ([#602](https://github.com/thienphung00/Juli-AI/issues/602)
+US #14, [ADR-050](../../../docs/adr/050-cdp-slice-3-5-c-two-gated-exits.md) C2,
+[ADR-047](../../../docs/adr/047-cdp-lambda-layers-prd-split.md) §3). A2 batch exit proves
+stagger scheduler, dual budgets, and Shared Compute gold writes on **primary Postgres** — no
+replica provisioning required in this slice ([#624](https://github.com/thienphung00/Juli-AI/issues/624)).
+
+When replica infra exists (3.5-C C2 fleet scale), batch reconcile should offload
+**read-heavy** stages to the replica; **all writes** stay on primary:
+
+| Stage | Connection | Notes |
+|-------|------------|-------|
+| Gap detection, envelope freshness scan | Replica read | ``BatchReconcileOrchestrator`` planning |
+| ``BatchFetchPlanner`` — partition/cursor/gap input | Replica read | Bounded reconcile resource list |
+| Existing silver/bronze idempotency checks | Replica read | Pre-fetch dedup only |
+| Bronze append (reconcile pages) | Primary write | Append-only |
+| Silver upsert / promotion | Primary write | Under ``PostgresIoBudgetGovernor`` |
+| Shared Compute → ``gold.kpi_envelopes`` | Primary write | Same serving contract as Speed |
+| ``ops.*`` partition / checkpoint cursors | Primary write | Durability; not replica-lagged |
+
+No connection-pool or Supabase replica wiring in A2 — documentation only.
 
 ## Scheduler deployment
 
@@ -82,7 +181,7 @@ matches ``minute_of_day``. Mechanism is flexible; determinism is not.
 - Hourly Fujiwa exception (remains **A1 Speed** per ADR-048)
 - Partner API calls, Postgres fleet queries, Redis mutex
 - ``is_due`` slot runner, Celery Beat schedule wiring
-- Postgres I/O governor (#617) and batch orchestrator (CDP-A2-4+)
+- Batch orchestrator (CDP-A2-4+)
 
 ## Dependencies
 
@@ -94,5 +193,14 @@ Pure in-memory; no I/O. Safe for PR CI without live credentials.
   collision-free stub fleet (100 shops), spread across 1440 minutes.
 - ``tests/unit/test_cdp_batch_partner_budget.py`` — soft/hard cap defer,
   under-cap consume, structured log fields; no live Partner HTTP.
+- ``tests/unit/test_cdp_batch_shop_compute_mutex.py`` — batch defer on
+  ``speed_mutex_active``, contention with speed owner, last-good gold unchanged;
+  InMemory + FakeSyncRedis only.
+- ``tests/unit/test_cdp_batch_fetch_planner.py`` — gap-gated bounded plans,
+  ``gap_not_detected`` defer, P1 finance/video sequencing, A1 boundary negative
+  tests, Fake Refresh guard; no live Partner HTTP.
+- ``tests/unit/test_cdp_batch_partition_checkpoints.py`` — ops-only partition repo,
+  mid-partition failure → resume without duplicating bronze pages, crash-after-bronze
+  recovery, shared-session rollback contract, budget defer; fixture fetchers only.
 - ``tests/unit/test_cdp_batch_postgres_io_budget.py`` — I/O cap defer,
   under-cap promotion, concurrent shop slots, dual-budget negative AC; no live Supabase.
