@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 619,
+  "executorDomain": "backend",
+  "phaseRunId": "2026-07-31T0618Z",
+  "startedAt": "2026-07-31T06:05:00Z",
+  "completedAt": "2026-07-31T06:18:00Z",
+  "executionDurationMs": 780000,
+  "tokenUsage": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "toolsUsed": [],
+  "toolInvocationCount": 0,
+  "contextFilesLoaded": [
+    "agent-runtime/config/slices/CDP-A2-7.yml",
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-619.json",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "backend/src/juli_backend/services/cdp_batch/stagger_scheduler.py",
+    "backend/src/juli_backend/services/cdp_speed/targeted_fetch_planner.py",
+    "docs/handoffs/phase-3.5-prd-bodies/a2-batch.md"
+  ],
+  "skillsLoaded": [".cursor/skills/domain/backend/SKILL.md"],
+  "rulesLoaded": [
+    ".cursor/rules/code-quality.mdc",
+    ".cursor/rules/reliability.mdc"
+  ],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/services/cdp_batch/batch_fetch_planner.py",
+    "backend/src/juli_backend/services/cdp_batch/__init__.py",
+    "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+    "tests/unit/test_cdp_batch_fetch_planner.py",
+    "agent-runtime/artifacts/implementations/implementation-issue-619.json"
+  ],
+  "testsAdded": ["tests/unit/test_cdp_batch_fetch_planner.py"],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "20 errors — ModuleNotFoundError batch_fetch_planner before implementation",
+      "passingTestEvidence": "20 passed — gap-gated bounded plans, gap_not_detected defer, P1 finance/video sequencing, Fake Refresh guard, A1 boundary negatives",
+      "refactorEvidence": "Import FINANCE_STATEMENTS_PATH from constants; ruff import sort; bounded-all-domain-gaps test refined",
+      "commands": [
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_fetch_planner.py -v (RED)",
+          "exitCode": 2,
+          "outputSummary": "ImportError — batch_fetch_planner missing"
+        },
+        {
+          "command": "PYTHONPATH=backend/src python -m pytest tests/unit/test_cdp_batch_fetch_planner.py tests/unit/test_cdp_batch_stagger_scheduler.py -v",
+          "exitCode": 0,
+          "outputSummary": "30 passed"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "BatchFetchPlanner gap-gated bounded Partner fetch plans with gap_not_detected defer, StaggerScheduler window context, P1 finance/video sequencing, and Fake Refresh/public Demo trigger guard. Exported via cdp_batch package; MODULE documents A1 targeted fetch boundary.",
+  "assumptions": [
+    "Batch orchestrator passes detected_gaps from gap detection fixtures upstream of this slice",
+    "FINANCE_STATEMENTS_PATH remains internal to constants until tiktok package re-export slice"
+  ],
+  "risks": [
+    "Gap detection wiring deferred to BatchReconcileOrchestrator slice — planner is pure planning only"
+  ]
+}

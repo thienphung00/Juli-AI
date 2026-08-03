@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-624",
+  "issue": 624,
+  "timestamp": "2026-07-31T06:12:00Z",
+  "reviewedBy": "intent-review skill",
+  "fixedPoint": "f9bcde06c3af06e8b55596b36b7a5fb008dc8f11",
+  "spec_fidelity": "pass",
+  "specFidelityNotes": "CDP-A2-6 (#624): Documentation-only slice. ADR-050 and MODULE.md state read-replica isolation deferred to 3.5-C C2 — not A2 exit gate. Stage table maps replica reads vs primary writes. Cross-links #602 US #14 and ADR-047 Batch boundary. No Supabase replica provisioning or connection-pool wiring.",
+  "smells": [],
+  "convention_notes": [],
+  "phaseRunId": "624-20260731T0610Z",
+  "summary": "Spec fidelity pass: read-replica doc matches #624 intent — deferral, stage routing table, cross-links, docs-only scope."
+}
