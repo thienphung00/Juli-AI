@@ -19,7 +19,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_executor import (
 )
 from juli_backend.services.cdp_speed.targeted_fetch_planner import TargetedFetchPlan
 from juli_backend.services.etl.silver_promotion import SilverOrdersReturnsPromoter
-from juli_backend.services.gold_kpi_envelope_serving import seed_unavailable_shell
+from juli_backend.services.gold_kpi_envelope_serving import write_demo_main_kpis_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +174,7 @@ class SharedComputeOrchestrator:
 
     @staticmethod
     async def _default_gold_stage(session: AsyncSession, shop_id: uuid.UUID) -> bool:
-        await seed_unavailable_shell(session, shop_id)
+        await write_demo_main_kpis_envelope(session, shop_id)
         return True
 
 
