@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 301,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+      "backend/src/juli_backend/integrations/tiktok/constants.py",
+      "backend/src/juli_backend/integrations/tiktok/factories.py",
+      "backend/src/juli_backend/integrations/tiktok/resources/promotion.py",
+      "backend/src/juli_backend/integrations/tiktok/resources/__init__.py",
+      "docs/integrations/tiktok_api/contract-collection.md",
+      "docs/integrations/tiktok_api/endpoints.md",
+      "docs/handoffs/phase-2-tiktok-implementation.md",
+      "scripts/sanitize_contract_collection.py",
+      "tests/unit/test_layer2_sandbox_write_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-301.json",
+    "sha256": "c34f39f830c2d12a0361a8c0d27e0711ba6723422a622cf6fe301815064c426c",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-13T05:02:58Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-301.json",
+    "sha256": "37c16d7d889d8ea79ce24c0fcce1c2ca58e635f6b3170d54f0c80bad3a970b9e",
+    "status": "PASS"
+  },
+  "wave": null
+}

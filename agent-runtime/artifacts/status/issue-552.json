@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 552,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      ".importlinter.toml",
+      "agent-runtime/scripts/ci/check_import_boundaries.py",
+      "agent-runtime/scripts/ci/import_boundary_config.py",
+      "docs/architecture/import-boundaries.md",
+      "tests/unit/test_import_boundaries.py",
+      "tests/fixtures/import_boundaries/synthetic/"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-552.json",
+    "sha256": "2960054a12354d12f0c3140b5402c2a45bd45151500da072a26007fea8bdfd2a",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T02:41:37Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-552.json",
+    "sha256": "16e5eb85800855b19c30f0fb6ada7a0808f9f27fa0baf8eeab4c815b8adeb20d",
+    "status": "PASS"
+  },
+  "wave": null
+}

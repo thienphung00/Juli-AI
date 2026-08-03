@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 534,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "packages/contracts/src/analytics.ts",
+      "apps/demo/src/lib/analytics/api-client.ts",
+      "apps/demo/src/lib/analytics/envelope-mapper.ts",
+      "apps/demo/src/lib/analytics/analytics-data-context.tsx",
+      "apps/demo/src/components/analytics-dashboard.tsx",
+      "apps/demo/src/components/demo-shell.tsx"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-534.json",
+    "sha256": "5d7bd4c992d0e44e1e8aba0e4a4d4431821f12becb00bbbedc9a8e5ed4a980ea",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T00:14:26Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-534.json",
+    "sha256": "2a16f73c9c27a2bcb2eeda66e260eeccbfb90c3cea72fc22680af86ebbfb7c71",
+    "status": "PASS"
+  },
+  "wave": null
+}

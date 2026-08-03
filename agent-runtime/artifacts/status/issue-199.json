@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 199,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/lib/decisions/chat-context.ts",
+      "web/src/lib/decisions/chat-session.ts",
+      "web/src/lib/decisions/index.ts",
+      "web/src/lib/decisions/MODULE.md",
+      "web/src/lib/services/ai-chat.ts",
+      "web/src/components/AiChatPage.tsx",
+      "web/src/components/decisions/DecisionDetailFlow.tsx",
+      "web/src/__tests__/test_issue199_chat_decision_context.test.ts",
+      "web/src/__tests__/test_issue199_chat_decision_context.test.tsx",
+      "web/src/__tests__/test_ai_chat_tab.test.tsx"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-199.json",
+    "sha256": "2908cef5a2b6aeaf68c7b0595f1d5d0c009f116c75cb8dad95befa4399a8e42b",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-12T05:58:34Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-199.json",
+    "sha256": "05458e1bfd7afdcef4f021ce2502944a7332c9d881010bb60cfd874e44723260",
+    "status": "PASS"
+  },
+  "wave": null
+}

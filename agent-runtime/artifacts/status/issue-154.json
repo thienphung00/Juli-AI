@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 154,
+  "metrics": {
+    "acceptanceMapped": 10,
+    "acceptanceTotal": 10,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/lib/workflows/new-seller/listing"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-154.json",
+    "sha256": "715ac460b12376845b7df765b5a1be5154ada41b4ad8ef69488ff32bcd9009d8",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-08T05:21:08Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-154.json",
+    "sha256": "a184cfd8c1fc2d17f15f894c028c01159c608f6ab47e35f86a5f301c2d76f065",
+    "status": "PASS"
+  },
+  "wave": null
+}

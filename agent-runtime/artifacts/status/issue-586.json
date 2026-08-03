@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 586,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "packages/ui/src/destination-icons.tsx",
+      "packages/ui/src/index.ts",
+      "packages/ui/styles.css",
+      "packages/ui/package.json",
+      "apps/demo/src/lib/mock-data.ts",
+      "apps/demo/src/app/page.tsx",
+      "apps/demo/src/__tests__/home.test.tsx",
+      "packages/ui/src/__tests__/destination-card.test.tsx",
+      "agent-runtime/config/slice-routing.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-586.json",
+    "sha256": "6e870bdb4173ad281e2586b420c48ce753b1e9fcb9db4538079f361d3dfa42dc",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T08:58:15Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-586.json",
+    "sha256": "9490d4a2b80d53a466f4b8df8a27ec44783533706c29f95d5b7ec2f920d5aee2",
+    "status": "PASS"
+  },
+  "wave": null
+}

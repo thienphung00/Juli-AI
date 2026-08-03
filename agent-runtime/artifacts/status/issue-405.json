@@ -1,0 +1,40 @@
+{
+  "gateVersion": 1,
+  "issue": 405,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "apps/demo/src/app/settings/page.tsx",
+      "apps/demo/src/app/settings/workflows/[workflowKey]/page.tsx",
+      "apps/demo/src/app/globals.css",
+      "apps/demo/src/components/demo-state.tsx",
+      "apps/demo/src/components/demo-shell.tsx",
+      "apps/demo/src/components/settings-view.tsx",
+      "apps/demo/src/components/settings-workflow-list.tsx",
+      "apps/demo/src/components/settings-thresholds-panel.tsx",
+      "apps/demo/src/components/settings-workflow-detail.tsx",
+      "apps/demo/src/lib/settings/fixtures.ts",
+      "apps/demo/src/lib/settings/validation.ts",
+      "apps/demo/src/lib/settings/save.ts",
+      "apps/demo/src/lib/settings/index.ts",
+      "apps/demo/src/__tests__/settings-workflows.test.tsx",
+      "apps/demo/src/__tests__/settings-workflow-detail.test.tsx",
+      "apps/demo/src/lib/settings/__tests__/validation.test.ts",
+      "apps/demo/src/__tests__/demo-shell.test.tsx"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-405.json",
+    "sha256": "9337e3e6544d1372b813c4f1ea820e0968d2057688714fa06e9926a5de96804f",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-21T11:03:18Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-405.json",
+    "sha256": "9cc9fa4f774c73d46cb9abf5a719fcdc94a58341167a2b16f0212d7fb813bf24",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 294,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "docs/integrations/tiktok_api/samples/",
+      "docs/integrations/tiktok_api/endpoints.md",
+      "scripts/extract_tiktok_fixtures.py",
+      "tests/unit/test_tiktok_api_samples.py",
+      "docs/handoffs/phase-2-tiktok-implementation.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-294.json",
+    "sha256": "4158fe57090273499b08e76d63161884a9e559ac30c7a2334a6a514bb6c91204",
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "timestamp": "2026-07-09T02:32:03Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-294.json",
+    "sha256": "0df1dad97a5165803b386cefe845bc62b3dd83348737fe07f9df70fcbecb20a1",
+    "status": "PASS"
+  },
+  "wave": null
+}
