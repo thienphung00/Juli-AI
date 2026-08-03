@@ -31,6 +31,23 @@ catalog:
       commands:
         - "npx ctx7@latest library <name> \"<question>\""
         - "npx ctx7@latest docs <libraryId> \"<question>\""
+  # Skill-only marketplace plugins — no MCP server, invoked directly as /skill-name.
+  pluginSkills:
+    - id: frontend-design
+      plugin: frontend-design@claude-plugins-official
+      scope: project
+      when:
+        - new UI page/component that risks looking templated or AI-generic
+        - aesthetic direction, typography, or layout choices before ui-ux-design
+        - apps/demo or apps/dashboard visual polish passes
+      note: >-
+        Generic anti-templated-design guidance (creative direction only — no
+        Juli brand tokens). Runs after open-design-system/Mobbin references,
+        before ui-ux-design; ui-ux-design's Juli-specific tokens/IA/anti-clichés
+        win on any conflict.
+      skills:
+        - name: frontend-design
+          invoke: /frontend-design
   mcpServers:
     - id: supabase
       folder: plugin-supabase-supabase
@@ -238,8 +255,8 @@ Machine-readable index for **focus** and agent-phase routing. Plugin skills ship
 | Alembic, RLS, Supabase auth | `supabase` | `supabase`, `supabase-postgres-best-practices` |
 | FastAPI / pytest change | — | `backend` executor, `.cursor/skills/domain/python-*` |
 | `apps/demo` or `apps/dashboard` Next.js, App Router | `plugin-vercel-vercel` (if deploy) | `nextjs`, `react-best-practices` |
-| Design-reference / layout inspiration before coding | `open-design`, `Mobbin` | `open-design-system` → Mobbin MCP → `ui-ux-design` (ADR-043; reference-only) |
-| Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `open-design-system` + Mobbin when references needed; then `ui-ux` executor, `ui-ux-design`, ADR-028 copy; `shadcn` atoms only |
+| Design-reference / layout inspiration before coding | `open-design`, `Mobbin` | `open-design-system` → Mobbin MCP → `frontend-design` (aesthetic direction) → `ui-ux-design` (ADR-043; reference-only) |
+| Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `open-design-system` + Mobbin when references needed; then `frontend-design` (anti-generic creative direction) → `ui-ux` executor, `ui-ux-design`, ADR-028 copy; `shadcn` atoms only |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
 | TikTok API / webhooks | — | `docs/integrations/tiktok_api/`, MODULE.md (no plugin) |
 | New vendor API onboarding | — | `api-docs` (+ Focus-selected **Context7 CLI** for SDK/library refs) |

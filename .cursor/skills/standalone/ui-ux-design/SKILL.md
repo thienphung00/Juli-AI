@@ -11,6 +11,7 @@ catalog:
     - apps/demo apps/dashboard next.js component page layout form modal dashboard
     - ui ux visual polish accessibility vietnamese
   companionSkills:
+    - frontend-design
     - nextjs
     - react-best-practices
     - shadcn
@@ -54,7 +55,7 @@ Before editing:
 2. Nearest existing component (grep `apps/demo/src/components/` or `apps/dashboard/src/components/` for similar UI)
 3. [REFERENCE.md](REFERENCE.md) — tokens, primitives, layout, copy
 
-Load plugin skills when Focus selects them: `nextjs`, `react-best-practices`; `shadcn` only when introducing registry components (prefer `@juli/ui` and existing `.card`, `.btn-*` classes first).
+Load plugin skills when Focus selects them: `frontend-design` for aesthetic/creative direction on new or visually-generic surfaces (run it before this skill — its guidance is generic anti-templated design thinking; this skill's Juli brand tokens/IA win on any conflict), `nextjs`, `react-best-practices`; `shadcn` only when introducing registry components (prefer `@juli/ui` and existing `.card`, `.btn-*` classes first).
 
 ### 2. Design within brand
 
@@ -109,12 +110,13 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 | Issue | Action |
 |-------|--------|
 | Looks off-brand | Re-read REFERENCE tokens; copy patterns from dashboard `TaskCard`, `LoginForm`, `PageHeader` or demo `DemoShell`, `RecommendationsPanel` |
-| Too generic | Strengthen hierarchy, spacing rhythm, or micro-interactions — stay on-brand |
+| Too generic | Load `frontend-design` for a creative-direction pass (hierarchy, spacing rhythm, micro-interactions, one deliberate signature element) — stay on-brand |
 | a11y gap | Contrast check, `focus-visible:ring-*`, associate labels |
 | Missing states | Walk checklist; mirror `LoginForm` error/loading pattern (dashboard) |
 
 ## See also
 
+- `frontend-design` (Claude Code plugin, `claude-plugins-official` marketplace) — generic anti-templated aesthetic-direction skill; companion, runs before this one (`.cursor/skills/skill-catalog/SKILL.md` `catalog.pluginSkills`)
 - [`.cursor/rules/ui-ux-design.mdc`](../../../rules/ui-ux-design.mdc) — Ramp-inspired product patterns on Juli brand (Focus Tier 2)
 - [REFERENCE.md](REFERENCE.md) — tokens, primitives, file layout, examples
 - [`apps/demo/src/app/globals.css`](../../../../apps/demo/src/app/globals.css) — demo app styles (imports `@juli/theme`)

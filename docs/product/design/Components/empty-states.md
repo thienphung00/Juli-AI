@@ -17,6 +17,13 @@ content nicety.
   hiện trong vòng [khung thời gian]." — always includes a concrete-as-possible
   timeframe, never an open-ended "soon."
 
+### Home activity — nothing yet
+
+- Used when the Home activity summary has no completed/running executions and
+  no open recommendations ([ADR-053](../../adr/053-demo-home-activity-summary.md),
+  `Components/home-activity-tracker.md`).
+- Replaces all three stat tiles with one calm line — never render three zeros.
+
 ### No results (filtered view)
 - Used when a filter/sub-tab genuinely has nothing to show right now (e.g. In
   Progress with zero active decisions).

@@ -30,6 +30,23 @@
 - Preserve values across the shared execution-detail states and expose recovery
   actions without silently restarting the workflow.
 
+## Suggestion glow (Gợi ý bởi Juli)
+
+Executes [PRD #600](https://github.com/thienphung00/Juli-AI/issues/600)'s
+locked prefill pattern — visual craft only, no new interaction model:
+
+- Any field Juli prefilled gets a soft outer glow (`--juli-brand-glow`,
+  `.field-input` variant) and the **Gợi ý bởi Juli** label
+  (`Components/badges.md` Info variant) placed directly above or beside it —
+  never a tooltip-only disclosure.
+- The field stays a normal, immediately editable `.field-input` — same focus
+  ring, same validation. Editing the value removes the glow (it's now the
+  seller's value, not Juli's suggestion) but keeps the field otherwise
+  unchanged.
+- Never a silent prefill: a field with a value the seller didn't type always
+  shows the glow + label together. Never shows a confidence score alongside
+  it (`Components/badges.md` retired confidence badge).
+
 ## Settings forms
 
 - Workflow templates and trigger thresholds live under `/settings`, not a
@@ -55,6 +72,8 @@
 
 ## Anti-patterns
 
+- A prefilled field with no glow/label — reads as silent autofill.
+- A confidence percentage or score shown near a suggested value.
 - Placeholder text used as a label substitute.
 - Validation errors that disappear before the seller has read them (no premature
   auto-dismiss on form errors — only toasts auto-dismiss, per

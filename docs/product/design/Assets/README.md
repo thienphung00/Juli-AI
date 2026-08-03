@@ -25,3 +25,24 @@ Then update:
   `.brand-wordmark` in the codebase).
 - `Screens/*.md` and `Components/navigation.md` wherever a header/wordmark
   placement is described, to reference the real file paths.
+
+## UI iconography (not a brand-asset gap)
+
+This section is about the brand mark only. Generic UI icons are **not**
+bitmap assets pending a designer — `packages/ui/src/destination-icons.tsx`
+already maps named roles to `lucide-react` components (e.g.
+`DestinationIconName: "decisions" | "analytics"` → `ClipboardCheck` /
+`BarChart3`). New icon roles from [ADR-053](../../adr/053-demo-home-activity-summary.md)
+and the suggestion pattern ([PRD #600](https://github.com/thienphung00/Juli-AI/issues/600))
+should extend that same map with existing `lucide-react` glyphs, not a new
+asset pipeline. Suggested (confirm final pick at implementation time):
+
+- **Done** (Home activity tile) — `CheckCircle2`, pairs with
+  `Components/badges.md` Success.
+- **Running** (Home activity tile) — reuses the existing `.badge-live` pulsing
+  dot; only needs a static glyph (e.g. `Loader2` non-spinning) as the
+  `prefers-reduced-motion` fallback.
+- **Needs attention** (Home activity tile) — `AlertCircle` or `Bell`, never a
+  generic red hazard-triangle icon (`soul.md` anti-clichés).
+- **Gợi ý bởi Juli** (suggestion label, `Components/forms.md`) — `Sparkles` or
+  `Wand2`, distinct from the bird wordmark.

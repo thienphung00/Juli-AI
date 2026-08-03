@@ -41,8 +41,9 @@ current content. It cannot authorize, reject, or execute a workflow.
 | `onboarding.md` | Shop connection, permissions, first useful state |
 | `login.md` | Authentication, OTP, password recovery, session recovery |
 
-After entry, Home presents exactly two prominent clickable cards:
-**Decisions** and **Analytics**.
+After entry, Home presents a summary-only activity strip (done / running /
+needs attention — [ADR-053](../adr/053-demo-home-activity-summary.md)) above
+exactly two prominent clickable cards: **Decisions** and **Analytics**.
 
 ### `decisions/`
 
@@ -78,7 +79,8 @@ Every recommendation card exposes three seller choices:
 2. **Reject / Từ chối** — removes the recommendation from the active list; it
    does not execute or silently defer it.
 3. **Expand / Mở rộng** — reveals reasoning, evidence, expected impact,
-   confidence, inputs, and relevant risks without authorizing action.
+   inputs, and relevant risks without authorizing action. No confidence
+   score, collapsed or expanded ([PRD #600](https://github.com/thienphung00/Juli-AI/issues/600)).
 
 No default action fires without explicit approval.
 
@@ -86,7 +88,9 @@ No default action fires without explicit approval.
 
 1. **Detect** — an eligible signal produces a draft recommendation.
 2. **Rank** — open recommendations are ordered by expected value and urgency.
-3. **Explain** — the card shows impact and confidence; Expand reveals details.
+3. **Explain** — the card shows impact; Expand reveals reasoning, evidence,
+   and risks. No confidence score anywhere, collapsed or expanded
+   ([PRD #600](https://github.com/thienphung00/Juli-AI/issues/600)).
 4. **Decide** — the seller Approves or Rejects.
 5. **Prepare** — Approve opens a prefilled/fillable workflow before any action.
 6. **Execute and track** — approved work appears in In Progress and follows
