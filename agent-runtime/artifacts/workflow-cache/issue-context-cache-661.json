@@ -1,0 +1,253 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 661,
+  "parentIssueId": 658,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-658.json",
+  "phaseRunId": "661-20260802T135229",
+  "workflowPhase": "meta",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "CI-WAVE-3",
+    "handoffPath": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "backend",
+    "requiredDocs": [
+      "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+      "docs/adr/040-pr-safe-tests-lane.md",
+      "docs/handoffs/ci-three-tier-release-evidence-plan.json"
+    ],
+    "requiredModules": [
+      ".github/workflows/pr.yml",
+      "tests/unit/test_three_tier_ci_contract.py"
+    ],
+    "acceptanceCriteria": [
+      "On push to feature/*-wave, path filtering uses the push before and after SHAs and does not force every domain output true.",
+      "Integration, architecture, dependency, and cross-module jobs run only for affected domains; docs-only/unrelated pushes stay cheap without bypassing gitleaks/status classification.",
+      "Zero/bad before SHA (new/force-pushed branch edge) fails safe or uses a documented bounded fallback.",
+      "Wave\u2192main remains the full/path-aware checkpoint and merge_group live Partner policy is unchanged.",
+      "Add RED\u2192GREEN contract tests for backend, frontend/demo, agent/docs-only, and before-SHA edge cases.",
+      "actionlint .github/workflows/pr.yml passes."
+    ],
+    "loadWhenNeeded": [
+      "docs/adr/003-ai-native-cicd-policy.md"
+    ],
+    "releaseEvidencePlan": {
+      "planId": "rep-661-ci-wave-3-domain-matched-wave-push-checks",
+      "affectedPublicSurfaces": [
+        "GitHub wave-tier validation on push to feature/*-wave via pr.yml (which integration, architecture, dependency, and cross-module jobs execute for a landed commit range)",
+        "Main merge eligibility that depends on wave-tier green: a wave push that skips a domain must still leave wave->main as the full path-aware checkpoint",
+        "The changes job path-filter contract: wave tier stops force-setting every domain output true and instead diffs github.event.before -> github.event.after"
+      ],
+      "candidateVerificationJourney": {
+        "mode": "candidate_verification",
+        "stableTrafficPercent": 100,
+        "candidatePublicTrafficPercent": 0,
+        "restrictedRoute": "RED->GREEN CI contract tests in tests/unit/test_three_tier_ci_contract.py (extended with wave-push domain-gating cases) + actionlint on feature/issue-661-domain-wave-checks, then one candidate wave push per changed domain observed in GitHub Actions. No deployed candidate exists; pr.yml governs merge eligibility only.",
+        "syntheticShopRequired": false,
+        "workersDisabledOnCandidate": true,
+        "apiSideEffectsInScope": false,
+        "journeys": [
+          {
+            "name": "domain-matched-wave-push-backend",
+            "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+            "assertions": [
+              "a push to feature/*-wave whose before->after range touches backend/** sets the backend path-filter output true at wave tier",
+              "integration, architecture, dependency, and cross-module jobs run for backend on that push",
+              "frontend/demo-only jobs are skipped for that same push",
+              "the changes job no longer force-sets every domain output true when tier == wave"
+            ]
+          },
+          {
+            "name": "domain-matched-wave-push-frontend-and-demo",
+            "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+            "assertions": [
+              "a wave push touching only apps/dashboard/** sets dashboard true and backend false",
+              "a wave push touching apps/demo/** or packages/ui|theme|contracts/** sets demo true",
+              "backend integration/architecture/dependency jobs are skipped on a frontend-only wave push",
+              "cross-module checks run when both a backend and a frontend domain are present in the same push range"
+            ]
+          },
+          {
+            "name": "agent-and-docs-only-wave-push-stays-cheap-without-bypass",
+            "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+            "assertions": [
+              "a wave push touching only agent-runtime/** or .cursor/** sets agent true and leaves backend/dashboard/demo false",
+              "a docs-only or otherwise unrelated wave push runs no heavy domain jobs",
+              "gitleaks still runs on every wave push regardless of affected domains",
+              "classify-tier still emits tier=wave and tier-aware status classification/aggregation still executes"
+            ]
+          },
+          {
+            "name": "before-sha-edge-fails-safe",
+            "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+            "assertions": [
+              "an all-zero github.event.before (new branch) does not silently produce all-false domain outputs",
+              "an unresolvable or force-pushed before SHA either fails the run or takes the documented bounded fallback of running all domains",
+              "the fallback branch is documented inline in pr.yml so the safe direction is auditable",
+              "no edge case can make a wave push green while skipping gitleaks or status classification"
+            ]
+          },
+          {
+            "name": "wave-to-main-checkpoint-unchanged",
+            "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+            "assertions": [
+              "wave->main remains the full, path-aware checkpoint and is not narrowed by wave-push domain matching",
+              "the main-tier artifact-gate from #660 still validates every manifest-listed issue",
+              "merge_group live Partner policy behavior is byte-for-byte unchanged by this slice",
+              "issue-tier path filtering from #660 is unchanged"
+            ]
+          }
+        ]
+      },
+      "staticAssetChecks": {
+        "required": false,
+        "htmlRoutes": [
+          "GitHub Actions workflow visualization (pr.yml) for feature/*-wave push runs"
+        ],
+        "discoverFromHtml": false,
+        "assetTypes": [
+          "workflow-yaml"
+        ],
+        "failOnMissing": true,
+        "failOnNon200": true
+      },
+      "migrationCompatibility": {
+        "schemaChangeInScope": false,
+        "expandContractOnly": true,
+        "stableAndCandidateCompatible": true,
+        "destructiveMigrationAllowed": false,
+        "notes": "CI-only change to .github/workflows/pr.yml plus RED->GREEN contract tests extending tests/unit/test_three_tier_ci_contract.py (which already asserts push-tier trigger and before/after semantics). No database, Alembic, or public API schema changes. The wave manifest schema (CI-WAVE-1) and the artifact-gate contract (CI-WAVE-2) are consumed, not modified."
+      },
+      "rollbackAssertion": {
+        "preCutoverFailureBehavior": "Do not merge the CI-WAVE-3 pr.yml slice. Wave pushes keep running every domain (the current all-true behavior), which is slower but never less safe; the branch stays blocked until the contract tests and actionlint pass.",
+        "postCutoverFailureBehavior": "Revert this workflow commit. Wave-push checks return to all-domain mode and the #657/#659/#660 three-tier behavior is fully restored; no data or deployed state is involved.",
+        "retainedStableRequired": true,
+        "automatic": false
+      },
+      "requiredArtifacts": {
+        "implementation": true,
+        "intentReview": true,
+        "review": true,
+        "validation": true,
+        "releaseMetadataHonest": true
+      },
+      "acceptanceCommands": [
+        "python -m pytest tests/unit/test_three_tier_ci_contract.py -q",
+        "actionlint .github/workflows/pr.yml"
+      ],
+      "doNotInfer": [
+        "domain-matched wave-push gating waives or narrows the wave->main checkpoint \u2014 wave->main stays the full, path-aware gate and is untouched by this slice",
+        "a skipped domain job on a wave push means that domain was validated; it means only that the push before->after range did not touch it",
+        "a zero, missing, or unresolvable before SHA may silently skip all checks \u2014 the edge must fail the run or take the documented bounded all-domain fallback",
+        "cheap docs-only or unrelated wave pushes may bypass gitleaks or tier-aware status classification; those stay always-on",
+        "this slice changes merge_group live Partner policy, issue-tier filtering from #660, or the main-tier artifact-gate",
+        "a green wave-push run deploys anything \u2014 release.yml remains the only deploying workflow",
+        "this slice runs a deployed candidate target, synthetic shop, or live TikTok sandbox calls"
+      ]
+    }
+  },
+  "authorityChain": [
+    {
+      "rank": 1,
+      "source": "EXECUTION.md",
+      "reason": "Phase/slice law \u2014 CI-WAVE-3"
+    },
+    {
+      "rank": 2,
+      "source": "parent-cache-issue-658",
+      "reason": "Epic constant"
+    },
+    {
+      "rank": 3,
+      "source": "GitHub issue #661",
+      "reason": "Child acceptance criteria"
+    },
+    {
+      "rank": 4,
+      "source": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+      "reason": "Epic handoff"
+    }
+  ],
+  "resolvedDecisions": [],
+  "inScope": [
+    "Slice CI-WAVE-3 acceptance criteria",
+    "Executor domain: backend"
+  ],
+  "outOfScope": [
+    "apps/",
+    "backend/src/",
+    "docs/integrations/",
+    "ios/",
+    "web/"
+  ],
+  "doNotLoad": [
+    "apps/",
+    "backend/src/",
+    "docs/integrations/",
+    "ios/",
+    "web/",
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "docs/product/design/",
+    "apps/demo/",
+    "apps/landing/",
+    "apps/dashboard/",
+    "backend/src/juli_backend/",
+    "docs/integrations/tiktok_api/",
+    "docs/integrations/tiktok_corpora/",
+    "Sibling issue context caches"
+  ],
+  "promptCacheBlock": "# Issue #661 \u2014 CI-WAVE-3\n\n## Parent\n#658\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/adr/052-wave-free-merge-deferred-artifact-gate.md\n- docs/adr/040-pr-safe-tests-lane.md\n- docs/handoffs/ci-three-tier-release-evidence-plan.json\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #661 \u2014 CI-WAVE-3\n\n## Parent\n#658\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/adr/052-wave-free-merge-deferred-artifact-gate.md\n- docs/adr/040-pr-safe-tests-lane.md\n- docs/handoffs/ci-three-tier-release-evidence-plan.json\n",
+    "meta": "# Meta \u2014 Issue #661\n\n- sliceId: CI-WAVE-3\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "executor": "",
+    "review": "",
+    "validate": ""
+  },
+  "harnessUtility": {
+    "skills": [
+      {
+        "path": ".cursor/skills/domain/backend/SKILL.md",
+        "purpose": "Primary backend Executor TDD"
+      }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc"
+    ],
+    "mcps": [],
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Shell",
+      "StrReplace"
+    ]
+  },
+  "glossarySnippets": [],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #661",
+      "fingerprint": "3d991f995d4bb9cc"
+    },
+    {
+      "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-661.md",
+      "fingerprint": "a2e57d4330dc1ded58112d1572b5ee46fdf738c8"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-661.md",
+  "lastValidatedAt": "2026-08-03T00:06:17Z",
+  "lastScopeAlignmentAt": "2026-08-03T00:06:17Z",
+  "publicRelease": true,
+  "publicReleaseReasons": [
+    "body:candidate_verification",
+    "body:public_surface",
+    "body:rollback"
+  ],
+  "releaseEvidencePlanId": "rep-661-ci-wave-3-domain-matched-wave-push-checks"
+}
