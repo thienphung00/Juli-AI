@@ -3,5 +3,5 @@
   "artifactType": "wave_manifest",
   "waveId": "wave-a1-cdp-speed",
   "branch": "feature/a1-cdp-speed-wave",
-  "issues": [628, 629, 632]
+  "issues": [628, 629, 632, 630]
 }
