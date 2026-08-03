@@ -155,7 +155,7 @@ def _transform_order_item(body: dict[str, Any], payload: dict[str, Any]) -> dict
 
 
 def _transform_return(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
-    return_id = body.get("return_id")
+    return_id = body.get("return_id") or body.get("cancel_id")
     if not return_id:
         raise TransformError("return_id required")
     tiktok_order_id = body.get("tiktok_order_id") or body.get("order_id")
@@ -172,9 +172,14 @@ def _transform_return(body: dict[str, Any], payload: dict[str, Any]) -> dict[str
         "tiktok_sku_id": str(body["sku_id"]) if body.get("sku_id") is not None else None,
         "return_type": str(body.get("return_type") or "other"),
         "return_condition": str(body.get("return_condition") or "unknown"),
-        "return_reason": body.get("return_reason"),
+        "return_reason": body.get("return_reason") or body.get("cancel_reason"),
         "refund_amount": Decimal(str(refund)),
-        "status": str(body.get("status") or body.get("return_status") or "pending_review"),
+        "status": str(
+            body.get("status")
+            or body.get("return_status")
+            or body.get("cancel_status")
+            or "pending_review"
+        ),
         "update_time": _unix_to_datetime(
             body.get("update_time") or body.get("create_time") or payload.get("timestamp")
         ),
