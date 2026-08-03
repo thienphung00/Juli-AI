@@ -43,7 +43,7 @@ Both lanes: **never push to `main` directly**; every change lands via a PR (§ P
 
 ## CI/CD
 
-- Two-tier CI: PR **fast** checks (always-on lint/type/secrets + cheap unit + path filters); **full** required suite on Merge Queue `merge_group`.
+- Three-tier CI + wave free-merge ([ADR-052](../../docs/adr/052-wave-free-merge-deferred-artifact-gate.md)): issue→wave PR **fast** checks (lint/type/secrets + cheap unit + path filters + `policy-checks`; no artifact-gate) with **no up-to-date-with-base requirement**; wave push runs before→after domain-matched integration checks; wave→`main` runs the **full** required suite plus the **artifact-gate**, via Merge Queue `merge_group` when available else sync-before-merge.
 - Land via **GitHub Merge Queue** after green PR checks — not direct merge to `main`. Parallel ritual (Isolate vs Parallel, ops lock, enqueue): topology handoff + [`.cursor/rules/issue-workflow.mdc`](issue-workflow.mdc).
 - Deploy in small, safe batches; maintain rollback capability.
 - Automate repeatable builds, tests, deploys, and migrations.

@@ -124,7 +124,8 @@ appropriate skill) with the failed-check summary.
 ## Integration with rules
 
 - [`.cursor/rules/git-baseline.mdc`](../../../.cursor/rules/git-baseline.mdc) —
-  CI/CD subsection; this skill is the local mirror of the `pr.yml` validate-artifacts job.
+  CI/CD subsection; this skill is the local mirror of the wave→main `artifact-gate` job
+  (`pr.yml`, renamed from `validate-artifacts`/`ai-review` per [ADR-052](../../../../docs/adr/052-wave-free-merge-deferred-artifact-gate.md)).
 - [`.cursor/rules/issue-workflow.mdc`](../../../.cursor/rules/issue-workflow.mdc) —
   the `>3 modules` warning surfaced here defers to the disjoint-modules rule.
 - [`.cursor/rules/core-orchestration.mdc`](../../../.cursor/rules/core-orchestration.mdc) —
