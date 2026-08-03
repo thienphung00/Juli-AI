@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 659,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/wave_manifest.py",
+      "agent-runtime/docs/schemas/wave-manifest.schema.json",
+      "agent-runtime/scripts/ci/json_schema_validate.py",
+      "agent-runtime/config/slice-routing.yml",
+      "agent-runtime/artifacts/release-evidence-plan-issue-659.json",
+      "docs/handoffs/issue-658.md",
+      "tests/unit/test_wave_manifest.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-659.json",
+    "sha256": "ab806d4acb02fa5334aab23b7d662f20a8b307bac6e8a66e92a4ee23281b332c",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-31T09:35:33Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-659.json",
+    "sha256": "cb05c02442dccdea13c01cb81d0c3e731f69a27c6f5ae08e6ca776384823ca6f",
+    "status": "PASS"
+  },
+  "wave": null
+}

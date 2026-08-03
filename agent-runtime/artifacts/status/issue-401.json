@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 401,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo/MODULE.md",
+      "apps/demo/src/lib/reviews.ts",
+      "apps/demo/src/lib/executions.ts",
+      "apps/demo/src/lib/workflows/optimize-product/",
+      "apps/demo/src/lib/workflows/replenish-inventory/",
+      "apps/demo/src/lib/workflows/clear-excess/",
+      "apps/demo/src/components/recommendations-panel.tsx",
+      "apps/demo/src/components/recommendation-review.tsx",
+      "apps/demo/src/components/demo-state.tsx",
+      "packages/contracts/src/execution.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-401.json",
+    "sha256": "ed9ba9707bdf5305cfa2c7a2ee66c1729b08ba6fefe0d369f209e12c34470d20",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-21T08:33:08Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-401.json",
+    "sha256": "238bcb812e72a2da5e66e38d7298b4ad2705f304f1b89803a1a1a4263209782d",
+    "status": "PASS"
+  },
+  "wave": null
+}

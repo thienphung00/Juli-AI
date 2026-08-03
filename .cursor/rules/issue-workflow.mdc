@@ -16,9 +16,9 @@ Topology (slots, ephemeral `feature/*`, shared-core): [`docs/handoffs/worktree-b
 
 ## Parallel pipeline (no blocked)
 
-Per issue, independently:
+Per issue, independently, three-tier CI + wave free-merge ([ADR-052](../../docs/adr/052-wave-free-merge-deferred-artifact-gate.md)):
 
-`implement` → Review Agent (`intent-review` → `guardrails` → `validate`) → commit → open **individual** PR → PR **fast CI** (path-filtered lint/type/cheap tests) → **GitHub Merge Queue** (`merge_group` full suite) → merge
+`implement` → Review Agent (`intent-review` → `guardrails` → `validate`) → commit → open **individual** issue PR into the run's `feature/*-wave` branch (owns the wave-manifest bump) → PR **fast CI** (issue tier: path-filtered lint/type/cheap tests + `policy-checks`; no "up to date with base" requirement on the wave branch) → merge into wave. Wave push runs **before→after domain-matched** integration/architecture/contract checks — not the full suite. When the run's issues have all landed, one wave → `main` PR runs full main-tier gates plus the **artifact-gate** (existence + `status: PASS` per manifest issue) → **GitHub Merge Queue** (`merge_group` full suite) when available, else sync-before-merge → merge.
 
 Do **not** batch parallel work into one PR. Path-disjoint issues stay on separate branches/PRs.
 

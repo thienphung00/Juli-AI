@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 661,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      ".github/workflows/pr.yml",
+      "tests/unit/test_three_tier_ci_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-661.json",
+    "sha256": "2d1b930d70e1bf597c2043149fd35229b0523169e0bac5a2b74284db6646a233",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-03T00:29:24Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-661.json",
+    "sha256": "0c3fd3530711c24155b1f124f7ea21f5edf6c8adf1b3fb1a9abf74c8c16dd851",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -3,6 +3,85 @@
 # Add a row here before relying on a new slice in workflow cache.
 # doNotLoad web/ — legacy App Review static bundle; product UI is apps/demo + apps/dashboard.
 
+CI-WAVE-1:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/003-ai-native-cicd-policy.md
+    - docs/adr/040-pr-safe-tests-lane.md
+    - docs/handoffs/ci-three-tier-release-evidence-plan.json
+  requiredModules:
+    - agent-runtime/scripts/ci/
+    - agent-runtime/docs/schemas/
+    - tests/unit/test_three_tier_ci_contract.py
+  loadWhenNeeded:
+    - .github/workflows/pr.yml
+    - agent-runtime/docs/agent-runtime-artifacts.md
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - docs/integrations/
+    - ios/
+    - web/
+
+CI-WAVE-2:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/003-ai-native-cicd-policy.md
+    - docs/adr/040-pr-safe-tests-lane.md
+    - docs/handoffs/ci-three-tier-release-evidence-plan.json
+  requiredModules:
+    - .github/workflows/pr.yml
+    - agent-runtime/scripts/ci/
+    - tests/unit/test_three_tier_ci_contract.py
+  loadWhenNeeded:
+    - agent-runtime/docs/agent-runtime-artifacts.md
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - docs/integrations/
+    - ios/
+    - web/
+
+CI-WAVE-3:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/040-pr-safe-tests-lane.md
+    - docs/handoffs/ci-three-tier-release-evidence-plan.json
+  requiredModules:
+    - .github/workflows/pr.yml
+    - tests/unit/test_three_tier_ci_contract.py
+  loadWhenNeeded:
+    - docs/adr/003-ai-native-cicd-policy.md
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - docs/integrations/
+    - ios/
+    - web/
+
+CI-WAVE-4:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/003-ai-native-cicd-policy.md
+    - docs/adr/040-pr-safe-tests-lane.md
+    - docs/handoffs/worktree-branch-topology.md
+  requiredModules:
+    - .cursor/rules/issue-workflow.mdc
+    - docs/adr/
+    - CONTEXT.md
+  loadWhenNeeded:
+    - .github/workflows/pr.yml
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - docs/integrations/
+    - ios/
+    - web/
+
 P2-A1:
   executorDomain: backend
   requiredDocs:

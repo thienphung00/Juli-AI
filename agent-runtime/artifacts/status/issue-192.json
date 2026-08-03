@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 192,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/lib/decisions/types.ts",
+      "web/src/lib/decisions/decision.ts",
+      "web/src/lib/decisions/required-inputs.ts",
+      "web/src/lib/decisions/index.ts",
+      "web/src/lib/decisions/MODULE.md",
+      "web/MODULE.md",
+      "web/src/__tests__/test_decisions_view_model.test.ts"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-192.json",
+    "sha256": "53baf0fa5b507486d26ff9842e39f2f46f11e27106788b422dc55b77475f4d41",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-12T04:30:43Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-192.json",
+    "sha256": "6381998f6f7af65d58a9903bf7dd244a39178f15df9a8dce22f9b74effcbcd62",
+    "status": "PASS"
+  },
+  "wave": null
+}

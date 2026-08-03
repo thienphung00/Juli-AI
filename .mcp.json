@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "Project-scoped MCP servers for Claude Code. CLI-first policy: a server belongs here",
+    "ONLY when no CLI equivalent exists. Supabase, Context7, GitHub, shadcn, Playwright,",
+    "Vercel and Celery are all driven by their CLIs — see CLAUDE.md 'Tooling policy'.",
+    "These two are design-reference surfaces with no CLI, and are used by the architect and",
+    "meta agents only; executor subagents are configured with no MCP tools at all (ADR-043).",
+    "'open-design' points at a locally installed macOS app, so it will not resolve on another",
+    "machine or in CI — that is expected, and it fails closed rather than breaking the build."
+  ],
+  "mcpServers": {
+    "Mobbin": {
+      "type": "http",
+      "url": "https://api.mobbin.com/mcp",
+      "headers": {}
+    },
+    "open-design": {
+      "command": "/Applications/Open Design.app/Contents/Frameworks/Open Design Helper.app/Contents/MacOS/Open Design Helper",
+      "args": [
+        "/Applications/Open Design.app/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs",
+        "mcp"
+      ],
+      "env": {
+        "OD_DATA_DIR": "/Users/macos/Library/Application Support/Open Design/namespaces/release-stable/data",
+        "OD_SIDECAR_IPC_PATH": "/tmp/open-design/ipc/release-stable/daemon.sock",
+        "ELECTRON_RUN_AS_NODE": "1"
+      }
+    }
+  }
+}

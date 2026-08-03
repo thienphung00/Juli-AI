@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 256,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "infra/deploy/",
+      "docs/product/phases/phase-2.5-deployment.md",
+      "docs/product/features/app_review_deployment/issues.md",
+      "tests/unit/test_phase_2_5_vps_wiring.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-256.json",
+    "sha256": "0a972837955daaffc36b6fe7cfb75be3ccacb1b48bb716f29ed84168bca211b8",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-02T02:06:44Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-256.json",
+    "sha256": "ca3ec034b98c42ff81c7a727f42b758a651bb0a6162d0c0600589c665e862866",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,261 @@
+{
+  "schemaVersion": "1.2.0",
+  "artifactType": "issue_context_cache",
+  "issueId": 662,
+  "parentIssueId": 658,
+  "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-658.json",
+  "phaseRunId": "662-20260803T003129",
+  "workflowPhase": "meta",
+  "cacheStatus": "valid",
+  "cacheBlockVersion": 1,
+  "parentLinkage": {
+    "sliceId": "CI-WAVE-4",
+    "handoffPath": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md"
+  },
+  "issueLoadProfile": {
+    "executorDomain": "backend",
+    "requiredDocs": [
+      "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+      "docs/adr/003-ai-native-cicd-policy.md",
+      "docs/adr/040-pr-safe-tests-lane.md",
+      "docs/handoffs/worktree-branch-topology.md"
+    ],
+    "requiredModules": [
+      ".cursor/rules/issue-workflow.mdc",
+      "docs/adr/",
+      "CONTEXT.md"
+    ],
+    "acceptanceCriteria": [
+      "Commit clean ADR-052 and index/glossary references without unrelated planning changes.",
+      "Update parallel issue workflow and worktree topology: no up-to-date requirement on wave branches; issue PR owns manifest bump; wave push is before\u2192after domain-matched; wave\u2192main owns artifact-gate.",
+      "Document that parallel-status markdown is human ops UI, not CI SoT.",
+      "Add/execute a cutover checklist that enumerates active wave branches/open wave-targeted PRs and confirms they use the refined workflow; mixed old/new coverage is explicitly reported.",
+      "Update stale two-tier/issue-artifact wording that directly conflicts with ADR-052; avoid broad documentation cleanup."
+    ],
+    "loadWhenNeeded": [
+      ".github/workflows/pr.yml"
+    ],
+    "releaseEvidencePlan": {
+      "planId": "rep-662-ci-wave-4-docs-rollout-verification",
+      "affectedPublicSurfaces": [
+        "docs/adr/052-wave-free-merge-deferred-artifact-gate.md and its index entry in docs/adr/README.md \u2014 the written record operators and agents cite for the free-merge / deferred artifact-gate contract",
+        "The parallel issue workflow and worktree topology handoff docs (docs/handoffs/worktree-branch-topology.md, docs/handoffs/parallel-status*.md) that describe the merge ritual: no up-to-date requirement on wave branches, issue PR owns the manifest bump, wave push is before->after domain-matched, wave->main owns the artifact gate",
+        "Stale two-tier / per-issue-artifact-gate wording in operator-facing harness docs (EXECUTION.md, CLAUDE.md, .cursor rules, agent-runtime/docs) that directly contradicts ADR-052",
+        "A rollout cutover checklist enumerating active wave branches and open wave-targeted PRs, so in-flight work is explicitly classified as refined-workflow or legacy",
+        "No runtime, deployed, or CI-executable surface: .github/workflows/pr.yml, the wave manifest schema, and the artifact-gate implementation are consumed as-is and not modified by this slice"
+      ],
+      "candidateVerificationJourney": {
+        "mode": "candidate_verification",
+        "stableTrafficPercent": 100,
+        "candidatePublicTrafficPercent": 0,
+        "restrictedRoute": "Documentation verification only. Reference/link checks over the changed markdown (ADR-052 exists, is indexed, and every citing doc resolves) plus a rollout inventory produced by a cutover-checklist script that enumerates active feature/*-wave branches and open wave-targeted PRs via gh and reports refined vs legacy coverage. There is no deployed candidate, no traffic split, and no HTTP route to exercise; pr.yml behavior is verified only as unchanged.",
+        "syntheticShopRequired": false,
+        "workersDisabledOnCandidate": true,
+        "apiSideEffectsInScope": false,
+        "journeys": [
+          {
+            "name": "adr-052-lands-clean-and-is-reachable",
+            "entryUrl": "file://docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+            "assertions": [
+              "docs/adr/052-wave-free-merge-deferred-artifact-gate.md is present, numbered 052, and states the free-merge contract actually implemented by #659/#660/#661",
+              "docs/adr/README.md indexes ADR-052 with a status consistent with the merged implementation",
+              "every relative link and ADR cross-reference introduced or touched by this slice resolves to a file that exists in the repo",
+              "the ADR commit carries no unrelated planning, PRD, or backlog edits"
+            ]
+          },
+          {
+            "name": "workflow-and-topology-docs-match-the-implemented-contract",
+            "entryUrl": "file://docs/handoffs/worktree-branch-topology.md",
+            "assertions": [
+              "wave branches are documented as having no up-to-date-with-base requirement before merge",
+              "the issue PR is documented as the owner of the wave manifest bump",
+              "wave push checks are documented as before->after domain-matched, not all-domain",
+              "the wave->main merge is documented as the owner of the deferred artifact gate",
+              "parallel-status markdown is documented as human ops UI and explicitly not a CI source of truth"
+            ]
+          },
+          {
+            "name": "rollout-cutover-inventory-is-executed-and-reported",
+            "entryUrl": "https://github.com/thienphung00/Juli-AI/pulls",
+            "assertions": [
+              "the cutover checklist script enumerates every active feature/*-wave branch and every open PR targeting a wave branch",
+              "each enumerated branch/PR is classified as using the refined workflow or the legacy workflow",
+              "mixed old/new coverage is reported explicitly rather than silently normalized to pass",
+              "the executed inventory output is captured in the implementation artifact so the reviewer sees the real in-flight state at cutover time"
+            ]
+          },
+          {
+            "name": "stale-wording-removed-without-broad-cleanup",
+            "entryUrl": "file://EXECUTION.md",
+            "assertions": [
+              "two-tier CI wording and per-issue artifact-gate wording that directly contradicts ADR-052 is corrected",
+              "edits are confined to statements that conflict with ADR-052; unrelated documentation is left untouched",
+              "the diff contains no code files \u2014 any code file in the diff means the slice was mis-scoped",
+              "no doc claims a behavior that pr.yml does not currently implement"
+            ]
+          },
+          {
+            "name": "ci-behavior-provably-unchanged-by-this-slice",
+            "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+            "assertions": [
+              "tests/unit/test_three_tier_ci_contract.py and tests/unit/test_wave_manifest.py still pass unmodified",
+              ".github/workflows/pr.yml is byte-for-byte unchanged by this slice",
+              "the wave manifest schema and artifact-gate implementation from CI-WAVE-1/2/3 are unchanged",
+              "no documentation change alters merge eligibility for any branch"
+            ]
+          }
+        ]
+      },
+      "staticAssetChecks": {
+        "required": false,
+        "htmlRoutes": [
+          "not applicable \u2014 this slice ships no HTML route and no deployed asset; the only rendered surfaces are GitHub markdown views of docs/adr/052-wave-free-merge-deferred-artifact-gate.md and the touched handoff docs"
+        ],
+        "discoverFromHtml": false,
+        "assetTypes": [
+          "markdown"
+        ],
+        "failOnMissing": false,
+        "failOnNon200": false
+      },
+      "migrationCompatibility": {
+        "schemaChangeInScope": false,
+        "expandContractOnly": true,
+        "stableAndCandidateCompatible": true,
+        "destructiveMigrationAllowed": false,
+        "notes": "Documentation-only slice. No database, Alembic, public API, workflow YAML, or JSON-schema change. The wave manifest schema (CI-WAVE-1), the deferred artifact-gate contract (CI-WAVE-2), and domain-matched wave-push checks (CI-WAVE-3) are described, not altered. Any new file is limited to a cutover-checklist script and a docs-assertion test that read existing state; neither changes merge eligibility."
+      },
+      "rollbackAssertion": {
+        "preCutoverFailureBehavior": "Do not merge the CI-WAVE-4 docs slice. The implemented free-merge behavior from #659/#660/#661 is already live and unaffected; only the written record stays stale, which is recoverable by re-running this slice. If the rollout inventory reports wave branches still on the legacy workflow, that is reported in the artifact and does not block the docs merge \u2014 it is an operator follow-up, not a silent pass.",
+        "postCutoverFailureBehavior": "Revert this documentation/ADR commit independently. Because the diff contains no workflow, schema, or code changes, the revert restores the previous docs with zero effect on CI behavior, merge eligibility, or deployed state. Executable rollback for the free-merge contract itself is owned by the preceding slices (#659/#660/#661) and is out of scope here.",
+        "retainedStableRequired": false,
+        "automatic": false
+      },
+      "requiredArtifacts": {
+        "implementation": true,
+        "intentReview": true,
+        "review": true,
+        "validation": true,
+        "releaseMetadataHonest": true
+      },
+      "acceptanceCommands": [
+        "python agent-runtime/scripts/ci/check_wave_rollout_cutover.py --report",
+        "python -m pytest tests/unit/test_wave_free_merge_docs.py -q",
+        "python agent-runtime/scripts/validate/check_adr.py --issue 662",
+        "python -m pytest tests/unit/test_three_tier_ci_contract.py tests/unit/test_wave_manifest.py -q",
+        "git diff --name-only origin/main...HEAD"
+      ],
+      "doNotInfer": [
+        "this slice is a licence for broad documentation cleanup \u2014 scope is exactly ADR-052 plus its index reference, the parallel-workflow/worktree-topology statements, wording that directly conflicts with ADR-052, and the cutover checklist; anything else is out of scope even if it looks stale",
+        "landing ADR-052 changes runtime CI behavior \u2014 the executable free-merge contract was delivered by #660 and #661 and is already merged; documentation only records it",
+        "a doc may describe intended future behavior as current \u2014 every statement must match what .github/workflows/pr.yml does today, or it does not go in",
+        "parallel-status markdown is a CI source of truth \u2014 it is human ops UI; CI reads the wave manifest and pr.yml, never the status markdown",
+        "the cutover checklist may report a clean rollout by omitting branches \u2014 it must enumerate every active wave branch and open wave-targeted PR, and report mixed old/new coverage explicitly",
+        "a wave branch found on the legacy workflow may be silently migrated by this slice \u2014 inventory and report only; changing another branch's workflow is separate work",
+        "editing pr.yml, the wave manifest schema, or the artifact-gate implementation is in scope \u2014 any code file in this diff means the slice was mis-scoped and the executor must stop and report",
+        "this slice deploys anything, runs a candidate target, or makes live TikTok or synthetic-shop calls"
+      ]
+    }
+  },
+  "authorityChain": [
+    {
+      "rank": 1,
+      "source": "EXECUTION.md",
+      "reason": "Phase/slice law \u2014 CI-WAVE-4"
+    },
+    {
+      "rank": 2,
+      "source": "parent-cache-issue-658",
+      "reason": "Epic constant"
+    },
+    {
+      "rank": 3,
+      "source": "GitHub issue #662",
+      "reason": "Child acceptance criteria"
+    },
+    {
+      "rank": 4,
+      "source": "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+      "reason": "Epic handoff"
+    }
+  ],
+  "resolvedDecisions": [],
+  "inScope": [
+    "Slice CI-WAVE-4 acceptance criteria",
+    "Executor domain: backend"
+  ],
+  "outOfScope": [
+    "apps/",
+    "backend/src/",
+    "docs/integrations/",
+    "ios/",
+    "web/"
+  ],
+  "doNotLoad": [
+    "apps/",
+    "backend/src/",
+    "docs/integrations/",
+    "ios/",
+    "web/",
+    "docs/handoffs/archive/",
+    "docs/product/features/",
+    "docs/product/design/",
+    "apps/demo/",
+    "apps/landing/",
+    "apps/dashboard/",
+    "backend/src/juli_backend/",
+    "docs/integrations/tiktok_api/",
+    "docs/integrations/tiktok_corpora/",
+    "Sibling issue context caches"
+  ],
+  "promptCacheBlock": "# Issue #662 \u2014 CI-WAVE-4\n\n## Parent\n#658\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/adr/052-wave-free-merge-deferred-artifact-gate.md\n- docs/adr/003-ai-native-cicd-policy.md\n- docs/adr/040-pr-safe-tests-lane.md\n- docs/handoffs/worktree-branch-topology.md\n",
+  "phaseCacheBlocks": {
+    "scope": "# Issue #662 \u2014 CI-WAVE-4\n\n## Parent\n#658\n\n## Executor domain\nbackend\n\n## Required docs\n- docs/adr/052-wave-free-merge-deferred-artifact-gate.md\n- docs/adr/003-ai-native-cicd-policy.md\n- docs/adr/040-pr-safe-tests-lane.md\n- docs/handoffs/worktree-branch-topology.md\n",
+    "meta": "# Meta \u2014 Issue #662\n\n- sliceId: CI-WAVE-4\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "executor": "",
+    "review": "",
+    "validate": ""
+  },
+  "harnessUtility": {
+    "skills": [
+      {
+        "path": ".cursor/skills/domain/backend/SKILL.md",
+        "purpose": "Primary backend Executor TDD"
+      }
+    ],
+    "rulesTier2": [
+      ".cursor/rules/code-quality.mdc",
+      ".cursor/rules/reliability.mdc"
+    ],
+    "mcps": [],
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Shell",
+      "StrReplace"
+    ]
+  },
+  "glossarySnippets": [],
+  "openQuestions": [],
+  "upstreamFingerprints": [
+    {
+      "path": "GitHub issue #662",
+      "fingerprint": "d455884c6fb8375f"
+    },
+    {
+      "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-662.md",
+      "fingerprint": "5df240d8e23232c102161327b4d0878e7c5df9f0"
+    }
+  ],
+  "scopeAlignmentPath": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-662.md",
+  "lastValidatedAt": "2026-08-03T00:40:04Z",
+  "lastScopeAlignmentAt": "2026-08-03T00:40:04Z",
+  "publicRelease": true,
+  "publicReleaseReasons": [
+    "body:candidate_verification",
+    "body:public_surface",
+    "body:rollback"
+  ],
+  "releaseEvidencePlanId": "rep-662-ci-wave-4-docs-rollout-verification"
+}
