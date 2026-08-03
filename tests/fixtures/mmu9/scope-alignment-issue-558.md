@@ -63,3 +63,17 @@ Pytest reads this scope-alignment record plus `implementation-issue-558.json` st
 | Follow-up slices | `agent-runtime/config/agent-runtime.config.yml` `workflow_prompt_cache.epicRegistry.550.childSlices` maps sibling issues to MMU-10 … MMU-15 under parent #550 for continued models/repos split work. |
 | Implementation note | `implementation-issue-558.json` assumptions: remaining tables/repos stay in god files for follow-up slices. |
 | Test | `tests/unit/test_etl_persistence_ingest.py::test_remaining_god_file_shrinkage_tracked_in_follow_up_slices` |
+
+### Pinned implementation evidence (verbatim; source body offloaded off git by #670)
+
+`agent-runtime/artifacts/implementations/implementation-issue-558.json` is intentionally
+untracked/gitignored post-#670 (verbose bodies moved to CI artifact retention). The two
+fields the tests above depend on are pinned here so evidence stays available on a clean
+checkout.
+
+- Implementation `startedAt`: 2026-07-28T03:30:00Z
+- Implementation `assumptions`:
+  - Slice MMU-9a is the approved first incremental move under parent MMU-9 (#558); remaining tables/repos stay in god files for follow-up slices
+  - Legacy import paths via models.models and repositories.repos remain supported via explicit shims
+  - agent-runtime/config/slice-routing.yml MMU-9 entry was pre-approved and left untouched by this slice
+  - Single Postgres + shared orm_base/Base unchanged per PRD

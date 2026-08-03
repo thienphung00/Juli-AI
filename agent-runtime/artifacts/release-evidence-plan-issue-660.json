@@ -1,0 +1,92 @@
+{
+  "planId": "rep-660-ci-wave-2-free-merge-deferred-gate",
+  "affectedPublicSurfaces": [
+    "GitHub issue->wave and wave->main merge eligibility via pr.yml (three-tier CI behavior)",
+    "Deterministic main-tier artifact-gate job (renamed from ai-review) that validates manifest-listed issues on wave->main"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "RED->GREEN CI contract tests + actionlint on feature/issue-660-ci-wave-2 (no deployed candidate; pr.yml governs merge eligibility only)",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "issue-tier-minimal-and-base-skip",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "issue->wave required jobs are classify-tier/changes/gitleaks/policy-checks plus path-filtered lint/typecheck/PR-safe test/frontend/demo-frontend",
+          "validate/generate artifact jobs are not issue-tier blockers",
+          "base-only synchronization with unchanged PR head SHA skips issue-tier heavy work",
+          "any head SHA change runs the issue tier"
+        ]
+      },
+      {
+        "name": "manifest-membership-and-deferred-artifact-gate",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "policy-checks requires feature/issue-N* linkage and N present in the target wave manifest using the CI-WAVE-1 validator",
+          "ai-review is renamed to artifact-gate and runs on the main tier only",
+          "on wave->main artifact-gate validates every manifest-listed issue's artifacts (existence + status PASS)",
+          "tier-aware status aggregation cannot pass when classifier/manifest/artifact checks fail"
+        ]
+      },
+      {
+        "name": "no-double-run-cleanliness-audit",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "lint/typecheck/frontend/demo-frontend do not re-execute the same compile/lint/build on the main tier after running at issue tier",
+          "an issue-tier lint/type regression still fails at issue tier",
+          "gitleaks stays always-on across tiers",
+          "pull-request workflows remain non-deploying"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "GitHub Actions workflow visualization (pr.yml)"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "workflow-yaml"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "CI-only change to pr.yml and contract tests. No database or public API schema changes; wave manifest schema (CI-WAVE-1) is consumed, not modified."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge the CI-WAVE-2 pr.yml slice; issue tier stays blocked until contract tests and actionlint pass.",
+    "postCutoverFailureBehavior": "Revert the pr.yml workflow commit; the pre-existing #657 three-tier behavior returns and the CI-WAVE-1 validator (#659) remains active.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_three_tier_ci_contract.py -q",
+    "python -m pytest tests/unit/test_wave_manifest.py -q",
+    "actionlint .github/workflows/pr.yml"
+  ],
+  "doNotInfer": [
+    "issue-tier CI success or a green pr.yml run deploys production",
+    "removing artifact validation from issue pushes removes the main-tier artifact-gate enforcement",
+    "renaming ai-review to artifact-gate adds any LLM/model step to CI",
+    "free-merge into wave waives the wave manifest membership requirement",
+    "this slice runs a deployed candidate target or live TikTok sandbox calls"
+  ]
+}

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import inspect
-import json
 import re
 import sys
 import uuid
@@ -30,7 +29,9 @@ from juli_backend.database import get_session, init_session_factory
 from juli_backend.models.models import ProcessedEvent as LegacyProcessedEvent
 from juli_backend.models.models import Shop, User
 from juli_backend.orm_base import Base as SharedBase
-from juli_backend.repositories.repos import ProcessedEventsRepo as LegacyProcessedEventsRepo
+from juli_backend.repositories.repos import (
+    ProcessedEventsRepo as LegacyProcessedEventsRepo,
+)
 from juli_backend.services.etl import consumer as etl_consumer
 from juli_backend.services.etl.persistence.ingest import (
     ProcessedEvent,
@@ -40,9 +41,6 @@ from juli_backend.services.etl.persistence.ingest import model as ingest_model
 from juli_backend.services.etl.persistence.ingest import repo as ingest_repo
 
 SCOPE_ALIGNMENT_PATH = REPO_ROOT / "tests" / "fixtures" / "mmu9" / "scope-alignment-issue-558.md"
-IMPLEMENTATION_ARTIFACT_PATH = (
-    REPO_ROOT / "agent-runtime" / "artifacts" / "implementations" / "implementation-issue-558.json"
-)
 SLICE_ROUTING_PATH = REPO_ROOT / "agent-runtime" / "config" / "slice-routing.yml"
 AGENT_RUNTIME_CONFIG_PATH = REPO_ROOT / "agent-runtime" / "config" / "agent-runtime.config.yml"
 
@@ -59,7 +57,6 @@ def _parse_utc_timestamp(raw: str) -> datetime:
 def test_written_split_plan_approved_before_code_move_issue_558() -> None:
     """AC1 — factual HITL approval precedes implementation start (scope-alignment source)."""
     scope_text = SCOPE_ALIGNMENT_PATH.read_text(encoding="utf-8")
-    implementation = json.loads(IMPLEMENTATION_ARTIFACT_PATH.read_text(encoding="utf-8"))
 
     assert APPROVAL_MARKER in scope_text
     assert APPROVAL_COMMENT_ID in scope_text
@@ -74,7 +71,12 @@ def test_written_split_plan_approved_before_code_move_issue_558() -> None:
     assert approval_match is not None, "approval timestamp missing from scope-alignment AC1 record"
 
     approval_at = _parse_utc_timestamp(approval_match.group(1))
-    implementation_started_at = _parse_utc_timestamp(implementation["startedAt"])
+
+    started_at_match = re.search(r"Implementation `startedAt`: (\S+)", scope_text)
+    assert started_at_match is not None, (
+        "pinned implementation startedAt missing from scope-alignment fixture"
+    )
+    implementation_started_at = _parse_utc_timestamp(started_at_match.group(1))
     assert approval_at < implementation_started_at
 
 
@@ -163,7 +165,6 @@ def test_no_polyglot_db_single_deployable_shared_postgres() -> None:
 def test_remaining_god_file_shrinkage_tracked_in_follow_up_slices() -> None:
     """AC5 — remaining models/repos god-file shrinkage tracked under parent #550 slices."""
     scope_text = SCOPE_ALIGNMENT_PATH.read_text(encoding="utf-8")
-    implementation = json.loads(IMPLEMENTATION_ARTIFACT_PATH.read_text(encoding="utf-8"))
 
     slice_routing = load_simple_yaml(SLICE_ROUTING_PATH)
     mmu9 = slice_routing["MMU-9"]
@@ -178,6 +179,10 @@ def test_remaining_god_file_shrinkage_tracked_in_follow_up_slices() -> None:
     assert follow_up_slice_ids.issubset(set(child_slices.values()))
     assert child_slices["558"] == "MMU-9"
 
-    assumptions_blob = " ".join(implementation["assumptions"]).lower()
+    assumptions_match = re.search(r"Implementation `assumptions`:\n((?:\s+- .*\n?)+)", scope_text)
+    assert assumptions_match is not None, (
+        "pinned implementation assumptions missing from scope-alignment fixture"
+    )
+    assumptions_blob = assumptions_match.group(1).lower()
     assert "follow-up" in assumptions_blob or "god" in assumptions_blob
     assert "follow-up" in scope_text.lower() or "Follow-up" in scope_text

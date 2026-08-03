@@ -24,6 +24,7 @@ VALIDATION_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "validation"
 IMPLEMENTATIONS_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "implementations"
 OPTIMIZATION_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "optimization"
 RELEASES_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "releases"
+STATUS_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "status"
 RUNTIME_SCHEMA_VERSION = "1.0.0"
 DONE_MD = REPO_ROOT / "done.md"
 

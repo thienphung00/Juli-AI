@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 535,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/analytics_kpi_cache/cache.py",
+      "backend/src/juli_backend/api/main.py",
+      "backend/src/juli_backend/api/routes/demo_analytics.py",
+      "docs/adr/041-vps-redis-ephemeral-cache-and-celery.md",
+      "infra/scripts/env/api.env.example"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-535.json",
+    "sha256": "11bb184d99efcc9742829187f4ed48a80a4993e765dd6f79290dd19dfde2858b",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T02:18:25Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-535.json",
+    "sha256": "ef5a7dbc789af6e78cfcefe806811edb9737f03a2513bc14aa707016bd33dd0f",
+    "status": "PASS"
+  },
+  "wave": null
+}

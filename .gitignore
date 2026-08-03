@@ -69,7 +69,25 @@ releases/
 agent-runtime/artifacts/workflow-cache/
 agent-runtime/artifacts/grill-cache/
 
+# Verbose per-issue artifact bodies (#670 P1 Option A / ADR-052 amendment).
+# The committed merge-time source of truth is now the compact record at
+# agent-runtime/artifacts/status/issue-<N>.json (schemaVersion, gateVersion,
+# review/validation PASS status, sha256 of each body). These five dirs'
+# JSON bodies still get WRITTEN locally during the agent loop (Executor/
+# Review/Validate read/write them via agent-runtime/scripts/ci/common.py
+# filesystem paths, unaffected by gitignore) and are uploaded to CI
+# artifact retention on the issue-tier run — they are just never committed.
+# agent-runtime/artifacts/status/ itself stays tracked (not ignored below).
+agent-runtime/artifacts/reviews/**/*.json
+agent-runtime/artifacts/implementations/**/*.json
+agent-runtime/artifacts/intent-reviews/**/*.json
+agent-runtime/artifacts/validation/**/*.json
+agent-runtime/artifacts/optimization/**/*.json
+
 # Playwright (apps/demo exit-gate)
 apps/demo/test-results/
 apps/demo/playwright-report/
 apps/demo/blob-report/
+
+# Claude Code local overrides (machine-specific; never source control)
+.claude/settings.local.json

@@ -503,6 +503,31 @@ workflow_prompt_cache:
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
 
+    601:
+      defaultSliceId: CDP-A1-1
+      handoffPath: docs/handoffs/phase-3.5-prd-bodies/a1-speed.md
+      childSlices:
+        "625": CDP-A1-1
+        "626": CDP-A1-2
+        "627": CDP-A1-3
+        "628": CDP-A1-4
+        "629": CDP-A1-5
+        "630": CDP-A1-6
+        "631": CDP-A1-7
+        "632": CDP-A1-8
+        "633": CDP-A1-9
+      parentScopeBlock: "# Parent #601 — Phase 3.5-A1 CDP Speed layer (constant)\\n## Product boundary\\n- Single-shop event-driven freshness (OLTP Speed); material webhook → ETL → targeted fetch → Shared Compute → gold.kpi_envelopes\\n- Orthogonal to A2 Batch; does not add fleet defer/I/O governors beyond #68 15-min coalesce\\n## Architect locks\\n- Material catalog IDs: #1 #2 #5 #12 #27 #39 #67 #68(+15m coalesce)\\n- Five payload.kpis keys: gmv_tiktok aov ctor live_hours cancellation_rate\\n- Forbidden on material path: _FUJIWA_POLL_STEPS / full run_fujiwa_poll_cycle / unbounded sync_analytics\\n## Slices (wave 1 — Meta A1 track)\\n- CDP-A1-1 material handoff enqueue (#625) · CDP-A1-2 Targeted Fetch Planner (#626)\\n## Epic deferrals\\n- A2 Batch (#602) · Decisions (#599) · Demo UI (#600)\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - docs/product/design/
+        - apps/landing/
+        - web/
+        - ios/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+        - backend/src/juli_backend/services/cdp_batch/
+
     602:
       defaultSliceId: CDP-A2-4
       handoffPath: docs/handoffs/phase-3.5-prd-bodies/a2-batch.md
@@ -546,4 +571,27 @@ workflow_prompt_cache:
         - web/
         - ios/
         - backend/src/juli_backend/
+        - Sibling issue context caches
+
+    658:
+      defaultSliceId: CI-WAVE-1
+      handoffPath: docs/adr/052-wave-free-merge-deferred-artifact-gate.md
+      childSlices:
+        "659": CI-WAVE-1
+        "660": CI-WAVE-2
+        "661": CI-WAVE-3
+        "662": CI-WAVE-4
+      parentScopeBlock: "# Parent #658 — Wave free-merge CI (constant)\n## Product boundary\n- Refine three-tier CI (#657): free-merge issue→wave, domain-matched wave push, deferred artifact-gate on wave→main\n- Wave manifest committed under agent-runtime/artifacts/waves/; parallel-status*.md is human ops UI only\n## Architect locks (ADR-052)\n- Hybrid D artifact gate (not agent-local-only B)\n- Wave path filter hybrid C (before→after on push; full/main on wave→main)\n- No up-to-date-with-base on feature/*-wave\n## Slice order\n- CI-WAVE-1 manifest validator (#659) → CI-WAVE-2 issue tier + artifact-gate (#660) → CI-WAVE-3 wave domain match (#661) → CI-WAVE-4 docs/rollout (#662)\n## Epic deferrals\n- Agentic Eval Loop metrics · Merge Queue enablement · release.yml deploy changes\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - docs/product/design/
+        - apps/demo/
+        - apps/landing/
+        - apps/dashboard/
+        - web/
+        - ios/
+        - backend/src/juli_backend/
+        - docs/integrations/tiktok_api/
+        - docs/integrations/tiktok_corpora/
         - Sibling issue context caches

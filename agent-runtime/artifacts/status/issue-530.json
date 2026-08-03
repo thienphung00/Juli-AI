@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 530,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/analytics_kpi_masking/__init__.py",
+      "backend/src/juli_backend/services/analytics_kpi_masking/mask.py",
+      "backend/src/juli_backend/services/analytics_kpi_masking/MODULE.md",
+      "tests/unit/test_analytics_kpi_masking.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-530.json",
+    "sha256": "7d1e66f952cf3a4311ea239c7b7579d85b8563fd1a8bbefb174d7b8ef9317e5e",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-27T13:03:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-530.json",
+    "sha256": "7320cb70dccf24506bfef7b68e59115524be19b5c704b8edfa838979546244f8",
+    "status": "PASS"
+  },
+  "wave": null
+}

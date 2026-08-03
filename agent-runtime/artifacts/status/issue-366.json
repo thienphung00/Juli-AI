@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 366,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/integration/tiktok_sandbox.py",
+      "tests/integration/test_tiktok_sandbox_oauth.py",
+      "tests/integration/test_tiktok_sandbox_webhook.py",
+      "tests/integration/test_tiktok_sandbox_contract.py",
+      "tests/integration/conftest.py",
+      ".github/workflows/pr.yml",
+      "infra/scripts/env/api.env.example"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-366.json",
+    "sha256": "718c118c802e7478360e12631df8157fade2bbd34dd0b8b244968a9f915e0ed9",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-12T03:37:27Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-366.json",
+    "sha256": "e003637333ec9db5abd50b5e57099319da184e057489331ff5bd308868286cad",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 168,
+  "metrics": {
+    "acceptanceMapped": 10,
+    "acceptanceTotal": 10,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/lib/workflows/leakage/leakage-analytics.ts",
+      "web/src/lib/workflows/leakage/index.ts",
+      "web/src/lib/workflows/leakage/MODULE.md",
+      "web/src/components/workflows/leakage/LeakageWorkflowPanel.tsx",
+      "web/src/lib/task-executor/use-task-executor.ts",
+      "web/src/components/tasks/TaskExecutorModals.tsx",
+      "web/src/__tests__/test_leakage_integration_issue_168.test.tsx"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-168.json",
+    "sha256": "8f23e83d26ac6e5a601c4ec48c9fda3d220e3d16e1cff71f5cf2508a5b32bf39",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-08T11:08:49Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-168.json",
+    "sha256": "91b2f8952e8b634886b783279d9b9ac6cbf95e5e025b6ee7f1ec38c7611c5375",
+    "status": "PASS"
+  },
+  "wave": null
+}

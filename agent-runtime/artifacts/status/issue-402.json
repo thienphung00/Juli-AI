@@ -1,0 +1,36 @@
+{
+  "gateVersion": 1,
+  "issue": 402,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo/MODULE.md",
+      "apps/demo/src/lib/reviews.ts",
+      "apps/demo/src/lib/executions.ts",
+      "apps/demo/src/lib/recommendations.ts",
+      "apps/demo/src/lib/workflows/process-order/",
+      "apps/demo/src/lib/workflows/create-activity/",
+      "apps/demo/src/lib/workflows/update-activity/",
+      "apps/demo/src/lib/workflows/delete-activity/",
+      "apps/demo/src/__tests__/decisions-recommendations.test.tsx",
+      "apps/demo/src/__tests__/workflow-5-review-approve-in-progress.test.tsx",
+      "apps/demo/src/__tests__/workflow-7a-review-approve-in-progress.test.tsx",
+      "apps/demo/src/__tests__/workflow-7b-review-approve-in-progress.test.tsx",
+      "apps/demo/src/__tests__/workflow-7c-review-approve-in-progress.test.tsx"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-402.json",
+    "sha256": "e74d0d2efb0c229dd6a7aaff1fc152f88ec92f7bc96b937f7941241f0e1c4a48",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-21T09:03:27Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-402.json",
+    "sha256": "594bca6ebf3d5fdcee4a5956bb89f600d0e21af65b1a5998bbdba5c745471e7b",
+    "status": "PASS"
+  },
+  "wave": null
+}

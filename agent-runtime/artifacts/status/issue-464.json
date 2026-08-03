@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 464,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/MODULE.md",
+      "backend/src/juli_backend/database/migrations/versions/019_backfill_partitions.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/unit/test_analytics_backfill_partitions_repo.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-464.json",
+    "sha256": "0e28fdc859470d41fe64cf5d80eacf9795aaad57767457a785688346d1f30297",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-22T08:04:17Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-464.json",
+    "sha256": "529e44e2d476917f6a6c5e21438e7c8eff8893240541478335b0e826999579f6",
+    "status": "PASS"
+  },
+  "wave": null
+}

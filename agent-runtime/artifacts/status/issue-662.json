@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 662,
+  "metrics": {
+    "acceptanceMapped": 15,
+    "acceptanceTotal": 15,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      ".cursor/rules/git-baseline.mdc",
+      ".cursor/rules/issue-workflow.mdc",
+      ".cursor/skills/standalone/validate/SKILL.md",
+      "agent-runtime/docs/agent-runtime.md",
+      "docs/handoffs/worktree-branch-topology.md",
+      "agent-runtime/scripts/ci/check_wave_rollout_cutover.py",
+      "tests/unit/test_wave_free_merge_docs.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-662.json",
+    "sha256": "934d43d2b2d441593ee9eb08eeee0cfa3a6ddf42ea3076e624bdf152e9c11277",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-03T01:04:57Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-662.json",
+    "sha256": "5a99b74aac0e82b601b1d00a3b02950e74ffc2f3ec568dab7c49a4916b500699",
+    "status": "PASS"
+  },
+  "wave": null
+}

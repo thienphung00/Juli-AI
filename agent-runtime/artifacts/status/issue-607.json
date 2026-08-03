@@ -1,0 +1,34 @@
+{
+  "gateVersion": 1,
+  "issue": 607,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 4,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/025_silver_orders_returns.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "backend/src/juli_backend/services/etl/silver_promotion.py",
+      "backend/src/juli_backend/services/etl/transform.py",
+      "backend/src/juli_backend/database/MODULE.md",
+      "backend/src/juli_backend/services/etl/MODULE.md",
+      "tests/unit/test_silver_orders_returns.py",
+      "tests/integration/test_migrations.py",
+      "tests/unit/conftest.py",
+      "tests/integration/conftest.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-607.json",
+    "sha256": "98996c5f6ac40c659352592e835f1ccd47806ca512095e7d5377fe346b699f56",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-30T09:25:39Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-607.json",
+    "sha256": "0f44dbe5617542506a35d2c5a18d2f1c32bd8f015d44253a5dd2ad6170ab6223",
+    "status": "PASS"
+  },
+  "wave": null
+}
