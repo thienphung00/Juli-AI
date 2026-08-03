@@ -456,7 +456,18 @@ async def test_batch_reconcile_orchestrator_defers_on_postgres_io_throttled(
     assert current_gold.computed_at == prior_computed_at, "Gold computed_at must be unchanged"
     assert current_gold.envelope_version == prior_version, "Gold version must be unchanged"
 
-    # Note: partition completion is tracked separately — the bronze stage marks
-    # completion as soon as all pages are fetched, before the postgres I/O defer check.
-    # This is the current production behavior. The critical requirement is that
-    # the prior gold envelope remains unchanged, which is verified above.
+    # Assert: partition IS marked complete (bronze fetch finished before postgres_io defer).
+    # Unlike partner_budget or speed_mutex defers, postgres_io_throttled defers AFTER all
+    # pages have been fetched and bronze is durable. On resume, partition.is_complete() will
+    # skip re-fetching but proceed to retry silver/gold promotion. This is correct behavior:
+    # partition completion means "no need to re-fetch from Partner," not "entire pipeline done."
+    stmt_partition = select(AnalyticsBackfillPartition).where(
+        AnalyticsBackfillPartition.shop_id == shop_id,
+        AnalyticsBackfillPartition.bucket == "catalog",
+        AnalyticsBackfillPartition.partition_date == partition_date,
+    )
+    partition = (await session.execute(stmt_partition)).scalar_one_or_none()
+    assert partition is not None, "Partition should be created after bronze fetch"
+    assert partition.status == "complete", (
+        "Partition should be marked complete after all pages fetched"
+    )
