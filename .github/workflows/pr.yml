@@ -93,11 +93,37 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # CI-WAVE-3 (#661): resolve the push before->after diff range for a
+      # wave-tier push, so the changes job can stop forcing every domain
+      # true on push. A zero/missing before SHA (new branch) or an
+      # unresolvable one (force-push whose prior tip this checkout can't
+      # see) cannot be diffed safely, so it takes the documented bounded
+      # fallback below: run every domain for that one push, same as the
+      # pre-CI-WAVE-3 all-true behavior. That fallback is slower, never
+      # less safe, and never skips gitleaks or status-check's tier-aware
+      # classification (both stay unconditional on domain outputs).
+      - name: Resolve wave-push diff range
+        id: wave-range
+        if: needs.classify-tier.outputs.tier == 'wave'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          zero_sha="0000000000000000000000000000000000000000"
+          if [[ -z "${BEFORE_SHA:-}" || "$BEFORE_SHA" == "$zero_sha" ]]; then
+            echo "wave-push: before SHA is zero/missing (new or force-pushed branch); using bounded all-domain fallback."
+            echo "fallback=true" >> "$GITHUB_OUTPUT"
+          elif ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            echo "wave-push: before SHA $BEFORE_SHA is unresolvable in this checkout; using bounded all-domain fallback."
+            echo "fallback=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fallback=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: dorny/paths-filter@v4
         if: needs.classify-tier.outputs.tier == 'issue'
         id: filter
         with:
-          filters: |
+          filters: &domain-path-filters |
             backend:
               - 'backend/**'
               - 'tests/**'
@@ -125,14 +151,43 @@ jobs:
             agent:
               - 'agent-runtime/**'
               - '.cursor/**'
+      # Wave-tier push: diff the landed commit range (before->after) with
+      # the same domain filter definitions used at issue tier, instead of
+      # forcing every domain true. Skipped when the before SHA can't be
+      # resolved (see the documented fallback above).
+      - uses: dorny/paths-filter@v4
+        if: >-
+          needs.classify-tier.outputs.tier == 'wave'
+          && steps.wave-range.outputs.fallback == 'false'
+        id: filter-wave
+        with:
+          base: ${{ github.event.before }}
+          ref: ${{ github.event.after }}
+          filters: *domain-path-filters
       - name: Set path-filter outputs
         id: set-outputs
+        env:
+          TIER: ${{ needs.classify-tier.outputs.tier }}
+          WAVE_FALLBACK: ${{ steps.wave-range.outputs.fallback }}
         run: |
           {
-            if [[ "${{ needs.classify-tier.outputs.tier }}" != "issue" ]]; then
+            if [[ "$TIER" == "main" ]]; then
+              # Wave->main remains the full, path-aware checkpoint (#658):
+              # every domain runs regardless of what the wave push touched.
               for key in backend migrations dashboard demo agent; do
                 echo "${key}=true"
               done
+            elif [[ "$TIER" == "wave" && "$WAVE_FALLBACK" == "true" ]]; then
+              # Documented bounded fallback: unresolvable before SHA.
+              for key in backend migrations dashboard demo agent; do
+                echo "${key}=true"
+              done
+            elif [[ "$TIER" == "wave" ]]; then
+              echo "backend=${{ steps.filter-wave.outputs.backend }}"
+              echo "migrations=${{ steps.filter-wave.outputs.migrations }}"
+              echo "dashboard=${{ steps.filter-wave.outputs.dashboard }}"
+              echo "demo=${{ steps.filter-wave.outputs.demo }}"
+              echo "agent=${{ steps.filter-wave.outputs.agent }}"
             else
               echo "backend=${{ steps.filter.outputs.backend }}"
               echo "migrations=${{ steps.filter.outputs.migrations }}"
@@ -585,10 +640,18 @@ jobs:
 
   dependency-validation:
     runs-on: ubuntu-latest
-    needs: classify-tier
+    needs: [classify-tier, changes]
+    # CI-WAVE-3 (#661): main tier stays the full checkpoint (always runs);
+    # wave-tier pushes are domain-matched like integration/architecture/
+    # cross-module — only when the push range touched a dependency-graph
+    # domain (backend/dashboard/demo), so agent/docs-only wave pushes stay
+    # cheap. status-check allows this job to be "skipped" on wave tier.
     if: >-
-      needs.classify-tier.outputs.tier == 'wave'
-      || needs.classify-tier.outputs.tier == 'main'
+      needs.classify-tier.outputs.tier == 'main'
+      || (needs.classify-tier.outputs.tier == 'wave'
+          && (needs.changes.outputs.backend == 'true'
+              || needs.changes.outputs.dashboard == 'true'
+              || needs.changes.outputs.demo == 'true'))
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -859,7 +922,7 @@ jobs:
             require "policy-checks" "$policy" "false"
           elif [[ "$tier" == "wave" ]]; then
             require "integration-tests" "$integration" "true"
-            require "dependency-validation" "$deps" "false"
+            require "dependency-validation" "$deps" "true"
             require "cross-module-contracts" "$contracts" "true"
             require "architecture-gates" "$arch" "true"
           elif [[ "$tier" == "main" ]]; then

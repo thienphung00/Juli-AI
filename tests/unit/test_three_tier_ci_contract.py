@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 CI_DIR = ROOT / "agent-runtime" / "scripts" / "ci"
@@ -16,9 +20,29 @@ PR_WORKFLOW = ROOT / ".github" / "workflows" / "pr.yml"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 EVIDENCE_PLAN = ROOT / "docs" / "handoffs" / "ci-three-tier-release-evidence-plan.json"
 
+ZERO_SHA = "0" * 40
+
 
 def _workflow() -> str:
     return PR_WORKFLOW.read_text(encoding="utf-8")
+
+
+def _job_block(workflow: str, job_header: str) -> str:
+    """Return the body of a top-level job, from its header to the next
+    top-level (2-space indented) key."""
+    return workflow.split(f"\n  {job_header}", 1)[1].split("\n\n  ", 1)[0]
+
+
+def _changes_step_run(step_name: str) -> str:
+    """Extract the `run:` script of a named step inside the `changes` job,
+    by parsing pr.yml as YAML (not text-splitting), so the extracted bash
+    can actually be executed to verify behavior."""
+    workflow = yaml.safe_load(_workflow())
+    changes_job = workflow["jobs"]["changes"]
+    for step in changes_job["steps"]:
+        if step.get("name") == step_name:
+            return step["run"]
+    raise AssertionError(f"step {step_name!r} not found in changes job")
 
 
 def test_workflow_triggers_issue_wave_and_main_tiers() -> None:
@@ -204,3 +228,175 @@ def test_release_evidence_plan_is_complete() -> None:
     result = validate_release_evidence_plan(plan)
 
     assert result["valid"] is True, result
+
+
+# --- CI-WAVE-3 (#661): domain-matched wave-push checks -------------------
+#
+# Wave-tier pushes must diff github.event.before -> github.event.after
+# instead of forcing every `changes` job domain output true, while
+# main-tier (wave->main, merge_group) stays the full, path-aware checkpoint.
+
+
+def test_changes_job_no_longer_force_true_for_every_non_issue_tier() -> None:
+    """The old #660 branch ('anything but issue tier' -> force every domain
+    true) must be narrowed: only main tier (and the documented wave-push
+    before-SHA fallback) may force every domain true. Wave tier gets its own
+    real path-filter run."""
+    workflow = _workflow()
+    changes_job = _job_block(workflow, "changes:")
+
+    set_outputs_block = changes_job.split("Set path-filter outputs", 1)[1]
+    assert '!= "issue"' not in set_outputs_block
+    assert '== "main"' in set_outputs_block or "== 'main'" in set_outputs_block
+
+
+def test_wave_push_backend_domain_diffs_before_after_sha() -> None:
+    """AC: on push to feature/*-wave, path filtering uses github.event.before
+    and github.event.after — a backend-only push must resolve backend
+    domain-gated jobs from a real diff, not a forced true."""
+    workflow = _workflow()
+    changes_job = _job_block(workflow, "changes:")
+
+    assert "github.event.before" in changes_job
+    assert "github.event.after" in changes_job
+    # A dedicated wave-tier paths-filter run must exist, gated on tier ==
+    # 'wave', and reuse the same domain filter definitions as issue tier
+    # (backend/** etc.) so backend-only wave pushes match backend=true.
+    assert "id: filter-wave" in changes_job
+    filter_wave_block = changes_job.split("id: filter-wave", 1)[1]
+    assert "backend" in filter_wave_block
+    assert "'backend/**'" in changes_job  # shared filters definition
+
+    integration_block = _job_block(workflow, "integration-tests:")
+    assert "needs.changes.outputs.backend == 'true'" in integration_block
+    architecture_block = _job_block(workflow, "architecture-gates:")
+    assert "needs.changes.outputs.backend == 'true'" in architecture_block
+    cross_module_block = _job_block(workflow, "cross-module-contracts:")
+    assert "needs.changes.outputs.backend == 'true'" in cross_module_block
+
+
+def test_wave_push_frontend_demo_domain_uses_real_filter_not_forced_true() -> None:
+    """AC: a frontend/demo-only wave push must not force backend integration/
+    architecture jobs to run — the dashboard/demo filter categories must be
+    reachable from the wave-tier filter run."""
+    workflow = _workflow()
+    changes_job = _job_block(workflow, "changes:")
+
+    assert "'apps/dashboard/**'" in changes_job
+    assert "'apps/demo/**'" in changes_job
+
+    frontend_block = _job_block(workflow, "frontend:")
+    assert "needs.changes.outputs.dashboard == 'true'" in frontend_block
+    demo_block = _job_block(workflow, "demo-frontend:")
+    assert "needs.changes.outputs.demo == 'true'" in demo_block
+
+
+def test_wave_push_agent_docs_only_stays_cheap_without_bypassing_gitleaks() -> None:
+    """AC: agent/docs-only wave pushes stay cheap (agent domain only, no
+    backend/dashboard/demo jobs) without bypassing gitleaks or tier-aware
+    status classification, which both stay unconditional."""
+    workflow = _workflow()
+    changes_job = _job_block(workflow, "changes:")
+
+    assert "'agent-runtime/**'" in changes_job
+    assert "'.cursor/**'" in changes_job
+
+    gitleaks_job = _job_block(workflow, "gitleaks:")
+    assert "needs.classify-tier" not in gitleaks_job
+    assert "if:" not in gitleaks_job
+
+    status_job = workflow.split("status-check:", 1)[1]
+    assert 'require "gitleaks" "$gitleaks" "false"' in status_job
+    wave_block = status_job.split('"$tier" == "wave"', 1)[1]
+    assert 'require "integration-tests"' in wave_block
+
+
+def test_wave_push_before_sha_edge_fails_safe_with_documented_fallback() -> None:
+    """AC: a zero/missing/unresolvable before SHA (new or force-pushed wave
+    branch) must not silently skip everything — it must take a documented
+    bounded fallback (running every domain) rather than emit all-false."""
+    workflow = _workflow()
+    changes_job = _job_block(workflow, "changes:")
+
+    assert ZERO_SHA in changes_job
+    assert "fallback" in changes_job.lower()
+    # The fallback direction must be to run everything, not skip everything.
+    fallback_context = changes_job.lower()
+    assert "all-domain fallback" in fallback_context or "run every domain" in fallback_context
+
+
+def test_wave_push_before_sha_resolution_script_behaves_correctly() -> None:
+    """Execute the actual 'Resolve wave-push diff range' bash step extracted
+    from pr.yml (not a re-implementation) against real git repos to verify
+    the fallback=true/false decision for each before-SHA edge case."""
+    script = _changes_step_run("Resolve wave-push diff range")
+
+    def run_with_before_sha(repo: Path, before_sha: str) -> str:
+        result = subprocess.run(
+            ["bash", "-c", script],
+            cwd=repo,
+            env={
+                "BEFORE_SHA": before_sha,
+                "GITHUB_OUTPUT": str(repo / "github_output.txt"),
+                "PATH": "/usr/bin:/bin:/usr/local/bin",
+            },
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        return (repo / "github_output.txt").read_text(encoding="utf-8")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.email", "ci@example.com"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.name", "ci"], cwd=repo, check=True)
+        (repo / "f.txt").write_text("1", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)
+        good_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+        assert "fallback=true" in run_with_before_sha(repo, ZERO_SHA)
+        assert "fallback=true" in run_with_before_sha(repo, "")
+        assert "fallback=true" in run_with_before_sha(repo, "f" * 40)
+        assert "fallback=false" in run_with_before_sha(repo, good_sha)
+
+
+def test_dependency_validation_is_domain_matched_on_wave_tier_not_main() -> None:
+    """AC2 names dependency-validation among the jobs that must run only for
+    affected domains on wave-tier pushes (docs/agent-only pushes stay
+    cheap), while main tier stays the full, unconditional checkpoint (#658).
+    status-check must allow "skipped" for dependency-validation at wave
+    tier (it is domain-gated there) but still require "success" at main
+    tier (never skippable)."""
+    workflow = _workflow()
+    dep_block = _job_block(workflow, "dependency-validation:")
+
+    assert "needs.changes.outputs.backend == 'true'" in dep_block
+    assert "needs.changes.outputs.dashboard == 'true'" in dep_block
+    assert "needs.changes.outputs.demo == 'true'" in dep_block
+    assert "needs.classify-tier.outputs.tier == 'main'" in dep_block
+
+    status_job = workflow.split("status-check:", 1)[1]
+    wave_block = status_job.split('"$tier" == "wave"', 1)[1].split('"$tier" == "main"', 1)[0]
+    assert 'require "dependency-validation" "$deps" "true"' in wave_block
+    main_block = status_job.split('"$tier" == "main"', 1)[1]
+    assert 'require "dependency-validation" "$deps" "false"' in main_block
+
+
+def test_main_tier_wave_to_main_checkpoint_unchanged() -> None:
+    """AC: wave->main remains the full, path-aware checkpoint — main tier
+    (pull_request into main/staging, and merge_group) still forces every
+    domain true, untouched by wave-push domain matching."""
+    workflow = _workflow()
+    changes_job = _job_block(workflow, "changes:")
+    set_outputs_block = changes_job.split("Set path-filter outputs", 1)[1]
+
+    assert ('"$TIER" == "main"' in set_outputs_block) or ("== 'main'" in set_outputs_block)
+
+    # merge_group Partner-policy job is untouched by this slice.
+    assert "merge_group" in workflow
+    live_sandbox_block = _job_block(workflow, "test-live-sandbox:")
+    assert "github.event_name == 'merge_group'" in live_sandbox_block
