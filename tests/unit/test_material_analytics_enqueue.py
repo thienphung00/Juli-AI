@@ -17,6 +17,7 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.models.models import Shop, User
+from juli_backend.services.cdp_speed.enqueue_reason import webhook_catalog_enqueue_reason
 from juli_backend.services.etl.consumer import ProcessOutcome
 from juli_backend.services.tiktok.webhook_catalog import (
     COALESCE_68_SECONDS,
@@ -122,7 +123,11 @@ class TestMaterialEnqueueAfterHandoff:
         payload = _event_payload("ORDER_STATUS_CHANGE")
         await handoff("tiktok.order_status_change", "tiktok_shop_532", payload)
 
-        dispatcher.enqueue.assert_called_once_with("tiktok_shop_532")
+        dispatcher.enqueue.assert_called_once_with(
+            "tiktok_shop_532",
+            event_type="ORDER_STATUS_CHANGE",
+            enqueue_reason=webhook_catalog_enqueue_reason(1),
+        )
 
     @pytest.mark.asyncio
     async def test_material_handoff_skips_on_duplicate(self, monkeypatch):
@@ -247,30 +252,33 @@ async def shop(session):
 
 class TestMaterialWorkerPipeline:
     @pytest.mark.asyncio
-    async def test_ac2_worker_runs_fetch_hook_then_precompute(self, session, shop, monkeypatch):
+    async def test_ac2_worker_runs_shared_compute_hook(self, session, shop, monkeypatch):
+        from juli_backend.services.cdp_speed.shared_compute_orchestrator import SharedComputeResult
         from juli_backend.services.webhook import material_worker
 
-        fetch_calls: list[uuid.UUID] = []
-        precompute_calls: list[uuid.UUID] = []
+        compute_calls: list[str] = []
 
-        async def fake_fetch(sess, shop_id: uuid.UUID) -> None:
-            fetch_calls.append(shop_id)
-
-        async def fake_precompute(sess, shop_id, *, computed_at=None, redis_client=None):
-            precompute_calls.append(shop_id)
-            return MagicMock()
-
-        monkeypatch.setattr(material_worker, "precompute_shop_analytics_kpis", fake_precompute)
+        async def fake_compute(sess, job):
+            compute_calls.append(job.shop_key)
+            return SharedComputeResult(
+                bronze_appended=1,
+                silver_promoted=1,
+                gold_written=True,
+            )
 
         gate = InMemoryMaterialEnqueueGate()
         gate.try_acquire(shop.tiktok_shop_id, INVENTORY_CHANGED_CATALOG_ID)
 
-        await material_worker.run_material_analytics_compute(
+        result = await material_worker.run_material_analytics_compute(
             session,
             shop_key=shop.tiktok_shop_id,
+            event_type="INVENTORY_CHANGED",
+            enqueue_reason=webhook_catalog_enqueue_reason(INVENTORY_CHANGED_CATALOG_ID),
+            idempotency_key="unit-test-worker-627",
             gate=gate,
-            fetch_hook=fake_fetch,
+            compute_hook=fake_compute,
         )
 
-        assert fetch_calls == [shop.id]
-        assert precompute_calls == [shop.id]
+        assert compute_calls == [shop.tiktok_shop_id]
+        assert result is not None
+        assert result.gold_written is True

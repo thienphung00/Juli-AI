@@ -1,0 +1,395 @@
+{
+  "issueId": 627,
+  "halt": false,
+  "readyForExecutor": true,
+  "cacheStatus": "valid",
+  "ensure": {
+    "issueId": 627,
+    "parentIssueId": 601,
+    "sliceId": "CDP-A1-3",
+    "handoffPath": "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+    "executorDomain": "backend",
+    "cacheStatus": "valid",
+    "parentCachePath": "agent-runtime/artifacts/workflow-cache/parent-cache-issue-601.json",
+    "childCachePath": "agent-runtime/artifacts/workflow-cache/issue-context-cache-627.json",
+    "parentCreatedOrRefreshed": false,
+    "childCreatedOrRefreshed": false,
+    "readyForExecutor": true
+  },
+  "gates": [
+    {
+      "gate": "workflow_cache_staleness",
+      "passed": true,
+      "description": "Parent and child workflow caches match live upstream fingerprints",
+      "details": {
+        "issueId": 627,
+        "parentIssueId": 601,
+        "sliceId": "CDP-A1-3",
+        "parentStale": false,
+        "childStale": false,
+        "parentMismatches": [],
+        "childMismatches": [],
+        "liveParentFingerprints": [
+          {
+            "path": "GitHub issue #601",
+            "fingerprint": "54d9eb7f0f713cbf"
+          },
+          {
+            "path": "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+            "fingerprint": "069ffe46828ec973f2feb7a0e19b25f82f42e646"
+          },
+          {
+            "path": "EXECUTION.md",
+            "fingerprint": "7d2bc8e9dd63281912095570903f685050fdf7cb"
+          }
+        ],
+        "liveChildFingerprints": [
+          {
+            "path": "GitHub issue #627",
+            "fingerprint": "50b7d6dd381eb099"
+          },
+          {
+            "path": "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-627.md",
+            "fingerprint": "35204d52f14b740a075187ec95b8889f9f6dd45e"
+          }
+        ]
+      }
+    },
+    {
+      "gate": "scope_precedence",
+      "passed": true,
+      "description": "Cached authorityChain matches live upstream sources",
+      "details": {
+        "issueId": 627,
+        "parentIssueId": 601,
+        "sliceId": "CDP-A1-3",
+        "expectedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CDP-A1-3",
+            "sliceId": "CDP-A1-3"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-601",
+            "reason": "Epic constant",
+            "sliceId": null
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #627",
+            "reason": "Child acceptance criteria",
+            "sliceId": null
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+            "reason": "Epic handoff",
+            "sliceId": null
+          }
+        ],
+        "cachedAuthorityChain": [
+          {
+            "rank": 1,
+            "source": "EXECUTION.md",
+            "reason": "Phase/slice law \u2014 CDP-A1-3"
+          },
+          {
+            "rank": 2,
+            "source": "parent-cache-issue-601",
+            "reason": "Epic constant"
+          },
+          {
+            "rank": 3,
+            "source": "GitHub issue #627",
+            "reason": "Child acceptance criteria"
+          },
+          {
+            "rank": 4,
+            "source": "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+            "reason": "Epic handoff"
+          }
+        ],
+        "conflicts": [],
+        "halt": false,
+        "cacheStatus": "valid",
+        "resolution": "",
+        "conflictingRank": null
+      }
+    },
+    {
+      "gate": "harness_bootstrap_pinned",
+      "passed": true,
+      "description": "Bootstrap pinned to a1c00e34ed8e on HEAD; 1 harnessUtility skill path(s) verified",
+      "details": {
+        "bootstrapRef": {
+          "branch": "HEAD",
+          "commitSha": "a1c00e34ed8eb9b0c18c0332133664182e3bbcd3",
+          "copiedAt": "2026-07-31T05:20:00Z"
+        },
+        "harnessSkillPaths": [
+          ".cursor/skills/domain/backend/SKILL.md"
+        ],
+        "branchHeadSha": "a1c00e34ed8eb9b0c18c0332133664182e3bbcd3",
+        "pinnedCommitSha": "a1c00e34ed8eb9b0c18c0332133664182e3bbcd3",
+        "bootstrapSkillIndex": [
+          ".cursor/skills/domain/backend/SKILL.md",
+          ".cursor/skills/domain/data-platform/SKILL.md",
+          ".cursor/skills/domain/integrations/SKILL.md",
+          ".cursor/skills/domain/machine-learning/SKILL.md",
+          ".cursor/skills/domain/ui-ux/SKILL.md",
+          ".cursor/skills/skill-catalog/SKILL.md",
+          ".cursor/skills/standalone/api-docs/SKILL.md",
+          ".cursor/skills/standalone/codebase-design/SKILL.md",
+          ".cursor/skills/standalone/diagnose/SKILL.md",
+          ".cursor/skills/standalone/domain-modeling/SKILL.md",
+          ".cursor/skills/standalone/extract-design-md/SKILL.md",
+          ".cursor/skills/standalone/focus/SKILL.md",
+          ".cursor/skills/standalone/grill-with-docs/SKILL.md",
+          ".cursor/skills/standalone/guardrails/SKILL.md",
+          ".cursor/skills/standalone/handoff/SKILL.md",
+          ".cursor/skills/standalone/improve-codebase-architecture/SKILL.md",
+          ".cursor/skills/standalone/intent-review/SKILL.md",
+          ".cursor/skills/standalone/open-design-system/SKILL.md",
+          ".cursor/skills/standalone/platform-docs/SKILL.md",
+          ".cursor/skills/standalone/prompt-caching/SKILL.md",
+          ".cursor/skills/standalone/qa/SKILL.md",
+          ".cursor/skills/standalone/restructure/SKILL.md",
+          ".cursor/skills/standalone/screenshot-annotate/SKILL.md",
+          ".cursor/skills/standalone/ship/SKILL.md",
+          ".cursor/skills/standalone/to-issues/SKILL.md",
+          ".cursor/skills/standalone/to-prd/SKILL.md",
+          ".cursor/skills/standalone/ui-bug/SKILL.md",
+          ".cursor/skills/standalone/ui-ux-design/SKILL.md",
+          ".cursor/skills/standalone/validate/SKILL.md",
+          ".cursor/skills/write-a-skill/SKILL.md"
+        ],
+        "bootstrapSkillIndexSha": "a1c00e34ed8eb9b0c18c0332133664182e3bbcd3"
+      }
+    },
+    {
+      "gate": "issue_load_profile",
+      "passed": true,
+      "description": "Cached issueLoadProfile matches derived Focus slice profile",
+      "details": {
+        "issueId": 627,
+        "parentIssueId": 601,
+        "sliceId": "CDP-A1-3",
+        "derivedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+            "docs/adr/046-cdp-medallion-physical-model.md",
+            "docs/adr/047-cdp-lambda-layers-prd-split.md",
+            "docs/adr/048-cdp-webhook-first-spine-dual-credential.md",
+            "CONTEXT.md",
+            "docs/architecture/data-sources.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+            "backend/src/juli_backend/services/cdp_speed/__init__.py",
+            "backend/src/juli_backend/services/cdp_speed/targeted_fetch_planner.py",
+            "backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py",
+            "backend/src/juli_backend/services/etl/silver_promotion.py",
+            "backend/src/juli_backend/services/gold_kpi_envelope_serving.py",
+            "backend/src/juli_backend/services/webhook/material_handoff.py",
+            "tests/unit/test_cdp_speed_shared_compute_orchestrator.py"
+          ],
+          "acceptanceCriteria": [
+            "Unit test: orchestrator runs bronze\u2192silver\u2192gold stage order for one shop-scoped job (fixtures; no live Partner).",
+            "Integration test: material enqueue (#625) \u2192 orchestrator completes silver promotion for at least orders domain.",
+            "Structured logs include enqueue_reason, fetch plan size \u2014 no tokens/PII.",
+            "Does **not** import or delegate to run_fujiwa_poll_cycle / full poll stack on material triggers.",
+            "Does **not** wire A2 Batch I/O budget / fleet defer modules."
+          ],
+          "loadWhenNeeded": [
+            "backend/src/juli_backend/repositories/repos.py",
+            "backend/src/juli_backend/services/webhook/material_worker.py",
+            "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+            "tests/integration/test_material_deployed_webhook_handoff.py",
+            "docs/architecture/map.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            ".cursor/skills/domain/testing-patterns/python-patterns.md"
+          ],
+          "doNotLoad": [
+            "docs/handoffs/archive/",
+            "docs/product/features/",
+            "docs/product/design/",
+            "apps/demo/",
+            "apps/landing/",
+            "web/",
+            "ios/",
+            "docs/integrations/tiktok_corpora/",
+            "Sibling issue context caches",
+            "backend/src/juli_backend/services/cdp_batch/"
+          ]
+        },
+        "cachedProfile": {
+          "executorDomain": "backend",
+          "requiredDocs": [
+            "EXECUTION.md",
+            "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+            "docs/adr/046-cdp-medallion-physical-model.md",
+            "docs/adr/047-cdp-lambda-layers-prd-split.md",
+            "docs/adr/048-cdp-webhook-first-spine-dual-credential.md",
+            "CONTEXT.md",
+            "docs/architecture/data-sources.md"
+          ],
+          "requiredModules": [
+            "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+            "backend/src/juli_backend/services/cdp_speed/__init__.py",
+            "backend/src/juli_backend/services/cdp_speed/targeted_fetch_planner.py",
+            "backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py",
+            "backend/src/juli_backend/services/etl/silver_promotion.py",
+            "backend/src/juli_backend/services/gold_kpi_envelope_serving.py",
+            "backend/src/juli_backend/services/webhook/material_handoff.py",
+            "tests/unit/test_cdp_speed_shared_compute_orchestrator.py"
+          ],
+          "acceptanceCriteria": [
+            "Unit test: orchestrator runs bronze\u2192silver\u2192gold stage order for one shop-scoped job (fixtures; no live Partner).",
+            "Integration test: material enqueue (#625) \u2192 orchestrator completes silver promotion for at least orders domain.",
+            "Structured logs include enqueue_reason, fetch plan size \u2014 no tokens/PII.",
+            "Does **not** import or delegate to run_fujiwa_poll_cycle / full poll stack on material triggers.",
+            "Does **not** wire A2 Batch I/O budget / fleet defer modules."
+          ],
+          "loadWhenNeeded": [
+            "backend/src/juli_backend/repositories/repos.py",
+            "backend/src/juli_backend/services/webhook/material_worker.py",
+            "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+            "tests/integration/test_material_deployed_webhook_handoff.py",
+            "docs/architecture/map.md",
+            ".cursor/skills/domain/testing-patterns/python-testing.md",
+            ".cursor/skills/domain/testing-patterns/python-patterns.md"
+          ]
+        },
+        "problems": []
+      }
+    },
+    {
+      "gate": "public_release_classification",
+      "passed": true,
+      "description": "publicRelease=False matches live classifier (0 reason(s))",
+      "details": {
+        "issueId": 627,
+        "parentIssueId": 601,
+        "live": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "cached": {
+          "publicRelease": false,
+          "publicReleaseReasons": []
+        },
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "resolution": "Re-run python agent-runtime/scripts/meta_prepare_executor.py --issue 627 so ensure persists publicRelease classification"
+      }
+    },
+    {
+      "gate": "public_release_evidence_plan",
+      "passed": true,
+      "description": "publicRelease=false \u2014 releaseEvidencePlan not required",
+      "details": {
+        "issueId": 627,
+        "parentIssueId": 601,
+        "publicRelease": false,
+        "planSource": null,
+        "authority": [
+          "docs/adr/035-public-release-evidence-and-automatic-rollback.md",
+          ".cursor/rules/core-orchestration.mdc"
+        ],
+        "skipped": true
+      }
+    }
+  ],
+  "requireValidCacheBeforeExecutor": true,
+  "injectionPlan": {
+    "parentScopeBlock": "# Parent #601 \u2014 Phase 3.5-A1 CDP Speed layer (constant)\\\n## Product boundary\\\n- Single-shop event-driven freshness (OLTP Speed); material webhook \u2192 ETL \u2192 targeted fetch \u2192 Shared Compute \u2192 gold.kpi_envelopes\\\n- Orthogonal to A2 Batch; does not add fleet defer/I/O governors beyond #68 15-min coalesce\\\n## Architect locks\\\n- Material catalog IDs: #1 #2 #5 #12 #27 #39 #67 #68(+15m coalesce)\\\n- Five payload.kpis keys: gmv_tiktok aov ctor live_hours cancellation_rate\\\n- Forbidden on material path: _FUJIWA_POLL_STEPS / full run_fujiwa_poll_cycle / unbounded sync_analytics\\\n## Slices (wave 1 \u2014 Meta A1 track)\\\n- CDP-A1-1 material handoff enqueue (#625) \u00b7 CDP-A1-2 Targeted Fetch Planner (#626) \u00b7 CDP-A1-3 Shared Compute Orchestrator (#627)\\\n## Epic deferrals\\\n- A2 Batch (#602) \u00b7 Decisions (#599) \u00b7 Demo UI (#600)\\\n",
+    "doNotLoad": [
+      "docs/handoffs/archive/",
+      "docs/product/features/",
+      "docs/product/design/",
+      "apps/landing/",
+      "web/",
+      "ios/",
+      "docs/integrations/tiktok_corpora/",
+      "Sibling issue context caches",
+      "backend/src/juli_backend/services/cdp_batch/",
+      "apps/demo/"
+    ],
+    "harnessUtility": {
+      "skills": [
+        {
+          "path": ".cursor/skills/domain/backend/SKILL.md",
+          "purpose": "Primary backend Executor TDD"
+        }
+      ],
+      "rulesTier2": [
+        ".cursor/rules/code-quality.mdc",
+        ".cursor/rules/reliability.mdc"
+      ],
+      "mcps": [],
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Shell",
+        "StrReplace"
+      ]
+    },
+    "issueLoadProfile": {
+      "executorDomain": "backend",
+      "requiredDocs": [
+        "EXECUTION.md",
+        "docs/handoffs/phase-3.5-prd-bodies/a1-speed.md",
+        "docs/adr/046-cdp-medallion-physical-model.md",
+        "docs/adr/047-cdp-lambda-layers-prd-split.md",
+        "docs/adr/048-cdp-webhook-first-spine-dual-credential.md",
+        "CONTEXT.md",
+        "docs/architecture/data-sources.md"
+      ],
+      "requiredModules": [
+        "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+        "backend/src/juli_backend/services/cdp_speed/__init__.py",
+        "backend/src/juli_backend/services/cdp_speed/targeted_fetch_planner.py",
+        "backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py",
+        "backend/src/juli_backend/services/etl/silver_promotion.py",
+        "backend/src/juli_backend/services/gold_kpi_envelope_serving.py",
+        "backend/src/juli_backend/services/webhook/material_handoff.py",
+        "tests/unit/test_cdp_speed_shared_compute_orchestrator.py"
+      ],
+      "acceptanceCriteria": [
+        "Unit test: orchestrator runs bronze\u2192silver\u2192gold stage order for one shop-scoped job (fixtures; no live Partner).",
+        "Integration test: material enqueue (#625) \u2192 orchestrator completes silver promotion for at least orders domain.",
+        "Structured logs include enqueue_reason, fetch plan size \u2014 no tokens/PII.",
+        "Does **not** import or delegate to run_fujiwa_poll_cycle / full poll stack on material triggers.",
+        "Does **not** wire A2 Batch I/O budget / fleet defer modules."
+      ],
+      "loadWhenNeeded": [
+        "backend/src/juli_backend/repositories/repos.py",
+        "backend/src/juli_backend/services/webhook/material_worker.py",
+        "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+        "tests/integration/test_material_deployed_webhook_handoff.py",
+        "docs/architecture/map.md",
+        ".cursor/skills/domain/testing-patterns/python-testing.md",
+        ".cursor/skills/domain/testing-patterns/python-patterns.md"
+      ]
+    },
+    "phaseCacheBlocks.meta": "# Meta \u2014 Issue #627\n\n- sliceId: CDP-A1-3\n- executorDomain: backend (single primary)\n- Ensure: workflow cache auto-bootstrapped; Executor blocked until valid.\n- Skills: primary domain only; Review/Validate skills load in their phases.\n",
+    "promptCacheBlock": "# Issue #627 \u2014 CDP-A1-3\n\n## Parent\n#601\n\n## Executor domain\nbackend\n\n## Required docs\n- EXECUTION.md\n- docs/handoffs/phase-3.5-prd-bodies/a1-speed.md\n- docs/adr/046-cdp-medallion-physical-model.md\n- docs/adr/047-cdp-lambda-layers-prd-split.md\n- docs/adr/048-cdp-webhook-first-spine-dual-credential.md\n- CONTEXT.md\n- docs/architecture/data-sources.md\n",
+    "executorDomain": "backend",
+    "skillsPrimaryOnly": true,
+    "publicRelease": false,
+    "tddContract": {
+      "required": true,
+      "minRedGreenCycles": 1,
+      "requireTestsAddedOrUpdated": true,
+      "requirePassingCommandEvidence": true
+    }
+  },
+  "executorDomain": "backend"
+}
