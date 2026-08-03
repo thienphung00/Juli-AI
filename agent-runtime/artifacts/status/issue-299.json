@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 299,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/010_canonical_product_fields.py",
+      "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/services/etl/consumer.py",
+      "backend/src/juli_backend/services/etl/transform.py",
+      "tests/unit/test_etl.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-299.json",
+    "sha256": "5ac6029ffb661379ed390a5f537d77bfef668b01852303d3a9d056a4d729f34f",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-11T02:20:40Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-299.json",
+    "sha256": "14807fa8b94ce2324b7b517689dceb416739af1b9103b8b642bb90f5e903c5b0",
+    "status": "PASS"
+  },
+  "wave": null
+}

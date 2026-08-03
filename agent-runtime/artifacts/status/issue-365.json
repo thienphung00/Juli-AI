@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 365,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/integration/test_migrations.py",
+      "tests/integration/test_migrations_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-365.json",
+    "sha256": "67f5649638802e7e004f8e1e4a05e0e36bfc8b4c9635ba8475cfeb4268c6bb89",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-12T03:44:23Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-365.json",
+    "sha256": "0c219da9e3f63e2c85fdce4acc54db99ea76519701f07e0cfe983cd5029996c9",
+    "status": "PASS"
+  },
+  "wave": null
+}

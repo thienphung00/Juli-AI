@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juli.ai/schemas/agent-runtime/status-record.schema.json",
+  "title": "Per-Issue Status Record",
+  "description": "Compact committed record at agent-runtime/artifacts/status/issue-<N>.json (#670 P1 Option A). Replaces in-tree verbose review/validation bodies as the wave->main artifact-gate read path; verbose bodies move to CI artifact retention with sha256 integrity references recorded here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["issue", "review", "validation", "gateVersion"],
+  "properties": {
+    "issue": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "wave": {
+      "type": ["string", "null"],
+      "description": "waveId this issue was merged under, when known (e.g. 'wave-658'); null when not yet assigned or unknown at migration time."
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "artifactRef", "sha256"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "PASS_WITH_WARNINGS", "FAIL"]
+        },
+        "artifactRef": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Locator for the verbose review body: a CI run artifact URL fragment (post-migration) or a git-history reference (migrated records)."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "artifactRef", "sha256"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "FAIL"]
+        },
+        "artifactRef": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Locator for the verbose validation body: a CI run artifact URL fragment (post-migration) or a git-history reference (migrated records)."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceTotal": { "type": "integer", "minimum": 0 },
+        "acceptanceMapped": { "type": "integer", "minimum": 0 },
+        "criticalFindings": { "type": "integer", "minimum": 0 },
+        "modulesTouched": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "gateVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Status-record schema/gate-semantics version; bump when the read-path contract changes."
+    }
+  }
+}

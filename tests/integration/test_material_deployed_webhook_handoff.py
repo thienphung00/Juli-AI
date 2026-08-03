@@ -19,6 +19,7 @@ import pytest_asyncio
 from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import OrdersRepo, WorkflowWebhookSignalsRepo
+from juli_backend.services.cdp_speed.enqueue_reason import webhook_catalog_enqueue_reason
 from juli_backend.services.webhook.app import WEBHOOK_PATH
 from juli_backend.services.webhook.deployed import handle_tiktok_webhook_delivery
 from juli_backend.services.webhook.material_gate import InMemoryMaterialEnqueueGate
@@ -116,4 +117,8 @@ class TestDeployedMaterialWebhookHandoff:
         assert signals[0].catalog_id == 1
         assert signals[0].event_type == "ORDER_STATUS_CHANGE"
 
-        dispatcher.enqueue.assert_called_once_with(PRODUCTION_AUTH_ID)
+        dispatcher.enqueue.assert_called_once_with(
+            PRODUCTION_AUTH_ID,
+            event_type="ORDER_STATUS_CHANGE",
+            enqueue_reason=webhook_catalog_enqueue_reason(1),
+        )

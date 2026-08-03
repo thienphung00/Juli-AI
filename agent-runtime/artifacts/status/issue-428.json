@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 428,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 6,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/scoring/signals.py",
+      "backend/src/juli_backend/services/scoring/MODULE.md",
+      "tests/unit/test_daily_batch_scoring_contract.py",
+      "docs/product/phases/phase-2-exit-gate-report.html"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-428.json",
+    "sha256": "74094e195d659383fb9a971717e5465c917523d74b164b42c647c8fe1937c366",
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "timestamp": "2026-07-21T06:41:52Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-428.json",
+    "sha256": "a4ba7aa044e68b342c208f9f0059698ccb5a45f0c0a964b0038e5728ff4a839c",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 381,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok/mapping.py",
+      "backend/src/juli_backend/integrations/tiktok/factories.py",
+      "backend/src/juli_backend/workers/services/polling/sync.py",
+      "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+      "backend/src/juli_backend/services/etl/transform.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/integration/test_inventory_poll_etl_upsert.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-381.json",
+    "sha256": "cbff799b372affc13130effaaaca52f52daa81ae44a09e1250c2318917f5f3b8",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-14T03:39:46Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-381.json",
+    "sha256": "3fb0fa06f52c622822f4b4d948e8b40fabe82a16c59bcd41547b78461077bff2",
+    "status": "PASS"
+  },
+  "wave": null
+}

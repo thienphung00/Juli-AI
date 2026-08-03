@@ -1,7 +1,8 @@
-"""Unit tests for wave manifest contract and validator (#659 / CI-WAVE-1)."""
+"""Unit tests for wave manifest contract and validator (#659 / CI-WAVE-1, #670)."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ from wave_manifest import (  # noqa: E402
 WAVES_DIR = REPO_ROOT / "agent-runtime" / "artifacts" / "waves"
 REVIEWS_DIR = REPO_ROOT / "agent-runtime" / "artifacts" / "reviews"
 VALIDATION_DIR = REPO_ROOT / "agent-runtime" / "artifacts" / "validation"
+STATUS_DIR = REPO_ROOT / "agent-runtime" / "artifacts" / "status"
 
 
 def _valid_manifest(**overrides: Any) -> dict[str, Any]:
@@ -37,42 +39,43 @@ def _valid_manifest(**overrides: Any) -> dict[str, Any]:
     return manifest
 
 
-def _write_review(
-    repo: Path, issue: int, *, status: str = "PASS", wrong_issue: int | None = None
-) -> None:
-    reviews = repo / "agent-runtime" / "artifacts" / "reviews"
-    reviews.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "id": f"review-issue-{issue}",
-        "issue": wrong_issue if wrong_issue is not None else issue,
-        "status": status,
-        "criticalFindings": [],
-        "modulesTouched": [],
-        "testCoverage": {"acceptance": {"total": 0, "mapped": 0, "mappings": []}},
-    }
-    (reviews / f"review-issue-{issue}.json").write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _write_validation(
+def _write_status_record(
     repo: Path,
     issue: int,
     *,
-    status: str = "PASS",
-    ready_for_merge: bool = True,
+    review_status: str = "PASS",
+    validation_status: str = "PASS",
     wrong_issue: int | None = None,
+    review_sha256: str | None = None,
+    validation_sha256: str | None = None,
 ) -> None:
-    validation = repo / "agent-runtime" / "artifacts" / "validation"
-    validation.mkdir(parents=True, exist_ok=True)
+    status_dir = repo / "agent-runtime" / "artifacts" / "status"
+    status_dir.mkdir(parents=True, exist_ok=True)
     payload = {
-        "id": f"validation-issue-{issue}",
         "issue": wrong_issue if wrong_issue is not None else issue,
-        "status": status,
-        "readyForMerge": ready_for_merge,
-        "checks": [{"name": "smoke", "status": "PASS"}],
+        "wave": None,
+        "review": {
+            "status": review_status,
+            "artifactRef": f"git-history:agent-runtime/artifacts/reviews/review-issue-{issue}.json",
+            "sha256": review_sha256 or hashlib.sha256(b"review").hexdigest(),
+        },
+        "validation": {
+            "status": validation_status,
+            "artifactRef": (
+                f"git-history:agent-runtime/artifacts/validation/validation-issue-{issue}.json"
+            ),
+            "sha256": validation_sha256 or hashlib.sha256(b"validation").hexdigest(),
+        },
+        "metrics": {
+            "acceptanceTotal": 0,
+            "acceptanceMapped": 0,
+            "criticalFindings": 0,
+            "modulesTouched": [],
+        },
+        "timestamp": "2026-08-02T00:00:00Z",
+        "gateVersion": 1,
     }
-    (validation / f"validation-issue-{issue}.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (status_dir / f"issue-{issue}.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_valid_manifest_passes() -> None:
@@ -136,100 +139,51 @@ def test_issue_membership_fails_when_missing() -> None:
     assert any("661" in error for error in result["errors"])
 
 
-def test_wave_artifacts_pass_for_valid_manifest(tmp_path: Path, monkeypatch) -> None:
+def _patch_status_dir(monkeypatch, tmp_path: Path):
     import wave_manifest
 
-    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
-    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
-    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
-    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
+    status_dir = tmp_path / "agent-runtime" / "artifacts" / "status"
+    monkeypatch.setattr(wave_manifest, "STATUS_DIR", status_dir)
+    return status_dir
 
-    _write_review(tmp_path, 659)
-    _write_review(tmp_path, 660)
-    _write_validation(tmp_path, 659)
-    _write_validation(tmp_path, 660)
+
+def test_wave_artifacts_pass_for_valid_manifest(tmp_path: Path, monkeypatch) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    _write_status_record(tmp_path, 659)
+    _write_status_record(tmp_path, 660)
 
     result = validate_wave_artifacts(_valid_manifest(issues=[659, 660]))
     assert result["valid"] is True
     assert result["errors"] == []
 
 
-def test_wave_artifacts_fail_when_review_missing(tmp_path: Path, monkeypatch) -> None:
-    import wave_manifest
-
-    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
-    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
-    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
-    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
-
-    _write_validation(tmp_path, 659)
+def test_wave_artifacts_fail_when_status_record_missing(tmp_path: Path, monkeypatch) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
 
     result = validate_wave_artifacts(_valid_manifest(issues=[659]))
     assert result["valid"] is False
-    assert any("review" in error.lower() for error in result["errors"])
-
-
-def test_wave_artifacts_fail_when_validation_missing(tmp_path: Path, monkeypatch) -> None:
-    import wave_manifest
-
-    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
-    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
-    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
-    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
-
-    _write_review(tmp_path, 659)
-
-    result = validate_wave_artifacts(_valid_manifest(issues=[659]))
-    assert result["valid"] is False
-    assert any("validation" in error.lower() for error in result["errors"])
+    assert any("missing status record" in error.lower() for error in result["errors"])
 
 
 def test_wave_artifacts_fail_when_review_not_pass(tmp_path: Path, monkeypatch) -> None:
-    import wave_manifest
+    _patch_status_dir(monkeypatch, tmp_path)
 
-    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
-    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
-    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
-    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
-
-    _write_review(tmp_path, 659, status="FAIL")
-    _write_validation(tmp_path, 659)
+    _write_status_record(tmp_path, 659, review_status="FAIL")
 
     result = validate_wave_artifacts(_valid_manifest(issues=[659]))
     assert result["valid"] is False
-    assert any("status" in error for error in result["errors"])
+    assert any("review status" in error for error in result["errors"])
 
 
 def test_wave_artifacts_fail_when_validation_not_pass(tmp_path: Path, monkeypatch) -> None:
-    import wave_manifest
+    _patch_status_dir(monkeypatch, tmp_path)
 
-    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
-    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
-    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
-    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
-
-    _write_review(tmp_path, 659)
-    _write_validation(tmp_path, 659, status="FAIL")
+    _write_status_record(tmp_path, 659, validation_status="FAIL")
 
     result = validate_wave_artifacts(_valid_manifest(issues=[659]))
     assert result["valid"] is False
-    assert any("status" in error for error in result["errors"])
-
-
-def test_wave_artifacts_fail_when_ready_for_merge_false(tmp_path: Path, monkeypatch) -> None:
-    import wave_manifest
-
-    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
-    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
-    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
-    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
-
-    _write_review(tmp_path, 659)
-    _write_validation(tmp_path, 659, ready_for_merge=False)
-
-    result = validate_wave_artifacts(_valid_manifest(issues=[659]))
-    assert result["valid"] is False
-    assert any("readyForMerge" in error for error in result["errors"])
+    assert any("validation status" in error for error in result["errors"])
 
 
 def test_do_not_modify_github_workflows_pr_yml_in_slice() -> None:
@@ -246,17 +200,65 @@ def test_do_not_modify_github_workflows_pr_yml_in_slice() -> None:
     assert pr_workflow.is_file()
 
 
-def test_wave_artifacts_fail_when_review_issue_mismatch(tmp_path: Path, monkeypatch) -> None:
-    import wave_manifest
+def test_wave_artifacts_fail_when_status_record_issue_mismatch(tmp_path: Path, monkeypatch) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
 
-    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
-    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
-    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
-    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
-
-    _write_review(tmp_path, 659, wrong_issue=999)
-    _write_validation(tmp_path, 659)
+    _write_status_record(tmp_path, 659, wrong_issue=999)
 
     result = validate_wave_artifacts(_valid_manifest(issues=[659]))
     assert result["valid"] is False
     assert any("issue" in error.lower() for error in result["errors"])
+
+
+def test_wave_artifacts_verify_integrity_passes_on_sha256_match(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import wave_manifest
+
+    status_dir = _patch_status_dir(monkeypatch, tmp_path)
+    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
+    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
+    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
+    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
+    reviews.mkdir(parents=True)
+    validation.mkdir(parents=True)
+
+    review_bytes = b'{"issue": 659, "status": "PASS"}'
+    validation_bytes = b'{"issue": 659, "status": "PASS"}'
+    (reviews / "review-issue-659.json").write_bytes(review_bytes)
+    (validation / "validation-issue-659.json").write_bytes(validation_bytes)
+
+    _write_status_record(
+        tmp_path,
+        659,
+        review_sha256=hashlib.sha256(review_bytes).hexdigest(),
+        validation_sha256=hashlib.sha256(validation_bytes).hexdigest(),
+    )
+
+    result = validate_wave_artifacts(_valid_manifest(issues=[659]), verify_integrity=True)
+    assert result["valid"] is True
+    assert result["errors"] == []
+    assert (status_dir / "issue-659.json").is_file()
+
+
+def test_wave_artifacts_verify_integrity_fails_on_sha256_mismatch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import wave_manifest
+
+    _patch_status_dir(monkeypatch, tmp_path)
+    reviews = tmp_path / "agent-runtime" / "artifacts" / "reviews"
+    validation = tmp_path / "agent-runtime" / "artifacts" / "validation"
+    monkeypatch.setattr(wave_manifest, "REVIEWS_DIR", reviews)
+    monkeypatch.setattr(wave_manifest, "VALIDATION_DIR", validation)
+    reviews.mkdir(parents=True)
+    validation.mkdir(parents=True)
+
+    (reviews / "review-issue-659.json").write_bytes(b'{"issue": 659, "status": "PASS"}')
+    (validation / "validation-issue-659.json").write_bytes(b'{"issue": 659, "status": "PASS"}')
+
+    _write_status_record(tmp_path, 659)  # sha256 values won't match the bodies above
+
+    result = validate_wave_artifacts(_valid_manifest(issues=[659]), verify_integrity=True)
+    assert result["valid"] is False
+    assert any("sha256 mismatch" in error for error in result["errors"])

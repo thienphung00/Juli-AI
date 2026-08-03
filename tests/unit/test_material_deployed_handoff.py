@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from juli_backend.services.cdp_speed.enqueue_reason import webhook_catalog_enqueue_reason
 from juli_backend.services.etl.consumer import ProcessOutcome
 from juli_backend.services.tiktok.webhook_catalog import (
     COALESCE_68_SECONDS,
@@ -118,7 +119,13 @@ class TestMaterialEnqueueAfterEtl:
             _event_payload(event_type),
         )
 
-        dispatcher.enqueue.assert_called_once_with("tiktok_shop_625")
+        catalog_id = catalog_id_for_event(event_type)
+        assert catalog_id is not None
+        dispatcher.enqueue.assert_called_once_with(
+            "tiktok_shop_625",
+            event_type=event_type,
+            enqueue_reason=webhook_catalog_enqueue_reason(catalog_id),
+        )
 
     @pytest.mark.parametrize("event_type", NON_MATERIAL_TYPES)
     @pytest.mark.asyncio

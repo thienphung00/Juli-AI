@@ -1,0 +1,34 @@
+{
+  "gateVersion": 1,
+  "issue": 424,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok/constants.py",
+      "backend/src/juli_backend/integrations/tiktok/capabilities.py",
+      "backend/src/juli_backend/integrations/tiktok/resources/analytics.py",
+      "backend/src/juli_backend/integrations/tiktok/factories.py",
+      "backend/src/juli_backend/workers/services/polling/sync.py",
+      "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/unit/test_analytics_production_read_allowlist.py",
+      "tests/unit/test_analytics_resource.py",
+      "tests/unit/test_analytics_poll_cycle.py",
+      "docs/integrations/tiktok_api/contract-collection.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-424.json",
+    "sha256": "13fb22f17f4272f857fe9105abb38776a9bd2169c7ade325284a36bda0e6afc5",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-21T04:14:12Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-424.json",
+    "sha256": "97fa024bf6f2c5bd52cd981a62dfc0e660226b83b21a5f908beca3b33d7c5bf6",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 627,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/cdp_speed",
+      "backend/src/juli_backend/services/etl",
+      "backend/src/juli_backend/services/webhook",
+      "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+      "tests/unit",
+      "tests/integration"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-627.json",
+    "sha256": "6791f55f795903a508cdb71f32418c58d3f8247a8f96aa4919df86b5abbcf2e6",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-31T06:20:27Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-627.json",
+    "sha256": "f7a1322fa3da60e4711ce22a16315fba65a6f2feb65949cf1b8b4fe30cc9b6b6",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 620,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/cdp_batch/partition_checkpoints.py",
+      "backend/src/juli_backend/services/cdp_batch/__init__.py",
+      "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/unit/test_cdp_batch_partition_checkpoints.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-620.json",
+    "sha256": "ca0dc2140b8bf7c46e975bad7d0d8b4c7eeede1821a2c974e1f02c743a186c4f",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-31T06:16:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-620.json",
+    "sha256": "05aba6ccfd27f3bd4fe2b71af4d19d8d5d713d0139ed32808eb64cd62d3bf3e3",
+    "status": "PASS"
+  },
+  "wave": null
+}

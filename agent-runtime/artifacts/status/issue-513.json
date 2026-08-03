@@ -1,0 +1,36 @@
+{
+  "gateVersion": 1,
+  "issue": 513,
+  "metrics": {
+    "acceptanceMapped": 9,
+    "acceptanceTotal": 9,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/public_release_classification.py",
+      "agent-runtime/scripts/ci/release_evidence_plan.py",
+      "agent-runtime/scripts/ci/ensure_workflow_cache.py",
+      "agent-runtime/scripts/ci/upstream_fingerprints.py",
+      "agent-runtime/scripts/validate/check_workflow_cache.py",
+      "agent-runtime/scripts/validate/check_public_release_classification.py",
+      "agent-runtime/scripts/validate/check_public_release_evidence_plan.py",
+      "agent-runtime/docs/schemas/issue-context-cache-artifact.schema.json",
+      "agent-runtime/docs/schemas/release-evidence-plan.schema.json",
+      "tests/unit/test_public_release_classification.py",
+      "tests/unit/test_release_evidence_plan.py",
+      "tests/unit/test_public_release_meta_gates.py",
+      "tests/unit/test_ensure_workflow_cache.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-513.json",
+    "sha256": "8f1b87d2b9d5251c5fe3f568ba0b026948fdf056ab6c302470c45d442872d9a5",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-24T04:46:19Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-513.json",
+    "sha256": "038b4258b74a096db06380ded1e8a626fea6de1329185c0c86e8aea6efb1986e",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 624,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "docs/adr/050-cdp-slice-3-5-c-two-gated-exits.md",
+      "backend/src/juli_backend/services/cdp_batch/MODULE.md",
+      "tests/unit/test_cdp_batch_read_replica_doc.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-624.json",
+    "sha256": "12751866669de41251492f86635dfdaac38b8b0682f57b0b5c7ce259c140dfd5",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-31T06:16:19Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-624.json",
+    "sha256": "8bff0227f359e374bd160247104b615d80a441f1988d383d5223119905818ba5",
+    "status": "PASS"
+  },
+  "wave": null
+}

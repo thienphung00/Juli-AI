@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 165,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/lib/workflows/leakage"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-165.json",
+    "sha256": "58b4c864c2f2282e38e2b71512eb4a4741af6aa2a3af00c4285e7f6538709b3e",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-08T09:57:30Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-165.json",
+    "sha256": "79c29b167f7e3faf9b4d8616932ecbcbb44701b2874b3a76ebd171f2e829ea1c",
+    "status": "PASS"
+  },
+  "wave": null
+}

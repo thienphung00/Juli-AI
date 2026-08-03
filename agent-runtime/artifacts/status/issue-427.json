@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 427,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 6,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/scoring/copy_layer.py",
+      "backend/src/juli_backend/services/scoring/MODULE.md",
+      "tests/unit/test_rules_copy_layer_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-427.json",
+    "sha256": "a05082f4de15f0d612222f41ab62ad78e20575d596b113be6ec556c9eb3cf887",
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "timestamp": "2026-07-21T07:00:38Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-427.json",
+    "sha256": "a3273a9635a1c64ef65d5facf8d22c9ee42b88c7bc7618c81157356ef48750fb",
+    "status": "PASS"
+  },
+  "wave": null
+}

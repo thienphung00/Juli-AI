@@ -23,6 +23,8 @@ Matches ``__all__`` — re-exports only:
 - ``IngestRecord`` — ``channel``, ``shop_key`` (TikTok shop id), ``value``, optional
   ``received_at`` for latency checks
 - ``ProcessOutcome`` — ``processed`` | ``duplicate`` | ``dlq`` (lazy export)
+- ``append_targeted_order_payload`` / ``append_targeted_return_payload`` — ETL-owned,
+  shop-scoped append-only writers for targeted-fetch bronze rows
 - ``transform_for_channel(channel, payload)`` — map payload to entity upsert kwargs
 - ``RAW_CHANNELS``, ``DLQ_CHANNEL`` — routing constants (``channels.py``)
 - ``KafkaRecord`` — deprecated alias for ``IngestRecord``
@@ -64,7 +66,8 @@ Full orchestrator runtime is **A1 Speed (#601)**; A0 seeds docs + repos only. Pe
 trigger, one shop-scoped job runs **bronze append → silver upsert → gold envelope** in
 order (ADR-046 Q4). Stage wiring targets:
 
-1. **Bronze** — append via bronze repos in this package (webhook/fetch handoff).
+1. **Bronze** — append through this package's targeted-fetch facade; callers never write
+   bronze repositories directly.
 2. **Silver** — `SilverOrdersReturnsPromoter.promote_order` / `promote_return`.
 3. **Gold** — `services/gold_kpi_envelope_serving.py` shell today; A1 Shared Compute gold
    stage owns full `gold.kpi_envelopes` refresh.

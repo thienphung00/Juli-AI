@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 413,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "packages/ui",
+      "apps/demo"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-413.json",
+    "sha256": "9ec34a6c6ee7eff9d1c54ef7d670323d393a0620eba492b2c47242353598b48d",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-16T03:36:53Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-413.json",
+    "sha256": "aed5299beb3ac217824bd95a17c3643c0ee6aed947abefcff36d099b59cee472",
+    "status": "PASS"
+  },
+  "wave": null
+}

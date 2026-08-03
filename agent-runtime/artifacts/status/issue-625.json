@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 625,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/integration/test_material_deployed_webhook_handoff.py",
+      "tests/unit/test_material_deployed_handoff.py",
+      "agent-runtime/artifacts/implementations/implementation-issue-625.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-625.json",
+    "sha256": "1fc369aa3100c521051d1d804b4f8a63c3453094b861a440b457330da206334f",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-31T03:37:07Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-625.json",
+    "sha256": "2d7946a72be3ba47cf868a93e75b5b19ae2e6006fce7845c55dea72e65656f59",
+    "status": "PASS"
+  },
+  "wave": null
+}

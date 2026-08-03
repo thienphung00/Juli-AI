@@ -105,7 +105,9 @@ databaseTables:
   analytics_backfill_partitions:
     owner: Data Pipeline
     access: write
-    notes: Backfill partition ledger.
+    notes: >
+      Backfill partition ledger. Writers are services/analytics_backfill and the exact
+      services/cdp_batch/partition_checkpoints.py A2 transaction coordinator.
   analytics_kpi_envelopes:
     owner: Intelligence
     access: write
@@ -117,7 +119,10 @@ databaseTables:
   order_raw_payloads:
     owner: Data Pipeline
     access: write
-    notes: Append-only bronze order payloads (webhook and targeted fetch landing).
+    notes: >
+      Append-only bronze order payloads (webhook and targeted fetch landing). The exact
+      services/cdp_batch/partition_checkpoints.py A2 coordinator may append reconcile
+      pages in the same transaction as its ops checkpoint.
   return_raw_payloads:
     owner: Data Pipeline
     access: write
@@ -188,6 +193,11 @@ celeryTasks:
     wrapper: backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py
     delegatesTo: workers.tasks.material_analytics_precompute.material_analytics_precompute_sync
     notes: Phase 2.10 Mock-mode hourly Demo reference shop reconciliation only.
+  juli_backend.cdp_batch_staggered_reconcile:
+    owner: Data Pipeline
+    wrapper: backend/src/juli_backend/workers/tasks/cdp_batch_reconcile.py
+    delegatesTo: services.cdp_batch.batch_reconcile_orchestrator.BatchReconcileOrchestrator.run
+    notes: A2 daily staggered per-shop reconcile via StaggerScheduler (#615/#621/#622). Config-flag gated, default OFF.
 
 redisNamespaces:
   - pattern: "ratelimit:*"

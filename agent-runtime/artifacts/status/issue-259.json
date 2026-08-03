@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 259,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/database/",
+      "tests/unit/test_tiktok_oauth.py",
+      "tests/unit/test_tiktok_auth_callback.py",
+      "tests/unit/conftest.py",
+      "infra/deploy/env/api.env.example",
+      "docs/runbooks/backend-deploy-runbook.md",
+      "docs/runbooks/app-review-runbook.md",
+      "docs/integrations/tiktok_api/authentication.md",
+      "artifacts/implementations/implementation-issue-259.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-259.json",
+    "sha256": "f096a17313d50a65de5b1b5502b31101b52d16de30bfe0c97b81a7d0ea97dbd1",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-03T08:16:21Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-259.json",
+    "sha256": "b1fe1541d18142713b44b4fecb540599350d389216eb5d1fddbe6dbb2f89b868",
+    "status": "PASS"
+  },
+  "wave": null
+}

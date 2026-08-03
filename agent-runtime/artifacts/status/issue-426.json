@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 426,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 4,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/aggregates/builder.py",
+      "backend/src/juli_backend/services/aggregates/computed_kpis.py",
+      "backend/src/juli_backend/services/aggregates/MODULE.md",
+      "tests/unit/test_feature_aggregates_contract.py",
+      "tests/unit/test_daily_batch_scoring_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-426.json",
+    "sha256": "d741adcedcc7d90d872740193a4f3cfa483cc2ca9bc4a0db49b65c5bdebc5cfb",
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "timestamp": "2026-07-21T05:54:43Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-426.json",
+    "sha256": "83d0c923e9ab73895fa858af1cf9647d0fe216bd0686e21a4aca8eed1764fe7c",
+    "status": "PASS"
+  },
+  "wave": null
+}

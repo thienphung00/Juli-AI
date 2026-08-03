@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 514,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "agent-runtime/scripts/meta_prepare_executor.py",
+      "tests/unit/test_meta_prepare_injection_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-514.json",
+    "sha256": "f18cd8311cc605e16a06e911a71c449897c73ae4a15f2be0babe9fe70846e154",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-24T05:18:21Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-514.json",
+    "sha256": "0e3ba59ddc2e33575c522e3f58699bce9df857b128510ed3ddd03ab51f592159",
+    "status": "PASS"
+  },
+  "wave": null
+}
