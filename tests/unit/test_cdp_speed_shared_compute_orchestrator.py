@@ -374,3 +374,237 @@ def test_quota_guard_module_must_be_reusable_by_hourly_reconciler():
     source = open(guard_module.__file__, encoding="utf-8").read()
     assert "SharedComputeJob" not in source
     assert "SharedComputeOrchestrator" not in source
+
+
+@pytest.mark.asyncio
+async def test_gold_stage_computes_five_demo_main_kpis(medallion_session):
+    """Red test: gold stage should compute gmv_tiktok, aov, ctor, live_hours, cancellation_rate."""
+    from decimal import Decimal
+
+    session, shop = medallion_session
+
+    # Setup: Create orders and returns in silver layer
+    now = datetime(2026, 7, 31, 12, 0, tzinfo=UTC)
+    orders_to_add = [
+        Order(
+            shop_id=shop.id,
+            tiktok_order_id="order_001",
+            status="COMPLETED",
+            total_amount=Decimal("100000.00"),
+            currency="VND",
+            update_time=now,
+        ),
+        Order(
+            shop_id=shop.id,
+            tiktok_order_id="order_002",
+            status="COMPLETED",
+            total_amount=Decimal("200000.00"),
+            currency="VND",
+            update_time=now,
+        ),
+        Order(
+            shop_id=shop.id,
+            tiktok_order_id="order_003",
+            status="CANCELLED",
+            total_amount=Decimal("150000.00"),
+            currency="VND",
+            update_time=now,
+        ),
+    ]
+    for order in orders_to_add:
+        session.add(order)
+    await session.flush()
+
+    # Run orchestrator with empty fetch plan (no bronze append needed)
+    result = await run_shared_compute_job(
+        session,
+        SharedComputeJob(
+            shop_id=shop.id,
+            shop_key=shop.tiktok_shop_id,
+            enqueue_reason="test_kpi_computation",
+            fetch_plan=plan_targeted_fetch(
+                event_type="PACKAGE_UPDATE", shop_id=shop.tiktok_shop_id
+            ),
+            idempotency_key="test-kpi-001",
+        ),
+        fetch_executor=_fake_orders_fetch_executor,
+    )
+
+    assert result.gold_written is True
+
+    # Verify gold envelope contains all five KPIs
+    gold = await session.get(GoldKpiEnvelope, shop.id)
+    assert gold is not None
+    assert "kpis" in gold.payload
+    kpis = gold.payload["kpis"]
+
+    # Check all five KPI keys exist
+    for metric_id in ("gmv_tiktok", "aov", "ctor", "live_hours", "cancellation_rate"):
+        assert metric_id in kpis, f"Missing KPI: {metric_id}"
+
+    # Verify gmv_tiktok is computed (sum of completed orders)
+    gmv_kpi = kpis["gmv_tiktok"]
+    assert gmv_kpi["availability"] == "available"
+    assert gmv_kpi["value"] == 300000.0  # 100000 + 200000
+
+    # Verify aov is computed (gmv / completed order count)
+    aov_kpi = kpis["aov"]
+    assert aov_kpi["availability"] == "available"
+    assert aov_kpi["value"] == 150000.0  # 300000 / 2
+
+    # Verify cancellation_rate is computed
+    cancellation_kpi = kpis["cancellation_rate"]
+    assert cancellation_kpi["availability"] == "available"
+    assert cancellation_kpi["value"] == pytest.approx(0.3333, rel=1e-3)  # 1 cancelled / 3 total
+
+    # Verify ctor and live_hours are unavailable (no analytics domain yet)
+    ctor_kpi = kpis["ctor"]
+    assert ctor_kpi["availability"] == "unavailable"
+    assert "value" not in ctor_kpi
+
+    live_hours_kpi = kpis["live_hours"]
+    assert live_hours_kpi["availability"] == "unavailable"
+    assert "value" not in live_hours_kpi
+
+    # Verify computed_at is recent
+    assert gold.computed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_gold_stage_handles_no_orders(medallion_session):
+    """Test that gold stage marks KPIs as unavailable when no orders exist."""
+    session, shop = medallion_session
+
+    # Run orchestrator with empty database (no orders)
+    result = await run_shared_compute_job(
+        session,
+        SharedComputeJob(
+            shop_id=shop.id,
+            shop_key=shop.tiktok_shop_id,
+            enqueue_reason="test_no_orders",
+            fetch_plan=plan_targeted_fetch(
+                event_type="PACKAGE_UPDATE", shop_id=shop.tiktok_shop_id
+            ),
+            idempotency_key="test-no-orders-001",
+        ),
+        fetch_executor=_fake_orders_fetch_executor,
+    )
+
+    assert result.gold_written is True
+
+    # Verify all KPIs are unavailable when no orders exist
+    gold = await session.get(GoldKpiEnvelope, shop.id)
+    assert gold is not None
+    kpis = gold.payload["kpis"]
+
+    for metric_id in ("gmv_tiktok", "aov", "cancellation_rate"):
+        assert kpis[metric_id]["availability"] == "unavailable"
+        assert "value" not in kpis[metric_id]
+
+
+@pytest.mark.asyncio
+async def test_gold_stage_handles_all_cancelled_orders(medallion_session):
+    """Test edge case where all orders are cancelled."""
+    from decimal import Decimal
+
+    session, shop = medallion_session
+
+    # Setup: Create only cancelled orders
+    now = datetime(2026, 7, 31, 12, 0, tzinfo=UTC)
+    cancelled_orders = [
+        Order(
+            shop_id=shop.id,
+            tiktok_order_id="order_canc_001",
+            status="CANCELLED",
+            total_amount=Decimal("100000.00"),
+            currency="VND",
+            update_time=now,
+        ),
+        Order(
+            shop_id=shop.id,
+            tiktok_order_id="order_canc_002",
+            status="CANCELLED",
+            total_amount=Decimal("200000.00"),
+            currency="VND",
+            update_time=now,
+        ),
+    ]
+    for order in cancelled_orders:
+        session.add(order)
+    await session.flush()
+
+    # Run orchestrator
+    result = await run_shared_compute_job(
+        session,
+        SharedComputeJob(
+            shop_id=shop.id,
+            shop_key=shop.tiktok_shop_id,
+            enqueue_reason="test_all_cancelled",
+            fetch_plan=plan_targeted_fetch(
+                event_type="PACKAGE_UPDATE", shop_id=shop.tiktok_shop_id
+            ),
+            idempotency_key="test-all-cancelled-001",
+        ),
+        fetch_executor=_fake_orders_fetch_executor,
+    )
+
+    assert result.gold_written is True
+
+    # Verify GMV and AOV are unavailable (no non-cancelled orders)
+    gold = await session.get(GoldKpiEnvelope, shop.id)
+    kpis = gold.payload["kpis"]
+
+    # GMV and AOV should be unavailable
+    assert kpis["gmv_tiktok"]["availability"] == "unavailable"
+    assert kpis["aov"]["availability"] == "unavailable"
+
+    # But cancellation_rate should be available (100%)
+    assert kpis["cancellation_rate"]["availability"] == "available"
+    assert kpis["cancellation_rate"]["value"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_gold_stage_handles_single_order(medallion_session):
+    """Test with a single completed order."""
+    from decimal import Decimal
+
+    session, shop = medallion_session
+
+    # Setup: Single order
+    now = datetime(2026, 7, 31, 12, 0, tzinfo=UTC)
+    order = Order(
+        shop_id=shop.id,
+        tiktok_order_id="order_single_001",
+        status="COMPLETED",
+        total_amount=Decimal("500000.00"),
+        currency="VND",
+        update_time=now,
+    )
+    session.add(order)
+    await session.flush()
+
+    # Run orchestrator
+    result = await run_shared_compute_job(
+        session,
+        SharedComputeJob(
+            shop_id=shop.id,
+            shop_key=shop.tiktok_shop_id,
+            enqueue_reason="test_single_order",
+            fetch_plan=plan_targeted_fetch(
+                event_type="PACKAGE_UPDATE", shop_id=shop.tiktok_shop_id
+            ),
+            idempotency_key="test-single-order-001",
+        ),
+        fetch_executor=_fake_orders_fetch_executor,
+    )
+
+    assert result.gold_written is True
+
+    # Verify metrics
+    gold = await session.get(GoldKpiEnvelope, shop.id)
+    kpis = gold.payload["kpis"]
+
+    # With one order, GMV and AOV should be equal
+    assert kpis["gmv_tiktok"]["value"] == 500000.0
+    assert kpis["aov"]["value"] == 500000.0
+    assert kpis["cancellation_rate"]["value"] == 0.0

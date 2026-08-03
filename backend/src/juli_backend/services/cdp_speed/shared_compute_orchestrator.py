@@ -6,6 +6,7 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +20,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_executor import (
 )
 from juli_backend.services.cdp_speed.targeted_fetch_planner import TargetedFetchPlan
 from juli_backend.services.etl.silver_promotion import SilverOrdersReturnsPromoter
-from juli_backend.services.gold_kpi_envelope_serving import seed_unavailable_shell
+from juli_backend.services.gold_kpi_envelope_serving import compute_demo_main_kpis_payload
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,20 @@ class SharedComputeOrchestrator:
 
     @staticmethod
     async def _default_gold_stage(session: AsyncSession, shop_id: uuid.UUID) -> bool:
-        await seed_unavailable_shell(session, shop_id)
+        from juli_backend.repositories.repos import GoldKpiEnvelopesRepo
+        from juli_backend.services.gold_kpi_envelope_contract import ENVELOPE_VERSION
+
+        # Compute the five Demo Main KPIs from silver orders
+        payload = await compute_demo_main_kpis_payload(session, shop_id)
+        computed_at = datetime.now(tz=UTC)
+
+        repo = GoldKpiEnvelopesRepo(session)
+        await repo.upsert(
+            shop_id=shop_id,
+            envelope_version=ENVELOPE_VERSION,
+            payload=payload,
+            computed_at=computed_at,
+        )
         return True
 
 
