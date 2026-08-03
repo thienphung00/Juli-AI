@@ -205,6 +205,11 @@ redisNamespaces:
     access: write
     env: REDIS_URL
     notes: Phase 2.10 Analytics KPI envelope read-through cache (analytics:kpi_envelope:{shop_id}).
+  - pattern: "gold:kpi_envelope:*"
+    owner: Data Pipeline
+    access: write
+    env: REDIS_URL
+    notes: A1 gold.kpi_envelopes read-through cache (#631, gold:kpi_envelope:{shop_id}). Never SoT — Postgres gold.kpi_envelopes remains SoT (ADR-038).
   - pattern: "material_analytics:mutex:*"
     owner: Data Pipeline
     access: write
