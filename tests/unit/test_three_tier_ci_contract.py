@@ -364,6 +364,28 @@ def test_wave_push_before_sha_resolution_script_behaves_correctly() -> None:
         assert "fallback=false" in run_with_before_sha(repo, good_sha)
 
 
+def test_dependency_validation_is_domain_matched_on_wave_tier_not_main() -> None:
+    """AC2 names dependency-validation among the jobs that must run only for
+    affected domains on wave-tier pushes (docs/agent-only pushes stay
+    cheap), while main tier stays the full, unconditional checkpoint (#658).
+    status-check must allow "skipped" for dependency-validation at wave
+    tier (it is domain-gated there) but still require "success" at main
+    tier (never skippable)."""
+    workflow = _workflow()
+    dep_block = _job_block(workflow, "dependency-validation:")
+
+    assert "needs.changes.outputs.backend == 'true'" in dep_block
+    assert "needs.changes.outputs.dashboard == 'true'" in dep_block
+    assert "needs.changes.outputs.demo == 'true'" in dep_block
+    assert "needs.classify-tier.outputs.tier == 'main'" in dep_block
+
+    status_job = workflow.split("status-check:", 1)[1]
+    wave_block = status_job.split('"$tier" == "wave"', 1)[1].split('"$tier" == "main"', 1)[0]
+    assert 'require "dependency-validation" "$deps" "true"' in wave_block
+    main_block = status_job.split('"$tier" == "main"', 1)[1]
+    assert 'require "dependency-validation" "$deps" "false"' in main_block
+
+
 def test_main_tier_wave_to_main_checkpoint_unchanged() -> None:
     """AC: wave->main remains the full, path-aware checkpoint — main tier
     (pull_request into main/staging, and merge_group) still forces every

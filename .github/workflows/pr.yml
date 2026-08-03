@@ -640,10 +640,18 @@ jobs:
 
   dependency-validation:
     runs-on: ubuntu-latest
-    needs: classify-tier
+    needs: [classify-tier, changes]
+    # CI-WAVE-3 (#661): main tier stays the full checkpoint (always runs);
+    # wave-tier pushes are domain-matched like integration/architecture/
+    # cross-module — only when the push range touched a dependency-graph
+    # domain (backend/dashboard/demo), so agent/docs-only wave pushes stay
+    # cheap. status-check allows this job to be "skipped" on wave tier.
     if: >-
-      needs.classify-tier.outputs.tier == 'wave'
-      || needs.classify-tier.outputs.tier == 'main'
+      needs.classify-tier.outputs.tier == 'main'
+      || (needs.classify-tier.outputs.tier == 'wave'
+          && (needs.changes.outputs.backend == 'true'
+              || needs.changes.outputs.dashboard == 'true'
+              || needs.changes.outputs.demo == 'true'))
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -914,7 +922,7 @@ jobs:
             require "policy-checks" "$policy" "false"
           elif [[ "$tier" == "wave" ]]; then
             require "integration-tests" "$integration" "true"
-            require "dependency-validation" "$deps" "false"
+            require "dependency-validation" "$deps" "true"
             require "cross-module-contracts" "$contracts" "true"
             require "architecture-gates" "$arch" "true"
           elif [[ "$tier" == "main" ]]; then
