@@ -15,6 +15,10 @@ from juli_backend.services.cdp_batch.batch_fetch_planner import (
     is_batch_fetch_trigger_allowed,
     plan_batch_fetch,
 )
+from juli_backend.services.cdp_batch.batch_reconcile_orchestrator import (
+    BatchReconcileOrchestrator,
+    BatchReconcileResult,
+)
 from juli_backend.services.cdp_batch.partition_checkpoints import (
     BATCH_RECONCILE_INGEST_SOURCE,
     BatchPartitionCheckpointsRepo,
@@ -66,6 +70,8 @@ __all__ = [
     "BatchFetchResource",
     "BatchPartitionCheckpointsRepo",
     "BatchPartitionReconcileResult",
+    "BatchReconcileOrchestrator",
+    "BatchReconcileResult",
     "COMPUTE_MUTEX_TTL_SECONDS",
     "ComputeOwner",
     "DEFER_REASON",
