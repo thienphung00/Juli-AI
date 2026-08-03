@@ -265,7 +265,7 @@ async def test_ac3_orchestrator_with_cancellations_plan(medallion_session):
         shop_key="607_silver_shop",
         enqueue_reason="webhook_catalog:2",
         fetch_plan=plan,
-        idempotency_key="test-idempotent-key-628",
+        idempotency_key="job-628-cancellation-reconcile",
         event_type="RETURN_STATUS_CHANGE",
     )
 
