@@ -1,0 +1,33 @@
+{
+  "gateVersion": 1,
+  "issue": 593,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "scripts/tiktok_corpora_catalog/",
+      "tests/unit/test_tiktok_corpora_catalog.py",
+      "tests/fixtures/tiktok_corpora_catalog/",
+      "docs/integrations/tiktok_corpora/",
+      ".cursor/skills/standalone/focus/SKILL.md",
+      ".cursor/skills/standalone/focus/routing-rules.md",
+      "docs/adr/051-tiktok-corpora-catalog-retrieval.md",
+      "CONTEXT.md",
+      "agent-runtime/config/slice-routing.yml",
+      "agent-runtime/config/agent-runtime.config.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-593.json",
+    "sha256": "68cd33211ec5e2e6d46835cc791e95376acec9b604f6317724e835792471ae30",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T08:57:04Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-593.json",
+    "sha256": "0436c5059942df82e7513eecc6875791aa21f6b9b4b207928e8bf26e22320a61",
+    "status": "PASS"
+  },
+  "wave": null
+}

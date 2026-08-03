@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 140,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "src/modules/ml/ad_performance"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-140.json",
+    "sha256": "ad84e50de5a910310e139b9f08f431df3f22097a539029c1d0279fdb762811d5",
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "timestamp": "2026-06-23T07:55:25Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-140.json",
+    "sha256": "ecc5fb6a25200210bd7eaaff54ac090f0e54e055170ff53d53a1dfb90246dcf2",
+    "status": "FAIL"
+  },
+  "wave": null
+}

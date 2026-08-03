@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 559,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 5,
+    "modulesTouched": [
+      "agent-runtime/config/slice-routing.yml",
+      "backend/src/juli_backend/api/MODULE.md",
+      "backend/src/juli_backend/api/routes/recommendations.py",
+      "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "backend/src/juli_backend/services/action_cards/__init__.py",
+      "backend/src/juli_backend/services/action_cards/legacy_recommendations.py",
+      "docs/architecture/MODULES.md",
+      "docs/architecture/ownership-registry.yml",
+      "tests/unit/test_mmu11_decision_persistence_ownership.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-559.json",
+    "sha256": "36513d3bfebd3cd6a14384278d49a678218990e86368c5f6345af981ae5716e7",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T04:45:44Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-559.json",
+    "sha256": "bc6a508390fb83f81f24adb28e8e115f49f6d03611a8798fb336e791bc00c6ad",
+    "status": "PASS"
+  },
+  "wave": null
+}

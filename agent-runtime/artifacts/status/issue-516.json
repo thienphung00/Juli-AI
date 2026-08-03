@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 516,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "agent-runtime/scripts/ci/generate_validation_artifact.py",
+      "tests/unit/test_validation_checks_wiring.py",
+      "tests/harness/meta_validate_e2e_fixtures.py",
+      "tests/harness/test_meta_validate_e2e_public_release.py",
+      "agent-runtime/docs/agent-runtime.md",
+      "agent-runtime/docs/agent-runtime-artifacts.md",
+      "agent-runtime/docs/schemas/README.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-516.json",
+    "sha256": "1b3bdad72f270185180c5787140a50c08c68da0f7305074b0139b905d66361a0",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-24T06:42:54Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-516.json",
+    "sha256": "be0ff5741401be43a9a1811302f4769375352531b75ecfa1bbe5bf792c1dda99",
+    "status": "PASS"
+  },
+  "wave": null
+}
