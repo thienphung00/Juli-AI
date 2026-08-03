@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 305,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/execution",
+      "backend/src/juli_backend/api/routes/executions.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "backend/src/juli_backend/database/migrations/versions/015_tool_execution_fields.py",
+      "tests/unit/test_tool_execution_routing_contract.py",
+      "tests/unit/test_celery_tool_execution_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-305.json",
+    "sha256": "a57629be0fd5383491608fe7921713939e10b2a1509ce00131580463f91f4f8d",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-13T03:15:29Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-305.json",
+    "sha256": "82a65d93a52a60217d3c34e27f634873c3851412a180dd8c5d55357c66d5d046",
+    "status": "PASS"
+  },
+  "wave": null
+}

@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 261,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "docs/product/features/app_review_deployment/",
+      "infra/deploy/",
+      "docs/product/phases/phase-2.5-deployment.md",
+      "tests/unit/test_phase_2_5_smoke_checklist.py",
+      "tests/unit/test_phase_2_5_deploy_config.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-261.json",
+    "sha256": "6086753569f97fd3a18bcbac9f4017ecd988a833714934f89a6cf86bd88da689",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-03T09:27:13Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-261.json",
+    "sha256": "71d1b2c8ee5380751437d77615c2d00daac52140fea327ff63f6acba9eef9bfc",
+    "status": "FAIL"
+  },
+  "wave": null
+}

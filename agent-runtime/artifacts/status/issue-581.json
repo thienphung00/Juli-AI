@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 581,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      ".cursor/skills/standalone/open-design-system/SKILL.md",
+      ".cursor/skills/skill-catalog/SKILL.md",
+      ".cursor/skills/standalone/focus/SKILL.md",
+      ".cursor/skills/standalone/focus/routing-rules.md",
+      "agent-runtime/config/slice-routing.yml",
+      "tests/unit/test_frontend_design_skill_wiring.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-581.json",
+    "sha256": "b9ca7f3a85f9ca56020e330abc2c7daaaa499f5bac2589b421182653bf7e117f",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-29T05:45:45Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-581.json",
+    "sha256": "a8fccd703f760feb6cca74fadd2108a94e341b5a866bb453f20d9d51166669f6",
+    "status": "PASS"
+  },
+  "wave": null
+}

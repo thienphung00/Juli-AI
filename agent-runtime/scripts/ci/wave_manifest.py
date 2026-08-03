@@ -7,6 +7,7 @@ manifests and per-issue review/validation artifact PASS checks on wave→main.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from functools import lru_cache
@@ -16,6 +17,7 @@ from typing import Any
 from common import (
     AGENT_RUNTIME_ROOT,
     REVIEWS_DIR,
+    STATUS_DIR,
     VALIDATION_DIR,
     load_json,
     print_check_result,
@@ -23,6 +25,7 @@ from common import (
 from json_schema_validate import validate_json_schema
 
 SCHEMA_PATH = AGENT_RUNTIME_ROOT / "docs" / "schemas" / "wave-manifest.schema.json"
+STATUS_SCHEMA_PATH = AGENT_RUNTIME_ROOT / "docs" / "schemas" / "status-record.schema.json"
 WAVES_DIR = AGENT_RUNTIME_ROOT / "artifacts" / "waves"
 
 
@@ -31,8 +34,17 @@ def load_wave_manifest_schema() -> dict[str, Any]:
     return load_json(SCHEMA_PATH)
 
 
+@lru_cache(maxsize=1)
+def load_status_record_schema() -> dict[str, Any]:
+    return load_json(STATUS_SCHEMA_PATH)
+
+
 def wave_manifest_path(wave_id: str) -> Path:
     return WAVES_DIR / f"{wave_id}.json"
+
+
+def status_record_path(issue: int) -> Path:
+    return STATUS_DIR / f"issue-{issue}.json"
 
 
 def _load_artifact(path: Path) -> dict[str, Any] | None:
@@ -114,46 +126,75 @@ def check_issue_membership(manifest: Any, issue: int) -> dict[str, Any]:
     }
 
 
-def _validate_issue_artifacts(issue: int) -> list[str]:
+def _load_status_record(issue: int) -> dict[str, Any] | None:
+    return _load_artifact(status_record_path(issue))
+
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _validate_issue_artifacts(issue: int, *, verify_integrity: bool = False) -> list[str]:
+    """Read the compact status/issue-<N>.json record (#670 P1 Option A).
+
+    Verbose review/validation bodies moved to CI artifact retention; the
+    wave->main gate asserts PASS from the compact record only. When
+    ``verify_integrity`` is set and a verbose body still exists on disk
+    (e.g. in the working tree during an agent loop, before it is gitignored
+    away at commit time), its sha256 is checked against the record.
+    """
     errors: list[str] = []
 
-    review_path = REVIEWS_DIR / f"review-issue-{issue}.json"
-    review = _load_artifact(review_path)
-    if review is None:
-        errors.append(f"issue {issue}: missing review artifact at {review_path.name}")
-    else:
-        if review.get("issue") != issue:
-            errors.append(
-                f"issue {issue}: review artifact issue field is {review.get('issue')!r}"
-            )
-        if review.get("status") != "PASS":
-            errors.append(
-                f"issue {issue}: review status must be PASS (got {review.get('status')!r})"
-            )
+    record_path = status_record_path(issue)
+    record = _load_status_record(issue)
+    if record is None:
+        errors.append(f"issue {issue}: missing status record at {record_path.name}")
+        return errors
 
-    validation_path = VALIDATION_DIR / f"validation-issue-{issue}.json"
-    validation = _load_artifact(validation_path)
-    if validation is None:
+    schema_errors = validate_json_schema(record, load_status_record_schema())
+    if schema_errors:
+        errors.extend(f"issue {issue}: status record {msg}" for msg in schema_errors)
+
+    if record.get("issue") != issue:
+        errors.append(f"issue {issue}: status record issue field is {record.get('issue')!r}")
+
+    review = record.get("review") if isinstance(record.get("review"), dict) else {}
+    if review.get("status") != "PASS":
+        errors.append(f"issue {issue}: review status must be PASS (got {review.get('status')!r})")
+
+    validation = record.get("validation") if isinstance(record.get("validation"), dict) else {}
+    if validation.get("status") != "PASS":
         errors.append(
-            f"issue {issue}: missing validation artifact at {validation_path.name}"
+            f"issue {issue}: validation status must be PASS (got {validation.get('status')!r})"
         )
-    else:
-        if validation.get("issue") != issue:
-            errors.append(
-                f"issue {issue}: validation artifact issue field is {validation.get('issue')!r}"
-            )
-        if validation.get("status") != "PASS":
-            errors.append(
-                f"issue {issue}: validation status must be PASS "
-                f"(got {validation.get('status')!r})"
-            )
-        if validation.get("readyForMerge") is not True:
-            errors.append(
-                f"issue {issue}: validation readyForMerge must be true "
-                f"(got {validation.get('readyForMerge')!r})"
-            )
+
+    if verify_integrity:
+        errors.extend(_verify_body_integrity(issue, "review", review, REVIEWS_DIR))
+        errors.extend(_verify_body_integrity(issue, "validation", validation, VALIDATION_DIR))
 
     return errors
+
+
+def _verify_body_integrity(
+    issue: int, kind: str, entry: dict[str, Any], body_dir: Path
+) -> list[str]:
+    expected = entry.get("sha256") if isinstance(entry, dict) else None
+    if not expected:
+        return [f"issue {issue}: {kind} record missing sha256"]
+
+    body_path = body_dir / f"{kind}-issue-{issue}.json"
+    if not body_path.is_file():
+        # Verbose body not present locally (expected once bodies live only in
+        # CI artifact retention) — nothing to verify against.
+        return []
+
+    actual = _sha256_file(body_path)
+    if actual != expected:
+        return [f"issue {issue}: {kind} sha256 mismatch (record {expected}, on-disk {actual})"]
+    return []
 
 
 def validate_wave_artifacts(
@@ -161,8 +202,9 @@ def validate_wave_artifacts(
     *,
     expected_wave_id: str | None = None,
     expected_branch: str | None = None,
+    verify_integrity: bool = False,
 ) -> dict[str, Any]:
-    """Wave→main artifact gate: manifest valid and every issue has PASS artifacts."""
+    """Wave→main artifact gate: manifest valid and every issue has a PASS status record."""
     schema_result = validate_wave_manifest(manifest)
     if not schema_result["valid"]:
         return schema_result
@@ -186,7 +228,7 @@ def validate_wave_artifacts(
         if not isinstance(issue, int) or isinstance(issue, bool):
             errors.append(f"issues contains non-integer entry: {issue!r}")
             continue
-        errors.extend(_validate_issue_artifacts(issue))
+        errors.extend(_validate_issue_artifacts(issue, verify_integrity=verify_integrity))
 
     return {"valid": not errors, "errors": errors}
 
@@ -218,7 +260,12 @@ def main() -> int:
     parser.add_argument(
         "--check-artifacts",
         action="store_true",
-        help="Validate review/validation PASS artifacts for manifest issues",
+        help="Validate PASS status records (agent-runtime/artifacts/status/) for manifest issues",
+    )
+    parser.add_argument(
+        "--verify-integrity",
+        action="store_true",
+        help="With --check-artifacts, also sha256-verify verbose bodies present on disk",
     )
     args = parser.parse_args()
 
@@ -257,6 +304,7 @@ def main() -> int:
             manifest,
             expected_wave_id=expected_wave_id,
             expected_branch=expected_branch,
+            verify_integrity=args.verify_integrity,
         )
         detail = result["errors"][0] if result["errors"] else ""
         return print_check_result("wave_artifact_gate", result["valid"], detail)

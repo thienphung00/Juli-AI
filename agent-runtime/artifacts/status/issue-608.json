@@ -1,0 +1,27 @@
+{
+  "gateVersion": 1,
+  "issue": 608,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/MODULE.md",
+      "backend/src/juli_backend/services/etl/MODULE.md",
+      "agent-runtime/scripts/ci/medallion_one_writer.py",
+      "tests/unit/test_medallion_one_writer_ownership.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-608.json",
+    "sha256": "2c5b63fc21afce7b3ce31267d5a704ccc9ad06b27affe8c9f7485a1e9c63606f",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-30T10:38:17Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-608.json",
+    "sha256": "1ca1c16fe0cf1e673890f2d568051a61253161ddd91240033c633f44100beb44",
+    "status": "PASS"
+  },
+  "wave": null
+}

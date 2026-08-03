@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 429,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 8,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "tests/unit/test_action_cards_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-429.json",
+    "sha256": "e7a972f7bbd44ae4f3a930530e8485131a4d03c6a6ffa634ea22a1dc9254286e",
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "timestamp": "2026-07-21T07:16:32Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-429.json",
+    "sha256": "4126481fab3fc24fbdf895c93e5e56d838fc5eb84c47903bae6b70386ae39d6a",
+    "status": "PASS"
+  },
+  "wave": null
+}

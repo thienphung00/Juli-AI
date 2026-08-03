@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 81,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-81.json",
+    "sha256": "22391e199f2d19c078a2ec75d1eec451730b377b92949858b1651321538e466d",
+    "status": "PASS"
+  },
+  "timestamp": "2026-05-29T06:22:15Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-81.json",
+    "sha256": "97ef6e6fef3ae0d96218cfb857fac1415ae3331596ad3ed618d4980a2b10de11",
+    "status": "PASS"
+  },
+  "wave": null
+}

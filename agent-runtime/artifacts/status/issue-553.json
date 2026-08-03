@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 553,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 5,
+    "modulesTouched": [
+      ".github/pull_request_template.md",
+      ".cursor/rules/code-review.mdc",
+      ".cursor/skills/standalone/intent-review/SKILL.md",
+      ".cursor/skills/standalone/guardrails/SKILL.md",
+      "agent-runtime/config/slice-routing.yml",
+      "tests/unit/test_pr_template_mmu_contract.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-553.json",
+    "sha256": "8ce200869b9600ae8eb891e0c3592cb31d9cfd73f5cc26ddecc7aa3f40fe5115",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T11:17:39Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-553.json",
+    "sha256": "b1ded0dc3dd930b0c205eae5a3b907fcf1a123cb382832e0f4ce3009359d4398",
+    "status": "PASS"
+  },
+  "wave": null
+}

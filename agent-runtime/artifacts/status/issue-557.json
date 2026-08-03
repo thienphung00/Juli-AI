@@ -1,0 +1,52 @@
+{
+  "gateVersion": 1,
+  "issue": 557,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 4,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok/__init__.py",
+      "backend/src/juli_backend/integrations/tiktok/MODULE.md",
+      "backend/src/juli_backend/api/routes/auth_tiktok.py",
+      "backend/src/juli_backend/api/routes/auth_tiktok_business_advertiser.py",
+      "backend/src/juli_backend/api/routes/auth_tiktok_business_account_holder.py",
+      "backend/src/juli_backend/api/routes/debug_tiktok.py",
+      "backend/src/juli_backend/core/security/credential_resolver.py",
+      "backend/src/juli_backend/core/security/tiktok_oauth.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "backend/src/juli_backend/services/tiktok/oauth.py",
+      "backend/src/juli_backend/services/tiktok/business_advertiser_oauth.py",
+      "backend/src/juli_backend/services/tiktok/verify_connection.py",
+      "backend/src/juli_backend/services/tiktok/app_review_store.py",
+      "backend/src/juli_backend/services/execution/errors.py",
+      "backend/src/juli_backend/services/execution/inventory_leakage.py",
+      "backend/src/juli_backend/services/execution/listing.py",
+      "backend/src/juli_backend/services/execution/promotion_leakage.py",
+      "backend/src/juli_backend/services/execution/sandbox_guard.py",
+      "backend/src/juli_backend/services/etl/transform.py",
+      "backend/src/juli_backend/services/analytics_backfill/live_partition.py",
+      "backend/src/juli_backend/services/analytics_backfill/product_partition.py",
+      "backend/src/juli_backend/services/analytics_backfill/revenue_partition.py",
+      "backend/src/juli_backend/services/action_cards/refresh.py",
+      "backend/src/juli_backend/services/webhook/material_worker.py",
+      "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+      "backend/src/juli_backend/workers/services/polling/sync.py",
+      "tests/unit/test_tiktok_public_facade.py",
+      "tests/unit/test_tiktok_oauth_api_caller_facade.py",
+      "tests/unit/test_tiktok_remaining_caller_facade.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-557.json",
+    "sha256": "675a6c7549464c518d4f9f2dbd1e4d6ee0a229d11d69d4270ec900335a65cb10",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T05:44:39Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-557.json",
+    "sha256": "eb6b15590b1447c4cc041bb66e67883d35e0f4ad3d86d3c1f687c569dd0c8bd2",
+    "status": "PASS"
+  },
+  "wave": null
+}

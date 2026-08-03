@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 605,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/023_bronze_orders_returns.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/repositories/repos.py",
+      "tests/unit/test_bronze_orders_returns.py",
+      "tests/unit/test_bronze_orders_returns_migration.py",
+      "tests/integration/test_migrations.py",
+      "agent-runtime/artifacts/implementations/implementation-issue-605.json"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-605.json",
+    "sha256": "08440bcf4d2ff8f6ba4333e763cf66138bcadd2112533f45dd052c97686299a1",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-30T06:40:24Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-605.json",
+    "sha256": "9cd7cd1260faa22bf46d047f32dfbebe15fe4ca01403b8e72168c54cb49e35a9",
+    "status": "PASS"
+  },
+  "wave": null
+}

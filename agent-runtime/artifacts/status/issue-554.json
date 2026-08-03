@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 554,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/action_cards/dispatch.py",
+      "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "backend/src/juli_backend/services/execution/dispatch.py",
+      "backend/src/juli_backend/workers/dispatch_binding.py",
+      "backend/src/juli_backend/workers/celery_app.py",
+      "backend/src/juli_backend/api/main.py",
+      "tests/unit/test_mmu6_celery_dispatch_ports.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-554.json",
+    "sha256": "b54a8a94b6d54363346f893f062c1400a6ffa4c667615b1ab5be3c7e8b3a91e3",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T02:41:12Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-554.json",
+    "sha256": "50b426a4eb74e447a0cfbc0bcac68d696da8ac893dfe4ec61c908194878bfd7a",
+    "status": "PASS"
+  },
+  "wave": null
+}
