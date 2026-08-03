@@ -139,11 +139,19 @@ async def get_gold_kpi_envelope(
         try:
             cached = await redis_client.get(key)
             if cached is not None:
+                logger.info(
+                    "gold_kpi_cache_hit",
+                    extra={"shop_id": str(shop_id)},
+                )
                 payload = json.loads(cached)
                 return _envelope_from_cached_payload(shop_id, payload)
         except (RedisError, json.JSONDecodeError) as exc:
             logger.warning("gold KPI cache read failed for %s: %s", shop_id, exc)
 
+    logger.info(
+        "gold_kpi_cache_miss",
+        extra={"shop_id": str(shop_id)},
+    )
     repo = GoldKpiEnvelopesRepo(session)
     envelope = await repo.get(shop_id)
     if envelope is None:
