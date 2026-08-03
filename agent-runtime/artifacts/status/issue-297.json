@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 297,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/integrations/tiktok/constants.py",
+      "backend/integrations/tiktok/schemas.py",
+      "backend/integrations/tiktok/factories.py",
+      "backend/integrations/tiktok/resources/orders.py",
+      "backend/integrations/tiktok/resources/products.py",
+      "backend/integrations/tiktok/resources/returns.py",
+      "tests/unit/test_layer1_read_resources.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-297.json",
+    "sha256": "801ff01fb3972f04fe4f0a287ba917801b0d1896a9b8e237c47b159291ecd26b",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-10T09:32:41Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-297.json",
+    "sha256": "ad5cfaed0605e7d53872a09c50c41614d4d608b33f8628f8aa5174392c4ed4c8",
+    "status": "PASS"
+  },
+  "wave": null
+}

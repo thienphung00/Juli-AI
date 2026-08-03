@@ -1,0 +1,68 @@
+{
+  "planId": "ci-wave-1-manifest-validator-2026-07-31",
+  "affectedPublicSurfaces": [
+    "GitHub merge eligibility for issue, wave, and main branches"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Focused validator tests on feature/issue-659-wave-manifest",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "wave-manifest-validator-candidate",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "valid wave manifests pass",
+          "invalid issue membership fails closed",
+          "missing or non-PASS issue artifacts fail closed",
+          "no production deployment occurs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "GitHub Actions workflow visualization"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "workflow-yaml"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No database or public API schema changes."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge the validator slice.",
+    "postCutoverFailureBehavior": "Revert the validator/schema commit; the existing #657 workflow remains active.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_wave_manifest.py -q",
+    "python -m pytest tests/unit/test_three_tier_ci_contract.py -q"
+  ],
+  "doNotInfer": [
+    "validator success deploys production",
+    "agent-local artifacts replace the main-tier artifact gate",
+    "live TikTok sandbox calls run in this slice"
+  ]
+}

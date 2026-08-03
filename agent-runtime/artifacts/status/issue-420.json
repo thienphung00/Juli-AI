@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 420,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "infra/scripts/safe-alembic-upgrade-local.sh",
+      "infra/scripts/safe_alembic_helpers.py",
+      "tests/unit/test_safe_alembic_helpers.py",
+      "tests/integration/test_safe_alembic_upgrade_local.py",
+      "tests/unit/test_safe_alembic_local_docs.py",
+      "docs/runbooks/backend-deploy-runbook.md",
+      "docs/adr/027-database-migration-safety-pipeline.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-420.json",
+    "sha256": "c90874e4175056dddaca8b7a29f6d275f8a86c23bfc9976db355fa25b30772ba",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-16T06:52:16Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-420.json",
+    "sha256": "664f124445ea0ab7258b788bf32eec3315843aaa1437886f89607fe3f3350d0c",
+    "status": "PASS"
+  },
+  "wave": null
+}

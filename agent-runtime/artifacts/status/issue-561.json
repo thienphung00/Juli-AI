@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 561,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 5,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/webhook_tiktok.py",
+      "backend/src/juli_backend/api/routes/auth_tiktok.py",
+      "backend/src/juli_backend/services/webhook/deployed.py",
+      "backend/src/juli_backend/services/webhook/__init__.py",
+      "backend/src/juli_backend/services/webhook/MODULE.md",
+      "backend/src/juli_backend/services/tiktok/oauth.py",
+      "tests/unit/test_api_route_public_entrypoints.py",
+      "tests/unit/test_tiktok_oauth_api_caller_facade.py",
+      "agent-runtime/config/slice-routing.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-561.json",
+    "sha256": "e7f40a3882d5f828f9adac9b5f9bc62f6c5286b77eb39f15d4004586163ae5b5",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-28T11:17:49Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-561.json",
+    "sha256": "3e5245af9f679c7414edefbccf17f7bd86f64833ddc0d2ff456570b523157946",
+    "status": "PASS"
+  },
+  "wave": null
+}

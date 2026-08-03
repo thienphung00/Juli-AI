@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 138,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "src/modules/ml/seller_stage"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-138.json",
+    "sha256": "45769f031f1251cff81902abd924dddd4cd6dd00504628ef945d8c903e4bbd8f",
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "timestamp": "2026-06-06T00:54:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-138.json",
+    "sha256": "e008fe101965a071e2ab0ba415d123b4e7310436e004c7d86118c807705b0499",
+    "status": "PASS"
+  },
+  "wave": null
+}

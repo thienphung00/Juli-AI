@@ -57,3 +57,4 @@
 | [049](049-demo-analytics-main-kpi-override.md) | Demo Analytics Main KPI override (CDP-backed Option B′) | Accepted |
 | [050](050-cdp-slice-3-5-c-two-gated-exits.md) | CDP slice 3.5-C — two gated exits (C1 warm Sign-in, C2 cold-start) | Accepted |
 | [051](051-tiktok-corpora-catalog-retrieval.md) | TikTok document corpora — catalog retrieval for Architect/Meta | Accepted |
+| [052](052-wave-free-merge-deferred-artifact-gate.md) | Wave free-merge + deferred artifact gate | Accepted |

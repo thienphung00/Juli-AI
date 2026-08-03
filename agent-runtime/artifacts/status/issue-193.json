@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 193,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "web/src/components/workflows/operations/HomeSummaryShell.tsx",
+      "web/src/components/workflows/operations/DecisionPreviewCard.tsx",
+      "web/src/components/workflows/operations/RecommendedDecisionsPreview.tsx",
+      "web/src/components/seller-home/SellerHomeShell.tsx",
+      "web/src/components/workflows/operations/index.ts",
+      "web/src/lib/decisions/MODULE.md",
+      "web/src/lib/operations/MODULE.md",
+      "web/MODULE.md",
+      "web/src/__tests__/test_issue193_home_read_only.test.tsx"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-193.json",
+    "sha256": "95e78f9115402b262d74f4f1bc835e45c203274c299ca2ca027ecf6a32e6dc7f",
+    "status": "PASS"
+  },
+  "timestamp": "2026-06-12T04:42:09Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-193.json",
+    "sha256": "ba10b34c525e16e5c11bcfb623549c9c5770d67487fa72ab1a8f7f3d3111dd21",
+    "status": "PASS"
+  },
+  "wave": null
+}

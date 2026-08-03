@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 253,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "infra/deploy/",
+      "docs/product/phases/phase-2.5-deployment.md",
+      "tests/unit/test_phase_2_5_deploy_config.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-253.json",
+    "sha256": "aebb3a0cb61d495208110a2590cb0020f31f27698bde5c99d39395f7f9249977",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-01T08:56:13Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-253.json",
+    "sha256": "0408ae767df717490be7ea6897f0dbb0dcdde595e096d7299e041d76032b798c",
+    "status": "PASS"
+  },
+  "wave": null
+}

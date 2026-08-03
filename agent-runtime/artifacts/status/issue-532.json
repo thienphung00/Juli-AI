@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 532,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/tiktok/webhook_catalog.py",
+      "backend/src/juli_backend/services/webhook/main.py",
+      "backend/src/juli_backend/services/webhook/material_dispatch.py",
+      "backend/src/juli_backend/services/webhook/material_gate.py",
+      "backend/src/juli_backend/services/webhook/material_handoff.py",
+      "backend/src/juli_backend/services/webhook/material_worker.py",
+      "backend/src/juli_backend/workers/services/polling/orchestrate.py",
+      "backend/src/juli_backend/workers/tasks/material_analytics_precompute.py",
+      "tests/unit/test_material_analytics_enqueue.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-532.json",
+    "sha256": "deda4e7b4046f179c83623a66ac91d73f8faa1be768c328ca458b39676b62618",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-27T17:21:34Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-532.json",
+    "sha256": "511e98291835959be82948335b9ee6c3f57de99a368389b965abe4a30b00fc69",
+    "status": "PASS"
+  },
+  "wave": null
+}

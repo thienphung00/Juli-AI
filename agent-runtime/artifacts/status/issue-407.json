@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 407,
+  "metrics": {
+    "acceptanceMapped": 9,
+    "acceptanceTotal": 9,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo/e2e",
+      "apps/demo/playwright.config.ts",
+      "apps/demo/package.json",
+      "apps/demo/src/components/decisions-page-client.tsx",
+      "apps/demo/src/components/analytics-charts.tsx",
+      "apps/demo/src/components/analytics-kpi-card.tsx",
+      "apps/demo/src/app/decisions/in-progress/[executionId]/page.tsx",
+      "tests/unit/test_phase_2_6_demo_exit_gate.py",
+      ".github/workflows/pr.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-407.json",
+    "sha256": "8fcb2051fd830bb37e3fc97b3fce57a82e4782608f4922af113f188752cf3484",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-23T09:00:24Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-407.json",
+    "sha256": "10f01e94825b1011a2ad5093caf2c817de2d1246566e06681755b84573e5586c",
+    "status": "PASS"
+  },
+  "wave": null
+}

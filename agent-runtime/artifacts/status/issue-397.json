@@ -1,0 +1,29 @@
+{
+  "gateVersion": 1,
+  "issue": 397,
+  "metrics": {
+    "acceptanceMapped": 9,
+    "acceptanceTotal": 9,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "apps/demo",
+      "packages/theme",
+      "packages/ui",
+      "packages/utils",
+      ".github/workflows/pr.yml",
+      "docs/architecture/map.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-397.json",
+    "sha256": "674a096dae2c308d8abe3f42eec1d874cb020d7ac1c41f5e5f33d6b62e36b4fd",
+    "status": "PASS"
+  },
+  "timestamp": "2026-07-15T07:36:49Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-397.json",
+    "sha256": "e0c5805142961eaa4d97a1bf407bbc8891d795bb2b47ffd5233c7e5dcac21f6e",
+    "status": "PASS"
+  },
+  "wave": null
+}
