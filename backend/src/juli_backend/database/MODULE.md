@@ -61,10 +61,10 @@ table. Readers may be many; writers must not drift. Enforced by
 
 | Layer / table | Owning module | Writer repos / entrypoints | Readers |
 |---------------|---------------|----------------------------|---------|
-| Bronze raw append (`bronze.order_raw_payloads`, `bronze.return_raw_payloads`) | **Ingest / ETL bronze writer** | `BronzeOrderRawPayloadsRepo.append_batch`, `BronzeReturnRawPayloadsRepo.append_batch` under `services/etl/` | Silver promotion only |
+| Bronze raw append (`bronze.order_raw_payloads`, `bronze.return_raw_payloads`) | **Ingest / ETL bronze writer** | `BronzeOrderRawPayloadsRepo.append_batch`, `BronzeReturnRawPayloadsRepo.append_batch` under `services/etl/`; exact `services/cdp_batch/partition_checkpoints.py` entrypoint for transaction-coupled A2 reconcile pages | Silver promotion only |
 | `silver.orders` / `silver.returns` | **Domain silver upsert service** | `OrdersRepo.upsert`, `ReturnsRepo.upsert` via `services/etl/consumer.py` and `services/etl/silver_promotion.py` (`SilverOrdersReturnsPromoter`) | Gold compute, ML (future) |
 | `gold.kpi_envelopes` | **Shared Compute gold writer** (A1; A0 seeds shell) | `GoldKpiEnvelopesRepo.upsert` / `AnalyticsKpiEnvelopesRepo.upsert` via `services/gold_kpi_envelope_serving.py` (A0 shell) and `services/analytics_kpi_precompute/` (transitional until A1 consolidates) | Demo/API, Redis read-through (A1), Decisions (#599) |
-| `ops.analytics_backfill_partitions` | **Backfill / batch partition repo** | `AnalyticsBackfillPartitionsRepo.mark_complete` / `mark_failed` under `services/analytics_backfill/` | A2 scheduler |
+| `ops.analytics_backfill_partitions` | **Backfill / batch partition repo** | `AnalyticsBackfillPartitionsRepo.mark_complete` / `mark_failed` under `services/analytics_backfill/`; exact `services/cdp_batch/partition_checkpoints.py` entrypoint for A2 page checkpoints | A2 scheduler |
 | `gold.ml_feature_snapshots` | **Stub / empty OK** (#603) | No writer required for A0 exit; ML reads **silver** only | None required for A0 |
 
 **Notes**
