@@ -200,7 +200,17 @@ class BatchReconcileOrchestrator:
             orchestrator = SharedComputeOrchestrator(self._session)
             compute_result = await orchestrator.run(shared_job)
 
-            # Check Postgres I/O budget for this write (only if there's data to write)
+            # Gate 5: Check Postgres I/O budget before silver upsert.
+            # RESUMABILITY NOTE: The partition checkpoint may be marked "complete" by the
+            # bronze stage (partition_checkpoints.py), indicating all pages from Partner
+            # have been fetched. This is intentional — "partition complete" means "no need
+            # to re-fetch from Partner," not "entire reconcile pipeline finished."
+            # If postgres_io_throttled defers here, a resumed run will:
+            # 1. Check is_complete() → True (bronze checkpoint exists)
+            # 2. Proceed to Gate 4 (silver promotion) via the normal path
+            # 3. Retry the silver_upsert that failed, picking up where it left off
+            # This asymmetry (partner_budget defers before mark_complete; postgres_io defers
+            # after) is correct: we only mark partition complete once bronze is durable.
             if compute_result.silver_promoted > 0:
                 if not self._postgres_budget.try_silver_upsert(compute_result.silver_promoted):
                     postgres_log_fields = self._postgres_budget.finish(POSTGRES_IO_DEFER_REASON)
