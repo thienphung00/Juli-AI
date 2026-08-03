@@ -58,7 +58,13 @@ def create_redis_client(redis_url: str | None = None) -> Any | None:
 
 
 async def close_shared_redis_client() -> None:
-    """Close and clear the process-lifetime async Redis client."""
+    """Close and clear the process-lifetime async Redis client.
+
+    Best-effort: if the underlying connection's event loop is already
+    closed (e.g. a test-teardown ordering edge case), the connection is
+    already effectively gone — log and move on rather than raise, matching
+    this module's fail-open philosophy for every other Redis operation.
+    """
     global _shared_client, _shared_client_url
 
     client = _shared_client
@@ -66,15 +72,18 @@ async def close_shared_redis_client() -> None:
     _shared_client_url = None
     if client is None:
         return
-    aclose = getattr(client, "aclose", None)
-    if aclose is not None:
-        await aclose()
-        return
-    close = getattr(client, "close", None)
-    if close is not None:
-        result = close()
-        if hasattr(result, "__await__"):
-            await result
+    try:
+        aclose = getattr(client, "aclose", None)
+        if aclose is not None:
+            await aclose()
+            return
+        close = getattr(client, "close", None)
+        if close is not None:
+            result = close()
+            if hasattr(result, "__await__"):
+                await result
+    except RuntimeError as exc:
+        logger.warning("analytics KPI cache client close failed (best-effort): %s", exc)
 
 
 def reset_shared_redis_client_for_tests() -> None:
