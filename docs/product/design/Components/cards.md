@@ -18,7 +18,9 @@
 
 ## Home launcher cards
 
-Home contains exactly two prominent interactive cards:
+Home contains exactly two prominent interactive cards, rendered below the
+activity summary ([ADR-053](../../adr/053-demo-home-activity-summary.md),
+`Components/home-activity-tracker.md`):
 
 1. **Quyết định** — opens `/decisions` on the `Đề xuất` sub-tab and summarizes
    whether recommendations need review.
@@ -33,29 +35,56 @@ grids, shop-health bars, workflow actions, or approval controls.
 
 The primary card for a Decision on the Quyết định tab. Structure, top to bottom:
 
-1. **Header row** — Vietnamese workflow name (Đề xuất title), confidence badge
-   (`high`/`medium`/`low` via `Components/badges.md`).
-2. **Impact line** — `Tác động dự kiến` and `Độ tin cậy`, prominent and formatted.
+1. **Header row** — Vietnamese workflow name (Đề xuất title) only. **No
+   confidence badge** — [PRD #600](https://github.com/thienphung00/Juli-AI/issues/600)
+   removes confidence/`Độ tin cậy` from every seller card and approve surface;
+   the old `high`/`medium`/`low` confidence badge below is retired.
+2. **Impact line** — `Tác động dự kiến` only (no confidence pairing).
 3. **Reasoning trigger** — an explicit **Mở rộng** control with `aria-expanded`;
    it reveals `Lý do đề xuất`, supporting evidence, and relevant risks inline.
+   No confidence score anywhere in this card, collapsed or expanded — verified
+   in code: nothing under `apps/demo/src`/`packages/ui/src`/`packages/contracts/src`
+   renders confidence; the fixture `confidenceLabel`/`confidenceLevel` fields
+   exist only as negative test oracles.
 4. **Action row** — **Phê duyệt** (primary), **Từ chối** (secondary/ghost), and
    **Mở rộng** (tertiary). All three are visible on every recommendation card.
 
-Phê duyệt opens the workflow with prefilled but editable inputs; it does not imply
-silent execution. Từ chối removes the recommendation after any required
-confirmation. Mở rộng never authorizes an action.
+Phê duyệt opens the workflow with prefilled but editable inputs; prefilled
+fields carry the suggestion glow + **Gợi ý bởi Juli** label
+(`Components/forms.md` Suggestion glow, `Components/badges.md` Info variant) —
+never silent prefill, never a confidence score. Từ chối removes the
+recommendation after any required confirmation. Mở rộng never authorizes an
+action.
 
-After approval, the item appears under `Đang thực hiện` with the existing
-`needs_input`, `executing`, and `completed` lifecycle states.
+After approval, the item appears under `Đang thực hiện` as a progress card (see
+Execution progress card below) with the existing `needs_input`, `executing`,
+and `completed` lifecycle states, and a **Juli-handles-all** confirm message —
+not a you-vs-Juli split checklist.
 
-## Execution workflow card
+## Execution progress card (Đang thực hiện)
 
-- Appears only in Decisions → `Đang thực hiện`.
-- Shows workflow title, current lifecycle status, estimated impact, current
-  execution step, and the next valid CTA.
-- One card can represent a complete workflow journey: approved/prefilled input →
-  execution progress → outcome. Step transitions preserve entered values and
-  provide recovery when execution fails.
+Replaces a raw status table with one ChatGPT-style card per execution
+([PRD #600](https://github.com/thienphung00/Juli-AI/issues/600)):
+
+1. **Mode strip** — a single top-of-card strip that reads as either
+   **Xác nhận** (confirm — approved, execution not yet started/needs input) or
+   **Đang chạy** (running — actively executing). Exactly one mode is active per
+   card; it is the first thing the eye reads, not a column in a table.
+2. **Header** — workflow title + lifecycle badge (`Components/badges.md`
+   Success/Warning/Live variant per `needs_input`/`executing`/`completed`).
+3. **Narrative step line** — the current step in one sentence
+   (`Bước {n}: {title}`), not a stepper table; expected duration
+   **5–10 phút** shown once execution starts.
+4. **Next action** — the single next valid thing the seller can do or expect
+   (recovery text if the step needs input), plus **cancel/rollback** — always
+   visible, never hidden behind a menu.
+5. **Policy line** — **Đã kiểm tra chính sách TikTok Shop** badge/line, present
+   on every card once approved.
+
+One card represents a complete workflow journey: approved/prefilled input →
+execution progress → outcome. Step transitions preserve entered values and
+provide recovery when execution fails. Cards are grouped/sorted with running
+executions first, so an active dry-run is never buried below completed ones.
 
 ## Analytics metric cards
 
@@ -99,8 +128,8 @@ After approval, the item appears under `Đang thực hiện` with the existing
 ## Rules
 
 - Card radius is always `--radius` (16px) — never a different radius per card type.
-- One accent color moment per card maximum (the confidence badge, or the delta
-  badge, not both fighting for attention).
+- One accent color moment per card maximum (e.g. the delta badge) — never
+  multiple badges competing for attention.
 - Cards never nest a card of the same visual weight inside themselves — a
   `ClarityCard`'s expanded reasoning is a lighter-weight panel, not a second card.
 
@@ -110,7 +139,15 @@ After approval, the item appears under `Đang thực hiện` with the existing
 - Stacking more than one badge type in the header row without clear hierarchy.
 - A legacy two-action recommendation card or any card without the
   Phê duyệt/Từ chối/Mở rộng trio.
-- A KPI dashboard, recommendation preview, or execution queue on Home.
+- A confidence score, `Độ tin cậy` label, or confidence badge anywhere on a
+  seller card or approve surface — retired by PRD #600.
+- `Đang thực hiện` rendered as a raw data table/columns instead of the
+  execution progress card + mode strip above.
+- A you-vs-Juli split task checklist after approval instead of the
+  Juli-handles-all confirm message.
+- A KPI dashboard, per-item execution/recommendation list, or approval action
+  on Home — the ADR-053 activity summary is counts only
+  (`Components/home-activity-tracker.md`).
 - An unavailable Main KPI implemented as a disabled selection button with an
   unreachable nested info control.
 - Card text placed directly over a preview without a readability-safe layer.

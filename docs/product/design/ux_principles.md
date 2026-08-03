@@ -8,13 +8,17 @@
 1. **Mobile-first** — support single-thumb operation and 44×44px targets.
 2. **Minimal cognitive load** — each screen answers one primary question.
 3. **Recommendation-first** — Decisions is the action hub.
-4. **Sparse Home** — exactly two prominent cards launch Decisions and
-   Analytics; no KPI wall or recommendation actions.
+4. **Sparse Home** — a summary-only activity strip (three counts, no lists or
+   actions — [ADR-053](../../adr/053-demo-home-activity-summary.md)) above
+   exactly two prominent cards that launch Decisions and Analytics; no KPI
+   wall or recommendation actions.
 5. **Clear ownership** — Analytics owns reporting; Settings owns workflow
    templates and thresholds.
 6. **Human approval required** — no autonomous execution.
-7. **Explain before action** — impact and confidence are visible; reasoning
-   and details are expandable.
+7. **Explain before action** — impact is visible; reasoning and evidence are
+   revealed via Expand. No confidence score anywhere, collapsed or expanded
+   ([PRD #600](https://github.com/thienphung00/Juli-AI/issues/600) — verified
+   in code, not just UI copy).
 8. **Contextual Juli** — assistance follows the active destination and never
    becomes a standalone tab.
 
@@ -22,7 +26,7 @@
 
 | Destination | Primary question | Allowed actions | Forbidden |
 |---|---|---|---|
-| Home | Where do I need to go? | Open Decisions or Analytics | KPIs, approval, workflow configuration |
+| Home | What has Juli done, what's running, what needs me, and where do I go next? | View activity summary counts; open Decisions or Analytics | KPI/chart reporting, per-item lists, approval, workflow configuration |
 | Decisions | What should I do, and what is running? | Expand, Approve, Reject, provide workflow inputs, track work | Templates and thresholds |
 | Analytics | What is happening in my shop? | Explore metrics, compare periods, inspect forecasts and evidence | Approve or execute |
 | Settings | How should recommendations be configured? | Manage workflow templates and thresholds | Active recommendation decisions |
@@ -45,15 +49,35 @@ destinations and their ownership.
 
 ## Home interaction model
 
-Home is a sparse launchpad with exactly two prominent clickable cards:
+Home answers two questions in order: "What has Juli done, and what needs me
+now?" then "Where do I want to go?" ([ADR-053](../../adr/053-demo-home-activity-summary.md)).
+
+**Activity summary** (above the launcher cards) — three counts, reusing
+existing lifecycle/tab vocabulary, no new terms:
+
+| Tile | Meaning | Label |
+|---|---|---|
+| Done | Completed executions | Hoàn tất |
+| Running | Executing or awaiting input | Đang thực hiện |
+| Needs attention | Open recommendations awaiting review | Đề xuất cần xem xét |
+
+Each tile is a count only — tapping it routes into Decisions (Recommendations
+tab for "needs attention"; In Progress tab for "done"/"running"). It never
+renders a list, a recommendation card, an execution detail, or an Approve/
+Reject control in place. First-run/empty state (nothing yet) renders one calm
+explanatory line instead of three zero-value tiles.
+
+**Launcher cards** (unchanged) — exactly two prominent clickable cards below
+the summary:
 
 - **Decisions** — opens Decisions, defaulting to Recommendations.
 - **Analytics** — opens Analytics.
 
-The cards communicate their destination and current relevance concisely, but
-Home does not render metric tiles, KPI charts, shop-health dashboards,
-recommendation previews, task queues, In Progress lists, Approve/Reject
-controls, templates, or thresholds.
+The cards communicate their destination and current relevance concisely.
+Beyond the activity summary above, Home still does not render metric tiles,
+KPI charts, shop-health dashboards, recommendation preview cards, a full
+task/execution list, In Progress lists, or Approve/Reject controls — those
+stay owned by Decisions and Analytics.
 
 On mobile the cards stack in one column; wider layouts may place them side by
 side. Both cards are keyboard accessible and have a visible focus state.
@@ -80,7 +104,8 @@ Every recommendation exposes:
 - **Reject / Từ chối** — removes the recommendation from the active list and
   confirms the result. It does not execute, snooze, or silently defer.
 - **Expand / Mở rộng** — toggles reasoning and details in place, including
-  expected impact, confidence, evidence, inputs, and risks.
+  expected impact, evidence, inputs, and risks. No confidence score,
+  collapsed or expanded.
 
 Reasoning is collapsed by default and available in one interaction. Back
 navigation from the workflow preserves the Decisions list position.
@@ -189,8 +214,10 @@ repo-root [`dictionary.md`](../../../dictionary.md):
 
 - More or fewer than four primary destinations.
 - A standalone Juli or AI-chat tab.
-- Dashboard-first or metric-heavy Home.
-- Approval or recommendation previews on Home.
+- Dashboard-first or metric-heavy Home (the ADR-053 activity summary is three
+  lifecycle counts, not a metrics dashboard).
+- Approval or recommendation previews on Home (summary counts route to
+  Decisions; they never render recommendation or execution content in place).
 - KPI reporting outside Analytics.
 - Workflow Templates as a Decisions sub-tab.
 - Threshold management outside Settings.

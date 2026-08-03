@@ -14,8 +14,9 @@ concept names** in specs and code; resolve user-visible Vietnamese labels from
 [`dictionary.md`](../../../dictionary.md) (e.g. `nav.home`, `nav.decisions`,
 `nav.analytics`, `nav.settings`).
 
-1. **Home** — a sparse launchpad with two prominent cards: Decisions and
-   Analytics.
+1. **Home** — a summary-only activity strip (done/running/needs-attention
+   counts; dictionary keys, not new copy) above two prominent cards:
+   Decisions and Analytics ([ADR-053](../../../docs/adr/053-demo-home-activity-summary.md)).
 2. **Decisions** — recommendations and approved work.
 3. **Analytics** — all metrics, KPIs, forecasts, and reporting.
 4. **Settings** — workflow templates, thresholds, and related configuration.

@@ -503,6 +503,32 @@ workflow_prompt_cache:
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
 
+    600:
+      defaultSliceId: DUX-1
+      handoffPath: docs/handoffs/demo-ui-fix-grill-summary.md
+      childSlices:
+        "690": DUX-1
+        "691": DUX-2
+        "692": DUX-3
+        "693": DUX-4
+        "694": DUX-5
+        "695": DUX-6
+        "696": DUX-7
+        "697": DUX-8
+        "698": DUX-9
+        "699": DUX-10
+      parentScopeBlock: "# Parent #600 — Demo UI fix, Track B (constant)\\n## Product boundary\\n- apps/demo ONLY (public demo.app-juli.com) + additive packages/ui, packages/theme, packages/contracts\\n- ADR-023 four-destination IA unchanged; dry-run only; Sign-in/OAuth stays disabled (ADR-048)\\n- Track A CDP backend (#598 #601 #602 #599) is NOT in scope — consume read-API contracts only\\n## Architect locks\\n- ADR-049 (PRD calls it 'ADR-044'): Demo Main KPI catalog = EXACTLY five — gmv-tiktok, aov, ctor, live-hours, cancellation-rate; hero default GMV; Bestselling (A-38/A-39) removed; SPS/ROAS/CSAT/net-revenue/inventory-turnover/fulfillment-accuracy dropped from the selector entirely (not shown as placeholders)\\n- ADR-046 Q3: consume flexible payload.kpis map keyed by metric_id — never per-KPI columns\\n- ADR-053: Home = exactly three summary-only count tiles above the two launcher cards; no lists, no actions, no KPI on Home\\n- Confidence UI is RETIRED everywhere on seller surfaces (no Độ tin cậy, no score, no badge)\\n- Prefill is never silent: suggestion glow + 'Gợi ý bởi Juli' on every prefilled field\\n- In Progress = execution progress cards + mode strip (Xác nhận / Đang chạy), never a status table\\n- Post-approve = Juli-handles-all + TikTok Shop policy badge + always-visible cancel/rollback + 5–10 phút; never a you-vs-Juli checklist\\n- No API names, envelope keys, workflow_key, tool_name, feature_id, webhook, endpoint, FBS/FBT, or 'fixture' on any seller surface (REVIEW_UI_BANNED_PATTERNS is the source of truth)\\n## Public release (ADR-035)\\n- apps/demo is a PUBLIC surface — every child issue carries a release-evidence plan; Meta must halt if it is missing\\n## Slices\\n- Analytics chain: DUX-1 interim envelope (#690) → DUX-2 five-KPI catalog (#691) → DUX-3 trust copy (#692) / DUX-4 review deep link (#693)\\n- Decisions/Home chain: DUX-5 Decisions density + ?tab= (#694) → DUX-6 Home activity summary (#695)\\n- Execution chain: DUX-7 progress card + mode strip (#696) → DUX-8 execution detail (#697)\\n- Independent: DUX-9 suggestion glow (#698) · DUX-10 shell assistance + nav (#699)\\n## Epic deferrals\\n- Track A CDP implementation: #598 A0 · #601 A1 · #602 A2 · #599 Decisions continuous scoring\\n- apps/dashboard ADR-023 Main KPI catalog (unchanged until a future ADR)\\n- TikTok OAuth / Sign-in / real Partner writes / landing deploy\\n- P2/P3 Settings tab spacing polish (PRD stories 40–42) — not yet issued\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - backend/
+        - web/
+        - ios/
+        - apps/landing/
+        - apps/dashboard/
+        - docs/integrations/tiktok_api/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
 
     601:
       defaultSliceId: CDP-A1-1

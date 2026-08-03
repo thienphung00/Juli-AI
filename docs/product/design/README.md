@@ -40,8 +40,9 @@ higher-precedence file.
 - Exactly four primary destinations: **Home, Decisions, Analytics, Settings**.
 - Juli is contextual assistance within those destinations, not a standalone
   tab or destination.
-- Home is a sparse launchpad with exactly two prominent clickable cards:
-  **Decisions** and **Analytics**.
+- Home is a sparse launchpad: a summary-only activity strip (done / running /
+  needs attention counts — [ADR-053](../adr/053-demo-home-activity-summary.md))
+  above exactly two prominent clickable cards: **Decisions** and **Analytics**.
 - Analytics owns every metric, KPI, chart, comparison, forecast, and report.
 - Settings owns workflow templates and thresholds.
 - Decisions has exactly two sub-tabs:
