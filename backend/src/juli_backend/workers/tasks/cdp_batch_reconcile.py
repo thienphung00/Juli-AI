@@ -71,11 +71,9 @@ def cdp_batch_staggered_reconcile_beat_tick() -> None:
     current_day = now_utc.date()
 
     # Import here to avoid circular imports
-    from juli_backend.services.cdp_batch.batch_fetch_planner import (
-        is_batch_fetch_trigger_allowed,
-    )
-    from juli_backend.services.cdp_batch.stagger_scheduler import (
+    from juli_backend.services.cdp_batch import (
         StaggerScheduler,
+        is_batch_fetch_trigger_allowed,
     )
 
     scheduler = StaggerScheduler()
