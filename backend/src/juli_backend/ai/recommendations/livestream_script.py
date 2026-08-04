@@ -55,50 +55,50 @@ class LivestreamScriptRecommendation:
 # Script Templates (TikTok's official livestream coaching framework)
 # ===================================================================
 
-_TEMPLATES = {
-    "needs_improvement": {
-        "revenue_per_viewer": (
-            "Phiên livestream này có doanh thu trên lượt xem thấp hơn bình thường. "
-            "Hãy cải thiện bằng cách: (1) Tăng tốc độ giới thiệu sản phẩm để giữ chú ý khán giả, "
-            "(2) Tạo ưu đãi chốt đơn sớm (coupon, gói combo), (3) Ghim sản phẩm bán chạy nhất."
-        ),
-        "conversion_rate": (
-            "Lượt xem cao nhưng tỷ lệ chốt đơn thấp hơn bình thường. "
-            "Hãy cải thiện bằng cách: (1) Tăng cảm giác khẩn cấp (hạn số lượng, thời gian), "
-            "(2) Chứng minh giá trị sản phẩm qua review/demo rõ ràng, "
-            "(3) Tạo combo bán kèm để tăng giá trị đơn."
-        ),
-        "revenue_vs_avg": (
-            "Doanh thu tổng của phiên này thấp hơn bình thường. "
-            "Hãy cải thiện bằng cách: (1) Tăng tổng giá trị đơn (bán kèm combo), "
-            "(2) Kéo dài thời gian livestream để tăng cơ hội bán, "
-            "(3) Tập trung vào sản phẩm margin cao."
-        ),
-        "duration_efficiency": (
-            "Doanh thu trên giờ livestream thấp hơn bình thường. "
-            "Hãy cải thiện bằng cách: (1) Giảm thời gian chuyển giữa các sản phẩm, "
-            "(2) Tạo flow bán hàng mạnh mẽ hơn với những sản phẩm bán chạy, "
-            "(3) Tắt livestream sớm nếu không còn khán giả thay vì kéo dài vô ích."
-        ),
-    },
-    "maintenance": (
-        "Phiên livestream này có hiệu suất tốt! Hãy tiếp tục duy trì những thói quen này: "
-        "(1) Thời gian bắt đầu và nội dung sẽ tiếp tục hút khán giả, "
-        "(2) Cách tương tác và cảm giác khẩn cấp tạo chốt đơn tốt, "
-        "(3) Sản phẩm được lựa chọn phù hợp với khán giả. Tiếp tục với kịch bản này cho phiên tới!"
+_NEEDS_IMPROVEMENT_TEMPLATES: dict[str, str] = {
+    "revenue_per_viewer": (
+        "Phiên livestream này có doanh thu trên lượt xem thấp hơn bình thường. "
+        "Hãy cải thiện bằng cách: (1) Tăng tốc độ giới thiệu sản phẩm để giữ chú ý khán giả, "
+        "(2) Tạo ưu đãi chốt đơn sớm (coupon, gói combo), (3) Ghim sản phẩm bán chạy nhất."
     ),
-    "low_confidence": (
-        "Chúng tôi chưa có đủ dữ liệu lịch sử để so sánh hiệu suất của bạn. "
-        "Đối với phiên tới, hãy áp dụng những best practice: "
-        "(1) Bắt đầu livestream trong giờ vàng (18:00-22:00), "
-        "(2) Chuẩn bị 3-5 sản phẩm chủ lực để tập trung bán, "
-        "(3) Tạo ưu đãi chốt đơn sớm (coupon/gói combo) để kích hoạt bán, "
-        "(4) Tương tác tích cực với chat để tăng engagement, "
-        "(5) Kéo dài livestream ít nhất 30-45 phút để tối ưu khán giả."
+    "conversion_rate": (
+        "Lượt xem cao nhưng tỷ lệ chốt đơn thấp hơn bình thường. "
+        "Hãy cải thiện bằng cách: (1) Tăng cảm giác khẩn cấp (hạn số lượng, thời gian), "
+        "(2) Chứng minh giá trị sản phẩm qua review/demo rõ ràng, "
+        "(3) Tạo combo bán kèm để tăng giá trị đơn."
+    ),
+    "revenue_vs_avg": (
+        "Doanh thu tổng của phiên này thấp hơn bình thường. "
+        "Hãy cải thiện bằng cách: (1) Tăng tổng giá trị đơn (bán kèm combo), "
+        "(2) Kéo dài thời gian livestream để tăng cơ hội bán, "
+        "(3) Tập trung vào sản phẩm margin cao."
+    ),
+    "duration_efficiency": (
+        "Doanh thu trên giờ livestream thấp hơn bình thường. "
+        "Hãy cải thiện bằng cách: (1) Giảm thời gian chuyển giữa các sản phẩm, "
+        "(2) Tạo flow bán hàng mạnh mẽ hơn với những sản phẩm bán chạy, "
+        "(3) Tắt livestream sớm nếu không còn khán giả thay vì kéo dài vô ích."
     ),
 }
 
-_DEFAULT_TEMPLATE = _TEMPLATES["low_confidence"]
+_MAINTENANCE_TEMPLATE = (
+    "Phiên livestream này có hiệu suất tốt! Hãy tiếp tục duy trì những thói quen này: "
+    "(1) Thời gian bắt đầu và nội dung sẽ tiếp tục hút khán giả, "
+    "(2) Cách tương tác và cảm giác khẩn cấp tạo chốt đơn tốt, "
+    "(3) Sản phẩm được lựa chọn phù hợp với khán giả. Tiếp tục với kịch bản này cho phiên tới!"
+)
+
+_LOW_CONFIDENCE_TEMPLATE = (
+    "Chúng tôi chưa có đủ dữ liệu lịch sử để so sánh hiệu suất của bạn. "
+    "Đối với phiên tới, hãy áp dụng những best practice: "
+    "(1) Bắt đầu livestream trong giờ vàng (18:00-22:00), "
+    "(2) Chuẩn bị 3-5 sản phẩm chủ lực để tập trung bán, "
+    "(3) Tạo ưu đãi chốt đơn sớm (coupon/gói combo) để kích hoạt bán, "
+    "(4) Tương tác tích cực với chat để tăng engagement, "
+    "(5) Kéo dài livestream ít nhất 30-45 phút để tối ưu khán giả."
+)
+
+_DEFAULT_TEMPLATE = _LOW_CONFIDENCE_TEMPLATE
 
 
 # ===================================================================
@@ -185,15 +185,15 @@ async def classify_livestream_performance(
             tier="maintenance",
             score_grade=score.grade,
             weakest_metric=None,
-            script_template=_TEMPLATES["maintenance"],
+            script_template=_MAINTENANCE_TEMPLATE,
         )
     elif score.grade < threshold_poor:
         # Weak performer
         weakest_metric = "conversion_rate"
         if score.breakdown:
             weakest_metric = min(score.breakdown, key=lambda k: score.breakdown[k])
-        template = _TEMPLATES["needs_improvement"].get(
-            weakest_metric, _TEMPLATES["needs_improvement"]["conversion_rate"]
+        template = _NEEDS_IMPROVEMENT_TEMPLATES.get(
+            weakest_metric, _NEEDS_IMPROVEMENT_TEMPLATES["conversion_rate"]
         )
         return LivestreamScriptClassification(
             tier="needs_improvement",
