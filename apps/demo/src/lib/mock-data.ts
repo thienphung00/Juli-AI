@@ -51,8 +51,13 @@ export const homeDestinations = [
   },
 ] as const satisfies readonly HomeDestinationFixture[];
 
+/**
+ * Shared demo-data timestamp across Home and Analytics.
+ * This MUST match envelope.computed_at in fixtures and live responses.
+ * ADR-049 Decision 3 requires consistent freshness across surfaces.
+ */
 export const demoSnapshot = {
-  generatedAt: "2026-07-15T08:00:00+07:00",
+  generatedAt: "2026-07-20T08:30:00+07:00",
   mode: "mock",
   shopName: "Juli Demo Shop",
 } as const satisfies DemoSnapshotFixture;

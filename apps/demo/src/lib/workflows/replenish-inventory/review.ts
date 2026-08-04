@@ -11,7 +11,7 @@ export const REPLENISH_INVENTORY_WORKFLOW_KEY = "replenish_inventory_3"; // gitl
 export const REPLENISH_INVENTORY_TOOL_NAME = "inventory.replenish";
 export const REPLENISH_INVENTORY_FBT_INTAKE_KEY = "replenish_inventory_3b"; // gitleaks:allow — documented FBT intake key
 
-const defaultAnalyticsMetricKey = "stockout-rate";
+const defaultAnalyticsMetricKey = "cancellation-rate";
 
 const replenishFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === REPLENISH_INVENTORY_WORKFLOW_KEY,
@@ -52,7 +52,7 @@ export function getReplenishInventoryReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI Tỷ lệ hết hàng trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI Tỷ lệ hủy đơn trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },

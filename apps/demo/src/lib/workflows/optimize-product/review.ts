@@ -9,7 +9,7 @@ import {
 
 export const OPTIMIZE_PRODUCT_WORKFLOW_KEY = "optimize_product_2";
 export const OPTIMIZE_PRODUCT_TOOL_NAME = "listing.optimize_product";
-export const defaultOptimizeProductAnalyticsMetricKey = "revenue-by-sku";
+export const defaultOptimizeProductAnalyticsMetricKey = "ctor";
 
 const optimizeFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === OPTIMIZE_PRODUCT_WORKFLOW_KEY,

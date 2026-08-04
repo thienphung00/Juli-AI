@@ -1,0 +1,71 @@
+{
+  "planId": "rep-696-dux-7-execution-progress-card",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions (In Progress / Đang thực hiện sub-tab)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "in-progress-execution-progress-card",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "raw_status_table_replaced_by_one_chatgpt_style_progress_card_per_execution",
+          "mode_strip_leads_each_card",
+          "no_banned_seller_copy_strings_khả_năng_removed",
+          "empty_state_present"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Component replacement in in-progress-panel.tsx plus REVIEW_UI_BANNED_PATTERNS compliance; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 696"
+  ],
+  "doNotInfer": [
+    "Execution detail route seller-safety fixes (DUX-8/#697)",
+    "Home activity summary (DUX-6/#695)",
+    "release evidence fields beyond this plan"
+  ]
+}

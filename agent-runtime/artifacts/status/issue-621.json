@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 621,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/cdp_batch",
+      "backend/src/juli_backend/services/cdp_speed"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-621.json",
+    "sha256": "1c005978c0273eb72eb50428ffd48d490b59111b51dd408cb0be9cea2d3e6385",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-03T07:00:18Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-621.json",
+    "sha256": "b032171d3d827fd69038ef53b591decdf5a66642e410b80e46d73d129c2f2405",
+    "status": "PASS"
+  },
+  "wave": null
+}

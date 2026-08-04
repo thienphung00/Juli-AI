@@ -110,7 +110,7 @@ _Avoid_: target architecture (overloaded — use Phase 3 polyglot target)
 ## Frontend surfaces
 
 **`apps/demo`**:
-The public Interactive Demo (`demo.app-juli.com`) — ADR-023 four-destination IA (Home, Decisions, Analytics, Settings). Phase 2.6 mock data; **Phase 2.10** swaps agreed destinations to masked reference-shop KPIs without auth ([ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md)). Sign-in/OAuth and Landing remain Phase 3 ([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)).
+The public Interactive Demo (`demo.app-juli.com`) — ADR-023 four-destination IA (Home, Decisions, Analytics, Settings). Home additionally shows a summary-only activity strip (done/running/needs-attention counts) above its two launcher cards ([ADR-053](docs/adr/053-demo-home-activity-summary.md)). Phase 2.6 mock data; **Phase 2.10** swaps agreed destinations to masked reference-shop KPIs without auth ([ADR-037](docs/adr/037-phase-2.10-demo-real-data-no-auth.md)). Sign-in/OAuth and Landing remain Phase 3 ([ADR-024](docs/adr/024-phase-2.6-2.7-frontend-resequencing.md)).
 _Avoid_: the Demo (ambiguous with retired two-screen Home+Actions IA)
 
 

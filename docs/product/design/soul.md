@@ -19,20 +19,23 @@ Settings—and is grounded in that active context.
 ### 1. Intentional
 
 Every pixel, color, word, and destination earns its place. Minimal cognitive
-load is a design constraint, not decoration. Home therefore offers only two
-clear launch choices—Decisions and Analytics—while detailed metrics,
-execution, and configuration live in their owning destinations.
+load is a design constraint, not decoration. Home offers a one-glance activity
+summary (done, running, needs attention — [ADR-053](../../adr/053-demo-home-activity-summary.md))
+above its two clear launch choices—Decisions and Analytics—while detailed
+metrics, execution, and configuration live in their owning destinations.
 
 *Litmus test:* could a first-time seller explain in one sentence why this
 element is on the screen?
 
 ### 2. Trusted
 
-Juli shows her thinking. Every recommendation carries confidence, reasoning,
-and expected impact before action. The seller can **Approve**, **Reject**, or
-**Expand**: approval starts a prefilled/fillable workflow, rejection removes
-the recommendation, and expansion reveals the evidence. Trust comes from
-explainability and a human gate, not claims of autonomy.
+Juli shows her thinking. Every recommendation carries reasoning and expected
+impact before action — no confidence score anywhere, collapsed or expanded
+([PRD #600](https://github.com/thienphung00/Juli-AI/issues/600)). The seller
+can **Approve**, **Reject**, or **Expand**: approval starts a
+prefilled/fillable workflow, rejection removes the recommendation, and
+expansion reveals the evidence. Trust comes from explainability and a human
+gate, not claims of autonomy or false precision.
 
 *Litmus test:* if the recommendation were wrong, could the seller understand
 why it appeared and stop it before execution?
@@ -51,9 +54,9 @@ than any analytics tool?
 
 | Seller moment | Feeling | Design lever |
 |---|---|---|
-| Opens Home | Oriented, not overwhelmed | Two prominent destination cards |
+| Opens Home | Oriented, and reassured Juli is already working | Activity summary (done/running/needs attention) above two destination cards |
 | Opens Decisions | In control | Ranked recommendations and visible human gate |
-| Expands a recommendation | Informed | Reasoning, evidence, impact, confidence, and risk |
+| Expands a recommendation | Informed | Reasoning, evidence, impact, and risk — no confidence score |
 | Approves | Prepared | Prefilled/fillable workflow before execution |
 | Rejects | Respected | Immediate removal with clear feedback |
 | Tracks approved work | Reassured | Existing In Progress statuses and visible recovery |

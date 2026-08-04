@@ -1,0 +1,137 @@
+{
+  "planId": "rep-622-celery-beat-staggered-reconcile-config-flag",
+  "affectedPublicSurfaces": [
+    "Public Demo Analytics freshness SLA for the Fujiwa reference shop: this slice adds a second writer path into gold.kpi_envelopes (computed_at + the five locked payload.kpis keys) via BatchReconcileOrchestrator.run, and that envelope is what apps/demo/src/app/analytics renders and what the not-yet-built public Demo Analytics GET API (#633) will serve",
+    "Production Celery Beat schedule in backend/src/juli_backend/workers/celery_app.py: a new periodic entry lands next to the existing A1 hourly mock-analytics-hourly-reconcile (#533 / ADR-038 section 5). A Beat misconfiguration changes what executes in production for the whole fleet, not only for the shops in the rollout allowlist",
+    "Shared Partner API and Supabase Postgres I/O budget envelope: batch reconcile consumes the same TikTok credential rate limits and the same database connection/lock/WAL headroom that the public Demo read path depends on, so an over-eager schedule degrades public freshness rather than improving it",
+    "Operator-facing runtime config surface: the new enable/disable flag for staggered batch reconcile is itself a public-behaviour control, because its value (not a code deploy) decides whether the fleet reconcile path runs against production data"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "No public HTTP route and no deployed candidate web target exist for this slice. Verification is restricted to (1) RED->GREEN unit/contract tests in tests/unit/test_cdp_batch_scheduler_wiring.py that drive the Beat entry's is_due/enqueue decision against a frozen UTC clock and an in-memory broker with an enqueue spy, and (2) an operator-only dev/staging Celery Beat process with the flag enabled and the rollout allowlist restricted to DEMO_REFERENCE_SHOP_ID (Fujiwa Mock reference shop) plus N synthetic stub shops. Production Beat stays on the pre-slice schedule with the flag off until the drill in rollbackAssertion has been recorded.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "flag-off-default-is-inert",
+        "entryUrl": "tests/unit/test_cdp_batch_scheduler_wiring.py::flag_off_enqueues_nothing",
+        "assertions": [
+          "with the config flag unset, and separately with it explicitly false, a full simulated UTC day of Beat ticks produces exactly zero batch-reconcile enqueue calls on the enqueue spy",
+          "the assertion is on a zero enqueue count, not on the absence of an exception and not on log text",
+          "the pre-existing juli_backend.mock_analytics_hourly_reconcile entry still enqueues on its hourly schedule while the flag is off",
+          "no Partner API call and no bronze/silver/gold write occurs on any tick while the flag is off"
+        ]
+      },
+      {
+        "name": "staggered-window-enqueue-one-per-shop-per-utc-day",
+        "entryUrl": "tests/unit/test_cdp_batch_scheduler_wiring.py::stagger_windows_drive_enqueue",
+        "assertions": [
+          "with the flag on and the clock walked across a synthetic UTC day, each enabled shop is enqueued exactly once, at the minute returned by stagger_scheduler.window_minute_for_shop(shop_id)",
+          "no tick enqueues the whole fleet, and there is no global hourly full poll for the fleet",
+          "a repeated or replayed tick inside the same minute of the same UTC day does not double-enqueue that shop",
+          "the enqueued job carries the ReconcileWindow (shop_id, day, minute_of_day) so the window slot is attributable downstream"
+        ]
+      },
+      {
+        "name": "rollout-allowlist-limits-blast-radius-to-fujiwa-plus-stubs",
+        "entryUrl": "tests/unit/test_cdp_batch_scheduler_wiring.py::rollout_allowlist_scopes_enqueue",
+        "assertions": [
+          "only the configured reference shop plus the configured N stub shops are enqueued when the flag is on",
+          "a shop outside the configured rollout set is never enqueued even when its assigned window minute is due",
+          "widening the rollout set is a config change, not a code change, and requires no redeploy",
+          "stub shops used for prove-out are synthetic fixtures and are not real tenant shop ids"
+        ]
+      },
+      {
+        "name": "does-not-duplicate-a1-hourly-fujiwa-exception",
+        "entryUrl": "tests/unit/test_cdp_batch_scheduler_wiring.py::a1_hourly_exception_untouched",
+        "assertions": [
+          "the existing mock-analytics-hourly-reconcile Beat entry and its crontab(minute=0) schedule are byte-for-byte unchanged (US #27)",
+          "Fujiwa is reconciled by the batch path at its single assigned daily window, never hourly, so A2 does not re-implement the A1 single-tenant hourly poll",
+          "when the speed path holds the shop compute mutex, the batch job defers with reason speed_mutex_active instead of both paths computing the same shop concurrently",
+          "no A2 budget governor is moved into or referenced from the A1 speed path by this slice"
+        ]
+      },
+      {
+        "name": "public-traffic-cannot-enqueue-batch-jobs",
+        "entryUrl": "tests/unit/test_cdp_batch_scheduler_wiring.py::public_trigger_sources_rejected",
+        "assertions": [
+          "the only enqueue path for batch reconcile is the periodic Beat tick; no HTTP handler, query parameter, or Demo page interaction can enqueue one (PRD US #25)",
+          "trigger sources in batch_fetch_planner.FORBIDDEN_TRIGGER_SOURCES (fake_refresh, demo_public, visitor_refresh, public_demo) are rejected by is_batch_fetch_trigger_allowed and produce zero enqueues",
+          "a visitor-driven Fake Refresh on the public Demo surface leaves the batch enqueue counter unchanged",
+          "the guard is asserted at the scheduler/enqueue boundary, not only inside the planner, so wiring cannot bypass it"
+        ]
+      },
+      {
+        "name": "observability-ties-jobs-to-shop-and-window",
+        "entryUrl": "tests/unit/test_cdp_batch_scheduler_wiring.py::enqueue_and_completion_metrics",
+        "assertions": [
+          "enqueue and completion metrics/log events carry shop_id and the window slot (minute_of_day plus UTC day)",
+          "defer reason codes survive the wiring unchanged: partner_budget_exhausted, postgres_io_throttled, speed_mutex_active, gap_not_detected",
+          "a deferred job does not mark the shop window or partition complete, so the next day's window retries it",
+          "no token, credential, or PII value appears in any emitted field"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "apps/demo/src/app/analytics (public Demo Analytics page; a read-only downstream consumer of gold.kpi_envelopes freshness — not modified, rebuilt, or deployed by this slice)"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "celery-beat-schedule-entry",
+      "python-module"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No Alembic migration and no new API endpoint. The slice consumes tables already created by A0 (bronze/silver, gold.kpi_envelopes, ops.* partition checkpoints) and writes through BatchReconcileOrchestrator.run so the serving contract in backend/src/juli_backend/services/gold_kpi_envelope_contract.py is unchanged — no batch-only serving table and no KPI formula fork. The additive changes are a Celery Beat schedule entry, a periodic task, and a runtime config flag. Mixed-version hazard to respect during rollout: a newly named Celery task is unregistered on workers still running the previous image, so the flag must stay off until every consumer of the target queue has the new task registered; enable the flag only after workers are updated, never as part of the same restart window.",
+    "referencedIssues": [
+      "#615 StaggerScheduler.assign_window (merged)",
+      "#621 BatchReconcileOrchestrator.run (merged)",
+      "#633 public Demo Analytics GET API (not built; out of scope here)"
+    ]
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge, and leave the flag off. Production keeps only the A1 hourly Fujiwa reconcile (#533); no staggered fleet reconcile is ever enqueued. The public Demo Analytics freshness SLA stays exactly at its current pre-slice level — the failure mode is the absence of the new overnight backstop, never a regression of the existing path. The branch stays blocked until the RED->GREEN suite in tests/unit/test_cdp_batch_scheduler_wiring.py and ruff are green.",
+    "postCutoverFailureBehavior": "Rollback is a config-flag flip to off (illustrative name CDP_BATCH_STAGGERED_RECONCILE_ENABLED=false) plus a Beat reload/restart — no code deploy, no revert, no migration, no data repair, because deferred jobs never mark a shop window or partition complete. This assertion must be EXERCISED, not asserted on paper: this repository has no recorded history of any rollback drill actually being run, so the following two checks are required evidence. (1) Automated: a test in tests/unit/test_cdp_batch_scheduler_wiring.py that flips the flag to off mid-run and then walks the clock through a full simulated UTC day, asserting the enqueue spy call count is exactly zero after the flip — the assertion must be on the count, not on absence of an exception. (2) Manual staging drill: with Beat running and the flag on for Fujiwa plus stub shops, flip the flag off and observe, for at least one shop's assigned window plus a buffer, that the batch enqueue counter stops incrementing and broker queue depth for the batch task returns to zero, and that any in-flight job drains without marking its partition complete. Record both results — including the observed counter values and the wall-clock time between flip and last enqueue — in the implementation artifact. If flipping the flag requires a code deploy, acceptance criterion 2 has failed and the slice must not ship.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_cdp_batch_scheduler_wiring.py -q",
+    "python -m pytest tests/unit/test_cdp_batch_stagger_scheduler.py tests/unit/test_cdp_batch_reconcile_orchestrator.py tests/unit/test_cdp_batch_fetch_planner.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts",
+    "python agent-runtime/scripts/validate/check_public_release_evidence_plan.py --issue 622"
+  ],
+  "doNotInfer": [
+    "ARCHITECT ASSUMPTION (conservative, not stated in the issue body): the config flag defaults OFF in every environment including production, so merging the slice changes no production behaviour on its own. If the Executor concludes a default-on is required, stop and report to Meta — do not read 'start with Fujiwa + N stub shops' as authorization to default the flag on",
+    "ARCHITECT ASSUMPTION (conservative): the flag name CDP_BATCH_STAGGERED_RECONCILE_ENABLED is illustrative only; this plan does not fix the name. Whatever name is chosen, acceptance criterion 2 requires that toggling it needs no code deploy",
+    "do not infer that this slice ships, modifies, or deploys the public Demo Analytics GET API (#633) or any other HTTP route — no new endpoint is authorized here",
+    "do not infer that a schema change, Alembic migration, or new serving table is authorized; A0 already owns the medallion schema and ops.* partition state",
+    "a green unit suite is not a rollback drill — the flag-off checks in rollbackAssertion.postCutoverFailureBehavior must actually be run and their observed values recorded in the implementation artifact before this is treated as rollback-safe",
+    "candidatePublicTrafficPercent: 0 does not mean the change is invisible to the public — no public traffic is routed to a candidate, but the batch job writes the same gold.kpi_envelopes rows the public Demo surface reads",
+    "do not infer approval to change worker or Beat topology (new queues, new worker deployments, image/deploy config). If the new task needs a dedicated queue or an ordered mixed-version rollout, stop and report to Meta rather than editing deploy configuration",
+    "do not enable live TikTok Partner calls in the PR-safe CI lane; the merge_group Fujiwa batch smoke subset is optional and must be documented in the implementation artifact, never silently switched on",
+    "do not infer that stub shops may be real tenant shop ids, or that fleet expansion beyond Fujiwa plus stubs is in scope — expansion is gated on both budget metrics being verified first",
+    "do not infer that A2 governors may be relocated into the A1 speed path, or that the A1 hourly Fujiwa exception (#533, US #27) may be altered, replaced, or duplicated by this wiring",
+    "do not infer that Fake Refresh or any visitor-initiated action may enqueue a batch job under any flag state (PRD US #25) — the guard is unconditional"
+  ]
+}

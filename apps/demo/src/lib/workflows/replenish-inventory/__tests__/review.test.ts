@@ -13,7 +13,7 @@ const replenishFixture = recommendationFixtures.find(
 );
 
 describe("getReplenishInventoryReviewStages", () => {
-  it("returns five stages with stockout-rate analytics deep-link by default", () => {
+  it("returns five stages with cancellation-rate analytics deep-link by default", () => {
     const stages = getReplenishInventoryReviewStages();
 
     expect(stages.map((stage) => stage.stage)).toEqual([
@@ -25,8 +25,8 @@ describe("getReplenishInventoryReviewStages", () => {
     ]);
 
     const analytics = stages.find((stage) => stage.stage === "analytics");
-    expect(analytics?.analyticsMetricKey).toBe("stockout-rate");
-    expect(analytics?.analyticsMetricHref).toBe("/analytics/stockout-rate");
+    expect(analytics?.analyticsMetricKey).toBe("cancellation-rate");
+    expect(analytics?.analyticsMetricHref).toBe("/analytics/cancellation-rate");
   });
 
   it("derives Why-stage copy from the replenish_inventory_3 recommendation fixture", () => {

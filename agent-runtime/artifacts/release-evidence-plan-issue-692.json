@@ -1,0 +1,72 @@
+{
+  "planId": "rep-692-dux-3-analytics-trust-copy",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/analytics",
+    "demo.app-juli.com/ (Home shared demo-data timestamp)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-analytics-trust-copy",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "no_api_or_backend_vocabulary_in_seller_facing_copy",
+          "provenance_line_present_with_no_envelope_key_leak",
+          "freshness_derived_from_envelope_computed_at",
+          "home_and_analytics_share_one_demo_data_timestamp"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Copy/provenance-mapping change only in envelope-mapper.ts; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 692"
+  ],
+  "doNotInfer": [
+    "Five-KPI catalog changes (DUX-2/#691)",
+    "Analytics deep link fix (DUX-4/#693)",
+    "release evidence fields beyond this plan"
+  ]
+}

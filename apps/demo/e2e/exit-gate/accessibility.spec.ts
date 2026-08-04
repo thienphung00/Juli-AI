@@ -84,8 +84,62 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
   test("Analytics chart equivalent exposes sr-only label when unavailable", async ({
     page,
   }) => {
+    // A live envelope can still omit series data for one of the five Demo
+    // Main KPIs (ADR-049) even though the catalog itself marks all five
+    // selectable — DUX-1's fallback only covers total fetch failure, not a
+    // per-KPI data gap in an otherwise-valid 200 response.
+    await page.route("**/v1/demo/analytics*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          envelope_version: 1,
+          kind: "analytics",
+          shop_id: "00000000-0000-4000-8000-000000000001",
+          computed_at: new Date().toISOString(),
+          currency: "VND",
+          kpis: {
+            gmv_tiktok: {
+              availability: "available",
+              label: "GMV (TikTok)",
+              series: [
+                { t: "2026-07-13", v: 400_000_000 },
+                { t: "2026-07-20", v: 420_000_000 },
+              ],
+            },
+            aov: { availability: "unavailable", label: "AOV", series: [] },
+            ctor: {
+              availability: "available",
+              label: "CTOR",
+              series: [
+                { t: "2026-07-13", v: 3.2 },
+                { t: "2026-07-20", v: 3.5 },
+              ],
+            },
+            live_hours: {
+              availability: "available",
+              label: "LIVE hours",
+              series: [
+                { t: "2026-07-13", v: 8 },
+                { t: "2026-07-20", v: 12 },
+              ],
+            },
+            cancellation_rate: {
+              availability: "available",
+              label: "Cancellation rate",
+              series: [
+                { t: "2026-07-13", v: 2.1 },
+                { t: "2026-07-20", v: 1.8 },
+              ],
+            },
+          },
+          meta: { source_partitions: ["live"] },
+        }),
+      });
+    });
+
     await page.goto("/analytics");
-    const unavailableCard = page.getByTestId("analytics-kpi-card-sps");
+    const unavailableCard = page.getByTestId("analytics-kpi-card-aov");
     await expect(
       unavailableCard.getByText("Chưa khả dụng", { exact: true }),
     ).toBeVisible();

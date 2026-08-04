@@ -1,0 +1,71 @@
+{
+  "planId": "rep-699-dux-10-shell-routing-nav",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/ (assistance bar, nav shell — all four destinations)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "shell-assistance-bar-and-nav-overlap",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "assistance_bar_copy_matches_destination_for_every_route_including_analytics_metric_subpaths",
+          "no_nav_label_overlap_in_en_or_vn_locale",
+          "four_destination_ia_unchanged_adr_023"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Shell copy-routing and spacing fix in demo-shell.tsx; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 699"
+  ],
+  "doNotInfer": [
+    "Four-destination IA redesign (ADR-023 stays)",
+    "release evidence fields beyond this plan"
+  ]
+}

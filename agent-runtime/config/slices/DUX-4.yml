@@ -1,0 +1,28 @@
+DUX-4:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/049-demo-analytics-main-kpi-override.md
+    - docs/product/design/Screens/decisions.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/lib/analytics/main-kpis.ts
+    - apps/demo/src/lib/workflows/replenish-inventory/review.ts
+    - apps/demo/src/lib/workflows/optimize-product/review.ts
+    - apps/demo/src/lib/workflows/clear-excess/review.ts
+    - apps/demo/src/lib/workflows/process-order/review.ts
+    - apps/demo/src/lib/workflows/prevent-refund/review.ts
+    - apps/demo/src/lib/workflows/delete-activity/review.ts
+    - apps/demo/src/lib/workflows/prevent-cancellation/review.ts
+    - apps/demo/src/lib/workflows/create-activity/review.ts
+    - apps/demo/src/lib/workflows/update-activity/review.ts
+    - apps/demo/src/lib/workflows/prevent-return/review.ts
+  loadWhenNeeded:
+    - apps/demo/src/components/recommendation-review.tsx
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - Sibling issue context caches
