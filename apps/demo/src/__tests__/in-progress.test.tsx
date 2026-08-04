@@ -123,11 +123,13 @@ describe("In Progress list and detail shells", () => {
     renderInProgressPanel();
 
     await waitFor(() => {
-      expect(screen.getAllByRole("row")).toHaveLength(4);
+      // Cards replace table - check for 3 article elements (one per execution record)
+      expect(screen.getAllByRole("article")).toHaveLength(3);
     });
 
     const heroTitle = recommendationFixtures[0].title;
     expect(screen.getAllByText(heroTitle)).toHaveLength(3);
+    // The lifecycle status labels should appear on the badges
     expect(screen.getByText("Đang thực hiện")).toBeInTheDocument();
     expect(screen.getByText("Cần thêm thông tin")).toBeInTheDocument();
     expect(screen.getByText("Hoàn tất")).toBeInTheDocument();
@@ -199,16 +201,251 @@ describe("In Progress list and detail shells", () => {
     ).toHaveAttribute("href", "/decisions");
   });
 
+  it("renders execution progress cards instead of a table when executions exist", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-card-test-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      // Assert no table roles
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+      expect(screen.queryByRole("columnheader")).not.toBeInTheDocument();
+      expect(screen.queryByRole("row", { hidden: false })).not.toBeInTheDocument();
+
+      // Assert one article-level card per execution
+      const articles = screen.getAllByRole("article");
+      expect(articles).toHaveLength(1);
+    });
+  });
+
+  it("shows Xác nhận mode strip when execution is in needs_input state", async () => {
+    const needsInputTimeline = createHeroProductTimeline().map((step) =>
+      step.id === "eligibility-outcome"
+        ? { ...step, status: "failed" as const }
+        : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-needs-input-1",
+        lifecycleStatus: "needs_input",
+        timeline: needsInputTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("Xác nhận")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Đang chạy mode strip when execution is in executing state", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-executing-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("Đang chạy")).toBeInTheDocument();
+    });
+  });
+
+  it("renders narrative step line with Bước format and duration for executing cards", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-step-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      const activeStep = executingTimeline.find((s) => s.status === "running");
+      expect(screen.getByText(`Bước ${activeStep?.stepNumber}: ${activeStep?.title}`)).toBeInTheDocument();
+      expect(screen.getByText("5–10 phút")).toBeInTheDocument();
+    });
+  });
+
+  it("renders policy line on every card", async () => {
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-policy-1",
+        lifecycleStatus: "needs_input",
+      }),
+      buildExecutionRecord({
+        executionId: "exec-policy-2",
+        lifecycleStatus: "executing",
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      const policyLines = screen.getAllByText("Đã kiểm tra chính sách TikTok Shop");
+      expect(policyLines).toHaveLength(2);
+    });
+  });
+
+  it("renders visible cancel/rollback control on every card", async () => {
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-cancel-1",
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^Hủy/ })).toBeInTheDocument();
+    });
+  });
+
+  it("sorts cards with executing first, then needs_input, then completed last", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+    const needsInputTimeline = createHeroProductTimeline().map((step) =>
+      step.id === "eligibility-outcome"
+        ? { ...step, status: "failed" as const }
+        : step,
+    );
+    const completedTimeline = createHeroProductTimeline().map(
+      (step) => ({ ...step, status: "succeeded" as const }),
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-completed-1",
+        lifecycleStatus: "completed",
+        timeline: completedTimeline,
+      }),
+      buildExecutionRecord({
+        executionId: "exec-executing-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+      buildExecutionRecord({
+        executionId: "exec-needs-input-1",
+        lifecycleStatus: "needs_input",
+        timeline: needsInputTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      const articles = screen.getAllByRole("article");
+      expect(articles).toHaveLength(3);
+
+      // Check order: executing should come first
+      const mode1 = within(articles[0]).queryByText("Đang chạy");
+      const mode2 = within(articles[1]).queryByText("Xác nhận");
+      const mode3 = within(articles[2]).queryByText("Hoàn tất");
+
+      expect(mode1).toBeInTheDocument();
+      expect(mode2).toBeInTheDocument();
+      expect(mode3).toBeInTheDocument();
+    });
+  });
+
+  it("does not render banned seller-surface strings (Khả năng, Công cụ, etc.)", async () => {
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-no-banned-1",
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Khả năng:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Công cụ:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/workflow_key/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/tool_name/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not issue network calls on cancel/rollback activation", async () => {
+    const fetchSpy = vi.spyOn(global, "fetch");
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-no-fetch-1",
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^Hủy/ })).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^Hủy/ }));
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("links card title to /decisions/in-progress/[executionId] for every card", async () => {
+    seedMutableState([
+      buildExecutionRecord({ executionId: "exec-link-1" }),
+      buildExecutionRecord({ executionId: "exec-link-2" }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      const links = screen.getAllByRole("link", { name: recommendationFixtures[0].title });
+      expect(links).toHaveLength(2);
+      expect(links[0]).toHaveAttribute("href", "/decisions/in-progress/exec-link-1");
+      expect(links[1]).toHaveAttribute("href", "/decisions/in-progress/exec-link-2");
+    });
+  });
+
+  it("updates empty state copy to match design spec", () => {
+    renderInProgressPanel();
+
+    const placeholder = screen.getByRole("status", { name: "Đang thực hiện" });
+    expect(within(placeholder).getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây.")).toBeInTheDocument();
+    // Old copy should not be present
+    expect(within(placeholder).queryByText(/Sắp ra mắt/)).not.toBeInTheDocument();
+    expect(within(placeholder).queryByText(/trong một bản cập nhật tiếp theo/)).not.toBeInTheDocument();
+  });
+
   it("keeps the existing empty-state placeholder copy when there are no records", () => {
     renderInProgressPanel();
 
     const placeholder = screen.getByRole("status", { name: "Đang thực hiện" });
-    expect(within(placeholder).getByText("Sắp ra mắt")).toBeInTheDocument();
+    expect(within(placeholder).getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây.")).toBeInTheDocument();
     expect(within(placeholder).getByRole("heading", { level: 2 })).toHaveTextContent(
       "Đang thực hiện",
-    );
-    expect(placeholder).toHaveTextContent(
-      "Công việc đã phê duyệt sẽ xuất hiện ở đây trong một bản cập nhật tiếp theo.",
     );
   });
 
@@ -223,6 +460,35 @@ describe("In Progress list and detail shells", () => {
 
     await user.click(screen.getByRole("button", { name: "Đang thực hiện" }));
 
-    expect(screen.getByText("Sắp ra mắt")).toBeInTheDocument();
+    expect(screen.getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây.")).toBeInTheDocument();
+  });
+
+  it("renders lifecycle badge with appropriate variant for each card", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+    const completedTimeline = createHeroProductTimeline().map(
+      (step) => ({ ...step, status: "succeeded" as const }),
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-badge-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+      buildExecutionRecord({
+        executionId: "exec-badge-2",
+        lifecycleStatus: "completed",
+        timeline: completedTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("Đang thực hiện")).toBeInTheDocument();
+      expect(screen.getByText("Hoàn tất")).toBeInTheDocument();
+    });
   });
 });
