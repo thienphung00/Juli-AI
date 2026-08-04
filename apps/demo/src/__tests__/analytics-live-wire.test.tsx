@@ -130,14 +130,8 @@ describe("Analytics live wire (#534)", () => {
     expect(replace).toHaveBeenCalledWith("/decisions");
   });
 
-  it("shows error state when analytics fetch fails and supports retry", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("network"))
-      .mockImplementationOnce(createMockFetchResponse());
-
-    vi.stubGlobal("fetch", fetchMock);
+  it("shows fallback envelope when analytics fetch fails (ADR-046 / DUX-1 #690)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network"))));
 
     render(
       <DemoShell>
@@ -145,11 +139,15 @@ describe("Analytics live wire (#534)", () => {
       </DemoShell>,
     );
 
+    // Fallback envelope should be used when fetch fails
+    // Should NOT show the error hero (ADR-046 / DUX-1 #690)
     expect(
-      await screen.findByText(/Chưa thể tải dữ liệu KPI/),
-    ).toBeInTheDocument();
+      screen.queryByText(/Chưa thể tải dữ liệu KPI/),
+    ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Thử lại" }));
-    expect(await screen.findByText("485.000.000 ₫")).toBeInTheDocument();
+    // Should render GMV hero and chart from fallback envelope
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("GMV (TikTok)");
+    expect(screen.getByTestId("analytics-chart-chrome")).toBeInTheDocument();
   });
 });
