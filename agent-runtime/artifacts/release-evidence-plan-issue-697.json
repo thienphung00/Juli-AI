@@ -1,70 +1,65 @@
 {
-  "planId": "rep-697-dux-8-execution-detail-seller-safe",
+  "artifactType": "release_evidence_plan",
+  "issue": 697,
+  "id": "release-evidence-plan-issue-697",
   "affectedPublicSurfaces": [
-    "demo.app-juli.com/decisions/in-progress/[executionId]"
+    "demo.app-juli.com — /decisions/in-progress/[executionId]"
   ],
   "candidateVerificationJourney": {
-    "mode": "candidate_verification",
-    "stableTrafficPercent": 100,
-    "candidatePublicTrafficPercent": 0,
-    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
-    "syntheticShopRequired": false,
-    "workersDisabledOnCandidate": true,
-    "apiSideEffectsInScope": false,
-    "journeys": [
+    "steps": [
       {
-        "name": "execution-detail-seller-safe",
-        "entryUrl": "/decisions/in-progress/fixture-execution",
-        "assertions": [
-          "html_200",
-          "no_banned_strings_workflow_key_công_cụ_khả_năng",
-          "juli_handles_all_confirm_copy_present_no_you_vs_juli_checklist",
-          "policy_badge_and_cancel_rollback_always_visible",
-          "every_valid_execution_id_resolves_no_404"
-        ]
+        "step": 1,
+        "action": "On the candidate, approve a recommendation",
+        "verification": "Recommendation is approved and user is redirected to execution detail"
+      },
+      {
+        "step": 2,
+        "action": "Follow the redirect into the execution detail URL",
+        "verification": "URL resolves with no 404 error"
+      },
+      {
+        "step": 3,
+        "action": "Verify mode strip and policy line render",
+        "verification": "Mode strip shows correct state (Xác nhận or Đang chạy), policy line 'Đã kiểm tra chính sách TikTok Shop' is visible"
+      },
+      {
+        "step": 4,
+        "action": "Verify cancel/rollback is visible without scrolling",
+        "verification": "Cancel/Hủy button is visible in initial render, not hidden in a menu"
+      },
+      {
+        "step": 5,
+        "action": "Verify no banned seller copy",
+        "verification": "No workflow_key, Công cụ, or Khả năng text appears on the page"
+      },
+      {
+        "step": 6,
+        "action": "Hit a fabricated execution id (e.g., /decisions/in-progress/exec-fake-123)",
+        "verification": "Recoverable not-found state renders, not a hard 404 or blank page"
+      },
+      {
+        "step": 7,
+        "action": "Click the back link on the not-found state",
+        "verification": "User returns to /decisions"
       }
     ]
   },
   "staticAssetChecks": {
-    "required": true,
-    "htmlRoutes": [
-      "/decisions/in-progress/fixture-execution"
-    ],
-    "discoverFromHtml": true,
-    "assetTypes": [
-      "css",
-      "js"
-    ],
-    "failOnMissing": true,
-    "failOnNon200": true
+    "demoBuiltIntegrity": "Verify demo build completes without errors",
+    "criticalJsCssReachability": "Verify critical JS/CSS for execution detail page loads on candidate"
   },
   "migrationCompatibility": {
-    "schemaChangeInScope": false,
-    "expandContractOnly": true,
-    "stableAndCandidateCompatible": true,
-    "destructiveMigrationAllowed": false,
-    "notes": "Copy and route-resolution fix in decisions/in-progress/[executionId]/page.tsx; no DB or backend API contract change."
+    "requirement": "Reads existing executionRecords from juli_demo_mutable_state",
+    "historicalData": "Records persisted before this change (including ones carrying toolName) must render without crash even though toolName is no longer displayed",
+    "testApproach": "Render detail view with legacy execution records containing toolName field"
   },
   "rollbackAssertion": {
-    "preCutoverFailureBehavior": "revert_pr_branch",
-    "postCutoverFailureBehavior": "revert_merge_commit",
-    "retainedStableRequired": true,
-    "automatic": false
+    "requirement": "Stable Demo task set remains serving",
+    "verification": "Revert to prior version restores prior detail tables with persisted execution records intact"
   },
-  "requiredArtifacts": {
-    "implementation": true,
-    "intentReview": true,
-    "review": true,
-    "validation": true,
-    "releaseMetadataHonest": true
-  },
-  "acceptanceCommands": [
-    "pnpm --filter @juli/demo test -- --run",
-    "pnpm --filter @juli/demo exec tsc --noEmit",
-    "python agent-runtime/scripts/validate/run_validate.py --issue 697"
-  ],
-  "doNotInfer": [
-    "Execution progress card list redesign (DUX-7/#696)",
-    "release evidence fields beyond this plan"
-  ]
+  "artifacts": {
+    "implementation": "agent-runtime/artifacts/implementation-issue-697.json",
+    "review": "agent-runtime/artifacts/reviews/review-issue-697.json",
+    "validation": "agent-runtime/artifacts/validation/validation-issue-697.json"
+  }
 }
