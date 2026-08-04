@@ -26,6 +26,13 @@ celery_app.conf.update(
             "task": "juli_backend.mock_analytics_hourly_reconcile",
             "schedule": crontab(minute=0),
         },
+        # CDP-A2-9 — Staggered daily batch reconcile for fleet (#622).
+        # Mixed-version hazard: task must be registered on all workers before enabling flag.
+        # Flag defaults OFF; enable via CDP_BATCH_STAGGERED_RECONCILE_ENABLED env var.
+        "cdp-batch-staggered-reconcile": {
+            "task": "juli_backend.cdp_batch_staggered_reconcile",
+            "schedule": crontab(),  # Every minute
+        },
     },
 )
 

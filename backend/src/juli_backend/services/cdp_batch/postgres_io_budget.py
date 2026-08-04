@@ -13,9 +13,9 @@ import os
 from dataclasses import dataclass, field
 from typing import Literal
 
-DEFER_REASON = "postgres_io_throttled"
-
 PostgresIoBudgetStopReason = Literal["postgres_io_throttled", "complete", "error"]
+
+DEFER_REASON: PostgresIoBudgetStopReason = "postgres_io_throttled"
 
 DEFAULT_BRONZE_ROWS_PER_FLUSH = 5000
 DEFAULT_SILVER_UPSERT_BATCH_SIZE = 1000

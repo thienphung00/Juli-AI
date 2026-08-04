@@ -92,7 +92,7 @@ for **technical / domain implementation**:
 | Library/framework during domain implementation | — | Context7 **CLI** (`npx ctx7@latest`) — Focus-selected |
 | Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
 | Mobbin problem-section screen inspiration | — | `Mobbin` |
-| `apps/demo` / `apps/dashboard` Next.js UI | `open-design-system` + Mobbin when refs needed → `ui-ux-design`, `nextjs`, `react-best-practices`; `shadcn` if registry | `open-design`, `Mobbin` then `shadcn` |
+| `apps/demo` / `apps/dashboard` Next.js UI | `open-design-system` + Mobbin when refs needed → `frontend-design` (anti-generic aesthetic direction) → `ui-ux-design` (Juli brand tokens/IA), `nextjs`, `react-best-practices`; `shadcn` if registry | `open-design`, `Mobbin` then `shadcn` |
 | Supabase / migrations / RLS | `supabase`, `supabase-postgres-best-practices` | `supabase` |
 | Production error | `sentry-workflow` → platform SDK | `plugin-sentry-sentry` |
 | Figma design sync | `figma-use` (before `use_figma`) | `figma` |
@@ -114,7 +114,7 @@ Detect what the implementation involves:
 | Python code / FastAPI | → `backend` executor, `python-patterns`, `code-quality.mdc` |
 | Python tests / pytest | → `backend` executor, `python-testing`, `reliability.mdc` |
 | SwiftUI / iOS | → `ui-ux` executor, `swift-patterns` |
-| Frontend component / page / form | → `ui-ux` executor; **design-reference:** `open-design-system` + Mobbin MCP **before** `ui-ux-design`; ADR-028 `dictionary.md` + `design-context.md` for implementation |
+| Frontend component / page / form | → `ui-ux` executor; **design-reference:** `open-design-system` + Mobbin MCP, then `frontend-design` (aesthetic direction — avoid templated/AI-generic looks) **before** `ui-ux-design` (Juli brand tokens/IA constraints win on conflict); ADR-028 `dictionary.md` + `design-context.md` for implementation |
 | Background job | → Celery MCP, reliability, observability |
 | TikTok integration / webhook | → `integrations` executor, `docs/integrations/tiktok_api/`, `tiktok_platform/`, `data-sources.md`, affected MODULE.md |
 | TikTok vendor depth, gap-fill, cross-corpus synthesis | → **Architect/Meta only:** `docs/integrations/tiktok_corpora/README.md` + selected `{business,academy,partner}-catalog.json` → Grep → selective Read (ADR-051). **Executor/Review: DO NOT Load corpora.** |
@@ -204,7 +204,7 @@ Intelligence (src/intelligence/scoring):
   - Skip: in-stream websocket designs (forbidden)
 
 Interface (apps/demo, apps/dashboard, ios/):
-  - Load: MODULE.md for target app; design-reference: open-design-system + Mobbin MCP before ui-ux-design; ui-ux-design (Next.js apps) or swift-patterns (ios); dictionary.md + design-context.md for copy (ADR-028)
+  - Load: MODULE.md for target app; design-reference: open-design-system + Mobbin MCP, then frontend-design (aesthetic direction) before ui-ux-design (Next.js apps, Juli brand tokens/IA) or swift-patterns (ios); dictionary.md + design-context.md for copy (ADR-028)
   - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
 
 AI features (post-MVP / OpenAI):

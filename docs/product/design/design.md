@@ -13,8 +13,9 @@ and historical source evidence never define new design rules.
 
 Juli is a Vietnamese-language shop-operations app that transforms shop data
 into clear opportunities, risks, and ranked, explainable recommendations.
-She shows expected impact, confidence, and reasoning before action and waits
-for the seller's decision.
+She shows expected impact and reasoning before action and waits for the
+seller's decision — no confidence score anywhere, collapsed or expanded
+([PRD #600](https://github.com/thienphung00/Juli-AI/issues/600)).
 
 **Warm · Modern · Simplistic · Personal · Interactive**
 
@@ -35,7 +36,9 @@ claims, and cliché purple AI gradients.
 - Four primary destinations: **Home, Decisions, Analytics, Settings**.
 - Juli is contextual assistance, not a standalone navigation destination.
 - Home contains exactly two prominent clickable cards: Decisions and
-  Analytics.
+  Analytics, plus one summary-only activity section above them — three
+  counts (done / running / needs attention), no lists, no actions
+  ([ADR-053](../adr/053-demo-home-activity-summary.md)).
 - Analytics owns all metrics, KPIs, forecasts, comparisons, charts, and
   reporting.
 - Decisions owns recommendation review and execution tracking.
@@ -109,6 +112,26 @@ Status is never color-only; pair it with text, an icon, or a badge.
 | Body | `text-sm` |
 | Caption / meta | `text-xs`, `.text-muted` |
 | Metric value | `text-lg`–`text-2xl font-bold tabular-nums` |
+
+## Copy density
+
+Minimal cognitive load is a word budget, not just a layout rule. Default
+ceilings (Vietnamese, space-separated words; break them only with a stated
+reason, not by default):
+
+| Element | Budget |
+|---|---|
+| Kicker / eyebrow | 1–3 words |
+| Page title (`h1`) | ≤ 6 words |
+| Intro / subtitle paragraph | ≤ 16 words, one sentence |
+| Card title | ≤ 4 words |
+| Card description | ≤ 12 words, one sentence |
+| Stat tile label | ≤ 3 words |
+| Empty / error state (heading + body combined) | ≤ 20 words |
+
+Applies across Home, Decisions, and the decision-workflow review stages.
+Analytics trust-copy and dictionary-governed terms ([ADR-028](../adr/028-vietnamese-copy-dictionary-and-design-context.md))
+take precedence where they conflict with a budget above.
 
 ## Spacing, layout, and elevation
 
@@ -197,7 +220,8 @@ supporting evidence only. Root authorities win every conflict.
 - Pink tint as the seller page background.
 - Color-only status indicators.
 - A standalone Juli/AI navigation tab.
-- Metrics or KPI reporting on Home.
+- Metrics or KPI reporting on Home (the ADR-053 activity summary is three
+  lifecycle counts, not a metric/KPI card, chart, or health bar).
 - Workflow templates or thresholds under Decisions.
 - Autonomous-action messaging or execution without approval.
 

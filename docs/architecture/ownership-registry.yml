@@ -193,6 +193,11 @@ celeryTasks:
     wrapper: backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py
     delegatesTo: workers.tasks.material_analytics_precompute.material_analytics_precompute_sync
     notes: Phase 2.10 Mock-mode hourly Demo reference shop reconciliation only.
+  juli_backend.cdp_batch_staggered_reconcile:
+    owner: Data Pipeline
+    wrapper: backend/src/juli_backend/workers/tasks/cdp_batch_reconcile.py
+    delegatesTo: services.cdp_batch.batch_reconcile_orchestrator.BatchReconcileOrchestrator.run
+    notes: A2 daily staggered per-shop reconcile via StaggerScheduler (#615/#621/#622). Config-flag gated, default OFF.
 
 redisNamespaces:
   - pattern: "ratelimit:*"
