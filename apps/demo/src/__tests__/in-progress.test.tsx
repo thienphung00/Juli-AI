@@ -123,11 +123,13 @@ describe("In Progress list and detail shells", () => {
     renderInProgressPanel();
 
     await waitFor(() => {
-      expect(screen.getAllByRole("row")).toHaveLength(4);
+      // Cards replace table - check for 3 article elements (one per execution record)
+      expect(screen.getAllByRole("article")).toHaveLength(3);
     });
 
     const heroTitle = recommendationFixtures[0].title;
     expect(screen.getAllByText(heroTitle)).toHaveLength(3);
+    // The lifecycle status labels should appear on the badges
     expect(screen.getByText("Đang thực hiện")).toBeInTheDocument();
     expect(screen.getByText("Cần thêm thông tin")).toBeInTheDocument();
     expect(screen.getByText("Hoàn tất")).toBeInTheDocument();
