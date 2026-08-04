@@ -166,7 +166,13 @@ async def _select_recommended_product(
         products_by_tier[tier].sort(key=lambda x: x[1].composite_score, reverse=True)
 
     # Return best from highest priority tier
-    for tier in ["strong_positive", "no_strong_signal", "declining", "insufficient_data"]:
+    tier_order: list[TrendTier] = [
+        "strong_positive",
+        "no_strong_signal",
+        "declining",
+        "insufficient_data",
+    ]
+    for tier in tier_order:
         candidates = products_by_tier[tier]
         if candidates:
             product, suggestion, reason = candidates[0]
