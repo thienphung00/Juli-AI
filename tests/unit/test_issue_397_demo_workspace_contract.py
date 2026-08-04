@@ -156,7 +156,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     assert ":focus-visible" in ui_css
     assert "--juli-touch-target: 44px" in tokens_css
     assert "@media (prefers-reduced-motion: reduce)" in globals_css
-    assert "Bạn muốn làm gì tiếp theo?" in home
+    assert "Quyết định nhanh, hiểu rõ shop." in home
     assert "Quyết định" in fixtures and "Phân tích" in fixtures
 
 

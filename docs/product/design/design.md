@@ -75,7 +75,8 @@ Mode is persisted with `juli_workspace_mode` and toggles `dark` on `<html>`.
 | `--brand-gradient` | `135deg #F86BA5 → #FAA5C4` | CTA fills and wordmark |
 
 `--pink-dark` at `#E85A94` computes to 3.32:1 on white and fails WCAG AA for normal
-text. Pink text uses `--pink-text`; `--pink-dark` stays a pressed/accent state. See
+text. Pink text uses `--pink-text`; `--pink-dark` stays a pressed/accent state. Sole
+exception: the wordmark logotype keeps `--pink-dark` (WCAG 1.4.3 logo exemption). See
 [ADR-054](../../adr/054-brand-pink-role-separation.md).
 
 ### Semantic
@@ -234,7 +235,8 @@ supporting evidence only. Root authorities win every conflict.
 - Purple decorative AI gradients.
 - English UI strings or missing Vietnamese diacritics.
 - Pink tint as the seller page background.
-- Brand pink in a chart series, or `--pink-dark` used as a text color (ADR-054).
+- Brand pink in a chart series, or `--pink-dark` used as a text color — wordmark
+  logotype excepted (ADR-054).
 - Color-only status indicators.
 - A standalone Juli/AI navigation tab.
 - Metrics or KPI reporting on Home (the ADR-053 activity summary is three

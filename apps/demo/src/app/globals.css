@@ -47,7 +47,9 @@ a {
   min-width: var(--juli-touch-target);
   min-height: var(--juli-touch-target);
   align-content: center;
-  color: var(--juli-primary-text);
+  /* Logotype — brand identity, exempt from AA text contrast (WCAG 1.4.3 logo
+     exemption); keeps brand pink rather than --juli-primary-text (ADR-054). */
+  color: var(--juli-primary-strong);
   font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: -0.04em;

@@ -80,9 +80,12 @@ Alternatives considered:
 
 ## Consequences
 
-- 17 `color: var(--juli-primary-strong)` declarations migrate to
+- 16 of the 17 `color: var(--juli-primary-strong)` declarations migrate to
   `var(--juli-primary-text)`. Pink text darkens visibly — this is the intended
-  correction, not a regression.
+  correction, not a regression. The exception is the **`.demo-wordmark` logotype**,
+  which keeps `--juli-primary-strong`: text that is part of a logo or brand name is
+  exempt from contrast minimums (WCAG 1.4.3 logo exemption), and the ADR-035 exit-gate
+  E2E pins the wordmark's rendered brand color.
 - `CHART_SERIES_COLORS.neutral` changes from pink to gray; the guard assertions in
   `packages/ui/src/__tests__/chart.test.tsx` and `destination-card.test.tsx` are updated
   in the same change.
