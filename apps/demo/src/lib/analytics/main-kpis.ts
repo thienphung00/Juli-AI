@@ -1,11 +1,9 @@
 export type MetricKey =
-  | "sps"
   | "gmv-tiktok"
-  | "net-revenue"
-  | "roas"
-  | "inventory-turnover"
-  | "fulfillment-accuracy-rate"
-  | "csat";
+  | "aov"
+  | "ctor"
+  | "live-hours"
+  | "cancellation-rate";
 
 export type AnalyticsRange = "7d" | "30d" | "90d";
 
@@ -32,12 +30,11 @@ export interface MainKpiDefinition {
 }
 
 export const MAIN_KPI_ORDER: readonly MetricKey[] = [
-  "sps",
   "gmv-tiktok",
-  "roas",
-  "inventory-turnover",
-  "fulfillment-accuracy-rate",
-  "csat",
+  "aov",
+  "ctor",
+  "live-hours",
+  "cancellation-rate",
 ] as const;
 
 export const DEFAULT_METRIC_KEY: MetricKey = "gmv-tiktok";
@@ -50,20 +47,6 @@ export const ANALYTICS_RANGE_LABELS: Record<AnalyticsRange, string> = {
 };
 
 export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
-  sps: {
-    metricKey: "sps",
-    category: "Trạng thái shop",
-    name: "SPS",
-    description: "Điểm hiệu suất shop trên TikTok Shop.",
-    icon: "◎",
-    available: false,
-    chartKind: "health-bar",
-    unavailableReason: {
-      dataSource: "TikTok Shop Account health contract",
-      activationRequirement:
-        "Cần xác minh và kết nối hợp đồng sức khỏe tài khoản TikTok Shop chính thức trước khi hiển thị SPS.",
-    },
-  },
   "gmv-tiktok": {
     metricKey: "gmv-tiktok",
     category: "Doanh thu",
@@ -73,75 +56,41 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     available: true,
     chartKind: "forecast-line",
   },
-  "net-revenue": {
-    metricKey: "net-revenue",
+  aov: {
+    metricKey: "aov",
     category: "Doanh thu",
-    name: "Doanh thu thuần",
-    description: "Doanh thu sau khấu trừ hoàn tiền và hủy đơn.",
+    name: "AOV",
+    description: "Giá trị trung bình một đơn hàng.",
     icon: "₫",
-    available: false,
+    available: true,
     chartKind: "forecast-line",
-    unavailableReason: {
-      dataSource: "TikTok Shop Order API",
-      activationRequirement:
-        "Doanh thu thuần chưa khả dụng trong Phase 2.10-A — cần luồng hoàn tiền và hủy đơn trước khi hiển thị.",
-    },
   },
-  roas: {
-    metricKey: "roas",
-    category: "Quảng cáo",
-    name: "ROAS",
-    description: "Lợi nhuận quảng cáo trên chi tiêu quảng cáo.",
+  ctor: {
+    metricKey: "ctor",
+    category: "Quản lý sản phẩm",
+    name: "CTOR (click→đơn)",
+    description: "Tỷ lệ chuyển đổi từ click thành đơn hàng.",
     icon: "◎",
-    available: false,
-    chartKind: "forecast-line",
-    unavailableReason: {
-      dataSource: "TikTok Promotion API",
-      activationRequirement:
-        "Cần kết nối luồng dữ liệu TikTok Promotion API trước khi hiển thị ROAS.",
-    },
-  },
-  "inventory-turnover": {
-    metricKey: "inventory-turnover",
-    category: "Tồn kho",
-    name: "Vòng quay tồn kho",
-    description: "Tốc độ bán hết và thay thế hàng tồn.",
-    icon: "↻",
-    available: false,
+    available: true,
     chartKind: "trend-line",
-    unavailableReason: {
-      dataSource: "Analytics KPI envelope",
-      activationRequirement:
-        "Vòng quay tồn kho chỉ hiển thị khi envelope precompute có dữ liệu aggregate tương ứng.",
-    },
   },
-  "fulfillment-accuracy-rate": {
-    metricKey: "fulfillment-accuracy-rate",
-    category: "Vận hành",
-    name: "Tỷ lệ giao đúng",
-    description: "Tỷ lệ đơn giao đúng hàng và đúng hạn.",
-    icon: "✓",
-    available: false,
-    chartKind: "gauge",
-    unavailableReason: {
-      dataSource: "Analytics KPI envelope",
-      activationRequirement:
-        "Tỷ lệ giao đúng chỉ hiển thị khi envelope precompute có dữ liệu aggregate tương ứng.",
-    },
+  "live-hours": {
+    metricKey: "live-hours",
+    category: "LIVE Shopping",
+    name: "LIVE hours",
+    description: "Tổng số giờ phát sóng LIVE trong khoảng thời gian.",
+    icon: "◉",
+    available: true,
+    chartKind: "forecast-line",
   },
-  csat: {
-    metricKey: "csat",
-    category: "Chăm sóc khách hàng",
-    name: "CSAT",
-    description: "Mức hài lòng của người mua sau mua hàng.",
-    icon: "★",
-    available: false,
+  "cancellation-rate": {
+    metricKey: "cancellation-rate",
+    category: "Quản lý đơn hàng",
+    name: "Tỷ lệ hủy đơn",
+    description: "Tỷ lệ phần trăm đơn hàng bị hủy.",
+    icon: "✗",
+    available: true,
     chartKind: "gauge",
-    unavailableReason: {
-      dataSource: "Nguồn đánh giá/chat người mua",
-      activationRequirement:
-        "Cần có nguồn đánh giá hoặc chat người mua hợp lệ trước khi hiển thị CSAT.",
-    },
   },
 };
 

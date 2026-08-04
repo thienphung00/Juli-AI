@@ -55,7 +55,7 @@ describe("Analytics dashboard", () => {
     vi.restoreAllMocks();
   });
 
-  it("AC1: renders one hero and five selector cards with GMV at 30 days by default", async () => {
+  it("AC1 (RED): renders one hero and four selector cards (DUX-2: five-KPI set)", async () => {
     render(
       <DemoShell>
         <AnalyticsDashboard metricKey="gmv-tiktok" />
@@ -71,9 +71,10 @@ describe("Analytics dashboard", () => {
     );
 
     const selectorCards = screen.getAllByTestId(/analytics-kpi-card-/);
-    expect(selectorCards).toHaveLength(5);
+    expect(selectorCards).toHaveLength(4);
+    expect(MAIN_KPI_ORDER).toHaveLength(5);
     expect(MAIN_KPI_ORDER.filter((key) => key !== "gmv-tiktok")).toHaveLength(
-      5,
+      4,
     );
   });
 
@@ -92,7 +93,7 @@ describe("Analytics dashboard", () => {
     expect(screen.queryByText("Doanh thu thuần")).not.toBeInTheDocument();
   });
 
-  it("AC3: keeps SPS, ROAS, and CSAT visible, unavailable, and non-selectable without fake values", async () => {
+  it("AC2 (RED): removed ADR-023 KPI strings are absent from Demo Analytics page", async () => {
     render(
       <DemoShell>
         <AnalyticsDashboard metricKey="gmv-tiktok" />
@@ -101,15 +102,27 @@ describe("Analytics dashboard", () => {
 
     await screen.findByRole("heading", { level: 1 });
 
-    for (const key of ["sps", "roas", "csat"] as const) {
-      const card = screen.getByTestId(`analytics-kpi-card-${key}`);
+    // Removed KPI display names must not appear anywhere on the page
+    expect(screen.queryByText("SPS")).not.toBeInTheDocument();
+    expect(screen.queryByText("ROAS")).not.toBeInTheDocument();
+    expect(screen.queryByText("CSAT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Doanh thu thuần")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vòng quay tồn kho")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tỷ lệ giao đúng")).not.toBeInTheDocument();
+  });
 
-      expect(card).toHaveClass("analytics-kpi-card--unavailable");
-      expect(within(card).getByText("Chưa khả dụng")).toBeInTheDocument();
-      expect(
-        within(card).getByTestId("analytics-unavailable-chart"),
-      ).toBeInTheDocument();
-      expect(within(card).queryByText(/^0/)).not.toBeInTheDocument();
+  it("AC2: removed KPI cards (SPS, ROAS, CSAT) are not rendered at all", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    // Removed keys should not have card elements
+    for (const key of ["sps", "roas", "csat"] as const) {
+      expect(screen.queryByTestId(`analytics-kpi-card-${key}`)).not.toBeInTheDocument();
     }
   });
 
@@ -126,18 +139,18 @@ describe("Analytics dashboard", () => {
     await screen.findByRole("heading", { level: 1 });
 
     await user.click(
-      screen.getByTestId("analytics-kpi-card-inventory-turnover"),
+      screen.getByTestId("analytics-kpi-card-aov"),
     );
 
-    expect(push).toHaveBeenCalledWith("/analytics/inventory-turnover");
+    expect(push).toHaveBeenCalledWith("/analytics/aov");
     expect(screen.getByTestId("analytics-state")).toHaveTextContent(
-      "inventory-turnover",
+      "aov",
     );
     expect(
       screen.getByTestId("analytics-kpi-card-gmv-tiktok"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("analytics-kpi-card-inventory-turnover"),
+      screen.queryByTestId("analytics-kpi-card-aov"),
     ).not.toBeInTheDocument();
   });
 
@@ -154,20 +167,13 @@ describe("Analytics dashboard", () => {
 
     await user.click(screen.getByRole("tab", { name: "7 ngày" }));
 
-    const inventoryCard = screen.getByTestId(
-      "analytics-kpi-card-inventory-turnover",
-    );
-    expect(
-      within(inventoryCard).getByText("3,1x", { selector: ".analytics-kpi-card__value" }),
-    ).toBeInTheDocument();
+    // All four selector cards should still render
+    expect(screen.getAllByTestId(/analytics-kpi-card-/)).toHaveLength(4);
 
     await user.click(screen.getByLabelText("So sánh kỳ trước"));
     expect(
       screen.getByText("Đường liền: kỳ hiện tại · Đường nét đứt: kỳ trước"),
     ).toBeInTheDocument();
-    expect(
-      within(inventoryCard).queryByText("Đường liền: kỳ hiện tại"),
-    ).not.toBeInTheDocument();
   });
 
   it("AC6: exposes provenance, freshness, and decision links", async () => {
@@ -193,6 +199,39 @@ describe("Analytics dashboard", () => {
       </DemoShell>,
     );
 
+    expect(
+      await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+    ).toHaveAttribute("href", "/analytics/gmv-tiktok");
+  });
+
+  it("AC6 (RED): removed KPI deep link (e.g., /analytics/roas) shows recovery view", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="roas" />
+      </DemoShell>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+    ).toHaveAttribute("href", "/analytics/gmv-tiktok");
+  });
+
+  it("AC (RED): persisted analyticsMetric localStorage key with removed KPI falls back to GMV", async () => {
+    localStorage.setItem("analyticsMetric", "roas");
+
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="roas" />
+      </DemoShell>,
+    );
+
+    // Should show recovery view for invalid key
     expect(
       await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
     ).toBeInTheDocument();
@@ -232,7 +271,7 @@ describe("Analytics dashboard", () => {
     ).toBeInTheDocument();
   });
 
-  it("AC6: shows stable hero and five-card loading skeletons", () => {
+  it("AC6: shows stable hero and four-card loading skeletons (DUX-2)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise(() => undefined)),
@@ -245,7 +284,7 @@ describe("Analytics dashboard", () => {
     );
 
     expect(screen.getByLabelText("Đang tải KPI chính")).toBeInTheDocument();
-    expect(document.querySelectorAll(".analytics-skeleton--card")).toHaveLength(5);
+    expect(document.querySelectorAll(".analytics-skeleton--card")).toHaveLength(4);
   });
 
   it("AC11: preserves focus order and aria labels through visual polish", async () => {
