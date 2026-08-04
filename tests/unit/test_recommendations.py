@@ -288,11 +288,6 @@ class TestRecommendationsOutputVietnamese:
             )
             assert (
                 any(ch in item.message for ch in vietnamese_vowels)
-            assert (
-                any(
-                    ch in item.message
-                    for ch in "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
-                )
                 or "Nên" in item.message
                 or "sản phẩm" in item.message
             )
@@ -968,6 +963,8 @@ class TestPriceDirectionAdvisoryVolumeUpConversionDown:
         assert suggestion is not None
         assert suggestion.action == "cut"
         assert suggestion.message
+
+
 # Issue #722 — Product Trend Classifier tests
 class TestProductTrendClassifier:
     """AC1-5: classify products into three tiers based on month-over-month trend."""
