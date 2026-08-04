@@ -16,6 +16,11 @@ from juli_backend.ai.forecasting.forecaster import (
     get_velocity_changes,
 )
 from juli_backend.ai.ranking import score_livestream
+from juli_backend.ai.recommendations.classifier import (
+    TrendTier,
+    build_recommendation_message,
+    classify_product_trend,
+)
 from juli_backend.ai.recommendations.prediction import (
     PredictedOutcome,
     build_action_cta,
@@ -125,6 +130,55 @@ def _build_message(
 
 def _build_cta(name: str) -> str:
     return f"Đẩy sản phẩm {name} lên livestream tối nay"
+
+
+async def _select_recommended_product(
+    session: AsyncSession,
+    products: list[Product],
+    scored_by_id: dict[str, ProductPushSuggestion],
+) -> tuple[Product, ProductPushSuggestion, TrendTier, str] | None:
+    """Select the best product to recommend based on trend tier and composite score.
+
+    Returns (product, suggestion, tier, reason) tuple, or None if no suitable product.
+    Prioritizes: strong_positive > no_strong_signal > declining > insufficient_data.
+    Within each tier, picks the product with highest composite score.
+    """
+    # Classify products by trend tier
+    products_by_tier: dict[TrendTier, list[tuple[Product, ProductPushSuggestion, str]]] = {
+        "strong_positive": [],
+        "no_strong_signal": [],
+        "declining": [],
+        "insufficient_data": [],
+    }
+
+    for product in products:
+        suggestion = scored_by_id.get(product.tiktok_product_id)
+        if suggestion is None:
+            continue
+
+        tier, confidence, reason = await classify_product_trend(
+            session, product.shop_id, product.id
+        )
+        products_by_tier[tier].append((product, suggestion, reason))
+
+    # Sort by composite score within each tier
+    for tier in products_by_tier:
+        products_by_tier[tier].sort(key=lambda x: x[1].composite_score, reverse=True)
+
+    # Return best from highest priority tier
+    tier_order: list[TrendTier] = [
+        "strong_positive",
+        "no_strong_signal",
+        "declining",
+        "insufficient_data",
+    ]
+    for tier in tier_order:
+        candidates = products_by_tier[tier]
+        if candidates:
+            product, suggestion, reason = candidates[0]
+            return (product, suggestion, tier, reason)
+
+    return None
 
 
 def _today_window_utc() -> tuple[datetime, datetime]:
@@ -358,9 +412,7 @@ async def get_host_product_matching(
             if graph_boost is not None:
                 match_score = round(
                     min(
-                        graph_boost * 0.6
-                        + product_push_score * 0.25
-                        + stream_grade / 100 * 0.15,
+                        graph_boost * 0.6 + product_push_score * 0.25 + stream_grade / 100 * 0.15,
                         1.0,
                     ),
                     4,
@@ -430,6 +482,72 @@ async def get_host_product_matching(
     return candidates[:limit]
 
 
+@dataclass
+class ProductRecommendation:
+    """A product recommendation with trend-based classification."""
+
+    tiktok_product_id: str
+    product_name: str
+    trend_tier: TrendTier
+    message: str
+    cta: str
+    confidence: float
+
+
+async def get_trending_product_recommendation(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> ProductRecommendation | None:
+    """Get a single product recommendation based on month-over-month trend.
+
+    Replaces the previous "highest all-time-revenue" logic with real trend analysis.
+    Prioritizes strong_positive trend products, falls back to weak-signal, then declining.
+    Always produces a recommendation unless no products exist.
+    """
+    # Get all scored products
+    suggestions = await get_product_push_suggestions(session, shop_id, limit=50)
+    if not suggestions:
+        return None
+
+    # Get product details
+    prod_stmt = select(Product).where(
+        Product.shop_id == shop_id,
+        Product.status == "ACTIVE",
+        Product.tiktok_product_id.in_([s.tiktok_product_id for s in suggestions]),
+    )
+    prod_result = await session.execute(prod_stmt)
+    products_by_id = {p.tiktok_product_id: p for p in prod_result.scalars().all()}
+
+    # Build score lookup
+    scored_by_id = {s.tiktok_product_id: s for s in suggestions}
+
+    # Select best product by trend tier
+    products = [p for p in products_by_id.values()]
+    selection = await _select_recommended_product(session, products, scored_by_id)
+    if selection is None:
+        return None
+
+    product, suggestion, tier, reason = selection
+
+    # Build tier-specific message
+    message = build_recommendation_message(
+        product_name=product.name,
+        tier=tier,
+        reason=reason,
+    )
+
+    return ProductRecommendation(
+        tiktok_product_id=product.tiktok_product_id,
+        product_name=product.name,
+        trend_tier=tier,
+        message=message,
+        cta=suggestion.cta,
+        confidence=(
+            0.95 if tier == "strong_positive" else 0.75 if tier == "no_strong_signal" else 0.6
+        ),
+    )
+
+
 async def get_product_push_suggestions(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -467,9 +585,7 @@ async def get_product_push_suggestions(
     low_stock = await get_low_stock_risks(session, shop_id)
     stockout_by_sku = {r.sku_id: r.days_until_stockout for r in low_stock}
 
-    margins = [
-        float(p.revenue or 0) / max(p.units_sold or 0, 1) for p in products
-    ]
+    margins = [float(p.revenue or 0) / max(p.units_sold or 0, 1) for p in products]
     max_margin = max(margins) if margins else 0.0
 
     scored: list[ProductPushSuggestion] = []
@@ -492,13 +608,9 @@ async def get_product_push_suggestions(
         days_until = min(days_values) if days_values else None
 
         trend = _trend_score(sku_ids, velocity_by_sku)
-        margin = _margin_score(
-            float(product.revenue or 0), product.units_sold or 0, max_margin
-        )
+        margin = _margin_score(float(product.revenue or 0), product.units_sold or 0, max_margin)
         stock = _stock_score_for_push(quantities, days_until)
-        composite = (
-            _WEIGHT_TREND * trend + _WEIGHT_MARGIN * margin + _WEIGHT_STOCK * stock
-        )
+        composite = _WEIGHT_TREND * trend + _WEIGHT_MARGIN * margin + _WEIGHT_STOCK * stock
 
         if composite <= 0:
             continue
