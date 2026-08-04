@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-dux-demo",
+  "branch": "feature/dux-demo-wave",
+  "issues": [690, 691, 692, 693, 694, 695, 696, 697, 698, 699]
+}

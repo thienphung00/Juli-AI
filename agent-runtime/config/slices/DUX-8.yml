@@ -1,0 +1,20 @@
+DUX-8:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/design/Components/cards.md
+    - docs/product/design/Screens/decisions.md
+    - docs/product/design/Components/badges.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/app/decisions/in-progress/[executionId]/page.tsx
+    - apps/demo/src/lib/review-seller-copy.ts
+  loadWhenNeeded:
+    - apps/demo/src/components/in-progress-panel.tsx
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - Sibling issue context caches

@@ -2,8 +2,6 @@ import type { ChartTrend } from "@juli/ui";
 import { formatDateTime, formatNumber, formatVND } from "@juli/utils";
 
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../workflows/optimize-product/review";
-import { PROCESS_ORDER_WORKFLOW_KEY } from "../workflows/process-order/review";
-import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../workflows/replenish-inventory/review";
 import type { AnalyticsRange, MetricKey } from "./main-kpis";
 
 export interface KpiTimePoint {
@@ -34,36 +32,20 @@ const FIXTURE_UPDATED_AT = "2026-07-20T08:30:00+07:00";
 interface RangeBundle {
   gmvTiktok: number;
   gmvTiktokDelta: string;
-  inventoryTurnover: number;
-  inventoryDelta: string;
-  fulfillmentAccuracy: number;
-  fulfillmentDelta: string;
 }
 
 const RANGE_VALUES: Record<AnalyticsRange, RangeBundle> = {
   "7d": {
     gmvTiktok: 118_000_000,
     gmvTiktokDelta: "▲ 8%",
-    inventoryTurnover: 4.2,
-    inventoryDelta: "▼ 12%",
-    fulfillmentAccuracy: 96.8,
-    fulfillmentDelta: "▼ 1.2 điểm %",
   },
   "30d": {
     gmvTiktok: 485_000_000,
     gmvTiktokDelta: "▲ 15%",
-    inventoryTurnover: 3.1,
-    inventoryDelta: "▼ 43%",
-    fulfillmentAccuracy: 95.2,
-    fulfillmentDelta: "▼ 3.4 điểm %",
   },
   "90d": {
     gmvTiktok: 1_420_000_000,
     gmvTiktokDelta: "▲ 22%",
-    inventoryTurnover: 2.8,
-    inventoryDelta: "▼ 48%",
-    fulfillmentAccuracy: 94.5,
-    fulfillmentDelta: "▼ 4.1 điểm %",
   },
 };
 
@@ -124,68 +106,6 @@ function gmvTiktokSnapshot(range: AnalyticsRange): KpiSnapshot {
   };
 }
 
-function inventoryTurnoverSnapshot(range: AnalyticsRange): KpiSnapshot {
-  const bundle = RANGE_VALUES[range];
-  const timeSeries = buildTimeSeries(range, 52, -3).map((point) => ({
-    ...point,
-    value: Number((point.value / 10).toFixed(1)),
-  }));
-  const forecastSeries = buildForecastSeries(timeSeries, -4).map((point) => ({
-    ...point,
-    value: Number((point.value / 10).toFixed(1)),
-  }));
-
-  return {
-    formattedValue: `${formatNumber(bundle.inventoryTurnover)}x`,
-    delta: bundle.inventoryDelta,
-    trend: "negative",
-    signal:
-      "Vòng quay tồn kho giảm → rủi ro vốn bị kẹt → cân nhắc bổ sung hoặc thanh lý tồn",
-    dataSource: "TikTok Shop Inventory API (fixture)",
-    lastUpdated: formatDateTime(FIXTURE_UPDATED_AT),
-    dataMode: "fixture",
-    workflowId: REPLENISH_INVENTORY_WORKFLOW_KEY,
-    decisionLabel: "Xem đề xuất bổ sung tồn kho",
-    sparkline: timeSeries.map((point) => point.value * 10),
-    timeSeries,
-    forecastSeries,
-    previousTimeSeries: buildPreviousSeries(timeSeries, 1.35).map((point) => ({
-      ...point,
-      value: Number((point.value).toFixed(1)),
-    })),
-  };
-}
-
-function fulfillmentAccuracySnapshot(range: AnalyticsRange): KpiSnapshot {
-  const bundle = RANGE_VALUES[range];
-  const gaugeValue = bundle.fulfillmentAccuracy;
-
-  return {
-    formattedValue: `${formatNumber(gaugeValue)}%`,
-    delta: bundle.fulfillmentDelta,
-    trend: "negative",
-    signal:
-      "Tỷ lệ giao đúng giảm → rủi ro lỗi tăng → kiểm tra quy trình xử lý đơn",
-    dataSource: "TikTok Shop Fulfillment API (fixture)",
-    lastUpdated: formatDateTime(FIXTURE_UPDATED_AT),
-    dataMode: "fixture",
-    workflowId: PROCESS_ORDER_WORKFLOW_KEY,
-    decisionLabel: "Xem đề xuất xử lý đơn",
-    sparkline: [98.6, 97.4, 96.9, 96.2, 95.8, 95.2].slice(0, range === "7d" ? 5 : 6),
-    timeSeries: buildTimeSeries(range, 986, -4).map((point) => ({
-      label: point.label,
-      value: Number((point.value / 10).toFixed(1)),
-    })),
-    gaugeValue,
-    previousTimeSeries: buildPreviousSeries(
-      buildTimeSeries(range, 986, -4),
-      1.03,
-    ).map((point) => ({
-      label: point.label,
-      value: Number((point.value / 10).toFixed(1)),
-    })),
-  };
-}
 
 export function getKpiSnapshot(
   metricKey: MetricKey,
@@ -197,12 +117,6 @@ export function getKpiSnapshot(
   switch (metricKey) {
     case "gmv-tiktok":
       snapshot = gmvTiktokSnapshot(range);
-      break;
-    case "inventory-turnover":
-      snapshot = inventoryTurnoverSnapshot(range);
-      break;
-    case "fulfillment-accuracy-rate":
-      snapshot = fulfillmentAccuracySnapshot(range);
       break;
     default:
       return null;

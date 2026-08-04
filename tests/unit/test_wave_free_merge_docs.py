@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ADR_052 = REPO_ROOT / "docs" / "adr" / "052-wave-free-merge-deferred-artifact-gate.md"
 ADR_README = REPO_ROOT / "docs" / "adr" / "README.md"
@@ -134,12 +136,19 @@ def test_cutover_checklist_script_is_importable_and_builds_a_report() -> None:
         assert key in summary
 
 
-def test_cutover_checklist_classifies_a_branch_without_manifest_as_legacy() -> None:
+def test_cutover_checklist_classifies_a_branch_without_manifest_as_legacy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = importlib.import_module("check_wave_rollout_cutover")
-    # Any branch this repo can resolve is fine for a classification smoke
-    # test — main lacks a committed wave manifest, so it must classify as
-    # legacy under the ADR-052 refined-workflow contract (manifest presence
-    # is one of the required signals).
+    # Classification smoke test — stub the two git-shelling helpers instead
+    # of reading a live branch's real tree: once a wave's manifest merges to
+    # main (as the A1 wave's did), main's *actual* committed tree legitimately
+    # gains a wave-manifest file, which previously made this test depend on
+    # main never having completed a wave merge. Mocking isolates the pure
+    # classification logic (manifest presence + pr.yml content = the four
+    # ADR-052 refined-workflow signals) from that ever-changing repo state.
+    monkeypatch.setattr(module, "_remote_ls_tree", lambda branch: [])
+    monkeypatch.setattr(module, "_remote_file", lambda branch, path: None)
     verdict = module.classify_wave_branch("main")
     assert verdict["hasWaveManifest"] is False
     assert verdict["workflow"] == "legacy"

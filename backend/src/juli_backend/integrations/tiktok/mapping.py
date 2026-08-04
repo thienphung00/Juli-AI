@@ -82,15 +82,17 @@ def expand_order_line_items(order: dict[str, Any]) -> list[dict[str, Any]]:
             line_total = Decimal(str(unit_price)) * quantity
         except (TypeError, ValueError):
             line_total = Decimal("0")
-        items.append({
-            "tiktok_order_id": tiktok_order_id,
-            "product_id": line.get("product_id"),
-            "sku_id": str(sku_id),
-            "quantity": quantity,
-            "unit_price": unit_price,
-            "line_total": str(line_total),
-            "update_time": update_time,
-        })
+        items.append(
+            {
+                "tiktok_order_id": tiktok_order_id,
+                "product_id": line.get("product_id"),
+                "sku_id": str(sku_id),
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "line_total": str(line_total),
+                "update_time": update_time,
+            }
+        )
     return items
 
 
@@ -257,6 +259,52 @@ def normalize_return(raw: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def normalize_cancellation(raw: dict[str, Any]) -> dict[str, Any]:
+    """Map official TikTok cancellation JSON to the ETL ingest contract.
+
+    Cancellations are treated as a special class of returns with cancel_id
+    as the natural key (mapped to return_id for silver.returns table).
+    """
+    result = dict(raw)
+
+    # Map cancel_id to return_id for consistent return-like handling
+    if not result.get("return_id"):
+        cancel_id = result.get("cancel_id")
+        if cancel_id is not None:
+            result["return_id"] = cancel_id
+            result["tiktok_return_id"] = cancel_id
+
+    # Ensure tiktok_order_id is set from order_id
+    tiktok_order_id = result.get("tiktok_order_id") or result.get("order_id")
+    if tiktok_order_id is not None:
+        result["tiktok_order_id"] = str(tiktok_order_id)
+        result.setdefault("order_id", str(tiktok_order_id))
+
+    # Map status field (cancel_status -> return_status)
+    if not result.get("return_status"):
+        cancel_status = result.get("cancel_status")
+        if cancel_status is not None:
+            result["return_status"] = cancel_status
+
+    # Map reason field (cancel_reason -> return_reason)
+    if not result.get("return_reason"):
+        reason = result.get("cancel_reason") or result.get("cancel_reason_text")
+        if reason is not None:
+            result["return_reason"] = reason
+
+    # Map line items (cancel_line_items -> return_line_items)
+    if not result.get("return_line_items"):
+        cancel_items = result.get("cancel_line_items")
+        if cancel_items is not None:
+            result["return_line_items"] = cancel_items
+
+    # Set return_type for cancellations (distinct from regular returns)
+    result.setdefault("return_type", "cancellation")
+    result.setdefault("return_condition", "cancelled")
+
+    return result
+
+
 def normalize_creator(raw: dict[str, Any]) -> dict[str, Any]:
     """Map marketplace creator JSON to the ETL ingest contract."""
     result = dict(raw)
@@ -279,11 +327,7 @@ def normalize_livestream(raw: dict[str, Any]) -> dict[str, Any]:
     result = dict(raw)
 
     if not result.get("livestream_id"):
-        livestream_id = (
-            result.get("room_id")
-            or result.get("content_id")
-            or result.get("id")
-        )
+        livestream_id = result.get("room_id") or result.get("content_id") or result.get("id")
         if livestream_id is not None:
             result["livestream_id"] = livestream_id
 
@@ -350,11 +394,7 @@ def normalize_statement(raw: dict[str, Any]) -> dict[str, Any]:
 def expand_inventory_search(raw: dict[str, Any]) -> list[dict[str, Any]]:
     """Flatten Search Inventory nested ``inventory[] → skus[]`` into ETL rows."""
     data = raw.get("data") if isinstance(raw.get("data"), dict) else None
-    inventory = (
-        data.get("inventory")
-        if data is not None
-        else raw.get("inventory")
-    )
+    inventory = data.get("inventory") if data is not None else raw.get("inventory")
     if not isinstance(inventory, list):
         return []
 
@@ -639,9 +679,7 @@ def expand_analytics_sku_list_item(
     )
 
 
-def expand_analytics_sku_detail(
-    data: dict[str, Any], *, synced_at: int
-) -> list[dict[str, Any]]:
+def expand_analytics_sku_detail(data: dict[str, Any], *, synced_at: int) -> list[dict[str, Any]]:
     performance = data.get("performance") if isinstance(data, dict) else None
     if not isinstance(performance, dict):
         return []

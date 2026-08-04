@@ -1,0 +1,72 @@
+{
+  "planId": "rep-690-dux-1-gmv-envelope-fallback",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-analytics-gmv-interim-fallback",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "no_p0_error_hero_when_fetchDemoAnalytics_fails",
+          "interim_contract_shaped_envelope_matches_adr_046_payload_kpis_shape",
+          "gmv_hero_card_renders_a_value_or_honest_unavailable_state_never_the_error_hero",
+          "swap_to_live_envelope_requires_no_second_ia_redesign"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Frontend-only interim fallback envelope in apps/demo; no DB or backend API contract change; matches ADR-046 payload.kpis shape so swapping to the live Track A envelope needs no follow-up IA redesign."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 690"
+  ],
+  "doNotInfer": [
+    "Track A CDP spine landing (#598)",
+    "Five-KPI catalog changes (DUX-2/#691)",
+    "Trust copy changes (DUX-3/#692)",
+    "release evidence fields beyond this plan"
+  ]
+}

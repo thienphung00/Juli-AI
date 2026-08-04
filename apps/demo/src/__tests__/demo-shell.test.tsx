@@ -182,6 +182,154 @@ describe("Demo shell controls", () => {
     ).toHaveLength(4);
   });
 
+  describe("assistance bar destination routing", () => {
+    it("routes Home assistance on / (root)", () => {
+      vi.mocked(usePathname).mockReturnValue("/");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Trang chủ");
+      expect(assistance).toHaveTextContent("Juli là trợ lý phân tích và tự động hóa");
+    });
+
+    it("routes Decisions assistance on /decisions (exact match)", () => {
+      vi.mocked(usePathname).mockReturnValue("/decisions");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).toHaveTextContent("Juli sẽ giải thích lý do");
+    });
+
+    it("routes Decisions assistance on nested /decisions/recommendations/<key>", () => {
+      vi.mocked(usePathname).mockReturnValue("/decisions/recommendations/workflow-1");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).not.toHaveTextContent("Trang chủ");
+    });
+
+    it("routes Decisions assistance on nested /decisions/in-progress/<id>", () => {
+      vi.mocked(usePathname).mockReturnValue("/decisions/in-progress/exec-workflow-1-1");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Quyết định");
+      expect(assistance).not.toHaveTextContent("Trang chủ");
+    });
+
+    it("routes Analytics assistance on /analytics (exact match)", () => {
+      vi.mocked(usePathname).mockReturnValue("/analytics");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Phân tích");
+      expect(assistance).toHaveTextContent("Juli sẽ giúp bạn đọc thay đổi");
+    });
+
+    it("routes Analytics assistance on nested /analytics/<metricKey>", () => {
+      vi.mocked(usePathname).mockReturnValue("/analytics/gmv-tiktok");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Phân tích");
+      expect(assistance).not.toHaveTextContent("Trang chủ");
+    });
+
+    it("routes Settings assistance on /settings (exact match)", () => {
+      vi.mocked(usePathname).mockReturnValue("/settings");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Cài đặt");
+      expect(assistance).toHaveTextContent("Juli sẽ làm rõ cách mẫu");
+    });
+
+    it("routes Settings assistance on nested /settings/workflows/<key>", () => {
+      vi.mocked(usePathname).mockReturnValue("/settings/workflows/workflow-1");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Cài đặt");
+      expect(assistance).not.toHaveTextContent("Trang chủ");
+    });
+
+    it("falls back to Home assistance on unknown paths", () => {
+      vi.mocked(usePathname).mockReturnValue("/unknown/deep/nested/path");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Trang chủ");
+      expect(assistance).not.toHaveTextContent(/Quyết định|Phân tích|Cài đặt/);
+    });
+
+    it("does not crash on empty path", () => {
+      vi.mocked(usePathname).mockReturnValue("");
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      const assistance = screen.getByRole("complementary", {
+        name: "Gợi ý từ Juli",
+      });
+
+      expect(assistance).toHaveTextContent("Trang chủ");
+    });
+  });
+
+  describe("recommendation context message formatting", () => {
+    it("sanitizes backend vocabulary from evidence in recommendation message", () => {
+      vi.mocked(usePathname).mockReturnValue("/decisions");
+
+      const banPatterns = readFileSync(
+        "src/lib/review-seller-copy.ts",
+        "utf8",
+      );
+
+      render(<DemoShell>Nội dung</DemoShell>);
+
+      // Verify that sanitizeSellerReviewText is imported and used
+      expect(banPatterns).toContain("REVIEW_UI_BANNED_PATTERNS");
+      expect(banPatterns).toContain("sanitizeSellerReviewText");
+    });
+  });
+
   it("labels preview content truthfully without trapping navigation", () => {
     render(
       <DemoShell>

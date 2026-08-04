@@ -12,10 +12,12 @@ import logging
 from typing import Any
 
 from juli_backend.integrations.tiktok import (
+    CANCELLATION_SEARCH_PATH,
     ORDER_SEARCH_PATH,
     RETURN_SEARCH_PATH,
     RateLimiter,
     TikTokAPIError,
+    normalize_cancellation,
     normalize_order,
     normalize_return,
 )
@@ -116,3 +118,55 @@ async def sync_returns(
 
     if returns:
         sync_state["returns_last_update_time"] = max_update_time
+
+
+async def sync_cancellations(
+    *,
+    resource: Any,
+    rate_limiter: RateLimiter,
+    handoff_fn: HandoffFn,
+    app_id: str,
+    shop_key: str,
+    sync_state: dict[str, Any],
+    correlation_id: str,
+) -> None:
+    """Fetch cancellations since last sync and hand off normalized rows to bronze handoff.
+
+    Cancellations are treated as returns with a distinct type marker,
+    using the same bronze table and silver.returns for idempotent natural-key merge.
+    """
+    if not rate_limiter.acquire(
+        app_id, shop_key, CANCELLATION_SEARCH_PATH, max_requests=10, window_seconds=60
+    ):
+        logger.info(
+            "targeted_fetch_rate_limited",
+            extra={"resource": "cancellations", "correlation_id": correlation_id},
+        )
+        return
+
+    update_from = sync_state.get("cancellations_last_update_time")
+
+    try:
+        cancellations = resource.search_cancellations_all(update_time_from=update_from)
+    except TikTokAPIError:
+        logger.warning(
+            "targeted_fetch_cancellations_failed",
+            extra={"correlation_id": correlation_id},
+            exc_info=True,
+        )
+        return
+
+    max_update_time = update_from or 0
+    for cancellation in cancellations:
+        await handoff_fn(
+            "tiktok.returns.raw",
+            shop_key,
+            json.dumps(normalize_cancellation(cancellation)).encode(),
+        )
+        max_update_time = max(
+            max_update_time,
+            cancellation.get("update_time") or cancellation.get("create_time") or 0,
+        )
+
+    if cancellations:
+        sync_state["cancellations_last_update_time"] = max_update_time

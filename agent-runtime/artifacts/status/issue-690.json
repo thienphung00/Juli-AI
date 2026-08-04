@@ -1,0 +1,16 @@
+{
+  "gateVersion": 1,
+  "issue": 690,
+  "wave": "wave-dux-demo",
+  "review": {
+    "status": "PASS",
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-690.json",
+    "sha256": "fb9efa2655e8afa5a55517b1b39ab3883abb4385aafdf8860de6b0f46ef6d89c"
+  },
+  "validation": {
+    "status": "PASS",
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-690.json",
+    "sha256": "4a6d574dbf3991394b1b4c9876f377d44ceb76f5ec30852b15e223cb61573bd4"
+  },
+  "timestamp": "2026-08-04T07:08:46Z"
+}

@@ -1,6 +1,7 @@
 node_modules/
 .pnpm-store/
 .turbo/
+*.tsbuildinfo
 
 __pycache__/
 *.pyc
