@@ -15,6 +15,13 @@ from juli_backend.ai.recommendations.engine import (
     get_stream_optimization,
     get_trending_product_recommendation,
 )
+from juli_backend.ai.recommendations.livestream_script import (
+    LivestreamScriptClassification,
+    LivestreamScriptRecommendation,
+    acknowledge_livestream_script,
+    classify_livestream_performance,
+    get_livestream_script_recommendation,
+)
 
 __all__ = [
     "HostProductMatch",
@@ -29,5 +36,10 @@ __all__ = [
     "get_price_direction_suggestion",
     "get_product_push_suggestions",
     "get_stream_optimization",
+    "LivestreamScriptClassification",
+    "LivestreamScriptRecommendation",
+    "acknowledge_livestream_script",
+    "classify_livestream_performance",
+    "get_livestream_script_recommendation",
     "get_trending_product_recommendation",
 ]
