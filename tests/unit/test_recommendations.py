@@ -288,6 +288,11 @@ class TestRecommendationsOutputVietnamese:
             )
             assert (
                 any(ch in item.message for ch in vietnamese_vowels)
+            assert (
+                any(
+                    ch in item.message
+                    for ch in "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
+                )
                 or "Nên" in item.message
                 or "sản phẩm" in item.message
             )
@@ -963,3 +968,373 @@ class TestPriceDirectionAdvisoryVolumeUpConversionDown:
         assert suggestion is not None
         assert suggestion.action == "cut"
         assert suggestion.message
+# Issue #722 — Product Trend Classifier tests
+class TestProductTrendClassifier:
+    """AC1-5: classify products into three tiers based on month-over-month trend."""
+
+    @pytest.mark.asyncio
+    async def test_classify_strong_positive_trend(self, session: AsyncSession):
+        """Tier 1: Strong positive revenue trend classification."""
+        shop_id = await _seed_shop(session)
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_strong_trend",
+            name="Trending Winner",
+            revenue=Decimal("5000000"),
+            units_sold=500,
+        )
+        session.add(product)
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_strong_trend",
+                sku_id="sku_trend",
+                quantity=100,
+            )
+        )
+
+        # Create orders showing strong growth: 10 orders first half, 50 orders second half
+        now = datetime.now(UTC)
+        base = now - timedelta(days=30)
+        orders = []
+        for day_offset in range(30):
+            day_start = base + timedelta(days=day_offset)
+            count = 10 if day_offset < 15 else 50
+            for i in range(count):
+                orders.append(
+                    _make_order(
+                        shop_id,
+                        tiktok_order_id=f"trend_strong_{day_offset}_{i}",
+                        created_at=day_start + timedelta(hours=1),
+                    )
+                )
+        session.add_all(orders)
+        await session.flush()
+
+        from juli_backend.ai.recommendations.classifier import classify_product_trend
+
+        tier, confidence, reason = await classify_product_trend(session, shop_id, product.id)
+        assert tier == "strong_positive", f"Expected strong_positive but got {tier}"
+        assert confidence >= 0.7, f"Expected high confidence but got {confidence}"
+
+    @pytest.mark.asyncio
+    async def test_classify_declining_trend(self, session: AsyncSession):
+        """Tier 2: Product with declining revenue trend should be classified as declining."""
+        shop_id = await _seed_shop(session)
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_declining",
+            name="Declining Product",
+            revenue=Decimal("3000000"),
+            units_sold=200,
+        )
+        session.add(product)
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_declining",
+                sku_id="sku_decline",
+                quantity=80,
+            )
+        )
+
+        # Create orders showing decline: 50 orders first half, 10 orders second half
+        now = datetime.now(UTC)
+        base = now - timedelta(days=30)
+        orders = []
+        for day_offset in range(30):
+            day_start = base + timedelta(days=day_offset)
+            count = 50 if day_offset < 15 else 10
+            for i in range(count):
+                orders.append(
+                    _make_order(
+                        shop_id,
+                        tiktok_order_id=f"trend_decline_{day_offset}_{i}",
+                        created_at=day_start + timedelta(hours=1),
+                    )
+                )
+        session.add_all(orders)
+        await session.flush()
+
+        from juli_backend.ai.recommendations.classifier import classify_product_trend
+
+        tier, confidence, reason = await classify_product_trend(session, shop_id, product.id)
+        assert tier == "declining", f"Expected declining but got {tier}"
+        assert "declining" in reason.lower() or "giảm" in reason.lower()
+
+    @pytest.mark.asyncio
+    async def test_classify_no_strong_signal(self, session: AsyncSession):
+        """Tier 3: Product with flat trend should be classified as no_strong_signal."""
+        shop_id = await _seed_shop(session)
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_flat",
+            name="Steady Product",
+            revenue=Decimal("2000000"),
+            units_sold=150,
+        )
+        session.add(product)
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_flat",
+                sku_id="sku_flat",
+                quantity=60,
+            )
+        )
+
+        # Create orders with roughly constant rate
+        now = datetime.now(UTC)
+        base = now - timedelta(days=30)
+        orders = []
+        for day_offset in range(30):
+            day_start = base + timedelta(days=day_offset)
+            count = 25  # Same count every day
+            for i in range(count):
+                orders.append(
+                    _make_order(
+                        shop_id,
+                        tiktok_order_id=f"trend_flat_{day_offset}_{i}",
+                        created_at=day_start + timedelta(hours=1),
+                    )
+                )
+        session.add_all(orders)
+        await session.flush()
+
+        from juli_backend.ai.recommendations.classifier import classify_product_trend
+
+        tier, confidence, reason = await classify_product_trend(session, shop_id, product.id)
+        assert tier == "no_strong_signal", f"Expected no_strong_signal but got {tier}"
+
+    @pytest.mark.asyncio
+    async def test_weak_signal_always_produces_recommendation(self, session: AsyncSession):
+        """AC2: weak/no-signal tier still always produces a recommendation."""
+        shop_id = await _seed_shop(session)
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_weak_rec",
+            name="General Tune-up",
+            revenue=Decimal("1500000"),
+            units_sold=100,
+        )
+        session.add(product)
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_weak_rec",
+                sku_id="sku_weak",
+                quantity=50,
+            )
+        )
+        await _seed_accelerating_orders(session, shop_id, days=14)
+        await session.flush()
+
+        from juli_backend.ai.recommendations.classifier import build_recommendation_message
+
+        # Weak signal should still produce a message
+        message = build_recommendation_message(
+            product_name="General Tune-up",
+            tier="no_strong_signal",
+            reason="Chưa thấy xu hướng rõ ràng",
+        )
+        assert message is not None
+        assert len(message) > 0
+
+    @pytest.mark.asyncio
+    async def test_low_history_products_honest_state(self, session: AsyncSession):
+        """AC3: low sales-history products get honest 'not enough data' state."""
+        shop_id = await _seed_shop(session)
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_new",
+            name="Brand New Product",
+            revenue=Decimal("100000"),
+            units_sold=5,
+        )
+        session.add(product)
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_new",
+                sku_id="sku_new",
+                quantity=20,
+            )
+        )
+
+        # Only 3 orders in past 30 days
+        now = datetime.now(UTC)
+        base = now - timedelta(days=30)
+        orders = [
+            _make_order(
+                shop_id,
+                tiktok_order_id=f"new_order_{i}",
+                created_at=base + timedelta(days=i * 10),
+            )
+            for i in range(3)
+        ]
+        session.add_all(orders)
+        await session.flush()
+
+        from juli_backend.ai.recommendations.classifier import classify_product_trend
+
+        tier, confidence, reason = await classify_product_trend(session, shop_id, product.id)
+        assert tier == "insufficient_data", f"Expected insufficient_data but got {tier}"
+        assert confidence < 0.5
+
+    @pytest.mark.asyncio
+    async def test_distinct_copy_weak_vs_declining(self, session: AsyncSession):
+        """AC4: weak-signal copy reads distinctly from declining-tier copy."""
+        from juli_backend.ai.recommendations.classifier import build_recommendation_message
+
+        weak_msg = build_recommendation_message(
+            product_name="Test Product",
+            tier="no_strong_signal",
+            reason="Chưa thấy xu hướng rõ ràng",
+        )
+        declining_msg = build_recommendation_message(
+            product_name="Test Product",
+            tier="declining",
+            reason="Doanh thu giảm",
+        )
+
+        # They should be different
+        assert weak_msg != declining_msg
+        # Weak should not sound alarming
+        assert "giảm" not in weak_msg.lower() or "cải thiện" in weak_msg.lower()
+        # Declining should mention why
+        assert "giảm" in declining_msg.lower() or "optimize" in declining_msg.lower()
+
+
+# Issue #722 — Integration tests for trending product recommendation
+class TestTrendingProductRecommendation:
+    """Integration tests for the new trending product recommendation function."""
+
+    @pytest.mark.asyncio
+    async def test_trending_product_recommendation_strong_positive(self, session: AsyncSession):
+        """Get a trending product recommendation with strong positive tier."""
+        shop_id = await _seed_shop(session)
+
+        # Create multiple products with different trends
+        strong_product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_trending_strong",
+            name="Trending Hero",
+            revenue=Decimal("3000000"),
+            units_sold=300,
+        )
+        weak_product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_trending_weak",
+            name="Stable Product",
+            revenue=Decimal("2000000"),
+            units_sold=200,
+        )
+        session.add_all([strong_product, weak_product])
+
+        session.add_all(
+            [
+                _make_inventory(
+                    shop_id,
+                    tiktok_product_id="prod_trending_strong",
+                    sku_id="sku_hero",
+                    quantity=100,
+                ),
+                _make_inventory(
+                    shop_id,
+                    tiktok_product_id="prod_trending_weak",
+                    sku_id="sku_stable",
+                    quantity=80,
+                ),
+            ]
+        )
+
+        # Create strong growth trend: 10 orders first half, 50 orders second half
+        now = datetime.now(UTC)
+        base = now - timedelta(days=30)
+        orders = []
+        for day_offset in range(30):
+            day_start = base + timedelta(days=day_offset)
+            count = 10 if day_offset < 15 else 50
+            for i in range(count):
+                orders.append(
+                    _make_order(
+                        shop_id,
+                        tiktok_order_id=f"trend_int_{day_offset}_{i}",
+                        created_at=day_start + timedelta(hours=1),
+                    )
+                )
+        session.add_all(orders)
+        await session.flush()
+
+        from juli_backend.ai.recommendations import get_trending_product_recommendation
+
+        recommendation = await get_trending_product_recommendation(session, shop_id)
+
+        assert recommendation is not None
+        assert recommendation.trend_tier == "strong_positive"
+        assert recommendation.product_name == "Trending Hero"
+        assert "bán chạy" in recommendation.message or "tăng trưởng" in recommendation.message
+        assert recommendation.confidence >= 0.7
+
+    @pytest.mark.asyncio
+    async def test_trending_product_recommendation_declining(self, session: AsyncSession):
+        """Get a trending product recommendation with declining tier."""
+        shop_id = await _seed_shop(session)
+
+        declining_product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_decline_int",
+            name="Declining Product",
+            revenue=Decimal("2000000"),
+            units_sold=200,
+        )
+        session.add(declining_product)
+        session.add(
+            _make_inventory(
+                shop_id,
+                tiktok_product_id="prod_decline_int",
+                sku_id="sku_decline",
+                quantity=80,
+            )
+        )
+
+        # Create decline trend: 50 orders first half, 10 orders second half
+        now = datetime.now(UTC)
+        base = now - timedelta(days=30)
+        orders = []
+        for day_offset in range(30):
+            day_start = base + timedelta(days=day_offset)
+            count = 50 if day_offset < 15 else 10
+            for i in range(count):
+                orders.append(
+                    _make_order(
+                        shop_id,
+                        tiktok_order_id=f"decline_int_{day_offset}_{i}",
+                        created_at=day_start + timedelta(hours=1),
+                    )
+                )
+        session.add_all(orders)
+        await session.flush()
+
+        from juli_backend.ai.recommendations import get_trending_product_recommendation
+
+        recommendation = await get_trending_product_recommendation(session, shop_id)
+
+        assert recommendation is not None
+        assert recommendation.trend_tier == "declining"
+        assert recommendation.product_name == "Declining Product"
+        assert (
+            "giảm" in recommendation.message
+            or "optimize" in recommendation.message
+            or "tối ưu" in recommendation.message
+        )
+
+    @pytest.mark.asyncio
+    async def test_trending_product_recommendation_no_products(self, session: AsyncSession):
+        """Get a trending product recommendation when no products exist."""
+        shop_id = await _seed_shop(session)
+
+        from juli_backend.ai.recommendations import get_trending_product_recommendation
+
+        recommendation = await get_trending_product_recommendation(session, shop_id)
+        assert recommendation is None
