@@ -150,6 +150,8 @@ class FinanceStatement(TikTokModel):
     currency: str | None = None
     payment_status: str | None = None
     status: str | None = None
+    platform_commission: str | float | None = None
+    shipping_fee: str | float | None = None
 
 
 class FinanceStatementsData(PaginatedData):

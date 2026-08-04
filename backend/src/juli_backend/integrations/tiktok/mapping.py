@@ -388,6 +388,8 @@ def normalize_statement(raw: dict[str, Any]) -> dict[str, Any]:
         if status is not None:
             result["status"] = status
 
+    # Preserve fee fields from TikTok Finance API (#723)
+    # platform_commission and shipping_fee pass through unchanged
     return result
 
 
