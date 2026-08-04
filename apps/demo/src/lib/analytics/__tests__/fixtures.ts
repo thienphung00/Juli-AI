@@ -13,20 +13,36 @@ const DEFAULT_KPIS: DemoAnalyticsEnvelope["kpis"] = {
       { t: "2026-07-20", v: 485_000_000 },
     ],
   },
-  inventory_turnover: {
+  aov: {
     availability: "available",
-    label: "Inventory turnover",
+    label: "AOV",
     series: [
-      { t: "2026-07-01", v: 5.4 },
-      { t: "2026-07-20", v: 3.1 },
+      { t: "2026-07-01", v: 450_000 },
+      { t: "2026-07-20", v: 500_000 },
     ],
   },
-  fulfillment_accuracy_rate: {
+  ctor: {
     availability: "available",
-    label: "Fulfillment accuracy rate",
+    label: "CTOR (click→đơn)",
     series: [
-      { t: "2026-07-01", v: 98.6 },
-      { t: "2026-07-20", v: 95.2 },
+      { t: "2026-07-01", v: 3.2 },
+      { t: "2026-07-20", v: 3.8 },
+    ],
+  },
+  live_hours: {
+    availability: "available",
+    label: "LIVE hours",
+    series: [
+      { t: "2026-07-01", v: 6 },
+      { t: "2026-07-20", v: 10 },
+    ],
+  },
+  cancellation_rate: {
+    availability: "available",
+    label: "Tỷ lệ hủy đơn",
+    series: [
+      { t: "2026-07-01", v: 2.5 },
+      { t: "2026-07-20", v: 1.8 },
     ],
   },
   product_funnel: {
@@ -73,3 +89,6 @@ export function createMockFetchResponse(
       json: async () => envelope,
     }) as Response;
 }
+
+// Re-export from production code for test usage
+export { createFallbackDemoAnalyticsEnvelope } from "../fallback-envelope";

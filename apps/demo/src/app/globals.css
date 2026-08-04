@@ -361,6 +361,50 @@ a {
   font-size: 0.8rem;
 }
 
+/* Stat row — read-only summary under header */
+.demo-decisions__stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--juli-space-4);
+  margin: var(--juli-space-4) 0 var(--juli-space-6);
+  padding: var(--juli-space-4);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-base);
+  background: var(--juli-surface);
+}
+
+.demo-decisions__stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-2);
+  min-height: var(--juli-touch-target);
+  justify-content: center;
+}
+
+.demo-decisions__stat-value {
+  display: block;
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--juli-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-decisions__stat-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--juli-muted-foreground);
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 42rem) {
+  .demo-decisions__stat-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .demo-decisions__tabs {
   display: inline-flex;
   min-height: var(--juli-touch-target);
@@ -446,6 +490,122 @@ a {
 .demo-decisions__retry:focus-visible {
   outline: var(--juli-focus-width) solid var(--juli-focus-ring);
   outline-offset: 3px;
+}
+
+/* Home Activity Tracker */
+.demo-activity-tracker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--juli-space-4);
+  margin: var(--juli-space-5) 0;
+  padding: var(--juli-space-4);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-base);
+  background: var(--juli-surface);
+}
+
+.demo-activity-tracker__tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-2);
+  min-height: var(--juli-touch-target);
+  justify-content: center;
+  padding: var(--juli-space-3);
+  border-radius: var(--juli-radius-base);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 150ms ease-out;
+}
+
+.demo-activity-tracker__tile:hover {
+  background-color: var(--juli-primary-soft);
+}
+
+.demo-activity-tracker__tile:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 2px;
+  background-color: var(--juli-primary-soft);
+}
+
+.demo-activity-tracker__value {
+  display: block;
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--juli-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-activity-tracker__label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--juli-muted-foreground);
+  letter-spacing: 0.02em;
+}
+
+.demo-activity-tracker__empty {
+  max-width: 38rem;
+  margin: var(--juli-space-5) 0;
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-base);
+  background: var(--juli-surface);
+  padding: var(--juli-space-4);
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+.demo-activity-tracker__skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--juli-space-4);
+  margin: var(--juli-space-5) 0;
+  padding: var(--juli-space-4);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-base);
+  background: var(--juli-surface);
+}
+
+.demo-activity-tracker__skeleton-tile {
+  min-height: var(--juli-touch-target);
+  border-radius: var(--juli-radius-base);
+  background: var(--juli-surface-muted, var(--juli-surface));
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.demo-activity-tracker__error {
+  max-width: 38rem;
+  margin: var(--juli-space-5) 0;
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-base);
+  background: var(--juli-surface);
+  padding: var(--juli-space-4);
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+.demo-activity-tracker__error p {
+  margin: 0 0 var(--juli-space-3);
+}
+
+@media (max-width: 35rem) {
+  .demo-activity-tracker {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-activity-tracker__skeleton {
+    grid-template-columns: 1fr;
+  }
 }
 
 .settings-view,

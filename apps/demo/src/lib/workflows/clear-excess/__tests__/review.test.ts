@@ -12,7 +12,7 @@ const clearExcessFixture = recommendationFixtures.find(
 );
 
 describe("getClearExcessReviewStages", () => {
-  it("returns five stages with stock-health analytics deep-link by default", () => {
+  it("returns five stages with aov analytics deep-link by default", () => {
     const stages = getClearExcessReviewStages();
 
     expect(stages.map((stage) => stage.stage)).toEqual([
@@ -24,8 +24,8 @@ describe("getClearExcessReviewStages", () => {
     ]);
 
     const analytics = stages.find((stage) => stage.stage === "analytics");
-    expect(analytics?.analyticsMetricKey).toBe("stock-health");
-    expect(analytics?.analyticsMetricHref).toBe("/analytics/stock-health");
+    expect(analytics?.analyticsMetricKey).toBe("aov");
+    expect(analytics?.analyticsMetricHref).toBe("/analytics/aov");
   });
 
   it("derives Why-stage copy from the clear_excess recommendation fixture", () => {
