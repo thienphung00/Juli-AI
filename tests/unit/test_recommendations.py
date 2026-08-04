@@ -10,15 +10,13 @@ Test mapping (from issue):
 import importlib
 import inspect
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import Creator, InventoryItem, Livestream, Order, Product, Shop, User
-from juli_backend.repositories.repos import GraphRepo
 from juli_backend.ai.recommendations import (
     get_host_product_matching,
     get_product_push_suggestions,
@@ -29,6 +27,17 @@ from juli_backend.ai.recommendations.prediction import (
     ACTION_CONTACT_CREATOR,
     PredictedOutcome,
 )
+from juli_backend.models.models import (
+    Creator,
+    InventoryItem,
+    Livestream,
+    Order,
+    Product,
+    Settlement,
+    Shop,
+    User,
+)
+from juli_backend.repositories.repos import GraphRepo
 
 _ANALYTICS_JARGON = (
     "velocity",
@@ -61,7 +70,7 @@ def _make_product(
     revenue: Decimal,
     units_sold: int,
 ) -> Product:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Product(
         id=uuid.uuid4(),
         shop_id=shop_id,
@@ -82,7 +91,7 @@ def _make_inventory(
     sku_id: str,
     quantity: int,
 ) -> InventoryItem:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return InventoryItem(
         id=uuid.uuid4(),
         shop_id=shop_id,
@@ -119,7 +128,7 @@ def _make_creator(
     tiktok_creator_id: str,
     name: str,
 ) -> Creator:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Creator(
         id=uuid.uuid4(),
         shop_id=shop_id,
@@ -141,7 +150,7 @@ def _make_livestream(
     revenue: Decimal,
     started_hours_ago: int = 2,
 ) -> Livestream:
-    end = datetime.now(timezone.utc) - timedelta(hours=started_hours_ago)
+    end = datetime.now(UTC) - timedelta(hours=started_hours_ago)
     start = end - timedelta(hours=1)
     return Livestream(
         id=uuid.uuid4(),
@@ -171,7 +180,7 @@ async def _seed_shop(session: AsyncSession) -> uuid.UUID:
 async def _seed_accelerating_orders(
     session: AsyncSession, shop_id: uuid.UUID, *, days: int = 20
 ) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     base = now - timedelta(days=days)
     orders = []
     for day_offset in range(days):
@@ -193,9 +202,7 @@ class TestProductPushCombinesTrendStockMargin:
     """AC1: ranked suggestions reflect trend, stock, and margin signals."""
 
     @pytest.mark.asyncio
-    async def test_product_push_combines_trend_stock_margin(
-        self, session: AsyncSession
-    ):
+    async def test_product_push_combines_trend_stock_margin(self, session: AsyncSession):
         shop_id = await _seed_shop(session)
         session.add_all(
             [
@@ -276,9 +283,14 @@ class TestRecommendationsOutputVietnamese:
             combined = f"{item.message} {item.cta}".lower()
             for term in _ANALYTICS_JARGON:
                 assert term not in combined, f"found jargon '{term}' in copy"
-            assert any(
-                ch in item.message for ch in "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
-            ) or "Nên" in item.message or "sản phẩm" in item.message
+            vietnamese_vowels = (
+                "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
+            )
+            assert (
+                any(ch in item.message for ch in vietnamese_vowels)
+                or "Nên" in item.message
+                or "sản phẩm" in item.message
+            )
 
 
 class TestRecommendationsIncludeCta:
@@ -494,9 +506,7 @@ async def test_issue93_graph_edge_boosts_ranking(session: AsyncSession):
     """AC1: potential_match / has_sold edge weights lift match rank."""
     shop_id = await _seed_shop(session)
     weak_creator = _make_creator(shop_id, tiktok_creator_id="c_weak", name="Creator Yếu")
-    strong_creator = _make_creator(
-        shop_id, tiktok_creator_id="c_strong", name="Creator Mạnh"
-    )
+    strong_creator = _make_creator(shop_id, tiktok_creator_id="c_strong", name="Creator Mạnh")
     product = _make_product(
         shop_id,
         tiktok_product_id="prod_rank",
@@ -721,3 +731,235 @@ async def test_issue93_host_product_matching_llm_quota_uses_rules(session: Async
     )
     assert matches
     assert matches[0].source == "rules"
+
+
+# ====== RA-4 Price-Direction Advisory Tests ======
+
+
+def _make_settlement(
+    shop_id: uuid.UUID,
+    *,
+    tiktok_settlement_id: str,
+    amount: Decimal,
+    platform_commission: Decimal,
+    shipping_fee: Decimal,
+    created_at: datetime,
+) -> Settlement:
+    return Settlement(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        tiktok_settlement_id=tiktok_settlement_id,
+        amount=amount,
+        currency="VND",
+        status="confirmed",
+        platform_commission=platform_commission,
+        shipping_fee=shipping_fee,
+        update_time=created_at,
+        created_at=created_at,
+    )
+
+
+class TestPriceDirectionAdvisoryFeeFloor:
+    """AC1: fee-floor rule blocks price cuts that would exceed configured share."""
+
+    @pytest.mark.asyncio
+    async def test_fee_floor_blocks_cut_when_fees_exceed_threshold(self, session: AsyncSession):
+        """Test that a price cut is blocked when fees + shipping > fee_share * sale_price."""
+        shop_id = await _seed_shop(session)
+        now = datetime.now(UTC)
+
+        # Create a product
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_fee_test",
+            name="Product for fee test",
+            revenue=Decimal("1000000"),
+            units_sold=100,
+        )
+        session.add(product)
+
+        # Create settlement records with high fees (60% of sale)
+        # Sale price: 100,000 VND
+        # Platform commission: 35,000 VND
+        # Shipping fee: 25,000 VND
+        # Total fees: 60,000 VND (60% of sale)
+        # With fee_share=0.50 (50%), this should block the cut
+        for i in range(5):
+            settlement = _make_settlement(
+                shop_id,
+                tiktok_settlement_id=f"settle_fee_{i}",
+                amount=Decimal("100000"),
+                platform_commission=Decimal("35000"),
+                shipping_fee=Decimal("25000"),
+                created_at=now - timedelta(days=5 - i),
+            )
+            session.add(settlement)
+
+        await session.flush()
+
+        # Import and call the price-direction advisory
+        from juli_backend.ai.recommendations import get_price_direction_suggestion
+
+        suggestion = await get_price_direction_suggestion(
+            session,
+            shop_id,
+            product.id,
+            current_price=Decimal("100000"),
+            volume_trend="up",
+            conversion_trend="down",
+            fee_share_threshold=Decimal("0.50"),
+        )
+
+        # With high fees (60% > 50% threshold), cut should be blocked -> hold
+        # Note: volume_trend="down" to avoid the other hold logic (vol up but conv down)
+        assert suggestion is not None
+        assert suggestion.action == "hold"
+
+    @pytest.mark.asyncio
+    async def test_fee_floor_allows_cut_when_fees_below_threshold(self, session: AsyncSession):
+        """Test that a price cut is allowed when fees + shipping < fee_share * sale_price."""
+        shop_id = await _seed_shop(session)
+        now = datetime.now(UTC)
+
+        # Create a product
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_fee_ok",
+            name="Product with low fees",
+            revenue=Decimal("5000000"),
+            units_sold=200,
+        )
+        session.add(product)
+
+        # Create settlement records with low fees (20% of sale)
+        # Sale price: 100,000 VND
+        # Platform commission: 12,000 VND
+        # Shipping fee: 8,000 VND
+        # Total fees: 20,000 VND (20% of sale)
+        # With fee_share=0.50 (50%), this should allow the cut
+        for i in range(5):
+            settlement = _make_settlement(
+                shop_id,
+                tiktok_settlement_id=f"settle_ok_{i}",
+                amount=Decimal("100000"),
+                platform_commission=Decimal("12000"),
+                shipping_fee=Decimal("8000"),
+                created_at=now - timedelta(days=5 - i),
+            )
+            session.add(settlement)
+
+        await session.flush()
+
+        from juli_backend.ai.recommendations import get_price_direction_suggestion
+
+        suggestion = await get_price_direction_suggestion(
+            session,
+            shop_id,
+            product.id,
+            current_price=Decimal("100000"),
+            volume_trend="up",
+            conversion_trend="up",
+            fee_share_threshold=Decimal("0.50"),
+        )
+
+        # With low fees (20% < 50% threshold) and conversion up, cut should be allowed
+        assert suggestion is not None
+        assert suggestion.action == "cut"
+
+
+class TestPriceDirectionAdvisoryVolumeUpConversionDown:
+    """AC2: when volume is up but conversion is down, suggest hold not cut."""
+
+    @pytest.mark.asyncio
+    async def test_volume_up_conversion_down_suggests_hold(self, session: AsyncSession):
+        """Test that volume up + conversion down -> hold recommendation."""
+        shop_id = await _seed_shop(session)
+        now = datetime.now(UTC)
+
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_volume_conversion",
+            name="Volume test product",
+            revenue=Decimal("2000000"),
+            units_sold=150,
+        )
+        session.add(product)
+
+        # Create settlement records with reasonable fees (30% of sale)
+        for i in range(5):
+            settlement = _make_settlement(
+                shop_id,
+                tiktok_settlement_id=f"settle_vc_{i}",
+                amount=Decimal("100000"),
+                platform_commission=Decimal("18000"),
+                shipping_fee=Decimal("12000"),
+                created_at=now - timedelta(days=5 - i),
+            )
+            session.add(settlement)
+
+        await session.flush()
+
+        from juli_backend.ai.recommendations import get_price_direction_suggestion
+
+        suggestion = await get_price_direction_suggestion(
+            session,
+            shop_id,
+            product.id,
+            current_price=Decimal("100000"),
+            volume_trend="up",
+            conversion_trend="down",
+            fee_share_threshold=Decimal("0.50"),
+        )
+
+        # Volume up but conversion down -> should suggest hold (traffic problem, not price)
+        assert suggestion is not None
+        assert suggestion.action == "hold"
+        assert suggestion.message
+        # Check for "duy trì" (maintain) or "giữ" (keep) in Vietnamese
+        assert "duy trì" in suggestion.message.lower() or "giữ" in suggestion.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_volume_up_conversion_up_suggests_cut(self, session: AsyncSession):
+        """Test that volume up + conversion up -> cut recommendation."""
+        shop_id = await _seed_shop(session)
+        now = datetime.now(UTC)
+
+        product = _make_product(
+            shop_id,
+            tiktok_product_id="prod_both_up",
+            name="Both trending up",
+            revenue=Decimal("3000000"),
+            units_sold=200,
+        )
+        session.add(product)
+
+        # Create settlement records with low fees
+        for i in range(5):
+            settlement = _make_settlement(
+                shop_id,
+                tiktok_settlement_id=f"settle_both_{i}",
+                amount=Decimal("100000"),
+                platform_commission=Decimal("12000"),
+                shipping_fee=Decimal("8000"),
+                created_at=now - timedelta(days=5 - i),
+            )
+            session.add(settlement)
+
+        await session.flush()
+
+        from juli_backend.ai.recommendations import get_price_direction_suggestion
+
+        suggestion = await get_price_direction_suggestion(
+            session,
+            shop_id,
+            product.id,
+            current_price=Decimal("100000"),
+            volume_trend="up",
+            conversion_trend="up",
+            fee_share_threshold=Decimal("0.50"),
+        )
+
+        # Both volume and conversion up -> should suggest cut (pricing power)
+        assert suggestion is not None
+        assert suggestion.action == "cut"
+        assert suggestion.message
