@@ -118,6 +118,7 @@ export interface TextFieldProps
   id?: string;
   label: string;
   required?: boolean;
+  suggestion?: boolean;
 }
 
 export function TextField({
@@ -127,15 +128,18 @@ export function TextField({
   label,
   required,
   error,
+  suggestion,
   ...inputProps
 }: TextFieldProps) {
   const generatedId = useId();
   const inputId = idProp ?? generatedId;
   const errorId = `${inputId}-error`;
   const helperId = `${inputId}-helper`;
+  const suggestionId = `${inputId}-suggestion`;
   const describedBy = [
     errorMessage ? errorId : null,
     helperText ? helperId : null,
+    suggestion ? suggestionId : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -143,11 +147,19 @@ export function TextField({
 
   return (
     <FormField data-testid={`field-${inputId}`}>
-      <FormLabel htmlFor={inputId} required={required}>
-        {label}
-      </FormLabel>
+      <div className="juli-form__label-container">
+        <FormLabel htmlFor={inputId} required={required}>
+          {label}
+        </FormLabel>
+        {suggestion ? (
+          <span className="juli-badge juli-badge--info" id={suggestionId}>
+            Gợi ý bởi Juli
+          </span>
+        ) : null}
+      </div>
       <FormInput
         aria-describedby={describedBy || undefined}
+        className={suggestion ? "juli-form__input--suggestion" : undefined}
         error={hasError}
         id={inputId}
         required={required}
