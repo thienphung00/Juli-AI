@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -12,8 +13,8 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from juli_backend.models.models import Shop, User
-from juli_backend.repositories.repos import AnalyticsKpiEnvelopesRepo
+from juli_backend.models.models import Order, Shop, User
+from juli_backend.repositories.repos import GoldKpiEnvelopesRepo
 
 REAL_SHOP_DISPLAY_NAME = "Fujiwa Official Store"
 REAL_MERCHANT_ID = "7658073774813611784"
@@ -31,31 +32,49 @@ class FakeAsyncRedis:
         return True
 
 
-def _raw_envelope_payload(*, shop_id: uuid.UUID, computed_at: datetime) -> dict:
-    return {
-        "envelope_version": 1,
-        "kind": "analytics",
-        "shop_id": str(shop_id),
-        "computed_at": computed_at.isoformat(),
-        "currency": "VND",
-        "identity": {
-            "shop_display_name": REAL_SHOP_DISPLAY_NAME,
-            "merchant_id": REAL_MERCHANT_ID,
-            "products": [{"id": "7136011254174631686", "title": "Organic Matcha Powder"}],
-        },
-        "kpis": {
-            "gmv_tiktok": {
-                "availability": "available",
-                "label": "GMV (TikTok)",
-                "series": [
-                    {"t": "2026-06-01", "v": 100.0},
-                    {"t": "2026-07-01", "v": 6408074.0},
-                    {"t": "2026-07-14", "v": 1200000.0},
-                ],
-            }
-        },
-        "meta": {"source_partitions": ["A-36"], "notes": []},
-    }
+async def _create_orders_with_gmv_series(session, shop_id: uuid.UUID) -> None:
+    """Create test orders that will produce the expected gmv_tiktok series.
+
+    Expected series from test assertions:
+    - 2026-06-01: 100.0
+    - 2026-07-01: 6408074.0
+    - 2026-07-14: 1200000.0
+    """
+    orders = [
+        Order(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            tiktok_order_id="order-1",
+            status="COMPLETED",
+            total_amount=Decimal("100.0"),
+            currency="VND",
+            tiktok_created_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+            update_time=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+        ),
+        Order(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            tiktok_order_id="order-2",
+            status="COMPLETED",
+            total_amount=Decimal("6408074.0"),
+            currency="VND",
+            tiktok_created_at=datetime(2026, 7, 1, 12, 0, tzinfo=UTC),
+            update_time=datetime(2026, 7, 1, 12, 0, tzinfo=UTC),
+        ),
+        Order(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            tiktok_order_id="order-3",
+            status="COMPLETED",
+            total_amount=Decimal("1200000.0"),
+            currency="VND",
+            tiktok_created_at=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
+            update_time=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
+        ),
+    ]
+    for order in orders:
+        session.add(order)
+    await session.flush()
 
 
 @pytest.fixture
@@ -111,15 +130,15 @@ async def test_get_demo_analytics_returns_masked_envelope_without_auth(
     reference_shop,
     demo_reference_shop_id,
 ) -> None:
-    computed_at = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
-    payload = _raw_envelope_payload(shop_id=reference_shop.id, computed_at=computed_at)
-    await AnalyticsKpiEnvelopesRepo(session).upsert(
-        shop_id=reference_shop.id,
-        kind="analytics",
-        envelope_version=1,
-        payload=payload,
-        computed_at=computed_at,
+    # Create orders that will generate the expected gold envelope
+    await _create_orders_with_gmv_series(session, reference_shop.id)
+
+    # Compute and persist the gold envelope
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        write_demo_main_kpis_envelope,
     )
+
+    await write_demo_main_kpis_envelope(session, reference_shop.id)
     await session.flush()
 
     with patch(
@@ -149,15 +168,15 @@ async def test_reference_shop_id_configured_server_side_for_public_analytics_get
     reference_shop,
     demo_reference_shop_id,
 ) -> None:
-    computed_at = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
-    payload = _raw_envelope_payload(shop_id=reference_shop.id, computed_at=computed_at)
-    await AnalyticsKpiEnvelopesRepo(session).upsert(
-        shop_id=reference_shop.id,
-        kind="analytics",
-        envelope_version=1,
-        payload=payload,
-        computed_at=computed_at,
+    # Create orders that will generate the expected gold envelope
+    await _create_orders_with_gmv_series(session, reference_shop.id)
+
+    # Compute and persist the gold envelope
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        write_demo_main_kpis_envelope,
     )
+
+    await write_demo_main_kpis_envelope(session, reference_shop.id)
     await session.flush()
 
     with patch(
@@ -187,10 +206,19 @@ async def test_get_demo_analytics_uses_cache_sot_read_path(
     session,
     reference_shop,
 ) -> None:
-    from juli_backend.services.analytics_kpi_cache import envelope_cache_key
+    from juli_backend.services.gold_kpi_cache import envelope_cache_key
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
 
+    # Create orders that will generate the expected gold envelope payload
+    await _create_orders_with_gmv_series(session, reference_shop.id)
+
+    # Compute the payload and cache it
     computed_at = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
-    payload = _raw_envelope_payload(shop_id=reference_shop.id, computed_at=computed_at)
+    payload = await compute_demo_main_kpis_payload(
+        session, reference_shop.id, computed_at=computed_at
+    )
     redis = FakeAsyncRedis()
     await redis.set(envelope_cache_key(reference_shop.id), json.dumps(payload))
 
@@ -201,9 +229,8 @@ async def test_get_demo_analytics_uses_cache_sot_read_path(
         resp = await demo_client.get("/v1/demo/analytics")
 
     assert resp.status_code == 200
-    assert (
-        await AnalyticsKpiEnvelopesRepo(session).get_by_kind(reference_shop.id, "analytics") is None
-    )
+    # Verify the gold envelope was read from cache and not from Postgres
+    assert await GoldKpiEnvelopesRepo(session).get(reference_shop.id) is None
 
 
 @pytest.mark.asyncio
@@ -212,15 +239,15 @@ async def test_smoke_fake_refresh_does_not_trigger_partner_fetch_storm(
     session,
     reference_shop,
 ) -> None:
-    computed_at = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
-    payload = _raw_envelope_payload(shop_id=reference_shop.id, computed_at=computed_at)
-    await AnalyticsKpiEnvelopesRepo(session).upsert(
-        shop_id=reference_shop.id,
-        kind="analytics",
-        envelope_version=1,
-        payload=payload,
-        computed_at=computed_at,
+    # Create orders that will generate the expected gold envelope
+    await _create_orders_with_gmv_series(session, reference_shop.id)
+
+    # Compute and persist the gold envelope
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        write_demo_main_kpis_envelope,
     )
+
+    await write_demo_main_kpis_envelope(session, reference_shop.id)
     await session.flush()
 
     with (
@@ -245,15 +272,15 @@ async def test_get_demo_analytics_range_filters_chart_series(
     session,
     reference_shop,
 ) -> None:
-    computed_at = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
-    payload = _raw_envelope_payload(shop_id=reference_shop.id, computed_at=computed_at)
-    await AnalyticsKpiEnvelopesRepo(session).upsert(
-        shop_id=reference_shop.id,
-        kind="analytics",
-        envelope_version=1,
-        payload=payload,
-        computed_at=computed_at,
+    # Create orders that will generate the expected gold envelope
+    await _create_orders_with_gmv_series(session, reference_shop.id)
+
+    # Compute and persist the gold envelope
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        write_demo_main_kpis_envelope,
     )
+
+    await write_demo_main_kpis_envelope(session, reference_shop.id)
     await session.flush()
 
     with patch(

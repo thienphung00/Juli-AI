@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from collections import defaultdict
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import GoldKpiEnvelope, Order
+from juli_backend.models.models import GoldKpiEnvelope, Order, Shop
 from juli_backend.repositories.repos import GoldKpiEnvelopesRepo
 from juli_backend.services.gold_kpi_envelope_contract import (
     ENVELOPE_VERSION,
@@ -48,8 +50,14 @@ async def compute_demo_main_kpis_payload(
 
     Computes gmv_tiktok, aov, cancellation_rate from silver orders.
     Marks ctor, live_hours as unavailable (analytics domain not synced yet).
+    Emits a date-bucketed series for gmv_tiktok (#633).
     """
     computed_at = computed_at or datetime.now(tz=UTC)
+
+    # Fetch shop for identity information
+    shop_stmt = select(Shop).where(Shop.id == shop_id)
+    shop_result = await session.execute(shop_stmt)
+    shop = shop_result.scalars().first()
 
     # Fetch all orders for the shop
     stmt = select(Order).where(Order.shop_id == shop_id)
@@ -60,6 +68,7 @@ async def compute_demo_main_kpis_payload(
     gmv_value: float | None = None
     aov_value: float | None = None
     cancellation_value: float | None = None
+    gmv_series: list[dict[str, Any]] = []
 
     if orders:
         # Separate cancelled and non-cancelled orders
@@ -84,6 +93,25 @@ async def compute_demo_main_kpis_payload(
         if non_cancelled_orders and gmv_value:
             aov_value = gmv_value / len(non_cancelled_orders) if gmv_value else None
 
+        # Build date-bucketed series for gmv_tiktok (#633)
+        if non_cancelled_orders:
+            # Bucket non-cancelled orders by date (using tiktok_created_at or update_time)
+            daily_gmv: dict[date, Decimal] = defaultdict(Decimal)
+            for order in non_cancelled_orders:
+                # Use tiktok_created_at if available, otherwise update_time
+                order_date = None
+                if order.tiktok_created_at:
+                    order_date = order.tiktok_created_at.date()
+                elif order.update_time:
+                    order_date = order.update_time.date()
+
+                if order_date and order.total_amount:
+                    daily_gmv[order_date] += order.total_amount
+
+            # Sort by date and build series
+            sorted_dates = sorted(daily_gmv.keys())
+            gmv_series = [{"t": d.isoformat(), "v": float(daily_gmv[d])} for d in sorted_dates]
+
     # Build the kpis map with proper typing
     kpis: dict[str, dict[str, Any]] = {}
 
@@ -94,6 +122,8 @@ async def compute_demo_main_kpis_payload(
     }
     if gmv_value is not None:
         gmv_kpi["value"] = gmv_value
+    # Always emit series, even if empty (for consistency with legacy contract)
+    gmv_kpi["series"] = gmv_series
     kpis["gmv_tiktok"] = gmv_kpi
 
     # AOV: Average Order Value
@@ -126,12 +156,19 @@ async def compute_demo_main_kpis_payload(
         cancellation_kpi["value"] = cancellation_value
     kpis["cancellation_rate"] = cancellation_kpi
 
+    # Build identity block for masking (preserves PII for local processing,
+    # masked before public response via mask_public_analytics_envelope)
+    identity: dict[str, Any] = {}
+    if shop:
+        identity["shop_display_name"] = shop.shop_name or f"Shop {shop.id}"
+
     return {
         "envelope_version": ENVELOPE_VERSION,
         "kind": "analytics",
         "shop_id": str(shop_id),
         "computed_at": computed_at.isoformat(),
         "currency": currency,
+        "identity": identity,
         "kpis": kpis,
         "meta": {
             "source_partitions": ["silver.orders"],
