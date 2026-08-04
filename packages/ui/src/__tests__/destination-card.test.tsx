@@ -26,7 +26,7 @@ describe("DestinationCard", () => {
     expect(icon).toBeInTheDocument();
     expect(icon).toHaveClass("juli-destination-icon");
     expect(styles).toContain(".juli-destination-icon");
-    expect(styles).toContain("color: var(--juli-primary-strong)");
+    expect(styles).toContain("color: var(--juli-primary-text)");
   });
 
   it("supports analytics and decisions icon variants", () => {

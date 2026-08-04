@@ -59,3 +59,4 @@
 | [051](051-tiktok-corpora-catalog-retrieval.md) | TikTok document corpora — catalog retrieval for Architect/Meta | Accepted |
 | [052](052-wave-free-merge-deferred-artifact-gate.md) | Wave free-merge + deferred artifact gate | Accepted |
 | [053](053-demo-home-activity-summary.md) | Demo Home activity summary — done/running/needs-attention counts above the launcher cards (apps/demo only) | Accepted |
+| [054](054-brand-pink-role-separation.md) | Brand pink role separation — `--pink-text` for AA-compliant text, `--chart-neutral` for non-directional series | Accepted |

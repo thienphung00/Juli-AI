@@ -3,10 +3,12 @@ import { Area, AreaChart, Line, LineChart } from "recharts";
 
 export type ChartTrend = "positive" | "negative" | "neutral" | "warning";
 
+// Brand pink never appears in a chart (ADR-054) — a non-directional series uses the
+// dedicated neutral token, not --juli-primary.
 export const CHART_SERIES_COLORS: Record<ChartTrend, string> = {
   positive: "var(--juli-success)",
   negative: "var(--juli-destructive)",
-  neutral: "var(--juli-primary)",
+  neutral: "var(--juli-chart-neutral)",
   warning: "var(--juli-warning)",
 };
 

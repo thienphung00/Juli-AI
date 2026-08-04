@@ -69,9 +69,14 @@ Mode is persisted with `juli_workspace_mode` and toggles `dark` on `<html>`.
 |---|---|---|
 | `--pink-main` / `--primary` | `#F86BA5` | Brand accent and primary actions |
 | `--pink-light` / `--accent` | `#FAA5C4` | Lighter accent and gradients |
-| `--pink-dark` | `#E85A94` | Pressed or darker accent |
+| `--pink-dark` | `#E85A94` | Pressed or darker accent — never a text color |
+| `--pink-text` | `#B0386A` | The only pink permitted as text on a light surface (5.80:1) |
 | `--pink-background` | `#FEF5F6` | Secondary fill |
 | `--brand-gradient` | `135deg #F86BA5 → #FAA5C4` | CTA fills and wordmark |
+
+`--pink-dark` at `#E85A94` computes to 3.32:1 on white and fails WCAG AA for normal
+text. Pink text uses `--pink-text`; `--pink-dark` stays a pressed/accent state. See
+[ADR-054](../../adr/054-brand-pink-role-separation.md).
 
 ### Semantic
 
@@ -83,6 +88,17 @@ Mode is persisted with `juli_workspace_mode` and toggles `dark` on `<html>`.
 | `--info` | `#2563EB` | Contextual Juli assistance only |
 
 Status is never color-only; pair it with text, an icon, or a badge.
+
+### Data visualization
+
+| Token | Value | Use |
+|---|---|---|
+| `--chart-neutral` | `#71717A` | Non-directional chart series only |
+
+Brand pink never appears in a chart. Directional series use `--success` (growth) or
+`--destructive` (loss); a series with no growth/loss framing — a period-over-period
+comparison line, or a metric like LIVE hours — uses `--chart-neutral`. That token is
+reserved for chart marks and must not be used for nav, buttons, links, or focus rings.
 
 ### Seller neutrals and overlays
 
@@ -218,6 +234,7 @@ supporting evidence only. Root authorities win every conflict.
 - Purple decorative AI gradients.
 - English UI strings or missing Vietnamese diacritics.
 - Pink tint as the seller page background.
+- Brand pink in a chart series, or `--pink-dark` used as a text color (ADR-054).
 - Color-only status indicators.
 - A standalone Juli/AI navigation tab.
 - Metrics or KPI reporting on Home (the ADR-053 activity summary is three
