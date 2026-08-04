@@ -10,18 +10,15 @@ import type { ChartTrend } from "@juli/ui";
 import { formatDateTime, formatNumber, formatVND } from "@juli/utils";
 
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../workflows/optimize-product/review";
-import { PROCESS_ORDER_WORKFLOW_KEY } from "../workflows/process-order/review";
-import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../workflows/replenish-inventory/review";
 import type { AnalyticsRange, MetricKey } from "./main-kpis";
 import type { KpiSnapshot, KpiTimePoint } from "./mock-data";
 
-const METRIC_TO_ENVELOPE_KEY: Partial<Record<MetricKey, string>> = {
+const METRIC_TO_ENVELOPE_KEY: Record<MetricKey, string> = {
   "gmv-tiktok": GMV_TIKTOK_ENVELOPE_KEY,
-  "inventory-turnover": "inventory_turnover",
-  "fulfillment-accuracy-rate": "fulfillment_accuracy_rate",
-  sps: "sps",
-  roas: "roas",
-  csat: "csat",
+  aov: "aov",
+  ctor: "ctor",
+  "live-hours": "live_hours",
+  "cancellation-rate": "cancellation_rate",
 };
 
 export interface SupplementaryChartSnapshot {
@@ -79,11 +76,13 @@ function formatKpiValue(
 ): string {
   switch (metricKey) {
     case "gmv-tiktok":
+    case "aov":
       return formatVND(value);
-    case "inventory-turnover":
-      return `${formatNumber(value)}x`;
-    case "fulfillment-accuracy-rate":
+    case "ctor":
+    case "cancellation-rate":
       return `${formatNumber(value)}%`;
+    case "live-hours":
+      return `${formatNumber(value)} giờ`;
     default:
       return currency === "VND" ? formatVND(value) : formatNumber(value);
   }
@@ -95,14 +94,22 @@ function metricSignal(metricKey: MetricKey, trend: ChartTrend): string {
       return trend === "positive"
         ? "GMV TikTok tăng mạnh → cơ hội tăng trưởng → xem xét mở rộng sản phẩm chủ lực"
         : "GMV TikTok giảm → rủi ro doanh thu → xem xét tối ưu sản phẩm";
-    case "inventory-turnover":
+    case "aov":
+      return trend === "positive"
+        ? "AOV tăng → giá trị đơn hàng cải thiện → xem xét chiến lược sản phẩm"
+        : "AOV giảm → rủi ro giá trị → xem xét sắp xếp lại danh mục";
+    case "ctor":
+      return trend === "positive"
+        ? "CTOR tăng → hiệu suất sản phẩm cải thiện → tiếp tục tối ưu hóa"
+        : "CTOR giảm → hiệu suất sản phẩm giảm → xem xét tối ưu sản phẩm";
+    case "live-hours":
+      return trend === "positive"
+        ? "LIVE hours tăng → tương tác người dùng tăng → xem xét mở rộng lịch phát sóng"
+        : "LIVE hours giảm → tương tác người dùng giảm → xem xét tối ưu lịch phát sóng";
+    case "cancellation-rate":
       return trend === "negative"
-        ? "Vòng quay tồn kho giảm → rủi ro vốn bị kẹt → cân nhắc bổ sung hoặc thanh lý tồn"
-        : "Vòng quay tồn kho ổn định → theo dõi tồn kho chủ lực";
-    case "fulfillment-accuracy-rate":
-      return trend === "negative"
-        ? "Tỷ lệ giao đúng giảm → rủi ro lỗi tăng → kiểm tra quy trình xử lý đơn"
-        : "Tỷ lệ giao đúng ổn định → duy trì quy trình vận hành";
+        ? "Tỷ lệ hủy đơn giảm → chất lượng đơn hàng cải thiện → duy trì quy trình hiện tại"
+        : "Tỷ lệ hủy đơn tăng → rủi ro hủy tăng → kiểm tra quy trình xử lý đơn";
     default:
       return "Thay đổi KPI đáng chú ý trong khoảng thời gian đang chọn.";
   }
@@ -117,16 +124,6 @@ function metricWorkflow(metricKey: MetricKey): {
       return {
         workflowId: OPTIMIZE_PRODUCT_WORKFLOW_KEY,
         decisionLabel: "Xem đề xuất tối ưu sản phẩm",
-      };
-    case "inventory-turnover":
-      return {
-        workflowId: REPLENISH_INVENTORY_WORKFLOW_KEY,
-        decisionLabel: "Xem đề xuất bổ sung tồn kho",
-      };
-    case "fulfillment-accuracy-rate":
-      return {
-        workflowId: PROCESS_ORDER_WORKFLOW_KEY,
-        decisionLabel: "Xem đề xuất xử lý đơn",
       };
     default:
       return {};
@@ -153,10 +150,6 @@ export function isMetricLiveAvailable(
   envelope: DemoAnalyticsEnvelope | null | undefined,
   metricKey: MetricKey,
 ): boolean {
-  if (metricKey === "net-revenue") {
-    return false;
-  }
-
   const entry = getEnvelopeKpiEntry(envelope, metricKey);
   return isAnalyticsKpiAvailable(entry) && Boolean(entry.series?.length);
 }
@@ -165,16 +158,13 @@ export function isSelectableMetricKey(
   key: string,
   envelope?: DemoAnalyticsEnvelope | null,
 ): key is MetricKey {
-  if (!Object.hasOwn(METRIC_TO_ENVELOPE_KEY, key as MetricKey) && key !== "net-revenue") {
-    // Static unavailable KPIs in MAIN_KPI_ORDER (sps, roas, csat)
+  // Only allow the five Demo Main KPIs (ADR-049 DUX-2)
+  if (!Object.hasOwn(METRIC_TO_ENVELOPE_KEY, key as MetricKey)) {
     return false;
   }
 
-  if (key === "gmv-tiktok" || key === "inventory-turnover" || key === "fulfillment-accuracy-rate") {
-    return isMetricLiveAvailable(envelope, key as MetricKey);
-  }
-
-  return false;
+  // All five are envelope-backed, so check availability
+  return isMetricLiveAvailable(envelope, key as MetricKey);
 }
 
 export function buildLiveKpiSnapshot(
@@ -211,8 +201,7 @@ export function buildLiveKpiSnapshot(
     timeSeries,
     forecastSeries: undefined,
     previousTimeSeries: undefined,
-    gaugeValue:
-      metricKey === "fulfillment-accuracy-rate" ? latestValue : undefined,
+    gaugeValue: undefined,
     partialNote:
       range === "90d" && values.length < 9
         ? "Một phần dữ liệu nguồn chưa đầy đủ cho khoảng thời gian đang chọn."
