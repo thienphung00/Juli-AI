@@ -167,7 +167,7 @@ describe("Analytics metric key validation across all workflows", () => {
 
       const metricKey = analyticsStage?.analyticsMetricKey;
       expect(
-        MAIN_KPI_ORDER.includes(metricKey as any),
+        (MAIN_KPI_ORDER as readonly string[]).includes(metricKey ?? ""),
         `${workflowKey} analytics metric key "${metricKey}" must be in MAIN_KPI_ORDER: ${MAIN_KPI_ORDER.join(", ")}`,
       ).toBe(true);
     }
