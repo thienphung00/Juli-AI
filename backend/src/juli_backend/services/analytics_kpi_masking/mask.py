@@ -127,4 +127,9 @@ def mask_public_analytics_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
     if raw_shop_id is not None:
         result["shop_id"] = _stable_alias("shop", str(raw_shop_id))
 
+    # meta carries internal implementation detail (medallion partition names,
+    # dev notes referencing issue numbers) with no public value — strip it
+    # rather than leak it on an unauthenticated endpoint (#633).
+    result.pop("meta", None)
+
     return result
