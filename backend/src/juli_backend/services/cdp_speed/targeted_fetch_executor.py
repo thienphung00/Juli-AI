@@ -25,6 +25,7 @@ from juli_backend.integrations.tiktok import (
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.services.cdp_speed.job_correlation import job_correlation_token
+from juli_backend.services.cdp_speed.quota_guard import is_quota_guarded, quota_guard_reason
 from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
     BronzeAppendTracker,
     make_targeted_fetch_bronze_handoff,
@@ -118,6 +119,18 @@ async def _run_plan_resource(
     sync_state: dict[str, Any],
     correlation_id: str,
 ) -> None:
+    # Quota guard: skip resources that are guarded (A-38/A-39 bestselling, A-31/A-33 detail fanout)
+    if is_quota_guarded(resource.name):
+        logger.info(
+            "targeted_fetch_skipped",
+            extra={
+                "resource": resource.name,
+                "correlation_id": correlation_id,
+                "reason": quota_guard_reason(resource.name),
+            },
+        )
+        return
+
     if resource.resource_attr not in BRONZE_SUPPORTED_RESOURCE_ATTRS:
         logger.info(
             "targeted_fetch_bronze_deferred",

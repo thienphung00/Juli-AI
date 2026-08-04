@@ -17,6 +17,31 @@ def token_encryption_key(monkeypatch):
     monkeypatch.setenv("TIKTOK_TOKEN_ENCRYPTION_KEY", "unit-test-token-encryption-key")
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def reset_shared_redis_clients_for_unit_tests():
+    """Close process-lifetime Redis singletons between tests (#631).
+
+    In CI, REDIS_URL points at a real redis:7 service container, so
+    get_shared_redis_client() creates a real asyncio client bound to
+    whatever event loop is active during the test that first calls it.
+    pytest-asyncio's default event loop is function-scoped, so without
+    this cleanup a later test reusing the module-level singleton hits
+    "Future attached to a different loop" / "Event loop is closed" —
+    only reproduces where REDIS_URL is set (CI), never locally without
+    a Redis service running.
+    """
+    yield
+    from juli_backend.services.analytics_kpi_cache import (
+        close_shared_redis_client as close_analytics_kpi_redis,
+    )
+    from juli_backend.services.gold_kpi_cache import (
+        close_shared_redis_client as close_gold_kpi_redis,
+    )
+
+    await close_gold_kpi_redis()
+    await close_analytics_kpi_redis()
+
+
 @pytest.fixture(autouse=True)
 def bind_celery_dispatchers_for_unit_tests():
     """Wire MMU-6/7 worker bindings so unit tests can run the execution worker."""

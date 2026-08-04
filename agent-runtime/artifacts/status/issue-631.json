@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 631,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/services/gold_kpi_cache",
+      "backend/services/gold_kpi_envelope_serving"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-631.json",
+    "sha256": "713b6924d81b38fb05011cfae452380581d243dd667d570b01add5b6be05339c",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-03T10:39:12Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-631.json",
+    "sha256": "b1590da8748eb04e2b1003480af53bdeb5a693ed0976b382707e383125910ac0",
+    "status": "PASS"
+  },
+  "wave": null
+}
