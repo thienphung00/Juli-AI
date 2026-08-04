@@ -15,7 +15,6 @@
 Description=Juli Celery Beat scheduler for periodic tasks
 After=network-online.target redis-server.service
 Wants=network-online.target
-BindsTo=juli-api.service
 
 [Service]
 Type=simple

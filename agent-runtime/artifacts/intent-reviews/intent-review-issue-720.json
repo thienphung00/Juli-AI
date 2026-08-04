@@ -1,0 +1,75 @@
+{
+  "artifactType": "intent_review",
+  "id": "intent-review-issue-720",
+  "issue": 720,
+  "phaseRunId": "2026-08-04T10:00Z",
+  "spec_fidelity": "pass",
+  "summary": "Implementation matches intent after critical dependency fix. BindsTo=juli-api.service was removed from both new systemd unit files to align with the explicit spec requirement to 'follow juli-api.service's exact pattern' (which contains no BindsTo). Workers and beat scheduler now depend only on network-online.target and redis-server.service, properly treating them as independent services.",
+  "corrections_made": [
+    {
+      "file": "infra/systemd/juli-celery-worker.service",
+      "issue": "BindsTo=juli-api.service violated pattern-follow spec and created improper asymmetric coupling",
+      "fix": "Removed BindsTo directive; unit now depends only on network-online.target and redis-server.service per juli-api.service pattern"
+    },
+    {
+      "file": "infra/systemd/juli-celery-beat.service",
+      "issue": "BindsTo=juli-api.service violated pattern-follow spec and created improper asymmetric coupling",
+      "fix": "Removed BindsTo directive; unit now depends only on network-online.target and redis-server.service per juli-api.service pattern"
+    }
+  ],
+  "spec_fidelity_analysis": {
+    "intent_sources": [
+      "GitHub issue #720 body",
+      "docs/handoffs/issue-720.md (locked scope, design decisions, conflict check)",
+      "agent-runtime/artifacts/release-evidence-plan-issue-720.json (ADR-035 requirements)"
+    ],
+    "findings": [
+      {
+        "category": "delivered_correctly",
+        "detail": "Both infra/systemd/juli-celery-worker.service and juli-celery-beat.service created following juli-api.service pattern (ExecStartPre, EnvironmentFile, WorkingDirectory, Restart=on-failure, RestartSec=5)"
+      },
+      {
+        "category": "delivered_correctly",
+        "detail": "Celery command references correct module path (juli_backend.workers.celery_app) verified against actual codebase"
+      },
+      {
+        "category": "delivered_correctly",
+        "detail": "Beat scheduler does not hardcode schedule; relies entirely on celery_app.py's existing beat_schedule dict (verified)"
+      },
+      {
+        "category": "delivered_correctly",
+        "detail": "docs/runbooks/app-review-runbook.md correctly integrates new units: added redis-server to Step 1 package list, added two new 'sudo cp' lines in Step 4, added two rows to config files table, added journalctl examples to log section"
+      },
+      {
+        "category": "delivered_correctly",
+        "detail": "infra/scripts/env/api.env.example guidance updated from 'leave unset' to actionable uncomment instructions with reference to Issue #720"
+      },
+      {
+        "category": "delivered_correctly",
+        "detail": "Scope containment verified: no changes to backend/src/juli_backend/, deploy-release.sh, release.yml, or test files; forbidden-token test list not modified"
+      },
+      {
+        "category": "delivered_correctly",
+        "detail": "Acceptance commands pass: 18/18 tests in test_phase_2_5_deploy_config.py, ruff check passes"
+      },
+      {
+        "category": "corrected_defect",
+        "detail": "BindsTo=juli-api.service removed from both units. Handoff explicitly states 'follow juli-api.service's exact pattern'; juli-api.service uses only After= and Wants=, never BindsTo. BindsTo would create asymmetric coupling where API restart kills workers (wrong). Workers must be independent services depending on network and redis only."
+      }
+    ]
+  },
+  "smells": [],
+  "convention_notes": [
+    {
+      "standard": "systemd best practices for multiple related services",
+      "path": "infra/systemd/juli-celery-worker.service, juli-celery-beat.service",
+      "note": "Correct use of After= for ordering, Wants= for soft dependency, removal of BindsTo to maintain service independence. Multi-user.target in WantedBy is standard for user-space services."
+    },
+    {
+      "standard": "patterns.mdc — Infrastructure configuration consistency",
+      "path": "infra/systemd/juli-celery-*.service",
+      "note": "Units follow juli-api.service pattern exactly: root user, /root/releases/current working dir, ExecStartPre secret fetch, EnvironmentFile from stable /etc/juli path outside release tree, Type=simple, Restart=on-failure with RestartSec=5"
+    }
+  ],
+  "verdict": "Spec fidelity: PASS. Corrected improper BindsTo dependency that violated pattern-follow requirement; all other acceptance criteria met. Ready for Guardrails phase."
+}
