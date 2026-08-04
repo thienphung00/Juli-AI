@@ -57,17 +57,17 @@
   place-items: center;
   border-radius: 1rem;
   background: var(--juli-primary-soft);
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
 }
 
 .juli-destination-icon {
   width: 1.75rem;
   height: 1.75rem;
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
 }
 
 .juli-destination-card__eyebrow {
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -298,7 +298,7 @@
 
 .juli-badge--priority {
   background: var(--juli-primary-soft);
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
 }
 
 .juli-badge--capability {
@@ -374,7 +374,7 @@
 
 .juli-recommendation-card__highlight-flag {
   margin: 0;
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -407,7 +407,7 @@
 }
 
 .juli-recommendation-card__title-link:hover {
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
   text-decoration: underline;
 }
 
@@ -468,7 +468,7 @@
 
 .juli-recommendation-card__panel dt {
   margin: 0 0 0.2rem;
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -992,7 +992,7 @@
 }
 
 .juli-form__required {
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
 }
 
 .juli-form__input {
@@ -1163,7 +1163,7 @@
 }
 
 .juli-table__sort-icon {
-  color: var(--juli-primary-strong);
+  color: var(--juli-primary-text);
   font-size: 0.875rem;
 }
 

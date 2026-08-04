@@ -10,11 +10,11 @@ export default function HomePage() {
       <section aria-labelledby="home-title">
         <p className="demo-kicker">Trang chủ</p>
         <h1 className="demo-title" id="home-title">
-          Bạn muốn làm gì tiếp theo?
+          Quyết định nhanh, hiểu rõ shop.
         </h1>
         <p className="demo-intro">
-          Juli gom mọi thứ vào đúng nơi để bạn có thể quyết định nhanh và hiểu
-          rõ điều đang diễn ra trong shop.
+          Hai nơi bạn cần: đề xuất đang chờ phê duyệt, và bức tranh toàn cảnh
+          shop.
         </p>
         <p className="demo-notice" data-testid="mock-data-notice">
           {demoSnapshot.shopName} · dữ liệu mẫu cập nhật{" "}
@@ -28,7 +28,7 @@ export default function HomePage() {
         {homeDestinations.map((destination) => (
           <DestinationCard
             key={destination.href}
-            actionLabel="Mở trang"
+            actionLabel={destination.actionLabel}
             description={destination.description}
             eyebrow={destination.eyebrow}
             href={destination.href}

@@ -1,14 +1,32 @@
 import type { KeyboardEvent, ReactNode } from "react";
-import { Area, AreaChart, Line, LineChart } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 export type ChartTrend = "positive" | "negative" | "neutral" | "warning";
 
+// Brand pink never appears in a chart (ADR-054) — a non-directional series uses the
+// dedicated neutral token, not --juli-primary.
 export const CHART_SERIES_COLORS: Record<ChartTrend, string> = {
   positive: "var(--juli-success)",
   negative: "var(--juli-destructive)",
-  neutral: "var(--juli-primary)",
+  neutral: "var(--juli-chart-neutral)",
   warning: "var(--juli-warning)",
 };
+
+// Shared chart chrome — horizontal gridlines and quiet, tick-only axes so the
+// data line stays the loudest element (design.md § Data visualization).
+const GRID_STROKE = "var(--juli-border)";
+const AXIS_TICK = {
+  fill: "var(--juli-muted-foreground)",
+  fontSize: 10,
+} as const;
 
 const TREND_DIRECTION_LABEL: Record<ChartTrend, string> = {
   positive: "xu hướng tăng",
@@ -128,7 +146,31 @@ export function TrendAreaChart({
         className="juli-chart-area__visual"
         data-testid="trend-area-chart-visual"
       >
-        <AreaChart data={[...data]} height={height} width={width}>
+        <AreaChart
+          data={[...data]}
+          height={height}
+          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          width={width}
+        >
+          <CartesianGrid
+            stroke={GRID_STROKE}
+            strokeDasharray="3 3"
+            vertical={false}
+          />
+          <XAxis
+            axisLine={false}
+            dataKey="label"
+            interval="preserveStartEnd"
+            tick={AXIS_TICK}
+            tickLine={false}
+          />
+          <YAxis
+            axisLine={false}
+            tick={AXIS_TICK}
+            tickCount={3}
+            tickLine={false}
+            width={36}
+          />
           <Area
             dataKey="value"
             fill={fill}
@@ -184,13 +226,38 @@ export function TrendLineChart({
         className="juli-chart-line__visual"
         data-testid="trend-line-chart-visual"
       >
-        <LineChart data={mergedData} height={height} width={width}>
+        <LineChart
+          data={mergedData}
+          height={height}
+          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          width={width}
+        >
+          <CartesianGrid
+            stroke={GRID_STROKE}
+            strokeDasharray="3 3"
+            vertical={false}
+          />
+          <XAxis
+            axisLine={false}
+            dataKey="label"
+            interval="preserveStartEnd"
+            tick={AXIS_TICK}
+            tickLine={false}
+          />
+          <YAxis
+            axisLine={false}
+            tick={AXIS_TICK}
+            tickCount={3}
+            tickLine={false}
+            width={36}
+          />
           {previousData ? (
+            // Previous-period comparison is non-directional — ADR-054 chart-neutral.
             <Line
               dataKey="previous"
               dot={false}
               isAnimationActive={false}
-              stroke="var(--juli-muted-foreground)"
+              stroke="var(--juli-chart-neutral)"
               strokeDasharray="4 4"
               strokeWidth={2}
               type="monotone"

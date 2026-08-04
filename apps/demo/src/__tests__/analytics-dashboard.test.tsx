@@ -203,7 +203,7 @@ describe("Analytics dashboard", () => {
       await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+      screen.getByRole("link", { name: "Về GMV (TikTok)" }),
     ).toHaveAttribute("href", "/analytics/gmv-tiktok");
   });
 
@@ -218,7 +218,7 @@ describe("Analytics dashboard", () => {
       await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+      screen.getByRole("link", { name: "Về GMV (TikTok)" }),
     ).toHaveAttribute("href", "/analytics/gmv-tiktok");
   });
 
@@ -236,7 +236,7 @@ describe("Analytics dashboard", () => {
       await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+      screen.getByRole("link", { name: "Về GMV (TikTok)" }),
     ).toHaveAttribute("href", "/analytics/gmv-tiktok");
   });
 
