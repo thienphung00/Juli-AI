@@ -269,6 +269,26 @@ describe("Analytics dashboard", () => {
     expect(screen.getByLabelText("So sánh kỳ trước")).toBeInTheDocument();
   });
 
+  it("RED: renders GMV value and chart when API is unavailable (fallback)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("Network error"))));
+
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    // Should render a heading with GMV metric name
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("GMV (TikTok)");
+
+    // Should NOT show the error hero
+    expect(screen.queryByRole("heading", { name: "Chưa thể tải dữ liệu KPI" })).not.toBeInTheDocument();
+
+    // Should render a value and chart (from fallback)
+    expect(screen.getByTestId("analytics-chart-chrome")).toBeInTheDocument();
+  });
+
   it("AC12: leaves Home Recommendations Settings and In Progress UI untouched by analytics polish", () => {
     const analyticsOnlyPaths = [
       "apps/demo/src/__tests__/analytics-dashboard.test.tsx",
