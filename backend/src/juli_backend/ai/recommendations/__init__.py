@@ -1,10 +1,17 @@
+from juli_backend.ai.recommendations.classifier import (
+    TrendTier,
+    build_recommendation_message,
+    classify_product_trend,
+)
 from juli_backend.ai.recommendations.engine import (
     HostProductMatch,
     ProductPushSuggestion,
+    ProductRecommendation,
     StreamOptimizationSuggestion,
     get_host_product_matching,
     get_product_push_suggestions,
     get_stream_optimization,
+    get_trending_product_recommendation,
 )
 from juli_backend.ai.recommendations.livestream_script import (
     LivestreamScriptClassification,
@@ -17,7 +24,11 @@ from juli_backend.ai.recommendations.livestream_script import (
 __all__ = [
     "HostProductMatch",
     "ProductPushSuggestion",
+    "ProductRecommendation",
     "StreamOptimizationSuggestion",
+    "TrendTier",
+    "build_recommendation_message",
+    "classify_product_trend",
     "get_host_product_matching",
     "get_product_push_suggestions",
     "get_stream_optimization",
@@ -26,4 +37,5 @@ __all__ = [
     "acknowledge_livestream_script",
     "classify_livestream_performance",
     "get_livestream_script_recommendation",
+    "get_trending_product_recommendation",
 ]
