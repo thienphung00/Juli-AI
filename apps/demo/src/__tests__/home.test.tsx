@@ -2,17 +2,26 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/page";
+import { DemoStateProvider } from "../components/demo-state";
 import { demoSnapshot, homeDestinations } from "../lib/mock-data";
 
 describe("Demo Home", () => {
   it("Home and Settings unchanged mock; Sign-in stub stays non-functional", () => {
     expect(demoSnapshot.mode).toBe("mock");
-    render(<HomePage />);
+    render(
+      <DemoStateProvider>
+        <HomePage />
+      </DemoStateProvider>,
+    );
     expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
   });
 
   it("renders exactly the two keyboard-operable destination launchers", () => {
-    render(<HomePage />);
+    render(
+      <DemoStateProvider>
+        <HomePage />
+      </DemoStateProvider>,
+    );
 
     const launchers = within(
       screen.getByRole("region", { name: "Điểm đến chính" }),
@@ -28,7 +37,11 @@ describe("Demo Home", () => {
   });
 
   it("keeps keyboard navigation and identifiable card targets on Home launchers", () => {
-    render(<HomePage />);
+    render(
+      <DemoStateProvider>
+        <HomePage />
+      </DemoStateProvider>,
+    );
 
     const launchers = within(
       screen.getByRole("region", { name: "Điểm đến chính" }),
@@ -43,7 +56,11 @@ describe("Demo Home", () => {
   });
 
   it("uses @juli/ui Lucide icons instead of Unicode glyphs on Home launchers", () => {
-    render(<HomePage />);
+    render(
+      <DemoStateProvider>
+        <HomePage />
+      </DemoStateProvider>,
+    );
 
     const launchers = within(
       screen.getByRole("region", { name: "Điểm đến chính" }),
@@ -58,7 +75,11 @@ describe("Demo Home", () => {
   });
 
   it("documents lucide icon choices without dvr a0 reference bundles when not landed", () => {
-    render(<HomePage />);
+    render(
+      <DemoStateProvider>
+        <HomePage />
+      </DemoStateProvider>,
+    );
 
     expect(
       homeDestinations.every(
@@ -74,7 +95,11 @@ describe("Demo Home", () => {
   });
 
   it("leaves in progress settings and recommendations surfaces untouched on Home", () => {
-    render(<HomePage />);
+    render(
+      <DemoStateProvider>
+        <HomePage />
+      </DemoStateProvider>,
+    );
 
     expect(screen.queryByText(/Phê duyệt|Từ chối|Mở rộng/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Mẫu quy trình|Ngưỡng/)).not.toBeInTheDocument();
@@ -84,7 +109,11 @@ describe("Demo Home", () => {
   it("uses deterministic mock contracts and performs no network call", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    render(<HomePage />);
+    render(
+      <DemoStateProvider>
+        <HomePage />
+      </DemoStateProvider>,
+    );
 
     expect(homeDestinations).toHaveLength(2);
     expect(demoSnapshot.mode).toBe("mock");
