@@ -193,7 +193,7 @@ describe("Demo shell controls", () => {
       });
 
       expect(assistance).toHaveTextContent("Trang chủ");
-      expect(assistance).toHaveTextContent("Bạn có thể bắt đầu với Quyết định");
+      expect(assistance).toHaveTextContent("Juli là trợ lý phân tích và tự động hóa");
     });
 
     it("routes Decisions assistance on /decisions (exact match)", () => {

@@ -14,7 +14,7 @@ const assistanceByPath = {
   "/": {
     destination: "Trang chủ",
     message:
-      "Bạn có thể bắt đầu với Quyết định để xem việc cần làm, hoặc mở Phân tích để hiểu điều đang diễn ra trong shop.",
+      "Juli là trợ lý phân tích và tự động hóa của bạn, giúp bạn hiểu rõ dữ liệu cửa hàng và đưa ra quyết định tối ưu.",
   },
   "/decisions": {
     destination: "Quyết định",
