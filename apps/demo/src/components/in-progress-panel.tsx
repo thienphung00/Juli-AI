@@ -8,16 +8,13 @@ import type {
   ExecutionTimelineStepStatus,
 } from "@juli/contracts";
 import {
-  StatusChip,
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
 } from "@juli/ui";
-import { formatDateTime } from "@juli/utils";
 import Link from "next/link";
 
 import { recommendationFixtures } from "../lib/recommendations";
@@ -114,12 +111,131 @@ export function getLifecycleChipVariant(
   return "info";
 }
 
-export function InProgressPanel({ panelId }: InProgressPanelProps) {
-  const { mutableState } = useDemoState();
-  const executionRecords = Object.values(mutableState.executionRecords).sort(
-    (left, right) =>
-      new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+interface ExecutionProgressCardProps {
+  record: ExecutionRecord;
+  onCancel: (executionId: string) => void;
+}
+
+function ExecutionProgressCard({
+  record,
+  onCancel,
+}: ExecutionProgressCardProps) {
+  const workflowTitle = getWorkflowTitle(record.workflowKey);
+  const currentStepLabel = getCurrentStepLabel(record);
+  const nextAction = getNextActionText(record);
+  const lifecycleChipVariant = getLifecycleChipVariant(record.lifecycleStatus);
+
+  // Determine mode strip text
+  const modeLabel =
+    record.lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
+
+  // Get badge variant for lifecycle status
+  const badgeVariant: "success" | "destructive" | "warning" | "live" =
+    record.lifecycleStatus === "completed"
+      ? "success"
+      : record.lifecycleStatus === "needs_input"
+        ? "warning"
+        : "live";
+
+  return (
+    <Card>
+      {/* Mode strip */}
+      <div className="execution-card__mode-strip">
+        <span className="execution-card__mode-label">{modeLabel}</span>
+      </div>
+
+      {/* Card Header */}
+      <CardHeader>
+        <div className="execution-card__header-row">
+          <CardTitle>
+            <Link href={`/decisions/in-progress/${record.executionId}`}>
+              {workflowTitle}
+            </Link>
+          </CardTitle>
+          <Badge variant={badgeVariant}>
+            {LIFECYCLE_STATUS_LABELS[record.lifecycleStatus]}
+          </Badge>
+        </div>
+      </CardHeader>
+
+      {/* Card Body */}
+      <CardBody>
+        {/* Narrative step line */}
+        <div className="execution-card__step-line">
+          <p>{currentStepLabel}</p>
+          {record.lifecycleStatus === "executing" && (
+            <span className="execution-card__duration">5–10 phút</span>
+          )}
+        </div>
+
+        {/* Next action / recovery text */}
+        {nextAction && (
+          <div className="execution-card__next-action">
+            <p>{nextAction}</p>
+          </div>
+        )}
+
+        {/* Policy line */}
+        <div className="execution-card__policy-line">
+          <p>Đã kiểm tra chính sách TikTok Shop</p>
+        </div>
+
+        {/* Cancel/Rollback button */}
+        <div className="execution-card__actions">
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={() => onCancel(record.executionId)}
+            aria-label={`Hủy ${workflowTitle}`}
+          >
+            Hủy
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
   );
+}
+
+export function InProgressPanel({ panelId }: InProgressPanelProps) {
+  const { mutableState, updateMutableState } = useDemoState();
+
+  // Sort records: executing first, then needs_input, then completed
+  const executionRecords = Object.values(mutableState.executionRecords)
+    .filter((record): record is ExecutionRecord => record !== undefined)
+    .sort((left, right) => {
+      const statusOrder: Record<ExecutionLifecycleStatus, number> = {
+        executing: 0,
+        needs_input: 1,
+        completed: 2,
+      };
+
+      const leftOrder = statusOrder[left.lifecycleStatus];
+      const rightOrder = statusOrder[right.lifecycleStatus];
+
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+
+      // Within same status, sort by updatedAt descending
+      return (
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+      );
+    });
+
+  const handleCancelExecution = (executionId: string) => {
+    // Dry-run only: mutate local execution records
+    updateMutableState((prev) => {
+      const { [executionId]: _, ...restRecords } = prev.executionRecords;
+      return {
+        ...prev,
+        executionRecords: restRecords,
+        executionProgress: {
+          ...prev.executionProgress,
+          [executionId]: undefined,
+        },
+      };
+    });
+  };
 
   if (executionRecords.length === 0) {
     return (
@@ -129,12 +245,8 @@ export function InProgressPanel({ panelId }: InProgressPanelProps) {
           className="demo-placeholder"
           role="status"
         >
-          <p className="demo-kicker">Sắp ra mắt</p>
           <h2>Đang thực hiện</h2>
-          <p>
-            Công việc đã phê duyệt sẽ xuất hiện ở đây trong một bản cập nhật
-            tiếp theo.
-          </p>
+          <p>Công việc đã phê duyệt sẽ xuất hiện ở đây.</p>
         </section>
       </div>
     );
@@ -142,62 +254,15 @@ export function InProgressPanel({ panelId }: InProgressPanelProps) {
 
   return (
     <div aria-label="Đang thực hiện" id={panelId}>
-      <Table aria-label="Danh sách luồng đang thực hiện">
-        <TableCaption>
-          Các luồng đã phê duyệt đang chạy hoặc chờ phản hồi từ TikTok Shop.
-        </TableCaption>
-        <TableHead>
-          <TableRow focusable={false}>
-            <TableHeaderCell>Quy trình</TableHeaderCell>
-            <TableHeaderCell>Trạng thái</TableHeaderCell>
-            <TableHeaderCell>Bước hiện tại</TableHeaderCell>
-            <TableHeaderCell>Bắt đầu</TableHeaderCell>
-            <TableHeaderCell>Cập nhật</TableHeaderCell>
-            <TableHeaderCell>Khả năng</TableHeaderCell>
-            <TableHeaderCell>Việc tiếp theo</TableHeaderCell>
-          </TableRow>
-        </TableHead>
-        <TableBody keyboardNav={false}>
-          {executionRecords.map((record) => {
-            const workflowTitle = getWorkflowTitle(record.workflowKey);
-            const nextAction = getNextActionText(record);
-
-            return (
-              <TableRow
-                key={record.executionId}
-                data-execution-id={record.executionId}
-                focusable={false}
-              >
-                <TableCell label="Quy trình">
-                  <Link href={`/decisions/in-progress/${record.executionId}`}>
-                    {workflowTitle}
-                  </Link>
-                </TableCell>
-                <TableCell label="Trạng thái">
-                  <StatusChip variant={getLifecycleChipVariant(record.lifecycleStatus)}>
-                    {LIFECYCLE_STATUS_LABELS[record.lifecycleStatus]}
-                  </StatusChip>
-                </TableCell>
-                <TableCell label="Bước hiện tại">
-                  {getCurrentStepLabel(record)}
-                </TableCell>
-                <TableCell label="Bắt đầu">
-                  {formatDateTime(record.startedAt)}
-                </TableCell>
-                <TableCell label="Cập nhật">
-                  {formatDateTime(record.updatedAt)}
-                </TableCell>
-                <TableCell label="Khả năng">
-                  {getWorkflowCapability(record.workflowKey)}
-                </TableCell>
-                <TableCell label="Việc tiếp theo">
-                  {nextAction ?? "—"}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+      <div className="execution-cards-container">
+        {executionRecords.map((record) => (
+          <ExecutionProgressCard
+            key={record.executionId}
+            record={record}
+            onCancel={handleCancelExecution}
+          />
+        ))}
+      </div>
     </div>
   );
 }
