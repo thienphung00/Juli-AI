@@ -18,9 +18,10 @@
         "assertions": [
           "html_200",
           "no_banned_strings_workflow_key_công_cụ_khả_năng",
-          "juli_handles_all_confirm_copy_present_no_you_vs_juli_checklist",
-          "policy_badge_and_cancel_rollback_always_visible",
-          "every_valid_execution_id_resolves_no_404"
+          "mode_strip_and_policy_line_render",
+          "cancel_rollback_visible_without_scrolling",
+          "every_valid_execution_id_resolves_no_404",
+          "unknown_execution_id_shows_recoverable_not_found_state"
         ]
       }
     ]
@@ -43,7 +44,7 @@
     "expandContractOnly": true,
     "stableAndCandidateCompatible": true,
     "destructiveMigrationAllowed": false,
-    "notes": "Copy and route-resolution fix in decisions/in-progress/[executionId]/page.tsx; no DB or backend API contract change."
+    "notes": "Legacy executionRecords carrying a toolName field must still render without crash even though toolName is no longer displayed; no DB or backend API contract change."
   },
   "rollbackAssertion": {
     "preCutoverFailureBehavior": "revert_pr_branch",
