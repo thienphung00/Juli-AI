@@ -293,6 +293,8 @@ def _transform_settlement(body: dict[str, Any], payload: dict[str, Any]) -> dict
         "amount": Decimal(str(body.get("amount", 0))),
         "currency": str(body.get("currency") or "VND"),
         "status": str(body.get("status") or "pending"),
+        "platform_commission": _optional_decimal(body.get("platform_commission")),
+        "shipping_fee": _optional_decimal(body.get("shipping_fee")),
         "settlement_time": (
             _unix_to_datetime(body["settlement_time"]) if body.get("settlement_time") else None
         ),

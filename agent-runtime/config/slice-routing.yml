@@ -2202,3 +2202,143 @@ CORPORA-1:
     - ios/
     - backend/src/juli_backend/
     - Sibling issue context caches
+
+RA-1:
+  executorDomain: machine-learning
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/ai/forecasting/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/ai/forecasting/forecaster.py
+    - backend/src/juli_backend/services/execution/listing_handlers.py
+    - tests/unit/test_forecasting.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/ai/recommendations/engine.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/dashboard/
+    - apps/landing/
+    - ios/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+RA-2:
+  executorDomain: machine-learning
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/ai/recommendations/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/ai/recommendations/engine.py
+    - backend/src/juli_backend/services/scoring/recommendations.py
+    - tests/unit/test_recommendations.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+    - backend/src/juli_backend/services/scoring/pipeline.py
+    - tests/unit/test_scoring.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/dashboard/
+    - apps/landing/
+    - ios/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+RA-3:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/integrations/tiktok_api/endpoints.md
+    - docs/architecture/data-sources.md
+  requiredModules:
+    - backend/src/juli_backend/services/etl/transform.py
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/integrations/tiktok/resources/settlements.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/integrations/tiktok/mapping.py
+    - backend/src/juli_backend/integrations/tiktok/schemas.py
+    - backend/src/juli_backend/repositories/repos.py
+    - tests/unit/test_api_livestream_creator_settlement.py
+    - .cursor/skills/domain/testing-patterns/postgres-patterns.md
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/dashboard/
+    - apps/landing/
+    - ios/
+    - web/
+    - backend/src/juli_backend/ai/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+RA-4:
+  executorDomain: machine-learning
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/ai/recommendations/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/ai/recommendations/engine.py
+    - backend/src/juli_backend/models/models.py
+    - tests/unit/test_recommendations.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/dashboard/
+    - apps/landing/
+    - ios/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
+RA-5:
+  executorDomain: machine-learning
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/architecture/data-sources.md
+    - backend/src/juli_backend/ai/ranking/MODULE.md
+    - backend/src/juli_backend/ai/recommendations/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/ai/ranking/
+    - backend/src/juli_backend/ai/recommendations/engine.py
+    - tests/unit/test_recommendations.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/demo/
+    - apps/dashboard/
+    - apps/landing/
+    - ios/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
