@@ -470,8 +470,10 @@ async def _get_average_fee_ratio(
         # Default to assuming 30% fees if no data
         return Decimal("0.30")
 
-    total_fees = sum(s.platform_commission + s.shipping_fee for s in settlements)
-    total_amount = sum(s.amount for s in settlements)
+    total_fees = sum(
+        (s.platform_commission + s.shipping_fee for s in settlements), start=Decimal("0")
+    )
+    total_amount = sum((s.amount for s in settlements), start=Decimal("0"))
 
     if total_amount <= 0:
         return Decimal("0.30")
