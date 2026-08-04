@@ -73,3 +73,6 @@ export function createMockFetchResponse(
       json: async () => envelope,
     }) as Response;
 }
+
+// Re-export from production code for test usage
+export { createFallbackDemoAnalyticsEnvelope } from "../fallback-envelope";
