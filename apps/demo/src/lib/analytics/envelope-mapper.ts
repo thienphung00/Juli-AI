@@ -21,6 +21,43 @@ const METRIC_TO_ENVELOPE_KEY: Record<MetricKey, string> = {
   "cancellation-rate": "cancellation_rate",
 };
 
+/** Seller-facing source labels (no API vocabulary) — ADR-049 Decision 3 */
+const METRIC_TO_DATA_SOURCE: Record<MetricKey, string> = {
+  "gmv-tiktok": "TikTok Shop",
+  aov: "TikTok Shop",
+  ctor: "TikTok Shop",
+  "live-hours": "TikTok Shop",
+  "cancellation-rate": "TikTok Shop",
+};
+
+/**
+ * Calculate relative freshness from computed_at timestamp.
+ * Returns "Cập nhật N phút/giờ trước" format with live indicator.
+ * ADR-049 Decision 3 requires relative freshness + live indicator.
+ */
+export function getRelativeFreshness(computedAtIso: string): string {
+  const computedAt = new Date(computedAtIso);
+  const now = new Date();
+  const diffMs = now.getTime() - computedAt.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  let relative: string;
+  if (diffMinutes < 1) {
+    relative = "Cập nhật vừa xong";
+  } else if (diffMinutes < 60) {
+    relative = `Cập nhật ${diffMinutes} phút trước`;
+  } else if (diffHours < 24) {
+    relative = `Cập nhật ${diffHours} giờ trước`;
+  } else {
+    relative = `Cập nhật ${diffDays} ngày trước`;
+  }
+
+  // Add live indicator
+  return `${relative} · Live`;
+}
+
 export interface SupplementaryChartSnapshot {
   envelopeKey: "product_funnel" | "live_performance";
   label: string;
@@ -190,11 +227,8 @@ export function buildLiveKpiSnapshot(
     delta,
     trend,
     signal: metricSignal(metricKey, trend),
-    dataSource:
-      metricKey === "gmv-tiktok"
-        ? `${GMV_TIKTOK_LABEL} — envelope ${GMV_TIKTOK_ENVELOPE_KEY}`
-        : entry.label,
-    lastUpdated: formatDateTime(envelope.computed_at),
+    dataSource: METRIC_TO_DATA_SOURCE[metricKey],
+    lastUpdated: getRelativeFreshness(envelope.computed_at),
     dataMode: "live",
     ...workflow,
     sparkline: values,
@@ -232,8 +266,8 @@ export function buildSupplementaryChartSnapshot(
     delta,
     trend,
     timeSeries,
-    dataSource: entry.label,
-    lastUpdated: formatDateTime(envelope.computed_at),
+    dataSource: "TikTok Shop",
+    lastUpdated: getRelativeFreshness(envelope.computed_at),
   };
 }
 

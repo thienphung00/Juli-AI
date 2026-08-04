@@ -87,3 +87,70 @@ describe("main-kpis catalog (DUX-2: Demo Main KPI override per ADR-049)", () => 
     expect(cancelRate.available).toBe(true);
   });
 });
+
+describe("getSelectorMetricKeys with trend-aware ordering (DUX-3: Downtrend emphasis)", () => {
+  it("AC6 (RED): returns static order when no trends provided", () => {
+    const selectorKeys = getSelectorMetricKeys("gmv-tiktok");
+    expect(selectorKeys).toEqual(["aov", "ctor", "live-hours", "cancellation-rate"]);
+  });
+
+  it("AC6 (RED): puts negative-trend KPIs first when trends provided", () => {
+    const trends = {
+      aov: "positive",
+      ctor: "negative",
+      "live-hours": "neutral",
+      "cancellation-rate": "positive",
+    } as const;
+
+    const selectorKeys = getSelectorMetricKeys("gmv-tiktok", trends);
+
+    // ctor (negative) should appear first
+    expect(selectorKeys[0]).toBe("ctor");
+    expect(selectorKeys).toEqual(["ctor", "aov", "cancellation-rate", "live-hours"]);
+  });
+
+  it("AC6 (RED): orders multiple negative trends first, then neutral, then positive", () => {
+    const trends = {
+      aov: "negative",
+      ctor: "negative",
+      "live-hours": "neutral",
+      "cancellation-rate": "positive",
+    } as const;
+
+    const selectorKeys = getSelectorMetricKeys("gmv-tiktok", trends);
+
+    // Both negative should be first (in their relative order from MAIN_KPI_ORDER)
+    expect(selectorKeys.indexOf("aov")).toBeLessThan(selectorKeys.indexOf("live-hours"));
+    expect(selectorKeys.indexOf("ctor")).toBeLessThan(selectorKeys.indexOf("live-hours"));
+    expect(selectorKeys.indexOf("live-hours")).toBeLessThan(selectorKeys.indexOf("cancellation-rate"));
+  });
+
+  it("AC6 (RED): preserves relative order within same trend tier", () => {
+    const trends = {
+      aov: "positive",
+      ctor: "positive",
+      "live-hours": "positive",
+      "cancellation-rate": "positive",
+    } as const;
+
+    const selectorKeys = getSelectorMetricKeys("gmv-tiktok", trends);
+
+    // All positive, so should maintain MAIN_KPI_ORDER
+    expect(selectorKeys).toEqual(["aov", "ctor", "live-hours", "cancellation-rate"]);
+  });
+
+  it("AC6 (RED): handles missing trends by treating as neutral", () => {
+    const trends = {
+      aov: "negative",
+      // ctor missing → treated as neutral
+      // live-hours missing → treated as neutral
+      "cancellation-rate": "positive",
+    } as const;
+
+    const selectorKeys = getSelectorMetricKeys("gmv-tiktok", trends);
+
+    // negative first, then neutrals (ctor, live-hours), then positive
+    expect(selectorKeys[0]).toBe("aov");
+    expect(selectorKeys[selectorKeys.length - 1]).toBe("cancellation-rate");
+  });
+});

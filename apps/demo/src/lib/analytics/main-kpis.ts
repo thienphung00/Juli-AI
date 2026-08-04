@@ -106,6 +106,27 @@ export function getMainKpiDefinition(metricKey: MetricKey): MainKpiDefinition {
   return MAIN_KPI_DEFINITIONS[metricKey];
 }
 
-export function getSelectorMetricKeys(heroMetricKey: MetricKey): MetricKey[] {
-  return MAIN_KPI_ORDER.filter((key) => key !== heroMetricKey);
+/**
+ * Get selector metric keys, optionally reordered to put negative/downtrend KPIs first.
+ * If no trends provided, returns static MAIN_KPI_ORDER (excluding hero).
+ * If trends provided, sorts by negative/downtrend first for visual emphasis.
+ * ADR-049 Decision 1: puts negative KPIs before neutral/positive.
+ */
+export function getSelectorMetricKeys(
+  heroMetricKey: MetricKey,
+  trends?: Partial<Record<MetricKey, "negative" | "neutral" | "positive" | "warning">>,
+): MetricKey[] {
+  const candidates = MAIN_KPI_ORDER.filter((key) => key !== heroMetricKey);
+
+  if (!trends) {
+    return candidates;
+  }
+
+  // Sort: negative/warning first (downtrend emphasis), then neutral, then positive
+  const priorityMap = { negative: 0, warning: 0, neutral: 1, positive: 2 };
+  return [...candidates].sort(
+    (a, b) =>
+      (priorityMap[trends[a] ?? "neutral"] ?? 1) -
+      (priorityMap[trends[b] ?? "neutral"] ?? 1),
+  );
 }
