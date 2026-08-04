@@ -277,6 +277,28 @@ class TestReorderQuantityComputedFromSalesPace:
         # quantity = 5.0 * (3 + 2) = 25 units
         assert quantity == pytest.approx(25.0, rel=0.01)
 
+    def test_reorder_quantity_low_velocity_no_floor(self):
+        """Test that low-velocity items do NOT get floored to 10.0; formula applies."""
+        risk = LowStockRisk(
+            sku_id="low_velocity",
+            tiktok_product_id="prod_low",
+            quantity=50,
+            daily_velocity=1.0,
+            days_until_stockout=50.0,
+            urgency_score=0.02,
+        )
+        lead_time_days = 3
+        safety_stock_days = 2
+
+        quantity = compute_reorder_quantity(
+            risk,
+            lead_time_days=lead_time_days,
+            safety_stock_days=safety_stock_days,
+        )
+
+        # quantity = 1.0 * (3 + 2) = 5.0 units (not 10.0 fallback)
+        assert quantity == pytest.approx(5.0, rel=0.01)
+
     def test_reorder_quantity_scales_with_velocity(self):
         """Test that reorder quantity scales linearly with sales velocity."""
         lead_time = 3
@@ -311,6 +333,35 @@ class TestReorderQuantityComputedFromSalesPace:
         assert qty_fast == pytest.approx(50.0, rel=0.01)
         assert qty_fast > qty_slow
 
+    def test_reorder_quantity_rounds_up(self):
+        """Test that fractional results are rounded up to whole units."""
+        # velocity = 0.5, lead_time = 2, safety_stock = 3 → 0.5 * 5 = 2.5 → rounds to 3
+        risk = LowStockRisk(
+            sku_id="fractional",
+            tiktok_product_id="prod",
+            quantity=50,
+            daily_velocity=0.5,
+            days_until_stockout=100.0,
+            urgency_score=0.01,
+        )
+        quantity = compute_reorder_quantity(risk, lead_time_days=2, safety_stock_days=3)
+        assert quantity == pytest.approx(3.0, rel=0.01)  # 0.5 * 5 = 2.5, rounded up to 3
+
+    def test_reorder_quantity_very_low_velocity_floor(self):
+        """Test that very-low-velocity items still get at least 1 unit (not 10.0 floor)."""
+        # velocity = 0.1, lead_time = 2, safety_stock = 3 → 0.1 * 5 = 0.5 → rounds to 1
+        risk = LowStockRisk(
+            sku_id="very_low",
+            tiktok_product_id="prod",
+            quantity=100,
+            daily_velocity=0.1,
+            days_until_stockout=1000.0,
+            urgency_score=0.001,
+        )
+        quantity = compute_reorder_quantity(risk, lead_time_days=2, safety_stock_days=3)
+        # Should be 0.1 * 5 = 0.5, rounded up to 1, NOT 10.0
+        assert quantity == pytest.approx(1.0, rel=0.01)
+
 
 # ===================================================================
 # AC2 — Issue #721: fallback for zero/near-zero sales history
@@ -338,7 +389,7 @@ class TestReorderQuantityFallbackZeroVelocity:
         assert isinstance(quantity, (int, float))
 
     def test_reorder_quantity_near_zero_velocity(self):
-        """Test handling of very low velocity (near-zero)."""
+        """Test handling of very low velocity (near-zero) — should be 1, not 10."""
         risk = LowStockRisk(
             sku_id="slow_mover",
             tiktok_product_id="prod_slow",
@@ -350,10 +401,8 @@ class TestReorderQuantityFallbackZeroVelocity:
 
         quantity = compute_reorder_quantity(risk, lead_time_days=3, safety_stock_days=2)
 
-        # quantity = 0.1 * (3 + 2) = 0.5, should round to min fallback
-        assert quantity > 0
-        # For a slow mover, the minimum should still be reasonable
-        assert quantity >= 1  # at least 1 unit
+        # quantity = 0.1 * (3 + 2) = 0.5, should round up to 1, NOT 10.0
+        assert quantity == pytest.approx(1.0, rel=0.01)
 
 
 # ===================================================================
@@ -362,58 +411,59 @@ class TestReorderQuantityFallbackZeroVelocity:
 
 
 class TestReorderQuantityLowStockPrioritiesRanking:
-    """AC3: Juli picks the item closest to running out first (already via urgency_score)."""
+    """AC3: Item ordering via urgency_score prioritizes closest to stockout."""
 
-    def test_urgency_score_ranks_by_days_until_stockout(self):
-        """Verify that urgency_score correctly prioritizes items running out soonest."""
-        # Create risks with different velocities and quantities
-        critical = LowStockRisk(
-            sku_id="critical",
-            tiktok_product_id="prod1",
-            quantity=2,
-            daily_velocity=10.0,
-            days_until_stockout=0.2,  # runs out in 4.8 hours
-            urgency_score=5.0,  # 1 / 0.2 = 5.0
-        )
-        warning = LowStockRisk(
-            sku_id="warning",
-            tiktok_product_id="prod2",
-            quantity=15,
-            daily_velocity=5.0,
-            days_until_stockout=3.0,  # runs out in 3 days
-            urgency_score=0.33,  # 1 / 3.0 ≈ 0.33
-        )
+    @pytest.mark.asyncio
+    async def test_urgency_score_ranks_by_days_until_stockout(self, session: AsyncSession):
+        """get_low_stock_risks returns items ordered by urgency (days_until_stockout)."""
+        shop_id = await _seed_shop(session)
+        now = datetime.now(UTC)
 
-        # Urgency should rank critical higher
-        assert critical.urgency_score > warning.urgency_score
-        # And produce higher reorder quantities
-        qty_critical = compute_reorder_quantity(critical, lead_time_days=2, safety_stock_days=3)
-        qty_warning = compute_reorder_quantity(warning, lead_time_days=2, safety_stock_days=3)
-        assert qty_critical > qty_warning
+        # Create two items:
+        # - critical: 2 units, fast velocity → runs out very soon
+        # - warning: 30 units, slower velocity → runs out later
+        session.add_all(
+            [
+                InventoryItem(
+                    id=uuid.uuid4(),
+                    shop_id=shop_id,
+                    tiktok_product_id="prod_critical",
+                    tiktok_sku_id="sku_critical",
+                    quantity=2,  # very low stock
+                    velocity="high",
+                    update_time=now,
+                    created_at=now,
+                ),
+                InventoryItem(
+                    id=uuid.uuid4(),
+                    shop_id=shop_id,
+                    tiktok_product_id="prod_warning",
+                    tiktok_sku_id="sku_warning",
+                    quantity=30,  # moderate stock
+                    velocity="medium",
+                    update_time=now,
+                    created_at=now,
+                ),
+            ]
+        )
+        await _seed_constant_daily_orders(session, shop_id, days=20, orders_per_day=10)
+        await session.flush()
+
+        risks = await get_low_stock_risks(session, shop_id, window_days=7)
+
+        # Should have at least the critical item in results
+        assert len(risks) >= 1
+        # First item should be the critical one (highest urgency)
+        assert risks[0].sku_id == "sku_critical"
+        assert risks[0].days_until_stockout < (
+            risks[1].days_until_stockout if len(risks) > 1 else float("inf")
+        )
+        # Urgency score should rank critical higher
+        assert risks[0].urgency_score > (risks[1].urgency_score if len(risks) > 1 else 0)
 
 
 # ===================================================================
 # AC4 — Issue #721: suggested quantity is freely editable
 # ===================================================================
-
-
-class TestReorderQuantityEditable:
-    """AC4: suggested quantity is freely editable before approval (no test needed for code)."""
-
-    def test_reorder_quantity_returns_plain_number(self):
-        """Verify that returned quantity is a plain number (not locked/immutable)."""
-        risk = LowStockRisk(
-            sku_id="sku_editable",
-            tiktok_product_id="prod_edit",
-            quantity=20,
-            daily_velocity=4.0,
-            days_until_stockout=5.0,
-            urgency_score=0.2,
-        )
-
-        quantity = compute_reorder_quantity(risk, lead_time_days=2, safety_stock_days=2)
-
-        # Must be a plain number, not a special "locked" object
-        assert isinstance(quantity, (int, float))
-        assert not hasattr(quantity, "is_locked")
-        # The UI will make it editable via standard input controls
+# AC4 (editable before approval) is a UI-layer property tested in the demo slice,
+# not a backend property. No code-level test required here.

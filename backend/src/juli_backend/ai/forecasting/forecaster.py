@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -300,8 +301,8 @@ def compute_reorder_quantity(
     Combines sales velocity with lead-time and safety-stock buffers:
     suggested_quantity = daily_velocity * (lead_time_days + safety_stock_days)
 
-    For items with zero or near-zero velocity, returns a reasonable fallback
-    quantity to avoid ordering nothing.
+    For items with zero or negative velocity (no recent sales), returns a minimum
+    fallback quantity of 10 units.
 
     Args:
         risk: LowStockRisk item with computed daily_velocity.
@@ -309,15 +310,17 @@ def compute_reorder_quantity(
         safety_stock_days: Safety stock buffer in days scaled by velocity (default: 2 days).
 
     Returns:
-        Suggested reorder quantity as a float. Value is freely editable in UI.
+        Suggested reorder quantity as a float (rounded up to whole units, minimum 1.0 for
+        positive velocity items). Value is freely editable in UI.
     """
     if risk.daily_velocity <= 0:
         # Fallback for new products or items with no recent sales
         return float(_REORDER_QUANTITY_MIN_FALLBACK)
 
-    # Standard calculation: velocity * (lead_time + safety_stock)
+    # Standard calculation: velocity * (lead_time + safety_stock), rounded up
     total_days = lead_time_days + safety_stock_days
     suggested_qty = risk.daily_velocity * total_days
+    rounded_qty = math.ceil(suggested_qty)
 
-    # Ensure at least the fallback minimum if calculation rounds too low
-    return max(suggested_qty, float(_REORDER_QUANTITY_MIN_FALLBACK))
+    # Ensure at least 1 unit for positive-velocity items
+    return float(max(rounded_qty, 1))

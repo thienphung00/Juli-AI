@@ -24,9 +24,9 @@ Read-only against `src/data` — no writes or migrations.
 ### Reorder quantity computation (Issue #721)
 - `compute_reorder_quantity(risk, lead_time_days=3, safety_stock_days=2) -> float`
   — Suggested reorder quantity for a low-stock item based on sales velocity.
-  Returns `daily_velocity * (lead_time_days + safety_stock_days)` with reasonable
-  fallback (≥10 units) for zero-velocity items. Computed on-demand when recommendation
-  is displayed; value is freely editable before approval.
+  For `daily_velocity > 0`, returns `ceil(daily_velocity * (lead_time_days + safety_stock_days))`
+  with a floor of 1 unit. For `daily_velocity ≤ 0` (no recent sales), returns 10 units.
+  Computed on-demand when recommendation is displayed; value is freely editable before approval.
 
 ### Velocity changes
 - `get_velocity_changes(session, shop_id) -> list[VelocityChange]` — SKUs whose
