@@ -9,7 +9,7 @@ import {
 
 export const CREATE_ACTIVITY_WORKFLOW_KEY = "create_activity_7a";
 export const CREATE_ACTIVITY_TOOL_NAME = "promotion.create_activity";
-export const defaultCreateActivityAnalyticsMetricKey = "revenue-by-sku";
+export const defaultCreateActivityAnalyticsMetricKey = "ctor";
 
 const createActivityFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === CREATE_ACTIVITY_WORKFLOW_KEY,
