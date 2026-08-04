@@ -80,6 +80,12 @@ describe("main-kpis catalog (DUX-2: Demo Main KPI override per ADR-049)", () => 
     expect(liveHours.name).toMatch(/LIVE|live/i);
     expect(liveHours.available).toBe(true);
   });
+
+  it("AC5: cancellation-rate definition has correct Vietnamese labels", () => {
+    const cancelRate = getMainKpiDefinition("cancellation-rate");
+    expect(cancelRate.name).toMatch(/hủy|Cancellation/i);
+    expect(cancelRate.available).toBe(true);
+  });
 });
 
 describe("getSelectorMetricKeys with trend-aware ordering (DUX-3: Downtrend emphasis)", () => {
@@ -143,9 +149,8 @@ describe("getSelectorMetricKeys with trend-aware ordering (DUX-3: Downtrend emph
 
     const selectorKeys = getSelectorMetricKeys("gmv-tiktok", trends);
 
-  it("AC5: cancellation-rate definition has correct Vietnamese labels", () => {
-    const cancelRate = getMainKpiDefinition("cancellation-rate");
-    expect(cancelRate.name).toMatch(/hủy|Cancellation/i);
-    expect(cancelRate.available).toBe(true);
+    // negative first, then neutrals (ctor, live-hours), then positive
+    expect(selectorKeys[0]).toBe("aov");
+    expect(selectorKeys[selectorKeys.length - 1]).toBe("cancellation-rate");
   });
 });
