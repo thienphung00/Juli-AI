@@ -123,6 +123,8 @@ flowchart LR
 | [`nginx/`](nginx/) | Nginx vhosts for frontend and API |
 | [`systemd/juli-api.service`](systemd/juli-api.service) | Backend systemd unit |
 | [`systemd/juli-web.service`](systemd/juli-web.service) | Frontend systemd unit |
+| [`systemd/juli-celery-worker.service`](systemd/juli-celery-worker.service) | Async task worker systemd unit |
+| [`systemd/juli-celery-beat.service`](systemd/juli-celery-beat.service) | Periodic task scheduler systemd unit |
 | [`systemd/juli-secrets-refresh.service`](systemd/juli-secrets-refresh.service) | Daily secret sync (oneshot) |
 | [`systemd/juli-secrets-refresh.timer`](systemd/juli-secrets-refresh.timer) | 24-hour timer for secret sync |
 | [`systemd/juli-restore-drill.service`](systemd/juli-restore-drill.service) | Weekly backup restore drill (oneshot) |
@@ -166,11 +168,11 @@ sudo apt-get install -y \
   nginx certbot python3-certbot-nginx \
   python3 python3-venv python3-pip \
   git curl jq unzip \
-  nodejs npm
+  nodejs npm redis-server
 
 sudo mkdir -p /var/www/certbot /etc/juli /etc/aws
 sudo chmod 700 /etc/juli
-sudo systemctl enable --now nginx
+sudo systemctl enable --now nginx redis-server
 ```
 
 Install the AWS CLI v2 and IAM Roles Anywhere signing helper per [AWS documentation](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/getting-started.html). Place `aws_signing_helper` at `/usr/local/bin/aws_signing_helper`.
@@ -208,6 +210,8 @@ chmod +x infra/scripts/fetch-secrets.sh infra/scripts/refresh-secrets.sh
 
 sudo cp infra/systemd/juli-api.service /etc/systemd/system/
 sudo cp infra/systemd/juli-web.service /etc/systemd/system/
+sudo cp infra/systemd/juli-celery-worker.service /etc/systemd/system/
+sudo cp infra/systemd/juli-celery-beat.service /etc/systemd/system/
 sudo cp infra/systemd/juli-secrets-refresh.service /etc/systemd/system/
 sudo cp infra/systemd/juli-secrets-refresh.timer /etc/systemd/system/
 sudo cp infra/systemd/juli-restore-drill.service /etc/systemd/system/
@@ -682,9 +686,11 @@ Audit trail: `~/releases/deploy-history.log`.
 
 ```bash
 # Review service health
-systemctl status juli-api juli-web --no-pager
+systemctl status juli-api juli-web juli-celery-worker juli-celery-beat --no-pager
 journalctl -u juli-api --since "7 days ago" -p err --no-pager
 journalctl -u juli-web --since "7 days ago" -p err --no-pager
+journalctl -u juli-celery-worker --since "7 days ago" -p err --no-pager
+journalctl -u juli-celery-beat --since "7 days ago" -p err --no-pager
 
 # Confirm timer fired
 journalctl -u juli-secrets-refresh.service --since "8 days ago" --no-pager
@@ -1017,6 +1023,8 @@ Runtime files (never in git): `/etc/juli/api.env`, `/etc/juli/web.env`.
 ```bash
 sudo journalctl -u juli-api -f
 sudo journalctl -u juli-web -f
+sudo journalctl -u juli-celery-worker -f
+sudo journalctl -u juli-celery-beat -f
 sudo journalctl -u juli-secrets-refresh.service -n 50 --no-pager
 sudo journalctl -u juli-restore-drill.service -n 50 --no-pager
 sudo journalctl -u juli-api --since "1 hour ago" -p err

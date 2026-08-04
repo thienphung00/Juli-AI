@@ -1,0 +1,89 @@
+{
+  "planId": "rep-720-celery-worker-beat-systemd-units",
+  "affectedPublicSurfaces": [
+    "New infra/systemd unit files (juli-celery-worker.service, juli-celery-beat.service) — inert until a human manually copies them to /etc/systemd/system/ on the VPS and runs `systemctl daemon-reload` + `enable --now`. This PR does not modify infra/scripts/deploy-release.sh, .github/workflows/release.yml, or any currently-enabled unit (juli-api.service, juli-web.service, juli-secrets-refresh, juli-restore-drill), so merging and even deploying this PR's code changes causes zero behavior change to the live public site until a human takes that separate manual step.",
+    "docs/runbooks/app-review-runbook.md and infra/scripts/env/api.env.example — documentation/example-config updates only (install steps, package list, Redis/Celery env-var guidance); no behavior change on their own."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "This slice ships two new, unreferenced systemd unit files plus docs/example-config updates — nothing in the deploy pipeline is modified to install, enable, or start them automatically. A merge to main and even a full deploy-release.sh run on the VPS does not start these units, because deploy-release.sh only restarts juli-api/juli-web (unchanged in this PR) and never touches systemd unit installation for other units. Verification is therefore: (1) confirm the two new unit files are syntactically valid and follow juli-api.service's exact ExecStartPre/EnvironmentFile/WorkingDirectory/Restart pattern; (2) confirm the Celery commands match the real module path (juli_backend.workers.celery_app) and that no schedule is invented beyond what celery_app.py's beat_schedule already declares; (3) confirm the runbook/env-example diff is additive documentation only, touching no script or existing unit's content; (4) a human, separately and after this merges, installs redis-server, uncomments the Redis/Celery env vars in the real /etc/juli/api.env (via AWS Secrets Manager per the existing secret flow), copies the two new units, and enables them — that activation step is explicitly out of scope for this PR and is not automated by it.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "journeys": [
+      {
+        "name": "unit-file-syntax-and-pattern-match",
+        "entryUrl": "infra/systemd/juli-celery-worker.service, infra/systemd/juli-celery-beat.service (static file review, no live host)",
+        "assertions": [
+          "systemd-analyze verify (or equivalent static parse) succeeds on both new unit files",
+          "both units follow juli-api.service's exact pattern: ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh, EnvironmentFile=/etc/juli/api.env, WorkingDirectory=/root/releases/current, User=root, Restart=on-failure, RestartSec=5",
+          "ExecStart uses the real venv path (/root/releases/current/.venv/bin/celery) and the real app module (juli_backend.workers.celery_app), matching juli-api.service's ExecStart convention of pointing at /root/releases/current/.venv/bin/",
+          "juli-celery-beat.service does not redefine or hardcode a schedule — it only runs `celery ... beat`, relying entirely on celery_app.py's existing beat_schedule dict",
+          "neither unit is referenced by, added to, or made a dependency of deploy-release.sh, release.yml, or any existing unit's WantedBy/After chain — confirming both are inert until a human manually installs them"
+        ]
+      },
+      {
+        "name": "runbook-and-env-example-docs-only",
+        "entryUrl": "docs/runbooks/app-review-runbook.md, infra/scripts/env/api.env.example",
+        "assertions": [
+          "the runbook diff is additive documentation only: redis-server added to the Step 1 package list, two new `sudo cp` lines in Step 4, two new rows in the 'Config files in this directory' table, new journalctl examples in 'Log commands' — no change to any script or to the 5 existing units' documented content",
+          "the env-example diff only changes the surrounding comment/guidance text for REDIS_URL/CELERY_BROKER_URL/CELERY_RESULT_BACKEND (from 'leave unset' to actionable uncomment instructions) — it does not change CORS_ALLOW_ORIGINS or any other existing key's example value",
+          "existing Step 4 install commands for juli-api/juli-web/secrets-refresh/restore-drill remain byte-for-byte unchanged aside from the appended new lines"
+        ]
+      },
+      {
+        "name": "no-deploy-pipeline-or-application-code-change",
+        "entryUrl": "infra/scripts/deploy-release.sh, .github/workflows/release.yml, backend/src/juli_backend/**",
+        "assertions": [
+          "neither deploy-release.sh nor release.yml is modified by this PR — confirmed via diff; the existing deploy/restart/health-check flow for juli-api and juli-web is untouched",
+          "no file under backend/src/juli_backend/ is modified — this PR is infra/docs-only, per the parent scope block",
+          "this PR's merge to main and any subsequent deploy-release.sh run does not start, stop, or reconfigure any currently-running process"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "N/A — this issue touches no HTML-serving route; infra/systemd units + docs/env-example guidance only, no apps/demo or apps/dashboard file changed"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "N/A"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No Alembic migration in this PR and no database schema change. Once a human later enables these units on the VPS, they invoke existing Celery tasks (e.g. mock_analytics_hourly_reconcile) against the existing schema via existing repositories — no new schema dependency introduced here. New unit files reference only environment variables already documented in infra/scripts/env/api.env.example (REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND) — no new, previously-undocumented secret key introduced by this PR."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "There is no cutover in this PR — the new unit files are not referenced anywhere in the automated deploy path, so a defect found in review is simply fixed before merge; there is no live-traffic risk either way since nothing auto-activates.",
+    "postCutoverFailureBehavior": "Not applicable to this PR's automated deploy — merging and deploying it does not start any new process. If, after a human LATER manually installs redis-server and enables these units on the VPS (a separate, explicitly out-of-scope-here action), the worker/beat process misbehaves, the rollback is `sudo systemctl disable --now juli-celery-worker juli-celery-beat` — a simple, always-available stop, since these are brand-new units with no prior state or in-flight work to reconcile. juli-api and juli-web are entirely unaffected either way.",
+    "retainedStableRequired": false,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_phase_2_5_deploy_config.py -q",
+    "ruff check backend tests scripts",
+    "ruff format --check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "Do not add the new units to infra/scripts/deploy-release.sh's automated flow in this PR — installation stays a documented manual step per the runbook, matching how the existing 5 units were bootstrapped.",
+    "Do not invent a Celery Beat schedule value beyond what celery_app.py's beat_schedule dict already declares — if code declares no schedule for some future task, do not add one to the systemd unit or runbook; that is a separate, later decision.",
+    "Do not SSH to, enable, start, or otherwise touch the live VPS from this coding session — no VPS access exists here; activation is an explicit human follow-up step, not part of this issue's acceptance criteria.",
+    "Do not change infra/scripts/deploy-release.sh, .github/workflows/release.yml, or any file under backend/src/juli_backend/ — this issue is systemd units + docs/env-example guidance only."
+  ]
+}
