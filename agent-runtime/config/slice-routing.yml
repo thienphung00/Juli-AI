@@ -3,6 +3,26 @@
 # Add a row here before relying on a new slice in workflow cache.
 # doNotLoad web/ — legacy App Review static bundle; product UI is apps/demo + apps/dashboard.
 
+INFRA-1:
+  executorDomain: backend
+  requiredDocs:
+    - docs/runbooks/app-review-runbook.md
+    - docs/adr/020-vps-ssh-continuous-delivery-and-secrets-manager.md
+    - CONTEXT.md
+  requiredModules:
+    - infra/systemd/
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py
+  loadWhenNeeded:
+    - infra/scripts/deploy-release.sh
+    - infra/scripts/fetch-secrets.sh
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
 CI-WAVE-1:
   executorDomain: backend
   requiredDocs:
