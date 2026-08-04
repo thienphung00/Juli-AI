@@ -10,6 +10,7 @@ import { RecommendationsView } from "../components/recommendations-view";
 import { recommendationFixtures } from "../lib/recommendations";
 
 const push = vi.fn();
+const replace = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useSearchParams: vi.fn(),
@@ -20,7 +21,7 @@ vi.mock("next/navigation", () => ({
     prefetch: vi.fn(),
     push,
     refresh: vi.fn(),
-    replace: vi.fn(),
+    replace,
   })),
 }));
 
@@ -499,5 +500,189 @@ describe("Decisions — Recommendations", () => {
     expect(scrollSpy).toHaveBeenCalledWith(
       expect.objectContaining({ behavior: "auto" }),
     );
+  });
+
+  describe("Header density — stat row", () => {
+    it("renders a stat row directly under the header showing open recommendations and in-progress counts", () => {
+      renderView();
+
+      const statRow = screen.queryByRole("region", {
+        name: /Tóm tắt quyết định/i,
+      });
+      expect(statRow).toBeInTheDocument();
+    });
+
+    it("displays open recommendations count (all fixtures minus rejected/approved)", () => {
+      renderView();
+
+      const allCount = recommendationFixtures.length;
+      const statRow = screen.queryByRole("region", {
+        name: /Tóm tắt quyết định/i,
+      });
+
+      expect(statRow?.textContent).toMatch(new RegExp(String(allCount)));
+    });
+
+    it("displays in-progress count (0 on fresh render)", () => {
+      renderView();
+
+      const statRow = screen.queryByRole("region", {
+        name: /Tóm tắt quyết định/i,
+      });
+      expect(statRow?.textContent).toMatch("0");
+    });
+
+    it("updates open count after rejecting a recommendation", async () => {
+      const user = userEvent.setup();
+      renderView();
+
+      const card = findCard(recommendationFixtures[0].workflowKey) as HTMLElement;
+      await user.click(within(card).getByRole("button", { name: "Từ chối" }));
+
+      const statRow = screen.queryByRole("region", {
+        name: /Tóm tắt quyết định/i,
+      });
+      expect(statRow?.textContent).toMatch(
+        new RegExp(String(recommendationFixtures.length - 1)),
+      );
+    });
+
+    it("stat row contains no interactive elements (buttons or links)", () => {
+      renderView();
+
+      const statRow = screen.queryByRole("region", {
+        name: /Tóm tắt quyết định/i,
+      });
+      expect(statRow).toBeInTheDocument();
+
+      const buttons = statRow?.querySelectorAll("button");
+      const links = statRow?.querySelectorAll("a");
+
+      expect(buttons?.length ?? 0).toBe(0);
+      expect(links?.length ?? 0).toBe(0);
+    });
+
+    it("stat row labels fit within 3-word budget per stat", () => {
+      renderView();
+
+      const statRow = screen.queryByRole("region", {
+        name: /Tóm tắt quyết định/i,
+      });
+      const text = statRow?.textContent ?? "";
+
+      // Labels should be concise: "Đề xuất mở" (2 words) and "Đang thực hiện" (2 words)
+      const labels = text.split(/[\n\t]+/).filter((t) => t.trim().length > 0);
+      expect(labels.some((l) => l.length <= 30)).toBe(true); // ~3 words
+    });
+  });
+
+  describe("Layout density — intro paragraph removal", () => {
+    it("does not render the standalone demo-intro paragraph", () => {
+      renderView();
+
+      const introParagraph = screen.queryByText(
+        /Xem các đề xuất Juli phát hiện được/,
+      );
+      expect(introParagraph).not.toBeInTheDocument();
+    });
+
+    it("preserves kicker and title while removing intro", () => {
+      renderView();
+
+      expect(screen.getByText("Quyết định")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Việc cần bạn quyết định" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Sub-tab deep linking via ?tab= query param", () => {
+    it("renders Recommendations tab active by default (/decisions)", () => {
+      mockHighlight("");
+      renderView();
+
+      const recTab = screen.getByRole("button", { name: "Đề xuất" });
+      expect(recTab).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("renders In Progress tab active when /decisions?tab=in-progress", () => {
+      mockHighlight("tab=in-progress");
+      renderView();
+
+      const inProgressTab = screen.getByRole("button", {
+        name: "Đang thực hiện",
+      });
+      expect(inProgressTab).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("renders Recommendations tab active when /decisions?tab=recommendations", () => {
+      mockHighlight("tab=recommendations");
+      renderView();
+
+      const recTab = screen.getByRole("button", { name: "Đề xuất" });
+      expect(recTab).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("falls back to Recommendations for unknown ?tab= values", () => {
+      mockHighlight("tab=unknown_value");
+      renderView();
+
+      const recTab = screen.getByRole("button", { name: "Đề xuất" });
+      expect(recTab).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("clicking Recommendations tab updates URL with ?tab=recommendations", async () => {
+      const user = userEvent.setup();
+      mockHighlight("tab=in-progress");
+      replace.mockClear();
+      renderView();
+
+      const recTab = screen.getByRole("button", { name: "Đề xuất" });
+      await user.click(recTab);
+
+      expect(replace).toHaveBeenCalledWith(expect.stringContaining("tab="));
+    });
+
+    it("clicking In Progress tab updates URL with ?tab=in-progress", async () => {
+      const user = userEvent.setup();
+      mockHighlight("");
+      replace.mockClear();
+      renderView();
+
+      const inProgressTab = screen.getByRole("button", {
+        name: "Đang thực hiện",
+      });
+      await user.click(inProgressTab);
+
+      expect(replace).toHaveBeenCalledWith(expect.stringContaining("tab="));
+    });
+
+    it("combines ?tab= with existing ?highlight= param", () => {
+      const target = recommendationFixtures[4];
+      mockHighlight(`tab=recommendations&highlight=${target.workflowKey}`);
+      renderView();
+
+      const recTab = screen.getByRole("button", { name: "Đề xuất" });
+      expect(recTab).toHaveAttribute("aria-pressed", "true");
+      expect(document.activeElement).toBe(findCard(target.workflowKey));
+    });
+
+    it("mutableState.decisionsView stays in sync with URL ?tab= param", async () => {
+      const user = userEvent.setup();
+      mockHighlight("tab=in-progress");
+      const { unmount } = renderView();
+
+      const inProgressTab = screen.getByRole("button", {
+        name: "Đang thực hiện",
+      });
+      expect(inProgressTab).toHaveAttribute("aria-pressed", "true");
+
+      unmount();
+      mockHighlight("");
+      renderView();
+
+      const recTab = screen.getByRole("button", { name: "Đề xuất" });
+      expect(recTab).toHaveAttribute("aria-pressed", "true");
+    });
   });
 });
