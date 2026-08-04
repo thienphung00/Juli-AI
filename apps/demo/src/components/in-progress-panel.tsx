@@ -226,13 +226,11 @@ export function InProgressPanel({ panelId }: InProgressPanelProps) {
     // Dry-run only: mutate local execution records
     updateMutableState((prev) => {
       const { [executionId]: _, ...restRecords } = prev.executionRecords;
+      const { [executionId]: __, ...restProgress } = prev.executionProgress;
       return {
         ...prev,
         executionRecords: restRecords,
-        executionProgress: {
-          ...prev.executionProgress,
-          [executionId]: undefined,
-        },
+        executionProgress: restProgress,
       };
     });
   };

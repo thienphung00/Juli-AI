@@ -322,7 +322,7 @@ describe("In Progress list and detail shells", () => {
     renderInProgressPanel();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Hủy" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Hủy/ })).toBeInTheDocument();
     });
   });
 
@@ -403,11 +403,11 @@ describe("In Progress list and detail shells", () => {
     renderInProgressPanel();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Hủy" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Hủy/ })).toBeInTheDocument();
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Hủy" }));
+    await user.click(screen.getByRole("button", { name: /^Hủy/ }));
 
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
@@ -433,7 +433,7 @@ describe("In Progress list and detail shells", () => {
     renderInProgressPanel();
 
     const placeholder = screen.getByRole("status", { name: "Đang thực hiện" });
-    expect(within(placeholder).getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây")).toBeInTheDocument();
+    expect(within(placeholder).getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây.")).toBeInTheDocument();
     // Old copy should not be present
     expect(within(placeholder).queryByText(/Sắp ra mắt/)).not.toBeInTheDocument();
     expect(within(placeholder).queryByText(/trong một bản cập nhật tiếp theo/)).not.toBeInTheDocument();
@@ -443,7 +443,7 @@ describe("In Progress list and detail shells", () => {
     renderInProgressPanel();
 
     const placeholder = screen.getByRole("status", { name: "Đang thực hiện" });
-    expect(within(placeholder).getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây")).toBeInTheDocument();
+    expect(within(placeholder).getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây.")).toBeInTheDocument();
     expect(within(placeholder).getByRole("heading", { level: 2 })).toHaveTextContent(
       "Đang thực hiện",
     );
@@ -460,7 +460,7 @@ describe("In Progress list and detail shells", () => {
 
     await user.click(screen.getByRole("button", { name: "Đang thực hiện" }));
 
-    expect(screen.getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây")).toBeInTheDocument();
+    expect(screen.getByText("Công việc đã phê duyệt sẽ xuất hiện ở đây.")).toBeInTheDocument();
   });
 
   it("renders lifecycle badge with appropriate variant for each card", async () => {
