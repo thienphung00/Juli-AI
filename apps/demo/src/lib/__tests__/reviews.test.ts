@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { MAIN_KPI_ORDER } from "../analytics/main-kpis";
 import { recommendationFixtures } from "../recommendations";
 import {
+  APPROVABLE_WORKFLOW_KEYS,
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
   PREVENT_CANCELLATION_WORKFLOW_KEY,
   PREVENT_REFUND_WORKFLOW_KEY,
@@ -12,6 +14,16 @@ import {
   getWorkflowReviewStages,
   isReviewExecutableWorkflow,
 } from "../reviews";
+import { getOptimizeProductReviewStages } from "../workflows/optimize-product/review";
+import { getReplenishInventoryReviewStages } from "../workflows/replenish-inventory/review";
+import { getClearExcessReviewStages } from "../workflows/clear-excess/review";
+import { getProcessOrderReviewStages } from "../workflows/process-order/review";
+import { getCreateActivityReviewStages } from "../workflows/create-activity/review";
+import { getUpdateActivityReviewStages } from "../workflows/update-activity/review";
+import { getDeleteActivityReviewStages } from "../workflows/delete-activity/review";
+import { getPreventCancellationReviewStages } from "../workflows/prevent-cancellation/review";
+import { getPreventReturnReviewStages } from "../workflows/prevent-return/review";
+import { getPreventRefundReviewStages } from "../workflows/prevent-refund/review";
 
 describe("getWorkflowReviewStages", () => {
   it("returns five stages for workflow 1 with analytics deep-link", () => {
@@ -122,5 +134,73 @@ describe("getWorkflowReviewStages", () => {
     expect(isReviewExecutableWorkflow(PREVENT_RETURN_FBT_INTAKE_KEY)).toBe(
       false,
     );
+  });
+});
+
+describe("Analytics metric key validation across all workflows", () => {
+  it("ensures every approvable workflow's default analyticsMetricKey is valid in the Demo catalog", () => {
+    const workflowFunctionMap = {
+      optimize_product_2: getOptimizeProductReviewStages,
+      replenish_inventory_3: getReplenishInventoryReviewStages,
+      clear_excess_4: getClearExcessReviewStages,
+      process_order_5: getProcessOrderReviewStages,
+      create_activity_7a: getCreateActivityReviewStages,
+      update_activity_7c: getUpdateActivityReviewStages,
+      delete_activity_7b: getDeleteActivityReviewStages,
+      prevent_cancellation_8a: getPreventCancellationReviewStages,
+      prevent_return_8b: getPreventReturnReviewStages,
+      prevent_refund_8c: getPreventRefundReviewStages,
+      create_hero_product_1: () => getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY),
+    };
+
+    for (const workflowKey of APPROVABLE_WORKFLOW_KEYS) {
+      const stageFn = workflowFunctionMap[workflowKey as keyof typeof workflowFunctionMap];
+      expect(stageFn, `${workflowKey} must have a workflow function`).toBeDefined();
+
+      const stages = stageFn();
+      const analyticsStage = stages.find((stage) => stage.stage === "analytics");
+
+      expect(
+        analyticsStage?.analyticsMetricKey,
+        `${workflowKey} must have an analyticsMetricKey`,
+      ).toBeDefined();
+
+      const metricKey = analyticsStage?.analyticsMetricKey;
+      expect(
+        (MAIN_KPI_ORDER as readonly string[]).includes(metricKey ?? ""),
+        `${workflowKey} analytics metric key "${metricKey}" must be in MAIN_KPI_ORDER: ${MAIN_KPI_ORDER.join(", ")}`,
+      ).toBe(true);
+    }
+  });
+
+  it("ensures every analytics stage has an href matching the analyticsMetricKey", () => {
+    const workflowFunctionMap = {
+      optimize_product_2: getOptimizeProductReviewStages,
+      replenish_inventory_3: getReplenishInventoryReviewStages,
+      clear_excess_4: getClearExcessReviewStages,
+      process_order_5: getProcessOrderReviewStages,
+      create_activity_7a: getCreateActivityReviewStages,
+      update_activity_7c: getUpdateActivityReviewStages,
+      delete_activity_7b: getDeleteActivityReviewStages,
+      prevent_cancellation_8a: getPreventCancellationReviewStages,
+      prevent_return_8b: getPreventReturnReviewStages,
+      prevent_refund_8c: getPreventRefundReviewStages,
+      create_hero_product_1: () => getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY),
+    };
+
+    for (const workflowKey of APPROVABLE_WORKFLOW_KEYS) {
+      const stageFn = workflowFunctionMap[workflowKey as keyof typeof workflowFunctionMap];
+      const stages = stageFn();
+      const analyticsStage = stages.find((stage) => stage.stage === "analytics");
+
+      expect(
+        analyticsStage?.analyticsMetricHref,
+        `${workflowKey} must have an analyticsMetricHref`,
+      ).toBeDefined();
+
+      expect(analyticsStage?.analyticsMetricHref).toBe(
+        `/analytics/${analyticsStage?.analyticsMetricKey}`,
+      );
+    }
   });
 });

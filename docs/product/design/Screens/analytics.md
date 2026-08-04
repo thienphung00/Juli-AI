@@ -9,23 +9,26 @@
 
 **Điều gì đang xảy ra trong shop của tôi?**
 
-The first view is a six-Main-KPI selector, not a generic metric wall. It gives
+The first view is a five-Main-KPI selector, not a generic metric wall. It gives
 one KPI enough space for interpretation while keeping the other categories
 visible.
+
+**Scope note:** This section documents the **apps/demo** Analytics Main KPI set
+(five metrics: GMV (TikTok), AOV, CTOR, LIVE hours, cancellation-rate). The
+**apps/dashboard** product retains the ADR-023 six-KPI catalog per ADR-049
+Decision 1.
 
 ## Main KPI set
 
 | Stable `metricKey` | Category | KPI | Availability | Hero chart from `docs/ml/visual_layer.md` |
 |---|---|---|---|---|
-| `sps` | Shop Status | SPS | Unavailable | Horizontal health bar |
-| `net-revenue` | Revenue | Net Revenue | Available; default | Actual-vs-Forecast line + interval |
-| `roas` | Ads | ROAS | Unavailable | Actual-vs-Forecast line |
-| `inventory-turnover` | Inventory | Inventory Turnover | Available | Trend line + forecast |
-| `fulfillment-accuracy-rate` | Operations | Fulfillment Accuracy Rate | Available | Gauge |
-| `csat` | Customer Service | CSAT | Unavailable | Gauge |
+| `gmv-tiktok` | Doanh thu (Revenue) | GMV (TikTok) | Available; default | Actual-vs-Forecast line |
+| `aov` | Doanh thu (Revenue) | AOV | Available | Actual-vs-Forecast line |
+| `ctor` | Quản lý sản phẩm (Product Management) | CTOR (click→đơn) | Available | Trend line + forecast |
+| `live-hours` | LIVE Shopping | LIVE hours | Available | Actual-vs-Forecast line |
+| `cancellation-rate` | Quản lý đơn hàng (Order Management) | Tỷ lệ hủy đơn | Available | Gauge |
 
-`SPS`, `ROAS`, and `CSAT` remain visible but non-selectable until their required
-sources are connected. They never render fixture values or zeroed charts.
+All five metrics are available and selectable.
 
 ## Layout
 
@@ -38,21 +41,21 @@ sources are connected. They never render fixture values or zeroed charts.
 │ what changed → risk → action  │ comparison overlay optional│
 │ source + freshness            │                            │
 └───────────────────────────────┴────────────────────────────┘
-┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│ Main KPI card    │ │ Main KPI card    │ │ Main KPI card    │
-│ preview / empty  │ │ preview / empty  │ │ preview / empty  │
-└──────────────────┘ └──────────────────┘ └──────────────────┘
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│ Main KPI card    │ │ Main KPI card    │ │ Main KPI card    │ │ Main KPI card    │
+│ preview / empty  │ │ preview / empty  │ │ preview / empty  │ │ preview / empty  │
+└──────────────────┘ └──────────────────┘ └──────────────────┘ └──────────────────┘
 ```
 
-- Default selection: **Net Revenue** at `/analytics/net-revenue`.
+- Default selection: **GMV (TikTok)** at `/analytics/gmv-tiktok`.
 - Default global range: **30 ngày**.
 - Wide view: the hero has summary, signal, provenance, and controls on the left;
   chart on the right. Narrow view: both hero columns and the card grid collapse
   to one column.
-- The five non-selected Main KPIs appear in a responsive selector grid.
+- The four non-selected Main KPIs appear in a responsive selector grid.
 - Selecting an available card moves it into the hero and returns the previously
   selected KPI to the grid. This is a literal swap; there are always one hero
-  and five cards.
+  and four cards.
 - Selection updates `/analytics/[metricKey]` and browser history. Back/forward
   navigation restores the selected KPI without resetting the global range.
 
@@ -105,19 +108,19 @@ Unavailable cards:
 
 ## Screen states
 
-1. **Loaded** — one available hero plus five selector cards.
-2. **Loading** — stable hero and five-card skeletons; no layout jump.
+1. **Loaded** — one available hero plus four selector cards.
+2. **Loading** — stable hero and four-card skeletons; no layout jump.
 3. **Unavailable card** — neutral empty chart, status label, and explanation.
 4. **Partial data** — available window renders with incomplete source/window label.
 5. **Error** — preserve selected KPI and range; state the problem and offer retry.
 6. **Invalid deep link** — keep the URL understandable, explain the missing KPI,
-   and offer Net Revenue; do not silently select a different metric.
+   and offer GMV (TikTok); do not silently select a different metric.
 
 ## Acceptance checklist
 
-- Exactly six Main KPIs, one hero, and five cards.
-- Net Revenue and 30 days are the defaults.
-- SPS, ROAS, and CSAT are visibly unavailable and non-selectable.
+- Exactly five Main KPIs, one hero, and four cards (apps/demo only).
+- GMV (TikTok) and 30 days are the defaults.
+- All five KPIs are available and selectable.
 - Available selection swaps literally and updates browser history.
 - Global range updates hero and previews; comparison remains hero-only.
 - Every chart matches `visual_layer.md`; no fabricated data appears.

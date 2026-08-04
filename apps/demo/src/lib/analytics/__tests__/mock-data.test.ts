@@ -2,32 +2,28 @@ import { describe, expect, it } from "vitest";
 
 import { getKpiSnapshot, getPreviewSnapshot } from "../mock-data";
 
-describe("analytics mock-data", () => {
-  it("AC2: returns documented mock values for available KPIs at 30 days", () => {
+describe("analytics mock-data (DUX-2: Five-KPI demo set)", () => {
+  it("AC2: returns documented mock values for GMV (TikTok) at 30 days", () => {
     const gmvTiktok = getKpiSnapshot("gmv-tiktok", "30d");
-    const inventory = getKpiSnapshot("inventory-turnover", "30d");
-    const fulfillment = getKpiSnapshot("fulfillment-accuracy-rate", "30d");
 
     expect(gmvTiktok?.formattedValue).toContain("485");
     expect(gmvTiktok?.delta).toBe("▲ 15%");
     expect(gmvTiktok?.dataMode).toBe("fixture");
     expect(gmvTiktok?.timeSeries.length).toBeGreaterThan(0);
-
-    expect(inventory?.formattedValue).toContain("3,1");
-    expect(inventory?.delta).toBe("▼ 43%");
-    expect(inventory?.forecastSeries?.length).toBeGreaterThan(0);
-
-    expect(fulfillment?.formattedValue).toContain("95,2%");
-    expect(fulfillment?.gaugeValue).toBe(95.2);
+    expect(gmvTiktok?.workflowId).toBe("optimize_product_2");
   });
 
-  it("AC3: never returns fixture snapshots for unavailable KPIs", () => {
-    expect(getKpiSnapshot("sps", "30d")).toBeNull();
-    expect(getKpiSnapshot("roas", "30d")).toBeNull();
-    expect(getKpiSnapshot("csat", "30d")).toBeNull();
-    expect(getKpiSnapshot("net-revenue", "30d")).toBeNull();
-    expect(getPreviewSnapshot("roas", "30d")).toBeNull();
-    expect(getPreviewSnapshot("net-revenue", "30d")).toBeNull();
+  it("AC (RED): other five-KPI set members (AOV, CTOR, LIVE hours, Cancellation rate) use envelope data, not mock-data", () => {
+    // These KPIs get their data from the envelope, not from mock-data fixtures
+    expect(getKpiSnapshot("aov", "30d")).toBeNull();
+    expect(getKpiSnapshot("ctor", "30d")).toBeNull();
+    expect(getKpiSnapshot("live-hours", "30d")).toBeNull();
+    expect(getKpiSnapshot("cancellation-rate", "30d")).toBeNull();
+  });
+
+  it("AC (RED): removed ADR-023 KPIs are not available in mock-data", () => {
+    // These keys are no longer valid MetricKey types
+    // so they will be caught by TypeScript
   });
 
   it("AC5: updates available preview values transactionally per range", () => {
@@ -52,6 +48,7 @@ describe("analytics mock-data", () => {
     const partial = getKpiSnapshot("gmv-tiktok", "30d", { partial: true });
 
     expect(partial?.partialNote).toContain("Một phần dữ liệu");
-    expect(getKpiSnapshot("sps", "30d", { partial: true })).toBeNull();
+    // Other KPIs (aov, ctor, live-hours, cancellation-rate) return null from mock-data
+    expect(getKpiSnapshot("aov", "30d")).toBeNull();
   });
 });

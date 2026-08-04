@@ -171,23 +171,31 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
                 className="demo-review__inputs"
                 onSubmit={(event) => event.preventDefault()}
               >
-                {currentStage.inputFields?.map((field) => (
-                  <TextField
-                    disabled={field.editable === false}
-                    key={field.key}
-                    label={field.label}
-                    onChange={(event) =>
-                      handleInputChange(field.key, event.target.value)
-                    }
-                    readOnly={field.editable === false}
-                    required={field.required}
-                    value={
-                      mutableState.workflowReviewDrafts[workflowKey]?.[
-                        field.key
-                      ] ?? field.prefillValue
-                    }
-                  />
-                ))}
+                {currentStage.inputFields?.map((field) => {
+                  const currentValue =
+                    mutableState.workflowReviewDrafts[workflowKey]?.[
+                      field.key
+                    ] ?? field.prefillValue;
+                  const isSuggestion =
+                    field.editable !== false &&
+                    field.prefillValue !== "" &&
+                    currentValue === field.prefillValue;
+
+                  return (
+                    <TextField
+                      disabled={field.editable === false}
+                      key={field.key}
+                      label={field.label}
+                      onChange={(event) =>
+                        handleInputChange(field.key, event.target.value)
+                      }
+                      readOnly={field.editable === false}
+                      required={field.required}
+                      suggestion={isSuggestion}
+                      value={currentValue}
+                    />
+                  );
+                })}
               </form>
             </>
           ) : null}

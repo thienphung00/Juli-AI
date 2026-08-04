@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { fetchDemoAnalytics } from "./api-client";
+import { createFallbackDemoAnalyticsEnvelope } from "./fallback-envelope";
 import type { AnalyticsRange } from "./main-kpis";
 
 export type AnalyticsDataStatus = "idle" | "loading" | "ready" | "error";
@@ -47,7 +48,12 @@ export function AnalyticsDataProvider({ children }: { children: ReactNode }) {
         setEnvelope(nextEnvelope);
         setStatus("ready");
       } catch {
-        setStatus("error");
+        // Fallback to interim envelope when API is unavailable (ADR-046, ADR-049)
+        // This prevents the error hero from being displayed and provides a stable
+        // UX while the live API is unreachable.
+        const fallbackEnvelope = createFallbackDemoAnalyticsEnvelope();
+        setEnvelope(fallbackEnvelope);
+        setStatus("ready");
       } finally {
         inFlightRef.current = null;
       }

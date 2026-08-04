@@ -1,0 +1,19 @@
+DUX-5:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/design/Screens/decisions.md
+    - docs/product/design/design.md
+    - docs/product/design/Components/home-activity-tracker.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/components/recommendations-view.tsx
+  loadWhenNeeded:
+    - apps/demo/src/components/in-progress-panel.tsx
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - Sibling issue context caches

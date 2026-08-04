@@ -9,7 +9,7 @@ import {
 
 export const UPDATE_ACTIVITY_WORKFLOW_KEY = "update_activity_7c";
 export const UPDATE_ACTIVITY_TOOL_NAME = "promotion.update_activity";
-export const defaultUpdateActivityAnalyticsMetricKey = "revenue-by-sku";
+export const defaultUpdateActivityAnalyticsMetricKey = "ctor";
 
 const updateActivityFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === UPDATE_ACTIVITY_WORKFLOW_KEY,

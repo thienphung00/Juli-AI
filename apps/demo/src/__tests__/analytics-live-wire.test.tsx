@@ -62,7 +62,7 @@ describe("Analytics live wire (#534)", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders live GMV from GET /v1/demo/analytics with truthful unavailable KPIs", async () => {
+  it("renders live GMV from GET /v1/demo/analytics with five-KPI Demo set (DUX-2)", async () => {
     const fetchMock = installAnalyticsFetch();
 
     render(
@@ -76,11 +76,16 @@ describe("Analytics live wire (#534)", () => {
     );
     expect(screen.getByText("Dữ liệu thực")).toBeInTheDocument();
 
+    // Removed KPIs are not rendered at all (not ADR-023 six-card set)
     for (const key of ["sps", "roas", "csat"] as const) {
-      const card = screen.getByTestId(`analytics-kpi-card-${key}`);
-      expect(card).toHaveClass("analytics-kpi-card--unavailable");
-      expect(within(card).getByText("Chưa khả dụng")).toBeInTheDocument();
+      expect(screen.queryByTestId(`analytics-kpi-card-${key}`)).not.toBeInTheDocument();
     }
+
+    // Five-KPI selector cards exist
+    expect(screen.getByTestId("analytics-kpi-card-aov")).toBeInTheDocument();
+    expect(screen.getByTestId("analytics-kpi-card-ctor")).toBeInTheDocument();
+    expect(screen.getByTestId("analytics-kpi-card-live-hours")).toBeInTheDocument();
+    expect(screen.getByTestId("analytics-kpi-card-cancellation-rate")).toBeInTheDocument();
 
     expect(
       screen.getByTestId("analytics-supplementary-product_funnel"),
@@ -100,7 +105,7 @@ describe("Analytics live wire (#534)", () => {
 
     render(
       <DemoShell>
-        <AnalyticsDashboard metricKey="inventory-turnover" />
+        <AnalyticsDashboard metricKey="aov" />
         <AnalyticsStateProbe />
       </DemoShell>,
     );
@@ -130,14 +135,8 @@ describe("Analytics live wire (#534)", () => {
     expect(replace).toHaveBeenCalledWith("/decisions");
   });
 
-  it("shows error state when analytics fetch fails and supports retry", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("network"))
-      .mockImplementationOnce(createMockFetchResponse());
-
-    vi.stubGlobal("fetch", fetchMock);
+  it("shows fallback envelope when analytics fetch fails (ADR-046 / DUX-1 #690)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network"))));
 
     render(
       <DemoShell>
@@ -145,11 +144,15 @@ describe("Analytics live wire (#534)", () => {
       </DemoShell>,
     );
 
+    // Fallback envelope should be used when fetch fails
+    // Should NOT show the error hero (ADR-046 / DUX-1 #690)
     expect(
-      await screen.findByText(/Chưa thể tải dữ liệu KPI/),
-    ).toBeInTheDocument();
+      screen.queryByText(/Chưa thể tải dữ liệu KPI/),
+    ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Thử lại" }));
-    expect(await screen.findByText("485.000.000 ₫")).toBeInTheDocument();
+    // Should render GMV hero and chart from fallback envelope
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("GMV (TikTok)");
+    expect(screen.getByTestId("analytics-chart-chrome")).toBeInTheDocument();
   });
 });

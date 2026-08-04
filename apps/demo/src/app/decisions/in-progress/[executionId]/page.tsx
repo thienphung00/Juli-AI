@@ -2,21 +2,14 @@
 
 import type { ExecutionRecord } from "@juli/contracts";
 import {
+  Badge,
   Button,
   Card,
   CardBody,
   CardHeader,
   CardTitle,
   PageHeader,
-  StatusChip,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "@juli/ui";
-import { formatDateTime } from "@juli/utils";
 import { useParams } from "next/navigation";
 
 import { DestinationPlaceholder } from "../../../../components/destination-placeholder";
@@ -25,11 +18,13 @@ import {
   STEP_KIND_LABELS,
   STEP_STATUS_LABELS,
   getLifecycleChipVariant,
-  getWorkflowCapability,
   getWorkflowTitle,
+  getCurrentStepLabel,
+  getNextActionText,
 } from "../../../../components/in-progress-panel";
 import { useDemoState } from "../../../../components/demo-state";
 import { getWorkflowReviewStages } from "../../../../lib/reviews";
+import { sanitizeSellerReviewText } from "../../../../lib/review-seller-copy";
 
 function getApprovedInputLabel(
   workflowKey: string,
@@ -42,45 +37,12 @@ function getApprovedInputLabel(
   return inputField?.label ?? inputKey;
 }
 
-function ExecutionIdentity({ record }: { record: ExecutionRecord }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{getWorkflowTitle(record.workflowKey)}</CardTitle>
-      </CardHeader>
-      <CardBody>
-        <Table aria-label="Thông tin luồng thực hiện">
-          <TableBody keyboardNav={false}>
-            <TableRow focusable={false}>
-              <TableCell label="Mã thực thi">{record.executionId}</TableCell>
-            </TableRow>
-            <TableRow focusable={false}>
-              <TableCell label="workflow_key">{record.workflowKey}</TableCell>
-            </TableRow>
-            <TableRow focusable={false}>
-              <TableCell label="Công cụ">{record.toolName}</TableCell>
-            </TableRow>
-            <TableRow focusable={false}>
-              <TableCell label="Trạng thái vòng đời">
-                <StatusChip variant={getLifecycleChipVariant(record.lifecycleStatus)}>
-                  {LIFECYCLE_STATUS_LABELS[record.lifecycleStatus]}
-                </StatusChip>
-              </TableCell>
-            </TableRow>
-            <TableRow focusable={false}>
-              <TableCell label="Khả năng">
-                {getWorkflowCapability(record.workflowKey)}
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </CardBody>
-    </Card>
-  );
-}
-
-function ApprovedInputsTable({ record }: { record: ExecutionRecord }) {
+function ApprovedInputsSummary({ record }: { record: ExecutionRecord }) {
   const entries = Object.entries(record.approvedInputs);
+
+  if (entries.length === 0) {
+    return null;
+  }
 
   return (
     <Card>
@@ -88,36 +50,22 @@ function ApprovedInputsTable({ record }: { record: ExecutionRecord }) {
         <CardTitle>Thông tin đã phê duyệt</CardTitle>
       </CardHeader>
       <CardBody>
-        <Table aria-label="Thông tin đã phê duyệt">
-          <TableHead>
-            <TableRow focusable={false}>
-              <TableHeaderCell>Trường</TableHeaderCell>
-              <TableHeaderCell>Giá trị</TableHeaderCell>
-            </TableRow>
-          </TableHead>
-          <TableBody keyboardNav={false}>
-            {entries.map(([key, value]) => (
-              <TableRow key={key} focusable={false}>
-                <TableCell label="Trường">
-                  {getApprovedInputLabel(record.workflowKey, key)}
-                </TableCell>
-                <TableCell label="Giá trị">{value}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="execution-detail__summary">
+          {entries.map(([key, value]) => (
+            <div key={key} className="execution-detail__summary-item">
+              <span className="execution-detail__label">
+                {getApprovedInputLabel(record.workflowKey, key)}
+              </span>
+              <span className="execution-detail__value">{value}</span>
+            </div>
+          ))}
+        </div>
       </CardBody>
     </Card>
   );
 }
 
-function ExecutionTimeline({
-  record,
-  onRefreshWait,
-}: {
-  record: ExecutionRecord;
-  onRefreshWait: () => void;
-}) {
+function ExecutionStepsList({ record }: { record: ExecutionRecord }) {
   return (
     <Card>
       <CardHeader>
@@ -132,54 +80,18 @@ function ExecutionTimeline({
                   Bước {step.stepNumber} · {STEP_KIND_LABELS[step.kind]}
                 </p>
                 <h3>{step.title}</h3>
-                <StatusChip
-                  variant={
-                    step.status === "failed"
-                      ? "destructive"
-                      : step.status === "succeeded"
-                        ? "success"
-                        : step.status === "running"
-                          ? "info"
-                          : "neutral"
-                  }
-                >
-                  <span aria-hidden="true">
-                    {step.status === "running"
-                      ? "● "
-                      : step.status === "succeeded"
-                        ? "✓ "
-                        : step.status === "failed"
-                          ? "✕ "
-                          : "○ "}
-                  </span>
-                  {STEP_STATUS_LABELS[step.status]}
-                </StatusChip>
-                <p className="demo-intro">{step.description}</p>
+                <p className="demo-intro">
+                  {sanitizeSellerReviewText(step.description)}
+                </p>
                 {step.recoveryText ? (
-                  <p className="demo-notice">{step.recoveryText}</p>
+                  <p className="demo-notice">
+                    {sanitizeSellerReviewText(step.recoveryText)}
+                  </p>
                 ) : null}
                 {step.errorText ? (
                   <p className="demo-notice" role="alert">
-                    {step.errorText}
+                    {sanitizeSellerReviewText(step.errorText)}
                   </p>
-                ) : null}
-                {step.kind === "wait" ? (
-                  <div>
-                    <p className="demo-intro">
-                      Sự kiện mong đợi: {step.description}
-                    </p>
-                    <p className="demo-intro">
-                      Kiểm tra lần cuối: {formatDateTime(record.updatedAt)}
-                    </p>
-                    <Button
-                      size="small"
-                      type="button"
-                      variant="secondary"
-                      onClick={onRefreshWait}
-                    >
-                      Kiểm tra lại
-                    </Button>
-                  </div>
                 ) : null}
               </article>
             </li>
@@ -206,22 +118,26 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
     );
   }
 
-  const handleRefreshWait = () => {
-    updateMutableState((current) => {
-      const currentRecord = current.executionRecords[executionId];
-      if (!currentRecord) {
-        return current;
-      }
+  const workflowTitle = getWorkflowTitle(record.workflowKey);
+  const currentStepLabel = getCurrentStepLabel(record);
+  const nextAction = getNextActionText(record);
+  const modeLabel =
+    record.lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
+  const badgeVariant: "success" | "destructive" | "warning" | "live" =
+    record.lifecycleStatus === "completed"
+      ? "success"
+      : record.lifecycleStatus === "needs_input"
+        ? "warning"
+        : "live";
 
+  const handleCancel = () => {
+    updateMutableState((prev) => {
+      const { [executionId]: _, ...restRecords } = prev.executionRecords;
+      const { [executionId]: __, ...restProgress } = prev.executionProgress;
       return {
-        ...current,
-        executionRecords: {
-          ...current.executionRecords,
-          [executionId]: {
-            ...currentRecord,
-            updatedAt: new Date().toISOString(),
-          },
-        },
+        ...prev,
+        executionRecords: restRecords,
+        executionProgress: restProgress,
       };
     });
   };
@@ -230,12 +146,67 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
     <section className="demo-decisions">
       <PageHeader
         subtitle="Theo dõi từng bước hành động, chờ và kết quả sau khi bạn phê duyệt."
-        title={getWorkflowTitle(record.workflowKey)}
+        title={workflowTitle}
       />
       <div className="demo-decisions__list">
-        <ExecutionIdentity record={record} />
-        <ApprovedInputsTable record={record} />
-        <ExecutionTimeline onRefreshWait={handleRefreshWait} record={record} />
+        {/* Main execution progress card */}
+        <Card>
+          {/* Mode strip */}
+          <div className="execution-card__mode-strip">
+            <span className="execution-card__mode-label">{modeLabel}</span>
+          </div>
+
+          {/* Card Header */}
+          <CardHeader>
+            <div className="execution-card__header-row">
+              <CardTitle>{workflowTitle}</CardTitle>
+              <Badge variant={badgeVariant}>
+                {LIFECYCLE_STATUS_LABELS[record.lifecycleStatus]}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          {/* Card Body */}
+          <CardBody>
+            {/* Narrative step line */}
+            <div className="execution-card__step-line">
+              <p>{currentStepLabel}</p>
+              {record.lifecycleStatus === "executing" && (
+                <span className="execution-card__duration">5–10 phút</span>
+              )}
+            </div>
+
+            {/* Next action / recovery text */}
+            {nextAction && (
+              <div className="execution-card__next-action">
+                <p>{nextAction}</p>
+              </div>
+            )}
+
+            {/* Policy line */}
+            <div className="execution-card__policy-line">
+              <p>Đã kiểm tra chính sách TikTok Shop</p>
+            </div>
+
+            {/* Cancel/Rollback button */}
+            <div className="execution-card__actions">
+              <Button
+                variant="secondary"
+                size="small"
+                onClick={handleCancel}
+                aria-label={`Hủy ${workflowTitle}`}
+              >
+                Hủy
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* Approved inputs summary */}
+        <ApprovedInputsSummary record={record} />
+
+        {/* Timeline/steps */}
+        <ExecutionStepsList record={record} />
       </div>
     </section>
   );

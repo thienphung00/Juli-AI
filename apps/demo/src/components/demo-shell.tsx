@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { demoDestinations } from "../lib/mock-data";
+import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
 import { DemoStateProvider, useDemoState } from "./demo-state";
 
@@ -13,7 +14,7 @@ const assistanceByPath = {
   "/": {
     destination: "Trang chủ",
     message:
-      "Bạn có thể bắt đầu với Quyết định để xem việc cần làm, hoặc mở Phân tích để hiểu điều đang diễn ra trong shop.",
+      "Juli là trợ lý phân tích và tự động hóa của bạn, giúp bạn hiểu rõ dữ liệu cửa hàng và đưa ra quyết định tối ưu.",
   },
   "/decisions": {
     destination: "Quyết định",
@@ -43,14 +44,37 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     resetMockState,
   } = useDemoState();
   const { refreshAnalytics } = useAnalyticsData();
-  const assistance =
-    pathname.startsWith("/analytics")
-      ? assistanceByPath["/analytics"]
-      : assistanceByPath[pathname as keyof typeof assistanceByPath] ??
-        assistanceByPath["/"];
+
+  // Resolve assistance by prefix matching for nested routes
+  const getAssistance = () => {
+    if (pathname.startsWith("/decisions")) {
+      return assistanceByPath["/decisions"];
+    }
+    if (pathname.startsWith("/analytics")) {
+      return assistanceByPath["/analytics"];
+    }
+    if (pathname.startsWith("/settings")) {
+      return assistanceByPath["/settings"];
+    }
+    // Exact match for home or fallback
+    return (
+      assistanceByPath[pathname as keyof typeof assistanceByPath] ??
+      assistanceByPath["/"]
+    );
+  };
+
+  const assistance = getAssistance();
+
+  // Format recommendation context message with proper sanitization and spacing
   const assistanceMessage =
-    pathname === "/decisions" && recommendationContext
-      ? `${recommendationContext.title}: ${recommendationContext.evidence} Rủi ro: ${recommendationContext.risks}`
+    pathname.startsWith("/decisions") && recommendationContext
+      ? [
+          recommendationContext.title,
+          sanitizeSellerReviewText(recommendationContext.evidence),
+          `Rủi ro: ${recommendationContext.risks}`,
+        ]
+          .filter((part) => part.trim())
+          .join("\n\n")
       : assistance.message;
 
   const handleManualRefresh = () => {
