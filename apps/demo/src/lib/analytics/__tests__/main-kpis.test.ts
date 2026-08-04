@@ -104,9 +104,9 @@ describe("getSelectorMetricKeys with trend-aware ordering (DUX-3: Downtrend emph
 
     const selectorKeys = getSelectorMetricKeys("gmv-tiktok", trends);
 
-    // ctor (negative) should appear first
+    // ctor (negative) should appear first, then neutrals (live-hours), then positives
     expect(selectorKeys[0]).toBe("ctor");
-    expect(selectorKeys).toEqual(["ctor", "aov", "cancellation-rate", "live-hours"]);
+    expect(selectorKeys).toEqual(["ctor", "live-hours", "aov", "cancellation-rate"]);
   });
 
   it("AC6 (RED): orders multiple negative trends first, then neutral, then positive", () => {

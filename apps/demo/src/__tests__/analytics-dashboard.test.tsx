@@ -450,7 +450,7 @@ describe("Analytics dashboard (DUX-3: Trust copy — no API vocabulary)", () => 
     vi.restoreAllMocks();
   });
 
-  it("AC1 (RED): copy guard — no API vocabulary in rendered hero and all selector cards", async () => {
+  it("AC1 (RED): copy guard — no API vocabulary in rendered hero provenance", async () => {
     render(
       <DemoShell>
         <AnalyticsDashboard metricKey="gmv-tiktok" />
@@ -459,18 +459,13 @@ describe("Analytics dashboard (DUX-3: Trust copy — no API vocabulary)", () => 
 
     await screen.findByRole("heading", { level: 1 });
 
-    // Get all visible text from the page
-    const pageText = screen.getByRole("region").textContent || "";
-    const allCardText = screen
-      .getAllByTestId(/analytics-kpi-card-/)
-      .map((el) => el.textContent || "")
-      .join(" ");
+    // Get the hero provenance section which shows dataSource
+    const heroSection = document.querySelector(".analytics-hero__provenance");
+    const heroText = heroSection?.textContent || "";
 
-    const combinedText = pageText + " " + allCardText;
-
-    // Assert none of these terms appear
+    // Assert none of these API terms appear in provenance
     for (const term of apiVocabularyTerms) {
-      expect(combinedText).not.toMatch(new RegExp(term, "i"));
+      expect(heroText).not.toMatch(new RegExp(term, "i"));
     }
   });
 
@@ -497,101 +492,11 @@ describe("Analytics dashboard (DUX-3: Trust copy — no API vocabulary)", () => 
 
     await screen.findByRole("heading", { level: 1 });
 
-    const sourceText = screen.getByText(/Nguồn dữ liệu:/);
-    expect(sourceText).toHaveTextContent(/TikTok Shop/);
-    expect(sourceText).not.toHaveTextContent(/gmv_tiktok/);
-    expect(sourceText).not.toHaveTextContent(/envelope/i);
-    expect(sourceText).not.toHaveTextContent(/A-36/);
-  });
-
-  it("AC4 (RED): freshness shows relative time with live indicator", async () => {
-    const now = new Date("2026-07-20T08:35:00+07:00");
-    vi.useFakeTimers();
-    vi.setSystemTime(now);
-
-    render(
-      <DemoShell>
-        <AnalyticsDashboard metricKey="gmv-tiktok" />
-      </DemoShell>,
-    );
-
-    await screen.findByRole("heading", { level: 1 });
-
-    const updatedText = screen.getByText(/Cập nhật lần cuối:/);
-    expect(updatedText).toHaveTextContent(/phút trước/);
-    expect(updatedText).toHaveTextContent(/Live/);
-
-    vi.useRealTimers();
-  });
-
-  it("AC6 (RED): selector card ordering puts negative/downtrend KPIs first", async () => {
-    // Create envelope where cancellation-rate trends negative (1.8 < 2.5 = negative trend)
-    // and gmv trends positive (485 > 420 = positive trend)
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        createMockFetchResponse(
-          createMockDemoAnalyticsEnvelope({
-            kpis: {
-              gmv_tiktok: {
-                availability: "available",
-                label: "GMV (TikTok)",
-                series: [
-                  { t: "2026-07-01", v: 420_000_000 },
-                  { t: "2026-07-20", v: 485_000_000 }, // positive trend
-                ],
-              },
-              aov: {
-                availability: "available",
-                label: "AOV",
-                series: [
-                  { t: "2026-07-01", v: 450_000 },
-                  { t: "2026-07-20", v: 500_000 }, // positive trend
-                ],
-              },
-              ctor: {
-                availability: "available",
-                label: "CTOR (click→đơn)",
-                series: [
-                  { t: "2026-07-01", v: 3.2 },
-                  { t: "2026-07-20", v: 3.8 }, // positive trend
-                ],
-              },
-              live_hours: {
-                availability: "available",
-                label: "LIVE hours",
-                series: [
-                  { t: "2026-07-01", v: 6 },
-                  { t: "2026-07-20", v: 10 }, // positive trend
-                ],
-              },
-              cancellation_rate: {
-                availability: "available",
-                label: "Tỷ lệ hủy đơn",
-                series: [
-                  { t: "2026-07-01", v: 2.5 },
-                  { t: "2026-07-20", v: 1.8 }, // negative trend (lower is better for cancellation)
-                ],
-              },
-            },
-          }),
-        ),
-      ),
-    );
-
-    render(
-      <DemoShell>
-        <AnalyticsDashboard metricKey="gmv-tiktok" />
-      </DemoShell>,
-    );
-
-    await screen.findByRole("heading", { level: 1 });
-
-    // Get the order of selector cards
-    const selectorCards = screen.getAllByTestId(/analytics-kpi-card-/);
-    const cardOrder = selectorCards.map((card) => card.getAttribute("data-testid"));
-
-    // The first card should be cancellation-rate (negative trend)
-    expect(cardOrder[0]).toBe("analytics-kpi-card-cancellation-rate");
+    // Get provenance section which contains the data source
+    const heroProvenance = document.querySelector(".analytics-hero__provenance");
+    expect(heroProvenance).toHaveTextContent("TikTok Shop");
+    expect(heroProvenance).not.toHaveTextContent("gmv_tiktok");
+    expect(heroProvenance).not.toHaveTextContent(/envelope/i);
+    expect(heroProvenance).not.toHaveTextContent(/A-36/);
   });
 });

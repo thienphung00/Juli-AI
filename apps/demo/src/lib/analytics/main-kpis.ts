@@ -122,11 +122,21 @@ export function getSelectorMetricKeys(
     return candidates;
   }
 
-  // Sort: negative/warning first (downtrend emphasis), then neutral, then positive
-  const priorityMap = { negative: 0, warning: 0, neutral: 1, positive: 2 };
-  return [...candidates].sort(
-    (a, b) =>
-      (priorityMap[trends[a] ?? "neutral"] ?? 1) -
-      (priorityMap[trends[b] ?? "neutral"] ?? 1),
-  );
+  // Partition candidates by trend priority: negative/warning first, then neutral, then positive
+  const negatives: MetricKey[] = [];
+  const neutrals: MetricKey[] = [];
+  const positives: MetricKey[] = [];
+
+  for (const key of candidates) {
+    const trend = trends[key] ?? "neutral";
+    if (trend === "negative" || trend === "warning") {
+      negatives.push(key);
+    } else if (trend === "neutral") {
+      neutrals.push(key);
+    } else {
+      positives.push(key);
+    }
+  }
+
+  return [...negatives, ...neutrals, ...positives];
 }
