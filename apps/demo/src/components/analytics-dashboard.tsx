@@ -152,7 +152,7 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
           className="analytics-skeleton analytics-skeleton--hero analytics-skeleton--shimmer"
         />
         <div className="analytics-kpi-grid">
-          {Array.from({ length: 5 }, (_, index) => (
+          {Array.from({ length: 4 }, (_, index) => (
             <LoadingSkeleton
               className="analytics-skeleton analytics-skeleton--card analytics-skeleton--shimmer"
               key={index}
