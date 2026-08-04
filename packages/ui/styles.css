@@ -969,6 +969,13 @@
   gap: var(--juli-space-2);
 }
 
+.juli-form__label-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--juli-space-2);
+}
+
 .juli-form__label {
   color: var(--juli-foreground);
   font-size: 0.875rem;
@@ -1007,6 +1014,17 @@
 .juli-form__input:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.juli-form__input--suggestion {
+  box-shadow: 0 0 0 2px var(--juli-brand-glow);
+  transition: box-shadow var(--juli-motion-fast) ease;
+}
+
+.juli-form__input--suggestion:focus-visible {
+  box-shadow:
+    0 0 0 var(--juli-focus-width) var(--juli-focus-ring),
+    0 0 0 2px var(--juli-brand-glow);
 }
 
 .juli-form__helper {
