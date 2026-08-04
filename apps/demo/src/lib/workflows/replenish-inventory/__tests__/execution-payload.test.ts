@@ -15,7 +15,7 @@ describe("buildReplenishInventoryExecutionPayload", () => {
 
     const payload = buildReplenishInventoryExecutionPayload(approvedInputs);
 
-    expect(payload.quantity).toBe(96);
+    expect(payload.quantity).toBe("96");
     expect(payload.reorder_quantity).toBeUndefined();
     expect(payload.sku_id).toBe("SKU-SPF50-001");
     expect(payload.current_stock).toBe("48");
@@ -33,7 +33,7 @@ describe("buildReplenishInventoryExecutionPayload", () => {
 
     const payload = buildReplenishInventoryExecutionPayload(approvedInputs);
 
-    expect(payload.quantity).toBe(0);
+    expect(payload.quantity).toBe("0");
     expect(payload.reorder_quantity).toBeUndefined();
   });
 
@@ -49,6 +49,6 @@ describe("buildReplenishInventoryExecutionPayload", () => {
 
     const payload = buildReplenishInventoryExecutionPayload(approvedInputs);
 
-    expect(payload.quantity).toBe(150);
+    expect(payload.quantity).toBe("150");
   });
 });
