@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 632,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py",
+      "tests/unit/test_mock_analytics_hourly_reconcile.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-632.json",
+    "sha256": "32965e60b7df54594cd99733c954889931aba74172b2f49c4324ef7320071e2c",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-03T08:09:35Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-632.json",
+    "sha256": "c90f584fd040043e437ea25294b65adc3c1b5ba230b75605f6ae0e55f31c68c1",
+    "status": "PASS"
+  },
+  "wave": "wave-a1-cdp-speed"
+}
