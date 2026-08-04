@@ -19,7 +19,7 @@ if (!clearExcessFixtureEntry) {
 
 const clearExcessFixture = clearExcessFixtureEntry;
 
-export const defaultClearExcessAnalyticsMetricKey = "stock-health";
+export const defaultClearExcessAnalyticsMetricKey = "aov";
 
 export function buildClearExcessReviewInputDefaults(): Record<string, string> {
   return {
@@ -48,7 +48,7 @@ export function getClearExcessReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI Sức khỏe tồn kho trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI AOV trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
