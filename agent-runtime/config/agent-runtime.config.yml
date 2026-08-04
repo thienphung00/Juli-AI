@@ -323,6 +323,16 @@ workflow_prompt_cache:
   # Known epics — ensure_workflow_cache uses these when Parent/#slice missing from CLI.
   # parentScopeBlock uses \n escapes (simple YAML loader; no literal | blocks).
   epicRegistry:
+    720:
+      defaultSliceId: INFRA-1
+      handoffPath: docs/runbooks/app-review-runbook.md
+      parentScopeBlock: "# Parent #720 — Deploy Celery worker/beat on VPS (constant)\n## Product boundary\n- infra/systemd/ + docs/runbooks/app-review-runbook.md only; no application/business logic changes\n- Standalone infra gap found while validating #689/#633 — not part of the DUX or CDP epics\n## Architect locks\n- Follow juli-api.service's existing pattern exactly: ExecStartPre=fetch-secrets.sh, EnvironmentFile=/etc/juli/api.env, WorkingDirectory=/root/releases/current, Restart=on-failure\n- Author both juli-celery-worker.service and juli-celery-beat.service (mock_analytics_hourly_reconcile needs a periodic trigger)\n- Update app-review-runbook.md Step 4 (systemd install) and the Reference/log-commands sections to include the new units\n- No VPS deploy/verification in this slice — SSH access is human-only; code + docs only\n## Epic deferrals\n- Actually enabling the units on the VPS, seeding reference-shop data, and the post-cutover loopback probe for #633/#689 — human follow-up after this PR merges\n"
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     278:
       defaultSliceId: P2-A1
       handoffPath: docs/handoffs/phase-2-tiktok-implementation.md
