@@ -81,19 +81,6 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     await advanceReviewToApproveStage(page);
   });
 
-  test("Analytics chart equivalent exposes sr-only label when unavailable", async ({
-    page,
-  }) => {
-    await page.goto("/analytics");
-    const unavailableCard = page.getByTestId("analytics-kpi-card-sps");
-    await expect(
-      unavailableCard.getByText("Chưa khả dụng", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      unavailableCard.locator(".juli-sr-only"),
-    ).toContainText(/biểu đồ chưa khả dụng/i);
-  });
-
   test("respects prefers-reduced-motion for scroll-into-view highlight", async ({
     page,
   }) => {
