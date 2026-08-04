@@ -172,3 +172,35 @@ def test_executor_module_does_not_import_workers():
 
 def test_bronze_supported_resources_are_orders_and_returns_only():
     assert BRONZE_SUPPORTED_RESOURCE_ATTRS == frozenset({"orders", "returns"})
+
+
+def test_executor_module_does_not_instantiate_quota_guarded_resources_in_plan():
+    """Quota guards prevent A-38/A-39 and A-31/A-33 from reaching the executor."""
+    from juli_backend.services.cdp_speed.quota_guard import QUOTA_GUARDED_RESOURCE_NAMES
+    from juli_backend.services.cdp_speed.targeted_fetch_planner import plan_targeted_fetch
+
+    # For all material events, verify no guarded resources are in the fetch plan
+    material_events = [
+        "ORDER_STATUS_CHANGE",
+        "REVERSE_STATUS_UPDATE",
+        "PRODUCT_STATUS_CHANGE",
+        "RETURN_STATUS_CHANGE",
+        "INVENTORY_STATUS_CHANGE",
+        "ACTIVITY_STATUS_CHANGE",
+        "REFUND_SUCCESS",
+        "INVENTORY_CHANGED",
+    ]
+
+    for event_type in material_events:
+        plan = plan_targeted_fetch(
+            event_type=event_type,
+            shop_id="test_shop",
+            payload_hints={"activity_id": "test-act"}
+            if event_type == "ACTIVITY_STATUS_CHANGE"
+            else None,
+        )
+        plan_names = frozenset(step.name for step in plan.resources)
+        assert plan_names.isdisjoint(QUOTA_GUARDED_RESOURCE_NAMES), (
+            f"Event {event_type} plan contains guarded resources: "
+            f"{plan_names & QUOTA_GUARDED_RESOURCE_NAMES}"
+        )

@@ -28,6 +28,7 @@ Matches ``__all__`` — re-exports only:
   ``ANALYTICS_BESTSELLING_VIDEOS_PATH``, ``ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH``,
   ``ANALYTICS_LIVE_PERFORMANCE_LIST_PATH``, ``ANALYTICS_SHOP_PERFORMANCE_PATH``,
   ``ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH``, ``ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH``,
+  ``CANCELLATION_SEARCH_PATH``,
   ``FINANCE_STATEMENTS_PATH``, ``INVENTORY_SEARCH_PATH``,
   ``MARKETPLACE_CREATORS_SEARCH_PATH``, ``ORDER_SEARCH_PATH``, ``PRODUCT_SEARCH_PATH``,
   ``RETURN_SEARCH_PATH``,
@@ -42,9 +43,9 @@ Matches ``__all__`` — re-exports only:
   ``expand_analytics_product_list_item``, ``expand_analytics_shop_performance``,
   ``expand_analytics_shop_performance_per_hour``, ``expand_analytics_sku_detail``,
   ``expand_analytics_sku_list_item``, ``expand_inventory_search``,
-  ``expand_order_line_items``, ``normalize_creator``, ``normalize_inventory``,
-  ``normalize_livestream``, ``normalize_order``, ``normalize_product``,
-  ``normalize_return``, ``normalize_statement``
+  ``expand_order_line_items``, ``normalize_cancellation``, ``normalize_creator``,
+  ``normalize_inventory``, ``normalize_livestream``, ``normalize_order``,
+  ``normalize_product``, ``normalize_return``, ``normalize_statement``
 - **Resources** — ``strip_nones``, ``AnalyticsResource``, ``AuthorizationResource``,
   ``CreatorsResource``, ``FulfillmentResource``, ``InventoryResource``,
   ``LivestreamsResource``, ``OrdersResource``, ``ProductsResource``,
