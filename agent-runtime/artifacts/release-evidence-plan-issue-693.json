@@ -1,0 +1,71 @@
+{
+  "planId": "rep-693-dux-4-analytics-deep-link",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions",
+    "demo.app-juli.com/analytics/[metricKey]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "recommendation-review-analytics-deep-link",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "every_workflow_analyticsMetricKey_resolves_to_a_real_demo_kpi_catalog_entry",
+          "why_analytics_inputs_preview_approve_journey_lands_on_the_justifying_kpi",
+          "no_invalid_deep_link_recovery_view_regression"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Remaps analyticsMetricKey values across lib/workflows/*/review.ts to the DUX-2 five-KPI catalog; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 693"
+  ],
+  "doNotInfer": [
+    "Five-KPI catalog changes land here (depends on DUX-2/#691 already merged)",
+    "Decisions layout density (DUX-5/#694)",
+    "release evidence fields beyond this plan"
+  ]
+}

@@ -16,6 +16,10 @@ export interface AnalyticsKpiEntry {
 /** Known envelope KPI keys — GMV uses `gmv_tiktok`, never `net_revenue`. */
 export type AnalyticsEnvelopeKpiKey =
   | "gmv_tiktok"
+  | "aov"
+  | "ctor"
+  | "live_hours"
+  | "cancellation_rate"
   | "product_funnel"
   | "live_performance"
   | "inventory_turnover"

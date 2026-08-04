@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecommendationReview } from "../components/recommendation-review";
 import {
+  buildReviewInputDefaults,
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
   getWorkflowReviewStages,
 } from "../lib/reviews";
@@ -368,5 +369,134 @@ describe("RecommendationReview", () => {
     expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
       stages[0].title,
     );
+  });
+
+  it("shows suggestion glow and label on editable prefilled fields in Inputs stage", async () => {
+    const user = userEvent.setup();
+    const inputs = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
+      (stage) => stage.stage === "inputs",
+    );
+
+    renderReview();
+    await advanceToStage(user, inputs?.title ?? "");
+
+    // Verify the suggestion badge is visible somewhere in the Inputs stage
+    const suggestionBadges = screen.getAllByText("Gợi ý bởi Juli");
+    expect(suggestionBadges.length).toBeGreaterThan(0);
+
+    // Verify that at least one input has the suggestion glow class
+    const inputsWithSuggestion = screen.getAllByRole("textbox").filter((input) =>
+      input.classList.contains("juli-form__input--suggestion"),
+    );
+    expect(inputsWithSuggestion.length).toBeGreaterThan(0);
+  });
+
+  it("removes suggestion glow and label when editing a prefilled field", async () => {
+    const user = userEvent.setup();
+    const inputs = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
+      (stage) => stage.stage === "inputs",
+    );
+
+    renderReview();
+    await advanceToStage(user, inputs?.title ?? "");
+
+    // Find the first input with suggestion glow
+    const inputsWithGlow = screen.getAllByRole("textbox").filter((input) =>
+      input.classList.contains("juli-form__input--suggestion"),
+    );
+    expect(inputsWithGlow.length).toBeGreaterThan(0);
+
+    const brandInput = inputsWithGlow[0] as HTMLInputElement;
+    const originalValue = brandInput.value;
+
+    // Edit the field
+    await user.clear(brandInput);
+    await user.type(brandInput, "Edited Brand");
+
+    // After editing, the glow should be removed
+    expect(brandInput).not.toHaveClass("juli-form__input--suggestion");
+  });
+
+  it("restores suggestion glow and label when value is restored to prefill", async () => {
+    const user = userEvent.setup();
+    const inputs = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
+      (stage) => stage.stage === "inputs",
+    );
+
+    renderReview();
+    await advanceToStage(user, inputs?.title ?? "");
+
+    // Find the first input with suggestion glow
+    const inputsWithGlow = screen.getAllByRole("textbox").filter((input) =>
+      input.classList.contains("juli-form__input--suggestion"),
+    );
+    expect(inputsWithGlow.length).toBeGreaterThan(0);
+
+    const brandInput = inputsWithGlow[0] as HTMLInputElement;
+    const originalValue = brandInput.value;
+
+    // Edit the field
+    await user.clear(brandInput);
+    await user.type(brandInput, "Edited Brand");
+
+    expect(brandInput).not.toHaveClass("juli-form__input--suggestion");
+
+    // Restore to original value
+    await user.clear(brandInput);
+    await user.type(brandInput, originalValue);
+
+    // Glow should be restored
+    expect(brandInput).toHaveClass("juli-form__input--suggestion");
+  });
+
+  it("does not show suggestion glow or label on non-editable fields", async () => {
+    const user = userEvent.setup();
+    const inputs = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
+      (stage) => stage.stage === "inputs",
+    );
+
+    renderReview();
+    await advanceToStage(user, inputs?.title ?? "");
+
+    // Find all disabled inputs (non-editable fields)
+    const disabledInputs = screen.getAllByRole("textbox").filter((input) =>
+      input.hasAttribute("disabled"),
+    );
+
+    // Verify that disabled inputs don't have the suggestion glow
+    for (const input of disabledInputs) {
+      expect(input).not.toHaveClass("juli-form__input--suggestion");
+    }
+  });
+
+  it("renders Preview stage with edited values instead of prefilled defaults", async () => {
+    const user = userEvent.setup();
+    const inputs = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
+      (stage) => stage.stage === "inputs",
+    );
+    const preview = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY).find(
+      (stage) => stage.stage === "preview",
+    );
+
+    renderReview();
+    await advanceToStage(user, inputs?.title ?? "");
+
+    // Find the first input with suggestion glow and edit it
+    const inputsWithGlow = screen.getAllByRole("textbox").filter((input) =>
+      input.classList.contains("juli-form__input--suggestion"),
+    );
+    expect(inputsWithGlow.length).toBeGreaterThan(0);
+
+    const editedInput = inputsWithGlow[0] as HTMLInputElement;
+    const editedValue = "EDITED-VALUE-TEST";
+    await user.clear(editedInput);
+    await user.type(editedInput, editedValue);
+
+    // Advance to Preview
+    await advanceToStage(user, preview?.title ?? "");
+
+    // The preview summary should show the edited value
+    const summary = screen.getByTestId("review-draft-summary");
+    expect(summary).toHaveTextContent(editedValue);
   });
 });

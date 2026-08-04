@@ -11,7 +11,7 @@ export const PROCESS_ORDER_WORKFLOW_KEY = "process_order_5";
 export const PROCESS_ORDER_TOOL_NAME = "fulfillment.process_order";
 export const PROCESS_ORDER_FBT_INTAKE_KEY = "process_order_5b";
 
-export const defaultProcessOrderAnalyticsMetricKey = "sla-at-risk-orders";
+export const defaultProcessOrderAnalyticsMetricKey = "cancellation-rate";
 
 const processOrderFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === PROCESS_ORDER_WORKFLOW_KEY,
@@ -50,7 +50,7 @@ export function getProcessOrderReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI đơn hàng có rủi ro trễ hạn trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI Tỷ lệ hủy đơn trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },

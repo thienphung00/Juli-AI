@@ -2,6 +2,7 @@ import { DestinationCard, DestinationIcon } from "@juli/ui";
 import { formatDateTime } from "@juli/utils";
 
 import { demoSnapshot, homeDestinations } from "../lib/mock-data";
+import { HomeActivityTracker } from "../components/home-activity-tracker";
 
 export default function HomePage() {
   return (
@@ -20,6 +21,8 @@ export default function HomePage() {
           {formatDateTime(demoSnapshot.generatedAt)}
         </p>
       </section>
+
+      <HomeActivityTracker />
 
       <section className="demo-launchers" aria-label="Điểm đến chính">
         {homeDestinations.map((destination) => (

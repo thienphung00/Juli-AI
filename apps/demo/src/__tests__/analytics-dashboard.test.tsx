@@ -55,7 +55,7 @@ describe("Analytics dashboard", () => {
     vi.restoreAllMocks();
   });
 
-  it("AC1: renders one hero and five selector cards with GMV at 30 days by default", async () => {
+  it("AC1 (RED): renders one hero and four selector cards (DUX-2: five-KPI set)", async () => {
     render(
       <DemoShell>
         <AnalyticsDashboard metricKey="gmv-tiktok" />
@@ -71,9 +71,10 @@ describe("Analytics dashboard", () => {
     );
 
     const selectorCards = screen.getAllByTestId(/analytics-kpi-card-/);
-    expect(selectorCards).toHaveLength(5);
+    expect(selectorCards).toHaveLength(4);
+    expect(MAIN_KPI_ORDER).toHaveLength(5);
     expect(MAIN_KPI_ORDER.filter((key) => key !== "gmv-tiktok")).toHaveLength(
-      5,
+      4,
     );
   });
 
@@ -92,7 +93,7 @@ describe("Analytics dashboard", () => {
     expect(screen.queryByText("Doanh thu thuần")).not.toBeInTheDocument();
   });
 
-  it("AC3: keeps SPS, ROAS, and CSAT visible, unavailable, and non-selectable without fake values", async () => {
+  it("AC2 (RED): removed ADR-023 KPI strings are absent from Demo Analytics page", async () => {
     render(
       <DemoShell>
         <AnalyticsDashboard metricKey="gmv-tiktok" />
@@ -101,15 +102,27 @@ describe("Analytics dashboard", () => {
 
     await screen.findByRole("heading", { level: 1 });
 
-    for (const key of ["sps", "roas", "csat"] as const) {
-      const card = screen.getByTestId(`analytics-kpi-card-${key}`);
+    // Removed KPI display names must not appear anywhere on the page
+    expect(screen.queryByText("SPS")).not.toBeInTheDocument();
+    expect(screen.queryByText("ROAS")).not.toBeInTheDocument();
+    expect(screen.queryByText("CSAT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Doanh thu thuần")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vòng quay tồn kho")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tỷ lệ giao đúng")).not.toBeInTheDocument();
+  });
 
-      expect(card).toHaveClass("analytics-kpi-card--unavailable");
-      expect(within(card).getByText("Chưa khả dụng")).toBeInTheDocument();
-      expect(
-        within(card).getByTestId("analytics-unavailable-chart"),
-      ).toBeInTheDocument();
-      expect(within(card).queryByText(/^0/)).not.toBeInTheDocument();
+  it("AC2: removed KPI cards (SPS, ROAS, CSAT) are not rendered at all", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    // Removed keys should not have card elements
+    for (const key of ["sps", "roas", "csat"] as const) {
+      expect(screen.queryByTestId(`analytics-kpi-card-${key}`)).not.toBeInTheDocument();
     }
   });
 
@@ -126,18 +139,18 @@ describe("Analytics dashboard", () => {
     await screen.findByRole("heading", { level: 1 });
 
     await user.click(
-      screen.getByTestId("analytics-kpi-card-inventory-turnover"),
+      screen.getByTestId("analytics-kpi-card-aov"),
     );
 
-    expect(push).toHaveBeenCalledWith("/analytics/inventory-turnover");
+    expect(push).toHaveBeenCalledWith("/analytics/aov");
     expect(screen.getByTestId("analytics-state")).toHaveTextContent(
-      "inventory-turnover",
+      "aov",
     );
     expect(
       screen.getByTestId("analytics-kpi-card-gmv-tiktok"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("analytics-kpi-card-inventory-turnover"),
+      screen.queryByTestId("analytics-kpi-card-aov"),
     ).not.toBeInTheDocument();
   });
 
@@ -154,20 +167,13 @@ describe("Analytics dashboard", () => {
 
     await user.click(screen.getByRole("tab", { name: "7 ngày" }));
 
-    const inventoryCard = screen.getByTestId(
-      "analytics-kpi-card-inventory-turnover",
-    );
-    expect(
-      within(inventoryCard).getByText("3,1x", { selector: ".analytics-kpi-card__value" }),
-    ).toBeInTheDocument();
+    // All four selector cards should still render
+    expect(screen.getAllByTestId(/analytics-kpi-card-/)).toHaveLength(4);
 
     await user.click(screen.getByLabelText("So sánh kỳ trước"));
     expect(
       screen.getByText("Đường liền: kỳ hiện tại · Đường nét đứt: kỳ trước"),
     ).toBeInTheDocument();
-    expect(
-      within(inventoryCard).queryByText("Đường liền: kỳ hiện tại"),
-    ).not.toBeInTheDocument();
   });
 
   it("AC6: exposes provenance, freshness, and decision links", async () => {
@@ -193,6 +199,39 @@ describe("Analytics dashboard", () => {
       </DemoShell>,
     );
 
+    expect(
+      await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+    ).toHaveAttribute("href", "/analytics/gmv-tiktok");
+  });
+
+  it("AC6 (RED): removed KPI deep link (e.g., /analytics/roas) shows recovery view", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="roas" />
+      </DemoShell>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Xem GMV (TikTok)" }),
+    ).toHaveAttribute("href", "/analytics/gmv-tiktok");
+  });
+
+  it("AC (RED): persisted analyticsMetric localStorage key with removed KPI falls back to GMV", async () => {
+    localStorage.setItem("analyticsMetric", "roas");
+
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="roas" />
+      </DemoShell>,
+    );
+
+    // Should show recovery view for invalid key
     expect(
       await screen.findByRole("heading", { name: "KPI không tìm thấy" }),
     ).toBeInTheDocument();
@@ -232,7 +271,7 @@ describe("Analytics dashboard", () => {
     ).toBeInTheDocument();
   });
 
-  it("AC6: shows stable hero and five-card loading skeletons", () => {
+  it("AC6: shows stable hero and four-card loading skeletons (DUX-2)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise(() => undefined)),
@@ -245,7 +284,7 @@ describe("Analytics dashboard", () => {
     );
 
     expect(screen.getByLabelText("Đang tải KPI chính")).toBeInTheDocument();
-    expect(document.querySelectorAll(".analytics-skeleton--card")).toHaveLength(5);
+    expect(document.querySelectorAll(".analytics-skeleton--card")).toHaveLength(4);
   });
 
   it("AC11: preserves focus order and aria labels through visual polish", async () => {
@@ -267,6 +306,26 @@ describe("Analytics dashboard", () => {
     expect(rangeTabs.compareDocumentPosition(sectionTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(sectionTitle.compareDocumentPosition(selectorGrid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByLabelText("So sánh kỳ trước")).toBeInTheDocument();
+  });
+
+  it("RED: renders GMV value and chart when API is unavailable (fallback)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("Network error"))));
+
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    // Should render a heading with GMV metric name
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("GMV (TikTok)");
+
+    // Should NOT show the error hero
+    expect(screen.queryByRole("heading", { name: "Chưa thể tải dữ liệu KPI" })).not.toBeInTheDocument();
+
+    // Should render a value and chart (from fallback)
+    expect(screen.getByTestId("analytics-chart-chrome")).toBeInTheDocument();
   });
 
   it("AC12: leaves Home Recommendations Settings and In Progress UI untouched by analytics polish", () => {
@@ -351,5 +410,93 @@ describe("Analytics dashboard", () => {
     expect(css).toContain(".analytics-kpi-grid");
     expect(css).toContain("@media (max-width: 35rem)");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+});
+
+describe("Analytics dashboard (DUX-3: Trust copy — no API vocabulary)", () => {
+  const apiVocabularyTerms = [
+    "envelope",
+    "gmv_tiktok",
+    "payload",
+    "kpis",
+    "fixture",
+    "mock",
+    "API",
+    "A-36",
+    "A-34",
+    "A-28",
+    "A-7",
+    "webhook",
+  ];
+
+  beforeEach(() => {
+    vi.mocked(usePathname).mockReturnValue("/analytics/gmv-tiktok");
+    vi.mocked(useRouter).mockReturnValue({
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+      push,
+      refresh: vi.fn(),
+      replace,
+    });
+    push.mockClear();
+    replace.mockClear();
+    localStorage.clear();
+    vi.stubGlobal("fetch", vi.fn(createMockFetchResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("AC1 (RED): copy guard — no API vocabulary in rendered hero provenance", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    // Get the hero provenance section which shows dataSource
+    const heroSection = document.querySelector(".analytics-hero__provenance");
+    const heroText = heroSection?.textContent || "";
+
+    // Assert none of these API terms appear in provenance
+    for (const term of apiVocabularyTerms) {
+      expect(heroText).not.toMatch(new RegExp(term, "i"));
+    }
+  });
+
+  it("AC2 (RED): hero card shows insight chain with arrows for positive GMV trend", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    const signal = document.querySelector(".analytics-hero__signal");
+    expect(signal).toHaveTextContent(/→/); // Arrow separator
+    expect(signal).toHaveTextContent(/tăng mạnh|cơ hội|tối ưu/i); // what → risk/opportunity → action
+  });
+
+  it("AC3 (RED): provenance shows TikTok Shop source without envelope key", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    // Get provenance section which contains the data source
+    const heroProvenance = document.querySelector(".analytics-hero__provenance");
+    expect(heroProvenance).toHaveTextContent("TikTok Shop");
+    expect(heroProvenance).not.toHaveTextContent("gmv_tiktok");
+    expect(heroProvenance).not.toHaveTextContent(/envelope/i);
+    expect(heroProvenance).not.toHaveTextContent(/A-36/);
   });
 });

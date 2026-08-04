@@ -9,7 +9,7 @@ import {
 
 export const DELETE_ACTIVITY_WORKFLOW_KEY = "delete_activity_7b";
 export const DELETE_ACTIVITY_TOOL_NAME = "promotion.delete_activity";
-export const defaultDeleteActivityAnalyticsMetricKey = "revenue-by-sku";
+export const defaultDeleteActivityAnalyticsMetricKey = "ctor";
 
 const deleteActivityFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === DELETE_ACTIVITY_WORKFLOW_KEY,

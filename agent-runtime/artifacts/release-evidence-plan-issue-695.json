@@ -1,0 +1,70 @@
+{
+  "planId": "rep-695-dux-6-home-activity-summary",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "home-activity-summary-tiles",
+        "entryUrl": "/",
+        "assertions": [
+          "html_200",
+          "exactly_three_summary_only_stat_tiles_render_above_launcher_cards",
+          "launcher_cards_role_unchanged_per_adr_053_decision_1",
+          "no_new_glossary_term_reuses_in_progress_panel_lifecycle_vocabulary"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "New summary-only Home section (ADR-053) reusing already-computed counts; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 695"
+  ],
+  "doNotInfer": [
+    "Decisions stat row (DUX-5/#694) — prerequisite, already scoped separately",
+    "In Progress card redesign (DUX-7/#696)",
+    "release evidence fields beyond this plan"
+  ]
+}

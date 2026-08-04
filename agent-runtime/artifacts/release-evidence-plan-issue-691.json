@@ -1,0 +1,72 @@
+{
+  "planId": "rep-691-dux-2-five-kpi-catalog",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; PR fast CI + Review Agent validate before sync-before-merge",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "demo-analytics-five-kpi-catalog",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "exactly_five_envelope_backed_main_kpi_cards_gmv_aov_ctor_live_hours_cancellation_rate",
+          "gmv_tiktok_is_default_hero",
+          "sps_roas_csat_inventory_turnover_fulfillment_accuracy_and_bestselling_absent_from_selector",
+          "hero_plus_four_selector_card_layout_preserved"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Frontend-only catalog change (MetricKey union + MAIN_KPI_ORDER) in apps/demo; no DB or backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 691"
+  ],
+  "doNotInfer": [
+    "GMV envelope fallback wiring (DUX-1/#690)",
+    "Trust copy changes (DUX-3/#692)",
+    "apps/dashboard Main KPI catalog (ADR-023 stays)",
+    "release evidence fields beyond this plan"
+  ]
+}

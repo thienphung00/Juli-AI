@@ -7,8 +7,10 @@ import {
   DemoStateProvider,
   useDemoState,
 } from "../components/demo-state";
+import { getWorkflowTitle } from "../components/in-progress-panel";
 import { RecommendationReview } from "../components/recommendation-review";
 import { RecommendationsPanel } from "../components/recommendations-panel";
+import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
 import {
   PREVENT_CANCELLATION_TOOL_NAME,
   PREVENT_CANCELLATION_WORKFLOW_KEY,
@@ -147,16 +149,21 @@ async function runReviewApproveInProgressCase({
   );
 
   await waitFor(() => {
-    expect(screen.getByText(executionId)).toBeInTheDocument();
+    expect(
+      screen.getAllByText(getWorkflowTitle(workflowKey)).length,
+    ).toBeGreaterThan(0);
   });
 
-  expect(screen.getByText(workflowKey)).toBeInTheDocument();
-  expect(screen.getByText(toolName)).toBeInTheDocument();
+  // Seller-facing detail view never shows raw workflow_key/toolName (DUX-8, ADR-035 banned patterns).
+  expect(screen.queryByText(workflowKey)).not.toBeInTheDocument();
+  expect(screen.queryByText(toolName)).not.toBeInTheDocument();
   expect(screen.getAllByRole("listitem")).toHaveLength(expectedStepCount);
   expect(screen.getByText(waitTitle)).toBeInTheDocument();
   expect(screen.getByText(outcomeTitle)).toBeInTheDocument();
   expect(
-    screen.getByText(recoverySnippet, { exact: false }),
+    screen.getByText(sanitizeSellerReviewText(recoverySnippet), {
+      exact: false,
+    }),
   ).toBeInTheDocument();
 }
 
