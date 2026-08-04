@@ -858,8 +858,18 @@ a {
   letter-spacing: -0.02em;
 }
 
+/* Lead-in sentence narrating the hero number (dictionary `analytics.hero_lead`) —
+   quiet on purpose so the value below stays the loudest element. */
+.analytics-hero__lead {
+  margin: var(--juli-space-3) 0 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .analytics-hero__value {
-  margin: var(--juli-space-2) 0 0;
+  margin: var(--juli-space-1) 0 0;
   font-size: clamp(1.75rem, 6vw, 2.5rem);
   font-weight: 800;
   letter-spacing: -0.03em;

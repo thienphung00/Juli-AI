@@ -70,6 +70,10 @@ export function RecommendationsView({
       <h1 className="demo-title" id="decisions-title">
         Việc cần bạn quyết định
       </h1>
+      <p className="demo-intro">
+        Đây là đề xuất Juli tìm thấy cho shop của bạn, dựa trên dữ liệu bán
+        hàng gần nhất — bạn xem, chỉnh, rồi quyết định phê duyệt hay không.
+      </p>
 
       {/* Stat row - read-only stats under header */}
       <div

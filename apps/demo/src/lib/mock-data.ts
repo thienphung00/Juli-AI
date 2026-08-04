@@ -1,4 +1,6 @@
 export interface HomeDestinationFixture {
+  /** Per-card CTA verb phrase (dictionary `home.cta.*`) — never the same label twice. */
+  actionLabel: string;
   description: string;
   eyebrow: string;
   href: "/decisions" | "/analytics";
@@ -39,12 +41,14 @@ export const demoDestinations = [
 export const homeDestinations = [
   {
     ...decisionsDestination,
+    actionLabel: "Xem đề xuất",
     eyebrow: "Bạn là người quyết định",
     description:
       "Xem các đề xuất rõ ràng và theo dõi công việc bạn đã phê duyệt.",
   },
   {
     ...analyticsDestination,
+    actionLabel: "Xem phân tích",
     eyebrow: "Hiểu điều đang diễn ra",
     description:
       "Khám phá KPI, xu hướng, so sánh và dự báo của shop tại một nơi.",

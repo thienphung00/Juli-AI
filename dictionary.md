@@ -192,6 +192,35 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: Close explanation
 - VI: Đóng giải thích
 
+**`home.cta.decisions`**
+- EN: View recommendations
+- VI: Xem đề xuất
+- _Avoid_: Mở trang (identical CTA on sibling cards)
+- Definition: Home launcher CTA for the Decisions destination — every launcher card gets its own verb-phrase CTA.
+
+**`home.cta.analytics`**
+- EN: View analytics
+- VI: Xem phân tích
+- _Avoid_: Mở trang (identical CTA on sibling cards)
+- Definition: Home launcher CTA for the Analytics destination.
+
+**`loading.recommendations`**
+- EN: Loading recommendations…
+- VI: Đang tải đề xuất…
+- _Avoid_: Đang tải… (says nothing about what is loading)
+- Definition: Loading fallback on the Decisions destination.
+
+**`analytics.hero_lead`**
+- EN: Your shop is currently at
+- VI: Shop của bạn hiện đạt
+- Definition: Lead-in sentence fragment above the hero KPI value, narrating the number instead of displaying it bare. The formatted value completes the sentence.
+
+**`analytics.back_to_gmv`**
+- EN: Back to GMV (TikTok)
+- VI: Về GMV (TikTok)
+- _Avoid_: Xem GMV (TikTok) ("Xem" is reserved for launcher/view CTAs; "Về" signals returning to a safe known place)
+- Definition: Recovery link on the invalid-KPI deep-link state.
+
 **`forms.show_password`**
 - EN: Show password
 - VI: Hiện mật khẩu
@@ -201,6 +230,28 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Ẩn mật khẩu
 
 ## Phrases
+
+**`home.tagline`**
+- EN: Decide fast, understand your shop.
+- VI: Quyết định nhanh, hiểu rõ shop.
+- _Avoid_: Bạn muốn làm gì tiếp theo? (a preference question on a tool whose pitch is decisiveness)
+- Definition: Home H1 — declarative tagline stating the product promise, not a question.
+
+**`home.intro`**
+- EN: The two places you need: recommendations awaiting approval, and the full picture of your shop.
+- VI: Hai nơi bạn cần: đề xuất đang chờ phê duyệt, và bức tranh toàn cảnh shop.
+- Definition: Home intro orienting the seller to the two launcher cards below it.
+
+**`decisions.intro`**
+- EN: These are recommendations Juli found for your shop, based on your latest sales data — you review, adjust, then decide whether to approve.
+- VI: Đây là đề xuất Juli tìm thấy cho shop của bạn, dựa trên dữ liệu bán hàng gần nhất — bạn xem, chỉnh, rồi quyết định phê duyệt hay không.
+- Definition: Decisions intro making human-in-the-loop explicit — the seller approves, nothing acts on their behalf.
+
+**`error.kpi_not_found.body`**
+- EN: This KPI was not found. The link may have changed or no longer exists.
+- VI: Không tìm thấy KPI này. Đường dẫn có thể đã đổi hoặc không còn tồn tại.
+- _Avoid_: Juli giữ nguyên URL để bạn hiểu lỗi này (implementation reasoning leaking into user copy)
+- Definition: Body of the invalid-KPI deep-link state — what happened in user terms, recovery via `analytics.back_to_gmv`.
 
 **`error.otp_incorrect`**
 - EN: OTP code is incorrect. Please try again.
