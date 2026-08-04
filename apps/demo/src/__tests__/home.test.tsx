@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
 import { DemoStateProvider } from "../components/demo-state";
 import { demoSnapshot, homeDestinations } from "../lib/mock-data";
+import { createMockDemoAnalyticsEnvelope } from "../lib/analytics/__tests__/fixtures";
 
 describe("Demo Home", () => {
   it("Home and Settings unchanged mock; Sign-in stub stays non-functional", () => {
@@ -122,5 +123,13 @@ describe("Demo Home", () => {
     );
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it("AC5 (RED): Home and Analytics share the same demo-data timestamp", () => {
+    // ADR-049 Decision 3: "one consistent demo-data timestamp across Home and Analytics"
+    const envelope = createMockDemoAnalyticsEnvelope();
+
+    // Both should derive from the same ISO string
+    expect(demoSnapshot.generatedAt).toBe(envelope.computed_at);
   });
 });

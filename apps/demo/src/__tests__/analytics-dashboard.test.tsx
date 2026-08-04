@@ -412,3 +412,91 @@ describe("Analytics dashboard", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
   });
 });
+
+describe("Analytics dashboard (DUX-3: Trust copy — no API vocabulary)", () => {
+  const apiVocabularyTerms = [
+    "envelope",
+    "gmv_tiktok",
+    "payload",
+    "kpis",
+    "fixture",
+    "mock",
+    "API",
+    "A-36",
+    "A-34",
+    "A-28",
+    "A-7",
+    "webhook",
+  ];
+
+  beforeEach(() => {
+    vi.mocked(usePathname).mockReturnValue("/analytics/gmv-tiktok");
+    vi.mocked(useRouter).mockReturnValue({
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+      push,
+      refresh: vi.fn(),
+      replace,
+    });
+    push.mockClear();
+    replace.mockClear();
+    localStorage.clear();
+    vi.stubGlobal("fetch", vi.fn(createMockFetchResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("AC1 (RED): copy guard — no API vocabulary in rendered hero provenance", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    // Get the hero provenance section which shows dataSource
+    const heroSection = document.querySelector(".analytics-hero__provenance");
+    const heroText = heroSection?.textContent || "";
+
+    // Assert none of these API terms appear in provenance
+    for (const term of apiVocabularyTerms) {
+      expect(heroText).not.toMatch(new RegExp(term, "i"));
+    }
+  });
+
+  it("AC2 (RED): hero card shows insight chain with arrows for positive GMV trend", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    const signal = document.querySelector(".analytics-hero__signal");
+    expect(signal).toHaveTextContent(/→/); // Arrow separator
+    expect(signal).toHaveTextContent(/tăng mạnh|cơ hội|tối ưu/i); // what → risk/opportunity → action
+  });
+
+  it("AC3 (RED): provenance shows TikTok Shop source without envelope key", async () => {
+    render(
+      <DemoShell>
+        <AnalyticsDashboard metricKey="gmv-tiktok" />
+      </DemoShell>,
+    );
+
+    await screen.findByRole("heading", { level: 1 });
+
+    // Get provenance section which contains the data source
+    const heroProvenance = document.querySelector(".analytics-hero__provenance");
+    expect(heroProvenance).toHaveTextContent("TikTok Shop");
+    expect(heroProvenance).not.toHaveTextContent("gmv_tiktok");
+    expect(heroProvenance).not.toHaveTextContent(/envelope/i);
+    expect(heroProvenance).not.toHaveTextContent(/A-36/);
+  });
+});

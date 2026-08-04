@@ -9,6 +9,7 @@ import {
   ANALYTICS_RANGE_LABELS,
   DEFAULT_ANALYTICS_RANGE,
   DEFAULT_METRIC_KEY,
+  MAIN_KPI_ORDER,
   type AnalyticsRange,
   type MetricKey,
   getMainKpiDefinition,
@@ -82,7 +83,22 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
       ? null
       : buildLiveKpiSnapshot(envelope, heroMetricKey, range);
   const supplementaryCharts = listSupplementaryCharts(envelope);
-  const selectorKeys = getSelectorMetricKeys(heroMetricKey);
+
+  // Build trends for all selector candidates to enable downtrend ordering (ADR-049 Decision 1)
+  const allTrends = envelope
+    ? MAIN_KPI_ORDER.reduce(
+        (acc, key) => {
+          const snap = buildLiveKpiSnapshot(envelope, key, range);
+          if (snap) {
+            acc[key] = snap.trend;
+          }
+          return acc;
+        },
+        {} as Partial<Record<MetricKey, "negative" | "neutral" | "positive" | "warning">>,
+      )
+    : undefined;
+
+  const selectorKeys = getSelectorMetricKeys(heroMetricKey, allTrends);
   const dataModeLabel =
     snapshot?.dataMode === "live" ? "Dữ liệu thực" : "Dữ liệu mẫu";
 
