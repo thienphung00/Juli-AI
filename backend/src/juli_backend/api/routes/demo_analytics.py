@@ -13,11 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config.runtime import require_env
 from juli_backend.database import get_session
-from juli_backend.services.analytics_kpi_cache import (
-    get_analytics_kpi_envelope,
+from juli_backend.services.analytics_kpi_masking import mask_public_analytics_envelope
+from juli_backend.services.gold_kpi_cache import (
+    get_gold_kpi_envelope,
     get_shared_redis_client,
 )
-from juli_backend.services.analytics_kpi_masking import mask_public_analytics_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -85,14 +85,14 @@ async def get_demo_analytics(
     reference_shop_id: uuid.UUID = Depends(get_demo_reference_shop_id),
     redis_client: Any | None = Depends(get_demo_redis_client),
 ) -> dict[str, Any]:
-    """Return masked Analytics KPI envelope for the configured reference shop."""
+    """Return masked Gold KPI envelope for the configured reference shop (#633 cutover)."""
     if shop_id is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="shop_id is not accepted on public demo endpoints",
         )
 
-    envelope = await get_analytics_kpi_envelope(
+    envelope = await get_gold_kpi_envelope(
         session,
         reference_shop_id,
         redis_client=redis_client,

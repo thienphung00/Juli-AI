@@ -1,0 +1,183 @@
+{
+  "planId": "rep-633-public-demo-analytics-gold-envelope-cutover",
+  "affectedPublicSurfaces": [
+    "GET https://api.app-juli.com/v1/demo/analytics — a LIVE, unauthenticated, internet-reachable JSON endpoint. infra/nginx/api.app-juli.com.conf proxies `location /` to 127.0.0.1:8000 with no auth, and backend/src/juli_backend/api/app.py mounts demo_analytics_router under the /v1 prefix. This slice changes the data source of an endpoint that is already serving the public internet — it is a cutover, not a net-new route",
+    "The response body `kpis` KEY SET. Today precompute_shop_analytics_kpis (analytics_kpi_precompute/precompute.py) writes analytics_kpi_envelopes with keys gmv_tiktok, product_funnel, live_performance, roas, cac, ctr, sps, ahr, violation_points plus an `overlays.t1_forecast` block. compute_demo_main_kpis_payload (gold_kpi_envelope_serving.py, #630) writes gold.kpi_envelopes with exactly gmv_tiktok, aov, ctor, live_hours, cancellation_rate and NO `overlays` block. The cutover therefore REMOVES seven currently-served keys and one overlay from a live public response and adds four new ones",
+    "The per-KPI ENTRY SHAPE. Legacy entries are {availability, label, series:[{t,v}]}. Gold entries are {availability, label, value:<float>} — a scalar, with no `series` array anywhere in the payload. Every consumer that reads `.series` breaks silently (no error, just an empty/absent field). This is the highest-severity item in this plan",
+    "The `?range=7d|30d|90d` query-parameter contract on the same route. demo_analytics._apply_chart_range trims `kpis[*].series` by a computed cutoff date. Against a series-less gold payload the function becomes a silent no-op, so `range` still returns 200 but stops meaning anything — a live public API parameter degrading to a lie",
+    "packages/contracts/src/analytics.ts — the published TypeScript contract for this exact response (DemoAnalyticsEnvelope, AnalyticsEnvelopeKpiKey, AnalyticsKpiEntry). Its key union is gmv_tiktok | product_funnel | live_performance | inventory_turnover | fulfillment_accuracy_rate | sps | roas | csat, and AnalyticsKpiEntry declares `series?`, never `value`. This slice does not update that package (apps/demo is in the CDP-A1-9 doNotLoad list), so the published contract and the served payload drift apart at the moment of cutover",
+    "https://demo.app-juli.com/analytics — the public Demo Analytics page, a downstream consumer. apps/demo/src/lib/analytics/envelope-mapper.ts gates the live hero on `isAnalyticsKpiAvailable(entry) && Boolean(entry.series?.length)`; buildLiveKpiSnapshot returns null without a series, and analytics-dashboard.tsx then flips the visible badge from \"Dữ liệu thực\" (real data) to \"Dữ liệu mẫu\" (sample data) and renders fixture values. listSupplementaryCharts reads exactly product_funnel and live_performance, both of which the cutover deletes, so both supplementary charts disappear. Demo UI rewiring is epic #601's explicitly DEFERRED item #600 and is NOT in this slice",
+    "Public-endpoint side effect: services/gold_kpi_cache/cache.py get_gold_kpi_envelope writes to Redis on a cache miss. An unauthenticated public GET can therefore drive Redis writes (cache fill only — no Postgres write, no TikTok Partner call). Same property as the legacy path; carried forward, not introduced",
+    "Internal-schema disclosure on an unauthenticated endpoint: the gold payload sets meta.source_partitions = [\"silver.orders\"] and meta.notes = [\"A1 five-KPI precompute (#630)\"], where the legacy payload emitted Partner partition codes (A-36, A-34, A-28/A-29). services/analytics_kpi_masking/mask.py masks `identity.*` and `shop_id` but does NOT touch `meta`. Low severity, but it is a change to what a live public response reveals, and ADR-049 §3 requires seller-language sources with no internal/API names",
+    "Production deploy surface: a push to main runs .github/workflows/release.yml -> infra/scripts/deploy-release.sh, which creates ~/releases/<sha>, atomically re-points the ~/releases/current symlink, restarts juli-api/juli-web, and health-checks 127.0.0.1:8000/health and 127.0.0.1:3000/. There is no candidate task set, no isolated test listener, and no traffic split on this platform — the ADR-035 ECS/Fargate candidate architecture is not built. Merging to main IS the production cutover"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "HONEST STATEMENT OF PLATFORM REALITY: this repository has no isolated candidate target, no restricted test listener or hostname, and no percentage traffic split. .github/workflows/release.yml deploys straight to the single review VPS via infra/scripts/deploy-release.sh (~/releases/<sha> worktree + `ln -sfn` cutover of ~/releases/current), so a merge to main is itself the public cutover. Do not read candidatePublicTrafficPercent:0 as evidence that a canary exists — it is 0 because no candidate is deployed at all. Verification is therefore restricted to three non-public stages, all of which must pass in order: (1) RED->GREEN contract tests executed in-process against the FastAPI app via TestClient/httpx in tests/unit/test_api_demo_analytics.py and tests/unit/test_gold_kpi_cache.py, using a synthetic reference shop UUID and fixture gold rows — never a real tenant shop id and never the production database; (2) a pre-merge local run of the assembled app (uvicorn on 127.0.0.1) with DEMO_REFERENCE_SHOP_ID pointed at a fixture shop, asserting the served JSON body against the shape recorded in the journeys below; (3) an immediate post-cutover LOOPBACK probe on the VPS of http://127.0.0.1:8000/v1/demo/analytics and of the same path with ?range=7d, comparing the response body to the pre-cutover capture taken in the `pre-cutover-baseline-capture` journey. Stage 3 is a body-level probe and is mandatory because infra/scripts/deploy-release.sh only health-checks /health, which returns 200 regardless of what this route serves — the existing deploy gate is structurally incapable of detecting this regression.",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "pre-cutover-baseline-capture",
+        "entryUrl": "http://127.0.0.1:8000/v1/demo/analytics (loopback on the review VPS, against the CURRENTLY DEPLOYED release, BEFORE merging this slice)",
+        "assertions": [
+          "capture and record verbatim in the implementation artifact: the full list of keys present in `kpis`, and for each key its `availability` value",
+          "record specifically whether `product_funnel` and `live_performance` are currently `available` and, if so, how many points each `series` contains — these two keys are DELETED by the cutover and are the concrete content-loss risk",
+          "record specifically whether `gmv_tiktok` is currently `available` and whether it carries a `series` with >= 1 point",
+          "record whether `overlays.t1_forecast` is present",
+          "capture the same body with ?range=7d and record how many `gmv_tiktok.series` points survive the trim, proving the range parameter is currently load-bearing",
+          "this capture is REQUIRED EVIDENCE, not optional: without it the post-cutover diff cannot distinguish an intended key-set change from an accidental data loss"
+        ]
+      },
+      {
+        "name": "gmv-tiktok-remains-chartable-after-cutover",
+        "entryUrl": "tests/unit/test_api_demo_analytics.py (route contract tests, extended)",
+        "assertions": [
+          "ARCHITECT LOCK — the single hardest gate in this plan: after the cutover the public route MUST still return `kpis.gmv_tiktok` with `availability: \"available\"` AND a non-empty `series` array of {t, v} objects whenever the reference shop has order data, exactly as the two currently-passing assertions in tests/unit/test_api_demo_analytics.py require (body[\"kpis\"][\"gmv_tiktok\"][\"series\"][2][\"v\"] and the ?range trim test)",
+          "#630's compute_demo_main_kpis_payload currently emits a SCALAR `value` and no `series` for gmv_tiktok. Satisfying this assertion therefore requires extending compute_demo_main_kpis_payload (in services/gold_kpi_envelope_serving.py, which IS in this slice's requiredModules) to emit a date-bucketed `series` for gmv_tiktok alongside or instead of the scalar",
+          "the two existing assertions on `series` and on ?range filtering must NOT be deleted, weakened, xfail-ed, or rewritten to accept a scalar. If the Executor believes they must change, that is a STOP-AND-REPORT to Meta, not an edit",
+          "the medallion one-writer ownership gate (agent-runtime/scripts/ci/medallion_one_writer.py) still passes: the gold.kpi_envelopes upsert stays inside gold_kpi_envelope_serving.write_demo_main_kpis_envelope",
+          "if a date-bucketed gmv_tiktok series genuinely cannot be derived from silver orders inside this slice's module boundary, STOP AND REPORT — do not ship a scalar-only gmv_tiktok on the live public route"
+        ]
+      },
+      {
+        "name": "five-locked-keys-and-honest-availability",
+        "entryUrl": "tests/unit/test_api_demo_analytics.py (issue #633 acceptance criteria)",
+        "assertions": [
+          "the response `kpis` map contains all five ADR-049 / epic-#601-locked metric_ids: gmv_tiktok, aov, ctor, live_hours, cancellation_rate",
+          "each of the five carries an explicit `availability` field of \"available\" or \"unavailable\" — never a missing key, never null, never a fabricated placeholder number",
+          "ctor and live_hours are `unavailable` with their ADR-044 labels, because the analytics_shop domain is not synced to silver. This is HONEST, not a regression: the legacy analytics_kpi_envelopes payload never emitted a `ctor` or `live_hours` key at all (it emitted `ctr` for Ads, hardcoded unavailable, and `live_performance` keyed on GMV). See doNotInfer for the full finding",
+          "the envelope-level `computed_at` is present and is an ISO-8601 string",
+          "no A2 fleet-batching or I/O-governor module is imported by, referenced from, or reachable through this read path (issue #633 negative acceptance criterion)"
+        ]
+      },
+      {
+        "name": "removed-keys-are-a-decision-not-an-accident",
+        "entryUrl": "tests/unit/test_api_demo_analytics.py + the implementation artifact decision record",
+        "assertions": [
+          "the implementation artifact must contain an explicit written decision record naming every key that disappears from the live public response relative to the pre-cutover baseline capture: product_funnel, live_performance, roas, cac, ctr, sps, ahr, violation_points, and overlays.t1_forecast",
+          "for product_funnel and live_performance specifically, the record must state their measured pre-cutover availability from the baseline capture and confirm, with a reference to ADR-049 §2, that removing them is the intended Demo-selector reduction and not silent data loss",
+          "a test asserts the served response contains EXACTLY the five locked keys and no others, so a future accidental key addition or removal fails loudly",
+          "the record must acknowledge that packages/contracts/src/analytics.ts still declares product_funnel and live_performance in AnalyticsEnvelopeKpiKey and still declares AnalyticsKpiEntry.series (never `value`), and that reconciling that package is #600's work, deferred by epic #601"
+        ]
+      },
+      {
+        "name": "tenant-pivot-and-shop-binding-still-hold",
+        "entryUrl": "tests/unit/test_api_demo_analytics.py (security criteria)",
+        "assertions": [
+          "a request carrying any `shop_id` query parameter is rejected with 400 before any database or Redis read is attempted — the existing guard in get_demo_analytics must survive the cutover unchanged",
+          "the served envelope is only ever the shop resolved by get_demo_reference_shop_id() from the server-side DEMO_REFERENCE_SHOP_ID env var; no request-supplied value can influence which shop is read",
+          "the Redis cache key derived in gold_kpi_cache.envelope_cache_key is built from the server-resolved reference shop UUID only, so no request input can be used to read another tenant's cached envelope",
+          "Fake Refresh on the public Demo cannot bypass the shop binding and cannot reach any recompute path — the forbidden paths in apps/demo/src/lib/analytics/api-client.ts DEMO_ANALYTICS_FORBIDDEN_REFRESH_PATHS remain unrouted on the backend",
+          "mask_public_analytics_envelope still runs on the gold payload before it leaves the process; a test asserts no raw shop UUID, no merchant_id, and no buyer PII field appears anywhere in the serialized response",
+          "production_read credential isolation is preserved and no OAuth or sign-in surface is introduced by this slice"
+        ]
+      },
+      {
+        "name": "read-through-cache-and-postgres-fallback",
+        "entryUrl": "tests/unit/test_gold_kpi_cache.py + tests/unit/test_api_demo_analytics.py",
+        "assertions": [
+          "a Redis hit serves the envelope without touching Postgres; a Redis miss falls back to GoldKpiEnvelopesRepo (Postgres remains SoT) and then refreshes Redis",
+          "a Redis outage (RedisError) or a corrupt cached value (JSONDecodeError) degrades to the Postgres read and returns 200 — it does not 500 the public endpoint",
+          "when no gold row exists for the reference shop the route returns 404 with the existing detail message, never a fabricated or zero-filled envelope",
+          "the public GET performs no Postgres WRITE and enqueues no Celery task under any code path — the only write it can cause is the Redis cache fill (apiSideEffectsInScope: true)",
+          "no worker, scheduler, or background dispatch is started or required by the verification of this slice (workersDisabledOnCandidate: true)"
+        ]
+      },
+      {
+        "name": "e2e-tracer-webhook-to-get",
+        "entryUrl": "tests/integration (CI fixtures; issue #633 E2E tracer acceptance criterion)",
+        "assertions": [
+          "a material webhook fixture drives ETL -> enqueue -> orchestrator -> gold write -> Redis refresh, and a subsequent GET on this route returns an advanced `computed_at`",
+          "at least one locked key (gmv_tiktok) shows the updated value after the tracer run",
+          "the tracer uses committed CI fixtures only — no live TikTok Partner call and no production credential is exercised in the PR lane",
+          "the tracer's synthetic shop is a fixture UUID, never a real tenant shop id"
+        ]
+      },
+      {
+        "name": "post-cutover-loopback-body-probe",
+        "entryUrl": "http://127.0.0.1:8000/v1/demo/analytics on the review VPS, immediately after infra/scripts/deploy-release.sh completes",
+        "assertions": [
+          "the probe compares the live body against the pre-cutover baseline capture and records the key-set diff in the implementation artifact",
+          "gmv_tiktok is `available` with a non-empty `series` on the live endpoint — if it is scalar-only or unavailable, this is a REGRESSION and rollback.yml must be triggered immediately per rollbackAssertion",
+          "GET with ?range=7d returns a body whose gmv_tiktok.series is strictly shorter than or equal to the unfiltered series, proving the range parameter is still load-bearing rather than a silent no-op",
+          "the probe is a body-level assertion, not a status-code check: infra/scripts/deploy-release.sh only probes /health, which returns 200 no matter what this route serves, so a green deploy is NOT evidence this route is correct",
+          "record the observed wall-clock time between symlink cutover and probe completion in the implementation artifact"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "https://demo.app-juli.com/ (public Demo home)",
+      "https://demo.app-juli.com/analytics (public Demo Analytics page — the downstream HTML consumer of this JSON route)",
+      "https://demo.app-juli.com/decisions (mandatory route already asserted by infra/scripts/smoke-test-demo.sh)"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js",
+      "json-api-response"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No Alembic migration is authorized or required. gold.kpi_envelopes already exists (migrations/versions/024_gold_kpi_envelopes.py) and analytics_kpi_envelopes is untouched. This is a READ-PATH cutover only: the slice changes which service module demo_analytics.py reads from, and nothing about what is written. THE ROLLBACK SUBSTRATE MUST BE PRESERVED — this is the property that makes a code revert safe, and it is load-bearing: (1) do not drop, rename, or truncate the analytics_kpi_envelopes table; (2) do not delete or gut services/analytics_kpi_cache/; (3) do not delete services/analytics_kpi_precompute/; (4) do not remove or disable the `mock-analytics-hourly-reconcile` Beat entry in workers/celery_app.py (crontab(minute=0)), because that hourly job is what keeps the legacy envelope warm — if it is stopped, a revert restores the old code path but serves a stale envelope, and the rollback stops being clean. Mixed-version window during the deploy-release.sh symlink cutover is safe: both the old and new read paths are read-only against tables that both remain populated, so no ordering hazard and no data repair exists in either direction. The RESPONSE-SHAPE change is the incompatibility that matters here, not a schema change — see affectedPublicSurfaces and the gmv-tiktok-remains-chartable-after-cutover journey.",
+    "referencedIssues": [
+      "#630 five-KPI gold precompute (merged) — source of the scalar `value` shape",
+      "#631 gold_kpi_cache read-through cache (merged) — the new read path",
+      "#600 Demo UI rewire to the five locked keys — DEFERRED by epic #601; the reason this slice cannot fix the consumer side",
+      "#601 parent epic — locks the five payload.kpis keys"
+    ]
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The public route keeps reading analytics_kpi_cache and serving the legacy envelope exactly as it does today, refreshed hourly by mock-analytics-hourly-reconcile. The failure mode is the absence of the gold cutover, never a degradation of what the public endpoint serves now. The branch stays blocked until every acceptanceCommand is green, the pre-cutover baseline capture is recorded, and the gmv-tiktok-remains-chartable-after-cutover lock is satisfied. If the baseline capture shows product_funnel or live_performance is currently `available` with real series data, the decision record in removed-keys-are-a-decision-not-an-accident must be written and accepted BEFORE merge — do not merge and reconcile later.",
+    "postCutoverFailureBehavior": "Rollback is a code-only revert with NO data repair, because this slice writes nothing. Mechanism, in order: (1) trigger .github/workflows/rollback.yml via workflow_dispatch with target_sha set to the last known-good release SHA; it runs infra/scripts/rollback-release.sh, which re-points ~/releases/current at the retained previous release worktree and re-runs the health check. (2) If the retained release directory has been pruned, rollback.yml cannot run — hence retainedStableRequired: true; confirm ~/releases/<previous-sha> still exists BEFORE cutting over and record that confirmation in the implementation artifact. (3) Also revert the commit on main so the next deploy does not immediately re-apply the regression. THERE IS NO AUTOMATIC ROLLBACK: infra/scripts/deploy-release.sh states explicitly `Health check — fail loudly, no auto-rollback (manual rollback.yml)`, and a failed health check leaves the NEW release live at ~/releases/current. Worse for this specific slice, /health returns 200 independently of what /v1/demo/analytics serves, so the deploy health check cannot detect this regression at all — the post-cutover-loopback-body-probe journey is the only detector, and it is manual-triggered automation, not a gate. There is NO feature flag: demo_analytics.py imports get_analytics_kpi_envelope at module scope and the route has no conditional read-source selector; the Executor is NOT authorized to invent one (see doNotInfer). Redis note: the two cache modules use different key prefixes (`analytics:kpi_envelope:` vs `gold:kpi_envelope:`), so neither path can serve the other's data and a revert needs no cache flush — but gold_kpi_cache also holds a process-local _last_good_cache dict that dies with the process restart, which is correct and requires no action.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_api_demo_analytics.py -q",
+    "python -m pytest tests/unit/test_gold_kpi_cache.py tests/unit/test_gold_kpi_envelopes.py tests/unit/test_analytics_kpi_cache.py -q",
+    "ruff check backend tests scripts && ruff format --check backend tests scripts",
+    "python agent-runtime/scripts/ci/medallion_one_writer.py",
+    "python agent-runtime/scripts/validate/check_public_release_evidence_plan.py --issue 633",
+    "python agent-runtime/scripts/validate/check_release_evidence_plan_continuity.py --issue 633",
+    "python agent-runtime/scripts/validate/check_release_metadata_honesty.py --issue 633"
+  ],
+  "doNotInfer": [
+    "ARCHITECT FINDING — THE ctor/live_hours REGRESSION HYPOTHESIS IS FALSE, AND A DIFFERENT, LARGER REGRESSION IS REAL. The legacy read path never served `ctor` or `live_hours` at any point. services/analytics_kpi_precompute/precompute.py merges exactly gmv_tiktok, product_funnel, live_performance and the hardcoded-unavailable set {roas, cac, ctr, sps, ahr, violation_points}. `ctr` is Ads click-through-rate, permanently unavailable, and is NOT `ctor`; `live_performance` defaults to the GMV metric (label \"LIVE performance (GMV)\") and is NOT `live_hours`. So ctor and live_hours move from ABSENT to PRESENT-BUT-HONESTLY-UNAVAILABLE, which is a strict improvement. Do not spend implementation effort defending against a ctor/live_hours regression that cannot occur.",
+    "ARCHITECT FINDING — THE ACTUAL REGRESSION IS THE ENTRY SHAPE. Legacy entries are {availability, label, series:[{t,v}]}; #630's gold entries are {availability, label, value:<float>}. gmv_tiktok is the one metric that genuinely works today, and every consumer reads it through `.series`: tests/unit/test_api_demo_analytics.py asserts body[\"kpis\"][\"gmv_tiktok\"][\"series\"][2][\"v\"]; demo_analytics._apply_chart_range trims `kpi[\"series\"]`; apps/demo envelope-mapper gates the live hero on `Boolean(entry.series?.length)` and falls back to fixture data with a visible \"Dữ liệu mẫu\" badge when it is absent. A naive import swap therefore turns the Demo's headline proof from real data into sample data on the public internet, with a green /health check and no error anywhere. This must be fixed inside the slice by giving gmv_tiktok a series, or the slice must not cut over.",
+    "ARCHITECT FINDING — SECOND CONTENT LOSS. product_funnel and live_performance are rendered as supplementary charts by apps/demo listSupplementaryCharts and CAN legitimately be `available` with real series when the reference shop has AnalyticsPerformanceInterval rows. The cutover deletes both keys. ADR-049 §2 authorizes removing them from the Demo selector, so this is defensible — but it is a visible content reduction on a live public surface and must be recorded as a decision against the measured pre-cutover baseline, not discovered after the fact.",
+    "do not infer that the pre-cutover baseline capture is optional or can be reconstructed from fixtures. It must be taken against the CURRENTLY DEPLOYED release before merge. Without it there is no way to distinguish an intended ADR-049 key-set reduction from accidental data loss, and the post-cutover probe has nothing to diff against.",
+    "do not infer that a green deploy proves this route works. infra/scripts/deploy-release.sh health-checks only 127.0.0.1:8000/health and 127.0.0.1:3000/, both of which return 200 regardless of what /v1/demo/analytics serves. A green release run is not release evidence for this slice.",
+    "do not infer that a canary, staged rollout, isolated candidate target, restricted test listener, or traffic split exists. It does not. ADR-035's ECS/Fargate candidate platform is aspirational and unbuilt; the real platform is a single review VPS with a symlink cutover. candidatePublicTrafficPercent is 0 because no candidate is deployed, not because traffic is being withheld from one. Do not fabricate canary evidence in any artifact.",
+    "ARCHITECT LOCK — do not invent a feature flag, environment variable, or conditional read-source selector to toggle between analytics_kpi_cache and gold_kpi_cache. No such mechanism exists on this route and adding one is not authorized by issue #633. Rollback is the documented revert path. If the Executor concludes a flag is genuinely required to ship safely, that is a STOP-AND-REPORT to Meta and a scope change, not an implementation choice.",
+    "ARCHITECT LOCK — do not delete, weaken, skip, xfail, or rewrite the existing assertions in tests/unit/test_api_demo_analytics.py that depend on `series` and on ?range filtering, in order to make a scalar-only payload pass. Those tests encode the current live public contract. Making a failing test pass by changing the test is the exact failure mode this lock exists to prevent. Note that this test file is NOT in the CDP-A1-9 requiredModules list — the Executor must open it anyway; treat this plan as the authorization to do so.",
+    "do not infer that apps/demo, packages/contracts, or any frontend file may be edited by this slice. apps/demo is in the CDP-A1-9 doNotLoad list and the Demo UI rewire is #600, explicitly DEFERRED by epic #601's parentScopeBlock. The consequence — that packages/contracts/src/analytics.ts will describe a response the backend no longer serves — is a known, accepted drift that must be written into the implementation artifact, not silently fixed and not silently ignored.",
+    "do not infer that the rollback substrate may be cleaned up as part of this cutover. The analytics_kpi_envelopes table, services/analytics_kpi_cache/, services/analytics_kpi_precompute/, and the `mock-analytics-hourly-reconcile` Beat entry must all survive this slice untouched. Removing any of them converts a clean code revert into an unrecoverable one. Dead-code cleanup is a separate, later slice gated on this one being stable in production.",
+    "do not infer that an Alembic migration, a new table, a new column, or a second gold writer is authorized. The gold.kpi_envelopes upsert must remain the single writer inside gold_kpi_envelope_serving.write_demo_main_kpis_envelope per agent-runtime/scripts/ci/medallion_one_writer.py.",
+    "do not infer that any fabricated, zero-filled, interpolated, or fixture value may be served when data is missing. Missing data is `availability: \"unavailable\"`; a missing gold row is a 404. Never a placeholder number on a public endpoint.",
+    "do not infer that the shop_id rejection, the server-bound DEMO_REFERENCE_SHOP_ID resolution, or the mask_public_analytics_envelope call may be relaxed, reordered after the read, or made conditional during the cutover. The 400 on any supplied shop_id must fire before any Redis or Postgres access.",
+    "do not infer that meta.source_partitions may leak internal storage names to the public unauthenticated endpoint without consideration. The gold payload currently emits [\"silver.orders\"]; masking does not touch `meta`. Either keep it, seller-language it per ADR-049 §3, or drop it — but state the choice in the implementation artifact rather than shipping it unexamined.",
+    "do not infer that any A2 fleet-batching, budget-governor, or I/O-throttling module may be imported by or reachable from this read path — issue #633 lists that as an explicit negative acceptance criterion.",
+    "do not infer that live TikTok Partner calls or production credentials may be exercised in the PR CI lane. The E2E tracer uses committed fixtures only.",
+    "ARCHITECT ESCALATION — if the pre-cutover baseline capture cannot be taken (no VPS access), OR gmv_tiktok cannot be given a date-bucketed series inside services/gold_kpi_envelope_serving.py, then this slice as currently scoped WOULD ship a visible regression to a live public endpoint and must NOT be merged. In that case stop and report to Meta so the scope is corrected — either by pulling the series work into #630's module explicitly, or by sequencing #633 behind #600. Reporting that is the correct outcome, not a failure."
+  ]
+}
