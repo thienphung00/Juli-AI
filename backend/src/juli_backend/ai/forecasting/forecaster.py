@@ -15,6 +15,7 @@ from juli_backend.models.models import InventoryItem, Order
 _MIN_HISTORY_FOR_REGRESSION = 30
 _VELOCITY_CHANGE_THRESHOLD = 0.15
 _DEFAULT_LOW_STOCK_WINDOW_DAYS = 7
+_REORDER_QUANTITY_MIN_FALLBACK = 10  # Minimum units for zero-velocity items
 
 
 @dataclass
@@ -45,9 +46,7 @@ class VelocityChange:
     change_ratio: float
 
 
-def _linear_regression_forecast(
-    daily_series: list[float], horizon: int
-) -> list[float]:
+def _linear_regression_forecast(daily_series: list[float], horizon: int) -> list[float]:
     """Fit y = intercept + slope * x and project the next *horizon* days."""
     n = len(daily_series)
     if n == 0:
@@ -74,11 +73,7 @@ def _moving_average_forecast(daily_series: list[float], horizon: int) -> list[fl
 
 
 def _mape(actual: list[float], predicted: list[float]) -> float:
-    pairs = [
-        (a, p)
-        for a, p in zip(actual, predicted, strict=True)
-        if a > 0
-    ]
+    pairs = [(a, p) for a, p in zip(actual, predicted, strict=True) if a > 0]
     if not pairs:
         return 0.0
     return sum(abs(a - p) / a for a, p in pairs) / len(pairs)
@@ -172,9 +167,7 @@ async def _daily_series_for_sku(
     return all_series.get(sku_id, [])
 
 
-async def get_forecast(
-    session: AsyncSession, shop_id: uuid.UUID, sku_id: str
-) -> ForecastResult:
+async def get_forecast(session: AsyncSession, shop_id: uuid.UUID, sku_id: str) -> ForecastResult:
     item_stmt = select(InventoryItem).where(
         InventoryItem.shop_id == shop_id,
         InventoryItem.tiktok_sku_id == sku_id,
@@ -255,9 +248,7 @@ async def get_low_stock_risks(
     return risks
 
 
-async def get_velocity_changes(
-    session: AsyncSession, shop_id: uuid.UUID
-) -> list[VelocityChange]:
+async def get_velocity_changes(session: AsyncSession, shop_id: uuid.UUID) -> list[VelocityChange]:
     daily_by_sku = await _daily_units_series(session, shop_id)
     changes: list[VelocityChange] = []
 
@@ -296,3 +287,37 @@ async def get_velocity_changes(
 
     changes.sort(key=lambda c: abs(c.change_ratio), reverse=True)
     return changes
+
+
+def compute_reorder_quantity(
+    risk: LowStockRisk,
+    *,
+    lead_time_days: int = 3,
+    safety_stock_days: int = 2,
+) -> float:
+    """Compute suggested reorder quantity for a low-stock risk item.
+
+    Combines sales velocity with lead-time and safety-stock buffers:
+    suggested_quantity = daily_velocity * (lead_time_days + safety_stock_days)
+
+    For items with zero or near-zero velocity, returns a reasonable fallback
+    quantity to avoid ordering nothing.
+
+    Args:
+        risk: LowStockRisk item with computed daily_velocity.
+        lead_time_days: Restocking lead time in days (default: 3 days).
+        safety_stock_days: Safety stock buffer in days scaled by velocity (default: 2 days).
+
+    Returns:
+        Suggested reorder quantity as a float. Value is freely editable in UI.
+    """
+    if risk.daily_velocity <= 0:
+        # Fallback for new products or items with no recent sales
+        return float(_REORDER_QUANTITY_MIN_FALLBACK)
+
+    # Standard calculation: velocity * (lead_time + safety_stock)
+    total_days = lead_time_days + safety_stock_days
+    suggested_qty = risk.daily_velocity * total_days
+
+    # Ensure at least the fallback minimum if calculation rounds too low
+    return max(suggested_qty, float(_REORDER_QUANTITY_MIN_FALLBACK))

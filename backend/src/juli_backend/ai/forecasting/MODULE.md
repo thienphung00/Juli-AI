@@ -21,6 +21,13 @@ Read-only against `src/data` — no writes or migrations.
 - `LowStockRisk` — `sku_id`, `tiktok_product_id`, `quantity`, `daily_velocity`,
   `days_until_stockout`, `urgency_score`
 
+### Reorder quantity computation (Issue #721)
+- `compute_reorder_quantity(risk, lead_time_days=3, safety_stock_days=2) -> float`
+  — Suggested reorder quantity for a low-stock item based on sales velocity.
+  Returns `daily_velocity * (lead_time_days + safety_stock_days)` with reasonable
+  fallback (≥10 units) for zero-velocity items. Computed on-demand when recommendation
+  is displayed; value is freely editable before approval.
+
 ### Velocity changes
 - `get_velocity_changes(session, shop_id) -> list[VelocityChange]` — SKUs whose
   last-7-day velocity differs from the prior 7 days by ≥15%.
