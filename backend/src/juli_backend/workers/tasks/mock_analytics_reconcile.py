@@ -27,6 +27,7 @@ from juli_backend.services.cdp_speed import (
     run_shared_compute_job,
 )
 from juli_backend.workers.celery_app import celery_app
+from juli_backend.workers.tasks.database import get_async_database_url
 from juli_backend.workers.tasks.material_analytics_precompute import (
     material_analytics_precompute_sync,
 )
@@ -43,7 +44,7 @@ def get_demo_reference_shop_id() -> uuid.UUID | None:
 
 
 def _database_url() -> str:
-    return os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    return get_async_database_url()
 
 
 def _ensure_session_factory():
