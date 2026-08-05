@@ -187,12 +187,20 @@ class TikTokOAuthService:
 
         new_expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
 
+        # Access token is required; refresh token may be omitted by provider
+        # (fall back to existing if missing from response).
+        new_refresh_token = token_data.get("refresh_token", credential.refresh_token)
+
         updated = await cred_repo.update_tokens(
             credential_id=credential.id,
             access_token=token_data["access_token"],
-            refresh_token=token_data["refresh_token"],
+            refresh_token=new_refresh_token,
             token_expires_at=new_expires_at,
         )
+
+        # Commit immediately to ensure token durability regardless of caller behavior.
+        # This is a deliberate exception to the "repos never commit" convention (#745).
+        await self._session.commit()
 
         log_extra: dict[str, str] = {"shop_id": str(shop_id)}
         if merchant_authorization_id is not None:

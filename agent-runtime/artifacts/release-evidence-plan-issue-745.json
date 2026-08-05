@@ -1,0 +1,71 @@
+{
+  "planId": "tiktok-token-refresh-persistence-2026-08-05",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com — TikTok-backed data freshness depends on a durable credential; no route contract changes"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local pytest on feature/issue-745; production verification is a single reconcile run against the Fujiwa reference shop",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "token-refresh-durability",
+        "entryUrl": "https://api.app-juli.com/health",
+        "assertions": [
+          "a refreshed token is readable from a new session after the refresh returns",
+          "a rotated refresh_token is persisted, not the one that was sent",
+          "a response omitting refresh_token retains the existing refresh token and does not raise",
+          "the REFRESH_BUFFER early-return still short-circuits without an HTTP call or write",
+          "persisted refresh_token remains encrypted with the enc:v1: prefix and no plaintext token appears in logs",
+          "tiktok_credentials.updated_at advances and token_expires_at moves into the future after one production reconcile"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "https://api.app-juli.com/health"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "json"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. tiktok_credentials already has access_token, refresh_token and token_expires_at; this only makes an existing write durable. Stable and candidate read the same columns, so a rollback mid-deploy leaves rows readable by both."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Refreshes continue to be rolled back — the credential does not degrade further than today, but the 30-minute buffer stays permanently ineffective and every job re-refreshes.",
+    "postCutoverFailureBehavior": "Revert the commit. Rows already persisted by the fixed code remain valid — they hold the newest tokens TikTok issued, which is strictly better than the pre-fix state. Reverting resumes discarding refreshes; it cannot corrupt a stored credential.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_tiktok_oauth.py tests/unit/test_tiktok_credential_isolation.py -q",
+    "python -m pytest tests/unit -q -k 'oauth or credential or token'"
+  ],
+  "doNotInfer": [
+    "this adds a distributed lock — single-flight refresh is explicitly deferred; a narrow race remains if two workers read an expired credential simultaneously",
+    "this adds reactive 401 refresh — TikTokClient holds a token snapshot, so refresh stays proactive via REFRESH_BUFFER",
+    "this tracks refresh-token expiry — refresh_token_expire_in is still ignored and there is no column or alert for it",
+    "this fixes the empty bronze/silver/gold tables — that is blocked by #744 unbounded pagination and is a separate path"
+  ]
+}
