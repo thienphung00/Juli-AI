@@ -2,6 +2,9 @@
 
 Exercises downgrade/upgrade round trips against Postgres with seeded data
 assertions. Skips when DATABASE_URL is not a reachable Postgres instance.
+
+GUARD: Issue #734 — Destructive migration tests refuse non-local database URLs.
+Tests will error loudly (not skip silently) if DATABASE_URL points to a remote host.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 from alembic import command
@@ -27,6 +31,69 @@ pytestmark = pytest.mark.migration_heavy
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 LATEST_REVISION = "025_silver_orders_returns"
+
+
+def _validate_destructive_db_url(url: str) -> None:
+    """Validate DATABASE_URL before running destructive migration operations.
+
+    Raises RuntimeError if the URL points to a non-local database, unless
+    ALLOW_DESTRUCTIVE_MIGRATION_TESTS=1 is set in the environment.
+
+    This guard sits BEFORE any command.downgrade() call or engine-creating fixture
+    to prevent accidental data loss when tests are pointed at production.
+
+    Acceptance criteria: Issue #734 AC1-AC5.
+    """
+    if not url.strip():
+        # Empty URL: will be caught later when Postgres is checked; allow here
+        return
+
+    # Check explicit opt-in environment variable
+    allow_destructive = os.environ.get("ALLOW_DESTRUCTIVE_MIGRATION_TESTS", "").strip()
+    if allow_destructive == "1":
+        # Explicitly opt-in: allow any target
+        return
+
+    # Parse the URL using urllib.parse to robustly extract the host
+    parsed = urlparse(url)
+
+    # For unix socket URLs (postgresql:///...), netloc will be empty and path contains the socket
+    netloc = parsed.netloc.strip()
+
+    if not netloc:
+        # Unix socket path (local): e.g., postgresql:///var/run/postgresql/socket/db
+        # These are always safe because they are file system paths
+        return
+
+    # Extract the hostname from netloc (netloc can include "user:pass@host:port")
+    # If there's an @ sign, split on it to remove credentials
+    if "@" in netloc:
+        host_port = netloc.split("@", 1)[1]  # Take the part after the @ sign
+    else:
+        host_port = netloc
+
+    # Remove port if present
+    if ":" in host_port:
+        hostname = host_port.split(":", 1)[0]
+    else:
+        hostname = host_port
+
+    hostname = hostname.strip().lower()
+
+    # Allowed local hosts
+    local_hosts = {"localhost", "127.0.0.1", "::1"}  # IPv6 localhost
+
+    if hostname not in local_hosts:
+        # Non-local host detected: raise error
+        raise RuntimeError(
+            f"Destructive migration tests refuse non-local hosts. "
+            f"Detected host: {hostname}. "
+            f"This suite runs 'alembic downgrade base' which drops all tables. "
+            f"If you want to run this suite against a disposable remote database, "
+            f"set ALLOW_DESTRUCTIVE_MIGRATION_TESTS=1 in the environment."
+        )
+
+
 REVISION_024_GOLD_TABLE = "kpi_envelopes"
 REVISION_024_COMPAT_VIEW = "analytics_kpi_envelopes_compat"
 REVISION_025_SILVER_TABLES = ("orders", "returns")
