@@ -14,15 +14,20 @@ import {
 } from "@juli/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import {
   buildReviewInputDefaultsForWorkflow,
   getWorkflowReviewStages,
 } from "../lib/reviews";
 import { SELLER_APPROVE_GATE } from "../lib/review-seller-copy";
-import { buildDecisionsHighlightHref } from "../lib/recommendations";
+import {
+  buildDecisionsHighlightHref,
+  fetchActionCardInputs,
+  type ActionCardInputsData,
+} from "../lib/recommendations";
 import { useDemoState } from "./demo-state";
+import { getReplenishInventoryReviewStages, REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
 
 interface RecommendationReviewProps {
   workflowKey: string;
@@ -37,14 +42,32 @@ function renderBodyParagraphs(body: string) {
 export function RecommendationReview({ workflowKey }: RecommendationReviewProps) {
   const router = useRouter();
   const { mutableState, startExecution, updateMutableState } = useDemoState();
-  const stages = getWorkflowReviewStages(workflowKey);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [approveGateOpen, setApproveGateOpen] = useState(false);
+  const [actionCardInputs, setActionCardInputs] = useState<ActionCardInputsData | null>(null);
   const progressId = useId();
   const announcementId = useId();
 
+  // Fetch action card inputs for workflows that support computed values
+  useEffect(() => {
+    if (workflowKey === REPLENISH_INVENTORY_WORKFLOW_KEY) {
+      fetchActionCardInputs(workflowKey).then((inputs) => {
+        setActionCardInputs(inputs);
+      });
+    }
+  }, [workflowKey]);
+
+  // Use computed reorder_quantity for replenish_inventory, otherwise use base stages
+  const stages =
+    workflowKey === REPLENISH_INVENTORY_WORKFLOW_KEY && actionCardInputs
+      ? getReplenishInventoryReviewStages(
+          "cancellation-rate",
+          actionCardInputs.reorder_quantity,
+        )
+      : getWorkflowReviewStages(workflowKey);
+
   const previewDraftValues = {
-    ...buildReviewInputDefaultsForWorkflow(workflowKey),
+    ...buildReviewInputDefaultsForWorkflow(workflowKey, actionCardInputs?.reorder_quantity),
     ...(mutableState.workflowReviewDrafts[workflowKey] ?? {}),
   };
 

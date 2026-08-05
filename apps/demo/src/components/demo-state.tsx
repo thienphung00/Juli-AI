@@ -15,6 +15,8 @@ import {
 
 import { startExecution as createExecutionRecord } from "../lib/executions";
 import { buildReviewInputDefaultsForWorkflow } from "../lib/reviews";
+import { buildReplenishInventoryExecutionPayload } from "../lib/workflows/replenish-inventory/execution-payload";
+import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
 
 export const DEMO_MODE_STORAGE_KEY = "juli_demo_mode";
 export const DEMO_MUTABLE_STATE_STORAGE_KEY = "juli_demo_mutable_state";
@@ -166,7 +168,15 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
           ...buildReviewInputDefaultsForWorkflow(workflowKey),
           ...(current.workflowReviewDrafts[workflowKey] ?? {}),
         };
-        const created = createExecutionRecord(workflowKey, approvedInputs);
+
+        // Map UI field keys to backend API contract for specific workflows
+        // replenish_inventory_3: reorder_quantity → quantity for POST /v1/executions
+        const executionPayload =
+          workflowKey === REPLENISH_INVENTORY_WORKFLOW_KEY
+            ? buildReplenishInventoryExecutionPayload(approvedInputs)
+            : approvedInputs;
+
+        const created = createExecutionRecord(workflowKey, executionPayload);
         executionId = created.executionId;
 
         return {
