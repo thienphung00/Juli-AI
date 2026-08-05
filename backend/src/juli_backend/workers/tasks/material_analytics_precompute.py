@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import uuid
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -12,12 +11,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from juli_backend.database.database import init_session_factory
 from juli_backend.services.webhook.material_worker import run_material_analytics_compute
 from juli_backend.workers.celery_app import celery_app
+from juli_backend.workers.tasks.database import get_async_database_url
 
 logger = logging.getLogger(__name__)
 
 
 def _database_url() -> str:
-    return os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    return get_async_database_url()
 
 
 def _ensure_session_factory() -> async_sessionmaker:
