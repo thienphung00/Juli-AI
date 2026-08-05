@@ -146,11 +146,11 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
           KPI không tìm thấy
         </h1>
         <p className="demo-intro">
-          Không có KPI chính nào khớp với đường dẫn{" "}
-          <code>{routeMetricKey}</code>. Juli giữ nguyên URL để bạn hiểu lỗi này.
+          Không tìm thấy KPI này. Đường dẫn có thể đã đổi hoặc không còn tồn
+          tại.
         </p>
         <Link className="analytics-dashboard__recovery" href="/analytics/gmv-tiktok">
-          Xem GMV (TikTok)
+          Về GMV (TikTok) <span aria-hidden="true">→</span>
         </Link>
       </section>
     );
@@ -237,6 +237,7 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
             </>
           ) : snapshot ? (
             <>
+              <p className="analytics-hero__lead">Shop của bạn hiện đạt</p>
               <p className="analytics-hero__value">{snapshot.formattedValue}</p>
               <p className={analyticsDeltaClass(snapshot.trend)}>{snapshot.delta}</p>
               <p className="analytics-hero__signal">{snapshot.signal}</p>

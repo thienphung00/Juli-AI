@@ -1,0 +1,48 @@
+{
+  "gateVersion": 1,
+  "issue": 720,
+  "metrics": {
+    "acceptanceMapped": 0,
+    "acceptanceTotal": 0,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      {
+        "change_type": "new_files",
+        "files_changed": [
+          "juli-celery-worker.service",
+          "juli-celery-beat.service"
+        ],
+        "module": "infra/systemd",
+        "risk": "low"
+      },
+      {
+        "change_type": "documentation_update",
+        "files_changed": [
+          "app-review-runbook.md"
+        ],
+        "module": "docs/runbooks",
+        "risk": "low"
+      },
+      {
+        "change_type": "example_config_update",
+        "files_changed": [
+          "api.env.example"
+        ],
+        "module": "infra/scripts/env",
+        "risk": "low"
+      }
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-720.json",
+    "sha256": "49a520a77743a4edafaa847adb98c29a470acec2dffee4eb8f4ce383fc9bb010",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-04T10:23:33Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-720.json",
+    "sha256": "fb089500ec2bb74dd4e97d857f60baf0b400b6de1b9ada8217d18f97aae2fd8f",
+    "status": "PASS"
+  },
+  "wave": null
+}

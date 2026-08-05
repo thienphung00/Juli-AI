@@ -26,7 +26,14 @@ describe("Chart primitives", () => {
     expect(CHART_SERIES_COLORS.positive).toBe("var(--juli-success)");
     expect(CHART_SERIES_COLORS.negative).toBe("var(--juli-destructive)");
     expect(CHART_SERIES_COLORS.warning).toBe("var(--juli-warning)");
-    expect(CHART_SERIES_COLORS.neutral).toBe("var(--juli-primary)");
+    expect(CHART_SERIES_COLORS.neutral).toBe("var(--juli-chart-neutral)");
+  });
+
+  it("keeps brand pink out of every chart series (ADR-054)", () => {
+    for (const color of Object.values(CHART_SERIES_COLORS)) {
+      expect(color).not.toBe("var(--juli-primary)");
+      expect(color).not.toBe("var(--juli-primary-strong)");
+    }
   });
 
   it("renders a Recharts sparkline with an accessible text equivalent", () => {

@@ -4,7 +4,7 @@ import { DecisionsPageClient } from "../../components/decisions-page-client";
 
 export default function DecisionsPage() {
   return (
-    <Suspense fallback={<p className="demo-kicker">Đang tải…</p>}>
+    <Suspense fallback={<p className="demo-kicker">Đang tải đề xuất…</p>}>
       <DecisionsPageClient />
     </Suspense>
   );
