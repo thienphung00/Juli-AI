@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-worker-db",
+  "branch": "feature/worker-db-wave",
+  "issues": [741]
+}
