@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import pytest
@@ -14,6 +15,21 @@ from tests.integration.tiktok_sandbox import (
     sandbox_app_key,
     sandbox_app_secret,
 )
+
+
+def pytest_configure(config):
+    """Guard against destructive migration tests pointing at non-local databases.
+
+    Runs at the very start of the test session, before any fixtures or tests,
+    to prevent accidental production data loss. Issue #734.
+    """
+    # Only validate if migration tests will run (DATABASE_URL is set)
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if database_url:
+        # Import here to avoid circular imports
+        from tests.integration.test_migrations import _validate_destructive_db_url
+
+        _validate_destructive_db_url(database_url)
 
 
 @pytest.fixture(scope="session")

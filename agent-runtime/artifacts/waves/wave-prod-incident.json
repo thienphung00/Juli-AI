@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-prod-incident",
+  "branch": "feature/prod-incident-wave",
+  "issues": [733, 734]
+}

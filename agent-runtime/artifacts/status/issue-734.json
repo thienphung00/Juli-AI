@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 734,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/integration/test_migrations.py",
+      "tests/integration/conftest.py",
+      "tests/unit/test_migration_host_guard.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-734.json",
+    "sha256": "ca12a5be3e5a3735c601b0b85dffa21081db6b6f9485182345d3c538e50190bc",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-05T10:38:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-734.json",
+    "sha256": "e4233be16c1230d0bd9b5198b40838bf98d9a85e124f5b379844a5795bc216c0",
+    "status": "PASS"
+  },
+  "wave": "wave-prod-incident"
+}

@@ -173,7 +173,9 @@ async def _run_hourly_reconcile_async() -> None:
         )
         return
 
-    shop_key = _lookup_tiktok_shop_key(shop_id)
+    # Await the async lookup directly — the sync `_lookup_tiktok_shop_key` wrapper
+    # opens its own event loop, which raises inside this already-running one (#733).
+    shop_key = await _lookup_tiktok_shop_key_async(shop_id)
     if shop_key is None:
         return
 
