@@ -195,9 +195,25 @@ _Avoid_: Mobbin as authoritative layout/copy, pixel-perfect Mobbin clones
 Demo composes from **`@juli/ui`** + **`@juli/theme`**; shadcn registry may refine atoms then migrate into `@juli/ui`. No wholesale replacement of Demo page scaffolding with raw shadcn. See [ADR-043](docs/adr/043-frontend-design-skill-wiring.md).
 _Avoid_: shadcn as Demo surface SoT, deleting `@juli/ui` for page composition
 
-**Five-stage decision review**:
-Seller-facing Recommendations detail flow — **Why → Analytics → Inputs → Preview → Approve** — using seller language; wired to existing Decision envelope/fixtures/Phase 2.10 feed when available. Does not change the **In Progress** sub-tab (deferred redesign).
-_Avoid_: backend step names in seller UI, inventing a new recommendation engine
+**Decision plan review**:
+Seller-facing Recommendations detail flow on `apps/demo` **mobile-web** — the agent presents a proposed plan the seller traverses **section by section**, planning-mode style, instead of a flat form. The agent **pre-commits a proposed value for every field**; each section offers recommended options, a custom input, and an **ask-before-deciding** follow-up. Sections rest **folded** and expand on demand — the AI recommendation explains when asked, it does not narrate by default. Optimises for minimal cognitive load and **minimal time to value**: agreeing with the plan requires expanding nothing. Supersedes the **Five-stage decision review** ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: Five-stage decision review (Why → Analytics → Inputs → Preview → Approve — superseded), flat all-fields form, blank-by-default seller fields, backend step names in seller UI, node/graph configuration surfaces, inventing a new recommendation engine
+
+**Agent-proposed value**:
+The value the agent commits to for **every** field of a Decision plan review before the seller opens it — there is no blank-by-default field and no class of fields the agent declines to propose. The seller accepts, picks another recommended option, supplies a custom input, or asks a follow-up first. Accepted trade-off: pre-committing judgment-bound fields risks **rubber-stamping**; the mitigation is the ask-before-deciding affordance, not a blank field ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: empty-string defaults as "the seller will fill it in", seller-reserved blank fields
+
+**Repeat consent**:
+The post-completion ask — whether the agent may run this workflow again in future without a fresh approval. Raised **after** the work finishes (acknowledgement → progress → repeat consent), never bundled into the initial approval ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: an automation toggle inside the approve step, consent implied by a single approval
+
+**Post-execution field**:
+A workflow input that can only be answered **after** execution — e.g. `prevent-return.resellable_quantity` ("sau kiểm tra"), `replenish-inventory.received_quantity` ("sau giao"). Belongs to a later lifecycle moment; must not be collected at approve time ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: collecting post-execution fields in the approval flow
+
+**Branch discriminator**:
+The field whose value determines which later sections are relevant at all — `process-order.shipping_type` (Ship by TikTok vs Ship by Seller), `prevent-return.seller_decision` (approve vs reject). Gates section visibility; the superseded flat form rendered every branch's fields regardless ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: rendering dead branch fields, treating conditional fields as always-required
 
 **Seller-surface copy**:
 Vietnamese Demo strings that are benefit-led, one idea per line, free of backend jargon (webhooks, endpoints, `feature_id`, tool names, FBS/FBT badges). Machine fields may remain in fixtures/code for dry-run but **never render** in Demo UI. Authority: **Copy dictionary** + **Design context** ([ADR-028](docs/adr/028-vietnamese-copy-dictionary-and-design-context.md)).
