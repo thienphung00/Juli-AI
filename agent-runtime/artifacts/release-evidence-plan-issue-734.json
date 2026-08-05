@@ -1,0 +1,70 @@
+{
+  "planId": "migration-test-production-guard-2026-08-05",
+  "affectedPublicSurfaces": [
+    "None — test-only change; no runtime, route, asset, or deployed artifact is modified"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local pytest run of tests/integration/test_migrations.py on feature/issue-734",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "migration-test-guard-candidate",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "suite refuses to run and fails loudly when DATABASE_URL host is non-local",
+          "suite runs normally against localhost / 127.0.0.1 / unix socket",
+          "explicit ALLOW_DESTRUCTIVE_MIGRATION_TESTS=1 opt-in permits a non-local target",
+          "guard is evaluated before any engine-creating fixture or command.downgrade call",
+          "no production deployment occurs"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "GitHub Actions run summary for the migration integration suite"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No migration is added, edited, or removed. The change adds a destination guard in front of the existing test-only downgrade/upgrade round trip. Alembic revision graph is untouched, so stable and candidate remain identical at the schema level."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge the guard slice; the destructive test remains unguarded and the operational freeze on running tests/integration/ against production stays in force.",
+    "postCutoverFailureBehavior": "Revert the guard commit. Reverting restores the prior unguarded behavior and carries the original data-loss risk, so a revert must be paired with reinstating the manual freeze.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/integration/test_migrations.py -q",
+    "python -m pytest tests/unit -q -k migration"
+  ],
+  "doNotInfer": [
+    "the publicRelease classification reflects this diff — it is inherited from slice P2-OPS-1's load profile (infra/systemd restore-drill units under ADR-027); this change touches only tests/integration/test_migrations.py",
+    "the guard recovers data lost in the 2026-07-13 or 2026-07-30 wipes — recovery was completed separately by surgical restore",
+    "the guard protects other suites — only the migration integration suite is in scope",
+    "live TikTok sandbox calls run in this slice"
+  ]
+}
