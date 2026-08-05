@@ -1,0 +1,21 @@
+# Automatic Cloudflare IP range refresh for origin lockdown.
+# Install to /etc/systemd/system/juli-cloudflare-ip-refresh.service on the review VPS.
+# Enable the companion timer: systemctl enable --now juli-cloudflare-ip-refresh.timer
+#
+# Runs cloudflare-origin-lockdown.sh periodically to keep firewall rules synced
+# with Cloudflare's current IP ranges. Failure is logged to journalctl but does
+# not trigger alerts — the static rules from the last successful run remain in place.
+[Unit]
+Description=Refresh Cloudflare IP ranges for origin lockdown (firewall rules)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=RELEASE_DIR=/root/releases/current
+EnvironmentFile=/etc/juli/api.env
+ExecStart=/root/Juli-AI-v2/infra/scripts/cloudflare-origin-lockdown.sh
+
+[Install]
+WantedBy=multi-user.target
