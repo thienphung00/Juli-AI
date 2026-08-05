@@ -310,3 +310,118 @@ def test_runbook_documents_rollback_leaves_origin_open():
         or "exposed" in runbook_text.lower()
         or "available" in runbook_text.lower()
     ), "Runbook must document that failed rules leave origin OPEN (not locked)"
+
+
+def test_dead_cidr_port_22_comparison_is_removed():
+    """Dead code comparing CIDR to port 22 must be removed.
+
+    CIDR strings like '104.21.0.0/16' can never equal '22', so the check
+    was dead code that advertised safety without providing it.
+    The real guard must be in emit_or_apply checking --dport arguments.
+    """
+    script_text = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    # Find all loops that read CIDR ranges
+    # Dead code pattern: checking if [ "${cidr}" = "${SSH_PORT}" ]
+    # This must be GONE and replaced with guards in emit_or_apply
+    lines = script_text.split("\n")
+
+    in_cidr_loop = False
+    for i, line in enumerate(lines):
+        # Track when we enter a CIDR read loop
+        if "while IFS= read -r cidr" in line or "while read -r cidr" in line:
+            in_cidr_loop = True
+        elif in_cidr_loop and "done <<<" in line:
+            in_cidr_loop = False
+
+        # Dead code must not exist inside loops
+        if in_cidr_loop and '[ "${cidr}" = "${SSH_PORT}" ]' in line:
+            raise AssertionError(
+                f"Line {i + 1}: Dead code comparing CIDR to SSH_PORT must be removed. "
+                "This check can never be true (CIDR strings like '104.21.0.0/16' != '22'). "
+                "The real guard must be in emit_or_apply()."
+            )
+
+
+def test_emit_or_apply_contains_port_22_guard():
+    """emit_or_apply must contain a guard checking --dport against SSH_PORT."""
+    script_text = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    # Find the emit_or_apply function
+    if "emit_or_apply()" not in script_text:
+        raise AssertionError("emit_or_apply() function not found")
+
+    # Extract the function body
+    start = script_text.find("emit_or_apply()")
+    end = script_text.find("\n}", start) + 2  # Include closing brace
+    func_text = script_text[start:end]
+
+    # Must check for --dport and SSH_PORT
+    assert "--dport" in func_text, "emit_or_apply must check the --dport argument"
+    assert "${SSH_PORT}" in func_text, "emit_or_apply must reference SSH_PORT in the guard"
+    assert "SAFETY GATE" in func_text or "fail" in func_text, (
+        "emit_or_apply must fail if --dport equals SSH_PORT"
+    )
+
+
+def test_emit_or_apply_rejects_port_22_rules():
+    """Functional test: emit_or_apply must reject any rule with --dport 22.
+
+    This test actually invokes the script logic to verify the guard fires.
+    """
+    script_path = SCRIPT_PATH
+    script_text = script_path.read_text(encoding="utf-8")
+
+    # Create a test harness that sources the script and calls emit_or_apply
+    # with a rule targeting port 22
+    test_script = (
+        """#!/bin/bash
+set -euo pipefail
+
+SSH_PORT="22"
+HTTP_01_PORT="80"
+HTTPS_PORT="443"
+DRY_RUN=""
+CHAIN_NAME="TEST"
+
+log() {
+    printf '[%s] %s\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+}
+
+fail() {
+    log "FAIL: $*"
+    exit 1
+}
+
+rollback_and_fail() {
+    fail "$1"
+}
+
+# Extract emit_or_apply from the script
+"""
+        + script_text[
+            script_text.find("emit_or_apply()") : script_text.find(
+                "# ===== APPLY RULES", script_text.find("emit_or_apply()")
+            )
+        ]
+        + """
+
+# Test: try to emit a rule with --dport 22 (should fail with SAFETY GATE)
+emit_or_apply iptables -t filter -A TEST -p tcp --dport 22 -j ACCEPT
+"""
+    )
+
+    # Run the test script
+    result = subprocess.run(["bash", "-c", test_script], capture_output=True, text=True)
+
+    # Must fail (exit non-zero)
+    assert result.returncode != 0, (
+        "emit_or_apply must reject a rule targeting port 22 (exit non-zero)"
+    )
+
+    # Must show SAFETY GATE message
+    combined_output = result.stdout + result.stderr
+    assert "SAFETY GATE" in combined_output or "FAIL:" in combined_output, (
+        f"emit_or_apply must show SAFETY GATE message when rejecting port 22.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )

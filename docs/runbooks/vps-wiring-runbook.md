@@ -182,6 +182,19 @@ sudo journalctl -u juli-cloudflare-ip-refresh.service --no-pager | tail -20
 ```
 Alert on repeated failures; they indicate the lockdown was unable to apply.
 
+**IPv6 `--reject-with tcp-reset` support — pre-flight check:** Some older Ubuntu versions do
+not support `--reject-with tcp-reset` for ip6tables; they require `icmp6-adm-prohibited` instead.
+If unsupported, the IPv6 REJECT rules fail and the script rolls back, leaving the origin
+unprotected. Run this check BEFORE first deployment to detect incompatibility:
+
+```bash
+sudo ip6tables -t filter -A TEST_PROBE -p tcp --dport 9999 -j REJECT --reject-with tcp-reset 2>&1
+sudo ip6tables -t filter -D TEST_PROBE -p tcp --dport 9999 -j REJECT --reject-with tcp-reset 2>/dev/null
+# If the first command fails with "unknown --reject-with type", either:
+# 1. Set REJECT_WITH=icmp6-adm-prohibited and re-run the script, or
+# 2. Accept IPv4-only lockdown (HTTP/HTTPS cannot reach IPv6 clients on that host)
+```
+
 ### Verify the lockdown is working
 
 The rules refuse direct connections (non-Cloudflare source) on ports 80/443, but allow

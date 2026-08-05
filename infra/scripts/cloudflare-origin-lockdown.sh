@@ -151,9 +151,21 @@ fi
 
 # This function ensures dry-run output exactly matches what executes.
 # Takes binary ($1) and remaining args as one complete rule.
+# SAFETY: Guards against any rule targeting the SSH port.
 emit_or_apply() {
     local bin="$1"
     shift
+
+    # Safety check: no rule may target the SSH port.
+    # Look for --dport followed immediately by SSH_PORT value.
+    local prev=""
+    for arg in "$@"; do
+        if [ "$prev" = "--dport" ] && [ "$arg" = "${SSH_PORT}" ]; then
+            fail "SAFETY GATE: refusing rule targeting SSH port ${SSH_PORT}: $bin $*"
+        fi
+        prev="$arg"
+    done
+
     if [ "${DRY_RUN}" = "1" ]; then
         # Print the exact command that would execute
         printf '%s %s\n' "$bin" "$*"
@@ -201,10 +213,6 @@ fi
 log "generating IPv4 ACCEPT rules"
 while IFS= read -r cidr; do
     [ -z "${cidr}" ] && continue
-    # Verify port 22 is not in this rule
-    if [ "${cidr}" = "${SSH_PORT}" ]; then
-        fail "SAFETY GATE: Generated rule references port 22 (SSH lockout guard)"
-    fi
     emit_or_apply iptables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTP_01_PORT}" -s "${cidr}" -j ACCEPT
     emit_or_apply iptables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTPS_PORT}" -s "${cidr}" -j ACCEPT
 done <<< "${IPV4_RANGES}"
@@ -213,9 +221,6 @@ done <<< "${IPV4_RANGES}"
 log "generating IPv6 ACCEPT rules"
 while IFS= read -r cidr; do
     [ -z "${cidr}" ] && continue
-    if [ "${cidr}" = "${SSH_PORT}" ]; then
-        fail "SAFETY GATE: Generated rule references port 22 (SSH lockout guard)"
-    fi
     emit_or_apply ip6tables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTP_01_PORT}" -s "${cidr}" -j ACCEPT
     emit_or_apply ip6tables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTPS_PORT}" -s "${cidr}" -j ACCEPT
 done <<< "${IPV6_RANGES}"
@@ -241,6 +246,12 @@ if [ "${DRY_RUN}" = "1" ]; then
 fi
 
 # ===== WIRE THE CHAIN INTO INPUT (ONLY IN APPLY MODE) =====
+
+# Safety check: the INPUT jump must not target SSH port
+if [ "${HTTP_01_PORT}" = "${SSH_PORT}" ] || [ "${HTTPS_PORT}" = "${SSH_PORT}" ]; then
+    fail "SAFETY GATE: INPUT jump cannot reference port 22 (SSH lockout guard)"
+fi
+
 if ! iptables -t filter -C INPUT -p tcp -m multiport --dports "${HTTP_01_PORT},${HTTPS_PORT}" -j "${CHAIN_NAME}" 2>/dev/null; then
     iptables -t filter -I INPUT -p tcp -m multiport --dports "${HTTP_01_PORT},${HTTPS_PORT}" -j "${CHAIN_NAME}" || rollback_and_fail "Failed to wire IPv4 chain into INPUT"
 fi
