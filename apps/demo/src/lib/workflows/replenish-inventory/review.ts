@@ -23,15 +23,16 @@ if (!replenishFixtureEntry) {
 
 const replenishFixture = replenishFixtureEntry;
 
-export function buildReplenishInventoryReviewInputDefaults(): Record<
-  string,
-  string
-> {
+export function buildReplenishInventoryReviewInputDefaults(
+  computedReorderQuantity?: number | null,
+): Record<string, string> {
   return {
     sku_id: "SKU-SPF50-001",
     current_stock: "48",
     warehouse_id: "WH-HCM-01",
-    reorder_quantity: "",
+    reorder_quantity: computedReorderQuantity
+      ? String(Math.ceil(computedReorderQuantity))
+      : "",
     external_path: "",
     received_quantity: "",
   };
@@ -39,6 +40,7 @@ export function buildReplenishInventoryReviewInputDefaults(): Record<
 
 export function getReplenishInventoryReviewStages(
   analyticsMetricKey = defaultAnalyticsMetricKey,
+  computedReorderQuantity?: number | null,
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 
@@ -90,7 +92,9 @@ export function getReplenishInventoryReviewStages(
         {
           key: "reorder_quantity",
           label: "Số lượng đặt hàng lại",
-          prefillValue: "Chưa có mặc định — cần shop nhập sau khi xem dữ liệu",
+          prefillValue: computedReorderQuantity
+            ? String(Math.ceil(computedReorderQuantity))
+            : "Chưa có mặc định — cần shop nhập sau khi xem dữ liệu",
           required: true,
           editable: true,
         },

@@ -1,4 +1,7 @@
-"""Action Card API — manual refresh and persisted listing (#303, ADR-021)."""
+"""Action Card API — manual refresh and persisted listing (#303, ADR-021).
+
+On-demand reorder inputs for inventory advisory (#721).
+"""
 
 from __future__ import annotations
 
@@ -10,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.ai.forecasting import compute_reorder_quantity, get_low_stock_risks
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
 from juli_backend.repositories.repos import ActionCardsRepo
@@ -51,6 +55,29 @@ class ActionCardsListResponse(BaseModel):
     error: str | None = None
 
 
+class ReorderBasis(BaseModel):
+    daily_velocity: float
+    lead_time_days: int
+    safety_stock_days: int
+    days_until_stockout: float
+
+
+class ActionCardInputsData(BaseModel):
+    workflow_key: str
+    sku_id: str | None = None
+    tiktok_product_id: str | None = None
+    current_stock: int | None = None
+    reorder_quantity: float | None = None
+    editable: bool = True
+    basis: ReorderBasis | None = None
+
+
+class ActionCardInputsResponse(BaseModel):
+    success: bool = True
+    data: ActionCardInputsData
+    error: str | None = None
+
+
 @router.post(
     "/refresh",
     response_model=ActionCardRefreshResponse,
@@ -87,6 +114,58 @@ async def list_action_cards(
     repo = ActionCardsRepo(session)
     rows = await repo.list_active(shop.id)
     return ActionCardsListResponse(data=[_to_item(row) for row in rows])
+
+
+@router.get(
+    "/{workflow_key}/inputs",
+    response_model=ActionCardInputsResponse,
+)
+async def get_action_card_inputs(
+    workflow_key: str,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> ActionCardInputsResponse:
+    """Compute on-demand reorder inputs for a workflow.
+
+    Returns the highest-urgency low-stock risk with computed reorder quantity.
+    Computed per-request; no persistence or scoring pipeline invocation.
+    """
+    risks = await get_low_stock_risks(session, shop.id)
+
+    if not risks:
+        # Empty state: well-formed 200 response with null subject
+        return ActionCardInputsResponse(
+            data=ActionCardInputsData(
+                workflow_key=workflow_key,
+                sku_id=None,
+                tiktok_product_id=None,
+                current_stock=None,
+                reorder_quantity=None,
+                editable=True,
+                basis=None,
+            )
+        )
+
+    # Use highest-urgency risk (first element after sort by urgency_score desc)
+    risk = risks[0]
+    reorder_qty = compute_reorder_quantity(risk)
+
+    return ActionCardInputsResponse(
+        data=ActionCardInputsData(
+            workflow_key=workflow_key,
+            sku_id=risk.sku_id,
+            tiktok_product_id=risk.tiktok_product_id,
+            current_stock=risk.quantity,
+            reorder_quantity=reorder_qty,
+            editable=True,
+            basis=ReorderBasis(
+                daily_velocity=risk.daily_velocity,
+                lead_time_days=3,
+                safety_stock_days=2,
+                days_until_stockout=risk.days_until_stockout,
+            ),
+        )
+    )
 
 
 def _to_item(row) -> ActionCardItem:
