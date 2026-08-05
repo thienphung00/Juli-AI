@@ -87,3 +87,34 @@ class TestMigrationHostGuard:
             RuntimeError, match="Destructive migration tests refuse non-local hosts"
         ):
             _validate_destructive_db_url(url)
+
+    def test_ipv6_localhost_bracketed_passes(self):
+        """IPv6 localhost [::1] with port is a safe target (AC2 requirement)."""
+        url = "postgresql://[::1]:5432/juli_test"
+        # Should not raise — this is a regression test for AC2 violation
+        _validate_destructive_db_url(url)
+
+    # Regression tests for adversarial inputs (coordinator verification)
+    def test_adversarial_localhost_prod_subdomain_blocked(self):
+        """localhost.prod.example.com must be BLOCKED (not allowed)."""
+        url = "postgresql://u:p@localhost.prod.example.com:5432/db"
+        with pytest.raises(
+            RuntimeError, match="Destructive migration tests refuse non-local hosts"
+        ):
+            _validate_destructive_db_url(url)
+
+    def test_adversarial_production_internal_blocked(self):
+        """db.production.internal must be BLOCKED."""
+        url = "postgresql://u:p@db.production.internal:5432/db"
+        with pytest.raises(
+            RuntimeError, match="Destructive migration tests refuse non-local hosts"
+        ):
+            _validate_destructive_db_url(url)
+
+    def test_adversarial_sslocalhost_obfuscation_blocked(self):
+        """sslocalhost@10.0.0.5 password obfuscation must be BLOCKED."""
+        url = "postgresql://user:p@sslocalhost@10.0.0.5:5432/db"
+        with pytest.raises(
+            RuntimeError, match="Destructive migration tests refuse non-local hosts"
+        ):
+            _validate_destructive_db_url(url)

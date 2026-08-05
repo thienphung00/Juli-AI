@@ -54,31 +54,19 @@ def _validate_destructive_db_url(url: str) -> None:
         # Explicitly opt-in: allow any target
         return
 
-    # Parse the URL using urllib.parse to robustly extract the host
+    # Parse the URL using urllib.parse to robustly extract the host.
+    # parsed.hostname handles credentials, ports, IPv6 brackets, and case-folding.
     parsed = urlparse(url)
+    hostname = parsed.hostname
 
-    # For unix socket URLs (postgresql:///...), netloc will be empty and path contains the socket
-    netloc = parsed.netloc.strip()
-
-    if not netloc:
+    if hostname is None:
         # Unix socket path (local): e.g., postgresql:///var/run/postgresql/socket/db
-        # These are always safe because they are file system paths
+        # parsed.hostname returns None when there is no netloc (unix sockets).
+        # These are always safe because they are file system paths.
         return
 
-    # Extract the hostname from netloc (netloc can include "user:pass@host:port")
-    # If there's an @ sign, split on it to remove credentials
-    if "@" in netloc:
-        host_port = netloc.split("@", 1)[1]  # Take the part after the @ sign
-    else:
-        host_port = netloc
-
-    # Remove port if present
-    if ":" in host_port:
-        hostname = host_port.split(":", 1)[0]
-    else:
-        hostname = host_port
-
-    hostname = hostname.strip().lower()
+    # Normalize to lowercase for comparison
+    hostname = hostname.lower()
 
     # Allowed local hosts
     local_hosts = {"localhost", "127.0.0.1", "::1"}  # IPv6 localhost
