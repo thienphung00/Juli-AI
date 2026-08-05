@@ -4,7 +4,7 @@ Ensures all worker tasks convert sync DATABASE_URL to async asyncpg form
 before passing to create_async_engine, and that the sqlite fallback still works.
 """
 
-import re
+import ast
 from pathlib import Path
 
 
@@ -99,10 +99,17 @@ class TestDatabaseURLConversion:
 class TestWorkerDatabaseURLContract:
     """Contract test for unconverted DATABASE_URL usage in worker modules."""
 
-    def test_no_unconverted_database_url_passed_to_create_async_engine(self):
-        """Scan worker task modules for unconverted DATABASE_URL usage.
+    def test_getenv_database_url_only_in_database_helper(self):
+        """Ensure os.getenv("DATABASE_URL") only appears in database.py.
 
-        Prevents regression from new tasks bypassing async_database_url() conversion.
+        Within workers/tasks/, os.getenv("DATABASE_URL") is ONLY allowed in
+        database.py (the shared helper). Any other module using it directly
+        is a regression (AC5).
+
+        Uses AST parsing to catch violations regardless of formatting,
+        annotations, line breaks, or comments. This catches both:
+        - Direct calls: os.getenv("DATABASE_URL", ...)
+        - Indirect returns: def _database_url() -> str: return os.getenv(...)
         """
         workers_dir = (
             Path(__file__).parent.parent.parent
@@ -113,44 +120,37 @@ class TestWorkerDatabaseURLContract:
             / "tasks"
         )
 
-        # Find all .py files in the workers/tasks directory
-        task_files = sorted(workers_dir.glob("*.py"))
-
         violations = []
 
-        for task_file in task_files:
-            # Skip __init__.py and other utility files
-            if task_file.name.startswith("_"):
+        for task_file in sorted(workers_dir.glob("*.py")):
+            # Only check real task modules (not private __init__.py or underscore-prefixed)
+            if task_file.name.startswith("_") or task_file.name == "__init__.py":
                 continue
 
-            content = task_file.read_text()
+            # database.py is the allowed location for os.getenv("DATABASE_URL")
+            if task_file.name == "database.py":
+                continue
 
-            # Look for the problematic pattern:
-            # create_async_engine(...os.getenv("DATABASE_URL"...)
-            # We want to catch cases where create_async_engine is called with:
-            # - os.getenv("DATABASE_URL", ...) directly, OR
-            # - a _database_url() that returns os.getenv("DATABASE_URL", ...)
-            #
-            # Check 1: create_async_engine called with os.getenv directly
-            if re.search(r'create_async_engine\s*\(\s*os\.getenv\s*\(\s*"DATABASE_URL"', content):
-                msg = (
-                    f"{task_file.name}: create_async_engine called with "
-                    "os.getenv('DATABASE_URL') directly"
-                )
-                violations.append(msg)
+            try:
+                tree = ast.parse(task_file.read_text())
+            except SyntaxError:
+                continue
 
-            # Check 2: _database_url() function that returns os.getenv without conversion
-            # Look for pattern: def _database_url(): return os.getenv("DATABASE_URL", ...)
-            if re.search(
-                r'def\s+_database_url\s*\(\s*\)\s*:\s*return\s+os\.getenv\s*\(\s*"DATABASE_URL"',
-                content,
-            ):
-                msg = (
-                    f"{task_file.name}: _database_url() returns unconverted "
-                    "os.getenv('DATABASE_URL')"
-                )
-                violations.append(msg)
+            # Walk AST looking for os.getenv("DATABASE_URL") calls
+            for node in ast.walk(tree):
+                # Pattern: os.getenv("DATABASE_URL", ...)
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "getenv"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "os"
+                    and len(node.args) >= 1
+                    and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value == "DATABASE_URL"
+                ):
+                    violations.append(f"{task_file.name}: os.getenv('DATABASE_URL') call found")
 
-        assert not violations, (
-            "Found unconverted DATABASE_URL usage in worker tasks:\n" + "\n".join(violations)
+        assert not violations, "DATABASE_URL must not appear outside database.py:\n" + "\n".join(
+            violations
         )
