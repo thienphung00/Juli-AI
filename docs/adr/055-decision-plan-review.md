@@ -82,6 +82,21 @@ Alternatives considered:
    **after** the work completes, never bundled into the initial approval.
 7. Because the surface is mobile-web, the assistant and the recommendation **never occupy
    the screen simultaneously**. The ask affordance lives inside the section it concerns.
+8. The section spine is **uniform and replicated** across workflows — **Situation →
+   Decision → Details** — so a seller learns one pattern once. Workflows that genuinely
+   differ are handled as **named edge cases** (item 10), never by authoring a bespoke
+   section set per workflow.
+   | Section | Contents | Behaviour |
+   |---------|----------|-----------|
+   | **Situation** | Agent-known, read-only context — already marked `editable: false` in the field data | Collapsed into the header, not traversed; holds zero decisions. Evidence and the Analytics link live behind its expansion |
+   | **Decision** | The branch discriminator and any other decision-grade field | Carries the recommended options. Holds **1–2** items; `process-order` legitimately has two (`order_priority`, `shipping_type`) |
+   | **Details** | Branch-gated execution specifics | Only the chosen branch's fields render. Absent entirely when empty (e.g. `delete-activity`) — renders as nothing, never as an empty stub |
+9. **Un-proposable fields (MVP).** Where no proposal can exist — `create_hero_product_1`'s
+   `main_images` and `supporting_file`, which are file uploads — the field is presented as
+   a plain **upload** in a visible "needs you" section. The agent does not propose
+   candidate imagery and does not generate placeholder assets. This is a stated exception
+   to item 2, not a silent blank: `create_hero_product_1` cannot be a one-tap approval,
+   and the plan review must say so rather than imply otherwise.
 
 ## Consequences
 
@@ -95,5 +110,18 @@ Alternatives considered:
   accept a consequential proposal without considering it. This is an accepted trade-off:
   the mitigation is the ask-before-deciding affordance in item 3, not a blank field.
 - The In Progress sub-tab redesign is no longer deferred; items 6 and 7 land there.
-- Section taxonomy and the traversal model (scroll versus sequential) are **not settled by
-  this ADR** and will be recorded in a follow-up amendment.
+- `ReviewInputFieldDescriptor` (`packages/contracts/src/review.ts`) is
+  `{key, label, prefillValue, required, editable}` — all strings, no field kind and **no
+  option list**. The per-section "list of recommended options" is not expressible in the
+  current contract; it must gain a field kind (option list, upload, free text) before this
+  design can be built.
+- The `ReviewStage` union (`why | analytics | inputs | preview | approve`) no longer
+  matches the section spine and is superseded by it.
+- Remaining edge cases still open at time of writing: **FBT intake variants**
+  (`prevent_return_8b_fbt`, `process_order_5b`, `replenish_inventory_3b` — same intent,
+  different fulfilment constraints, and `Seller-surface copy` bans FBT/FBS badges in
+  seller UI) and the **traversal model** (scroll versus sequential). Both will be recorded
+  as amendments.
+- `create_hero_product_1` is additionally the only workflow whose stages are built inline
+  in `reviews.ts` rather than in a `lib/workflows/<name>/` module; it should be brought
+  into line when this lands.
