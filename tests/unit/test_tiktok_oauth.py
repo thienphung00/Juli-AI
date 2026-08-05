@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
@@ -243,6 +244,217 @@ class TestTokenRefresh:
 
         assert credential.access_token == "still_valid"
         tiktok_auth.refresh_access_token.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_token_refresh_is_durable_across_new_session(self, tiktok_auth, engine, user_id):
+        """AC: refreshed token must persist across a new session (commit boundary test).
+
+        This is the regression test that fails on main: refresh is flushed but not
+        committed, so re-reading via a new session sees stale values.
+        """
+        # Setup: create shop and credential
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            shop = await ShopsRepo(session).create(user_id, "Test Shop", "test_shop")
+            near_expiry = datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10)
+            await TikTokCredentialRepo(session).create(
+                shop_id=shop.id,
+                access_token="old_access",
+                refresh_token="old_refresh",
+                token_expires_at=near_expiry,
+            )
+            shop_id = shop.id
+            await session.commit()
+
+        # Refresh in first session
+        # NOTE: The service now commits internally, so durability is guaranteed
+        async with factory() as session:
+            service = TikTokOAuthService(
+                tiktok_auth=tiktok_auth,
+                session=session,
+                redirect_uri=REDIRECT_URI,
+                app_secret=APP_SECRET,
+            )
+            tiktok_auth.refresh_access_token = MagicMock(
+                return_value={
+                    "access_token": "refreshed_access",
+                    "refresh_token": "refreshed_refresh",
+                    "access_token_expire_in": 604800,
+                }
+            )
+            credential = await service.refresh_tokens(shop_id)
+            assert credential.access_token == "refreshed_access"
+            assert credential.refresh_token == "refreshed_refresh"
+            # The service commits internally, so no explicit commit needed here
+
+        # Verify durability: read via NEW session
+        async with factory() as session:
+            persisted = await TikTokCredentialRepo(session).get_by_shop(shop_id)
+            assert persisted.access_token == "refreshed_access"
+            assert persisted.refresh_token == "refreshed_refresh"
+            assert persisted.token_expires_at > datetime.now(UTC).replace(tzinfo=None)
+
+    @pytest.mark.asyncio
+    async def test_token_refresh_persists_rotated_refresh_token(self, tiktok_auth, engine, user_id):
+        """AC: when provider returns a different refresh_token, it must be persisted."""
+        from sqlalchemy import select
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            shop = await ShopsRepo(session).create(user_id, "Rotation Shop", "rotation")
+            near_expiry = datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10)
+            await TikTokCredentialRepo(session).create(
+                shop_id=shop.id,
+                access_token="old_access",
+                refresh_token="OLD_REFRESH_TOKEN",
+                token_expires_at=near_expiry,
+            )
+            shop_id = shop.id
+            await session.commit()
+
+        # Refresh with rotated token
+        async with factory() as session:
+            service = TikTokOAuthService(
+                tiktok_auth=tiktok_auth,
+                session=session,
+                redirect_uri=REDIRECT_URI,
+                app_secret=APP_SECRET,
+            )
+            tiktok_auth.refresh_access_token = MagicMock(
+                return_value={
+                    "access_token": "new_access",
+                    "refresh_token": "NEW_ROTATED_REFRESH_TOKEN",
+                    "access_token_expire_in": 604800,
+                }
+            )
+            credential = await service.refresh_tokens(shop_id)
+            assert credential.refresh_token == "NEW_ROTATED_REFRESH_TOKEN"
+            # Service commits internally
+
+        # Verify the rotated token is persisted
+        async with factory() as session:
+            result = await session.execute(
+                select(TikTokCredential.refresh_token).where(TikTokCredential.shop_id == shop_id)
+            )
+            stored_encrypted = result.scalar_one()
+            # Verify it's encrypted
+            assert stored_encrypted.startswith("enc:v1:")
+            # Verify it decrypts to the new token
+            from juli_backend.database.token_crypto import decrypt_token
+
+            assert decrypt_token(stored_encrypted) == "NEW_ROTATED_REFRESH_TOKEN"
+
+    @pytest.mark.asyncio
+    async def test_token_refresh_retains_refresh_token_when_response_omits_it(
+        self, tiktok_auth, engine, user_id
+    ):
+        """AC: if provider omits refresh_token, retain the existing one (no KeyError)."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            shop = await ShopsRepo(session).create(user_id, "Omit Shop", "omit")
+            near_expiry = datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10)
+            await TikTokCredentialRepo(session).create(
+                shop_id=shop.id,
+                access_token="old_access",
+                refresh_token="retained_refresh",
+                token_expires_at=near_expiry,
+            )
+            shop_id = shop.id
+            await session.commit()
+
+        # Refresh with response omitting refresh_token
+        async with factory() as session:
+            service = TikTokOAuthService(
+                tiktok_auth=tiktok_auth,
+                session=session,
+                redirect_uri=REDIRECT_URI,
+                app_secret=APP_SECRET,
+            )
+            tiktok_auth.refresh_access_token = MagicMock(
+                return_value={
+                    "access_token": "new_access",
+                    # refresh_token is missing
+                    "access_token_expire_in": 604800,
+                }
+            )
+            credential = await service.refresh_tokens(shop_id)
+            # Should retain the old refresh token
+            assert credential.refresh_token == "retained_refresh"
+            # Service commits internally
+
+        # Verify the old refresh token is still persisted
+        async with factory() as session:
+            persisted = await TikTokCredentialRepo(session).get_by_shop(shop_id)
+            assert persisted.refresh_token == "retained_refresh"
+
+    @pytest.mark.asyncio
+    async def test_refresh_buffer_early_return_still_short_circuits(
+        self, service, tiktok_auth, session, user, user_id
+    ):
+        """AC: REFRESH_BUFFER early-return still works: no HTTP call, no write."""
+        shop = await ShopsRepo(session).create(user_id, "Fresh Shop", "fresh_buffer")
+        far_expiry = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
+        await TikTokCredentialRepo(session).create(
+            shop_id=shop.id,
+            access_token="still_valid",
+            refresh_token="still_valid_refresh",
+            token_expires_at=far_expiry,
+        )
+
+        tiktok_auth.refresh_access_token = MagicMock()
+
+        credential = await service.refresh_tokens(shop.id)
+
+        # Should return same token
+        assert credential.access_token == "still_valid"
+        # Should NOT call refresh endpoint
+        tiktok_auth.refresh_access_token.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_persisted_refresh_token_is_encrypted(self, tiktok_auth, engine, user_id):
+        """AC: persisted refresh_token must carry enc:v1: prefix (ciphertext)."""
+        from sqlalchemy import select
+
+        from juli_backend.database.token_crypto import ENCRYPTED_TOKEN_PREFIX
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            shop = await ShopsRepo(session).create(user_id, "Encrypt Shop", "encrypt")
+            near_expiry = datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10)
+            await TikTokCredentialRepo(session).create(
+                shop_id=shop.id,
+                access_token="old_access",
+                refresh_token="plaintext_refresh",
+                token_expires_at=near_expiry,
+            )
+            shop_id = shop.id
+            await session.commit()
+
+        # Refresh
+        async with factory() as session:
+            service = TikTokOAuthService(
+                tiktok_auth=tiktok_auth,
+                session=session,
+                redirect_uri=REDIRECT_URI,
+                app_secret=APP_SECRET,
+            )
+            tiktok_auth.refresh_access_token = MagicMock(
+                return_value={
+                    "access_token": "new_access",
+                    "refresh_token": "plaintext_new_refresh",
+                    "access_token_expire_in": 604800,
+                }
+            )
+            await service.refresh_tokens(shop_id)
+            # Service commits internally
+
+        # Verify column is encrypted
+        async with factory() as session:
+            result = await session.execute(
+                select(TikTokCredential.refresh_token).where(TikTokCredential.shop_id == shop_id)
+            )
+            stored = result.scalar_one()
+            assert stored.startswith(ENCRYPTED_TOKEN_PREFIX)
 
 
 # ---------------------------------------------------------------------------
