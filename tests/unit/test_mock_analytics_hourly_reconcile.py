@@ -340,7 +340,9 @@ async def test_hourly_reconcile_does_not_invoke_run_fujiwa_poll_cycle(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(medallion_session):
+async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(
+    medallion_session,
+):
     """Hourly and material enqueues should coexist without duplicate writes via idempotency."""
     session, shop = medallion_session
 
@@ -392,3 +394,68 @@ async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(medallion
     )
     # With same data, bronze should have at least 1 (idempotency-keyed append)
     assert len(bronze_rows) >= 1
+
+
+# --- Issue #733: nested asyncio.run() in the Celery entrypoint ---
+
+
+class _FakeSession:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def test_hourly_reconcile_task_resolves_shop_key_without_nested_event_loop(
+    monkeypatch, reference_shop_id: uuid.UUID
+):
+    """The Celery entrypoint must reach the orchestrator with a resolved shop_key.
+
+    Issue #733: ``mock_analytics_hourly_reconcile`` opens an event loop via
+    ``asyncio.run``. If ``_run_hourly_reconcile_async`` then calls the *synchronous*
+    ``_lookup_tiktok_shop_key`` wrapper, that wrapper's own ``asyncio.run`` raises
+    ``RuntimeError: asyncio.run() cannot be called from a running event loop`` and the
+    task dies before any envelope is computed. This exercises the real task entrypoint,
+    not the coroutine, so the production failure path is covered.
+    """
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(reference_shop_id))
+
+    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+        return "shop-key-733"
+
+    orchestrated: list[dict] = []
+
+    async def fake_orchestrated(*, session, shop_id, shop_key):
+        orchestrated.append({"shop_id": shop_id, "shop_key": shop_key})
+
+    monkeypatch.setattr(
+        mock_analytics_reconcile, "_lookup_tiktok_shop_key_async", fake_lookup_async
+    )
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "run_mock_analytics_reconcile_orchestrated",
+        fake_orchestrated,
+    )
+    monkeypatch.setattr(mock_analytics_reconcile, "_ensure_session_factory", lambda: _FakeSession)
+
+    mock_analytics_reconcile.mock_analytics_hourly_reconcile()
+
+    assert orchestrated == [{"shop_id": reference_shop_id, "shop_key": "shop-key-733"}], (
+        "task must reach the orchestrator with the resolved shop_key"
+    )
+
+
+def test_sync_lookup_wrapper_still_usable_outside_an_event_loop(
+    monkeypatch, reference_shop_id: uuid.UUID
+):
+    """``_lookup_tiktok_shop_key`` is retained for the non-orchestrated sync path."""
+
+    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+        return "shop-key-sync"
+
+    monkeypatch.setattr(
+        mock_analytics_reconcile, "_lookup_tiktok_shop_key_async", fake_lookup_async
+    )
+
+    assert mock_analytics_reconcile._lookup_tiktok_shop_key(reference_shop_id) == "shop-key-sync"
