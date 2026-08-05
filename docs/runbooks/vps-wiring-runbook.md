@@ -166,6 +166,22 @@ the first timer firing (~1 hour), the origin is exposed without protection. Choo
 This implementation documents the gap explicitly rather than hiding it. The systemd timer is
 configured with `Persistent=true`, but acknowledge the reboot window in your runbook and ops docs.
 
+**Failed rule application behavior — availability over lockout:** If the script fails while
+applying rules (e.g., Cloudflare ranges unreachable, iptables permission issue), it rolls back
+immediately:
+- Flushes the firewall chain (removes all rules added so far)
+- Removes the INPUT jump rule
+- **Result: the origin becomes OPEN and unprotected until the next timer run**
+
+This is the correct fail-safe choice — better exposed than locked out — but it is a real tradeoff:
+a transient fetch or permission failure silently drops protection for ~1 hour until the next
+hourly timer run. **Monitor script exit status** in journalctl logs:
+```bash
+sudo journalctl -u juli-cloudflare-ip-refresh.service --no-pager | tail -20
+# Look for "cloudflare-origin-lockdown complete" (success) or "FAIL:" (rollback)
+```
+Alert on repeated failures; they indicate the lockdown was unable to apply.
+
 ### Verify the lockdown is working
 
 The rules refuse direct connections (non-Cloudflare source) on ports 80/443, but allow

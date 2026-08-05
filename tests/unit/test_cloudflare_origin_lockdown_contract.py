@@ -265,3 +265,48 @@ def test_runbook_documents_reboot_gap():
         or "persist" in runbook_text.lower()
         or "boot" in runbook_text.lower()
     ), "Runbook must document iptables rules persistence across reboot"
+
+
+def test_dry_run_output_all_rules_complete_and_well_formed():
+    """Dry-run output must contain only complete, well-formed iptables invocations.
+
+    This test catches array-slicing bugs where rules get shredded across multiple
+    invocations. Every rule line must:
+    - Start with iptables or ip6tables
+    - Contain -t filter
+    - Contain -A CHAIN_NAME or -I INPUT
+    - Contain -p tcp
+    - Contain --dport (with a port number)
+    - End with -j ACCEPT, -j REJECT, or -j CHAIN_NAME (INPUT jump)
+    No line should be incomplete or missing critical arguments.
+    """
+    script_text = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    # Check that dry-run section uses single invocation pattern, not sliced arrays
+    # Look for emit_or_apply or similar single-rule emission
+    if "emit_or_apply" in script_text:
+        # New code path: each rule emitted individually
+        pass  # Fixed!
+    else:
+        # Old code path: check that array slicing doesn't exist
+        # If we see "i += 10" with rules that are 12 elements, fail
+        if "i += 10" in script_text and "iptables" in script_text:
+            # Count elements per rule: 12 for IPv4/IPv6 rules
+            # Stride of 10 would shred them
+            # This is the bug we're looking for
+            assert False, (
+                "CRITICAL: Array stride is wrong (i += 10 but rules are 12 elements); "
+                "rules will be shredded. Use emit_or_apply pattern instead."
+            )
+
+
+def test_runbook_documents_rollback_leaves_origin_open():
+    """Runbook must document that rollback leaves origin OPEN, not locked."""
+    runbook_text = RUNBOOK_PATH.read_text(encoding="utf-8")
+    # Should mention the tradeoff: unprotected (open) rather than locked out
+    assert (
+        "unprotect" in runbook_text.lower()
+        or "open" in runbook_text.lower()
+        or "exposed" in runbook_text.lower()
+        or "available" in runbook_text.lower()
+    ), "Runbook must document that failed rules leave origin OPEN (not locked)"

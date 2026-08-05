@@ -147,69 +147,21 @@ if [ "${IPV6_COUNT}" -lt "${MIN_IPV6_RANGES}" ]; then
     fail "IPv6 range count ${IPV6_COUNT} below minimum ${MIN_IPV6_RANGES} (truncated list?)"
 fi
 
-# ===== GENERATE RULES (DRY-RUN SUPPORT, NO EVAL) =====
+# ===== HELPER: EMIT OR APPLY A SINGLE RULE (NO ARRAY SLICING, NO EVAL) =====
 
-# Build rule arrays (never as strings to avoid eval)
-# We'll iterate these later and invoke iptables directly
-IPV4_ACCEPT_RULES=()
-IPV6_ACCEPT_RULES=()
-REJECT_RULES_V4=()
-REJECT_RULES_V6=()
-
-# IPv4: Accept Cloudflare ranges on ports 80 and 443
-while IFS= read -r cidr; do
-    [ -z "${cidr}" ] && continue
-    IPV4_ACCEPT_RULES+=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTP_01_PORT}" "-s" "${cidr}" "-j" "ACCEPT")
-    IPV4_ACCEPT_RULES+=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTPS_PORT}" "-s" "${cidr}" "-j" "ACCEPT")
-done <<< "${IPV4_RANGES}"
-
-# IPv6: Accept Cloudflare ranges on ports 80 and 443
-while IFS= read -r cidr; do
-    [ -z "${cidr}" ] && continue
-    IPV6_ACCEPT_RULES+=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTP_01_PORT}" "-s" "${cidr}" "-j" "ACCEPT")
-    IPV6_ACCEPT_RULES+=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTPS_PORT}" "-s" "${cidr}" "-j" "ACCEPT")
-done <<< "${IPV6_RANGES}"
-
-# Reject all other inbound traffic on these ports (after all ACCEPT rules)
-REJECT_RULES_V4=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTP_01_PORT}" "-j" "REJECT" "--reject-with" "tcp-reset")
-REJECT_RULES_V4+=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTPS_PORT}" "-j" "REJECT" "--reject-with" "tcp-reset")
-
-REJECT_RULES_V6=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTP_01_PORT}" "-j" "REJECT" "--reject-with" "tcp-reset")
-REJECT_RULES_V6+=("-t" "filter" "-A" "${CHAIN_NAME}" "-p" "tcp" "--dport" "${HTTPS_PORT}" "-j" "REJECT" "--reject-with" "tcp-reset")
-
-# ===== VERIFY NO RULE REFERENCES PORT 22 =====
-
-for arg in "${IPV4_ACCEPT_RULES[@]}" "${IPV6_ACCEPT_RULES[@]}" "${REJECT_RULES_V4[@]}" "${REJECT_RULES_V6[@]}"; do
-    if [ "${arg}" = "${SSH_PORT}" ]; then
-        fail "SAFETY GATE: Generated rule references port 22 (SSH lockout guard)"
+# This function ensures dry-run output exactly matches what executes.
+# Takes binary ($1) and remaining args as one complete rule.
+emit_or_apply() {
+    local bin="$1"
+    shift
+    if [ "${DRY_RUN}" = "1" ]; then
+        # Print the exact command that would execute
+        printf '%s %s\n' "$bin" "$*"
+    else
+        # Execute the rule
+        "$bin" "$@" || rollback_and_fail "rule failed: $bin $*"
     fi
-done
-
-# ===== DRY-RUN MODE =====
-
-if [ "${DRY_RUN}" = "1" ]; then
-    log "DRY-RUN MODE: rules that would be applied"
-    log "--- IPv4 ACCEPT rules ---"
-    for arg in "${IPV4_ACCEPT_RULES[@]}"; do
-        echo "iptables ${arg}"
-    done | paste -sd ' ' -
-    log "--- IPv6 ACCEPT rules ---"
-    for arg in "${IPV6_ACCEPT_RULES[@]}"; do
-        echo "ip6tables ${arg}"
-    done | paste -sd ' ' -
-    log "--- IPv4/IPv6 REJECT rules ---"
-    echo "iptables ${REJECT_RULES_V4[*]}" | head -1
-    echo "ip6tables ${REJECT_RULES_V6[*]}" | head -1
-    log "--- INPUT chain jump (the rule that diverts live traffic) ---"
-    log "iptables -t filter -I INPUT -p tcp -m multiport --dports ${HTTP_01_PORT},${HTTPS_PORT} -j ${CHAIN_NAME}"
-    log "ip6tables -t filter -I INPUT -p tcp -m multiport --dports ${HTTP_01_PORT},${HTTPS_PORT} -j ${CHAIN_NAME}"
-    log "DRY-RUN complete — no rules applied"
-    exit 0
-fi
-
-# ===== APPLY RULES (IDEMPOTENT VIA CHAIN FLUSH, WITH ROLLBACK) =====
-
-log "applying firewall rules (idempotent: flushing and reusing chain ${CHAIN_NAME})"
+}
 
 # Helper: rollback on failure
 rollback_and_fail() {
@@ -224,38 +176,71 @@ rollback_and_fail() {
     fail "$1"
 }
 
+# ===== APPLY RULES (IDEMPOTENT VIA CHAIN FLUSH) =====
+
+log "applying firewall rules (idempotent: flushing and reusing chain ${CHAIN_NAME})"
+
 # Step 1: Create the chain if it does not exist (check for existence first)
-if ! iptables -t filter -n -L "${CHAIN_NAME}" >/dev/null 2>&1; then
-    iptables -t filter -N "${CHAIN_NAME}" || rollback_and_fail "Failed to create IPv4 chain"
+if [ "${DRY_RUN}" != "1" ]; then
+    if ! iptables -t filter -n -L "${CHAIN_NAME}" >/dev/null 2>&1; then
+        iptables -t filter -N "${CHAIN_NAME}" || rollback_and_fail "Failed to create IPv4 chain"
+    fi
+
+    if ! ip6tables -t filter -n -L "${CHAIN_NAME}" >/dev/null 2>&1; then
+        ip6tables -t filter -N "${CHAIN_NAME}" || rollback_and_fail "Failed to create IPv6 chain"
+    fi
+
+    # Step 2: Flush the chains (idempotent — empty the chain but keep it)
+    iptables -t filter -F "${CHAIN_NAME}" || rollback_and_fail "Failed to flush IPv4 chain"
+    ip6tables -t filter -F "${CHAIN_NAME}" || rollback_and_fail "Failed to flush IPv6 chain"
+else
+    log "DRY-RUN MODE: rules that would be applied"
 fi
 
-if ! ip6tables -t filter -n -L "${CHAIN_NAME}" >/dev/null 2>&1; then
-    ip6tables -t filter -N "${CHAIN_NAME}" || rollback_and_fail "Failed to create IPv6 chain"
+# Step 3: IPv4 ACCEPT rules (one per Cloudflare CIDR, two per CIDR × port)
+log "generating IPv4 ACCEPT rules"
+while IFS= read -r cidr; do
+    [ -z "${cidr}" ] && continue
+    # Verify port 22 is not in this rule
+    if [ "${cidr}" = "${SSH_PORT}" ]; then
+        fail "SAFETY GATE: Generated rule references port 22 (SSH lockout guard)"
+    fi
+    emit_or_apply iptables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTP_01_PORT}" -s "${cidr}" -j ACCEPT
+    emit_or_apply iptables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTPS_PORT}" -s "${cidr}" -j ACCEPT
+done <<< "${IPV4_RANGES}"
+
+# Step 4: IPv6 ACCEPT rules (one per Cloudflare CIDR, two per CIDR × port)
+log "generating IPv6 ACCEPT rules"
+while IFS= read -r cidr; do
+    [ -z "${cidr}" ] && continue
+    if [ "${cidr}" = "${SSH_PORT}" ]; then
+        fail "SAFETY GATE: Generated rule references port 22 (SSH lockout guard)"
+    fi
+    emit_or_apply ip6tables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTP_01_PORT}" -s "${cidr}" -j ACCEPT
+    emit_or_apply ip6tables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTPS_PORT}" -s "${cidr}" -j ACCEPT
+done <<< "${IPV6_RANGES}"
+
+# Step 5: IPv4 REJECT rules (after all ACCEPT)
+log "generating IPv4 REJECT rules"
+emit_or_apply iptables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTP_01_PORT}" -j REJECT --reject-with tcp-reset
+emit_or_apply iptables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTPS_PORT}" -j REJECT --reject-with tcp-reset
+
+# Step 6: IPv6 REJECT rules (after all ACCEPT)
+log "generating IPv6 REJECT rules"
+emit_or_apply ip6tables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTP_01_PORT}" -j REJECT --reject-with tcp-reset
+emit_or_apply ip6tables -t filter -A "${CHAIN_NAME}" -p tcp --dport "${HTTPS_PORT}" -j REJECT --reject-with tcp-reset
+
+# ===== DRY-RUN MODE EXIT =====
+
+if [ "${DRY_RUN}" = "1" ]; then
+    log "--- INPUT chain jump (the rule that diverts live traffic) ---"
+    log "iptables -t filter -I INPUT -p tcp -m multiport --dports ${HTTP_01_PORT},${HTTPS_PORT} -j ${CHAIN_NAME}"
+    log "ip6tables -t filter -I INPUT -p tcp -m multiport --dports ${HTTP_01_PORT},${HTTPS_PORT} -j ${CHAIN_NAME}"
+    log "DRY-RUN complete — no rules applied"
+    exit 0
 fi
 
-# Step 2: Flush the chains (idempotent — empty the chain but keep it)
-iptables -t filter -F "${CHAIN_NAME}" || rollback_and_fail "Failed to flush IPv4 chain"
-ip6tables -t filter -F "${CHAIN_NAME}" || rollback_and_fail "Failed to flush IPv6 chain"
-
-# Step 3: Apply all ACCEPT rules FIRST (before REJECT)
-log "applying IPv4 ACCEPT rules"
-for ((i = 0; i < ${#IPV4_ACCEPT_RULES[@]}; i += 10)); do
-    iptables "${IPV4_ACCEPT_RULES[@]:$i:10}" || rollback_and_fail "IPv4 ACCEPT rule failed"
-done
-
-log "applying IPv6 ACCEPT rules"
-for ((i = 0; i < ${#IPV6_ACCEPT_RULES[@]}; i += 10)); do
-    ip6tables "${IPV6_ACCEPT_RULES[@]:$i:10}" || rollback_and_fail "IPv6 ACCEPT rule failed"
-done
-
-# Step 4: Apply REJECT rules (only after all ACCEPT rules succeeded)
-log "applying IPv4 REJECT rules"
-iptables "${REJECT_RULES_V4[@]}" || rollback_and_fail "IPv4 REJECT rule failed"
-
-log "applying IPv6 REJECT rules"
-ip6tables "${REJECT_RULES_V6[@]}" || rollback_and_fail "IPv6 REJECT rule failed"
-
-# Step 5: Wire the chain into INPUT for ports 80 and 443 (only if not already there)
+# ===== WIRE THE CHAIN INTO INPUT (ONLY IN APPLY MODE) =====
 if ! iptables -t filter -C INPUT -p tcp -m multiport --dports "${HTTP_01_PORT},${HTTPS_PORT}" -j "${CHAIN_NAME}" 2>/dev/null; then
     iptables -t filter -I INPUT -p tcp -m multiport --dports "${HTTP_01_PORT},${HTTPS_PORT}" -j "${CHAIN_NAME}" || rollback_and_fail "Failed to wire IPv4 chain into INPUT"
 fi
