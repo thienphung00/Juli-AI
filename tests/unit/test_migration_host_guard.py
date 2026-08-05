@@ -150,3 +150,17 @@ class TestMigrationHostGuard:
 
         monkeypatch.delenv("DATABASE_URL", raising=False)
         integration_conftest.pytest_configure(None)
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "postgresql://user:pass@localhost:5432/juli",
+            "postgresql://user:pass@127.0.0.1:5432/juli",
+            "postgresql://[::1]:5432/juli",
+            "postgresql:///var/run/postgresql/juli",
+            "postgresql://user:pass@LOCALHOST:5432/juli",
+        ],
+    )
+    def test_allow_localhost_loopback_and_unix_socket_by_default(self, url):
+        """AC2: every local target form is permitted with no opt-in set."""
+        _validate_destructive_db_url(url)
