@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 744,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/integrations/tiktok/client.py",
+      "tests/unit/test_tiktok_client_pagination.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-744.json",
+    "sha256": "fe69bcfa45238ec4e87b228513cb45c854c424b88306094ba88abe3d9f3d101b",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-05T15:15:06Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-744.json",
+    "sha256": "98e70067a944790965f186f027a1502a8d800adb466b0bf32361db5f69e4b6bf",
+    "status": "PASS"
+  },
+  "wave": "wave-pagination-bound"
+}
