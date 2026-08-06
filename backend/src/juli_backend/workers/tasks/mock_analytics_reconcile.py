@@ -187,6 +187,7 @@ async def _run_hourly_reconcile_async() -> None:
             shop_id=shop_id,
             shop_key=shop_key,
         )
+        await session.commit()
 
 
 @celery_app.task(name="juli_backend.mock_analytics_hourly_reconcile")
