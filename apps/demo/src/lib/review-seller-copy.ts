@@ -37,6 +37,15 @@ export const REVIEW_UI_BANNED_PATTERNS = [
   /fulfillment\./,
   /returns\./,
   /promotion\./,
+  /\bexecutor\b/i,
+  /\bCreate Packages\b/i,
+  /\bship\b/i,
+  /\bsplit\b/i,
+  /\bconfirm\b/i,
+  /\bDeactivate\b/i,
+  /\bparity\b/i,
+  /\bActivity\b/,
+  /Get Activity/i,
 ] as const;
 
 export function sanitizeSellerReviewText(text: string): string {
