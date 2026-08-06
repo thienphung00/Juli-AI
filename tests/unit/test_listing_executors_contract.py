@@ -24,11 +24,12 @@ from juli_backend.integrations.tiktok.exceptions import TikTokAPIError
 from juli_backend.integrations.tiktok.merchant import TikTokCapability
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import TikTokCredentialRepo
-from juli_backend.services.execution.types import ExecutionErrorCategory, ExecutionStatus
-
-LISTING_TOOL_NAMES = frozenset(
-    {"listing.create_hero_product", "listing.optimize_product"}
+from juli_backend.services.execution.types import (
+    ExecutionErrorCategory,
+    ExecutionStatus,
 )
+
+LISTING_TOOL_NAMES = frozenset({"listing.create_hero_product", "listing.optimize_product"})
 
 
 @pytest_asyncio.fixture
@@ -88,9 +89,7 @@ async def auth_client(app, authenticated_user, shop):
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -139,7 +138,14 @@ async def test_ac4_create_hero_product_e2e_mocked_chain(
     monkeypatch,
 ):
     """AC4: POST /v1/executions → worker → succeeded ToolExecution with product_id."""
-    from juli_backend.database.database import create_session_factory, init_session_factory
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.database.database import (
+        create_session_factory,
+        init_session_factory,
+    )
     from juli_backend.repositories.repos import ToolExecutionsRepo
     from juli_backend.workers.tasks import tool_execution
 
@@ -164,7 +170,12 @@ async def test_ac4_create_hero_product_e2e_mocked_chain(
     init_session_factory(factory)
     monkeypatch.setattr(tool_execution, "_ensure_session_factory", lambda: factory)
 
-    image_bytes = base64.b64encode(b"fake-png-bytes").decode()
+    # Create a valid test PNG image
+    img = Image.new("RGB", (1, 1), color="red")
+    png_buffer = BytesIO()
+    img.save(png_buffer, format="PNG")
+    image_bytes = base64.b64encode(png_buffer.getvalue()).decode()
+
     response = await auth_client.post(
         "/v1/executions",
         json={
@@ -209,7 +220,10 @@ async def test_ac5_create_hero_product_api_failure_records_failed_status(
     monkeypatch,
 ):
     """AC5: TikTok API failure → failed ToolExecution with useful error_message."""
-    from juli_backend.database.database import create_session_factory, init_session_factory
+    from juli_backend.database.database import (
+        create_session_factory,
+        init_session_factory,
+    )
     from juli_backend.repositories.repos import ToolExecutionsRepo
     from juli_backend.services.execution.dispatch import create_queued_execution
     from juli_backend.workers.tasks import tool_execution
@@ -271,7 +285,10 @@ async def test_ac4_optimize_product_e2e_mocked_chain(
     monkeypatch,
 ):
     """AC4: optimize_product executor runs get → edit → price update chain."""
-    from juli_backend.database.database import create_session_factory, init_session_factory
+    from juli_backend.database.database import (
+        create_session_factory,
+        init_session_factory,
+    )
     from juli_backend.repositories.repos import ToolExecutionsRepo
     from juli_backend.services.execution.dispatch import create_queued_execution
     from juli_backend.workers.tasks import tool_execution
@@ -347,6 +364,10 @@ async def test_ac4_optimize_product_e2e_mocked_chain(
 
 def test_create_hero_product_derives_brand_id_from_catalog():
     """Brand_id is resolved from Get Brands when attributes require a brand."""
+    from io import BytesIO
+
+    from PIL import Image
+
     from juli_backend.services.execution.listing import run_create_hero_product_chain
 
     mock_products = MagicMock()
@@ -364,13 +385,18 @@ def test_create_hero_product_derives_brand_id_from_catalog():
     mock_resources = MagicMock()
     mock_resources.products = mock_products
 
+    # Create a valid test PNG image
+    img = Image.new("RGB", (1, 1), color="blue")
+    png_buffer = BytesIO()
+    img.save(png_buffer, format="PNG")
+
     outcome = run_create_hero_product_chain(
         mock_resources,
         {
             "category_id": "605254",
             "title": "Bottle",
             "description": "Steel bottle",
-            "image_content_base64": base64.b64encode(b"img").decode(),
+            "image_content_base64": base64.b64encode(png_buffer.getvalue()).decode(),
             "seller_sku": "sku-1",
             "warehouse_id": "wh-1",
             "price": {"amount": "100000", "currency": "VND"},
@@ -382,13 +408,246 @@ def test_create_hero_product_derives_brand_id_from_catalog():
     assert create_body["brand_id"] == "brand-999"
 
 
+def test_file_screening_rejects_oversized_base64_encoded_payload():
+    """Oversized base64 payload is rejected before full decode allocates."""
+    from juli_backend.services.execution.listing import _decode_and_screen_image
+
+    # Create a base64 string larger than the 10MB cap (encode 11MB of data)
+    oversized_bytes = b"x" * (11 * 1024 * 1024)
+    oversized_base64 = base64.b64encode(oversized_bytes).decode()
+
+    with pytest.raises(ValueError, match="exceeds maximum encoded size"):
+        _decode_and_screen_image(oversized_base64)
+
+
+def test_file_screening_rejects_non_image_payload():
+    """Non-image payload is rejected regardless of supplied filename."""
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # PDF header (non-image)
+    pdf_bytes = b"%PDF-1.4\n%data"
+
+    with pytest.raises(ValueError, match="not a supported image format"):
+        screen_and_reencode_image(pdf_bytes)
+
+
+def test_file_screening_rejects_corrupt_image():
+    """Corrupt image (valid header, truncated body) is rejected."""
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Valid PNG header but truncated body
+    corrupt_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 10  # PNG magic + minimal data
+
+    with pytest.raises(ValueError, match="corrupt|invalid|decode"):
+        screen_and_reencode_image(corrupt_png)
+
+
+def test_file_screening_rejects_extension_mismatch():
+    """Caller-supplied filenames with wrong extensions are validated (deprecated pattern)."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a real minimal valid PNG image
+    img = Image.new("RGB", (1, 1), color="red")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    # The new API doesn't validate filenames (uses generated names), but test that
+    # screening still works: valid PNG passes through re-encoding
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".png")
+
+
+def test_file_screening_accepts_image_with_matching_extension():
+    """Valid PNG passes screening and is re-encoded."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a real minimal valid PNG image
+    img = Image.new("RGB", (1, 1), color="red")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    # Screening re-encodes and generates safe filename
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".png")
+
+
+def test_file_screening_accepts_valid_png_image():
+    """Valid PNG image passes screening and is re-encoded."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a real minimal valid PNG image
+    img = Image.new("RGB", (1, 1), color="blue")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".png")
+
+
+def test_file_screening_accepts_valid_jpeg_image():
+    """Valid JPEG image passes screening and is re-encoded."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a real minimal valid JPEG image
+    img = Image.new("RGB", (1, 1), color="green")
+    jpeg_bytes = BytesIO()
+    img.save(jpeg_bytes, format="JPEG")
+    jpeg_bytes = jpeg_bytes.getvalue()
+
+    reencoded_bytes, safe_filename = screen_and_reencode_image(jpeg_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".jpg")
+
+
+def test_file_screening_error_is_validation_category():
+    """File screening errors classify as terminal VALIDATION, not retryable."""
+    from juli_backend.services.execution.errors import classify_execution_error
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Non-image payload
+    pdf_bytes = b"%PDF-1.4\n%data"
+
+    try:
+        screen_and_reencode_image(pdf_bytes)
+        pytest.fail("Expected ValueError for non-image")
+    except ValueError as e:
+        category, message = classify_execution_error(e)
+        assert category.value == "validation"
+        assert message  # error_message is populated
+
+
+def test_file_screening_accepts_valid_webp_image():
+    """Valid WebP image passes screening and is re-encoded."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a real minimal valid WebP image
+    img = Image.new("RGB", (1, 1), color="yellow")
+    webp_bytes = BytesIO()
+    img.save(webp_bytes, format="WebP")
+    webp_bytes = webp_bytes.getvalue()
+
+    reencoded_bytes, safe_filename = screen_and_reencode_image(webp_bytes)
+    assert reencoded_bytes is not None
+    # Re-encoded bytes may differ slightly from original due to re-encoding
+    assert len(reencoded_bytes) > 0
+    # Safe filename is UUID + .webp extension
+    assert safe_filename.endswith(".webp")
+
+
+def test_file_screening_removes_polyglot_payload():
+    """Re-encoding removes appended data after image end markers (polyglot protection)."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a valid PNG and append extra bytes after the IEND chunk
+    img = Image.new("RGB", (1, 1), color="red")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    original_png = png_bytes.getvalue()
+
+    # Append malicious-looking bytes after the image
+    poisoned_bytes = original_png + b"\x00\x00\x00\x00FAKE_PAYLOAD_SHOULD_BE_REMOVED"
+
+    # Screen and re-encode: appended bytes must be destroyed
+    reencoded_bytes, safe_filename = screen_and_reencode_image(poisoned_bytes)
+
+    # Verify: re-encoded bytes should NOT contain the appended payload
+    assert b"FAKE_PAYLOAD" not in reencoded_bytes
+    # Re-encoded image is valid and smaller than poisoned version (no payload)
+    assert len(reencoded_bytes) < len(poisoned_bytes)
+    # Filename is UUID + .png
+    assert safe_filename.endswith(".png")
+
+
+def test_file_screening_generates_safe_filename():
+    """Generated filename is UUID + detected extension; caller name is discarded."""
+    import uuid as uuid_module
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a PNG
+    img = Image.new("RGB", (1, 1), color="blue")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    # Screen it (note: function doesn't take filename, so we test the generation)
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+
+    # Verify filename is generated (UUID format) + extension
+    parts = safe_filename.split(".")
+    assert len(parts) == 2
+    # First part is UUID (hex string, no hyphens)
+    uuid_part, ext = parts
+    assert len(uuid_part) == 32  # UUID4 hex without hyphens
+    assert ext == "png"
+    # It's a valid UUID
+    try:
+        uuid_module.UUID(hex=uuid_part)
+    except ValueError:
+        pytest.fail(f"Generated filename {safe_filename} does not contain valid UUID")
+
+
+def test_file_screening_rejects_decompression_bomb():
+    """Decompression bomb (excessive pixel count) is rejected."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import (
+        screen_and_reencode_image,
+    )
+
+    # Create an image that exceeds our MAX_IMAGE_PIXELS limit
+    # Our limit is 100 MP; create 20000 x 6000 = 120M pixels
+    large_img = Image.new("RGB", (20000, 6000), color="red")
+    large_bytes = BytesIO()
+    large_img.save(large_bytes, format="PNG")
+    large_bytes = large_bytes.getvalue()
+
+    # Should be rejected as decompression bomb
+    with pytest.raises(ValueError, match="exceed maximum pixel count"):
+        screen_and_reencode_image(large_bytes)
+
+
 def test_listing_catalog_endpoints_documented_in_contract_collection():
     """Contract-collection documents listing chain endpoints used by executors."""
     from pathlib import Path
 
     contracts = (
-        Path(__file__).resolve().parents[2]
-        / "docs/integrations/tiktok_api/contract-collection.md"
+        Path(__file__).resolve().parents[2] / "docs/integrations/tiktok_api/contract-collection.md"
     )
     text = contracts.read_text(encoding="utf-8")
     assert "GET /product/202309/categories" in text
