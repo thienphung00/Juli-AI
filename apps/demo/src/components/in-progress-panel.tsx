@@ -42,6 +42,13 @@ export const STEP_STATUS_LABELS: Record<ExecutionTimelineStepStatus, string> = {
   failed: "Thất bại",
 };
 
+/**
+ * Authored fallback when a workflow stops on a step without recoveryText.
+ * Plain seller Vietnamese; must stay clean of SELLER_COPY_BANNED_PATTERNS.
+ */
+export const NEEDS_INPUT_FALLBACK_RECOVERY_TEXT =
+  "Juli đang chờ bạn bổ sung thông tin cho bước này trước khi tiếp tục.";
+
 interface InProgressPanelProps {
   panelId: string;
 }
@@ -104,6 +111,35 @@ export function getNextActionText(record: ExecutionRecord): string | undefined {
   return activeStep.recoveryText ?? activeStep.title;
 }
 
+/**
+ * Lifecycle status of an execution record, exposed as a single accessor so
+ * downstream consumers (e.g. repeat-consent gating) gate on one source of
+ * truth instead of re-deriving it. The model has no failure state: the only
+ * values are "needs_input", "executing", and "completed".
+ */
+export function getLifecycleStatus(
+  record: ExecutionRecord,
+): ExecutionLifecycleStatus {
+  return record.lifecycleStatus;
+}
+
+/**
+ * Seller-facing recovery text for a stopped workflow. Defined only when the
+ * record is in needs_input: the active (stopped) step's authored recoveryText,
+ * routed through the seller-copy sanitizer, with an authored generic fallback
+ * when the step carries none.
+ */
+export function getRecoveryText(record: ExecutionRecord): string | undefined {
+  if (getLifecycleStatus(record) !== "needs_input") {
+    return undefined;
+  }
+
+  const activeStep = getActiveStep(record.timeline);
+  return sanitizeSellerReviewText(
+    activeStep?.recoveryText ?? NEEDS_INPUT_FALLBACK_RECOVERY_TEXT,
+  );
+}
+
 export function getCurrentStepNumber(record: ExecutionRecord): number {
   const activeStep = getActiveStep(record.timeline);
   if (!activeStep) {
@@ -147,23 +183,31 @@ function ExecutionProgressCard({
   const panelId = `${reactId}-steps-panel`;
 
   const workflowTitle = getWorkflowTitle(record.workflowKey);
+  const lifecycleStatus = getLifecycleStatus(record);
+  const recoveryText = getRecoveryText(record);
   const nextAction = getNextActionText(record);
   const stepFraction = getStepFraction(record);
 
   // Determine mode strip text
-  const modeLabel =
-    record.lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
+  const modeLabel = lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
 
   // Get badge variant for lifecycle status
   const badgeVariant: "success" | "destructive" | "warning" | "live" =
-    record.lifecycleStatus === "completed"
+    lifecycleStatus === "completed"
       ? "success"
-      : record.lifecycleStatus === "needs_input"
+      : lifecycleStatus === "needs_input"
         ? "warning"
         : "live";
 
   return (
-    <Card>
+    <Card
+      className={
+        lifecycleStatus === "needs_input"
+          ? "execution-card--needs-input"
+          : undefined
+      }
+      data-lifecycle-status={lifecycleStatus}
+    >
       {/* Mode strip */}
       <div className="execution-card__mode-strip">
         <span className="execution-card__mode-label">{modeLabel}</span>
@@ -190,11 +234,17 @@ function ExecutionProgressCard({
           <p>Bước {stepFraction}</p>
         </div>
 
-        {/* Next action / recovery text */}
-        {nextAction && (
-          <div className="execution-card__next-action">
-            <p>{nextAction}</p>
+        {/* Recovery text — the workflow stopped and needs the seller */}
+        {recoveryText ? (
+          <div className="execution-card__recovery" role="status">
+            <p>{recoveryText}</p>
           </div>
+        ) : (
+          nextAction && (
+            <div className="execution-card__next-action">
+              <p>{sanitizeSellerReviewText(nextAction)}</p>
+            </div>
+          )
         )}
 
         {/* Policy line */}
