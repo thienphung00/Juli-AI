@@ -207,6 +207,10 @@ _Avoid_: empty-string defaults as "the seller will fill it in", seller-reserved 
 The post-completion ask — whether the agent may run this workflow again in future without a fresh approval. Raised **after** the work finishes (acknowledgement → progress → repeat consent), never bundled into the initial approval ([ADR-055](docs/adr/055-decision-plan-review.md)).
 _Avoid_: an automation toggle inside the approve step, consent implied by a single approval
 
+**Impact metric**:
+The tied Main KPI shown on a Decision plan review card — the card's centre of gravity. Every workflow already maps to one [ADR-049](docs/adr/049-demo-analytics-main-kpi-override.md) Main KPI via `analyticsMetricKey`: **CTOR** (optimize-product, create/update/delete-activity), **GMV** (prevent-cancellation/return/refund, replenish-inventory, create-hero-product), **AOV** (clear-excess), **Cancellation rate** (process-order). Shows the KPI's **real current value and trend** from `gold.kpi_envelopes` plus a **directional goal** — never a projected magnitude, and **one state only** (pre-approval; unchanged after approval, since Mock executions are dry-run and no effect exists to observe). **LIVE hours is tied to no workflow.** See [ADR-055](docs/adr/055-decision-plan-review.md).
+_Avoid_: projected impact magnitudes, post-execution "what your approval achieved" deltas in Mock mode, retrofitting a workflow onto LIVE hours
+
 **Post-execution field**:
 A workflow input that can only be answered **after** execution — e.g. `prevent-return.resellable_quantity` ("sau kiểm tra"), `replenish-inventory.received_quantity` ("sau giao"). Belongs to a later lifecycle moment; must not be collected at approve time ([ADR-055](docs/adr/055-decision-plan-review.md)).
 _Avoid_: collecting post-execution fields in the approval flow

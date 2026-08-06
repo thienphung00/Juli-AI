@@ -122,6 +122,44 @@ Alternatives considered:
    to item 2, not a silent blank: `create_hero_product_1` cannot be a one-tap approval,
    and the plan review must say so rather than imply otherwise.
 
+13. **Card structure — summarise, do not enumerate.** Sections present a **summary row with
+    an edit affordance** rather than a collapsed drawer of raw fields (Monzo pattern):
+    `prevent_return_8b`'s seven context fields render as one row
+    ("Đơn hàng #ORD-44102 · 5 thông tin khác ›"), not a seven-field expansion. Expanding
+    **adds** detail and keeps the summary visible; it never replaces it. Disclosure labels
+    are written as **questions** ("Vì sao Juli đề xuất điều này"), not nouns.
+14. **Scope cuts for this implementation.** The `risks` display (item 9) and the
+    decision-options editing interaction (item 3) are **out of scope for this card**.
+    Context fields are kept **minimal**. The card presents Juli's proposal, minimal
+    context, the impact metric, and one primary action. Item 9's `risks` treatment stands
+    as the design of record for when that work lands; it is deferred, not reversed.
+15. **Impact metric.** Every workflow is already tied to one Main KPI via
+    `analyticsMetricKey`, mapping onto the [ADR-049](049-demo-analytics-main-kpi-override.md)
+    five: **CTOR** (`optimize_product_2`, `create_activity_7a`, `update_activity_7c`,
+    `delete_activity_7b`), **GMV** (`prevent_cancellation_8a`, `prevent_return_8b`,
+    `prevent_refund_8c`, `replenish_inventory_3`, `create_hero_product_1`), **AOV**
+    (`clear_excess_4`), **Cancellation rate** (`process_order_5`). **LIVE hours is tied to
+    no workflow.** The impact block is the card's centre of gravity and shows the tied
+    KPI's **real current value and trend** from `gold.kpi_envelopes`, plus a **directional
+    goal** — never a projected magnitude.
+16. **No projected impact magnitude.** `expectedImpactLabel` is `"—"` for 8 of 11
+    workflows, and the 3 populated ones are inconsistently typed (two VND amounts, one
+    order count). Authoring a projection is barred on independent grounds: ADR-011 and
+    `docs/ml/ml_layer.md` make the ML layer **display-grade only**;
+    [ADR-032](032-fujiwa-t1-gmv-experiment-scope.md) states *"We will not… claim experiment
+    ΔGMV as Juli ROI"*; **Mediated Juli GMV impact** is deferred and uncalibrated; and the
+    fixtures' own class-A copy — *"Juli không tự suy diễn con số này"* — is that policy
+    already surfacing to sellers. There is no per-workflow revenue model, shipped or
+    planned for MVP.
+17. **The impact block has one state.** It is **pre-approval only** and does not change
+    after approval; the card carries it forward unchanged into In Progress. In Mock mode
+    executions are **dry-run**, so no effect exists to observe — any subsequent movement in
+    the reference shop's KPI comes from Fujiwa's real trading, and presenting it as the
+    seller's achievement would be a fabricated causal claim. Accepted cost: **the card
+    never closes the loop**, so a seller cannot see that Juli helped. This is a real
+    product weakness, accepted because a fabricated loop is worse than an absent one. The
+    loop properly closes at **3.5-C**, where real writes make before/after meaningful.
+
 ## Consequences
 
 - The `analytics` stage is removed as a stage; the link to Analytics survives inside the
@@ -152,6 +190,23 @@ Alternatives considered:
   **"Create Packages"**, **"Deactivate"**, **"parity"**, **"catalog"**, and the English
   **"Activity"** in `update_activity_7c` / `delete_activity_7b` reasoning. These should be
   fixed at the fixture, not by growing the sanitizer.
+- **Ratio KPIs are stored pre-divided and cannot be maintained incrementally.**
+  `gold.kpi_envelopes` serves each KPI as a series of scalar points (`{v: number}`), with
+  CTOR and cancellation rate already divided into percentages. Incremental precompute
+  requires `ON CONFLICT`-mergeable aggregates, so ratios must be persisted as
+  **numerator/denominator pairs and divided at serve time**. This affects **5 of 11**
+  impact blocks (four CTOR, one cancellation rate). It does **not** block this card — a
+  pre-divided value renders correctly today — but it blocks ever maintaining those five
+  incrementally, and it constrains the [ADR-046](046-cdp-medallion-physical-model.md)
+  `payload.kpis` contract.
+- **LIVE hours has no workflow tied to it** — the one Main KPI with no Decision behind it.
+  Left unmapped; no workflow should be retrofitted onto it to fill the gap.
+- The frontend and impact-framing evidence base is **thin by measurement, not by
+  omission**: a dedicated research pass returned zero surviving claims for dataviz UX,
+  honest-impact framing, and sequencing, while returning strong primary-source evidence for
+  the backend and model layers. Items 13–17 are therefore **engineering judgement**, not
+  evidence-backed, and should be revisited if that research is run. Specifically unknown:
+  whether users read before/after deltas as causal regardless of disclaimer wording.
 - The **traversal model** (scroll versus sequential) remains open and will be recorded as
   an amendment.
 - `create_hero_product_1` is additionally the only workflow whose stages are built inline
