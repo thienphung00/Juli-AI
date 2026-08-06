@@ -19,7 +19,8 @@ gate depend on installing or migrating every product app at once.
 
 ## Decision
 
-- The root pnpm workspace discovers `apps/*` and `packages/*`.
+- The root pnpm workspace discovers `apps/demo` and `packages/*`.
+  (Amended 2026-08-06 — originally `apps/*`; see the Amendment below.)
 - `apps/demo` and its shared package dependency graph are managed by the pinned
   root pnpm version and orchestrated by Turborepo.
 - Demo PR CI uses a filtered pnpm install for `@juli/demo...`, then runs the
@@ -46,3 +47,38 @@ unrelated package-manager migration in the Demo Home PR.
   transition deliberately and update CI, locks, and this decision.
 - `docs/architecture/map.md` records Demo and the shared packages as as-built
   modules.
+
+## Amendment — 2026-08-06: the workspace names `apps/demo`, not `apps/*`
+
+The original `apps/*` glob made `apps/dashboard` a pnpm workspace member even
+though this ADR keeps it npm-owned. `pnpm-lock.yaml` therefore carried an
+`apps/dashboard` importer, while Dependabot's npm ecosystem (configured at
+`/apps/dashboard`) only ever updates `apps/dashboard/package-lock.json`.
+
+Every dashboard dependency bump consequently desynced the pnpm lock:
+
+```
+ERR_PNPM_OUTDATED_LOCKFILE  Cannot install with "frozen-lockfile" because
+pnpm-lock.yaml is not up to date with <ROOT>/apps/dashboard/package.json
+```
+
+`pnpm install --frozen-lockfile` validates every workspace `package.json`, not
+just the `--filter`ed subgraph, so this failed `demo-frontend`, `demo-e2e`,
+`dependency-validation` and `deployment-checks` on dashboard-only PRs that never
+touched Demo — see #645, #647, #650 and #651.
+
+The workspace now lists `apps/demo` and `packages/*` explicitly. This is **not**
+the dashboard package-manager migration anticipated under Consequences: the
+dashboard keeps its npm lockfile, its `npm ci` CI job, and its `npm ci` VPS build.
+The amendment *narrows* the dual-management surface rather than resolving it —
+the dashboard is now purely npm-owned, with no phantom pnpm importer.
+
+Safe only while the dashboard consumes no workspace package. `apps/demo` must be
+added to this list explicitly if a second pnpm-managed app appears;
+`test_npm_owned_dashboard_is_not_a_pnpm_workspace_member` in
+`tests/unit/test_issue_397_demo_workspace_contract.py` pins both halves of the
+invariant.
+
+The import-boundary tests are unaffected — they glob the `apps/*` directory on
+disk, independently of pnpm workspace membership, so the dashboard is still
+covered by the no-sibling-app-imports rule.
