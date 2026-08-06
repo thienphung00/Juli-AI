@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+from fnmatch import fnmatch
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
+DASHBOARD = ROOT / "apps" / "dashboard"
 WORKSPACE_PACKAGES = (
     ROOT / "apps" / "demo",
     ROOT / "packages" / "theme",
@@ -65,13 +69,39 @@ def test_root_declares_real_pnpm_turbo_workspace() -> None:
     root_package = _package_json(ROOT)
 
     assert str(root_package["packageManager"]).startswith("pnpm@10.")
-    assert (ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8") == (
-        'packages:\n  - "apps/*"\n  - "packages/*"\n'
-    )
+    workspace = yaml.safe_load((ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8"))
+    assert set(workspace["packages"]) == {"apps/demo", "packages/*"}
     assert (ROOT / "turbo.json").is_file()
     assert {"lint", "type-check", "test", "build"} <= set(
         root_package["scripts"]  # type: ignore[arg-type]
     )
+
+
+def test_npm_owned_dashboard_is_not_a_pnpm_workspace_member() -> None:
+    """apps/dashboard is npm-owned, so pnpm must not track its dependency graph.
+
+    ADR-025 keeps the dashboard on its own npm lockfile and CI job. While the
+    workspace still matched it via an ``apps/*`` glob, pnpm-lock.yaml also carried
+    an ``apps/dashboard`` importer -- but Dependabot's npm ecosystem only updates
+    apps/dashboard/package-lock.json. Every dashboard bump therefore desynced the
+    pnpm lock and broke ``pnpm install --frozen-lockfile``, which validates every
+    workspace package.json rather than just the filtered subgraph.
+    """
+    workspace = yaml.safe_load((ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8"))
+    patterns = set(workspace["packages"])
+
+    assert "apps/*" not in patterns, "apps/* re-adds the npm-owned dashboard to pnpm"
+    assert not any(fnmatch(str(DASHBOARD.relative_to(ROOT)), pattern) for pattern in patterns)
+
+    # The npm side stays authoritative for the dashboard.
+    assert (DASHBOARD / "package-lock.json").is_file()
+
+    lock = yaml.safe_load((ROOT / "pnpm-lock.yaml").read_text(encoding="utf-8"))
+    assert "apps/dashboard" not in lock["importers"]
+
+    # Only safe while the dashboard consumes no workspace package.
+    dashboard_dependencies = _declared_dependencies(_package_json(DASHBOARD))
+    assert not {name for name in dashboard_dependencies if name.startswith("@juli/")}
 
 
 def test_demo_and_shared_packages_expose_documented_public_surfaces() -> None:
