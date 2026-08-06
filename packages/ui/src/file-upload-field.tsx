@@ -37,7 +37,7 @@ export interface FileUploadFieldProps
   required?: boolean;
 }
 
-async function verifyImageFormat(file: File): Promise<boolean> {
+async function verifyImageSignature(file: File): Promise<boolean> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -74,6 +74,23 @@ async function verifyImageFormat(file: File): Promise<boolean> {
     };
     reader.readAsArrayBuffer(file.slice(0, 12));
   });
+}
+
+async function verifyImageDecodable(file: File): Promise<boolean> {
+  try {
+    const createBitmap = (typeof window !== "undefined" && (window as any).createImageBitmap) ||
+                         (typeof global !== "undefined" && (global as any).createImageBitmap) ||
+                         (typeof createImageBitmap !== "undefined" ? createImageBitmap : null);
+
+    if (createBitmap) {
+      const bitmap = await createBitmap(file);
+      bitmap.close();
+      return true;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function getFileExtension(filename: string): string {
@@ -131,10 +148,21 @@ export function FileUploadField({
     }
 
     // Verify file signature/magic bytes
-    const isValidImage = await verifyImageFormat(file);
-    if (!isValidImage) {
+    const isValidSignature = await verifyImageSignature(file);
+    if (!isValidSignature) {
       setErrorMessage(
         "Tệp không nhận dạng được hoặc không phải ảnh hợp lệ. Vui lòng kiểm tra tệp và thử lại.",
+      );
+      setSelectedFile(null);
+      onChange?.(null);
+      return;
+    }
+
+    // Verify file is a decodable image (not corrupt or truncated)
+    const isDecodable = await verifyImageDecodable(file);
+    if (!isDecodable) {
+      setErrorMessage(
+        "Tệp ảnh bị hỏng hoặc không đầy đủ. Vui lòng chọn ảnh khác hoặc tải lại ảnh này.",
       );
       setSelectedFile(null);
       onChange?.(null);

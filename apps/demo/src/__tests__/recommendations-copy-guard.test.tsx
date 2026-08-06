@@ -1,3 +1,4 @@
+import { SELLER_COPY_BANNED_PATTERNS } from "@juli/contracts";
 import { render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -131,5 +132,24 @@ describe("Recommendations — copy guard", () => {
     );
     expect(panelSource).not.toMatch(/in-progress/i);
     expect(screen.queryByTestId("in-progress-panel")).not.toBeInTheDocument();
+  });
+});
+
+describe("Seller copy banned patterns — consistency check", () => {
+  it("SELLER_COPY_BANNED_PATTERNS includes false security claim terms", () => {
+    // Verify that the canonical banned patterns list includes terms that forbid false security claims
+    // This ensures client-side file validation never claims to check for viruses/malware
+    const patternStrings = SELLER_COPY_BANNED_PATTERNS.map((p) => p.source);
+
+    expect(patternStrings.join("|")).toMatch(/virus|antivirus|malware/i);
+    expect(patternStrings.join("|")).toMatch(/an toàn/i);
+  });
+
+  it("SELLER_COPY_BANNED_PATTERNS enforces no internal jargon", () => {
+    // Verify the core jargon terms are still banned
+    const patternStrings = SELLER_COPY_BANNED_PATTERNS.map((p) => p.source);
+
+    expect(patternStrings.join("|")).toMatch(/tool_name|workflow_key|feature_id/i);
+    expect(patternStrings.join("|")).toMatch(/webhook|endpoint/i);
   });
 });
