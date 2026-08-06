@@ -72,6 +72,10 @@ Alternatives considered:
 3. Each section offers a **list of recommended options**, plus the ability to supply a
    **custom input**, plus the ability to **ask a follow-up before deciding**. Asking is a
    deliberation step available at the point of choice — not a separate surface.
+   **MVP/Demo constraint:** there is **no LLM layer**. The plan review is **rule-based**,
+   and every string is **pre-authored**. "Ask a follow-up" therefore means revealing
+   authored copy, **not** a conversational exchange — nothing can answer a free-form
+   question. Copy is kept minimal by design; an LLM-backed ask is out of scope here.
 4. Presentation is **progressive disclosure**: sections rest folded, showing the proposed
    outcome only. Reasoning, evidence, and alternatives appear on expansion. The AI
    recommendation explains **when asked**; it does not narrate by default.
@@ -91,7 +95,27 @@ Alternatives considered:
    | **Situation** | Agent-known, read-only context — already marked `editable: false` in the field data | Collapsed into the header, not traversed; holds zero decisions. Evidence and the Analytics link live behind its expansion |
    | **Decision** | The branch discriminator and any other decision-grade field | Carries the recommended options. Holds **1–2** items; `process-order` legitimately has two (`order_priority`, `shipping_type`) |
    | **Details** | Branch-gated execution specifics | Only the chosen branch's fields render. Absent entirely when empty (e.g. `delete-activity`) — renders as nothing, never as an empty stub |
-9. **Un-proposable fields (MVP).** Where no proposal can exist — `create_hero_product_1`'s
+9. **Caveat fields.** `risks` and `knownLimits` are distinct and are treated differently.
+   `risks` renders **unfolded** as one line in the Decision section — measured across all
+   eleven fixtures it is already a single short sentence, so it fits without truncation.
+   Two of them do real safety work and must never be folded: `clear_excess_4`
+   ("không thể hoàn tác") and `prevent_return_8b` ("chỉ nhập lại kho sau khi có kết quả
+   kiểm tra thực tế").
+10. **`knownLimits` is decomposed into typed classes.** As one concatenated string the
+    classes cannot be rendered differently. They are:
+    | Class | Meaning | Count | Demo/MVP treatment |
+    |-------|---------|-------|--------------------|
+    | **A** Threshold undefined | "Juli won't invent the number" | 11/11 | **Hidden.** True of every workflow, so it carries no discriminating information |
+    | **B** FBT unsupported | capability boundary by fulfilment model | 7/11 | **Hidden in Demo.** The Demo has no shop profile and is uniformly **FBS** by construction, so "FBT unsupported" is vacuously true for every Demo seller. The typed field carries forward so **3.5-C** multi-tenant Sign-in can render it as a real applicability check |
+    | **C** Feature unavailable | a genuine functional gap | 3/11 | **Shown** inside the reasoning expansion — the promotions trio's "promotion search unavailable" |
+    | **D** Reassurance | "Juli won't act without you" | 3/11 | **Moved out of limits** into the Decision section as a trust line. It is a selling point, not a limitation |
+11. **The expansion is a reasoning container, not a limits container.** After hiding
+    classes A and B, `knownLimits` is empty for five of eleven workflows, so an expansion
+    built around it would open onto nothing. `reasoning` is populated for all eleven and
+    measures **74–113 characters** — one short sentence in seller language, available
+    without an LLM. It is the expansion's primary content; Class C gap notices render
+    alongside it when present.
+12. **Un-proposable fields (MVP).** Where no proposal can exist — `create_hero_product_1`'s
    `main_images` and `supporting_file`, which are file uploads — the field is presented as
    a plain **upload** in a visible "needs you" section. The agent does not propose
    candidate imagery and does not generate placeholder assets. This is a stated exception
@@ -117,11 +141,19 @@ Alternatives considered:
   design can be built.
 - The `ReviewStage` union (`why | analytics | inputs | preview | approve`) no longer
   matches the section spine and is superseded by it.
-- Remaining edge cases still open at time of writing: **FBT intake variants**
-  (`prevent_return_8b_fbt`, `process_order_5b`, `replenish_inventory_3b` — same intent,
-  different fulfilment constraints, and `Seller-surface copy` bans FBT/FBS badges in
-  seller UI) and the **traversal model** (scroll versus sequential). Both will be recorded
-  as amendments.
+- The **FBT intake variants** (`prevent_return_8b_fbt`, `process_order_5b`,
+  `replenish_inventory_3b`) are **scaffold-only and deliberately non-executable** — tests
+  assert their review stages are `[]` and that `startExecution` throws. They are not a
+  parallel reviewable path; the constraint reaches sellers through `knownLimits` class B
+  instead.
+- `sanitizeSellerReviewText` already strips the worst internals from seller copy —
+  backticked keys, `Unresolved/Unfilled`, `activity_id`, `webhook`, and FBS/FBT. Residual
+  tokens it does **not** catch and which still reach sellers: **"executor"**,
+  **"Create Packages"**, **"Deactivate"**, **"parity"**, **"catalog"**, and the English
+  **"Activity"** in `update_activity_7c` / `delete_activity_7b` reasoning. These should be
+  fixed at the fixture, not by growing the sanitizer.
+- The **traversal model** (scroll versus sequential) remains open and will be recorded as
+  an amendment.
 - `create_hero_product_1` is additionally the only workflow whose stages are built inline
   in `reviews.ts` rather than in a `lib/workflows/<name>/` module; it should be brought
   into line when this lands.
