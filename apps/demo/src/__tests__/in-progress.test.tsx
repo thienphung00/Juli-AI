@@ -152,7 +152,7 @@ describe("In Progress list and detail shells", () => {
     });
   });
 
-  it("renders Workflow 1 action, wait, outcome, recovery, and rollback states on the 14-step timeline", async () => {
+  it("renders Workflow 1 action, wait, outcome, recovery, and rollback states on the 14-step timeline when expanded", async () => {
     const timeline = createHeroProductTimeline().map((step, index) =>
       index === 0 ? { ...step, status: "running" as const } : step,
     );
@@ -170,7 +170,7 @@ describe("In Progress list and detail shells", () => {
       expect(screen.getByText("700648")).toBeInTheDocument();
     });
 
-    // Workflow title appears multiple times (header + steps)
+    // Workflow title appears in header
     const titles = screen.getAllByText(recommendationFixtures[0].title);
     expect(titles.length).toBeGreaterThan(0);
 
@@ -178,9 +178,18 @@ describe("In Progress list and detail shells", () => {
     expect(screen.getByText("700648")).toBeInTheDocument();
     expect(screen.getByText("BR-1024")).toBeInTheDocument();
 
-    // Timeline steps (14 total)
-    const timelineItems = screen.getAllByRole("listitem");
-    expect(timelineItems.length).toBeGreaterThanOrEqual(14);
+    // Expand the steps list
+    const expandButton = screen.getByRole("button", {
+      name: "Xem tất cả các bước",
+    });
+    const user = userEvent.setup();
+    await user.click(expandButton);
+
+    // Timeline steps (14 total) should appear after expansion
+    await waitFor(() => {
+      const timelineItems = screen.getAllByRole("listitem");
+      expect(timelineItems.length).toBeGreaterThanOrEqual(14);
+    });
 
     // Step kinds should appear in the timeline
     expect(screen.getAllByText(/Hành động/).length).toBeGreaterThan(0);
@@ -271,7 +280,7 @@ describe("In Progress list and detail shells", () => {
     });
   });
 
-  it("renders narrative step line with Bước format and duration for executing cards", async () => {
+  it("renders narrative step line with step fraction for executing cards", async () => {
     const executingTimeline = createHeroProductTimeline().map((step, index) =>
       index === 0 ? { ...step, status: "running" as const } : step,
     );
@@ -287,9 +296,7 @@ describe("In Progress list and detail shells", () => {
     renderInProgressPanel();
 
     await waitFor(() => {
-      const activeStep = executingTimeline.find((s) => s.status === "running");
-      expect(screen.getByText(`Bước ${activeStep?.stepNumber}: ${activeStep?.title}`)).toBeInTheDocument();
-      expect(screen.getByText("5–10 phút")).toBeInTheDocument();
+      expect(screen.getByText(/Bước \d+ \/ \d+/)).toBeInTheDocument();
     });
   });
 
@@ -516,7 +523,7 @@ describe("Execution detail view (DUX-8) — seller-safe language", () => {
 
     // Wait for any element to render indicating the page has loaded
     await waitFor(() => {
-      expect(screen.getByText("5–10 phút")).toBeInTheDocument();
+      expect(screen.getByText(/Bước \d+ \/ \d+/)).toBeInTheDocument();
     });
 
     // Get the entire document text content
@@ -637,7 +644,7 @@ describe("Execution detail view (DUX-8) — seller-safe language", () => {
     });
   });
 
-  it("shows duration (5–10 phút) when execution is running", async () => {
+  it("does not show duration estimate when execution is running", async () => {
     const executingTimeline = createHeroProductTimeline().map((step, index) =>
       index === 0 ? { ...step, status: "running" as const } : step,
     );
@@ -653,8 +660,10 @@ describe("Execution detail view (DUX-8) — seller-safe language", () => {
     renderInProgressDetail("exec-duration-1");
 
     await waitFor(() => {
-      expect(screen.getByText("5–10 phút")).toBeInTheDocument();
+      expect(screen.getByText(/Bước \d+ \/ \d+/)).toBeInTheDocument();
     });
+
+    expect(screen.queryByText(/5–10 phút|phút|ETA|khoảng thời gian/i)).not.toBeInTheDocument();
   });
 
   it("does not make network calls on render or cancel/rollback", async () => {
@@ -703,12 +712,10 @@ describe("Execution detail view (DUX-8) — seller-safe language", () => {
 
     renderInProgressDetail("exec-recovery-1");
 
+    // Recovery text should be visible in the next action area at the top
     await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Quay lại bước lấy danh mục hoặc bổ sung điều kiện còn thiếu trước khi tiếp tục.",
-        ),
-      ).toBeInTheDocument();
+      const renderedText = document.body.textContent || "";
+      expect(renderedText).toContain("Quay lại bước lấy danh mục hoặc bổ sung điều kiện còn thiếu trước khi tiếp tục.");
     });
   });
 
@@ -742,6 +749,216 @@ describe("Execution detail view (DUX-8) — seller-safe language", () => {
     await waitFor(() => {
       const backLink = screen.getByRole("link", { name: "Về Quyết định" });
       expect(backLink).toHaveAttribute("href", "/decisions");
+    });
+  });
+});
+
+describe("Execution progress card — step fraction and expansion (issue #762)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetExecutionCountersForTests();
+  });
+
+  it("shows step fraction in card when execution is executing", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-fraction-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      // Should show fraction like "1 / 14" or "Bước 1 của 14"
+      expect(screen.getByText(/\d+ \/ \d+/)).toBeInTheDocument();
+    });
+  });
+
+  it("hides full step list by default in the card", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-hidden-steps-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      // The card should be in the document
+      expect(screen.getByRole("article")).toBeInTheDocument();
+    });
+
+    // Full step list should NOT be visible in the card initially
+    const listItems = screen.queryAllByRole("listitem");
+    expect(listItems.length).toBe(0);
+  });
+
+  it("expands to show full steps when expansion button is clicked", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-expand-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("article")).toBeInTheDocument();
+    });
+
+    // Find and click the expand button
+    const expandButton = screen.getByRole("button", {
+      name: /Mở rộng|Xem tất cả các bước/i,
+    });
+    const user = userEvent.setup();
+    await user.click(expandButton);
+
+    // After expansion, the full step list should be visible
+    await waitFor(() => {
+      const listItems = screen.getAllByRole("listitem");
+      expect(listItems.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("keeps status line and fraction visible when steps are expanded", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-visible-status-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("article")).toBeInTheDocument();
+    });
+
+    // Fraction should be visible initially
+    const fractionBefore = screen.getByText(/\d+ \/ \d+/);
+    expect(fractionBefore).toBeVisible();
+
+    // Expand
+    const expandButton = screen.getByRole("button", {
+      name: /Mở rộng|Xem tất cả các bước/i,
+    });
+    const user = userEvent.setup();
+    await user.click(expandButton);
+
+    // Fraction should still be visible after expansion
+    await waitFor(() => {
+      const fractionAfter = screen.getByText(/\d+ \/ \d+/);
+      expect(fractionAfter).toBeVisible();
+    });
+  });
+
+  it("does not render ETA or time estimate strings in the card", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-no-eta-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("article")).toBeInTheDocument();
+    });
+
+    // Verify no ETA, time estimate, or countdown strings
+    expect(screen.queryByText(/phút|ETA|khoảng|khoảng thời gian/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/5–10 phút/)).not.toBeInTheDocument();
+  });
+
+  it("displays step titles sanitized for sellers in expanded list", async () => {
+    const executingTimeline = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-sanitized-1",
+        lifecycleStatus: "executing",
+        timeline: executingTimeline,
+      }),
+    ]);
+
+    renderInProgressDetail("exec-sanitized-1");
+
+    // Wait for the card to render (check for step fraction)
+    await waitFor(() => {
+      expect(screen.getByText(/Bước \d+ \/ \d+/)).toBeInTheDocument();
+    });
+
+    // Check for steps without banned patterns (should not be in rendered text)
+    const renderedText = document.body.textContent || "";
+    expect(renderedText.match(/Khả năng:/)).toBeNull();
+    expect(renderedText.match(/Công cụ:/)).toBeNull();
+
+    // Expand the steps list
+    const expandButton = screen.getByRole("button", {
+      name: "Xem tất cả các bước",
+    });
+    const user = userEvent.setup();
+    await user.click(expandButton);
+
+    // After expansion, step titles should be visible in the expanded list
+    await waitFor(() => {
+      const stepTitles = screen.getAllByText("Lấy danh mục");
+      // Should have at least 2: one in next action, one in expanded list
+      expect(stepTitles.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it("reflects current active step in fraction as timeline progresses", async () => {
+    // First step running
+    const timeline1 = createHeroProductTimeline().map((step, index) =>
+      index === 0 ? { ...step, status: "running" as const } : step,
+    );
+
+    seedMutableState([
+      buildExecutionRecord({
+        executionId: "exec-progress-1",
+        lifecycleStatus: "executing",
+        timeline: timeline1,
+      }),
+    ]);
+
+    renderInProgressPanel();
+
+    await waitFor(() => {
+      // Should show 1/total
+      const text = screen.getByText(/1 \/ \d+/);
+      expect(text).toBeInTheDocument();
     });
   });
 });
