@@ -35,6 +35,7 @@ from juli_backend.services.analytics_backfill.orchestrator import (
     DEFAULT_BUCKET_ORDER,
     OrchestratorResult,
     backfill_analytics_history,
+    backfill_analytics_history_auto_topup,
     validate_buckets,
 )
 from juli_backend.services.analytics_backfill.product_partition import (
@@ -64,6 +65,7 @@ __all__ = [
     "OrchestratorResult",
     "ProductPartitionResult",
     "backfill_analytics_history",
+    "backfill_analytics_history_auto_topup",
     "backfill_product_partition",
     "backfill_revenue_partition",
     "begin_run",
