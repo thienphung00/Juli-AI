@@ -1,3 +1,10 @@
 packages:
-  - "apps/*"
+  # apps/dashboard is deliberately excluded: it is npm-owned end-to-end
+  # (apps/dashboard/package-lock.json, `npm ci` in the pr.yml `frontend` job and
+  # in infra/scripts/build-frontend-review.sh on the VPS) and depends on no
+  # workspace package. Matching it with `apps/*` made pnpm-lock.yaml track its
+  # deps too, so every Dependabot npm bump desynced the pnpm lock and broke
+  # `pnpm install --frozen-lockfile` in demo-frontend / demo-e2e /
+  # dependency-validation / deployment-checks.
+  - "apps/demo"
   - "packages/*"
