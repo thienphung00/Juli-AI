@@ -96,6 +96,7 @@ export {
   FormSubmit,
   OtpField,
   PasswordField,
+  SelectField,
   TextField,
 } from "./form";
 export type {
@@ -108,6 +109,8 @@ export type {
   FormSubmitProps,
   OtpFieldProps,
   PasswordFieldProps,
+  SelectFieldProps,
+  SelectOption,
   TextFieldProps,
 } from "./form";
 export {

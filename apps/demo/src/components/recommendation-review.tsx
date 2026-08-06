@@ -10,6 +10,7 @@ import {
   ConfirmDialog,
   FilterChip,
   PageHeader,
+  SelectField,
   TextField,
 } from "@juli/ui";
 import Link from "next/link";
@@ -180,6 +181,24 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
                     field.editable !== false &&
                     field.prefillValue !== "" &&
                     currentValue === field.prefillValue;
+
+                  if (field.kind === "option-list" && field.options) {
+                    return (
+                      <SelectField
+                        disabled={field.editable === false}
+                        key={field.key}
+                        label={field.label}
+                        onChange={(event) =>
+                          handleInputChange(field.key, event.target.value)
+                        }
+                        options={field.options}
+                        prefillValue={field.prefillValue}
+                        required={field.required}
+                        suggestion={isSuggestion}
+                        value={currentValue}
+                      />
+                    );
+                  }
 
                   return (
                     <TextField

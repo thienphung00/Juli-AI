@@ -74,6 +74,21 @@ export function getOptimizeProductReviewStages(
           prefillValue: "Son môi lì cao cấp số 12 — màu đỏ ruby",
           required: true,
           editable: true,
+          kind: "option-list",
+          options: [
+            {
+              label: "Son môi lì cao cấp số 12 — màu đỏ ruby",
+              value: "Son môi lì cao cấp số 12 — màu đỏ ruby",
+            },
+            {
+              label: "Serum môi cao cấp số 12 màu đỏ ruby",
+              value: "Serum môi cao cấp số 12 màu đỏ ruby",
+            },
+            {
+              label: "Màu đỏ ruby nước hoa son cao cấp",
+              value: "Màu đỏ ruby nước hoa son cao cấp",
+            },
+          ],
         },
         {
           key: "seo_description",
@@ -82,6 +97,21 @@ export function getOptimizeProductReviewStages(
             "Son môi lì lâu trôi, dưỡng ẩm môi, phù hợp trang điểm hàng ngày.",
           required: true,
           editable: true,
+          kind: "option-list",
+          options: [
+            {
+              label: "Son môi lì lâu trôi, dưỡng ẩm môi, phù hợp trang điểm hàng ngày.",
+              value: "Son môi lì lâu trôi, dưỡng ẩm môi, phù hợp trang điểm hàng ngày.",
+            },
+            {
+              label: "Serum môi cao cấp giúp môi mềm mại, giữ ẩm lâu trôi.",
+              value: "Serum môi cao cấp giúp môi mềm mại, giữ ẩm lâu trôi.",
+            },
+            {
+              label: "Màu đỏ ruby nước hoa son chính hãng, dưỡng ẩm, không phai màu.",
+              value: "Màu đỏ ruby nước hoa son chính hãng, dưỡng ẩm, không phai màu.",
+            },
+          ],
         },
         {
           key: "main_images",
