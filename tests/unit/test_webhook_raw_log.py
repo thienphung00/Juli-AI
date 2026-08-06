@@ -22,8 +22,12 @@ APP_SECRET = "test_app_secret"
 WEBHOOK_PATH = "/webhooks/tiktok"
 
 
-def _sign(app_key: str, app_secret: str, path: str, body: bytes) -> str:
-    sign_string = f"{app_key}{path}{body.decode()}"
+def _sign(app_key: str, app_secret: str, body: bytes) -> str:
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    """
+    sign_string = f"{app_key}{body.decode()}"
     return hmac.new(
         app_secret.encode(),
         sign_string.encode(),
@@ -88,9 +92,7 @@ def recorder():
 @pytest.fixture
 def app(handoff_calls, recorder):
     async def fake_handoff(channel: str, shop_key: str, value: bytes) -> None:
-        handoff_calls.append(
-            {"channel": channel, "shop_key": shop_key, "value": value}
-        )
+        handoff_calls.append({"channel": channel, "shop_key": shop_key, "value": value})
 
     return create_app(
         app_key=APP_KEY,
@@ -135,7 +137,7 @@ class TestRawLogRecording:
     @pytest.mark.asyncio
     async def test_malformed_json_records_400(self, client, recorder):
         body = b"not-json"
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
@@ -147,7 +149,7 @@ class TestRawLogRecording:
     @pytest.mark.asyncio
     async def test_missing_fields_records_400(self, client, recorder):
         body = json.dumps({"shop_id": "s1", "timestamp": 1, "data": {}}).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
@@ -159,7 +161,7 @@ class TestRawLogRecording:
     @pytest.mark.asyncio
     async def test_catalog_match_records_handler_name(self, client, recorder):
         body = _order_body()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
@@ -180,7 +182,7 @@ class TestRawLogRecording:
                 "data": {},
             }
         ).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
@@ -199,7 +201,7 @@ class TestRawLogRecording:
                 "data": {},
             }
         ).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
@@ -209,12 +211,10 @@ class TestRawLogRecording:
         assert recorder.calls[0]["processing_status"] == "unknown_event"
 
     @pytest.mark.asyncio
-    async def test_recorder_failure_does_not_change_response(
-        self, handoff_calls, client, recorder
-    ):
+    async def test_recorder_failure_does_not_change_response(self, handoff_calls, client, recorder):
         recorder.raise_on_record = True
         body = _order_body()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
         resp = await client.post(
             WEBHOOK_PATH,
             content=body,
@@ -241,9 +241,7 @@ class TestWebhookRawEventsRepo:
         )
         await session.commit()
 
-        result = await session.execute(
-            select(WebhookRawEvent).where(WebhookRawEvent.id == row.id)
-        )
+        result = await session.execute(select(WebhookRawEvent).where(WebhookRawEvent.id == row.id))
         loaded = result.scalar_one()
         assert loaded.tiktok_shop_id == "shop_1"
         assert loaded.event_type == "ORDER_STATUS_CHANGE"

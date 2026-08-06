@@ -19,14 +19,17 @@ from httpx import ASGITransport, AsyncClient
 
 from juli_backend.services.webhook.app import create_app
 
-
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
 WEBHOOK_PATH = "/webhooks/tiktok"
 
 
-def _sign(app_key: str, app_secret: str, path: str, body: bytes) -> str:
-    sign_string = f"{app_key}{path}{body.decode()}"
+def _sign(app_key: str, app_secret: str, body: bytes) -> str:
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    """
+    sign_string = f"{app_key}{body.decode()}"
     return hmac.new(
         app_secret.encode(),
         sign_string.encode(),
@@ -60,23 +63,25 @@ async def client(app):
 
 
 def _order_event_body() -> bytes:
-    return json.dumps({
-        "type": "ORDER_STATUS_CHANGE",
-        "shop_id": "7000000000000001",
-        "timestamp": 1234567890,
-        "data": {
-            "order_id": "577000000000001",
-            "order_status": "AWAITING_SHIPMENT",
-            "update_time": 1234567890,
-        },
-    }).encode()
+    return json.dumps(
+        {
+            "type": "ORDER_STATUS_CHANGE",
+            "shop_id": "7000000000000001",
+            "timestamp": 1234567890,
+            "data": {
+                "order_id": "577000000000001",
+                "order_status": "AWAITING_SHIPMENT",
+                "update_time": 1234567890,
+            },
+        }
+    ).encode()
 
 
 class TestValidWebhook:
     @pytest.mark.asyncio
     async def test_returns_200_with_code_zero(self, client):
         body = _order_event_body()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         resp = await client.post(
             WEBHOOK_PATH,
@@ -90,7 +95,7 @@ class TestValidWebhook:
     @pytest.mark.asyncio
     async def test_publishes_to_kafka_with_correct_topic(self, client, handoff_calls):
         body = _order_event_body()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         await client.post(
             WEBHOOK_PATH,
@@ -104,7 +109,7 @@ class TestValidWebhook:
     @pytest.mark.asyncio
     async def test_kafka_key_is_shop_id(self, client, handoff_calls):
         body = _order_event_body()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         await client.post(
             WEBHOOK_PATH,
@@ -117,7 +122,7 @@ class TestValidWebhook:
     @pytest.mark.asyncio
     async def test_kafka_value_is_raw_body(self, client, handoff_calls):
         body = _order_event_body()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         await client.post(
             WEBHOOK_PATH,
@@ -136,7 +141,7 @@ class TestValidWebhook:
             "data": {"product_id": "p1"},
         }
         body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         await client.post(
             WEBHOOK_PATH,
@@ -145,6 +150,7 @@ class TestValidWebhook:
         )
 
         assert handoff_calls[0]["channel"] == "tiktok.product_status_change"
+
     @pytest.mark.asyncio
     async def test_missing_authorization_returns_401(self, client):
         body = _order_event_body()
@@ -186,7 +192,7 @@ class TestMalformedRequest:
     @pytest.mark.asyncio
     async def test_non_json_body_returns_400(self, client):
         body = b"this is not json"
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         resp = await client.post(
             WEBHOOK_PATH,
@@ -200,7 +206,7 @@ class TestMalformedRequest:
     async def test_missing_type_field_returns_400(self, client):
         event = {"shop_id": "s1", "timestamp": 123, "data": {}}
         body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         resp = await client.post(
             WEBHOOK_PATH,
@@ -223,7 +229,7 @@ class TestNewEventTypeRouting:
             "data": {"session_id": "sess_001", "duration_seconds": 3600},
         }
         body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         resp = await client.post(
             WEBHOOK_PATH,
@@ -243,7 +249,7 @@ class TestNewEventTypeRouting:
             "data": {"creator_id": "c_001", "link_id": "lk_001"},
         }
         body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         resp = await client.post(
             WEBHOOK_PATH,
@@ -263,7 +269,7 @@ class TestNewEventTypeRouting:
             "data": {"affiliate_id": "a_001", "new_rate": "0.08"},
         }
         body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         await client.post(
             WEBHOOK_PATH,
@@ -282,7 +288,7 @@ class TestNewEventTypeRouting:
             "data": {"settlement_id": "stl_001", "amount": "1500000"},
         }
         body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         resp = await client.post(
             WEBHOOK_PATH,
@@ -296,7 +302,7 @@ class TestNewEventTypeRouting:
     @pytest.mark.asyncio
     async def test_existing_order_event_uses_catalog_channel(self, client, handoff_calls):
         body = _order_event_body()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         await client.post(
             WEBHOOK_PATH,
@@ -311,9 +317,7 @@ class TestInventoryChangedWebhook:
     """Live #68 INVENTORY_CHANGED deliveries use numeric type + seller_id, not shop_id."""
 
     @pytest.mark.asyncio
-    async def test_inventory_68_without_shop_id_uses_seller_id(
-        self, client, handoff_calls
-    ):
+    async def test_inventory_68_without_shop_id_uses_seller_id(self, client, handoff_calls):
         event = {
             "type": 68,
             "tts_notification_id": "7661989953883391751",
@@ -343,7 +347,7 @@ class TestInventoryChangedWebhook:
             },
         }
         body = json.dumps(event).encode()
-        sig = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+        sig = _sign(APP_KEY, APP_SECRET, body)
 
         resp = await client.post(
             WEBHOOK_PATH,

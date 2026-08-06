@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -41,7 +41,6 @@ from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
     run_fujiwa_poll_cycle,
 )
-
 from tests.integration.tiktok_recorded_replay import load_sample, recorded_tiktok_replay
 
 APP_KEY = "layer3_app_key"
@@ -60,7 +59,11 @@ EXPECTED_RETURN_CURSOR = RETURNS_FIXTURE["response"]["data"]["return_orders"][0]
 
 
 def _sign_webhook(app_key: str, app_secret: str, body: bytes) -> str:
-    sign_string = f"{app_key}{WEBHOOK_PATH}{body.decode()}"
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    """
+    sign_string = f"{app_key}{body.decode()}"
     return hmac.new(
         app_secret.encode(),
         sign_string.encode(),
@@ -91,7 +94,7 @@ async def fujiwa_shop(session, user):
 
 @pytest_asyncio.fixture
 async def fujiwa_credential(session, fujiwa_shop):
-    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7)
     return await TikTokCredentialRepo(session).create(
         shop_id=fujiwa_shop.id,
         access_token="layer3_access",
