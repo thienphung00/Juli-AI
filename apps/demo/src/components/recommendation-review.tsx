@@ -22,9 +22,11 @@ import {
   buildReviewInputDefaultsForWorkflow,
   getWorkflowReviewStages,
 } from "../lib/reviews";
+import { getWorkflowPlanReview } from "../lib/plan-reviews";
 import { SELLER_APPROVE_GATE } from "../lib/review-seller-copy";
 import { buildDecisionsHighlightHref } from "../lib/recommendations";
 import { useDemoState } from "./demo-state";
+import { PlanReviewCard } from "./plan-review-card";
 
 interface RecommendationReviewProps {
   workflowKey: string;
@@ -37,6 +39,19 @@ function renderBodyParagraphs(body: string) {
 }
 
 export function RecommendationReview({ workflowKey }: RecommendationReviewProps) {
+  // Route by workflow key (ADR-055 item 8): workflows with a plan review
+  // render the Situation → Decision → Details spine; every other workflow
+  // keeps the five-stage review while the spine rolls out.
+  const plan = getWorkflowPlanReview(workflowKey);
+
+  if (plan) {
+    return <PlanReviewCard plan={plan} />;
+  }
+
+  return <FiveStageReview workflowKey={workflowKey} />;
+}
+
+function FiveStageReview({ workflowKey }: RecommendationReviewProps) {
   const router = useRouter();
   const { mutableState, startExecution, updateMutableState } = useDemoState();
   const stages = getWorkflowReviewStages(workflowKey);
