@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  FileUploadField,
   FilterChip,
   PageHeader,
   SelectField,
@@ -50,7 +51,10 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
   };
 
   const handleInputChange = useCallback(
-    (fieldKey: string, value: string) => {
+    (fieldKey: string, value: string | File | null) => {
+      // Store file name for uploaded files, empty string for null
+      const storedValue = value instanceof File ? value.name : (value ?? "");
+
       updateMutableState((current) => ({
         ...current,
         workflowReviewDrafts: {
@@ -58,7 +62,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
           [workflowKey]: {
             ...buildReviewInputDefaultsForWorkflow(workflowKey),
             ...(current.workflowReviewDrafts[workflowKey] ?? {}),
-            [fieldKey]: value,
+            [fieldKey]: storedValue,
           },
         },
       }));
@@ -200,6 +204,19 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
                     );
                   }
 
+                  if (field.kind === "upload") {
+                    return (
+                      <FileUploadField
+                        key={field.key}
+                        label={field.label}
+                        onChange={(file) =>
+                          handleInputChange(field.key, file)
+                        }
+                        required={field.required}
+                      />
+                    );
+                  }
+
                   return (
                     <TextField
                       disabled={field.editable === false}
@@ -211,7 +228,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
                       readOnly={field.editable === false}
                       required={field.required}
                       suggestion={isSuggestion}
-                      value={currentValue}
+                      value={currentValue as string}
                     />
                   );
                 })}
