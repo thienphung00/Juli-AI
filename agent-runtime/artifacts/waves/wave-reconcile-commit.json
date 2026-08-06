@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-reconcile-commit",
+  "branch": "feature/reconcile-commit-wave",
+  "issues": [752]
+}
