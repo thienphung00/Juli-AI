@@ -24,13 +24,9 @@ pytestmark = pytest.mark.asyncio
 
 
 def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
-    payload = json.dumps(
-        {"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)}
-    )
+    payload = json.dumps({"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)})
     encoded = base64.urlsafe_b64encode(payload.encode()).decode()
-    signature = hmac.new(
-        secret.encode(), encoded.encode(), hashlib.sha256
-    ).hexdigest()
+    signature = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
     return f"{encoded}.{signature}"
 
 
@@ -61,9 +57,10 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def api_client(engine, monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
     from juli_backend.api.app import create_app
     from juli_backend.database import get_session
-    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     application = create_app()
@@ -95,27 +92,23 @@ async def test_oauth_callback_validates_required_parameters(api_client):
 async def test_webhook_accepts_json_payload_with_valid_signature():
     import json as json_mod
 
+    from juli_backend.services.tiktok import TikTokWebhookDispatcher
     from juli_backend.services.tiktok.signature import TikTokWebhookSignatureVerifier
     from juli_backend.services.tiktok.webhook import TikTokWebhookService
-    from juli_backend.services.tiktok import TikTokWebhookDispatcher
 
     app_key = "key"
     app_secret = "secret"
-    path = "/webhooks/tiktok"
     body = json_mod.dumps({"type": "ORDER_CREATED", "shop_id": "s1"}).encode()
-    sign_string = f"{app_key}{path}{body.decode()}"
-    sig = hmac.new(
-        app_secret.encode(), sign_string.encode(), hashlib.sha256
-    ).hexdigest()
+    # Webhook signature uses app_key + body (NOT path)
+    sign_string = f"{app_key}{body.decode()}"
+    sig = hmac.new(app_secret.encode(), sign_string.encode(), hashlib.sha256).hexdigest()
     handoffs: list[tuple[str, str, bytes]] = []
 
     async def handoff(channel: str, shop_key: str, payload: bytes) -> None:
         handoffs.append((channel, shop_key, payload))
 
     service = TikTokWebhookService(
-        verifier=TikTokWebhookSignatureVerifier(
-            app_key=app_key, app_secret=app_secret, path=path
-        ),
+        verifier=TikTokWebhookSignatureVerifier(app_key=app_key, app_secret=app_secret),
         dispatcher=TikTokWebhookDispatcher(),
         handoff_fn=handoff,
     )
@@ -134,13 +127,9 @@ async def test_webhook_dispatcher_routes_order_status_change_event():
 
 async def test_oauth_callback_returns_proper_http_responses(api_client, user_id):
     state = _build_state(user_id)
-    bad = await api_client.get(
-        CALLBACK_PATH, params={"code": "c", "state": "bad.state"}
-    )
+    bad = await api_client.get(CALLBACK_PATH, params={"code": "c", "state": "bad.state"})
     assert bad.status_code == 401
 
-    ok = await api_client.get(
-        CALLBACK_PATH, params={"code": "auth_code", "state": state}
-    )
+    ok = await api_client.get(CALLBACK_PATH, params={"code": "auth_code", "state": state})
     assert ok.status_code == 200
     assert ok.json()["status"] == "ok"

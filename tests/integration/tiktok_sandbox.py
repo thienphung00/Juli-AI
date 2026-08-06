@@ -56,7 +56,12 @@ requires_sandbox_refresh_token = pytest.mark.skipif(
 
 
 def sign_webhook_body(app_key: str, app_secret: str, body: bytes) -> str:
-    sign_string = f"{app_key}{WEBHOOK_PATH}{body.decode()}"
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    Canonical implementation for all integration tests.
+    """
+    sign_string = f"{app_key}{body.decode()}"
     return hmac.new(
         app_secret.encode(),
         sign_string.encode(),

@@ -20,7 +20,6 @@ from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import OrdersRepo, WorkflowWebhookSignalsRepo
 from juli_backend.services.cdp_speed.enqueue_reason import webhook_catalog_enqueue_reason
-from juli_backend.services.webhook.app import WEBHOOK_PATH
 from juli_backend.services.webhook.deployed import handle_tiktok_webhook_delivery
 from juli_backend.services.webhook.material_gate import InMemoryMaterialEnqueueGate
 
@@ -30,7 +29,11 @@ ORDER_ID = "577000000000625"
 
 
 def _sign(body: bytes) -> str:
-    sign_string = f"{APP_KEY}{WEBHOOK_PATH}{body.decode()}"
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    """
+    sign_string = f"{APP_KEY}{body.decode()}"
     return hmac.new(APP_SECRET.encode(), sign_string.encode(), hashlib.sha256).hexdigest()
 
 
