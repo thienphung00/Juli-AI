@@ -27,8 +27,12 @@ APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
 
 
-def _sign(app_key: str, app_secret: str, path: str, body: bytes) -> str:
-    sign_string = f"{app_key}{path}{body.decode()}"
+def _sign(app_key: str, app_secret: str, body: bytes) -> str:
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    """
+    sign_string = f"{app_key}{body.decode()}"
     return hmac.new(app_secret.encode(), sign_string.encode(), hashlib.sha256).hexdigest()
 
 
@@ -134,7 +138,7 @@ async def test_valid_webhook_delivery_is_accepted_and_persists_side_effects(
             "data": {},
         }
     ).encode()
-    signature = _sign(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+    signature = _sign(APP_KEY, APP_SECRET, body)
 
     resp = await client.post(
         WEBHOOK_PATH,
@@ -146,4 +150,6 @@ async def test_valid_webhook_delivery_is_accepted_and_persists_side_effects(
     assert resp.json() == {"code": 0}
 
     await session.refresh(shop)
-    assert shop.is_active is False, "handler must persist through the DI session, not a fixture-local one"
+    assert shop.is_active is False, (
+        "handler must persist through the DI session, not a fixture-local one"
+    )

@@ -43,21 +43,28 @@ Subscribe only to the **Phase 2 catalog** types below (~18 types). The remaining
 
 ## Signature verification
 
-Distinct from **API request signing** (query-param `sign`). Webhook verification:
+Distinct from **API request signing** (query-param `sign`); **webhook signatures do NOT include the path**.
+
+Webhook verification algorithm:
 
 ```
-sign_string = app_key + path + raw_body
+sign_string = app_key + raw_body
 expected    = HMAC-SHA256(app_secret, sign_string) → hex
 ```
 
 | Field | Value |
 |-------|-------|
-| `path` | `/webhooks/tiktok` (literal, as registered) |
+| `app_key` | Registered with TikTok Shop Partner Center |
+| `raw_body` | Unmodified request body as bytes |
+| `app_secret` | Webhook signing secret (not the API secret) |
 | Header | `Authorization: <signature>` |
+
+**Key difference from API request signing:** Webhook signing omits the path and does not
+follow the `{secret}{path}{canonical}{body}{secret}` pattern used for API requests.
 
 Invalid or missing signature → HTTP 401, no handoff.
 
-**Source:** `backend/src/juli_backend/services/webhook/app.py`
+**Source:** [TikTok Shop Webhook Documentation](https://developer.tiktok.com/doc/shop-api/webhook/) — verified against real captured events.
 
 ---
 

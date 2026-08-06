@@ -95,6 +95,18 @@ mv -Tf "${RELEASES_ROOT}/current.tmp" "${RELEASES_ROOT}/current"
 systemctl restart juli-api
 systemctl restart juli-web
 
+# --- 6b. Restart Celery units if installed (introduced in #720) ---
+# Guard with unit-existence checks to tolerate hosts without Celery units
+# (e.g. App Review envelope with single web process only).
+# Use systemctl cat to check existence: exits non-zero if unit not found.
+for unit in juli-celery-worker juli-celery-beat; do
+    if systemctl cat "${unit}" >/dev/null 2>&1; then
+        systemctl restart "${unit}"
+    else
+        echo "SKIP: ${unit} not installed on this host (expected on App Review-only boxes)"
+    fi
+done
+
 # --- 7. Health check — fail loudly, no auto-rollback (manual rollback.yml) ---
 echo "-- health check (timeout ${HEALTH_TIMEOUT_SECS}s) --"
 deadline=$((SECONDS + HEALTH_TIMEOUT_SECS))

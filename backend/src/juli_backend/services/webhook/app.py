@@ -50,7 +50,6 @@ def build_webhook_service(
     verifier = TikTokWebhookSignatureVerifier(
         app_key=app_key,
         app_secret=app_secret,
-        path=WEBHOOK_PATH,
     )
     return TikTokWebhookService(
         verifier=verifier,
@@ -96,14 +95,10 @@ def create_app(
                     side_effects=DatabaseWebhookSideEffects(session),
                     raw_event_recorder=DatabaseRawWebhookEventRecorder(session),
                 )
-                result = await service.handle(
-                    body=body, signature=signature, headers=headers
-                )
+                result = await service.handle(body=body, signature=signature, headers=headers)
                 await session.commit()
         else:
-            result = await default_service.handle(
-                body=body, signature=signature, headers=headers
-            )
+            result = await default_service.handle(body=body, signature=signature, headers=headers)
 
         return JSONResponse(result.body, status_code=result.status_code)
 

@@ -545,7 +545,7 @@ Each deploy:
 3. Backend: creates `.venv`, `pip install`, `alembic upgrade head`.
 4. Frontend: copies `/etc/juli/web.env` → `apps/dashboard/.env.production`, runs `build-frontend-review.sh`.
 5. Atomically flips `~/releases/current` symlink.
-6. Restarts `juli-api` and `juli-web`.
+6. Restarts `juli-api`, `juli-web`, and (if installed) `juli-celery-worker` and `juli-celery-beat`. Celery units are guarded by a unit-existence check to tolerate hosts without them (e.g. App Review-only boxes).
 7. Health-checks `http://127.0.0.1:8000/health` and `http://127.0.0.1:3000/` (60s timeout).
 8. Appends to `deploy-history.log` and prunes old worktrees (keeps last 3).
 
