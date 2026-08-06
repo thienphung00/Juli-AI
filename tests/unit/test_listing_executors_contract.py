@@ -445,12 +445,12 @@ def test_file_screening_rejects_corrupt_image():
 
 
 def test_file_screening_rejects_extension_mismatch():
-    """File with signature detected correctly regardless of claimed extension."""
+    """Valid PNG bytes declared with wrong extension (.jpg) is rejected."""
     from io import BytesIO
 
     from PIL import Image
 
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.file_screening import screen_image_bytes
 
     # Create a real minimal valid PNG image
     img = Image.new("RGB", (1, 1), color="red")
@@ -458,12 +458,35 @@ def test_file_screening_rejects_extension_mismatch():
     img.save(png_bytes, format="PNG")
     png_bytes = png_bytes.getvalue()
 
-    # PNG bytes will be detected as PNG regardless of what extension caller claims
-    # The screening is based on magic bytes, not filename
-    png_base64 = base64.b64encode(png_bytes).decode()
+    # Reject when PNG bytes are declared as .jpg
+    with pytest.raises(ValueError, match="extension .jpg does not match"):
+        screen_image_bytes(png_bytes, filename="image.jpg")
 
-    # This should pass because PNG is valid, and we trust magic bytes
-    result = _decode_optional_base64(png_base64)
+    # Also reject when claimed as .pdf
+    with pytest.raises(ValueError, match="extension .pdf does not match"):
+        screen_image_bytes(png_bytes, filename="document.pdf")
+
+
+def test_file_screening_accepts_image_with_matching_extension():
+    """Valid PNG with matching extension passes screening."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_image_bytes
+
+    # Create a real minimal valid PNG image
+    img = Image.new("RGB", (1, 1), color="red")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    # Should pass with matching .png extension
+    result = screen_image_bytes(png_bytes, filename="image.png")
+    assert result == png_bytes
+
+    # Should also pass without filename
+    result = screen_image_bytes(png_bytes, filename=None)
     assert result == png_bytes
 
 

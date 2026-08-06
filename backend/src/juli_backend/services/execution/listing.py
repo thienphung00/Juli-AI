@@ -13,11 +13,12 @@ from typing import Any
 from juli_backend.integrations.tiktok import SandboxWriteResources
 from juli_backend.services.execution.file_screening import (
     MAX_ENCODED_SIZE_BYTES,
+    get_image_extension,
     screen_image_bytes,
 )
 
 
-def _decode_optional_base64(value: str | None) -> bytes | None:
+def _decode_optional_base64(value: str | None, filename: str | None = None) -> bytes | None:
     if not value:
         return None
 
@@ -32,7 +33,7 @@ def _decode_optional_base64(value: str | None) -> bytes | None:
     decoded = base64.b64decode(value)
 
     # Screen the decoded image bytes
-    return screen_image_bytes(decoded)
+    return screen_image_bytes(decoded, filename=filename)
 
 
 def _attribute_required(attr: dict[str, Any]) -> bool:
@@ -123,10 +124,18 @@ def _resolve_image_uri(payload: dict[str, Any], products) -> str | None:
 def _resolve_file_uri(payload: dict[str, Any], products) -> str | None:
     if payload.get("file_uri"):
         return str(payload["file_uri"])
-    file_bytes = _decode_optional_base64(payload.get("file_content_base64"))
-    filename = str(payload.get("file_name") or "supporting-document.pdf")
+    declared_filename = payload.get("file_name")
+    file_bytes = _decode_optional_base64(
+        payload.get("file_content_base64"), filename=declared_filename
+    )
     if file_bytes is None:
         return None
+    # If no filename was provided, derive it from detected image format
+    if not declared_filename:
+        extension = get_image_extension(file_bytes)
+        filename = f"supporting-file{extension}" if extension else "supporting-file"
+    else:
+        filename = str(declared_filename)
     upload = products.upload_product_file(file_bytes=file_bytes, filename=filename)
     return str(upload.get("uri") or "")
 

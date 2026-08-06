@@ -4,11 +4,13 @@ Validates that base64-encoded images are:
 1. Appropriately sized (encoded and decoded)
 2. Supported image types (PNG, JPEG, GIF, WebP)
 3. Valid and non-corrupt (full decode verification)
+4. Filename extension matches detected file signature
 """
 
 from __future__ import annotations
 
 import io
+from pathlib import Path
 from typing import Final
 
 from PIL import Image
@@ -19,26 +21,32 @@ MAX_ENCODED_SIZE_BYTES: Final[int] = 10 * 1024 * 1024  # 10 MB
 MAX_DECODED_SIZE_BYTES: Final[int] = 50 * 1024 * 1024  # 50 MB
 
 # Magic bytes (file signatures) for supported image types
-# Format: (signature_bytes, format_name)
-SUPPORTED_IMAGE_SIGNATURES: Final[dict[bytes, str]] = {
-    b"\x89PNG\r\n\x1a\n": "PNG",
-    b"\xff\xd8\xff": "JPEG",
-    b"GIF87a": "GIF",
-    b"GIF89a": "GIF",
-    b"RIFF": "WebP",  # RIFF container, verified as WebP by checking WEBP marker
+# Format: signature_bytes -> (format_name, acceptable_extensions)
+SUPPORTED_IMAGE_SIGNATURES: Final[dict[bytes, tuple[str, frozenset[str]]]] = {
+    b"\x89PNG\r\n\x1a\n": ("PNG", frozenset({".png"})),
+    b"\xff\xd8\xff": ("JPEG", frozenset({".jpg", ".jpeg", ".jpe"})),
+    b"GIF87a": ("GIF", frozenset({".gif"})),
+    b"GIF89a": ("GIF", frozenset({".gif"})),
+    b"RIFF": ("WebP", frozenset({".webp"})),
 }
 
 
-def screen_image_bytes(data: bytes) -> bytes:
+def screen_image_bytes(
+    data: bytes, filename: str | None = None, content_type: str | None = None
+) -> bytes:
     """Validate image bytes before use.
 
     Verifies:
     - Size within acceptable bounds (decoded)
     - Matches a supported image format (magic bytes)
     - Can be decoded as a valid image (not corrupt, not polyglot)
+    - Filename extension agrees with detected format (if filename provided)
 
     Args:
         data: Raw image bytes (already base64-decoded)
+        filename: Optional declared filename for extension validation
+        content_type: Optional declared MIME type (not used for validation, since it's
+                      trivially spoofable; magic bytes are authoritative)
 
     Returns:
         The same bytes, passed through validation
@@ -57,7 +65,7 @@ def screen_image_bytes(data: bytes) -> bytes:
     if not data:
         raise ValueError("Image data is empty")
 
-    format_name = _detect_image_format(data)
+    format_name, detected_extensions = _detect_image_format(data)
     if not format_name:
         raise ValueError("Image is not a supported image format (PNG, JPEG, GIF, or WebP)")
 
@@ -69,24 +77,46 @@ def screen_image_bytes(data: bytes) -> bytes:
     except Exception as e:
         raise ValueError(f"Image is corrupt or invalid: {type(e).__name__}: {str(e)}")
 
+    # Validate extension agreement if filename provided
+    if filename:
+        file_ext = Path(filename).suffix.lower()
+        if file_ext and file_ext not in detected_extensions:
+            raise ValueError(
+                f"Filename extension {file_ext} does not match detected image format {format_name} "
+                f"(valid extensions: {', '.join(sorted(detected_extensions))})"
+            )
+
     return data
 
 
-def _detect_image_format(data: bytes) -> str | None:
+def get_image_extension(data: bytes) -> str | None:
+    """Detect image format and return the primary file extension.
+
+    Returns the extension (e.g. '.png') if recognized, None otherwise.
+    Used to derive a default filename when one is not provided.
+    """
+    format_name, extensions = _detect_image_format(data)
+    if extensions:
+        # Return the first (preferred) extension
+        return next(iter(extensions))
+    return None
+
+
+def _detect_image_format(data: bytes) -> tuple[str, frozenset[str]] | tuple[None, None]:
     """Detect image format from file signature (magic bytes).
 
-    Returns the format name if recognized, None otherwise.
+    Returns (format_name, acceptable_extensions) if recognized, (None, None) otherwise.
     """
     if not data:
-        return None
+        return None, None
 
     # Check for WebP first (RIFF container)
     if data[:4] == b"RIFF" and len(data) >= 12 and data[8:12] == b"WEBP":
-        return "WebP"
+        return "WebP", frozenset({".webp"})
 
     # Check other signatures
-    for signature, format_name in SUPPORTED_IMAGE_SIGNATURES.items():
+    for signature, (format_name, extensions) in SUPPORTED_IMAGE_SIGNATURES.items():
         if data.startswith(signature):
-            return format_name
+            return format_name, extensions
 
-    return None
+    return None, None
