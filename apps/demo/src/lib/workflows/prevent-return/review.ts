@@ -28,12 +28,12 @@ export function buildPreventReturnReviewInputDefaults(): Record<string, string> 
     return_reason: "Sản phẩm không đúng mô tả",
     decision_deadline: "2026-07-20 12:00",
     rma_state: "Đang chờ hàng về kho",
-    risk_evidence: "Quy tắc: lần trả đầu — không có điểm ML giả",
-    seller_decision: "",
+    risk_evidence: "Quy tắc: lần trả đầu — không có dấu hiệu gian lận",
+    seller_decision: "Phê duyệt",
     reject_reason: "",
-    review_notes: "",
+    review_notes: "Khách hàng yêu cầu hoàn tiền, chúng tôi đồng ý",
     restock_enabled: "off",
-    resellable_quantity: "",
+    resellable_quantity: "0",
   };
 }
 

@@ -9,6 +9,7 @@ import {
   PREVENT_REFUND_WORKFLOW_KEY,
   PREVENT_RETURN_FBT_INTAKE_KEY,
   PREVENT_RETURN_WORKFLOW_KEY,
+  buildReviewInputDefaultsForWorkflow,
   defaultAnalyticsMetricKey,
   getReviewStage,
   getWorkflowReviewStages,
@@ -201,6 +202,51 @@ describe("Analytics metric key validation across all workflows", () => {
       expect(analyticsStage?.analyticsMetricHref).toBe(
         `/analytics/${analyticsStage?.analyticsMetricKey}`,
       );
+    }
+  });
+});
+
+describe("Review input defaults - proposed values", () => {
+  it("provides non-empty proposed values for all seller-facing fields across all workflows", () => {
+    // File upload fields stay empty (explicit exception per ADR-055 item 12)
+    const fileUploadFields = new Set([
+      "main_images",
+      "supporting_file",
+      "received_quantity",
+    ]);
+
+    // For decision workflows, reject_reason is only required when seller_decision = reject
+    // If seller_decision = approve, reject_reason may be empty (conditional requirement)
+    const conditionalFields = {
+      prevent_cancellation_8a: new Map([["reject_reason", "seller_decision"]]),
+      prevent_return_8b: new Map([["reject_reason", "seller_decision"]]),
+      prevent_refund_8c: new Map([["reject_reason", "seller_decision"]]),
+    };
+
+    for (const workflowKey of APPROVABLE_WORKFLOW_KEYS) {
+      const defaults = buildReviewInputDefaultsForWorkflow(workflowKey);
+      const conditional =
+        conditionalFields[workflowKey as keyof typeof conditionalFields] ||
+        new Map();
+
+      for (const [fieldKey, fieldValue] of Object.entries(defaults)) {
+        const isFileUpload = fileUploadFields.has(fieldKey);
+
+        // If field is conditional on seller_decision being reject
+        const dependsOnField = conditional.get(fieldKey);
+        if (dependsOnField) {
+          // reject_reason can be empty if seller_decision = approve
+          const decisionValue = defaults[dependsOnField];
+          if (decisionValue === "Phê duyệt" || decisionValue === "approve") {
+            continue; // reject_reason may be empty for approve
+          }
+        }
+
+        expect(
+          isFileUpload || fieldValue !== "",
+          `${workflowKey} field "${fieldKey}" must have a non-empty proposed value, got: "${fieldValue}"`,
+        ).toBe(true);
+      }
     }
   });
 });

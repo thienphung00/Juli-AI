@@ -89,10 +89,11 @@ describe("getReplenishInventoryReviewStages", () => {
 });
 
 describe("buildReplenishInventoryReviewInputDefaults", () => {
-  it("keeps reorder quantity empty when ROP/EOQ default is unavailable", () => {
+  it("provides proposed reorder quantity and supplier path as seller-facing defaults", () => {
     const defaults = buildReplenishInventoryReviewInputDefaults();
 
-    expect(defaults.reorder_quantity).toBe("");
+    expect(defaults.reorder_quantity).not.toBe("");
+    expect(defaults.external_path).not.toBe("");
     expect(defaults.warehouse_id).toMatch(/WH-HCM/);
   });
 });

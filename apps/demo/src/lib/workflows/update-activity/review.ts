@@ -24,11 +24,11 @@ const updateActivityFixture = updateActivityFixtureEntry;
 export function buildUpdateActivityReviewInputDefaults(): Record<string, string> {
   return {
     activity_id: "ACT-8842",
-    activity_type: "",
+    activity_type: "Flash Sale",
     skus: "PRD-77201 — Serum dưỡng ẩm",
-    discount_config: "",
-    promotion_start_date: "",
-    promotion_end_date: "",
+    discount_config: "Giảm 25% từ giá gốc",
+    promotion_start_date: "2026-08-12",
+    promotion_end_date: "2026-08-19",
   };
 }
 

@@ -30,7 +30,7 @@ export function buildPreventCancellationReviewInputDefaults(): Record<
     buyer_reason: "Đổi ý trước khi giao",
     decision_deadline: "2026-07-18 17:00",
     eligibility: "Còn trong cửa sổ quyết định trước giao hàng",
-    seller_decision: "",
+    seller_decision: "Phê duyệt",
     reject_reason: "",
   };
 }
