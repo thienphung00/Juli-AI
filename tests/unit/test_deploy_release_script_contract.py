@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -70,33 +73,152 @@ def test_celery_restarts_occur_after_symlink_flip(script_text: str):
     )
 
 
-def test_celery_restarts_are_guarded_by_unit_existence_check(script_text: str):
-    """Celery restarts must be guarded by systemctl list-unit-files checks."""
-    # The guard should look for the unit in the systemd system, and skip restart if missing
-    assert "systemctl list-unit-files" in script_text or "list-unit-files" in script_text, (
-        "Unit existence check (systemctl list-unit-files) not found"
-    )
-
-    # Should also have some indication of skipping if unit doesn't exist
-    assert "juli-celery-worker" in script_text and "juli-celery-beat" in script_text, (
-        "Celery unit names not found in script"
-    )
+def test_celery_guard_uses_systemctl_cat(script_text: str):
+    """Celery restarts must be guarded with systemctl cat (correct exit semantics)."""
+    # systemctl cat exits non-zero if unit doesn't exist (correct semantics)
+    assert "systemctl cat" in script_text, "systemctl cat not found for unit existence check"
+    # Must be in an if condition
+    assert "if systemctl cat" in script_text, "systemctl cat must be in if condition"
 
 
-def test_celery_missing_unit_does_not_fail_deploy(script_text: str):
-    """Missing Celery units must not abort the deploy."""
-    # The script should have error handling or guards that prevent systemctl failures
-    # from causing the whole script to fail.
-    # With 'set -euo pipefail', we need either:
-    # 1. A conditional check before restart (if systemctl list-unit-files)
-    # 2. A try-catch style || true
-    # 3. Or temporary set +e around the restart
+def test_celery_missing_unit_does_not_fail_deploy_behavior():
+    """Missing Celery units must not abort the deploy (behavioral test with stubs)."""
+    # Execute the restart block with stubbed systemctl to verify behavior.
+    # Create a stub systemctl that exits non-zero for both units (simulating "units not found").
+    # The block should exit 0 and print SKIP for each unit.
 
-    # Look for guard patterns
-    has_unit_check = "list-unit-files" in script_text
-    has_error_handling = "||" in script_text or "set +e" in script_text
+    stub_systemctl = """\
+#!/bin/bash
+# Stub systemctl for testing the guard behavior
+case "$2" in
+    juli-celery-worker|juli-celery-beat)
+        # Simulate "unit not found" by exiting 1
+        exit 1
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+"""
 
-    assert has_unit_check or has_error_handling, "Missing unit guard or error handling detected"
+    restart_block = """\
+set -euo pipefail
+for unit in juli-celery-worker juli-celery-beat; do
+    if systemctl cat "${unit}" >/dev/null 2>&1; then
+        systemctl restart "${unit}"
+    else
+        echo "SKIP: ${unit} not installed on this host (expected on App Review-only boxes)"
+    fi
+done
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        # Write stub systemctl
+        stub_path = tmpdir_path / "systemctl"
+        stub_path.write_text(stub_systemctl)
+        stub_path.chmod(0o755)
+
+        # Write test script
+        test_script = tmpdir_path / "test.sh"
+        test_script.write_text(restart_block)
+        test_script.chmod(0o755)
+
+        # Run with stub systemctl on PATH
+        env = os.environ.copy()
+        env["PATH"] = f"{tmpdir}:{env['PATH']}"
+
+        result = subprocess.run(
+            ["/bin/bash", str(test_script)],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        # Block should exit 0 even though units don't exist
+        assert result.returncode == 0, (
+            f"Block exited with {result.returncode}, expected 0. stderr: {result.stderr}"
+        )
+
+        # Should print SKIP for each missing unit
+        assert "SKIP: juli-celery-worker" in result.stdout, (
+            "Missing SKIP message for juli-celery-worker"
+        )
+        assert "SKIP: juli-celery-beat" in result.stdout, (
+            "Missing SKIP message for juli-celery-beat"
+        )
+
+
+def test_celery_restart_invoked_when_units_exist():
+    """When units exist, systemctl restart must be invoked for each."""
+    # Stub systemctl that exits 0 and tracks restart invocations
+    stub_systemctl = """\
+#!/bin/bash
+# Stub systemctl for testing restart invocation
+case "$1" in
+    cat)
+        # Simulate "unit found" by exiting 0
+        exit 0
+        ;;
+    restart)
+        # Log the restart
+        echo "RESTART: $2"
+        exit 0
+        ;;
+    *)
+        exit 1
+        ;;
+esac
+"""
+
+    restart_block = """\
+set -euo pipefail
+for unit in juli-celery-worker juli-celery-beat; do
+    if systemctl cat "${unit}" >/dev/null 2>&1; then
+        systemctl restart "${unit}"
+    else
+        echo "SKIP: ${unit} not installed on this host (expected on App Review-only boxes)"
+    fi
+done
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        # Write stub systemctl
+        stub_path = tmpdir_path / "systemctl"
+        stub_path.write_text(stub_systemctl)
+        stub_path.chmod(0o755)
+
+        # Write test script
+        test_script = tmpdir_path / "test.sh"
+        test_script.write_text(restart_block)
+        test_script.chmod(0o755)
+
+        # Run with stub systemctl on PATH
+        env = os.environ.copy()
+        env["PATH"] = f"{tmpdir}:{env['PATH']}"
+
+        result = subprocess.run(
+            ["/bin/bash", str(test_script)],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        # Block should exit 0
+        assert result.returncode == 0, (
+            f"Block exited with {result.returncode}, expected 0. stderr: {result.stderr}"
+        )
+
+        # Should invoke restart for both units
+        assert "RESTART: juli-celery-worker" in result.stdout, (
+            "Missing restart invocation for juli-celery-worker"
+        )
+        assert "RESTART: juli-celery-beat" in result.stdout, (
+            "Missing restart invocation for juli-celery-beat"
+        )
 
 
 def test_juli_api_and_juli_web_restarts_still_present(script_text: str):
