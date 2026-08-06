@@ -678,3 +678,35 @@ workflow_prompt_cache:
         - backend/src/juli_backend/services/cdp_speed/
         - backend/src/juli_backend/services/cdp_batch/
         - Sibling issue context caches
+    758:
+      defaultSliceId: DPR-1
+      handoffPath: docs/adr/055-decision-plan-review.md
+      childSlices:
+        "759": DPR-0
+        "760": DPR-1
+        "761": DPR-2
+        "762": DPR-3
+        "763": DPR-4
+        "764": DPR-5
+        "765": DPR-6
+        "766": DPR-7
+        "767": DPR-8
+        "768": DPR-9
+        "769": DPR-10
+        "770": DPR-11
+        "771": DPR-12
+        "772": DPR-13
+        "773": DPR-14
+        "774": DPR-15
+        "775": DPR-16
+      parentScopeBlock: "# Parent #758 — Decisions plan review (constant)\\n## Product boundary\\n- apps/demo mobile-web only; replaces the five-stage review (Why -> Analytics -> Inputs -> Preview -> Approve) with a sectioned agent-proposed plan card\\n- No native iOS/Android; no apps/dashboard changes; ADR-023 four-destination IA unchanged\\n## Architect locks (ADR-055)\\n- NO LLM LAYER: rule-based, every string pre-authored; 'ask a follow-up' reveals authored copy, never a conversation\\n- Juli pre-commits a value for EVERY field; no blank-by-default seller field (sole exception: create_hero_product_1 uploads)\\n- Uniform Situation -> Decision -> Details spine across all workflows; sections summarise (one row + affordance), never enumerate; expansion adds and keeps the summary visible\\n- Impact block shows the tied Main KPI's REAL current value and trend plus a directional goal; NO projected magnitude (barred by ADR-011 display-grade, ADR-032 'not claim experiment dGMV as Juli ROI', and deferred mediated impact); ONE state only (Mock executions are dry-run, so no effect exists to observe)\\n- LIVE hours is tied to no workflow - leave unmapped\\n- Repeat consent: completed-only, once per workflow kind, and never on a workflow whose shipped copy promises Juli will not act unaided (6 of 11 excluded); grants pre-approval WITH notification, never silent automation\\n- Execution progress is a lifecycle line + step fraction; steps behind one expansion; no time estimate, no cancel (the model has neither)\\n## Scope cuts (deferred, not reversed)\\n- risks display and decision-options editing are OUT for this epic; ADR-055 items 9 and 3 remain the design of record\\n- ratio-KPI numerator/denominator storage is flagged only - owned by the CDP track\\n## Evidence status\\n- Card structure, impact presentation and progress design are ENGINEERING JUDGEMENT: a research pass returned zero surviving claims for dataviz UX and impact framing. Unknown and load-bearing: whether users read before/after deltas as causal regardless of disclaimer wording\\n## Slices\\n- DPR-0 reconcile superseded #600 stories (#759, HITL) - do early to avoid contradictory children\\n- DPR-1 agent-proposed values (#760) · DPR-2 field descriptor kind+options (#761) · DPR-3 execution progress (#762) · DPR-4 seller copy guard (#763) - all independent\\n- DPR-5 spine tracer on delete_activity_7b (#764, HITL) - blocked by #761; gates the five rollouts\\n- DPR-6 Listing (#765) · DPR-7 Inventory (#766) · DPR-8 Orders (#767) · DPR-9 Promotions (#768) · DPR-10 Returns/refunds (#769) - blocked by #764\\n- DPR-11 reasoning disclosure (#770) · DPR-12 impact block (#771, HITL) - blocked by #764\\n- DPR-13 typed caveat classes (#772) - blocked by #770 · DPR-14 needs_input (#773) - blocked by #762 · DPR-15 hero product uploads (#774) - blocked by #765\\n- DPR-16 repeat consent gate (#775) - blocked by #772 and #773\\n## Epic deferrals\\n- Post-execution observed impact (lands at 3.5-C when real writes exist) · traversal model (scroll vs sequential) · LLM-backed conversational ask · risks display · decision-options editing\\n"
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - backend/
+        - ios/
+        - apps/landing/
+        - apps/dashboard/
+        - web/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
