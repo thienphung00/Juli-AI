@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 748,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/tiktok/signature.py",
+      "backend/src/juli_backend/services/webhook/app.py",
+      "docs/integrations/tiktok_api/webhooks.md",
+      "tests/unit/test_tiktok_webhook_services.py",
+      "tests/unit/test_webhook.py",
+      "tests/unit/test_webhook_raw_log.py",
+      "tests/unit/test_api_webhook_tiktok.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-748.json",
+    "sha256": "d2d04ce160abac13dcaa0c5cacb4bb7f9a26d2407ffbbd6be8e02b56c48796ad",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-06T04:04:51Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-748.json",
+    "sha256": "4a31c62d64d5a2f2739ad6af41812952fc8abb561b1ee361647dbc9a24d77f4c",
+    "status": "PASS"
+  },
+  "wave": "wave-webhook-deploy"
+}
