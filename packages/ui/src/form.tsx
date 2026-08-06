@@ -349,7 +349,10 @@ export interface SelectOption {
 }
 
 export interface SelectFieldProps
-  extends Omit<ComponentPropsWithoutRef<"select">, "id" | "aria-describedby"> {
+  extends Omit<
+    ComponentPropsWithoutRef<"input">,
+    "id" | "aria-describedby" | "type" | "list"
+  > {
   errorMessage?: string;
   helperText?: string;
   id?: string;
@@ -369,13 +372,14 @@ export function SelectField({
   prefillValue,
   required,
   suggestion,
-  ...selectProps
+  ...inputProps
 }: SelectFieldProps) {
   const generatedId = useId();
-  const selectId = idProp ?? generatedId;
-  const errorId = `${selectId}-error`;
-  const helperId = `${selectId}-helper`;
-  const suggestionId = `${selectId}-suggestion`;
+  const inputId = idProp ?? generatedId;
+  const datalistId = `${inputId}-datalist`;
+  const errorId = `${inputId}-error`;
+  const helperId = `${inputId}-helper`;
+  const suggestionId = `${inputId}-suggestion`;
   const describedBy = [
     errorMessage ? errorId : null,
     helperText ? helperId : null,
@@ -386,9 +390,9 @@ export function SelectField({
   const hasError = Boolean(errorMessage);
 
   return (
-    <FormField data-testid={`field-${selectId}`}>
+    <FormField data-testid={`field-${inputId}`}>
       <div className="juli-form__label-container">
-        <FormLabel htmlFor={selectId} required={required}>
+        <FormLabel htmlFor={inputId} required={required}>
           {label}
         </FormLabel>
         {suggestion ? (
@@ -397,7 +401,7 @@ export function SelectField({
           </span>
         ) : null}
       </div>
-      <select
+      <input
         aria-describedby={describedBy || undefined}
         aria-invalid={hasError || undefined}
         className={[
@@ -407,16 +411,19 @@ export function SelectField({
         ]
           .filter(Boolean)
           .join(" ")}
-        id={selectId}
+        id={inputId}
+        list={datalistId}
         required={required}
-        {...selectProps}
-      >
+        type="text"
+        {...inputProps}
+      />
+      <datalist id={datalistId}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
-      </select>
+      </datalist>
       {errorMessage ? <FormError id={errorId}>{errorMessage}</FormError> : null}
       {helperText && !errorMessage ? (
         <p className="juli-form__helper" id={helperId}>

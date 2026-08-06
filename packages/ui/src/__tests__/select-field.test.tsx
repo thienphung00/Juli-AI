@@ -138,4 +138,46 @@ describe("SelectField", () => {
       screen.getByText("Chọn một tiêu đề được đề xuất"),
     ).toBeInTheDocument();
   });
+
+  it("accepts custom input value not in option list", async () => {
+    const handleChange = vi.fn();
+    const user = userEvent.setup();
+
+    const { rerender } = render(
+      <SelectField
+        label="Tiêu đề SEO"
+        options={[
+          { label: "Lựa chọn 1", value: "option1" },
+          { label: "Lựa chọn 2", value: "option2" },
+        ]}
+        value="option1"
+        onChange={handleChange}
+      />,
+    );
+
+    const combobox = screen.getByRole("combobox", {
+      name: "Tiêu đề SEO",
+    });
+
+    await user.clear(combobox);
+    await user.type(combobox, "Giá trị tùy chỉnh không có trong danh sách");
+
+    expect(handleChange).toHaveBeenCalled();
+
+    rerender(
+      <SelectField
+        label="Tiêu đề SEO"
+        options={[
+          { label: "Lựa chọn 1", value: "option1" },
+          { label: "Lựa chọn 2", value: "option2" },
+        ]}
+        value="Giá trị tùy chỉnh không có trong danh sách"
+        onChange={handleChange}
+      />,
+    );
+
+    expect(combobox).toHaveValue(
+      "Giá trị tùy chỉnh không có trong danh sách"
+    );
+  });
 });

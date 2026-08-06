@@ -587,7 +587,8 @@ describe("RecommendationReview with option-list fields (optimize_product_2)", ()
       );
 
       const alternativeValue = "Serum môi cao cấp số 12 màu đỏ ruby";
-      await user.selectOptions(seoTitleSelect, alternativeValue);
+      await user.clear(seoTitleSelect);
+      await user.type(seoTitleSelect, alternativeValue);
 
       expect(seoTitleSelect).toHaveValue(alternativeValue);
     }
@@ -611,7 +612,8 @@ describe("RecommendationReview with option-list fields (optimize_product_2)", ()
       });
 
       const alternativeValue = "Màu đỏ ruby nước hoa son cao cấp";
-      await user.selectOptions(seoTitleSelect, alternativeValue);
+      await user.clear(seoTitleSelect);
+      await user.type(seoTitleSelect, alternativeValue);
 
       await advanceToStage(user, previewStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
 
@@ -649,6 +651,41 @@ describe("RecommendationReview with option-list fields (optimize_product_2)", ()
       await user.type(priceInput, "199.000 ₫");
 
       expect(priceInput).toHaveValue("199.000 ₫");
+    }
+  });
+
+  it("allows custom value not in options to persist to preview for option-list fields", async () => {
+    const user = userEvent.setup();
+    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+    const inputsStage = stages.find((stage) => stage.stage === "inputs");
+    const previewStage = stages.find((stage) => stage.stage === "preview");
+    expect(inputsStage).toBeDefined();
+    expect(previewStage).toBeDefined();
+
+    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
+
+    if (inputsStage && previewStage) {
+      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const seoTitleCombobox = screen.getByRole("combobox", {
+        name: "Tiêu đề SEO",
+      });
+
+      const customTitle = "Tiêu đề tùy chỉnh của tôi mà không có trong danh sách đề xuất";
+      await user.clear(seoTitleCombobox);
+      await user.type(seoTitleCombobox, customTitle);
+
+      await advanceToStage(user, previewStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const summary = screen.getByTestId("review-draft-summary");
+      expect(summary).toHaveTextContent(customTitle);
+
+      await user.click(screen.getByRole("button", { name: "Quay lại" }));
+
+      const seoTitleAfter = screen.getByRole("combobox", {
+        name: "Tiêu đề SEO",
+      });
+      expect(seoTitleAfter).toHaveValue(customTitle);
     }
   });
 });
