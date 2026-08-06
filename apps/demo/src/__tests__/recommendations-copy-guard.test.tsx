@@ -27,7 +27,21 @@ const BANNED_COPY = [
   /Độ tin cậy:\s*(Cao|Trung bình|Thấp)/,
 ] as const;
 
-const BANNED_JARGON = [/tool_name/, /feature_id/, /\bwebhook\b/i, /\bendpoint\b/i] as const;
+const BANNED_JARGON = [
+  /tool_name/,
+  /feature_id/,
+  /\bwebhook\b/i,
+  /\bendpoint\b/i,
+  /\bexecutor\b/i,
+  /\bCreate Packages\b/i,
+  /\bship\b/i,
+  /\bsplit\b/i,
+  /\bconfirm\b/i,
+  /\bDeactivate\b/i,
+  /\bparity\b/i,
+  /\bActivity\b/,
+  /Get Activity/i,
+] as const;
 
 function mockHighlight(query = "") {
   vi.mocked(useSearchParams).mockReturnValue(
@@ -60,6 +74,28 @@ describe("Recommendations — copy guard", () => {
   beforeEach(() => {
     mockHighlight();
     localStorage.clear();
+  });
+
+  it("fixture sources do not contain residual system vocabulary", () => {
+    for (const fixture of recommendationFixtures) {
+      const fieldsToCheck = {
+        reasoning: fixture.reasoning,
+        risks: fixture.risks,
+        knownLimits: fixture.knownLimits,
+        sellerReason: fixture.sellerReason,
+        evidence: fixture.evidence,
+        eligibility: fixture.eligibility,
+      };
+
+      for (const [fieldName, fieldValue] of Object.entries(fieldsToCheck)) {
+        for (const pattern of BANNED_JARGON) {
+          expect(
+            fieldValue,
+            `${fixture.workflowKey}.${fieldName} contains banned pattern`,
+          ).not.toMatch(pattern);
+        }
+      }
+    }
   });
 
   it("copy guard tests from DVR-A1 remain green", () => {
