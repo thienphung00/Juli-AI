@@ -78,9 +78,10 @@ async function verifyImageSignature(file: File): Promise<boolean> {
 
 async function verifyImageDecodable(file: File): Promise<boolean> {
   try {
-    const createBitmap = (typeof window !== "undefined" && (window as any).createImageBitmap) ||
-                         (typeof global !== "undefined" && (global as any).createImageBitmap) ||
-                         (typeof createImageBitmap !== "undefined" ? createImageBitmap : null);
+    const createBitmap =
+      typeof globalThis.createImageBitmap === "function"
+        ? globalThis.createImageBitmap
+        : null;
 
     if (createBitmap) {
       const bitmap = await createBitmap(file);
