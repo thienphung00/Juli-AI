@@ -205,6 +205,16 @@ class SharedComputeOrchestrator:
                 # Look up existing order (already loaded) instead of querying per row
                 existing = existing_orders_by_id.get(kwargs["tiktok_order_id"])
                 if existing is not None:
+                    # Restore stale-data guard: skip if incoming update_time is not newer
+                    incoming_ut = kwargs.get("update_time")
+                    if (
+                        incoming_ut is not None
+                        and getattr(existing, "update_time", None) is not None
+                        and incoming_ut <= existing.update_time
+                    ):
+                        # Stale write: keep existing unchanged
+                        promoted += 1
+                        continue
                     # Update existing order
                     for key, value in kwargs.items():
                         setattr(existing, key, value)
@@ -289,6 +299,16 @@ class SharedComputeOrchestrator:
                     kwargs["order_id"] = related_order.id
 
                 if existing_return is not None:
+                    # Restore stale-data guard: skip if incoming update_time is not newer
+                    incoming_ut = kwargs.get("update_time")
+                    if (
+                        incoming_ut is not None
+                        and getattr(existing_return, "update_time", None) is not None
+                        and incoming_ut <= existing_return.update_time
+                    ):
+                        # Stale write: keep existing unchanged
+                        promoted += 1
+                        continue
                     # Update existing return
                     for key, value in kwargs.items():
                         setattr(existing_return, key, value)
