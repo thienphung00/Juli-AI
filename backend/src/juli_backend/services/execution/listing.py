@@ -11,12 +11,28 @@ import base64
 from typing import Any
 
 from juli_backend.integrations.tiktok import SandboxWriteResources
+from juli_backend.services.execution.file_screening import (
+    MAX_ENCODED_SIZE_BYTES,
+    screen_image_bytes,
+)
 
 
 def _decode_optional_base64(value: str | None) -> bytes | None:
     if not value:
         return None
-    return base64.b64decode(value)
+
+    # Check encoded size cap before decoding
+    if len(value) > MAX_ENCODED_SIZE_BYTES:
+        raise ValueError(
+            f"Encoded payload size {len(value)} bytes exceeds maximum encoded size "
+            f"{MAX_ENCODED_SIZE_BYTES} bytes"
+        )
+
+    # Decode base64
+    decoded = base64.b64decode(value)
+
+    # Screen the decoded image bytes
+    return screen_image_bytes(decoded)
 
 
 def _attribute_required(attr: dict[str, Any]) -> bool:

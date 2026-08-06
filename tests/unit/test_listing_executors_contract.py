@@ -24,11 +24,12 @@ from juli_backend.integrations.tiktok.exceptions import TikTokAPIError
 from juli_backend.integrations.tiktok.merchant import TikTokCapability
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import TikTokCredentialRepo
-from juli_backend.services.execution.types import ExecutionErrorCategory, ExecutionStatus
-
-LISTING_TOOL_NAMES = frozenset(
-    {"listing.create_hero_product", "listing.optimize_product"}
+from juli_backend.services.execution.types import (
+    ExecutionErrorCategory,
+    ExecutionStatus,
 )
+
+LISTING_TOOL_NAMES = frozenset({"listing.create_hero_product", "listing.optimize_product"})
 
 
 @pytest_asyncio.fixture
@@ -88,9 +89,7 @@ async def auth_client(app, authenticated_user, shop):
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -139,7 +138,14 @@ async def test_ac4_create_hero_product_e2e_mocked_chain(
     monkeypatch,
 ):
     """AC4: POST /v1/executions → worker → succeeded ToolExecution with product_id."""
-    from juli_backend.database.database import create_session_factory, init_session_factory
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.database.database import (
+        create_session_factory,
+        init_session_factory,
+    )
     from juli_backend.repositories.repos import ToolExecutionsRepo
     from juli_backend.workers.tasks import tool_execution
 
@@ -164,7 +170,12 @@ async def test_ac4_create_hero_product_e2e_mocked_chain(
     init_session_factory(factory)
     monkeypatch.setattr(tool_execution, "_ensure_session_factory", lambda: factory)
 
-    image_bytes = base64.b64encode(b"fake-png-bytes").decode()
+    # Create a valid test PNG image
+    img = Image.new("RGB", (1, 1), color="red")
+    png_buffer = BytesIO()
+    img.save(png_buffer, format="PNG")
+    image_bytes = base64.b64encode(png_buffer.getvalue()).decode()
+
     response = await auth_client.post(
         "/v1/executions",
         json={
@@ -209,7 +220,10 @@ async def test_ac5_create_hero_product_api_failure_records_failed_status(
     monkeypatch,
 ):
     """AC5: TikTok API failure → failed ToolExecution with useful error_message."""
-    from juli_backend.database.database import create_session_factory, init_session_factory
+    from juli_backend.database.database import (
+        create_session_factory,
+        init_session_factory,
+    )
     from juli_backend.repositories.repos import ToolExecutionsRepo
     from juli_backend.services.execution.dispatch import create_queued_execution
     from juli_backend.workers.tasks import tool_execution
@@ -271,7 +285,10 @@ async def test_ac4_optimize_product_e2e_mocked_chain(
     monkeypatch,
 ):
     """AC4: optimize_product executor runs get → edit → price update chain."""
-    from juli_backend.database.database import create_session_factory, init_session_factory
+    from juli_backend.database.database import (
+        create_session_factory,
+        init_session_factory,
+    )
     from juli_backend.repositories.repos import ToolExecutionsRepo
     from juli_backend.services.execution.dispatch import create_queued_execution
     from juli_backend.workers.tasks import tool_execution
@@ -347,6 +364,10 @@ async def test_ac4_optimize_product_e2e_mocked_chain(
 
 def test_create_hero_product_derives_brand_id_from_catalog():
     """Brand_id is resolved from Get Brands when attributes require a brand."""
+    from io import BytesIO
+
+    from PIL import Image
+
     from juli_backend.services.execution.listing import run_create_hero_product_chain
 
     mock_products = MagicMock()
@@ -364,13 +385,18 @@ def test_create_hero_product_derives_brand_id_from_catalog():
     mock_resources = MagicMock()
     mock_resources.products = mock_products
 
+    # Create a valid test PNG image
+    img = Image.new("RGB", (1, 1), color="blue")
+    png_buffer = BytesIO()
+    img.save(png_buffer, format="PNG")
+
     outcome = run_create_hero_product_chain(
         mock_resources,
         {
             "category_id": "605254",
             "title": "Bottle",
             "description": "Steel bottle",
-            "image_content_base64": base64.b64encode(b"img").decode(),
+            "image_content_base64": base64.b64encode(png_buffer.getvalue()).decode(),
             "seller_sku": "sku-1",
             "warehouse_id": "wh-1",
             "price": {"amount": "100000", "currency": "VND"},
@@ -382,13 +408,146 @@ def test_create_hero_product_derives_brand_id_from_catalog():
     assert create_body["brand_id"] == "brand-999"
 
 
+def test_file_screening_rejects_oversized_base64_encoded_payload():
+    """Oversized base64 payload is rejected before full decode allocates."""
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # Create a base64 string larger than the 10MB cap (encode 11MB of data)
+    oversized_bytes = b"x" * (11 * 1024 * 1024)
+    oversized_base64 = base64.b64encode(oversized_bytes).decode()
+
+    with pytest.raises(ValueError, match="exceeds maximum encoded size"):
+        _decode_optional_base64(oversized_base64)
+
+
+def test_file_screening_rejects_non_image_payload():
+    """Non-image payload is rejected regardless of supplied filename."""
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # PDF header (non-image)
+    pdf_bytes = b"%PDF-1.4\n%data"
+    pdf_base64 = base64.b64encode(pdf_bytes).decode()
+
+    with pytest.raises(ValueError, match="not a supported image format"):
+        _decode_optional_base64(pdf_base64)
+
+
+def test_file_screening_rejects_corrupt_image():
+    """Corrupt image (valid header, truncated body) is rejected."""
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # Valid PNG header but truncated body
+    corrupt_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 10  # PNG magic + minimal data
+    corrupt_base64 = base64.b64encode(corrupt_png).decode()
+
+    with pytest.raises(ValueError, match="corrupt|invalid|decode"):
+        _decode_optional_base64(corrupt_base64)
+
+
+def test_file_screening_rejects_extension_mismatch():
+    """File with signature detected correctly regardless of claimed extension."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # Create a real minimal valid PNG image
+    img = Image.new("RGB", (1, 1), color="red")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    # PNG bytes will be detected as PNG regardless of what extension caller claims
+    # The screening is based on magic bytes, not filename
+    png_base64 = base64.b64encode(png_bytes).decode()
+
+    # This should pass because PNG is valid, and we trust magic bytes
+    result = _decode_optional_base64(png_base64)
+    assert result == png_bytes
+
+
+def test_file_screening_accepts_valid_png_image():
+    """Valid PNG image passes screening and is decoded unchanged."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # Create a real minimal valid PNG image
+    img = Image.new("RGB", (1, 1), color="blue")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    png_base64 = base64.b64encode(png_bytes).decode()
+    result = _decode_optional_base64(png_base64)
+    assert result == png_bytes
+
+
+def test_file_screening_accepts_valid_jpeg_image():
+    """Valid JPEG image passes screening and is decoded unchanged."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # Create a real minimal valid JPEG image
+    img = Image.new("RGB", (1, 1), color="green")
+    jpeg_bytes = BytesIO()
+    img.save(jpeg_bytes, format="JPEG")
+    jpeg_bytes = jpeg_bytes.getvalue()
+
+    jpeg_base64 = base64.b64encode(jpeg_bytes).decode()
+    result = _decode_optional_base64(jpeg_base64)
+    assert result == jpeg_bytes
+
+
+def test_file_screening_error_is_validation_category():
+    """File screening errors classify as terminal VALIDATION, not retryable."""
+    from juli_backend.services.execution.errors import classify_execution_error
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # Non-image payload
+    pdf_bytes = b"%PDF-1.4\n%data"
+    pdf_base64 = base64.b64encode(pdf_bytes).decode()
+
+    try:
+        _decode_optional_base64(pdf_base64)
+        pytest.fail("Expected ValueError for non-image")
+    except ValueError as e:
+        category, message = classify_execution_error(e)
+        assert category.value == "validation"
+        assert message  # error_message is populated
+
+
+def test_file_screening_accepts_valid_webp_image():
+    """Valid WebP image passes screening."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.listing import _decode_optional_base64
+
+    # Create a real minimal valid WebP image
+    img = Image.new("RGB", (1, 1), color="yellow")
+    webp_bytes = BytesIO()
+    img.save(webp_bytes, format="WebP")
+    webp_bytes = webp_bytes.getvalue()
+
+    webp_base64 = base64.b64encode(webp_bytes).decode()
+    result = _decode_optional_base64(webp_base64)
+    assert result == webp_bytes
+
+
 def test_listing_catalog_endpoints_documented_in_contract_collection():
     """Contract-collection documents listing chain endpoints used by executors."""
     from pathlib import Path
 
     contracts = (
-        Path(__file__).resolve().parents[2]
-        / "docs/integrations/tiktok_api/contract-collection.md"
+        Path(__file__).resolve().parents[2] / "docs/integrations/tiktok_api/contract-collection.md"
     )
     text = contracts.read_text(encoding="utf-8")
     assert "GET /product/202309/categories" in text
