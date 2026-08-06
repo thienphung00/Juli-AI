@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -12,6 +13,24 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "infra/scripts/deploy-release.sh"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/app-review-runbook.md"
+
+
+def _extract_celery_restart_block(script_text: str) -> str:
+    """Extract the actual Celery restart loop from deploy-release.sh.
+
+    Returns the executable block with 'set -euo pipefail' prepended.
+    Asserts if the expected loop structure is not found.
+    """
+    # Match the for loop that iterates over the Celery units
+    match = re.search(
+        r"^for unit in juli-celery-worker juli-celery-beat; do$.*?^done$",
+        script_text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert match, (
+        "Celery restart loop (for unit in juli-celery-worker...) not found in deploy-release.sh"
+    )
+    return "set -euo pipefail\n" + match.group(0) + "\n"
 
 
 @pytest.fixture
@@ -81,9 +100,9 @@ def test_celery_guard_uses_systemctl_cat(script_text: str):
     assert "if systemctl cat" in script_text, "systemctl cat must be in if condition"
 
 
-def test_celery_missing_unit_does_not_fail_deploy_behavior():
+def test_celery_missing_unit_does_not_fail_deploy_behavior(script_text: str):
     """Missing Celery units must not abort the deploy (behavioral test with stubs)."""
-    # Execute the restart block with stubbed systemctl to verify behavior.
+    # Execute the ACTUAL restart block from deploy-release.sh with stubbed systemctl.
     # Create a stub systemctl that exits non-zero for both units (simulating "units not found").
     # The block should exit 0 and print SKIP for each unit.
 
@@ -101,16 +120,8 @@ case "$2" in
 esac
 """
 
-    restart_block = """\
-set -euo pipefail
-for unit in juli-celery-worker juli-celery-beat; do
-    if systemctl cat "${unit}" >/dev/null 2>&1; then
-        systemctl restart "${unit}"
-    else
-        echo "SKIP: ${unit} not installed on this host (expected on App Review-only boxes)"
-    fi
-done
-"""
+    # Extract the actual restart block from the real script
+    restart_block = _extract_celery_restart_block(script_text)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
@@ -150,7 +161,7 @@ done
         )
 
 
-def test_celery_restart_invoked_when_units_exist():
+def test_celery_restart_invoked_when_units_exist(script_text: str):
     """When units exist, systemctl restart must be invoked for each."""
     # Stub systemctl that exits 0 and tracks restart invocations
     stub_systemctl = """\
@@ -172,16 +183,8 @@ case "$1" in
 esac
 """
 
-    restart_block = """\
-set -euo pipefail
-for unit in juli-celery-worker juli-celery-beat; do
-    if systemctl cat "${unit}" >/dev/null 2>&1; then
-        systemctl restart "${unit}"
-    else
-        echo "SKIP: ${unit} not installed on this host (expected on App Review-only boxes)"
-    fi
-done
-"""
+    # Extract the actual restart block from the real script
+    restart_block = _extract_celery_restart_block(script_text)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
