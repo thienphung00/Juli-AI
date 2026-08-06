@@ -504,6 +504,48 @@ describe("RecommendationReview", () => {
   });
 });
 
+describe("RecommendationReview routing between spine and five-stage review", () => {
+  beforeEach(() => {
+    workflowReviewDrafts = {};
+    mockStateListeners.clear();
+    push.mockClear();
+    mockStartExecution.mockClear();
+  });
+
+  it("routes delete_activity_7b to the plan-review spine, not the five-stage review", () => {
+    renderReview("delete_activity_7b");
+
+    expect(screen.getByTestId("plan-review-card")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Tiếp theo" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps every other workflow on the five-stage review", () => {
+    for (const workflowKey of [
+      CREATE_HERO_PRODUCT_WORKFLOW_KEY,
+      OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+      "replenish_inventory_3",
+      "clear_excess_4",
+      "process_order_5",
+      "create_activity_7a",
+      "update_activity_7c",
+      "prevent_cancellation_8a",
+      "prevent_return_8b",
+      "prevent_refund_8c",
+    ]) {
+      const { unmount } = renderReview(workflowKey);
+
+      expect(screen.queryByTestId("plan-review-card")).not.toBeInTheDocument();
+      expect(screen.getByRole("tablist")).toBeInTheDocument();
+      expect(getWorkflowReviewStages(workflowKey)).toHaveLength(5);
+
+      unmount();
+    }
+  });
+});
+
 describe("RecommendationReview with option-list fields (optimize_product_2)", () => {
   beforeEach(() => {
     workflowReviewDrafts = {};
