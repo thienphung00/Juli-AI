@@ -7,8 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RecommendationReview } from "../components/recommendation-review";
 import {
   buildReviewInputDefaults,
+  buildReviewInputDefaultsForWorkflow,
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
   getWorkflowReviewStages,
+  OPTIMIZE_PRODUCT_WORKFLOW_KEY,
 } from "../lib/reviews";
 import {
   REVIEW_UI_BANNED_PATTERNS,
@@ -101,8 +103,9 @@ function renderReview(workflowKey = CREATE_HERO_PRODUCT_WORKFLOW_KEY) {
 async function advanceToStage(
   user: ReturnType<typeof userEvent.setup>,
   targetTitle: string,
+  workflowKey = CREATE_HERO_PRODUCT_WORKFLOW_KEY,
 ) {
-  const stages = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY);
+  const stages = getWorkflowReviewStages(workflowKey);
   const targetIndex = stages.findIndex((stage) => stage.title === targetTitle);
   expect(targetIndex).toBeGreaterThanOrEqual(0);
 
@@ -498,5 +501,154 @@ describe("RecommendationReview", () => {
     // The preview summary should show the edited value
     const summary = screen.getByTestId("review-draft-summary");
     expect(summary).toHaveTextContent(editedValue);
+  });
+});
+
+describe("RecommendationReview with option-list fields (optimize_product_2)", () => {
+  beforeEach(() => {
+    workflowReviewDrafts = {};
+    mockStateListeners.clear();
+    push.mockClear();
+    mockStartExecution.mockClear();
+    vi.mocked(useRouter).mockReturnValue({
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+      push,
+      refresh: vi.fn(),
+      replace: vi.fn(),
+    });
+  });
+
+  it("renders option-list fields with select elements showing recommendation options", async () => {
+    const user = userEvent.setup();
+    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+    const inputsStage = stages.find((stage) => stage.stage === "inputs");
+    expect(inputsStage).toBeDefined();
+
+    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
+
+    if (inputsStage) {
+      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const seoTitleSelect = screen.getByRole("combobox", {
+        name: "Tiêu đề SEO",
+      });
+      const seoDescriptionSelect = screen.getByRole("combobox", {
+        name: "Mô tả SEO",
+      });
+
+      expect(seoTitleSelect).toBeInTheDocument();
+      expect(seoDescriptionSelect).toBeInTheDocument();
+    }
+  });
+
+  it("pre-selects the proposed option for option-list fields with suggestion badge", async () => {
+    const user = userEvent.setup();
+    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+    const inputsStage = stages.find((stage) => stage.stage === "inputs");
+    expect(inputsStage).toBeDefined();
+
+    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
+
+    if (inputsStage) {
+      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const seoTitleSelect = screen.getByRole("combobox", {
+        name: "Tiêu đề SEO",
+      });
+
+      expect(seoTitleSelect).toHaveValue(
+        "Son môi lì cao cấp số 12 — màu đỏ ruby"
+      );
+
+      const suggestionBadges = screen.getAllByText("Gợi ý bởi Juli");
+      expect(suggestionBadges.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("allows selecting an alternative option from the option-list", async () => {
+    const user = userEvent.setup();
+    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+    const inputsStage = stages.find((stage) => stage.stage === "inputs");
+    expect(inputsStage).toBeDefined();
+
+    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
+
+    if (inputsStage) {
+      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const seoTitleSelect = screen.getByRole("combobox", {
+        name: "Tiêu đề SEO",
+      });
+
+      expect(seoTitleSelect).toHaveValue(
+        "Son môi lì cao cấp số 12 — màu đỏ ruby"
+      );
+
+      const alternativeValue = "Serum môi cao cấp số 12 màu đỏ ruby";
+      await user.selectOptions(seoTitleSelect, alternativeValue);
+
+      expect(seoTitleSelect).toHaveValue(alternativeValue);
+    }
+  });
+
+  it("persists selected option value across stage navigation for option-list fields", async () => {
+    const user = userEvent.setup();
+    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+    const inputsStage = stages.find((stage) => stage.stage === "inputs");
+    const previewStage = stages.find((stage) => stage.stage === "preview");
+    expect(inputsStage).toBeDefined();
+    expect(previewStage).toBeDefined();
+
+    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
+
+    if (inputsStage && previewStage) {
+      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const seoTitleSelect = screen.getByRole("combobox", {
+        name: "Tiêu đề SEO",
+      });
+
+      const alternativeValue = "Màu đỏ ruby nước hoa son cao cấp";
+      await user.selectOptions(seoTitleSelect, alternativeValue);
+
+      await advanceToStage(user, previewStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const summary = screen.getByTestId("review-draft-summary");
+      expect(summary).toHaveTextContent(alternativeValue);
+
+      await user.click(screen.getByRole("button", { name: "Quay lại" }));
+
+      const seoTitleSelectAfter = screen.getByRole("combobox", {
+        name: "Tiêu đề SEO",
+      });
+      expect(seoTitleSelectAfter).toHaveValue(alternativeValue);
+    }
+  });
+
+  it("provides custom input option for non-option-list fields", async () => {
+    const user = userEvent.setup();
+    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+    const inputsStage = stages.find((stage) => stage.stage === "inputs");
+    expect(inputsStage).toBeDefined();
+
+    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
+
+    if (inputsStage) {
+      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
+
+      const priceInput = screen.getByRole("textbox", {
+        name: "Giá bán (T9)",
+      });
+
+      expect(priceInput).toBeInTheDocument();
+      expect(priceInput).toHaveValue("159.000 ₫");
+
+      await user.clear(priceInput);
+      await user.type(priceInput, "199.000 ₫");
+
+      expect(priceInput).toHaveValue("199.000 ₫");
+    }
   });
 });
