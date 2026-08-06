@@ -53,6 +53,7 @@ def _run(args: list[str], *, cwd: Path | None = None, check: bool = True) -> str
         cwd=str(cwd or REPO_ROOT),
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if check and proc.returncode != 0:
         raise GitError(f"{' '.join(args)} -> exit {proc.returncode}: {proc.stderr.strip()}")

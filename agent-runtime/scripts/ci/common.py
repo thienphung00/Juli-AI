@@ -185,6 +185,7 @@ def git_current_branch() -> str | None:
             cwd=REPO_ROOT,
             stderr=subprocess.DEVNULL,
             text=True,
+            encoding="utf-8",
         )
         return out.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -208,7 +209,7 @@ def git_changed_files(base_ref: str | None = None) -> list[str]:
                 cmd = ["git", "diff", "--name-only", f"origin/{base}...HEAD"]
             else:
                 cmd = ["git", "diff", "--name-only", "HEAD"]
-        out = subprocess.check_output(cmd, cwd=REPO_ROOT, stderr=subprocess.DEVNULL, text=True)
+        out = subprocess.check_output(cmd, cwd=REPO_ROOT, stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
         return [line.strip() for line in out.splitlines() if line.strip()]
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []

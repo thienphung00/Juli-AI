@@ -21,6 +21,7 @@ def git_rev_parse(ref: str, repo_root: Path) -> str:
             cwd=repo_root,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
         )
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or str(exc)).strip()
@@ -58,6 +59,7 @@ def list_repo_paths_at_commit(
                 cwd=repo_root,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
             )
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or str(exc)).strip()

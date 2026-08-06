@@ -22,6 +22,7 @@ def git_output(*args: str) -> str:
         cwd=REPO_ROOT,
         stderr=subprocess.DEVNULL,
         text=True,
+        encoding="utf-8",
     ).strip()
 
 
