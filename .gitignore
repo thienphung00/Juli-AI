@@ -92,3 +92,6 @@ apps/demo/blob-report/
 
 # Claude Code local overrides (machine-specific; never source control)
 .claude/settings.local.json
+
+# Python wheels downloaded ad hoc (never source control)
+*.whl
