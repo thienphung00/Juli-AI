@@ -172,6 +172,8 @@ async def compute_demo_main_kpis_payload(
     kpis["ctor"] = ctor_kpi
 
     # Live Hours (from shop-grain analytics)
+    # Note: live_hours is unbounded across all history; gmv_tiktok is bounded by
+    # the #744 page cap on silver orders. This difference is accepted per review.
     live_hours_value: float | None = None
     stmt_live = select(AnalyticsPerformanceInterval).where(
         (AnalyticsPerformanceInterval.shop_id == shop_id)
@@ -188,8 +190,9 @@ async def compute_demo_main_kpis_payload(
             if interval.live_hours is not None:
                 total_live_hours += interval.live_hours
 
-        if total_live_hours > 0:
-            live_hours_value = float(total_live_hours)
+        # Report sum as-is, even if zero (legitimate measurement when rows exist).
+        # Only unavailable when no rows exist (missing data, per ADR-044).
+        live_hours_value = float(total_live_hours)
 
     live_hours_kpi: dict[str, Any] = {
         "availability": "available" if live_hours_value is not None else "unavailable",
