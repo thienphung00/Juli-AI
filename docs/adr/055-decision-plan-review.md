@@ -170,6 +170,35 @@ Alternatives considered:
     **No time estimate and no cancel affordance** — the execution model has neither, and in
     Mock mode timing is fixture-driven, so any estimate would be invented.
 
+19. **Repeat consent is gated on outcome, frequency, and existing promises.**
+    - **Outcome:** asked only on lifecycle `completed`. `deriveLifecycleFromTimeline`
+      returns only `completed` / `needs_input` / `executing` — there is **no terminal
+      failure state**; a failed step resolves to "Cần thêm thông tin" with authored
+      `recoveryText`. Asking to automate a workflow that just stopped for more information
+      is incoherent, so `needs_input` never triggers the prompt.
+    - **Frequency:** asked **once per workflow kind**, not per execution. Re-asking after
+      every approval turns a trust moment into nagging; the standing commitment is
+      restated afterwards rather than re-negotiated.
+    - **What is consented to:** **pre-approval with notification** — Juli runs the workflow
+      and tells the seller it ran. Never silent automation.
+    - **Eligibility:** excluded wherever shipped seller copy already promises Juli will not
+      act unaided. Those promises live in **`risks` as often as in `knownLimits`**, and
+      "không tự **suy diễn**" (won't infer a number) is class A, **not** a no-auto-act
+      promise — the two must not be conflated.
+      | | Workflow | Blocking promise |
+      |---|---|---|
+      | **Excluded** | `prevent_cancellation_8a` | "cần shop tự quyết định, Juli không tự động xử lý thay" |
+      | | `prevent_return_8b` | "không tự động nhập lại kho khi chưa xác minh" |
+      | | `clear_excess_4` | "không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế" |
+      | | `create_activity_7a` | "mọi thay đổi cần shop xác nhận trước khi gửi" |
+      | | `replenish_inventory_3` | "cần xác nhận số lượng nhận hàng thực tế" |
+      | | `create_hero_product_1` | not copy — the MVP upload exception (item 12) requires seller-supplied photos |
+      | **Eligible** | `optimize_product_2`, `process_order_5`, `delete_activity_7b`, `prevent_refund_8c`, `update_activity_7c` | — |
+      `update_activity_7c`'s "không tự gửi lại" bars auto-**retry** after a TikTok
+      rejection only, not pre-approval of the initial run.
+    - Widening eligibility requires **changing the class-D copy first, deliberately** — the
+      consent prompt must never quietly contradict a shipped promise.
+
 ## Consequences
 
 - The `analytics` stage is removed as a stage; the link to Analytics survives inside the

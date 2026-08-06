@@ -204,8 +204,12 @@ The value the agent commits to for **every** field of a Decision plan review bef
 _Avoid_: empty-string defaults as "the seller will fill it in", seller-reserved blank fields
 
 **Repeat consent**:
-The post-completion ask — whether the agent may run this workflow again in future without a fresh approval. Raised **after** the work finishes (acknowledgement → progress → repeat consent), never bundled into the initial approval ([ADR-055](docs/adr/055-decision-plan-review.md)).
-_Avoid_: an automation toggle inside the approve step, consent implied by a single approval
+The post-completion ask — whether Juli may run this workflow again without a fresh approval. Raised **after** the work finishes (acknowledgement → progress → repeat consent), never bundled into the initial approval. Gated three ways: only on lifecycle **`completed`** (never `needs_input`), **once per workflow kind** (not per execution), and only for workflows whose shipped copy carries **no no-auto-act promise** — 5 of 11 today. What is granted is **pre-approval with notification**, never silent automation ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: an automation toggle inside the approve step, consent implied by a single approval, prompting after `needs_input`, silent automation, conflating "không tự suy diễn" (won't infer a number) with a no-auto-act promise
+
+**No-auto-act promise**:
+Shipped seller copy stating Juli will not perform an action unaided — e.g. `prevent_cancellation_8a`'s "Juli không tự động xử lý thay", `clear_excess_4`'s "chỉ thực hiện sau khi có xác nhận thực tế". Lives in **`risks` as often as `knownLimits`**. Bars **Repeat consent** for that workflow; widening eligibility means changing the copy deliberately first ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: treating these as class-A "won't infer a number" caveats, a consent prompt that contradicts shipped copy
 
 **Impact metric**:
 The tied Main KPI shown on a Decision plan review card — the card's centre of gravity. Every workflow already maps to one [ADR-049](docs/adr/049-demo-analytics-main-kpi-override.md) Main KPI via `analyticsMetricKey`: **CTOR** (optimize-product, create/update/delete-activity), **GMV** (prevent-cancellation/return/refund, replenish-inventory, create-hero-product), **AOV** (clear-excess), **Cancellation rate** (process-order). Shows the KPI's **real current value and trend** from `gold.kpi_envelopes` plus a **directional goal** — never a projected magnitude, and **one state only** (pre-approval; unchanged after approval, since Mock executions are dry-run and no effect exists to observe). **LIVE hours is tied to no workflow.** See [ADR-055](docs/adr/055-decision-plan-review.md).
