@@ -377,3 +377,69 @@ class TestOrchestratorIdempotency:
         assert budget.attempts == 0, f"Expected zero budget attempts, but got {budget.attempts}"
         assert result.skipped_partitions == 12  # 4 buckets × 3 days
         assert result.completed_partitions == 0
+
+
+class TestAnalyticsBackfillAutoTopup:
+    """AC: auto_topup must dispatch to real runners, not just mark complete."""
+
+    pytestmark = pytestmark_async
+
+    async def test_auto_topup_stub_corruption_single_partition(
+        self, session: AsyncSession, shop: Shop
+    ) -> None:
+        """RED test: Current stub marks partitions complete without any data fetch.
+
+        CRITICAL DATA CORRUPTION VULNERABILITY:
+        The current stub partition_runner only calls mark_complete without
+        dispatching to real runners or fetching any data. When deployed on
+        a daily schedule, it would walk the entire 2026-03-16..today range
+        and mark every partition complete with fabricated data (zero Partner
+        calls + zero data upserted).
+
+        This test FAILS on the current stub because:
+        - Stub immediately marks partition complete (before any Partner calls)
+        - Real implementation must dispatch to real runners
+        - Real runners only mark complete AFTER successful data fetch + upsert
+        - Real runners would raise if credentials are missing (expected in test)
+
+        The fix: Replace stub with dispatcher that routes by bucket to:
+        - revenue -> backfill_revenue_partition
+        - live -> run_live_partition
+        - product -> backfill_product_partition
+        - catalog -> run_catalog_partition
+        """
+        from juli_backend.services.analytics_backfill import (
+            backfill_analytics_history_auto_topup,
+        )
+
+        repo = AnalyticsBackfillPartitionsRepo(session)
+        partition_date = date(2026, 3, 16)
+
+        # Partition should not be complete initially
+        is_complete_before = await repo.is_complete(shop.id, "revenue", partition_date)
+        assert not is_complete_before, "test setup: partition should not be complete"
+
+        # Call auto_topup - will fail (no credentials) but we verify behavior
+        try:
+            result = await backfill_analytics_history_auto_topup(
+                session,
+                shop_id=shop.id,
+                start_date=partition_date,
+                end_date=partition_date,
+            )
+            # CRITICAL: If we get here with completed_partitions > 0, the stub
+            # is corrupting data. The stub marks complete without dispatching.
+            assert result.completed_partitions == 0, (
+                "CORRUPTION: stub marked partition complete without real runner dispatch"
+            )
+        except Exception:
+            # Expected - real runner tries to fetch, fails due to missing credentials
+            pass
+
+        # After auto_topup attempt with real dispatcher:
+        # Partition should still be incomplete because real runner failed on fetch
+        # (or succeeded but we set up no credentials to test this path)
+        is_complete_after = await repo.is_complete(shop.id, "revenue", partition_date)
+        assert not is_complete_after, (
+            "partition should stay incomplete when real runner fails to fetch"
+        )

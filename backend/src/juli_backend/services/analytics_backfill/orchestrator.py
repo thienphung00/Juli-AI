@@ -21,11 +21,30 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.repositories.repos import AnalyticsBackfillPartitionsRepo
+from juli_backend.integrations.tiktok.client import TikTokClient
+from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
+from juli_backend.integrations.tiktok.resources.products import ProductsResource
+from juli_backend.models.models import TikTokCredential
+from juli_backend.repositories.repos import (
+    AnalyticsBackfillPartitionsRepo,
+    AnalyticsPerformanceRepo,
+)
 from juli_backend.services.analytics_backfill.budget import (
     CallBudgetGovernor,
     StoppedReason,
     begin_run,
+)
+from juli_backend.services.analytics_backfill.catalog_partition import (
+    run_catalog_partition,
+)
+from juli_backend.services.analytics_backfill.live_partition import (
+    run_live_partition,
+)
+from juli_backend.services.analytics_backfill.product_partition import (
+    backfill_product_partition,
+)
+from juli_backend.services.analytics_backfill.revenue_partition import (
+    backfill_revenue_partition,
 )
 
 logger = logging.getLogger(__name__)
@@ -332,8 +351,9 @@ async def backfill_analytics_history_auto_topup(
 ) -> OrchestratorResult:
     """Automatically top up analytics history for a shop (service-layer wrapper).
 
-    Owned by services.analytics_backfill per ADR-046 one-writer model. The partition
-    runner's mark_complete calls are service-layer persistence, not task-layer.
+    Owned by services.analytics_backfill per ADR-046 one-writer model. Dispatches
+    each bucket to its real partition runner which owns its own persistence
+    (mark_complete only after successful data fetch + upsert).
 
     Args:
         session: Database session
@@ -344,16 +364,85 @@ async def backfill_analytics_history_auto_topup(
     Returns:
         OrchestratorResult with skipped/completed partition counts
     """
-    partitions_repo = AnalyticsBackfillPartitionsRepo(session)
+    # Fetch the shop's TikTok credential to build analytics resource
+    credential = await session.get(TikTokCredential, shop_id)
+    if credential is None:
+        raise ValueError(f"No TikTok credential found for shop {shop_id}")
 
+    # Build analytics resource for Partner API calls
+    client = TikTokClient(
+        app_key=credential.app_key,
+        app_secret=credential.app_secret,
+        access_token=credential.access_token,
+    )
+    analytics_resource = AnalyticsResource(client)
+    products_resource = ProductsResource(client)
+
+    # Create repos for partition state and analytics data persistence
+    partitions_repo = AnalyticsBackfillPartitionsRepo(session)
+    performance_repo = AnalyticsPerformanceRepo(session)
+
+    # Begin budget tracking for this run
+    budget = begin_run()
+
+    # Get current timestamp for synced_at marker
+    import time
+
+    synced_at = int(time.time())
+
+    # Dispatch by bucket to real partition runners
     async def partition_runner(bucket: str, partition_date: date) -> None:
-        """Mark partition complete (service-layer responsibility)."""
-        await partitions_repo.mark_complete(shop_id, bucket, partition_date)
+        """Dispatch to bucket-specific runner that owns its own persistence."""
+        if bucket == "revenue":
+            await backfill_revenue_partition(
+                shop_id=shop_id,
+                partition_date=partition_date,
+                analytics_resource=analytics_resource,
+                partitions_repo=partitions_repo,
+                performance_repo=performance_repo,
+                budget=budget,
+                synced_at=synced_at,
+            )
+        elif bucket == "live":
+            await run_live_partition(
+                shop_id=shop_id,
+                partition_date=partition_date,
+                analytics=analytics_resource,
+                budget=budget,
+                partitions_repo=partitions_repo,
+                performance_repo=performance_repo,
+                synced_at=synced_at,
+            )
+        elif bucket == "product":
+            await backfill_product_partition(
+                session=session,
+                shop_id=shop_id,
+                partition_date=partition_date,
+                resource=analytics_resource,
+                budget=budget,
+                partitions_repo=partitions_repo,
+                performance_repo=performance_repo,
+                synced_at=synced_at,
+            )
+        elif bucket == "catalog":
+            await run_catalog_partition(
+                session=session,
+                shop_id=shop_id,
+                partition_date=partition_date,
+                products=products_resource,
+                partitions_repo=partitions_repo,
+                performance_repo=performance_repo,
+                synced_at=synced_at,
+            )
+        else:
+            msg = f"Unknown bucket: {bucket}"
+            raise ValueError(msg)
 
     return await backfill_analytics_history(
         session,
         shop_id=shop_id,
         start_date=start_date,
         end_date=end_date,
+        budget=budget,
         run_partition=partition_runner,
     )

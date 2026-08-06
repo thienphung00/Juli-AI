@@ -138,5 +138,29 @@ def analytics_backfill_topup() -> None:
 
     SCOPE: Single-shop (DEMO_REFERENCE_SHOP_ID) only, A1 phase.
     Fleet-wide reconciliation belongs in A2 (issue #601 US #30).
+
+    Exception handling: Any unhandled exception from _run_analytics_backfill_topup_async
+    is logged with structured context and re-raised to fail the task (allowing Celery
+    retry logic to kick in). Timeout is bounded to prevent indefinite hangs.
     """
-    asyncio.run(_run_analytics_backfill_topup_async())
+    timeout_seconds = 300  # 5 minutes max for backfill topup
+    try:
+        asyncio.run(
+            asyncio.wait_for(_run_analytics_backfill_topup_async(), timeout=timeout_seconds)
+        )
+    except TimeoutError:
+        logger.error(
+            "analytics_backfill_topup_timeout",
+            extra={"timeout_seconds": timeout_seconds},
+        )
+        raise
+    except Exception as exc:
+        logger.error(
+            "analytics_backfill_topup_failed",
+            extra={
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            },
+            exc_info=True,
+        )
+        raise
