@@ -1,0 +1,21 @@
+DPR-14:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/design/Components/progress-bars.md
+    - docs/product/design/Components/empty-states.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/components/in-progress-panel.tsx
+  loadWhenNeeded: []
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - apps/dashboard/
+    - apps/landing/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

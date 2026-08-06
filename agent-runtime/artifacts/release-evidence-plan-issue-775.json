@@ -1,0 +1,70 @@
+{
+  "planId": "rep-775-dpr-16-repeat-consent-gate",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/in-progress/[executionId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; issue-tier CI + Review Agent validate before merge into feature/dpr-demo-wave",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "repeat-consent-is-gated",
+        "entryUrl": "/decisions/in-progress/fixture-execution",
+        "assertions": [
+          "html_200",
+          "prompt_only_after_completed",
+          "prompt_absent_after_needs_input",
+          "prompt_absent_on_the_six_excluded_workflows",
+          "granted_state_notifies_and_is_withdrawable",
+          "no_silent_automation_path"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/in-progress/fixture-execution"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "apps/demo frontend change under ADR-055; no DB migration and no backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "corepack pnpm check:demo",
+    "python agent-runtime/scripts/ci/generate_validation_artifact.py --issue 775"
+  ],
+  "doNotInfer": [
+    "widening eligibility — requires amending class-D copy first",
+    "release evidence fields beyond this plan"
+  ]
+}

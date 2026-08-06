@@ -1,0 +1,69 @@
+{
+  "planId": "rep-773-dpr-14-needs-input-recovery",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/in-progress/[executionId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; issue-tier CI + Review Agent validate before merge into feature/dpr-demo-wave",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "stopped-workflow-explains-itself",
+        "entryUrl": "/decisions/in-progress/fixture-execution",
+        "assertions": [
+          "html_200",
+          "needs_input_shows_recovery_text",
+          "needs_input_visually_distinct_from_executing",
+          "no_failure_or_error_framing_introduced",
+          "step_fraction_does_not_advance_while_stopped"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/in-progress/fixture-execution"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "apps/demo frontend change under ADR-055; no DB migration and no backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "corepack pnpm check:demo",
+    "python agent-runtime/scripts/ci/generate_validation_artifact.py --issue 773"
+  ],
+  "doNotInfer": [
+    "repeat consent gating (DPR-16)",
+    "release evidence fields beyond this plan"
+  ]
+}

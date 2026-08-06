@@ -1,0 +1,69 @@
+{
+  "planId": "rep-770-dpr-11-reasoning-disclosure",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; issue-tier CI + Review Agent validate before merge into feature/dpr-demo-wave",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "why-disclosure-never-empty",
+        "entryUrl": "/decisions/recommendations/fixture-recommendation",
+        "assertions": [
+          "html_200",
+          "question_labelled_disclosure_present_on_every_workflow",
+          "disclosure_reveals_reasoning",
+          "disclosure_is_never_empty",
+          "no_conversational_input_rendered"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/recommendations/fixture-recommendation"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "apps/demo frontend change under ADR-055; no DB migration and no backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "corepack pnpm check:demo",
+    "python agent-runtime/scripts/ci/generate_validation_artifact.py --issue 770"
+  ],
+  "doNotInfer": [
+    "caveat classes (DPR-13)",
+    "release evidence fields beyond this plan"
+  ]
+}
