@@ -1109,6 +1109,31 @@
   gap: var(--juli-space-2);
 }
 
+.juli-form__file-wrapper {
+  display: grid;
+  gap: var(--juli-space-2);
+}
+
+.juli-form__file-input {
+  display: block;
+  width: 100%;
+  min-height: var(--juli-touch-target);
+  cursor: pointer;
+  accent-color: var(--juli-primary);
+}
+
+.juli-form__file-input:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
+.juli-form__file-selected {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
 .juli-table-wrapper {
   width: 100%;
   overflow-x: auto;

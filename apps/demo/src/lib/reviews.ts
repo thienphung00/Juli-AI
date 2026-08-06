@@ -223,6 +223,7 @@ export function getWorkflowReviewStages(
           prefillValue: "",
           required: true,
           editable: true,
+          kind: "upload",
         },
         {
           key: "supporting_file",
@@ -230,6 +231,7 @@ export function getWorkflowReviewStages(
           prefillValue: "",
           required: false,
           editable: true,
+          kind: "upload",
         },
         {
           key: "seo_title",

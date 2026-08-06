@@ -11,6 +11,7 @@ export interface ReviewInputFieldDescriptor {
   prefillValue: string;
   required: boolean;
   editable: boolean;
+  kind?: "free-text" | "upload";
 }
 
 export interface ReviewStageContent {
