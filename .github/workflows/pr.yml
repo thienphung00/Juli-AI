@@ -88,6 +88,7 @@ jobs:
       migrations: ${{ steps.set-outputs.outputs.migrations }}
       dashboard: ${{ steps.set-outputs.outputs.dashboard }}
       demo: ${{ steps.set-outputs.outputs.demo }}
+      landing: ${{ steps.set-outputs.outputs.landing }}
       agent: ${{ steps.set-outputs.outputs.agent }}
     steps:
       - uses: actions/checkout@v7
@@ -148,6 +149,13 @@ jobs:
               - 'packages/contracts/**'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+            landing:
+              - 'apps/landing/**'
+              - 'packages/brand/**'
+              - 'packages/ui/**'
+              - 'packages/theme/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
             agent:
               - 'agent-runtime/**'
               - '.cursor/**'
@@ -174,12 +182,12 @@ jobs:
             if [[ "$TIER" == "main" ]]; then
               # Wave->main remains the full, path-aware checkpoint (#658):
               # every domain runs regardless of what the wave push touched.
-              for key in backend migrations dashboard demo agent; do
+              for key in backend migrations dashboard demo landing agent; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" && "$WAVE_FALLBACK" == "true" ]]; then
               # Documented bounded fallback: unresolvable before SHA.
-              for key in backend migrations dashboard demo agent; do
+              for key in backend migrations dashboard demo landing agent; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" ]]; then
@@ -187,12 +195,14 @@ jobs:
               echo "migrations=${{ steps.filter-wave.outputs.migrations }}"
               echo "dashboard=${{ steps.filter-wave.outputs.dashboard }}"
               echo "demo=${{ steps.filter-wave.outputs.demo }}"
+              echo "landing=${{ steps.filter-wave.outputs.landing }}"
               echo "agent=${{ steps.filter-wave.outputs.agent }}"
             else
               echo "backend=${{ steps.filter.outputs.backend }}"
               echo "migrations=${{ steps.filter.outputs.migrations }}"
               echo "dashboard=${{ steps.filter.outputs.dashboard }}"
               echo "demo=${{ steps.filter.outputs.demo }}"
+              echo "landing=${{ steps.filter.outputs.landing }}"
               echo "agent=${{ steps.filter.outputs.agent }}"
             fi
           } >> "$GITHUB_OUTPUT"
@@ -474,6 +484,29 @@ jobs:
         run: pnpm install --frozen-lockfile --filter @juli/demo...
       - name: Check Demo independently
         run: pnpm check:demo
+
+  landing-frontend:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      (needs.classify-tier.outputs.tier == 'issue'
+      || (needs.classify-tier.outputs.tier == 'main'
+          && needs.classify-tier.outputs.main_via_wave != 'true'))
+      && needs.changes.outputs.landing == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install Landing dependency graph
+        run: pnpm install --frozen-lockfile --filter @juli/landing...
+      - name: Check Landing independently
+        run: pnpm check:landing
 
   demo-deploy-contracts:
     runs-on: ubuntu-latest
@@ -824,6 +857,7 @@ jobs:
       - classify-tier
       - frontend
       - demo-frontend
+      - landing-frontend
       - demo-deploy-contracts
     if: always() && needs.classify-tier.outputs.tier == 'main'
     steps:
@@ -831,11 +865,12 @@ jobs:
         env:
           DASHBOARD_RESULT: ${{ needs.frontend.result }}
           DEMO_RESULT: ${{ needs.demo-frontend.result }}
+          LANDING_RESULT: ${{ needs.landing-frontend.result }}
           DEPLOY_CONTRACT_RESULT: ${{ needs.demo-deploy-contracts.result }}
         run: |
           # frontend/demo-frontend may report "skipped" here on wave->main
           # (main_via_wave) — they already ran per issue at issue tier.
-          for result in "$DASHBOARD_RESULT" "$DEMO_RESULT"; do
+          for result in "$DASHBOARD_RESULT" "$DEMO_RESULT" "$LANDING_RESULT"; do
             [[ "$result" == "success" || "$result" == "skipped" ]] || {
               echo "deployment readiness dependency: $result"
               exit 1
@@ -867,6 +902,7 @@ jobs:
       - migration-check
       - frontend
       - demo-frontend
+      - landing-frontend
       - demo-deploy-contracts
       - demo-e2e
       - artifact-gate
@@ -893,6 +929,7 @@ jobs:
           mig="${{ needs.migration-check.result }}"
           fe="${{ needs.frontend.result }}"
           demo="${{ needs.demo-frontend.result }}"
+          landing="${{ needs.landing-frontend.result }}"
           demo_deploy="${{ needs.demo-deploy-contracts.result }}"
           demo_e2e="${{ needs.demo-e2e.result }}"
           artifact_gate="${{ needs.artifact-gate.result }}"
@@ -919,6 +956,7 @@ jobs:
             require "test" "$test" "true"
             require "frontend" "$fe" "true"
             require "demo-frontend" "$demo" "true"
+            require "landing-frontend" "$landing" "true"
             require "policy-checks" "$policy" "false"
           elif [[ "$tier" == "wave" ]]; then
             require "integration-tests" "$integration" "true"
@@ -938,6 +976,7 @@ jobs:
             require "migration-check" "$mig" "false"
             require "frontend" "$fe" "true"
             require "demo-frontend" "$demo" "true"
+            require "landing-frontend" "$landing" "true"
             require "demo-deploy-contracts" "$demo_deploy" "false"
             require "demo-e2e" "$demo_e2e" "false"
             require "performance-smoke" "$perf" "false"

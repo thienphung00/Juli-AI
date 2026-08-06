@@ -16,6 +16,11 @@
     "test": "turbo run test",
     "test:demo": "turbo run test --filter=@juli/demo",
     "check:demo": "pnpm lint:demo && pnpm type-check:demo && pnpm test:demo && pnpm --filter @juli/ui test && pnpm --filter @juli/utils test && pnpm build:demo",
+    "build:landing": "turbo run build --filter=@juli/landing",
+    "lint:landing": "turbo run lint --filter=@juli/landing",
+    "type-check:landing": "turbo run type-check --filter=@juli/landing",
+    "test:landing": "turbo run test --filter=@juli/landing",
+    "check:landing": "pnpm lint:landing && pnpm type-check:landing && pnpm test:landing && pnpm build:landing",
     "screenshots": "node scripts/capture-ui-screenshots.mjs",
     "screenshots:install": "playwright install chromium"
   },

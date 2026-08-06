@@ -7,4 +7,5 @@ packages:
   # `pnpm install --frozen-lockfile` in demo-frontend / demo-e2e /
   # dependency-validation / deployment-checks.
   - "apps/demo"
+  - "apps/landing"
   - "packages/*"

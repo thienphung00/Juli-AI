@@ -70,7 +70,10 @@ def test_root_declares_real_pnpm_turbo_workspace() -> None:
 
     assert str(root_package["packageManager"]).startswith("pnpm@10.")
     workspace = yaml.safe_load((ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8"))
-    assert set(workspace["packages"]) == {"apps/demo", "packages/*"}
+    # apps/landing joined in Phase 2.7 (#785 shipped the app; it was wired into
+    # the workspace afterwards). The dashboard stays out by design -- see
+    # test_npm_owned_dashboard_is_not_a_pnpm_workspace_member below.
+    assert set(workspace["packages"]) == {"apps/demo", "apps/landing", "packages/*"}
     assert (ROOT / "turbo.json").is_file()
     assert {"lint", "type-check", "test", "build"} <= set(
         root_package["scripts"]  # type: ignore[arg-type]
