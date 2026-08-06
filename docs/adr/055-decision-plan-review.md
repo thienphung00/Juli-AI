@@ -160,6 +160,16 @@ Alternatives considered:
     product weakness, accepted because a fabricated loop is worse than an absent one. The
     loop properly closes at **3.5-C**, where real writes make before/after meaningful.
 
+18. **Execution progress is a status line plus a fraction, not a timeline.** Workflows carry
+    **4–20** timeline steps (`process_order_5` 20, `prevent_return_8b` 15,
+    `update_activity_7c` 4), and step titles are backend-flavoured ("Cập nhật tồn kho FBS",
+    "Create Packages") — rendering them all would restore exactly the load this ADR
+    removes. The seller sees the existing `LIFECYCLE_STATUS_LABELS` line ("Juli đang thực
+    hiện…") plus a **step fraction**, with the full step list behind one summarise-row
+    expansion (item 13). The impact block carries forward unchanged (item 17).
+    **No time estimate and no cancel affordance** — the execution model has neither, and in
+    Mock mode timing is fixture-driven, so any estimate would be invented.
+
 ## Consequences
 
 - The `analytics` stage is removed as a stage; the link to Analytics survives inside the
