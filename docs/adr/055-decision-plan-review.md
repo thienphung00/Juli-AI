@@ -231,6 +231,31 @@ Alternatives considered:
       ClamAV) is out of scope for MVP and would be a separate ADR.
     - Rejection is explained to the seller in their own language — what was wrong and what
       to do — never a raw validator error.
+    - **Re-encode, do not merely inspect.** Screening above is *detection*; re-encoding is
+      *mitigation*. The server decodes the image and writes it out to a fresh buffer in the
+      detected format, and **forwards the re-encoded bytes**. Appended data, embedded
+      scripts and polyglot payloads do not survive a round trip through the decoder. Per
+      OWASP, "applying image rewriting techniques destroys any kind of malicious content
+      injected in an image". This is the primary anti-payload control and it is cheap —
+      Pillow is already a dependency.
+    - **The filename is generated, never accepted.** OWASP: "creating a random string as a
+      filename, such as generating a UUID/GUID, is essential", and set the extension "based
+      on the detected content type of the image from image processing". The name forwarded
+      to the platform is a UUID plus the extension of the **detected** format. This closes
+      extension-mismatch, path-traversal and hidden-file classes outright rather than
+      detecting them one at a time, and permanently retires the `supporting-document.pdf`
+      default. Extension/signature disagreement may still fast-fail as a cheap sanity
+      check, but no caller-supplied name reaches the platform.
+    - **Byte caps do not cover decompression bombs.** A few-KB image can decode to a
+      multi-gigabyte bitmap, so a pixel-count cap is required alongside the size caps.
+    - **AV and CDR are acknowledged and deliberately deferred.** OWASP recommends running
+      uploads through antivirus or a sandbox "if available", and CDR for document types.
+      Neither is in MVP scope: we accept images only (so document CDR is moot), and a real
+      engine such as ClamAV is operational weight this stage does not carry. Adding one
+      would be a separate ADR. This deferral is why the controls above must never be
+      described as malware detection — re-encoding *removes* payloads, it does not
+      *identify* them.
+    - Source: [OWASP File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html).
 
 ## Consequences
 
