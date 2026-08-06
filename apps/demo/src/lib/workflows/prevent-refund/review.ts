@@ -29,7 +29,7 @@ export function buildPreventRefundReviewInputDefaults(): Record<string, string> 
     refund_type: "partial",
     physical_return_linked: "Không — thuộc luồng trả hàng riêng",
     decision_deadline: "2026-07-19 09:00",
-    seller_decision: "",
+    seller_decision: "Phê duyệt",
     reject_reason: "",
   };
 }

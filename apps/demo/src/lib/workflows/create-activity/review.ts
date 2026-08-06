@@ -23,11 +23,11 @@ const createActivityFixture = createActivityFixtureEntry;
 
 export function buildCreateActivityReviewInputDefaults(): Record<string, string> {
   return {
-    activity_type: "",
+    activity_type: "Giảm giá trực tiếp",
     skus: "PRD-77201 — Serum dưỡng ẩm; PRD-77202 — Kem chống nắng SPF50",
-    discount_config: "",
-    promotion_start_date: "",
-    promotion_end_date: "",
+    discount_config: "Giảm 15% từ giá gốc",
+    promotion_start_date: "2026-08-10",
+    promotion_end_date: "2026-08-24",
   };
 }
 

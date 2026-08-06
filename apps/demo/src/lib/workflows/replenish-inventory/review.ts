@@ -31,8 +31,8 @@ export function buildReplenishInventoryReviewInputDefaults(): Record<
     sku_id: "SKU-SPF50-001",
     current_stock: "48",
     warehouse_id: "WH-HCM-01",
-    reorder_quantity: "",
-    external_path: "",
+    reorder_quantity: "240",
+    external_path: "NCC Hóa Mỹ Phẩm",
     received_quantity: "",
   };
 }

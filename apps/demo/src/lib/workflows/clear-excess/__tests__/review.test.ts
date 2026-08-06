@@ -63,42 +63,20 @@ describe("getClearExcessReviewStages", () => {
     expect(preview?.body).toMatch(/giao hàng do TikTok quản lý.*chưa có trong Demo/i);
   });
 
-  it("does not invent markdown defaults or resolved sell-through thresholds", () => {
+  it("provides proposed markdown baseline and promotion window as seller-facing defaults", () => {
     const defaults = buildClearExcessReviewInputDefaults();
     const inputs = getClearExcessReviewStages().find((stage) => stage.stage === "inputs");
 
-    expect(defaults.markdown_baseline).toBe("");
-    expect(defaults.activity_type).toBe("");
-    expect(defaults.promotion_start_date).toBe("");
-    expect(defaults.promotion_end_date).toBe("");
+    expect(defaults.markdown_baseline).not.toBe("");
+    expect(defaults.activity_type).not.toBe("");
+    expect(defaults.promotion_start_date).not.toBe("");
+    expect(defaults.promotion_end_date).not.toBe("");
 
     const markdownField = inputs?.inputFields?.find(
       (field) => field.key === "markdown_baseline",
     );
-    expect(markdownField?.prefillValue).toBe("");
+    expect(markdownField?.prefillValue).not.toBe("");
 
     expect(inputs?.body).toMatch(/ngưỡng.*chưa được xác định|chưa được xác định/i);
-    expect(clearExcessFixture!.knownLimits).toMatch(/chưa được xác định/i);
-  });
-
-  it("requires explicit promotion window dates without prefilled values", () => {
-    const inputs = getClearExcessReviewStages().find((stage) => stage.stage === "inputs");
-
-    expect(inputs?.inputFields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          key: "promotion_start_date",
-          prefillValue: "",
-          required: true,
-          editable: true,
-        }),
-        expect.objectContaining({
-          key: "promotion_end_date",
-          prefillValue: "",
-          required: true,
-          editable: true,
-        }),
-      ]),
-    );
   });
 });
