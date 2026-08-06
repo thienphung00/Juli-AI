@@ -121,6 +121,7 @@ Alternatives considered:
    candidate imagery and does not generate placeholder assets. This is a stated exception
    to item 2, not a silent blank: `create_hero_product_1` cannot be a one-tap approval,
    and the plan review must say so rather than imply otherwise.
+    Upload acceptance rules are in item 20.
 
 13. **Card structure — summarise, do not enumerate.** Sections present a **summary row with
     an edit affordance** rather than a collapsed drawer of raw fields (Monzo pattern):
@@ -198,6 +199,38 @@ Alternatives considered:
       rejection only, not pre-approval of the initial run.
     - Widening eligibility requires **changing the class-D copy first, deliberately** — the
       consent prompt must never quietly contradict a shipped promise.
+20. **Uploads are image-only and screened before acceptance** (extends item 12).
+    - **Image files only**, on **both** upload fields. `main_images` ("Ảnh sản phẩm",
+      required) is naturally images. `supporting_file` ("Tệp hỗ trợ (nếu danh mục yêu
+      cầu)", optional) is a category-qualification document — **accepted cost:** a seller
+      holding a **PDF** certificate cannot attach it and must photograph or scan it
+      instead. This is deliberate: it removes an entire document-parser attack surface
+      from a public Demo. Revisit by amending this item, never by widening the allowlist
+      in code.
+    - **Screening runs before a file is accepted** and consists of: a **file-signature
+      (magic-byte) allowlist** rather than the browser-supplied MIME type, which is
+      trivially spoofable; a **full image decode** proving the file is neither corrupt nor
+      a polyglot carrying a second payload; a **size cap**; and **rejection when the
+      declared extension or content type disagrees with the signature**.
+    - **Server-side is authoritative, and the boundary already exists.**
+      [`core-safety.mdc`](../../.cursor/rules/core-safety.mdc) requires file inputs to be
+      validated at the boundary, server-side, always; `security.mdc` adds **allowlists over
+      denylists**. The real boundary is **not** the Demo control — it is
+      `services/execution/listing.py`, where `_decode_optional_base64` performs a bare
+      base64 decode with **no size cap and no content check**, and `_resolve_image_uri` /
+      `_resolve_file_uri` forward the result to TikTok's image/file upload as
+      `application/octet-stream`. Screening belongs **there**. The Demo upload control is a
+      UX convenience giving fast feedback and **must not** be the gate — note the Demo does
+      not currently send drafts to the backend at all.
+    - Rejection uses the established convention: `raise ValueError`, which
+      `classify_execution_error` maps to a terminal, non-retryable `VALIDATION` category,
+      and which routes translate to HTTP 400.
+    - **This is not antivirus and must never be described as such** — not in seller copy,
+      not in code comments, not in issue text. It catches wrong-type, corrupt and
+      trivially-disguised files; it does **not** detect malware. A real engine (e.g.
+      ClamAV) is out of scope for MVP and would be a separate ADR.
+    - Rejection is explained to the seller in their own language — what was wrong and what
+      to do — never a raw validator error.
 
 ## Consequences
 
