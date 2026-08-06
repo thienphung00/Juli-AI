@@ -1279,6 +1279,36 @@ a {
   color: var(--juli-muted-foreground);
 }
 
+/* Stopped workflow (needs_input) — must not look like a running one */
+.execution-card--needs-input .execution-card__mode-strip {
+  background: var(--juli-warning-tint);
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--juli-warning) 45%,
+    var(--juli-border)
+  );
+}
+
+.execution-card--needs-input .execution-card__mode-label {
+  color: var(--juli-warning);
+}
+
+.execution-card__recovery {
+  margin: var(--juli-space-4) 0 0;
+  padding: var(--juli-space-3);
+  border-radius: var(--juli-radius-medium);
+  background: var(--juli-warning-tint);
+  border: 1px solid
+    color-mix(in srgb, var(--juli-warning) 45%, var(--juli-border));
+}
+
+.execution-card__recovery p {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
 .execution-card__policy-line {
   margin: var(--juli-space-4) 0 0;
 }

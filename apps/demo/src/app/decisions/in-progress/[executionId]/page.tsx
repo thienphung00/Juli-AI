@@ -17,9 +17,11 @@ import { DestinationPlaceholder } from "../../../../components/destination-place
 import {
   LIFECYCLE_STATUS_LABELS,
   STEP_KIND_LABELS,
-  getWorkflowTitle,
+  getLifecycleStatus,
   getNextActionText,
+  getRecoveryText,
   getStepFraction,
+  getWorkflowTitle,
 } from "../../../../components/in-progress-panel";
 import { useDemoState } from "../../../../components/demo-state";
 import { getWorkflowReviewStages } from "../../../../lib/reviews";
@@ -85,14 +87,15 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
   }
 
   const workflowTitle = getWorkflowTitle(record.workflowKey);
+  const lifecycleStatus = getLifecycleStatus(record);
+  const recoveryText = getRecoveryText(record);
   const nextAction = getNextActionText(record);
   const stepFraction = getStepFraction(record);
-  const modeLabel =
-    record.lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
+  const modeLabel = lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
   const badgeVariant: "success" | "destructive" | "warning" | "live" =
-    record.lifecycleStatus === "completed"
+    lifecycleStatus === "completed"
       ? "success"
-      : record.lifecycleStatus === "needs_input"
+      : lifecycleStatus === "needs_input"
         ? "warning"
         : "live";
 
@@ -118,7 +121,14 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
       />
       <div className="demo-decisions__list">
         {/* Main execution progress card */}
-        <Card>
+        <Card
+          className={
+            lifecycleStatus === "needs_input"
+              ? "execution-card--needs-input"
+              : undefined
+          }
+          data-lifecycle-status={lifecycleStatus}
+        >
           {/* Mode strip */}
           <div className="execution-card__mode-strip">
             <span className="execution-card__mode-label">{modeLabel}</span>
@@ -141,11 +151,17 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
               <p>Bước {stepFraction}</p>
             </div>
 
-            {/* Next action / recovery text */}
-            {nextAction && (
-              <div className="execution-card__next-action">
-                <p>{nextAction}</p>
+            {/* Recovery text — the workflow stopped and needs the seller */}
+            {recoveryText ? (
+              <div className="execution-card__recovery" role="status">
+                <p>{recoveryText}</p>
               </div>
+            ) : (
+              nextAction && (
+                <div className="execution-card__next-action">
+                  <p>{sanitizeSellerReviewText(nextAction)}</p>
+                </div>
+              )
             )}
 
             {/* Policy line */}
