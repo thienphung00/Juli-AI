@@ -157,7 +157,17 @@ async function runReviewApproveInProgressCase({
   // Seller-facing detail view never shows raw workflow_key/toolName (DUX-8, ADR-035 banned patterns).
   expect(screen.queryByText(workflowKey)).not.toBeInTheDocument();
   expect(screen.queryByText(toolName)).not.toBeInTheDocument();
-  expect(screen.getAllByRole("listitem")).toHaveLength(expectedStepCount);
+
+  // Expand the steps list to verify they exist (issue #762 - steps hidden by default)
+  const expandButton = screen.getByRole("button", {
+    name: "Xem tất cả các bước",
+  });
+  await user.click(expandButton);
+
+  await waitFor(() => {
+    expect(screen.getAllByRole("listitem")).toHaveLength(expectedStepCount);
+  });
+
   expect(screen.getByText(waitTitle)).toBeInTheDocument();
   expect(screen.getByText(outcomeTitle)).toBeInTheDocument();
   expect(
