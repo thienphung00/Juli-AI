@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 pytestmark = pytest.mark.phase_scaffold
 
@@ -48,6 +49,30 @@ def test_only_phase_gated_apps_are_added():
     for deferred_app in ("mobile",):
         assert not (REPO_ROOT / "apps" / deferred_app).exists(), (
             f"apps/{deferred_app} is gated to a later phase"
+        )
+
+
+def test_apps_with_workspace_deps_are_workspace_members():
+    """An app depending on ``workspace:*`` must be listed in pnpm-workspace.yaml.
+
+    apps/landing shipped in Phase 2.7 declaring ``@juli/brand``/``@juli/theme``/
+    ``@juli/ui`` as ``workspace:*`` but was never added to the workspace globs,
+    so ``pnpm install`` skipped it, its dev server could not start from a clean
+    checkout, and turbo/CI never ran its tests. apps/dashboard is deliberately
+    npm-owned and excluded (see the pnpm-workspace.yaml comment), so it is only
+    exempt for as long as it declares no workspace dependency.
+    """
+    workspace_globs = yaml.safe_load((REPO_ROOT / "pnpm-workspace.yaml").read_text())["packages"]
+
+    for pkg_path in sorted((REPO_ROOT / "apps").glob("*/package.json")):
+        pkg = _read_json(pkg_path)
+        deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+        if not any(spec.startswith("workspace:") for spec in deps.values()):
+            continue
+        app_dir = pkg_path.parent.name
+        assert f"apps/{app_dir}" in workspace_globs, (
+            f"apps/{app_dir} declares workspace:* dependencies but is not a "
+            f"pnpm workspace member; pnpm install will skip it"
         )
 
 
