@@ -410,47 +410,45 @@ def test_create_hero_product_derives_brand_id_from_catalog():
 
 def test_file_screening_rejects_oversized_base64_encoded_payload():
     """Oversized base64 payload is rejected before full decode allocates."""
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.listing import _decode_and_screen_image
 
     # Create a base64 string larger than the 10MB cap (encode 11MB of data)
     oversized_bytes = b"x" * (11 * 1024 * 1024)
     oversized_base64 = base64.b64encode(oversized_bytes).decode()
 
     with pytest.raises(ValueError, match="exceeds maximum encoded size"):
-        _decode_optional_base64(oversized_base64)
+        _decode_and_screen_image(oversized_base64)
 
 
 def test_file_screening_rejects_non_image_payload():
     """Non-image payload is rejected regardless of supplied filename."""
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # PDF header (non-image)
     pdf_bytes = b"%PDF-1.4\n%data"
-    pdf_base64 = base64.b64encode(pdf_bytes).decode()
 
     with pytest.raises(ValueError, match="not a supported image format"):
-        _decode_optional_base64(pdf_base64)
+        screen_and_reencode_image(pdf_bytes)
 
 
 def test_file_screening_rejects_corrupt_image():
     """Corrupt image (valid header, truncated body) is rejected."""
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # Valid PNG header but truncated body
     corrupt_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 10  # PNG magic + minimal data
-    corrupt_base64 = base64.b64encode(corrupt_png).decode()
 
     with pytest.raises(ValueError, match="corrupt|invalid|decode"):
-        _decode_optional_base64(corrupt_base64)
+        screen_and_reencode_image(corrupt_png)
 
 
 def test_file_screening_rejects_extension_mismatch():
-    """Valid PNG bytes declared with wrong extension (.jpg) is rejected."""
+    """Caller-supplied filenames with wrong extensions are validated (deprecated pattern)."""
     from io import BytesIO
 
     from PIL import Image
 
-    from juli_backend.services.execution.file_screening import screen_image_bytes
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # Create a real minimal valid PNG image
     img = Image.new("RGB", (1, 1), color="red")
@@ -458,22 +456,20 @@ def test_file_screening_rejects_extension_mismatch():
     img.save(png_bytes, format="PNG")
     png_bytes = png_bytes.getvalue()
 
-    # Reject when PNG bytes are declared as .jpg
-    with pytest.raises(ValueError, match="extension .jpg does not match"):
-        screen_image_bytes(png_bytes, filename="image.jpg")
-
-    # Also reject when claimed as .pdf
-    with pytest.raises(ValueError, match="extension .pdf does not match"):
-        screen_image_bytes(png_bytes, filename="document.pdf")
+    # The new API doesn't validate filenames (uses generated names), but test that
+    # screening still works: valid PNG passes through re-encoding
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".png")
 
 
 def test_file_screening_accepts_image_with_matching_extension():
-    """Valid PNG with matching extension passes screening."""
+    """Valid PNG passes screening and is re-encoded."""
     from io import BytesIO
 
     from PIL import Image
 
-    from juli_backend.services.execution.file_screening import screen_image_bytes
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # Create a real minimal valid PNG image
     img = Image.new("RGB", (1, 1), color="red")
@@ -481,22 +477,19 @@ def test_file_screening_accepts_image_with_matching_extension():
     img.save(png_bytes, format="PNG")
     png_bytes = png_bytes.getvalue()
 
-    # Should pass with matching .png extension
-    result = screen_image_bytes(png_bytes, filename="image.png")
-    assert result == png_bytes
-
-    # Should also pass without filename
-    result = screen_image_bytes(png_bytes, filename=None)
-    assert result == png_bytes
+    # Screening re-encodes and generates safe filename
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".png")
 
 
 def test_file_screening_accepts_valid_png_image():
-    """Valid PNG image passes screening and is decoded unchanged."""
+    """Valid PNG image passes screening and is re-encoded."""
     from io import BytesIO
 
     from PIL import Image
 
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # Create a real minimal valid PNG image
     img = Image.new("RGB", (1, 1), color="blue")
@@ -504,18 +497,18 @@ def test_file_screening_accepts_valid_png_image():
     img.save(png_bytes, format="PNG")
     png_bytes = png_bytes.getvalue()
 
-    png_base64 = base64.b64encode(png_bytes).decode()
-    result = _decode_optional_base64(png_base64)
-    assert result == png_bytes
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".png")
 
 
 def test_file_screening_accepts_valid_jpeg_image():
-    """Valid JPEG image passes screening and is decoded unchanged."""
+    """Valid JPEG image passes screening and is re-encoded."""
     from io import BytesIO
 
     from PIL import Image
 
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # Create a real minimal valid JPEG image
     img = Image.new("RGB", (1, 1), color="green")
@@ -523,22 +516,21 @@ def test_file_screening_accepts_valid_jpeg_image():
     img.save(jpeg_bytes, format="JPEG")
     jpeg_bytes = jpeg_bytes.getvalue()
 
-    jpeg_base64 = base64.b64encode(jpeg_bytes).decode()
-    result = _decode_optional_base64(jpeg_base64)
-    assert result == jpeg_bytes
+    reencoded_bytes, safe_filename = screen_and_reencode_image(jpeg_bytes)
+    assert reencoded_bytes is not None
+    assert safe_filename.endswith(".jpg")
 
 
 def test_file_screening_error_is_validation_category():
     """File screening errors classify as terminal VALIDATION, not retryable."""
     from juli_backend.services.execution.errors import classify_execution_error
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # Non-image payload
     pdf_bytes = b"%PDF-1.4\n%data"
-    pdf_base64 = base64.b64encode(pdf_bytes).decode()
 
     try:
-        _decode_optional_base64(pdf_base64)
+        screen_and_reencode_image(pdf_bytes)
         pytest.fail("Expected ValueError for non-image")
     except ValueError as e:
         category, message = classify_execution_error(e)
@@ -547,12 +539,12 @@ def test_file_screening_error_is_validation_category():
 
 
 def test_file_screening_accepts_valid_webp_image():
-    """Valid WebP image passes screening."""
+    """Valid WebP image passes screening and is re-encoded."""
     from io import BytesIO
 
     from PIL import Image
 
-    from juli_backend.services.execution.listing import _decode_optional_base64
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
 
     # Create a real minimal valid WebP image
     img = Image.new("RGB", (1, 1), color="yellow")
@@ -560,9 +552,94 @@ def test_file_screening_accepts_valid_webp_image():
     img.save(webp_bytes, format="WebP")
     webp_bytes = webp_bytes.getvalue()
 
-    webp_base64 = base64.b64encode(webp_bytes).decode()
-    result = _decode_optional_base64(webp_base64)
-    assert result == webp_bytes
+    reencoded_bytes, safe_filename = screen_and_reencode_image(webp_bytes)
+    assert reencoded_bytes is not None
+    # Re-encoded bytes may differ slightly from original due to re-encoding
+    assert len(reencoded_bytes) > 0
+    # Safe filename is UUID + .webp extension
+    assert safe_filename.endswith(".webp")
+
+
+def test_file_screening_removes_polyglot_payload():
+    """Re-encoding removes appended data after image end markers (polyglot protection)."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a valid PNG and append extra bytes after the IEND chunk
+    img = Image.new("RGB", (1, 1), color="red")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    original_png = png_bytes.getvalue()
+
+    # Append malicious-looking bytes after the image
+    poisoned_bytes = original_png + b"\x00\x00\x00\x00FAKE_PAYLOAD_SHOULD_BE_REMOVED"
+
+    # Screen and re-encode: appended bytes must be destroyed
+    reencoded_bytes, safe_filename = screen_and_reencode_image(poisoned_bytes)
+
+    # Verify: re-encoded bytes should NOT contain the appended payload
+    assert b"FAKE_PAYLOAD" not in reencoded_bytes
+    # Re-encoded image is valid and smaller than poisoned version (no payload)
+    assert len(reencoded_bytes) < len(poisoned_bytes)
+    # Filename is UUID + .png
+    assert safe_filename.endswith(".png")
+
+
+def test_file_screening_generates_safe_filename():
+    """Generated filename is UUID + detected extension; caller name is discarded."""
+    import uuid as uuid_module
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import screen_and_reencode_image
+
+    # Create a PNG
+    img = Image.new("RGB", (1, 1), color="blue")
+    png_bytes = BytesIO()
+    img.save(png_bytes, format="PNG")
+    png_bytes = png_bytes.getvalue()
+
+    # Screen it (note: function doesn't take filename, so we test the generation)
+    reencoded_bytes, safe_filename = screen_and_reencode_image(png_bytes)
+
+    # Verify filename is generated (UUID format) + extension
+    parts = safe_filename.split(".")
+    assert len(parts) == 2
+    # First part is UUID (hex string, no hyphens)
+    uuid_part, ext = parts
+    assert len(uuid_part) == 32  # UUID4 hex without hyphens
+    assert ext == "png"
+    # It's a valid UUID
+    try:
+        uuid_module.UUID(hex=uuid_part)
+    except ValueError:
+        pytest.fail(f"Generated filename {safe_filename} does not contain valid UUID")
+
+
+def test_file_screening_rejects_decompression_bomb():
+    """Decompression bomb (excessive pixel count) is rejected."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    from juli_backend.services.execution.file_screening import (
+        screen_and_reencode_image,
+    )
+
+    # Create an image that exceeds our MAX_IMAGE_PIXELS limit
+    # Our limit is 100 MP; create 20000 x 6000 = 120M pixels
+    large_img = Image.new("RGB", (20000, 6000), color="red")
+    large_bytes = BytesIO()
+    large_img.save(large_bytes, format="PNG")
+    large_bytes = large_bytes.getvalue()
+
+    # Should be rejected as decompression bomb
+    with pytest.raises(ValueError, match="exceed maximum pixel count"):
+        screen_and_reencode_image(large_bytes)
 
 
 def test_listing_catalog_endpoints_documented_in_contract_collection():

@@ -13,12 +13,20 @@ from typing import Any
 from juli_backend.integrations.tiktok import SandboxWriteResources
 from juli_backend.services.execution.file_screening import (
     MAX_ENCODED_SIZE_BYTES,
-    get_image_extension,
-    screen_image_bytes,
+    screen_and_reencode_image,
 )
 
 
-def _decode_optional_base64(value: str | None, filename: str | None = None) -> bytes | None:
+def _decode_and_screen_image(value: str | None) -> tuple[bytes, str] | None:
+    """Decode base64, screen, re-encode image, return sanitized bytes and safe filename.
+
+    Per OWASP: caller-supplied filename is discarded; generated filename (UUID +
+    detected extension) is used instead. Bytes are re-encoded to destroy payloads.
+
+    Returns (re_encoded_bytes, safe_filename) or None if value is empty.
+
+    Raises ValueError on validation failure (terminal VALIDATION category).
+    """
     if not value:
         return None
 
@@ -32,8 +40,8 @@ def _decode_optional_base64(value: str | None, filename: str | None = None) -> b
     # Decode base64
     decoded = base64.b64decode(value)
 
-    # Screen the decoded image bytes
-    return screen_image_bytes(decoded, filename=filename)
+    # Screen, re-encode, and generate safe filename
+    return screen_and_reencode_image(decoded)
 
 
 def _attribute_required(attr: dict[str, Any]) -> bool:
@@ -114,9 +122,10 @@ def _first_suggestion_text(
 def _resolve_image_uri(payload: dict[str, Any], products) -> str | None:
     if payload.get("image_uri"):
         return str(payload["image_uri"])
-    image_bytes = _decode_optional_base64(payload.get("image_content_base64"))
-    if image_bytes is None:
+    result = _decode_and_screen_image(payload.get("image_content_base64"))
+    if result is None:
         return None
+    image_bytes, _ = result  # Discard generated filename for image (not used)
     upload = products.upload_product_image(image_bytes=image_bytes)
     return str(upload.get("uri") or "")
 
@@ -124,19 +133,12 @@ def _resolve_image_uri(payload: dict[str, Any], products) -> str | None:
 def _resolve_file_uri(payload: dict[str, Any], products) -> str | None:
     if payload.get("file_uri"):
         return str(payload["file_uri"])
-    declared_filename = payload.get("file_name")
-    file_bytes = _decode_optional_base64(
-        payload.get("file_content_base64"), filename=declared_filename
-    )
-    if file_bytes is None:
+    result = _decode_and_screen_image(payload.get("file_content_base64"))
+    if result is None:
         return None
-    # If no filename was provided, derive it from detected image format
-    if not declared_filename:
-        extension = get_image_extension(file_bytes)
-        filename = f"supporting-file{extension}" if extension else "supporting-file"
-    else:
-        filename = str(declared_filename)
-    upload = products.upload_product_file(file_bytes=file_bytes, filename=filename)
+    file_bytes, safe_filename = result
+    # Use generated safe filename; caller-supplied name is discarded
+    upload = products.upload_product_file(file_bytes=file_bytes, filename=safe_filename)
     return str(upload.get("uri") or "")
 
 
