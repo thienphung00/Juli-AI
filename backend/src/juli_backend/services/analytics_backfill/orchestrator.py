@@ -21,9 +21,11 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.integrations.tiktok.client import TikTokClient
-from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
-from juli_backend.integrations.tiktok.resources.products import ProductsResource
+from juli_backend.integrations.tiktok import (
+    AnalyticsResource,
+    ProductsResource,
+    TikTokClient,
+)
 from juli_backend.models.models import TikTokCredential
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
