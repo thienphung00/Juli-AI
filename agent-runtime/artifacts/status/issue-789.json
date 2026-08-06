@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 789,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/gold_kpi_envelope_serving.py",
+      "tests/unit/test_gold_kpi_envelopes.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-789.json",
+    "sha256": "9fe44b8fd58bcedbc10b539c1314c12e0f3ef782f423f6d9d27446253b787008",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-06T07:21:52Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-789.json",
+    "sha256": "966e54ffbce7a51a881a7e8c0d55c463017c5f0eda86b66cf244d5ba4a2dc0d9",
+    "status": "FAIL"
+  },
+  "wave": null
+}
