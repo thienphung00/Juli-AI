@@ -10,7 +10,12 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import BronzeOrderRawPayload, BronzeReturnRawPayload
+from juli_backend.models.models import (
+    BronzeOrderRawPayload,
+    BronzeReturnRawPayload,
+    Order,
+    Return,
+)
 from juli_backend.services.cdp_speed.job_correlation import job_correlation_token
 from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import BronzeAppendTracker
 from juli_backend.services.cdp_speed.targeted_fetch_executor import (
@@ -18,7 +23,6 @@ from juli_backend.services.cdp_speed.targeted_fetch_executor import (
     execute_targeted_fetch_to_bronze,
 )
 from juli_backend.services.cdp_speed.targeted_fetch_planner import TargetedFetchPlan
-from juli_backend.services.etl.silver_promotion import SilverOrdersReturnsPromoter
 from juli_backend.services.gold_kpi_envelope_serving import write_demo_main_kpis_envelope
 
 logger = logging.getLogger(__name__)
@@ -85,13 +89,27 @@ class SharedComputeOrchestrator:
             },
         )
 
+        # Bronze stage: fetch and append raw payloads
         bronze_tracker = await self._bronze_stage(self._session, job)
+
+        # Commit after bronze stage to bound session growth and give partial durability
+        await self._session.commit()
+
+        # Silver stage: promote bronze to normalized domain tables
         silver_promoted = await self._silver_stage(
             self._session,
             job.shop_id,
             bronze_tracker,
         )
+
+        # Commit after silver stage for durability and to clear accumulated objects
+        await self._session.commit()
+
+        # Gold stage: compute and write KPI envelope
         gold_written = await self._gold_stage(self._session, job.shop_id)
+
+        # Commit after gold stage for durability
+        await self._session.commit()
 
         logger.info(
             "shared_compute_job_completed",
@@ -133,10 +151,11 @@ class SharedComputeOrchestrator:
         if bronze_tracker.appended_count <= 0:
             return 0
 
-        promoter = SilverOrdersReturnsPromoter(session)
         promoted = 0
 
+        # Batch order promotion: load all existing orders once, then upsert
         if bronze_tracker.order_row_ids:
+            # Load all bronze order rows (one query)
             rows = (
                 (
                     await session.execute(
@@ -149,11 +168,59 @@ class SharedComputeOrchestrator:
                 .scalars()
                 .all()
             )
-            for order_row in rows:
-                await promoter.promote_order(order_row)
+
+            # Extract all tiktok_order_ids to batch-load existing records
+            tiktok_order_ids = set()
+            for bronze_row in rows:
+                if isinstance(bronze_row.payload, dict):
+                    tiktok_id = bronze_row.payload.get("order_id")
+                    if tiktok_id:
+                        tiktok_order_ids.add(tiktok_id)
+
+            # Batch load all existing orders (one query instead of N)
+            existing_orders_stmt = select(Order).where(
+                Order.shop_id == shop_id,
+                Order.tiktok_order_id.in_(tiktok_order_ids),
+            )
+            existing_orders_result = await session.execute(existing_orders_stmt)
+            existing_orders_by_id = {
+                order.tiktok_order_id: order for order in existing_orders_result.scalars()
+            }
+
+            # Now upsert each row without additional SELECT per row
+            from juli_backend.services.etl.transform import (
+                bronze_order_to_upsert_kwargs,
+            )
+
+            for bronze_row in rows:
+                if not isinstance(bronze_row.payload, dict):
+                    continue
+                received_at = bronze_row.received_at
+                if received_at.tzinfo is None:
+                    from datetime import UTC
+
+                    received_at = received_at.replace(tzinfo=UTC)
+                kwargs = bronze_order_to_upsert_kwargs(bronze_row.payload, received_at=received_at)
+
+                # Look up existing order (already loaded) instead of querying per row
+                existing = existing_orders_by_id.get(kwargs["tiktok_order_id"])
+                if existing is not None:
+                    # Update existing order
+                    for key, value in kwargs.items():
+                        setattr(existing, key, value)
+                else:
+                    # Create new order
+                    order = Order(id=uuid.uuid4(), shop_id=bronze_row.shop_id, **kwargs)
+                    session.add(order)
+
                 promoted += 1
 
+            # Flush all order upserts at once
+            await session.flush()
+
+        # Batch return promotion: same pattern as orders
         if bronze_tracker.return_row_ids:
+            # Load all bronze return rows (one query)
             return_rows = (
                 (
                     await session.execute(
@@ -166,9 +233,74 @@ class SharedComputeOrchestrator:
                 .scalars()
                 .all()
             )
-            for return_row in return_rows:
-                await promoter.promote_return(return_row)
+
+            # Extract all tiktok_order_ids for batch lookup of related orders
+            tiktok_return_ids = set()
+            tiktok_order_ids_for_returns = set()
+            for bronze_row in return_rows:
+                if isinstance(bronze_row.payload, dict):
+                    tiktok_return_id = bronze_row.payload.get("return_id")
+                    tiktok_order_id = bronze_row.payload.get("order_id")
+                    if tiktok_return_id:
+                        tiktok_return_ids.add(tiktok_return_id)
+                    if tiktok_order_id:
+                        tiktok_order_ids_for_returns.add(tiktok_order_id)
+
+            # Batch load existing returns and related orders (two queries total)
+            existing_returns_stmt = select(Return).where(
+                Return.shop_id == shop_id,
+                Return.tiktok_return_id.in_(tiktok_return_ids),
+            )
+            existing_returns_result = await session.execute(existing_returns_stmt)
+            existing_returns_by_id = {
+                ret.tiktok_return_id: ret for ret in existing_returns_result.scalars()
+            }
+
+            existing_orders_stmt = select(Order).where(
+                Order.shop_id == shop_id,
+                Order.tiktok_order_id.in_(tiktok_order_ids_for_returns),
+            )
+            existing_orders_result = await session.execute(existing_orders_stmt)
+            existing_orders_by_tiktok_id = {
+                order.tiktok_order_id: order for order in existing_orders_result.scalars()
+            }
+
+            # Now upsert each return row without additional SELECT per row
+            from juli_backend.services.etl.transform import (
+                bronze_return_to_upsert_kwargs,
+            )
+
+            for bronze_row in return_rows:
+                if not isinstance(bronze_row.payload, dict):
+                    continue
+                received_at = bronze_row.received_at
+                if received_at.tzinfo is None:
+                    from datetime import UTC
+
+                    received_at = received_at.replace(tzinfo=UTC)
+                kwargs = bronze_return_to_upsert_kwargs(bronze_row.payload, received_at=received_at)
+
+                # Look up existing return (already loaded) instead of querying per row
+                existing_return = existing_returns_by_id.get(kwargs.get("tiktok_return_id"))
+
+                # Look up related order (already batch-loaded)
+                related_order = existing_orders_by_tiktok_id.get(kwargs.get("tiktok_order_id"))
+                if related_order is not None:
+                    kwargs["order_id"] = related_order.id
+
+                if existing_return is not None:
+                    # Update existing return
+                    for key, value in kwargs.items():
+                        setattr(existing_return, key, value)
+                else:
+                    # Create new return
+                    ret = Return(id=uuid.uuid4(), shop_id=bronze_row.shop_id, **kwargs)
+                    session.add(ret)
+
                 promoted += 1
+
+            # Flush all return upserts at once
+            await session.flush()
 
         return promoted
 

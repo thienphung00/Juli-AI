@@ -1,0 +1,74 @@
+{
+  "planId": "hourly-reconcile-write-path-perf-2026-08-06",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com",
+    "demo.app-juli.com"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Unit and integration tests on feature/issue-790; the hourly reconcile itself is exercised only by Celery Beat at the top of the hour on the deployed release",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "medallion-writes-stay-durable-and-get-faster",
+        "entryUrl": "https://api.app-juli.com/v1/demo/analytics",
+        "assertions": [
+          "bronze, silver and gold rows written by a reconcile run are readable from a new session, preserving the #752 durability guarantee",
+          "the silver stage issues a bounded number of database round trips for N bronze rows rather than one per row",
+          "per-stage commit semantics are explicit: a gold-stage failure leaves bronze and silver durably committed",
+          "GET /v1/demo/analytics continues to serve the five ADR-049 payload.kpis keys with unchanged shape",
+          "wall-clock for a 1000-row reconcile is materially below the 2244.9s production baseline"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "https://api.app-juli.com/v1/demo/analytics"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "json"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. This alters transaction boundaries and batching inside the bronze -> silver -> gold write path only. Stable and candidate read and write the same tables with the same columns, so both can run against one database during cutover."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The hourly reconcile continues to take ~37 minutes per run, occupying a Celery fork for 62% of every hour — the current production state, degraded but not data-losing.",
+    "postCutoverFailureBehavior": "Roll back to the previous release. Because per-stage commits replace a single end-of-run commit, a mid-run failure after rollback may leave bronze and silver committed without a gold envelope; the next hourly run recomputes gold from silver, so the state is self-healing and no manual repair is required.",
+    "retainedStableRequired": true,
+    "automatic": false,
+    "dataLossRisk": "none",
+    "rollbackCommand": "infra/scripts/rollback-release.sh"
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit -q -k 'reconcile or shared_compute or silver or orchestrator'",
+    "python -m pytest tests/integration -q -k 'medallion or reconcile'",
+    "ruff check backend tests scripts"
+  ],
+  "doNotInfer": [
+    "this changes which rows the reconcile fetches — the #744 page cap still bounds bronze at 20 pages, and GMV remains computed over that capped set",
+    "this makes ctor or live_hours available — those are hardcoded unavailable and are addressed in #789",
+    "this alters the ADR-049 five-KPI contract or the envelope payload shape",
+    "this removes the single-writer ownership model — repositories continue to flush, and only the session owner commits"
+  ]
+}
