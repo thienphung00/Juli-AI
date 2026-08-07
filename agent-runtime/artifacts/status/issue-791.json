@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 791,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/analytics_backfill",
+      "backend/src/juli_backend/workers/tasks",
+      "backend/src/juli_backend/repositories/repos.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-791.json",
+    "sha256": "ef187f195a73c743730a17ee35d0fd4efcded6623f653ddbba5d745fbff0c930",
+    "status": "FAIL"
+  },
+  "timestamp": "2026-08-07T01:14:18Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-791.json",
+    "sha256": "1d9344c5f597f0a18c0340e1d502dedf8202d499fefdf55e55b3cca505320dd0",
+    "status": "FAIL"
+  },
+  "wave": null
+}
