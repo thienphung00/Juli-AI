@@ -33,6 +33,14 @@ celery_app.conf.update(
             "task": "juli_backend.cdp_batch_staggered_reconcile",
             "schedule": crontab(),  # Every minute
         },
+        # P2-9-6 — Automatic analytics history top-up for reference shop (#791).
+        # Runs daily at 2 AM UTC to top up missing or stale partitions.
+        # A1 scope: single-shop only (DEMO_REFERENCE_SHOP_ID). Fleet-wide belongs in A2 (#601).
+        # Idempotent via resumable checkpoints (AnalyticsBackfillPartitionsRepo).
+        "analytics-backfill-topup": {
+            "task": "juli_backend.analytics_backfill_topup",
+            "schedule": crontab(hour=2, minute=0),
+        },
     },
 )
 
