@@ -1,6 +1,8 @@
-import type {
-  PlanDecisionOptionGroup,
-  PlanReviewContent,
+import { buildAnalyticsMetricHref } from "../../analytics/main-kpis";
+import {
+  buildPlanImpact,
+  type PlanDecisionOptionGroup,
+  type PlanReviewContent,
 } from "../../plan-reviews";
 
 import { recommendationFixtures } from "../../recommendations";
@@ -76,8 +78,14 @@ export function getOptimizeProductPlanReview(): PlanReviewContent {
         "Giá bán giữ ở 159.000 ₫, trong giới hạn lợi nhuận shop đã cấu hình.",
         "Ảnh sản phẩm và tệp hỗ trợ giữ nguyên — Juli chỉ thay khi shop yêu cầu.",
       ],
-      analyticsMetricHref: `/analytics/${defaultOptimizeProductAnalyticsMetricKey}`,
+      analyticsMetricHref: buildAnalyticsMetricHref(
+        defaultOptimizeProductAnalyticsMetricKey,
+      ),
     },
+    // The tied Main KPI is the workflow's existing `analyticsMetricKey`
+    // binding — CTOR for optimize_product_2 (ADR-055 item 15). Nothing new is
+    // mapped here, and no magnitude is projected (item 16).
+    impact: buildPlanImpact(defaultOptimizeProductAnalyticsMetricKey),
     decision: {
       proposal:
         "Juli đề xuất cập nhật tiêu đề và mô tả SEO cho “Son môi số 12” để sản phẩm được nhấp xem nhiều hơn.",

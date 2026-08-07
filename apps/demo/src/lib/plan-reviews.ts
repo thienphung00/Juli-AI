@@ -1,4 +1,8 @@
 import {
+  IMPACT_METRIC_KEYS,
+  type ImpactMetricKey,
+} from "./analytics/main-kpis";
+import {
   DELETE_ACTIVITY_WORKFLOW_KEY,
   getDeleteActivityPlanReview,
 } from "./workflows/delete-activity";
@@ -74,6 +78,56 @@ export interface PlanDecisionContent {
   };
 }
 
+/**
+ * Directional goals, one per tie-able Main KPI (ADR-055 item 15).
+ *
+ * A goal states a *direction* and names the metric in seller language. It
+ * carries no magnitude and no number of any kind: ADR-055 item 16 bars a
+ * projected impact on three independent grounds, and PRD user story 22 holds
+ * Juli to never quoting an amount it cannot stand behind.
+ *
+ * Authored once here, shared by every workflow tied to the same KPI, so two
+ * workflows on one metric can never phrase the goal differently.
+ */
+export const IMPACT_DIRECTIONAL_GOALS: Record<ImpactMetricKey, string> = {
+  "gmv-tiktok": "Mục tiêu: tăng doanh thu bán hàng trên TikTok Shop",
+  aov: "Mục tiêu: tăng giá trị trung bình mỗi đơn hàng",
+  ctor: "Mục tiêu: tăng tỷ lệ khách xem chuyển thành đơn hàng",
+  "cancellation-rate": "Mục tiêu: giảm tỷ lệ đơn hàng bị hủy",
+};
+
+export interface PlanImpactContent {
+  /**
+   * The Main KPI this workflow is already tied to. Read the workflow's
+   * existing `analyticsMetricKey` binding — never author a new one, and never
+   * map anything onto LIVE hours (ADR-055 item 15).
+   */
+  metricKey: ImpactMetricKey;
+  /**
+   * The directional goal shown under the KPI's real value. Always
+   * `IMPACT_DIRECTIONAL_GOALS[metricKey]` — build it with `buildPlanImpact`
+   * rather than writing a per-workflow sentence.
+   */
+  directionalGoal: string;
+}
+
+/**
+ * Tie a plan review to its workflow's existing Main KPI.
+ *
+ * This is the whole authoring surface for the impact block: a rollout slice
+ * passes the workflow's `analyticsMetricKey`, and the block reads the real
+ * current value, trend and Analytics deep link from there. There is no
+ * per-workflow number to write, by design.
+ */
+export function buildPlanImpact(
+  metricKey: ImpactMetricKey,
+): PlanImpactContent {
+  return { metricKey, directionalGoal: IMPACT_DIRECTIONAL_GOALS[metricKey] };
+}
+
+export { IMPACT_METRIC_KEYS };
+export type { ImpactMetricKey };
+
 export interface PlanDetailsContent {
   /** Branch-gated execution specifics for the chosen branch. */
   detailLines: string[];
@@ -83,6 +137,12 @@ export interface PlanReviewContent {
   workflowKey: string;
   title: string;
   situation: PlanSituationContent;
+  /**
+   * The card's centre of gravity: the tied Main KPI's real current value and
+   * trend, plus a directional goal (ADR-055 items 15–17). Required — every
+   * workflow is already tied to a KPI, so there is no plan without one.
+   */
+  impact: PlanImpactContent;
   decision: PlanDecisionContent;
   /**
    * Absent (undefined) when the workflow has no branch-gated detail —

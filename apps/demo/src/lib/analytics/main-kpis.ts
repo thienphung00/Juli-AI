@@ -37,6 +37,33 @@ export const MAIN_KPI_ORDER: readonly MetricKey[] = [
   "cancellation-rate",
 ] as const;
 
+/**
+ * The Main KPIs a workflow's decision can be tied to (ADR-055 item 15).
+ *
+ * LIVE hours is deliberately absent: it is tied to no workflow, and
+ * retrofitting one onto it to make the set look complete is barred.
+ */
+export const IMPACT_METRIC_KEYS = [
+  "gmv-tiktok",
+  "aov",
+  "ctor",
+  "cancellation-rate",
+] as const;
+
+export type ImpactMetricKey = (typeof IMPACT_METRIC_KEYS)[number];
+
+export function isImpactMetricKey(key: string): key is ImpactMetricKey {
+  return (IMPACT_METRIC_KEYS as readonly string[]).includes(key);
+}
+
+/**
+ * Deep link to a Main KPI on the Analytics screen. The single place the
+ * metric route is built, so a tied KPI and its link can never drift apart.
+ */
+export function buildAnalyticsMetricHref(metricKey: MetricKey): string {
+  return `/analytics/${metricKey}`;
+}
+
 export const DEFAULT_METRIC_KEY: MetricKey = "gmv-tiktok";
 export const DEFAULT_ANALYTICS_RANGE: AnalyticsRange = "30d";
 

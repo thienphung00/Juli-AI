@@ -23,6 +23,7 @@ import {
 } from "../lib/review-seller-copy";
 import { buildDecisionsHighlightHref } from "../lib/recommendations";
 import { useDemoState } from "./demo-state";
+import { PlanImpactBlock } from "./impact-block";
 
 interface PlanReviewCardProps {
   plan: PlanReviewContent;
@@ -34,6 +35,9 @@ interface PlanReviewCardProps {
  * - Situation is a header, not a section: its known fields collapse into one
  *   summary row with a count and a question-phrased disclosure. Expansion
  *   adds detail below the row and keeps the summary line visible.
+ * - The impact block sits directly under the header, above the proposal: the
+ *   tied Main KPI's real value, trend and directional goal (ADR-055 items
+ *   15–17). It is the card's centre of gravity, and it has one state.
  * - Decision rests folded on the proposed outcome — one sentence.
  * - Details renders as nothing when the plan carries no branch-gated detail.
  * - The Decision section carries the reasoning disclosure (ADR-055 items 3,
@@ -101,6 +105,7 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
             </div>
           ) : null}
         </CardHeader>
+        <PlanImpactBlock impact={plan.impact} />
         <CardBody className="demo-plan__decision" data-testid="plan-decision">
           <p>{plan.decision.proposal}</p>
           <button

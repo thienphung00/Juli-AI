@@ -1,4 +1,5 @@
-import type { PlanReviewContent } from "../../plan-reviews";
+import { buildAnalyticsMetricHref } from "../../analytics/main-kpis";
+import { buildPlanImpact, type PlanReviewContent } from "../../plan-reviews";
 
 import { recommendationFixtures } from "../../recommendations";
 import {
@@ -32,8 +33,14 @@ export function getDeleteActivityPlanReview(): PlanReviewContent {
       detailLines: [
         "Juli đang theo dõi chương trình ACT-7720 — “Giảm giá trực tiếp mùa hè” (đang hoạt động).",
       ],
-      analyticsMetricHref: `/analytics/${defaultDeleteActivityAnalyticsMetricKey}`,
+      analyticsMetricHref: buildAnalyticsMetricHref(
+        defaultDeleteActivityAnalyticsMetricKey,
+      ),
     },
+    // The tied Main KPI is the workflow's existing `analyticsMetricKey`
+    // binding — CTOR for the three promotion workflows (ADR-055 item 15).
+    // Nothing new is mapped here, and no magnitude is projected (item 16).
+    impact: buildPlanImpact(defaultDeleteActivityAnalyticsMetricKey),
     decision: {
       proposal:
         "Juli đề xuất kết thúc chương trình “Giảm giá trực tiếp mùa hè” vì đã hết hiệu lực, để tránh giảm giá ngoài ý muốn.",
