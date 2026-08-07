@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-a1-recovery",
+  "branch": "feature/a1-recovery-wave",
+  "issues": [789, 790]
+}
