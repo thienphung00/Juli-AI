@@ -48,14 +48,9 @@ def _database_url() -> str:
 
 
 def _ensure_session_factory():
-    from sqlalchemy.ext.asyncio import create_async_engine
+    from juli_backend.database.database import ensure_worker_session_factory
 
-    from juli_backend.database.database import create_session_factory, init_session_factory
-
-    engine = create_async_engine(_database_url())
-    factory = create_session_factory(engine)
-    init_session_factory(factory)
-    return factory
+    return ensure_worker_session_factory(_database_url())
 
 
 async def _lookup_tiktok_shop_key_async(shop_id: uuid.UUID) -> str | None:
