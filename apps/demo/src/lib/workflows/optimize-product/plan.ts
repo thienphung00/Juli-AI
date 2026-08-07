@@ -3,6 +3,7 @@ import type {
   PlanReviewContent,
 } from "../../plan-reviews";
 
+import { getPlanCaveats } from "../../plan-caveats";
 import { recommendationFixtures } from "../../recommendations";
 import {
   OPTIMIZE_PRODUCT_WORKFLOW_KEY,
@@ -84,6 +85,10 @@ export function getOptimizeProductPlanReview(): PlanReviewContent {
       // The workflow's pre-authored reasoning from the shared fixture table —
       // revealed behind the question-labelled disclosure, sanitized at render.
       reasoning: optimizeProductFixture.reasoning,
+      // Typed caveats, not the concatenated known-limits blob (ADR-055 item
+      // 10). optimize_product_2 carries only the undefined-threshold class, so
+      // nothing of it reaches the seller — which is the point.
+      caveats: getPlanCaveats(OPTIMIZE_PRODUCT_WORKFLOW_KEY),
       recommendedOptions: {
         disclosureQuestion: "Juli đã cân nhắc phương án nào?",
         groups: buildRecommendedOptionGroups(),

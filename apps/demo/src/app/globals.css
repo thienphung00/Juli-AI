@@ -417,6 +417,26 @@ a {
   line-height: 1.6;
 }
 
+/* Class C caveats — a genuine functional gap, answered alongside the reasoning
+   rather than shouted at rest. */
+.demo-plan__reasoning-caveats {
+  display: grid;
+  gap: var(--juli-space-2);
+}
+
+/* Class D caveats — what Juli will not do without the seller. Reassurance
+   rests in the Decision section; it is never filed under a limits heading. */
+.demo-plan__trust-lines {
+  display: grid;
+  gap: var(--juli-space-1);
+}
+
+.demo-plan__trust-line {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
 .demo-plan__decision-options {
   display: grid;
   gap: var(--juli-space-3);

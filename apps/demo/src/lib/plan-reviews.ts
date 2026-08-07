@@ -1,3 +1,5 @@
+import type { PlanCaveat } from "./plan-caveats";
+
 import {
   DELETE_ACTIVITY_WORKFLOW_KEY,
   getDeleteActivityPlanReview,
@@ -62,6 +64,15 @@ export interface PlanDecisionContent {
    * the card sanitizes it through the seller-copy sanitizer at render.
    */
   reasoning: string;
+  /**
+   * The workflow's caveats, typed by class (ADR-055 item 10). REQUIRED: the
+   * card applies one presentation rule per class — hidden, inside the
+   * reasoning expansion, or resting as a trust line — and never inspects the
+   * text, so an untyped caveat has nowhere to go. Source it from
+   * `getPlanCaveats(workflowKey)`, which classifies all eleven workflows;
+   * the card sanitizes each rendered string at render.
+   */
+  caveats: readonly PlanCaveat[];
   /**
    * Recommended options resting behind a question-phrased disclosure.
    * Read-only: the editing interaction is out of scope (ADR-055 item 14).

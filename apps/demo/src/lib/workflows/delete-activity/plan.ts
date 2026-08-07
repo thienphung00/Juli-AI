@@ -1,5 +1,6 @@
 import type { PlanReviewContent } from "../../plan-reviews";
 
+import { getPlanCaveats } from "../../plan-caveats";
 import { recommendationFixtures } from "../../recommendations";
 import {
   DELETE_ACTIVITY_WORKFLOW_KEY,
@@ -40,6 +41,10 @@ export function getDeleteActivityPlanReview(): PlanReviewContent {
       // The workflow's pre-authored reasoning from the shared fixture table —
       // revealed behind the question-labelled disclosure, sanitized at render.
       reasoning: deleteActivityFixture.reasoning,
+      // Typed caveats, not the concatenated known-limits blob (ADR-055 item
+      // 10). The card hides classes A and B, answers with class C inside the
+      // reasoning expansion, and rests class D as a trust line.
+      caveats: getPlanCaveats(DELETE_ACTIVITY_WORKFLOW_KEY),
     },
     // No `details` key: delete_activity_7b has no branch-gated detail, so the
     // Details section renders as nothing — never an empty stub.
