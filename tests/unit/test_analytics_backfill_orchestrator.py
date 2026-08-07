@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -384,29 +384,18 @@ class TestAnalyticsBackfillAutoTopup:
 
     pytestmark = pytestmark_async
 
-    async def test_auto_topup_stub_corruption_single_partition(
+    async def test_auto_topup_does_not_mark_complete_when_runner_fails(
         self, session: AsyncSession, shop: Shop
     ) -> None:
-        """RED test: Current stub marks partitions complete without any data fetch.
+        """Verify partition stays incomplete when real runner fails to fetch data.
 
-        CRITICAL DATA CORRUPTION VULNERABILITY:
-        The current stub partition_runner only calls mark_complete without
-        dispatching to real runners or fetching any data. When deployed on
-        a daily schedule, it would walk the entire 2026-03-16..today range
-        and mark every partition complete with fabricated data (zero Partner
-        calls + zero data upserted).
+        This invariant is critical: if a partition runner fails to fetch Partner
+        data (e.g., API error, missing credentials), mark_complete must NOT be
+        called. Without this, the partition would be permanently skipped on future
+        runs, blocking recovery of that date range.
 
-        This test FAILS on the current stub because:
-        - Stub immediately marks partition complete (before any Partner calls)
-        - Real implementation must dispatch to real runners
-        - Real runners only mark complete AFTER successful data fetch + upsert
-        - Real runners would raise if credentials are missing (expected in test)
-
-        The fix: Replace stub with dispatcher that routes by bucket to:
-        - revenue -> backfill_revenue_partition
-        - live -> run_live_partition
-        - product -> backfill_product_partition
-        - catalog -> run_catalog_partition
+        This test would have caught the stub corruption bug (which marked partitions
+        complete with zero data fetch attempts).
         """
         from juli_backend.services.analytics_backfill import (
             backfill_analytics_history_auto_topup,
@@ -427,19 +416,124 @@ class TestAnalyticsBackfillAutoTopup:
                 start_date=partition_date,
                 end_date=partition_date,
             )
-            # CRITICAL: If we get here with completed_partitions > 0, the stub
-            # is corrupting data. The stub marks complete without dispatching.
+            # If we got here with completed_partitions > 0, the runner is marking
+            # complete without dispatching or fetching
             assert result.completed_partitions == 0, (
-                "CORRUPTION: stub marked partition complete without real runner dispatch"
+                "runner should not mark complete without data fetch"
             )
         except Exception:
             # Expected - real runner tries to fetch, fails due to missing credentials
             pass
 
-        # After auto_topup attempt with real dispatcher:
-        # Partition should still be incomplete because real runner failed on fetch
-        # (or succeeded but we set up no credentials to test this path)
+        # Verify partition is still incomplete
         is_complete_after = await repo.is_complete(shop.id, "revenue", partition_date)
-        assert not is_complete_after, (
-            "partition should stay incomplete when real runner fails to fetch"
+        assert not is_complete_after, "partition should stay incomplete when runner fails to fetch"
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "Known defect: auto_topup looks up the credential with "
+            "session.get(TikTokCredential, shop_id), but the primary key is `id`, "
+            "so it never finds a shop's credential and raises ValueError before "
+            "dispatching. It also reads credential.app_key/app_secret, which are not "
+            "columns on the model. Fix tracked on #791; remove this marker with the fix."
+        ),
+    )
+    async def test_auto_topup_dispatches_each_bucket_to_its_real_runner(
+        self, session: AsyncSession, shop: Shop, monkeypatch
+    ) -> None:
+        """Verify auto_topup routes each bucket to its correct real runner.
+
+        This test directly verifies the dispatcher behavior: each bucket MUST
+        route to its corresponding runner (revenue -> backfill_revenue_partition,
+        live -> run_live_partition, product -> backfill_product_partition,
+        catalog -> run_catalog_partition). This is what proves the scheduled task
+        actually works to fetch and upsert data.
+        """
+        from juli_backend.models.models import TikTokCredential
+        from juli_backend.services.analytics_backfill import (
+            backfill_analytics_history_auto_topup,
+        )
+
+        # Create credential so auto_topup can build client
+        user_id = uuid.uuid4()
+        shop.user_id = user_id
+        credential = TikTokCredential(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            merchant_authorization_id="test-auth",
+            capability="production_read",
+            access_token="test-token",
+            refresh_token="test-refresh",
+            token_expires_at=datetime(2027, 1, 1, tzinfo=UTC),
+        )
+        session.add(credential)
+        await session.flush()
+
+        # Track which runners are called
+        runner_calls: dict[str, list[date]] = {
+            "revenue": [],
+            "live": [],
+            "product": [],
+            "catalog": [],
+        }
+
+        async def mock_revenue_runner(**kwargs):
+            runner_calls["revenue"].append(kwargs["partition_date"])
+
+        async def mock_live_runner(**kwargs):
+            runner_calls["live"].append(kwargs["partition_date"])
+
+        async def mock_product_runner(**kwargs):
+            runner_calls["product"].append(kwargs["partition_date"])
+
+        async def mock_catalog_runner(**kwargs):
+            runner_calls["catalog"].append(kwargs["partition_date"])
+
+        # Patch all the runners
+        monkeypatch.setattr(
+            "juli_backend.services.analytics_backfill.orchestrator.backfill_revenue_partition",
+            mock_revenue_runner,
+        )
+        monkeypatch.setattr(
+            "juli_backend.services.analytics_backfill.orchestrator.run_live_partition",
+            mock_live_runner,
+        )
+        monkeypatch.setattr(
+            "juli_backend.services.analytics_backfill.orchestrator.backfill_product_partition",
+            mock_product_runner,
+        )
+        monkeypatch.setattr(
+            "juli_backend.services.analytics_backfill.orchestrator.run_catalog_partition",
+            mock_catalog_runner,
+        )
+
+        partition_date = date(2026, 3, 16)
+
+        # Call auto_topup for one day
+        result = await backfill_analytics_history_auto_topup(
+            session,
+            shop_id=shop.id,
+            start_date=partition_date,
+            end_date=partition_date,
+        )
+
+        # Verify each bucket's runner was called exactly once for the partition_date
+        assert runner_calls["revenue"] == [
+            partition_date,
+        ], f"revenue runner not called or called with wrong date: {runner_calls['revenue']}"
+        assert runner_calls["live"] == [partition_date], (
+            f"live runner not called or called with wrong date: {runner_calls['live']}"
+        )
+        assert runner_calls["product"] == [partition_date], (
+            f"product runner not called or called with wrong date: {runner_calls['product']}"
+        )
+        assert runner_calls["catalog"] == [partition_date], (
+            f"catalog runner not called or called with wrong date: {runner_calls['catalog']}"
+        )
+
+        # Verify result indicates all partitions completed
+        assert result.completed_partitions == 4, (
+            "expected 4 completed partitions (1 day x 4 buckets), got "
+            f"{result.completed_partitions}"
         )
