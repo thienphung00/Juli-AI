@@ -20,7 +20,12 @@ import Link from "next/link";
 
 import { sanitizeSellerReviewText } from "../lib/review-seller-copy";
 import { recommendationFixtures } from "../lib/recommendations";
+import {
+  type RepeatConsentSurface,
+  selectRepeatConsentSurfaces,
+} from "../lib/repeat-consent";
 import { useDemoState } from "./demo-state";
+import { RepeatConsentBlock } from "./repeat-consent-block";
 
 export const LIFECYCLE_STATUS_LABELS: Record<ExecutionLifecycleStatus, string> =
   {
@@ -172,11 +177,13 @@ export function getLifecycleChipVariant(
 interface ExecutionProgressCardProps {
   record: ExecutionRecord;
   onCancel: (executionId: string) => void;
+  repeatConsentSurface: RepeatConsentSurface | undefined;
 }
 
 function ExecutionProgressCard({
   record,
   onCancel,
+  repeatConsentSurface,
 }: ExecutionProgressCardProps) {
   const [expanded, setExpanded] = useState(false);
   const reactId = useId();
@@ -307,6 +314,12 @@ function ExecutionProgressCard({
             Hủy
           </Button>
         </div>
+
+        {/* Repeat consent — after the work is finished, never before */}
+        <RepeatConsentBlock
+          surface={repeatConsentSurface}
+          workflowKey={record.workflowKey}
+        />
       </CardBody>
     </Card>
   );
@@ -337,6 +350,14 @@ export function InProgressPanel({ panelId }: InProgressPanelProps) {
         new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
       );
     });
+
+  // One consent surface per workflow kind across the whole list, decided in
+  // display order — the frequency gate, applied once rather than per card.
+  const repeatConsentSurfaces = selectRepeatConsentSurfaces({
+    records: executionRecords,
+    promptedWorkflowKeys: mutableState.repeatConsentPromptedWorkflowKeys,
+    grants: mutableState.repeatConsentGrants,
+  });
 
   const handleCancelExecution = (executionId: string) => {
     // Dry-run only: mutate local execution records
@@ -376,6 +397,7 @@ export function InProgressPanel({ panelId }: InProgressPanelProps) {
             key={record.executionId}
             record={record}
             onCancel={handleCancelExecution}
+            repeatConsentSurface={repeatConsentSurfaces[record.executionId]}
           />
         ))}
       </div>
