@@ -2342,3 +2342,268 @@ RA-5:
     - web/
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
+
+# --- PRD #820 · Phase 0 pre-user zero-downtime delivery (#832–#844) ---
+# Delivery lives in infra/ + .github/workflows/, not in product code, so every rule
+# below excludes apps/ and backend/src/ unless the slice genuinely touches them.
+
+P0-DEL-ADR:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/adr/020-vps-ssh-continuous-delivery-and-secrets-manager.md
+    - docs/adr/README.md
+  requiredModules:
+    - docs/adr/
+  loadWhenNeeded:
+    - CONTEXT.md
+    - EXECUTION.md
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-VERIFY:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+  requiredModules:
+    - infra/scripts/verify-demo-static-assets.sh
+    - infra/scripts/smoke-test-demo.sh
+    - infra/scripts/smoke-test.sh
+  loadWhenNeeded:
+    - infra/scripts/deploy-demo-release.sh
+    - infra/nginx/
+    - docs/runbooks/app-review-runbook.md
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - docs/product/design/
+    - Sibling issue context caches
+
+P0-DEL-MIGGATE:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/027-database-migration-safety-pipeline.md
+    - docs/runbooks/backend-deploy-runbook.md
+  requiredModules:
+    - infra/scripts/safe_alembic_helpers.py
+    - infra/scripts/safe_alembic_compare.py
+    - infra/scripts/safe-alembic-upgrade.sh
+    - infra/scripts/safe-migrate-allowlist.txt
+    - tests/unit/test_safe_alembic_helpers.py
+  loadWhenNeeded:
+    - infra/scripts/safe-alembic-upgrade-local.sh
+    - infra/scripts/restore-drill.sh
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-SPIKE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/020-vps-ssh-continuous-delivery-and-secrets-manager.md
+    - docs/runbooks/app-review-runbook.md
+  requiredModules:
+    - infra/systemd/
+    - infra/scripts/deploy-demo-release.sh
+  loadWhenNeeded:
+    - infra/scripts/build-demo.sh
+    - infra/nginx/
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-PKG:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/020-vps-ssh-continuous-delivery-and-secrets-manager.md
+  requiredModules:
+    - infra/scripts/build-demo.sh
+    - infra/systemd/
+  loadWhenNeeded:
+    - apps/demo/next.config.ts
+    - apps/landing/next.config.ts
+    - docs/adr/
+  doNotLoad:
+    - backend/src/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-ARTIFACT:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/003-ai-native-cicd-policy.md
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+  requiredModules:
+    - .github/workflows/release.yml
+    - .github/workflows/pr.yml
+    - infra/scripts/build-demo.sh
+  loadWhenNeeded:
+    - infra/scripts/build-frontend-review.sh
+    - infra/scripts/verify-demo-static-assets.sh
+  doNotLoad:
+    - backend/src/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-CANDIDATE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/runbooks/app-review-runbook.md
+  requiredModules:
+    - infra/scripts/deploy-demo-release.sh
+    - infra/scripts/verify-demo-static-assets.sh
+    - infra/systemd/juli-demo.service
+  loadWhenNeeded:
+    - infra/scripts/safe-alembic-upgrade.sh
+    - infra/scripts/rollback-demo-release.sh
+    - infra/nginx/demo.app-juli.com.conf
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-SWITCH:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+  requiredModules:
+    - infra/nginx/
+    - infra/scripts/provision-nginx.sh
+    - infra/scripts/deploy-demo-release.sh
+  loadWhenNeeded:
+    - infra/systemd/
+    - docs/runbooks/app-review-runbook.md
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-ROLLBACK:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/runbooks/app-review-runbook.md
+  requiredModules:
+    - infra/scripts/rollback-demo-release.sh
+    - infra/scripts/rollback-release.sh
+    - .github/workflows/rollback.yml
+  loadWhenNeeded:
+    - infra/nginx/
+    - .github/workflows/uptime.yml
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-LANDING:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/020-vps-ssh-continuous-delivery-and-secrets-manager.md
+    - apps/landing/MODULE.md
+  requiredModules:
+    - infra/systemd/
+    - infra/nginx/
+    - apps/landing/package.json
+  loadWhenNeeded:
+    - infra/scripts/build-demo.sh
+    - infra/scripts/provision-frontend.sh
+    - apps/landing/next.config.ts
+  doNotLoad:
+    - backend/src/
+    - ios/
+    - apps/dashboard/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-CUTOVER:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/034-tiktok-business-oauth-redirect-urls.md
+    - docs/runbooks/app-review-runbook.md
+  requiredModules:
+    - infra/nginx/app-juli.com.conf
+    - infra/nginx/api.app-juli.com.conf
+    - infra/systemd/juli-web.service
+  loadWhenNeeded:
+    - .github/workflows/uptime.yml
+    - infra/scripts/provision-nginx.sh
+    - apps/dashboard/package.json
+  doNotLoad:
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_api/
+    - Sibling issue context caches
+
+P0-DEL-SLOTS:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+  requiredModules:
+    - infra/systemd/
+    - infra/nginx/
+    - infra/scripts/deploy-release.sh
+  loadWhenNeeded:
+    - infra/scripts/smoke-test.sh
+    - infra/scripts/rollback-release.sh
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - Sibling issue context caches
+
+P0-DEL-COMBINE:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/runbooks/app-review-runbook.md
+  requiredModules:
+    - infra/scripts/deploy-release.sh
+    - infra/scripts/deploy-demo-release.sh
+    - infra/scripts/safe-alembic-upgrade.sh
+  loadWhenNeeded:
+    - .github/workflows/release.yml
+    - infra/scripts/rollback-release.sh
+    - infra/scripts/rollback-demo-release.sh
+  doNotLoad:
+    - apps/
+    - backend/src/
+    - ios/
+    - docs/integrations/
+    - Sibling issue context caches
