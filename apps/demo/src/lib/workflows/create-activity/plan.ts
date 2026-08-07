@@ -1,4 +1,5 @@
 import { buildAnalyticsMetricHref } from "../../analytics/main-kpis";
+import { getPlanCaveats } from "../../plan-caveats";
 import { buildPlanImpact, type PlanReviewContent } from "../../plan-reviews";
 
 import { recommendationFixtures } from "../../recommendations";
@@ -53,6 +54,7 @@ export function getCreateActivityPlanReview(): PlanReviewContent {
       // The workflow's pre-authored reasoning from the shared fixture table —
       // revealed behind the question-labelled disclosure, sanitized at render.
       reasoning: createActivityFixture.reasoning,
+      caveats: getPlanCaveats(CREATE_ACTIVITY_WORKFLOW_KEY),
     },
     details: {
       detailLines: [

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanReviewCard } from "../components/plan-review-card";
 import {
   PLAN_REASONING_DISCLOSURE_QUESTION,
+  buildPlanImpact,
   type PlanReviewContent,
 } from "../lib/plan-reviews";
 import type { PlanCaveat } from "../lib/plan-caveats";
@@ -42,6 +43,7 @@ function buildPlan(caveats: PlanCaveat[]): PlanReviewContent {
       detailLines: ["Juli đang theo dõi một chương trình mẫu."],
       analyticsMetricHref: "/analytics/ctor",
     },
+    impact: buildPlanImpact("ctor"),
     decision: {
       proposal: "Juli đề xuất kết thúc chương trình mẫu.",
       reasoning: "Chương trình đã hết hiệu lực từ tuần trước.",
