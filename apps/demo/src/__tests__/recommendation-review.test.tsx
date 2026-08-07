@@ -512,20 +512,26 @@ describe("RecommendationReview routing between spine and five-stage review", () 
     mockStartExecution.mockClear();
   });
 
-  it("routes delete_activity_7b to the plan-review spine, not the five-stage review", () => {
-    renderReview("delete_activity_7b");
+  it("routes migrated workflows to the plan-review spine, not the five-stage review", () => {
+    for (const workflowKey of [
+      "delete_activity_7b",
+      OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+    ]) {
+      const { unmount } = renderReview(workflowKey);
 
-    expect(screen.getByTestId("plan-review-card")).toBeInTheDocument();
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Tiếp theo" }),
-    ).not.toBeInTheDocument();
+      expect(screen.getByTestId("plan-review-card")).toBeInTheDocument();
+      expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Tiếp theo" }),
+      ).not.toBeInTheDocument();
+
+      unmount();
+    }
   });
 
   it("keeps every other workflow on the five-stage review", () => {
     for (const workflowKey of [
       CREATE_HERO_PRODUCT_WORKFLOW_KEY,
-      OPTIMIZE_PRODUCT_WORKFLOW_KEY,
       "replenish_inventory_3",
       "clear_excess_4",
       "process_order_5",
@@ -542,192 +548,6 @@ describe("RecommendationReview routing between spine and five-stage review", () 
       expect(getWorkflowReviewStages(workflowKey)).toHaveLength(5);
 
       unmount();
-    }
-  });
-});
-
-describe("RecommendationReview with option-list fields (optimize_product_2)", () => {
-  beforeEach(() => {
-    workflowReviewDrafts = {};
-    mockStateListeners.clear();
-    push.mockClear();
-    mockStartExecution.mockClear();
-    vi.mocked(useRouter).mockReturnValue({
-      back: vi.fn(),
-      forward: vi.fn(),
-      prefetch: vi.fn(),
-      push,
-      refresh: vi.fn(),
-      replace: vi.fn(),
-    });
-  });
-
-  it("renders option-list fields with select elements showing recommendation options", async () => {
-    const user = userEvent.setup();
-    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-    const inputsStage = stages.find((stage) => stage.stage === "inputs");
-    expect(inputsStage).toBeDefined();
-
-    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
-
-    if (inputsStage) {
-      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const seoTitleSelect = screen.getByRole("combobox", {
-        name: "Tiêu đề SEO",
-      });
-      const seoDescriptionSelect = screen.getByRole("combobox", {
-        name: "Mô tả SEO",
-      });
-
-      expect(seoTitleSelect).toBeInTheDocument();
-      expect(seoDescriptionSelect).toBeInTheDocument();
-    }
-  });
-
-  it("pre-selects the proposed option for option-list fields with suggestion badge", async () => {
-    const user = userEvent.setup();
-    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-    const inputsStage = stages.find((stage) => stage.stage === "inputs");
-    expect(inputsStage).toBeDefined();
-
-    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
-
-    if (inputsStage) {
-      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const seoTitleSelect = screen.getByRole("combobox", {
-        name: "Tiêu đề SEO",
-      });
-
-      expect(seoTitleSelect).toHaveValue(
-        "Son môi lì cao cấp số 12 — màu đỏ ruby"
-      );
-
-      const suggestionBadges = screen.getAllByText("Gợi ý bởi Juli");
-      expect(suggestionBadges.length).toBeGreaterThanOrEqual(2);
-    }
-  });
-
-  it("allows selecting an alternative option from the option-list", async () => {
-    const user = userEvent.setup();
-    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-    const inputsStage = stages.find((stage) => stage.stage === "inputs");
-    expect(inputsStage).toBeDefined();
-
-    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
-
-    if (inputsStage) {
-      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const seoTitleSelect = screen.getByRole("combobox", {
-        name: "Tiêu đề SEO",
-      });
-
-      expect(seoTitleSelect).toHaveValue(
-        "Son môi lì cao cấp số 12 — màu đỏ ruby"
-      );
-
-      const alternativeValue = "Serum môi cao cấp số 12 màu đỏ ruby";
-      await user.clear(seoTitleSelect);
-      await user.type(seoTitleSelect, alternativeValue);
-
-      expect(seoTitleSelect).toHaveValue(alternativeValue);
-    }
-  });
-
-  it("persists selected option value across stage navigation for option-list fields", async () => {
-    const user = userEvent.setup();
-    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-    const inputsStage = stages.find((stage) => stage.stage === "inputs");
-    const previewStage = stages.find((stage) => stage.stage === "preview");
-    expect(inputsStage).toBeDefined();
-    expect(previewStage).toBeDefined();
-
-    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
-
-    if (inputsStage && previewStage) {
-      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const seoTitleSelect = screen.getByRole("combobox", {
-        name: "Tiêu đề SEO",
-      });
-
-      const alternativeValue = "Màu đỏ ruby nước hoa son cao cấp";
-      await user.clear(seoTitleSelect);
-      await user.type(seoTitleSelect, alternativeValue);
-
-      await advanceToStage(user, previewStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const summary = screen.getByTestId("review-draft-summary");
-      expect(summary).toHaveTextContent(alternativeValue);
-
-      await user.click(screen.getByRole("button", { name: "Quay lại" }));
-
-      const seoTitleSelectAfter = screen.getByRole("combobox", {
-        name: "Tiêu đề SEO",
-      });
-      expect(seoTitleSelectAfter).toHaveValue(alternativeValue);
-    }
-  });
-
-  it("provides custom input option for non-option-list fields", async () => {
-    const user = userEvent.setup();
-    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-    const inputsStage = stages.find((stage) => stage.stage === "inputs");
-    expect(inputsStage).toBeDefined();
-
-    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
-
-    if (inputsStage) {
-      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const priceInput = screen.getByRole("textbox", {
-        name: "Giá bán (T9)",
-      });
-
-      expect(priceInput).toBeInTheDocument();
-      expect(priceInput).toHaveValue("159.000 ₫");
-
-      await user.clear(priceInput);
-      await user.type(priceInput, "199.000 ₫");
-
-      expect(priceInput).toHaveValue("199.000 ₫");
-    }
-  });
-
-  it("allows custom value not in options to persist to preview for option-list fields", async () => {
-    const user = userEvent.setup();
-    const stages = getWorkflowReviewStages(OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-    const inputsStage = stages.find((stage) => stage.stage === "inputs");
-    const previewStage = stages.find((stage) => stage.stage === "preview");
-    expect(inputsStage).toBeDefined();
-    expect(previewStage).toBeDefined();
-
-    render(<RecommendationReview workflowKey={OPTIMIZE_PRODUCT_WORKFLOW_KEY} />);
-
-    if (inputsStage && previewStage) {
-      await advanceToStage(user, inputsStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const seoTitleCombobox = screen.getByRole("combobox", {
-        name: "Tiêu đề SEO",
-      });
-
-      const customTitle = "Tiêu đề tùy chỉnh của tôi mà không có trong danh sách đề xuất";
-      await user.clear(seoTitleCombobox);
-      await user.type(seoTitleCombobox, customTitle);
-
-      await advanceToStage(user, previewStage.title, OPTIMIZE_PRODUCT_WORKFLOW_KEY);
-
-      const summary = screen.getByTestId("review-draft-summary");
-      expect(summary).toHaveTextContent(customTitle);
-
-      await user.click(screen.getByRole("button", { name: "Quay lại" }));
-
-      const seoTitleAfter = screen.getByRole("combobox", {
-        name: "Tiêu đề SEO",
-      });
-      expect(seoTitleAfter).toHaveValue(customTitle);
     }
   });
 });

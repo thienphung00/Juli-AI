@@ -36,9 +36,12 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
   const router = useRouter();
   const { startExecution } = useDemoState();
   const [situationOpen, setSituationOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [approveGateOpen, setApproveGateOpen] = useState(false);
   const titleId = useId();
   const situationDetailId = useId();
+  const decisionOptionsId = useId();
+  const recommendedOptions = plan.decision.recommendedOptions;
 
   const handleApproveConfirm = () => {
     const executionId = startExecution(plan.workflowKey);
@@ -88,6 +91,51 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
         </CardHeader>
         <CardBody className="demo-plan__decision" data-testid="plan-decision">
           <p>{plan.decision.proposal}</p>
+          {recommendedOptions ? (
+            <>
+              <button
+                aria-controls={decisionOptionsId}
+                aria-expanded={optionsOpen}
+                className="demo-plan__summary-row"
+                onClick={() => setOptionsOpen((open) => !open)}
+                type="button"
+              >
+                <span className="demo-plan__summary-question">
+                  {recommendedOptions.disclosureQuestion}
+                </span>
+                <span aria-hidden="true" className="demo-plan__summary-chevron">
+                  ›
+                </span>
+              </button>
+              {optionsOpen ? (
+                <div
+                  className="demo-plan__decision-options"
+                  data-testid="plan-decision-options"
+                  id={decisionOptionsId}
+                >
+                  {recommendedOptions.groups.map((group) => (
+                    <div key={group.label}>
+                      <p className="demo-plan__option-group-label">
+                        {group.label}
+                      </p>
+                      <ul className="demo-plan__option-list">
+                        {group.options.map((option) => (
+                          <li key={option.value.slice(0, 48)}>
+                            {option.value}
+                            {option.proposed ? (
+                              <span className="demo-plan__option-proposed">
+                                Gợi ý bởi Juli
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </CardBody>
         {plan.details ? (
           <CardBody className="demo-plan__details" data-testid="plan-details">
