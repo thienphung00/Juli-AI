@@ -518,6 +518,7 @@ describe("RecommendationReview routing between spine and five-stage review", () 
       OPTIMIZE_PRODUCT_WORKFLOW_KEY,
       "create_activity_7a",
       "update_activity_7c",
+      "process_order_5",
     ]) {
       const { unmount } = renderReview(workflowKey);
 
@@ -536,7 +537,6 @@ describe("RecommendationReview routing between spine and five-stage review", () 
       CREATE_HERO_PRODUCT_WORKFLOW_KEY,
       "replenish_inventory_3",
       "clear_excess_4",
-      "process_order_5",
       "prevent_cancellation_8a",
       "prevent_return_8b",
       "prevent_refund_8c",

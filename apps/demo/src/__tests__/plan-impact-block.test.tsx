@@ -24,6 +24,8 @@ import { DELETE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/delete-activity";
 import { getDeleteActivityPlanReview } from "../lib/workflows/delete-activity/plan";
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/optimize-product";
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
+import { PROCESS_ORDER_WORKFLOW_KEY } from "../lib/workflows/process-order";
+import { getProcessOrderPlanReview } from "../lib/workflows/process-order/plan";
 import { UPDATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/update-activity";
 import { getUpdateActivityPlanReview } from "../lib/workflows/update-activity/plan";
 import { confirmApproveThroughGate } from "./review-test-helpers";
@@ -57,6 +59,10 @@ const IMPACT_WORKFLOWS: ImpactTableEntry[] = [
   {
     workflowKey: UPDATE_ACTIVITY_WORKFLOW_KEY,
     getPlan: getUpdateActivityPlanReview,
+  },
+  {
+    workflowKey: PROCESS_ORDER_WORKFLOW_KEY,
+    getPlan: getProcessOrderPlanReview,
   },
 ];
 

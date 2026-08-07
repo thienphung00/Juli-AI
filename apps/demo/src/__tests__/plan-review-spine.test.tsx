@@ -20,6 +20,8 @@ import { getDeleteActivityPlanReview } from "../lib/workflows/delete-activity/pl
 import { DELETE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/delete-activity";
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/optimize-product";
+import { getProcessOrderPlanReview } from "../lib/workflows/process-order/plan";
+import { PROCESS_ORDER_WORKFLOW_KEY } from "../lib/workflows/process-order";
 import { getUpdateActivityPlanReview } from "../lib/workflows/update-activity/plan";
 import { UPDATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/update-activity";
 import { confirmApproveThroughGate } from "./review-test-helpers";
@@ -51,6 +53,10 @@ const SPINE_WORKFLOWS: SpineTableEntry[] = [
   {
     workflowKey: UPDATE_ACTIVITY_WORKFLOW_KEY,
     getPlan: getUpdateActivityPlanReview,
+  },
+  {
+    workflowKey: PROCESS_ORDER_WORKFLOW_KEY,
+    getPlan: getProcessOrderPlanReview,
   },
 ];
 

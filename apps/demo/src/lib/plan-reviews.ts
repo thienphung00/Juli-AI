@@ -15,6 +15,10 @@ import {
   getOptimizeProductPlanReview,
 } from "./workflows/optimize-product";
 import {
+  PROCESS_ORDER_WORKFLOW_KEY,
+  getProcessOrderPlanReview,
+} from "./workflows/process-order";
+import {
   UPDATE_ACTIVITY_WORKFLOW_KEY,
   getUpdateActivityPlanReview,
 } from "./workflows/update-activity";
@@ -169,6 +173,10 @@ export function getWorkflowPlanReview(
       return getDeleteActivityPlanReview();
     case OPTIMIZE_PRODUCT_WORKFLOW_KEY:
       return getOptimizeProductPlanReview();
+    case PROCESS_ORDER_WORKFLOW_KEY:
+      // Defaults to the branch Juli pre-commits to; the plan is a pure
+      // function of the discriminator (ADR-055 item 8).
+      return getProcessOrderPlanReview();
     case UPDATE_ACTIVITY_WORKFLOW_KEY:
       return getUpdateActivityPlanReview();
     default:

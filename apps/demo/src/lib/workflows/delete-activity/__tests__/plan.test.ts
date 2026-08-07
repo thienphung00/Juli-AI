@@ -92,7 +92,6 @@ describe("getWorkflowPlanReview routing", () => {
       "create_hero_product_1",
       "replenish_inventory_3",
       "clear_excess_4",
-      "process_order_5",
       "prevent_cancellation_8a",
       "prevent_return_8b",
       "prevent_refund_8c",
