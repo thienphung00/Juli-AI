@@ -1563,3 +1563,54 @@ a {
 .execution-card__actions button {
   min-height: var(--juli-touch-target);
 }
+
+/* Repeat consent — asked only after finished work, once per workflow kind */
+.repeat-consent {
+  margin: var(--juli-space-4) 0 0;
+  padding: var(--juli-space-4);
+  border-radius: var(--juli-radius-medium);
+  border: 1px solid var(--juli-border);
+  background: color-mix(in srgb, var(--juli-background) 65%, var(--juli-surface));
+}
+
+.repeat-consent--granted {
+  border-color: color-mix(in srgb, var(--juli-success) 45%, var(--juli-border));
+  background: var(--juli-success-tint);
+}
+
+.repeat-consent__title {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.repeat-consent__body {
+  margin: var(--juli-space-2) 0 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+.repeat-consent--withdrawn .repeat-consent__body {
+  margin: 0;
+}
+
+.repeat-consent__terms {
+  margin: var(--juli-space-3) 0 0;
+  padding-inline-start: var(--juli-space-5);
+  display: grid;
+  gap: var(--juli-space-2);
+  color: var(--juli-foreground);
+  line-height: 1.6;
+}
+
+.repeat-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-3);
+  margin: var(--juli-space-4) 0 0;
+}
+
+.repeat-consent__actions button {
+  min-height: var(--juli-touch-target);
+}

@@ -24,7 +24,9 @@ import {
   getWorkflowTitle,
 } from "../../../../components/in-progress-panel";
 import { useDemoState } from "../../../../components/demo-state";
+import { RepeatConsentBlock } from "../../../../components/repeat-consent-block";
 import { getWorkflowReviewStages } from "../../../../lib/reviews";
+import { selectRepeatConsentSurfaces } from "../../../../lib/repeat-consent";
 import { sanitizeSellerReviewText } from "../../../../lib/review-seller-copy";
 
 function getApprovedInputLabel(
@@ -98,6 +100,12 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
       : lifecycleStatus === "needs_input"
         ? "warning"
         : "live";
+
+  const repeatConsentSurface = selectRepeatConsentSurfaces({
+    records: [record],
+    promptedWorkflowKeys: mutableState.repeatConsentPromptedWorkflowKeys,
+    grants: mutableState.repeatConsentGrants,
+  })[record.executionId];
 
   const handleCancel = () => {
     updateMutableState((prev) => {
@@ -224,6 +232,12 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
                 Hủy
               </Button>
             </div>
+
+            {/* Repeat consent — after the work is finished, never before */}
+            <RepeatConsentBlock
+              surface={repeatConsentSurface}
+              workflowKey={record.workflowKey}
+            />
           </CardBody>
         </Card>
 
