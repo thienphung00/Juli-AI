@@ -118,10 +118,10 @@ describe("getWorkflowPlanReview routing", () => {
     expect(getWorkflowPlanReview(DELETE_ACTIVITY_WORKFLOW_KEY)).not.toBeNull();
 
     // Migrated by later rollout slices, so no longer expected to be null:
-    // optimize_product_2 (#765), replenish_inventory_3 / clear_excess_4 (#766).
+    // optimize_product_2 (#765), replenish_inventory_3 / clear_excess_4 (#766),
+    // process_order_5 (#767).
     for (const otherKey of [
       "create_hero_product_1",
-      "process_order_5",
       "prevent_cancellation_8a",
       "prevent_return_8b",
       "prevent_refund_8c",
