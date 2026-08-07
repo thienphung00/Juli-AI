@@ -33,6 +33,12 @@ import { getReplenishInventoryPlanReview } from "../lib/workflows/replenish-inve
 import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
 import { getClearExcessPlanReview } from "../lib/workflows/clear-excess/plan";
 import { CLEAR_EXCESS_WORKFLOW_KEY } from "../lib/workflows/clear-excess";
+import { getPreventCancellationPlanReview } from "../lib/workflows/prevent-cancellation/plan";
+import { PREVENT_CANCELLATION_WORKFLOW_KEY } from "../lib/workflows/prevent-cancellation";
+import { getPreventReturnPlanReview } from "../lib/workflows/prevent-return/plan";
+import { PREVENT_RETURN_WORKFLOW_KEY } from "../lib/workflows/prevent-return";
+import { getPreventRefundPlanReview } from "../lib/workflows/prevent-refund/plan";
+import { PREVENT_REFUND_WORKFLOW_KEY } from "../lib/workflows/prevent-refund";
 import { confirmApproveThroughGate } from "./review-test-helpers";
 
 /**
@@ -74,6 +80,18 @@ const SPINE_WORKFLOWS: SpineTableEntry[] = [
   {
     workflowKey: PROCESS_ORDER_WORKFLOW_KEY,
     getPlan: getProcessOrderPlanReview,
+  },
+  {
+    workflowKey: PREVENT_CANCELLATION_WORKFLOW_KEY,
+    getPlan: getPreventCancellationPlanReview,
+  },
+  {
+    workflowKey: PREVENT_RETURN_WORKFLOW_KEY,
+    getPlan: getPreventReturnPlanReview,
+  },
+  {
+    workflowKey: PREVENT_REFUND_WORKFLOW_KEY,
+    getPlan: getPreventRefundPlanReview,
   },
 ];
 

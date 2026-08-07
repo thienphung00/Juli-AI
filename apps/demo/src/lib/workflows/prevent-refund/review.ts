@@ -10,6 +10,13 @@ import {
 export const PREVENT_REFUND_WORKFLOW_KEY = "prevent_refund_8c";
 export const PREVENT_REFUND_TOOL_NAME = "returns.prevent_refund";
 
+/**
+ * The Main KPI this workflow's decision is tied to — GMV (ADR-055 item 15).
+ * A refund decided on time settles revenue that would otherwise escalate into
+ * a dispute; nothing new is mapped here.
+ */
+export const defaultPreventRefundAnalyticsMetricKey = "gmv-tiktok";
+
 const preventRefundFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === PREVENT_REFUND_WORKFLOW_KEY,
 );
@@ -35,7 +42,7 @@ export function buildPreventRefundReviewInputDefaults(): Record<string, string> 
 }
 
 export function getPreventRefundReviewStages(
-  analyticsMetricKey = "gmv-tiktok",
+  analyticsMetricKey = defaultPreventRefundAnalyticsMetricKey,
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 

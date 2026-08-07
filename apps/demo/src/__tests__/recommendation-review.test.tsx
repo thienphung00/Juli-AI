@@ -305,17 +305,9 @@ describe("RecommendationReview", () => {
     );
   });
 
-  it("renders review stages for prevent_cancellation_8a", () => {
-    const stages = getWorkflowReviewStages("prevent_cancellation_8a");
-    expect(stages).toHaveLength(5);
-
-    renderReview("prevent_cancellation_8a");
-
-    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
-      stages[0].title,
-    );
-  });
-
+  // The five-stage journey test for prevent_cancellation_8a was superseded by
+  // the plan-review spine rollout (#769); the routing describe below asserts
+  // the spine instead. `process_order_5` still covers the five-stage path.
   it("exposes a navigable analytics deep link on the Analytics stage", async () => {
     const user = userEvent.setup();
     const analytics = getWorkflowReviewStages(
@@ -519,6 +511,9 @@ describe("RecommendationReview routing between spine and five-stage review", () 
       "create_activity_7a",
       "update_activity_7c",
       "process_order_5",
+      "prevent_cancellation_8a",
+      "prevent_return_8b",
+      "prevent_refund_8c",
     ]) {
       const { unmount } = renderReview(workflowKey);
 
@@ -533,15 +528,9 @@ describe("RecommendationReview routing between spine and five-stage review", () 
   });
 
   it("keeps every other workflow on the five-stage review", () => {
-    // Inventory moved onto the spine in #766 (replenish_inventory_3,
-    // clear_excess_4) and Orders in #767 (process_order_5), so none of them
-    // are listed here any more.
-    for (const workflowKey of [
-      CREATE_HERO_PRODUCT_WORKFLOW_KEY,
-      "prevent_cancellation_8a",
-      "prevent_return_8b",
-      "prevent_refund_8c",
-    ]) {
+    // Ten of the eleven workflows have moved onto the spine across #765–#769.
+    // create_hero_product_1 is the only one still on the five-stage review.
+    for (const workflowKey of [CREATE_HERO_PRODUCT_WORKFLOW_KEY]) {
       const { unmount } = renderReview(workflowKey);
 
       expect(screen.queryByTestId("plan-review-card")).not.toBeInTheDocument();

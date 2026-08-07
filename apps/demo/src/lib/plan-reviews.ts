@@ -32,6 +32,18 @@ import {
   CLEAR_EXCESS_WORKFLOW_KEY,
   getClearExcessPlanReview,
 } from "./workflows/clear-excess";
+import {
+  PREVENT_CANCELLATION_WORKFLOW_KEY,
+  getPreventCancellationPlanReview,
+} from "./workflows/prevent-cancellation";
+import {
+  PREVENT_RETURN_WORKFLOW_KEY,
+  getPreventReturnPlanReview,
+} from "./workflows/prevent-return";
+import {
+  PREVENT_REFUND_WORKFLOW_KEY,
+  getPreventRefundPlanReview,
+} from "./workflows/prevent-refund";
 
 /**
  * Decision plan review — the Situation → Decision → Details spine (ADR-055
@@ -202,6 +214,12 @@ export function getWorkflowPlanReview(
       return getReplenishInventoryPlanReview();
     case CLEAR_EXCESS_WORKFLOW_KEY:
       return getClearExcessPlanReview();
+    case PREVENT_CANCELLATION_WORKFLOW_KEY:
+      return getPreventCancellationPlanReview();
+    case PREVENT_RETURN_WORKFLOW_KEY:
+      return getPreventReturnPlanReview();
+    case PREVENT_REFUND_WORKFLOW_KEY:
+      return getPreventRefundPlanReview();
     default:
       return null;
   }

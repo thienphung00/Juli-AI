@@ -10,6 +10,13 @@ import {
 export const PREVENT_CANCELLATION_WORKFLOW_KEY = "prevent_cancellation_8a";
 export const PREVENT_CANCELLATION_TOOL_NAME = "returns.prevent_cancellation";
 
+/**
+ * The Main KPI this workflow's decision is tied to — GMV (ADR-055 item 15).
+ * Deciding a cancellation before the deadline is what keeps or releases the
+ * order's revenue; nothing new is mapped here.
+ */
+export const defaultPreventCancellationAnalyticsMetricKey = "gmv-tiktok";
+
 const preventCancellationFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === PREVENT_CANCELLATION_WORKFLOW_KEY,
 );
@@ -36,7 +43,7 @@ export function buildPreventCancellationReviewInputDefaults(): Record<
 }
 
 export function getPreventCancellationReviewStages(
-  analyticsMetricKey = "gmv-tiktok",
+  analyticsMetricKey = defaultPreventCancellationAnalyticsMetricKey,
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 

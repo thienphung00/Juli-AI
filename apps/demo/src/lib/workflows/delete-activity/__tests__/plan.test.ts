@@ -119,13 +119,10 @@ describe("getWorkflowPlanReview routing", () => {
 
     // Migrated by later rollout slices, so no longer expected to be null:
     // optimize_product_2 (#765), replenish_inventory_3 / clear_excess_4 (#766),
-    // process_order_5 (#767).
-    for (const otherKey of [
-      "create_hero_product_1",
-      "prevent_cancellation_8a",
-      "prevent_return_8b",
-      "prevent_refund_8c",
-    ]) {
+    // create_activity_7a / update_activity_7c (#768), process_order_5 (#767),
+    // and the Returns trio prevent_cancellation_8a / prevent_return_8b /
+    // prevent_refund_8c (#769). Only create_hero_product_1 is left unmigrated.
+    for (const otherKey of ["create_hero_product_1"]) {
       expect(getWorkflowPlanReview(otherKey)).toBeNull();
     }
   });
