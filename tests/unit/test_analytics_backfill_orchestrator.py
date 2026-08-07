@@ -472,17 +472,35 @@ class TestAnalyticsBackfillAutoTopup:
             "catalog": [],
         }
 
-        async def mock_revenue_runner(**kwargs):
-            runner_calls["revenue"].append(kwargs["partition_date"])
+        # Fakes bind against the REAL signatures, so a dispatcher that passes a
+        # keyword the runner does not accept fails here instead of at runtime.
+        # Plain **kwargs fakes swallow that mismatch and prove only routing.
+        import inspect
 
-        async def mock_live_runner(**kwargs):
-            runner_calls["live"].append(kwargs["partition_date"])
+        from juli_backend.services.analytics_backfill.catalog_partition import (
+            run_catalog_partition as _real_catalog,
+        )
+        from juli_backend.services.analytics_backfill.live_partition import (
+            run_live_partition as _real_live,
+        )
+        from juli_backend.services.analytics_backfill.product_partition import (
+            backfill_product_partition as _real_product,
+        )
+        from juli_backend.services.analytics_backfill.revenue_partition import (
+            backfill_revenue_partition as _real_revenue,
+        )
 
-        async def mock_product_runner(**kwargs):
-            runner_calls["product"].append(kwargs["partition_date"])
+        def _signature_checked(bucket: str, real_fn):
+            async def _fake(*args, **kwargs):
+                inspect.signature(real_fn).bind(*args, **kwargs)
+                runner_calls[bucket].append(kwargs["partition_date"])
 
-        async def mock_catalog_runner(**kwargs):
-            runner_calls["catalog"].append(kwargs["partition_date"])
+            return _fake
+
+        mock_revenue_runner = _signature_checked("revenue", _real_revenue)
+        mock_live_runner = _signature_checked("live", _real_live)
+        mock_product_runner = _signature_checked("product", _real_product)
+        mock_catalog_runner = _signature_checked("catalog", _real_catalog)
 
         # Patch all the runners
         monkeypatch.setattr(
