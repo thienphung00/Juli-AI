@@ -170,3 +170,62 @@ def test_buyer_pii_keys_stripped_from_masked_payload() -> None:
     assert "+84901234567" not in serialized
     assert "buyer_email" not in masked.get("identity", {})
     assert "buyer_phone" not in masked.get("identity", {})
+
+
+def test_all_five_demo_main_kpis_survive_masking_with_values() -> None:
+    """All five ADR-049 KPIs must reach the public Demo intact.
+
+    Masking currently rewrites identity and shop_id and strips meta, leaving
+    payload.kpis untouched — so this passes today. It is pinned because the
+    obvious future change to an unauthenticated endpoint is a key allowlist,
+    and an allowlist written against the three KPIs that worked before #789
+    would silently drop ctor and live_hours. The Demo would quietly show 3/5
+    again with nothing failing.
+    """
+    from juli_backend.services.analytics_kpi_masking.mask import (
+        mask_public_analytics_envelope,
+    )
+    from juli_backend.services.gold_kpi_envelope_contract import (
+        DEMO_MAIN_KPI_METRIC_IDS,
+    )
+
+    envelope = {
+        "envelope_version": 1,
+        "kind": "analytics",
+        "shop_id": str(uuid.uuid4()),
+        "computed_at": "2026-08-07T01:00:00+00:00",
+        "currency": "VND",
+        "identity": {"shop_display_name": "Fujiwa Vietnam Store"},
+        "kpis": {
+            "gmv_tiktok": {
+                "availability": "available",
+                "label": "GMV (TikTok)",
+                "value": 172945097.0,
+            },
+            "aov": {"availability": "available", "label": "AOV", "value": 209884.8264563107},
+            "ctor": {"availability": "available", "label": "CTOR (click→đơn)", "value": 0.0833},
+            "live_hours": {"availability": "available", "label": "LIVE hours", "value": 1899.4},
+            "cancellation_rate": {
+                "availability": "available",
+                "label": "Cancellation rate",
+                "value": 0.176,
+            },
+        },
+        "meta": {
+            "source_partitions": ["silver.orders"],
+            "notes": ["A1 five-KPI precompute (#630)"],
+        },
+    }
+
+    masked = mask_public_analytics_envelope(envelope)
+
+    # Every locked metric id is still present
+    assert set(masked["kpis"]) == set(DEMO_MAIN_KPI_METRIC_IDS)
+
+    # Availability and magnitude are preserved for each
+    for metric_id in DEMO_MAIN_KPI_METRIC_IDS:
+        assert masked["kpis"][metric_id]["availability"] == "available", metric_id
+        assert masked["kpis"][metric_id]["value"] == envelope["kpis"][metric_id]["value"], metric_id
+
+    # meta is still stripped (#633) — this test must not weaken that
+    assert "meta" not in masked

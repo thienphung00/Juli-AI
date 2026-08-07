@@ -347,3 +347,96 @@ def test_scope_excludes_demo_ui_and_partner() -> None:
     for rel in touched:
         assert (repo_root / rel).is_file(), rel
         assert "apps/demo" not in rel
+
+
+@pytest.mark.asyncio
+async def test_kpis_ignore_non_target_grains_from_real_data_shape(session, shop, user_id) -> None:
+    """Grain filtering must hold against the real four-grain data shape.
+
+    The 2026-07-30 dump being restored under #789 contains four grains for the
+    reference shop: product (4,424 rows, click_order_rate populated), live
+    (1,982), shop (128, live_hours populated) and catalog_daily (128).
+
+    live_hours must sum ONLY shop-grain rows and ctor must weight ONLY
+    product-grain rows. A regression that broadened either filter would double
+    count live sessions into LIVE hours, or fold NULL-rate rows into the CTOR
+    denominator — both producing a plausible-looking but wrong number rather
+    than an obvious failure.
+    """
+    from decimal import Decimal
+
+    from juli_backend.models.models import AnalyticsPerformanceInterval
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    day = datetime(2026, 3, 17, tzinfo=UTC).date()
+    rows = [
+        # shop grain — the only legitimate source of live_hours
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:shop:{day}",
+            grain="shop",
+            start_date=day,
+            end_date=day,
+            gmv=Decimal("6114649.00"),
+            live_hours=Decimal("12.3289"),
+            live_sessions=8,
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        # live grain — per-session rows that also carry live_hours. Counting
+        # these would double count against the shop-grain rollup.
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:live:{day}:a",
+            grain="live",
+            start_date=day,
+            end_date=day,
+            live_hours=Decimal("5.5"),
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        # product grain — the only legitimate source of ctor
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:product:{day}:p1",
+            grain="product",
+            start_date=day,
+            end_date=day,
+            gmv=Decimal("100.00"),
+            click_order_rate=Decimal("0.05"),
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:product:{day}:p2",
+            grain="product",
+            start_date=day,
+            end_date=day,
+            gmv=Decimal("200.00"),
+            click_order_rate=Decimal("0.10"),
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        # catalog_daily — carries neither KPI's inputs; must be ignored
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:catalog_daily:{day}",
+            grain="catalog_daily",
+            start_date=day,
+            end_date=day,
+            active_products=42,
+            new_products=3,
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+    ]
+    session.add_all(rows)
+    await session.flush()
+
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # Only the shop-grain 12.3289 — not 17.8289 with the live-grain row folded in
+    assert payload["kpis"]["live_hours"]["availability"] == "available"
+    assert payload["kpis"]["live_hours"]["value"] == pytest.approx(12.3289)
+
+    # Only product-grain: (100*0.05 + 200*0.10) / 300
+    assert payload["kpis"]["ctor"]["availability"] == "available"
+    assert payload["kpis"]["ctor"]["value"] == pytest.approx((100 * 0.05 + 200 * 0.10) / 300)
