@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  getPlanCaveats,
+  getReasoningCaveats,
+  getReassuranceCaveats,
+} from "../../../plan-caveats";
 import { recommendationFixtures } from "../../../recommendations";
 import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import { getWorkflowPlanReview } from "../../../plan-reviews";
@@ -27,10 +32,26 @@ function collectPlanStrings(): string[] {
     plan.situation.disclosureQuestion,
     ...plan.situation.detailLines,
     ...optionStrings,
+    ...plan.decision.caveats.map((caveat) => caveat.text),
   ];
 }
 
 describe("getOptimizeProductPlanReview", () => {
+  it("carries only the hidden undefined-threshold caveat — nothing reaches the seller", () => {
+    const plan = getOptimizeProductPlanReview();
+
+    expect(plan.decision.caveats).toEqual(
+      getPlanCaveats(OPTIMIZE_PRODUCT_WORKFLOW_KEY),
+    );
+    expect(
+      plan.decision.caveats.map((caveat) => caveat.caveatClass),
+    ).toEqual(["threshold-undefined"]);
+    expect(getReasoningCaveats(OPTIMIZE_PRODUCT_WORKFLOW_KEY)).toHaveLength(0);
+    expect(getReassuranceCaveats(OPTIMIZE_PRODUCT_WORKFLOW_KEY)).toHaveLength(
+      0,
+    );
+  });
+
   it("returns the Situation → Decision spine with no Details section", () => {
     const plan = getOptimizeProductPlanReview();
 

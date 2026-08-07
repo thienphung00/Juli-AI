@@ -11,6 +11,11 @@ import {
   type PlanReviewContent,
 } from "../lib/plan-reviews";
 import {
+  PLAN_CAVEAT_CLASSES,
+  getPlanCaveats,
+  selectPlanCaveats,
+} from "../lib/plan-caveats";
+import {
   REVIEW_UI_BANNED_PATTERNS,
   sanitizeSellerReviewText,
 } from "../lib/review-seller-copy";
@@ -487,5 +492,127 @@ describe.each(SPINE_WORKFLOWS)(
         screen.getByRole("link", { name: "Về danh sách đề xuất" }),
       ).toHaveAttribute("href", `/decisions?highlight=${workflowKey}`);
     });
+
+    // Typed caveat classes (ADR-055 item 10). Every plan carries its caveats
+    // typed, so the card applies a per-class rule instead of judging strings.
+    const caveats = plan.decision.caveats;
+    const hiddenCaveats = [
+      ...selectPlanCaveats(caveats, "threshold-undefined"),
+      ...selectPlanCaveats(caveats, "fulfilment-unsupported"),
+    ];
+    const gapCaveats = selectPlanCaveats(caveats, "feature-unavailable");
+    const trustCaveats = selectPlanCaveats(caveats, "reassurance");
+
+    it("carries its caveats typed, never as a concatenated blob", () => {
+      // Sourced from the shared classification, not parsed out of the string.
+      expect(caveats).toEqual(getPlanCaveats(workflowKey));
+      expect(caveats.length).toBeGreaterThan(0);
+      for (const caveat of caveats) {
+        expect(caveat.text.trim().length).toBeGreaterThan(0);
+        expect(PLAN_CAVEAT_CLASSES).toContain(caveat.caveatClass);
+      }
+      // Every workflow carries the undefined-threshold caveat, which is why it
+      // discriminates nothing and is hidden.
+      expect(
+        selectPlanCaveats(caveats, "threshold-undefined").length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("never renders the concatenated known-limits blob", async () => {
+      const user = userEvent.setup();
+
+      renderSpine();
+
+      expect(fixture?.knownLimits).toBeTruthy();
+      expect(screen.queryByText(fixture!.knownLimits)).not.toBeInTheDocument();
+
+      await user.click(getSituationRow());
+      await user.click(getReasoningRow());
+
+      expect(screen.queryByText(fixture!.knownLimits)).not.toBeInTheDocument();
+    });
+
+    it("renders the hidden caveat classes nowhere, resting or fully expanded", async () => {
+      const user = userEvent.setup();
+
+      renderSpine();
+
+      const card = screen.getByTestId("plan-review-card");
+      for (const caveat of hiddenCaveats) {
+        expect(card.textContent ?? "").not.toContain(caveat.text);
+      }
+
+      await user.click(getSituationRow());
+      await user.click(getReasoningRow());
+      if (recommendedOptions) {
+        await user.click(
+          screen.getByRole("button", {
+            name: new RegExp(
+              recommendedOptions.disclosureQuestion.replace("?", "\\?"),
+            ),
+          }),
+        );
+      }
+
+      for (const caveat of hiddenCaveats) {
+        expect(card.textContent ?? "").not.toContain(caveat.text);
+      }
+    });
+
+    if (gapCaveats.length > 0) {
+      it("answers with its functional gaps inside the reasoning expansion", async () => {
+        const user = userEvent.setup();
+
+        renderSpine();
+
+        for (const caveat of gapCaveats) {
+          expect(
+            screen.queryByText(sanitizeSellerReviewText(caveat.text)),
+          ).not.toBeInTheDocument();
+        }
+
+        await user.click(getReasoningRow());
+
+        const reasoning = screen.getByTestId("plan-reasoning");
+        for (const caveat of gapCaveats) {
+          expect(reasoning).toHaveTextContent(
+            sanitizeSellerReviewText(caveat.text),
+          );
+        }
+      });
+    } else {
+      it("opens the reasoning expansion onto reasoning alone", async () => {
+        const user = userEvent.setup();
+
+        renderSpine();
+        await user.click(getReasoningRow());
+
+        expect(
+          screen.queryByTestId("plan-reasoning-caveats"),
+        ).not.toBeInTheDocument();
+      });
+    }
+
+    if (trustCaveats.length > 0) {
+      it("rests its no-act promises as trust lines in the Decision section", () => {
+        renderSpine();
+
+        const trustLines = within(
+          screen.getByTestId("plan-decision"),
+        ).getByTestId("plan-trust-lines");
+
+        for (const caveat of trustCaveats) {
+          expect(trustLines).toHaveTextContent(
+            sanitizeSellerReviewText(caveat.text),
+          );
+        }
+      });
+    } else {
+      it("renders no trust-line block when it makes no no-act promise", () => {
+        renderSpine();
+
+        expect(screen.queryByTestId("plan-trust-lines")).not.toBeInTheDocument();
+      });
+    }
   },
 );

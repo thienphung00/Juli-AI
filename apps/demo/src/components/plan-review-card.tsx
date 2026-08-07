@@ -17,6 +17,7 @@ import {
   PLAN_REASONING_DISCLOSURE_QUESTION,
   type PlanReviewContent,
 } from "../lib/plan-reviews";
+import { selectPlanCaveats } from "../lib/plan-caveats";
 import {
   SELLER_APPROVE_GATE,
   sanitizeSellerReviewText,
@@ -44,6 +45,9 @@ interface PlanReviewCardProps {
  *   11): a question-labelled expansion revealing the workflow's pre-authored
  *   reasoning — always present, never a conversation. Opening adds the
  *   reasoning below the proposal; closing returns the card to resting height.
+ * - Caveats are typed by class (ADR-055 item 10). Classes A and B render
+ *   nowhere; class C answers inside the reasoning expansion; class D rests in
+ *   the Decision section as a trust line, never under a limitations heading.
  * - A seller who agrees approves in one tap, without expanding anything.
  */
 export function PlanReviewCard({ plan }: PlanReviewCardProps) {
@@ -58,6 +62,17 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
   const reasoningDetailId = useId();
   const decisionOptionsId = useId();
   const recommendedOptions = plan.decision.recommendedOptions;
+  // Typed caveat classes (ADR-055 item 10). The rule comes from the class, so
+  // the card never inspects the text: classes A and B are selected by nobody
+  // and therefore render nowhere.
+  const trustLineCaveats = selectPlanCaveats(
+    plan.decision.caveats,
+    "reassurance",
+  );
+  const reasoningCaveats = selectPlanCaveats(
+    plan.decision.caveats,
+    "feature-unavailable",
+  );
 
   const handleApproveConfirm = () => {
     const executionId = startExecution(plan.workflowKey);
@@ -108,6 +123,21 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
         <PlanImpactBlock impact={plan.impact} />
         <CardBody className="demo-plan__decision" data-testid="plan-decision">
           <p>{plan.decision.proposal}</p>
+          {trustLineCaveats.length > 0 ? (
+            <div
+              className="demo-plan__trust-lines"
+              data-testid="plan-trust-lines"
+            >
+              {trustLineCaveats.map((caveat) => (
+                <p
+                  className="demo-plan__trust-line"
+                  key={caveat.text.slice(0, 48)}
+                >
+                  {sanitizeSellerReviewText(caveat.text)}
+                </p>
+              ))}
+            </div>
+          ) : null}
           <button
             aria-controls={reasoningDetailId}
             aria-expanded={reasoningOpen}
@@ -129,6 +159,18 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
               id={reasoningDetailId}
             >
               <p>{sanitizeSellerReviewText(plan.decision.reasoning)}</p>
+              {reasoningCaveats.length > 0 ? (
+                <div
+                  className="demo-plan__reasoning-caveats"
+                  data-testid="plan-reasoning-caveats"
+                >
+                  {reasoningCaveats.map((caveat) => (
+                    <p key={caveat.text.slice(0, 48)}>
+                      {sanitizeSellerReviewText(caveat.text)}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
           {recommendedOptions ? (

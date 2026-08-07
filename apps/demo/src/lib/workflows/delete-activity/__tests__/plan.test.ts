@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  getPlanCaveats,
+  getReassuranceCaveats,
+} from "../../../plan-caveats";
 import { recommendationFixtures } from "../../../recommendations";
 import { REVIEW_UI_BANNED_PATTERNS } from "../../../review-seller-copy";
 import { getWorkflowPlanReview } from "../../../plan-reviews";
@@ -19,6 +23,7 @@ function collectPlanStrings(): string[] {
     plan.situation.summary,
     plan.situation.disclosureQuestion,
     ...plan.situation.detailLines,
+    ...plan.decision.caveats.map((caveat) => caveat.text),
   ];
 }
 
@@ -60,6 +65,30 @@ describe("getDeleteActivityPlanReview", () => {
 
     expect(plan.decision.reasoning).toBe(fixture?.reasoning);
     expect(plan.decision.reasoning.trim().length).toBeGreaterThan(0);
+  });
+
+  it("carries typed caveats, including the promotion-search gap shown when asked", () => {
+    const plan = getDeleteActivityPlanReview();
+
+    expect(plan.decision.caveats).toEqual(
+      getPlanCaveats(DELETE_ACTIVITY_WORKFLOW_KEY),
+    );
+    expect(
+      plan.decision.caveats.map((caveat) => caveat.caveatClass),
+    ).toEqual([
+      "threshold-undefined",
+      "feature-unavailable",
+      "fulfilment-unsupported",
+    ]);
+    // No no-act promise in this workflow's known limits — no trust line.
+    expect(getReassuranceCaveats(DELETE_ACTIVITY_WORKFLOW_KEY)).toHaveLength(0);
+  });
+
+  it("does not carry the concatenated known-limits blob anywhere in the plan", () => {
+    expect(fixture?.knownLimits).toBeTruthy();
+    for (const text of collectPlanStrings()) {
+      expect(text).not.toBe(fixture!.knownLimits);
+    }
   });
 
   it("does not carry the risks copy anywhere in the plan", () => {
