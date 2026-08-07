@@ -26,6 +26,9 @@ RELEASES_ROOT="${RELEASES_ROOT:-$HOME/releases}"
 HISTORY_LOG="${RELEASES_ROOT}/deploy-history.log"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
 HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
+# shellcheck source=infra/scripts/lib/prune-releases.sh
+source "${CANONICAL_ROOT}/infra/scripts/lib/prune-releases.sh"
+
 API_ENV_FILE="/etc/juli/api.env"
 WEB_ENV_FILE="/etc/juli/web.env"
 
@@ -134,17 +137,11 @@ echo "PASS: juli-api and juli-web are healthy on the new release."
 mkdir -p "${RELEASES_ROOT}"
 printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"
 
-echo "-- pruning old releases (keeping last ${KEEP_RELEASES}) --"
-mapfile -t old_releases < <(git -C "${CANONICAL_ROOT}" worktree list --porcelain \
-    | awk '/^worktree /{print $2}' \
-    | grep -F "${RELEASES_ROOT}/" \
-    | sort -r \
-    | tail -n "+$((KEEP_RELEASES + 1))")
-for old in "${old_releases[@]:-}"; do
-    [ -n "${old}" ] || continue
-    [ "${old}" = "${release_dir}" ] && continue
-    echo "Removing old release worktree: ${old}"
-    git -C "${CANONICAL_ROOT}" worktree remove --force "${old}" || rm -rf "${old}"
-done
+# Retention is shared with the Demo deploy because both lanes prune the same
+# ~/releases pool — see infra/scripts/lib/prune-releases.sh. It protects every
+# *current symlink target (including demo-current) and each lane's recent
+# rollback targets.
+echo "-- pruning old releases (keeping last ${KEEP_RELEASES} per lane) --"
+prune_release_worktrees "${CANONICAL_ROOT}" "${RELEASES_ROOT}" "${KEEP_RELEASES}" "${release_dir}"
 
 echo "== Deploy complete: ${sha} live via ~/releases/current -> ${release_dir} =="
