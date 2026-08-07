@@ -547,7 +547,15 @@ Each deploy:
 5. Atomically flips `~/releases/current` symlink.
 6. Restarts `juli-api`, `juli-web`, and (if installed) `juli-celery-worker` and `juli-celery-beat`. Celery units are guarded by a unit-existence check to tolerate hosts without them (e.g. App Review-only boxes).
 7. Health-checks `http://127.0.0.1:8000/health` and `http://127.0.0.1:3000/` (60s timeout).
-8. Appends to `deploy-history.log` and prunes old worktrees (keeps last 3).
+8. Appends to `deploy-history.log` and prunes old worktrees via
+   `infra/scripts/lib/prune-releases.sh`, which is shared with the Demo deploy
+   because both lanes prune the same `~/releases` pool. A release is kept if it
+   is the target of any `~/releases/*current` symlink (so a deploy in one lane
+   can never delete the worktree another lane is serving from), if it is among
+   the newest 3 entries of a lane's deploy-history log (so `rollback-*.sh` can
+   always resolve a target), or if it is the release being deployed right now.
+   Everything else is removed. Each decision is printed as a `KEEP:`/`REMOVE:`
+   line in the deploy output.
 
 ### systemd units
 
