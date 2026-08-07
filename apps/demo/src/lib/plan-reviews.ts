@@ -20,6 +20,14 @@ import {
   UPDATE_ACTIVITY_WORKFLOW_KEY,
   getUpdateActivityPlanReview,
 } from "./workflows/update-activity";
+import {
+  REPLENISH_INVENTORY_WORKFLOW_KEY,
+  getReplenishInventoryPlanReview,
+} from "./workflows/replenish-inventory";
+import {
+  CLEAR_EXCESS_WORKFLOW_KEY,
+  getClearExcessPlanReview,
+} from "./workflows/clear-excess";
 
 /**
  * Decision plan review — the Situation → Decision → Details spine (ADR-055
@@ -182,6 +190,10 @@ export function getWorkflowPlanReview(
       return getOptimizeProductPlanReview();
     case UPDATE_ACTIVITY_WORKFLOW_KEY:
       return getUpdateActivityPlanReview();
+    case REPLENISH_INVENTORY_WORKFLOW_KEY:
+      return getReplenishInventoryPlanReview();
+    case CLEAR_EXCESS_WORKFLOW_KEY:
+      return getClearExcessPlanReview();
     default:
       return null;
   }

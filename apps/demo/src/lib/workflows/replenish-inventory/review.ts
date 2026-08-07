@@ -11,7 +11,16 @@ export const REPLENISH_INVENTORY_WORKFLOW_KEY = "replenish_inventory_3"; // gitl
 export const REPLENISH_INVENTORY_TOOL_NAME = "inventory.replenish";
 export const REPLENISH_INVENTORY_FBT_INTAKE_KEY = "replenish_inventory_3b"; // gitleaks:allow — documented FBT intake key
 
-const defaultAnalyticsMetricKey = "cancellation-rate";
+/**
+ * The Main KPI this workflow's decision is tied to.
+ *
+ * ADR-055 item 15 lists `replenish_inventory_3` under **GMV**, and the same
+ * ADR's ratio-KPI consequence counts exactly **one** cancellation-rate impact
+ * block (`process_order_5`). The previous `"cancellation-rate"` binding here
+ * contradicted both. Restocking before a stockout protects revenue the shop
+ * would otherwise not be able to sell — GMV is the honest tie.
+ */
+export const defaultReplenishInventoryAnalyticsMetricKey = "gmv-tiktok";
 
 const replenishFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === REPLENISH_INVENTORY_WORKFLOW_KEY,
@@ -23,6 +32,16 @@ if (!replenishFixtureEntry) {
 
 const replenishFixture = replenishFixtureEntry;
 
+/**
+ * Seller-facing defaults for the approval flow.
+ *
+ * `received_quantity` ("Số lượng nhận hàng thực tế (sau giao)") is deliberately
+ * absent: it describes an outcome that only exists **after** delivery, so no
+ * seller can answer it at approve time (ADR-055 Context; issue #766). It is
+ * removed from the approval flow entirely — not hidden, not disabled, not
+ * optional. Execution does not read it either; the run's receipt-confirmation
+ * step belongs to a later lifecycle moment.
+ */
 export function buildReplenishInventoryReviewInputDefaults(): Record<
   string,
   string
@@ -33,12 +52,11 @@ export function buildReplenishInventoryReviewInputDefaults(): Record<
     warehouse_id: "WH-HCM-01",
     reorder_quantity: "240",
     external_path: "NCC Hóa Mỹ Phẩm",
-    received_quantity: "",
   };
 }
 
 export function getReplenishInventoryReviewStages(
-  analyticsMetricKey = defaultAnalyticsMetricKey,
+  analyticsMetricKey = defaultReplenishInventoryAnalyticsMetricKey,
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 
@@ -52,7 +70,7 @@ export function getReplenishInventoryReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI Tỷ lệ hủy đơn trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI Doanh thu trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -101,13 +119,8 @@ export function getReplenishInventoryReviewStages(
           required: true,
           editable: true,
         },
-        {
-          key: "received_quantity",
-          label: "Số lượng nhận hàng thực tế (sau giao)",
-          prefillValue: "",
-          required: false,
-          editable: true,
-        },
+        // No `received_quantity` field: it is post-execution ("sau giao") and
+        // is not collected at approve time (issue #766).
       ],
     },
     {

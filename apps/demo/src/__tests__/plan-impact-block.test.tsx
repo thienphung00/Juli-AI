@@ -26,6 +26,10 @@ import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/optimize-product
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
 import { UPDATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/update-activity";
 import { getUpdateActivityPlanReview } from "../lib/workflows/update-activity/plan";
+import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
+import { getReplenishInventoryPlanReview } from "../lib/workflows/replenish-inventory/plan";
+import { CLEAR_EXCESS_WORKFLOW_KEY } from "../lib/workflows/clear-excess";
+import { getClearExcessPlanReview } from "../lib/workflows/clear-excess/plan";
 import { confirmApproveThroughGate } from "./review-test-helpers";
 
 /**
@@ -57,6 +61,14 @@ const IMPACT_WORKFLOWS: ImpactTableEntry[] = [
   {
     workflowKey: UPDATE_ACTIVITY_WORKFLOW_KEY,
     getPlan: getUpdateActivityPlanReview,
+  },
+  {
+    workflowKey: REPLENISH_INVENTORY_WORKFLOW_KEY,
+    getPlan: getReplenishInventoryPlanReview,
+  },
+  {
+    workflowKey: CLEAR_EXCESS_WORKFLOW_KEY,
+    getPlan: getClearExcessPlanReview,
   },
 ];
 

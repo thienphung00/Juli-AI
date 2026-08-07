@@ -209,11 +209,7 @@ describe("Analytics metric key validation across all workflows", () => {
 describe("Review input defaults - proposed values", () => {
   it("provides non-empty proposed values for all seller-facing fields across all workflows", () => {
     // File upload fields stay empty (explicit exception per ADR-055 item 12)
-    const fileUploadFields = new Set([
-      "main_images",
-      "supporting_file",
-      "received_quantity",
-    ]);
+    const fileUploadFields = new Set(["main_images", "supporting_file"]);
 
     // For decision workflows, reject_reason is only required when seller_decision = reject
     // If seller_decision = approve, reject_reason may be empty (conditional requirement)

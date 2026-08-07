@@ -5,6 +5,8 @@ export {
   getClearExcessReviewStages,
 } from "./review";
 
+export { getClearExcessPlanReview } from "./plan";
+
 export {
   CLEAR_EXCESS_TOOL_NAME,
   createClearExcessTimeline,

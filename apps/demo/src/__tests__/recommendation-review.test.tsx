@@ -532,10 +532,10 @@ describe("RecommendationReview routing between spine and five-stage review", () 
   });
 
   it("keeps every other workflow on the five-stage review", () => {
+    // The Inventory domain moved onto the spine in #766, so
+    // replenish_inventory_3 and clear_excess_4 are no longer listed here.
     for (const workflowKey of [
       CREATE_HERO_PRODUCT_WORKFLOW_KEY,
-      "replenish_inventory_3",
-      "clear_excess_4",
       "process_order_5",
       "prevent_cancellation_8a",
       "prevent_return_8b",
