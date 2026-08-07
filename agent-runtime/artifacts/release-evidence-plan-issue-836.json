@@ -1,0 +1,69 @@
+{
+  "planId": "rep-836-release-packaging-shape-decision",
+  "affectedPublicSurfaces": [
+    "no runtime surface changes in this slice; it fixes the packaging shape that #837 will produce for demo.app-juli.com, app-juli.com, and api.app-juli.com"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "no candidate instance is started; the decision is evidenced by the #835 spike result already recorded on the server plus local measurement of artifact size and start time",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "packaging-evidence",
+        "entryUrl": "local: measure both packaging shapes for apps/demo and apps/landing",
+        "assertions": [
+          "artifact size, start time, and server memory are compared for self-contained output versus build output plus a production dependency install",
+          "the existing rationale for rejecting self-contained output is confirmed or refuted against the #835 evidence, which showed the pnpm symlink tree resolving correctly through a slot indirection and two extra instances costing about 109 MB",
+          "the decision and its reasoning are recorded",
+          "the chosen shape is stated as what the #837 artifact build must produce"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: this slice records a decision and changes no served route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "A packaging decision record. No database, queue, or persistence surface is touched."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert the commit; nothing is deployed by this slice",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm -w turbo run build --filter=@juli/demo --filter=@juli/landing",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 836"
+  ],
+  "doNotInfer": [
+    "implementing the CI artifact build — that is #837",
+    "changing next.config.ts output mode as part of this slice unless the decision explicitly selects self-contained output",
+    "re-running the #835 spike; its findings are recorded on the issue and are the evidence base here",
+    "any server-side deployment change"
+  ]
+}
