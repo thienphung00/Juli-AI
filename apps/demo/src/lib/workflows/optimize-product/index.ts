@@ -6,6 +6,8 @@ export {
   getOptimizeProductReviewStages,
 } from "./review";
 
+export { getOptimizeProductPlanReview } from "./plan";
+
 export {
   buildOptimizeProductExecution,
   createOptimizeProductTimeline,

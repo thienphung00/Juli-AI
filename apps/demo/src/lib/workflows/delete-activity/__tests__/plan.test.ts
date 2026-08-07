@@ -77,12 +77,11 @@ describe("getDeleteActivityPlanReview", () => {
 });
 
 describe("getWorkflowPlanReview routing", () => {
-  it("returns the plan for delete_activity_7b only", () => {
+  it("returns the plan for delete_activity_7b and keeps unmigrated workflows off the spine", () => {
     expect(getWorkflowPlanReview(DELETE_ACTIVITY_WORKFLOW_KEY)).not.toBeNull();
 
     for (const otherKey of [
       "create_hero_product_1",
-      "optimize_product_2",
       "replenish_inventory_3",
       "clear_excess_4",
       "process_order_5",

@@ -2,6 +2,10 @@ import {
   DELETE_ACTIVITY_WORKFLOW_KEY,
   getDeleteActivityPlanReview,
 } from "./workflows/delete-activity";
+import {
+  OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+  getOptimizeProductPlanReview,
+} from "./workflows/optimize-product";
 
 /**
  * Decision plan review — the Situation → Decision → Details spine (ADR-055
@@ -24,9 +28,33 @@ export interface PlanSituationContent {
   analyticsMetricHref: string;
 }
 
+export interface PlanDecisionRecommendedOption {
+  /** Seller-language option text. */
+  value: string;
+  /** True on the one option Juli pre-committed to (ADR-055 item 2). */
+  proposed?: boolean;
+}
+
+export interface PlanDecisionOptionGroup {
+  /** Seller-language label naming what the option list decides. */
+  label: string;
+  /** Recommended options, including the proposed value. */
+  options: PlanDecisionRecommendedOption[];
+}
+
 export interface PlanDecisionContent {
   /** One pre-authored sentence stating what Juli proposes. */
   proposal: string;
+  /**
+   * Recommended options resting behind a question-phrased disclosure.
+   * Read-only: the editing interaction is out of scope (ADR-055 item 14).
+   * Absent when a workflow's decision carries no option list.
+   */
+  recommendedOptions?: {
+    /** Disclosure label, phrased as a question — never a noun. */
+    disclosureQuestion: string;
+    groups: PlanDecisionOptionGroup[];
+  };
 }
 
 export interface PlanDetailsContent {
@@ -52,6 +80,8 @@ export function getWorkflowPlanReview(
   switch (workflowKey) {
     case DELETE_ACTIVITY_WORKFLOW_KEY:
       return getDeleteActivityPlanReview();
+    case OPTIMIZE_PRODUCT_WORKFLOW_KEY:
+      return getOptimizeProductPlanReview();
     default:
       return null;
   }
