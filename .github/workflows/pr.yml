@@ -237,6 +237,7 @@ jobs:
     needs: [classify-tier, changes]
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
+      || needs.classify-tier.outputs.tier == 'wave'
       || (needs.classify-tier.outputs.tier == 'main'
           && needs.classify-tier.outputs.main_via_wave != 'true'))
       && needs.changes.outputs.backend == 'true'
@@ -257,6 +258,7 @@ jobs:
     needs: [classify-tier, changes]
     if: >-
       (needs.classify-tier.outputs.tier == 'issue'
+      || needs.classify-tier.outputs.tier == 'wave'
       || (needs.classify-tier.outputs.tier == 'main'
           && needs.classify-tier.outputs.main_via_wave != 'true'))
       && needs.changes.outputs.backend == 'true'
@@ -959,6 +961,11 @@ jobs:
             require "landing-frontend" "$landing" "true"
             require "policy-checks" "$policy" "false"
           elif [[ "$tier" == "wave" ]]; then
+            # lint/typecheck also run at wave tier so a wave assembled by local
+            # merges (rather than issue-tier PRs) is still statically checked.
+            # Allow "skipped": they are gated on changes.backend.
+            require "lint" "$lint" "true"
+            require "typecheck" "$typecheck" "true"
             require "integration-tests" "$integration" "true"
             require "dependency-validation" "$deps" "true"
             require "cross-module-contracts" "$contracts" "true"
