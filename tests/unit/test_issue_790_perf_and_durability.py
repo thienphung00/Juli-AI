@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.database.database import Base
 from juli_backend.models.models import (
+    AnalyticsPerformanceInterval,
     BronzeOrderRawPayload,
     BronzeReturnRawPayload,
     GoldKpiEnvelope,
@@ -56,6 +57,7 @@ async def perf_session_with_counter():
                     BronzeOrderRawPayload.__table__,
                     BronzeReturnRawPayload.__table__,
                     GoldKpiEnvelope.__table__,
+                    AnalyticsPerformanceInterval.__table__,
                 ],
             )
         )
