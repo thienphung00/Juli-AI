@@ -63,7 +63,7 @@ vi.mock("../../../../components/impact-block", () => ({
   PlanImpactBlock: () => <div data-testid="plan-impact" />,
 }));
 
-const TIKTOK_ONLY_VALUES = ["Hóa đơn thương mại", "09:00"];
+const PICKUP_ONLY_VALUES = ["Hóa đơn thương mại", "09:00"];
 const SELLER_ONLY_VALUES = ["TK-20260807-001", "SP-TKT-01"];
 
 function renderBranch(branch: (typeof PROCESS_ORDER_BRANCHES)[number]) {
@@ -83,7 +83,7 @@ describe("process_order_5 branch-gated Details on screen", () => {
     renderBranch(PROCESS_ORDER_BRANCH_TIKTOK);
 
     const details = screen.getByTestId("plan-details");
-    for (const value of TIKTOK_ONLY_VALUES) {
+    for (const value of PICKUP_ONLY_VALUES) {
       expect(details).toHaveTextContent(value);
     }
     // The abandoned branch is not merely collapsed — it is not in the DOM.
@@ -99,7 +99,7 @@ describe("process_order_5 branch-gated Details on screen", () => {
     for (const value of SELLER_ONLY_VALUES) {
       expect(details).toHaveTextContent(value);
     }
-    for (const value of TIKTOK_ONLY_VALUES) {
+    for (const value of PICKUP_ONLY_VALUES) {
       expect(cardText()).not.toContain(value);
     }
   });
@@ -116,7 +116,7 @@ describe("process_order_5 branch-gated Details on screen", () => {
     const details = screen.getByTestId("plan-details");
     expect(details).toHaveTextContent("TK-20260807-001");
     // Nothing from the abandoned branch survives the switch.
-    for (const value of TIKTOK_ONLY_VALUES) {
+    for (const value of PICKUP_ONLY_VALUES) {
       expect(cardText()).not.toContain(value);
     }
   });
