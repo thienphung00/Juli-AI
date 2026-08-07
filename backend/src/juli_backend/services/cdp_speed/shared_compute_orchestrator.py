@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,7 +69,7 @@ GoldStageFn = Callable[[AsyncSession, uuid.UUID], Awaitable[bool]]
 async def _batch_promote_silver_rows(
     session: AsyncSession,
     shop_id: uuid.UUID,
-    bronze_rows: list,
+    bronze_rows: Sequence[Any],
     model_class: type,
     lookup_field: str,
     lookup_dict: dict,
@@ -327,11 +328,11 @@ class SharedComputeOrchestrator:
             # Extract IDs for batch loading
             tiktok_return_ids = set()
             tiktok_order_ids_for_returns = set()
-            for bronze_row in return_rows:
-                if isinstance(bronze_row.payload, dict):
-                    if tiktok_return_id := bronze_row.payload.get("return_id"):
+            for bronze_return_row in return_rows:
+                if isinstance(bronze_return_row.payload, dict):
+                    if tiktok_return_id := bronze_return_row.payload.get("return_id"):
                         tiktok_return_ids.add(tiktok_return_id)
-                    if tiktok_order_id := bronze_row.payload.get("order_id"):
+                    if tiktok_order_id := bronze_return_row.payload.get("order_id"):
                         tiktok_order_ids_for_returns.add(tiktok_order_id)
 
             # Batch load existing returns and related orders
