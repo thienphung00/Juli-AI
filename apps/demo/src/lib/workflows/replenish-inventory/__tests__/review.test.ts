@@ -13,7 +13,7 @@ const replenishFixture = recommendationFixtures.find(
 );
 
 describe("getReplenishInventoryReviewStages", () => {
-  it("returns five stages with cancellation-rate analytics deep-link by default", () => {
+  it("returns five stages with the GMV analytics deep-link by default", () => {
     const stages = getReplenishInventoryReviewStages();
 
     expect(stages.map((stage) => stage.stage)).toEqual([
@@ -24,9 +24,10 @@ describe("getReplenishInventoryReviewStages", () => {
       "approve",
     ]);
 
+    // ADR-055 item 15 ties replenish_inventory_3 to GMV, not cancellation rate.
     const analytics = stages.find((stage) => stage.stage === "analytics");
-    expect(analytics?.analyticsMetricKey).toBe("cancellation-rate");
-    expect(analytics?.analyticsMetricHref).toBe("/analytics/cancellation-rate");
+    expect(analytics?.analyticsMetricKey).toBe("gmv-tiktok");
+    expect(analytics?.analyticsMetricHref).toBe("/analytics/gmv-tiktok");
   });
 
   it("derives Why-stage copy from the replenish_inventory_3 recommendation fixture", () => {

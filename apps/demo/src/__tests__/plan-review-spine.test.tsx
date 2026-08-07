@@ -18,6 +18,10 @@ import { getDeleteActivityPlanReview } from "../lib/workflows/delete-activity/pl
 import { DELETE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/delete-activity";
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/optimize-product";
+import { getReplenishInventoryPlanReview } from "../lib/workflows/replenish-inventory/plan";
+import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
+import { getClearExcessPlanReview } from "../lib/workflows/clear-excess/plan";
+import { CLEAR_EXCESS_WORKFLOW_KEY } from "../lib/workflows/clear-excess";
 import { confirmApproveThroughGate } from "./review-test-helpers";
 
 /**
@@ -39,6 +43,14 @@ const SPINE_WORKFLOWS: SpineTableEntry[] = [
   {
     workflowKey: OPTIMIZE_PRODUCT_WORKFLOW_KEY,
     getPlan: getOptimizeProductPlanReview,
+  },
+  {
+    workflowKey: REPLENISH_INVENTORY_WORKFLOW_KEY,
+    getPlan: getReplenishInventoryPlanReview,
+  },
+  {
+    workflowKey: CLEAR_EXCESS_WORKFLOW_KEY,
+    getPlan: getClearExcessPlanReview,
   },
 ];
 
