@@ -28,6 +28,27 @@ def init_session_factory(factory: async_sessionmaker[AsyncSession]) -> None:
     _session_factory = factory
 
 
+# One engine per database URL, per process. Worker tasks call
+# ensure_worker_session_factory() on every invocation; building a fresh engine each
+# time opens a new connection pool and leaves the previous one undisposed, which
+# exhausts the Supabase pooler's client ceiling (#813).
+_worker_factories: dict[str, async_sessionmaker[AsyncSession]] = {}
+
+
+def ensure_worker_session_factory(database_url: str) -> async_sessionmaker[AsyncSession]:
+    """Return the process-wide session factory for ``database_url``, creating it once.
+
+    Repeated calls return the same factory and create no additional engines.
+    """
+    factory = _worker_factories.get(database_url)
+    if factory is None:
+        engine = create_async_engine(database_url)
+        factory = create_session_factory(engine)
+        _worker_factories[database_url] = factory
+        init_session_factory(factory)
+    return factory
+
+
 async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency that yields an async database session."""
     if _session_factory is None:
