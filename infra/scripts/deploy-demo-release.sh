@@ -29,6 +29,9 @@ KEEP_DEMO_RELEASES="${KEEP_DEMO_RELEASES:-3}"
 HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
 DEMO_PORT="3001"
 
+# shellcheck source=infra/scripts/lib/prune-releases.sh
+source "${CANONICAL_ROOT}/infra/scripts/lib/prune-releases.sh"
+
 sha="${1:-}"
 if [ -z "${sha}" ]; then
     sha="$(git -C "${CANONICAL_ROOT}" rev-parse origin/main)"
@@ -104,22 +107,9 @@ echo "PASS: juli-demo is healthy on the new release (/decisions returned 2xx)."
 # --- 7. Record + prune history ---
 printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"
 
-echo "-- pruning old Demo release worktrees (keeping last ${KEEP_DEMO_RELEASES}) --"
-mapfile -t old_releases < <(git -C "${CANONICAL_ROOT}" worktree list --porcelain \
-    | awk '/^worktree /{print $2}' \
-    | grep -F "${RELEASES_ROOT}/" \
-    | sort -r \
-    | tail -n "+$((KEEP_DEMO_RELEASES + 1))")
-for old in "${old_releases[@]:-}"; do
-    [ -n "${old}" ] || continue
-    [ "${old}" = "${release_dir}" ] && continue
-    # Do not remove the worktree still referenced by App Review current symlink.
-    app_current="$(readlink -f "${RELEASES_ROOT}/current" 2>/dev/null || true)"
-    [ "${old}" = "${app_current}" ] && continue
-    demo_current_target="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || true)"
-    [ "${old}" = "${demo_current_target}" ] && continue
-    echo "Removing old release worktree: ${old}"
-    git -C "${CANONICAL_ROOT}" worktree remove --force "${old}" || rm -rf "${old}"
-done
+# Shared with deploy-release.sh so neither lane can delete a worktree the other
+# is live on — see infra/scripts/lib/prune-releases.sh.
+echo "-- pruning old release worktrees (keeping last ${KEEP_DEMO_RELEASES} per lane) --"
+prune_release_worktrees "${CANONICAL_ROOT}" "${RELEASES_ROOT}" "${KEEP_DEMO_RELEASES}" "${release_dir}"
 
 echo "== Demo deploy complete: ${sha} live via ${DEMO_CURRENT} -> ${release_dir} =="
