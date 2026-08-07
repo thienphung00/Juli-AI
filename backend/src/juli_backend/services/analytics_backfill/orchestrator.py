@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -21,15 +23,17 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import (
-    AnalyticsResource,
-    ProductsResource,
-    TikTokClient,
+    PRODUCTION_AUTH_ID,
+    ClientFactoryConfig,
+    ProductionReadClientFactory,
+    TikTokCapability,
 )
-from juli_backend.models.models import TikTokCredential
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
     AnalyticsPerformanceRepo,
+    TikTokCredentialRepo,
 )
 from juli_backend.services.analytics_backfill.budget import (
     CallBudgetGovernor,
@@ -344,6 +348,31 @@ async def backfill_analytics_history(
     )
 
 
+def _partner_env_ready() -> dict[str, str] | None:
+    """Partner app credentials from environment, or None when unconfigured."""
+    values = {
+        "app_key": os.getenv("TIKTOK_APP_KEY", "").strip(),
+        "app_secret": os.getenv("TIKTOK_APP_SECRET", "").strip(),
+    }
+    if not all(values.values()):
+        return None
+    return values
+
+
+def _empty_result(shop_id: uuid.UUID, start_date: date, end_date: date) -> OrchestratorResult:
+    """Result for a run that did no work because prerequisites were absent."""
+    return OrchestratorResult(
+        stopped_reason="complete",
+        skipped_partitions=0,
+        completed_partitions=0,
+        budget_fields={},
+        shop_id=shop_id,
+        start_date=start_date,
+        end_date=end_date,
+        buckets=(),
+    )
+
+
 async def backfill_analytics_history_auto_topup(
     session: AsyncSession,
     *,
@@ -366,19 +395,44 @@ async def backfill_analytics_history_auto_topup(
     Returns:
         OrchestratorResult with skipped/completed partition counts
     """
-    # Fetch the shop's TikTok credential to build analytics resource
-    credential = await session.get(TikTokCredential, shop_id)
-    if credential is None:
-        raise ValueError(f"No TikTok credential found for shop {shop_id}")
+    # app_key/app_secret are environment config, not credential columns. Skip rather
+    # than raise when unconfigured: this runs unattended on Beat, and a missing env var
+    # is an operator state, not a task failure.
+    env = _partner_env_ready()
+    if env is None:
+        logger.info(
+            "analytics_backfill_auto_topup_skipped",
+            extra={"shop_id": str(shop_id), "reason": "missing_tiktok_env"},
+        )
+        return _empty_result(shop_id, start_date, end_date)
 
-    # Build analytics resource for Partner API calls
-    client = TikTokClient(
-        app_key=credential.app_key,
-        app_secret=credential.app_secret,
-        access_token=credential.access_token,
+    # Shop-scoped production-read credential. Use the repo, not session.get: the
+    # primary key is `id`, so session.get(TikTokCredential, shop_id) never resolves.
+    try:
+        credential = await TikTokCredentialRepo(session).get_by_shop_and_capability(
+            shop_id,
+            TikTokCapability.PRODUCTION_READ,
+        )
+    except NotFound:
+        logger.info(
+            "analytics_backfill_auto_topup_skipped",
+            extra={"shop_id": str(shop_id), "reason": "missing_production_read_credential"},
+        )
+        return _empty_result(shop_id, start_date, end_date)
+
+    # Build through the factory so the read-only transport guard applies. An unattended
+    # scheduled job is the last place that guard should be bypassed.
+    resources = ProductionReadClientFactory().create_resources(
+        ClientFactoryConfig(
+            app_key=env["app_key"],
+            app_secret=env["app_secret"],
+            access_token=credential.access_token,
+            merchant_auth_id=PRODUCTION_AUTH_ID,
+            shop_cipher=credential.shop_cipher,
+        )
     )
-    analytics_resource = AnalyticsResource(client)
-    products_resource = ProductsResource(client)
+    analytics_resource = resources.analytics
+    products_resource = resources.products
 
     # Create repos for partition state and analytics data persistence
     partitions_repo = AnalyticsBackfillPartitionsRepo(session)
@@ -386,9 +440,6 @@ async def backfill_analytics_history_auto_topup(
 
     # Begin budget tracking for this run
     budget = begin_run()
-
-    # Get current timestamp for synced_at marker
-    import time
 
     synced_at = int(time.time())
 

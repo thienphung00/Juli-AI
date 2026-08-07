@@ -429,16 +429,6 @@ class TestAnalyticsBackfillAutoTopup:
         is_complete_after = await repo.is_complete(shop.id, "revenue", partition_date)
         assert not is_complete_after, "partition should stay incomplete when runner fails to fetch"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known defect: auto_topup looks up the credential with "
-            "session.get(TikTokCredential, shop_id), but the primary key is `id`, "
-            "so it never finds a shop's credential and raises ValueError before "
-            "dispatching. It also reads credential.app_key/app_secret, which are not "
-            "columns on the model. Fix tracked on #791; remove this marker with the fix."
-        ),
-    )
     async def test_auto_topup_dispatches_each_bucket_to_its_real_runner(
         self, session: AsyncSession, shop: Shop, monkeypatch
     ) -> None:
@@ -454,6 +444,10 @@ class TestAnalyticsBackfillAutoTopup:
         from juli_backend.services.analytics_backfill import (
             backfill_analytics_history_auto_topup,
         )
+
+        # app_key/app_secret are environment config, not credential columns
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test-key")
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test-secret")
 
         # Create credential so auto_topup can build client
         user_id = uuid.uuid4()
