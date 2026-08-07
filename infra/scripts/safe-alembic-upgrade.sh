@@ -80,7 +80,25 @@ HELPER=( "${VENV_PYTHON}" "${SCRIPT_DIR}/safe_alembic_helpers.py" )
 log "safe-alembic-upgrade starting (RELEASE_DIR=${RELEASE_DIR})"
 log "WARN: deploy does not stop juli-api before migration — concurrent writes can mask or mimic row-count changes"
 
-DB_BYTES="$("${HELPER[@]}" estimate-db-bytes)" || fail "could not estimate database size (check DATABASE_URL connectivity)"
+if ! DB_BYTES="$("${HELPER[@]}" estimate-db-bytes 2>/tmp/_estimate_err)"; then
+    # Pooler exhaustion is self-perpetuating: the deploy needs a connection to run,
+    # but the connections are held by workers still running the previous release. No
+    # amount of re-deploying clears it — the units have to be restarted once. Surface
+    # that remedy here rather than leaving an operator with a bare connection error.
+    if grep -qi "EMAXCONNSESSION\|max clients reached\|too many clients" /tmp/_estimate_err 2>/dev/null; then
+        log "The connection pooler is at its client ceiling, so this deploy cannot reach the database."
+        log "This does not clear on its own: the connections are held by workers running the"
+        log "previous release, and the deploy that would replace them cannot start."
+        log "Free them once, then re-run this deploy:"
+        log "    systemctl restart juli-celery-worker juli-celery-beat"
+        log "Diagnose with:"
+        log "    psql \"\$PGURL\" -c \"SELECT count(*), state FROM pg_stat_activity GROUP BY state ORDER BY 1 DESC;\""
+    fi
+    sed -n '1,5p' /tmp/_estimate_err >&2 || true
+    rm -f /tmp/_estimate_err
+    fail "could not estimate database size (check DATABASE_URL connectivity)"
+fi
+rm -f /tmp/_estimate_err
 ESTIMATED_DUMP_BYTES=$(( DB_BYTES * 3 / 2 ))
 MARGIN_BYTES=$(( DISK_MARGIN_MB * 1024 * 1024 ))
 REQUIRED_BYTES=$(( ESTIMATED_DUMP_BYTES + MARGIN_BYTES ))
