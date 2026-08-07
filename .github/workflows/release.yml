@@ -87,7 +87,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: release-${{ steps.version.outputs.value }}
-          path: artifacts/releases/release-${{ steps.version.outputs.value }}.json
+          # generate_release_artifact.py writes to common.RELEASES_DIR, which is
+          # agent-runtime/artifacts/releases. The path was missing that prefix, so
+          # every release silently uploaded nothing.
+          path: agent-runtime/artifacts/releases/release-${{ steps.version.outputs.value }}.json
+          # Default is a warning; a missing provenance artifact should fail the job
+          # rather than disappear into the log.
+          if-no-files-found: error
 
   github-release:
     runs-on: ubuntu-latest
