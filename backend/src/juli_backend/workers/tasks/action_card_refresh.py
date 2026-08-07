@@ -6,9 +6,8 @@ import asyncio
 import logging
 import uuid
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from juli_backend.database.database import init_session_factory
 from juli_backend.services.action_cards.refresh import run_action_card_refresh
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
@@ -21,12 +20,9 @@ def _database_url() -> str:
 
 
 def _ensure_session_factory() -> async_sessionmaker:
-    from juli_backend.database.database import create_session_factory
+    from juli_backend.database.database import ensure_worker_session_factory
 
-    engine = create_async_engine(_database_url())
-    factory = create_session_factory(engine)
-    init_session_factory(factory)
-    return factory
+    return ensure_worker_session_factory(_database_url())
 
 
 async def _refresh_async(shop_id: uuid.UUID) -> None:
