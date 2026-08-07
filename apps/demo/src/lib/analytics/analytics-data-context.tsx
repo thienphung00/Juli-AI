@@ -97,6 +97,15 @@ export function useAnalyticsData(): AnalyticsDataContextValue {
   return context;
 }
 
+/**
+ * Analytics data where it is genuinely optional — a surface that reads a KPI
+ * but is not an analytics screen, and must degrade to an honest unavailable
+ * state rather than crash when mounted outside the provider.
+ */
+export function useOptionalAnalyticsData(): AnalyticsDataContextValue | null {
+  return useContext(AnalyticsDataContext);
+}
+
 export function useAnalyticsBootstrap(range: AnalyticsRange): void {
   const { loadAnalytics } = useAnalyticsData();
 

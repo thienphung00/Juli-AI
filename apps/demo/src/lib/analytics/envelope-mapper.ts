@@ -10,7 +10,12 @@ import type { ChartTrend } from "@juli/ui";
 import { formatDateTime, formatNumber, formatVND } from "@juli/utils";
 
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../workflows/optimize-product/review";
-import type { AnalyticsRange, MetricKey } from "./main-kpis";
+import {
+  getMainKpiDefinition,
+  type AnalyticsRange,
+  type ImpactMetricKey,
+  type MetricKey,
+} from "./main-kpis";
 import type { KpiSnapshot, KpiTimePoint } from "./mock-data";
 
 const METRIC_TO_ENVELOPE_KEY: Record<MetricKey, string> = {
@@ -240,6 +245,84 @@ export function buildLiveKpiSnapshot(
       range === "90d" && values.length < 9
         ? "Một phần dữ liệu nguồn chưa đầy đủ cho khoảng thời gian đang chọn."
         : undefined,
+  };
+}
+
+/**
+ * A tied Main KPI as the decision plan review's impact block reads it
+ * (ADR-055 items 15–17, issue #771).
+ *
+ * Every field is derived from the serving envelope or from the KPI's own
+ * authored definition. There is no projection field, and there is nothing
+ * here to fabricate when the envelope is silent — the builder returns `null`
+ * instead, and the block renders an honest unavailable state.
+ */
+export interface ImpactMetricSnapshot {
+  /** The tied KPI. */
+  metricKey: ImpactMetricKey;
+  /** Seller-facing KPI name, from the Main KPI definition. */
+  metricName: string;
+  /** Real latest value from the envelope series, formatted for the seller. */
+  formattedValue: string;
+  /** Real period-over-period move, e.g. "▲ 19%" — "—" when unknowable. */
+  delta: string;
+  /** Direction of the move, as charted. */
+  trend: ChartTrend;
+  /**
+   * Whether that move is good for the seller. Identical to `trend` except on
+   * inverted KPIs (cancellation rate), where falling is the good direction.
+   */
+  sentiment: ChartTrend;
+}
+
+/** KPIs where a falling value is the good direction. */
+const INVERTED_IMPACT_METRICS: readonly ImpactMetricKey[] = [
+  "cancellation-rate",
+];
+
+function impactSentiment(
+  metricKey: ImpactMetricKey,
+  trend: ChartTrend,
+): ChartTrend {
+  if (!INVERTED_IMPACT_METRICS.includes(metricKey) || trend === "neutral") {
+    return trend;
+  }
+
+  return trend === "positive" ? "negative" : "positive";
+}
+
+/**
+ * Read the tied Main KPI's real current value and trend.
+ *
+ * Returns `null` — never a placeholder, never a computed guess — when there is
+ * no envelope, when the KPI is unavailable, or when it carries no series.
+ * Ratio KPIs (CTOR, cancellation rate) arrive pre-divided and are rendered as
+ * stored; correcting that belongs to the CDP track, not here.
+ */
+export function buildImpactMetricSnapshot(
+  envelope: DemoAnalyticsEnvelope | null | undefined,
+  metricKey: ImpactMetricKey,
+): ImpactMetricSnapshot | null {
+  if (!envelope) {
+    return null;
+  }
+
+  const entry = getEnvelopeKpiEntry(envelope, metricKey);
+  if (!isAnalyticsKpiAvailable(entry) || !entry.series?.length) {
+    return null;
+  }
+
+  const values = entry.series.map((point) => point.v);
+  const latestValue = values[values.length - 1]!;
+  const { delta, trend } = computeDelta(entry.series);
+
+  return {
+    metricKey,
+    metricName: getMainKpiDefinition(metricKey).name,
+    formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
+    delta,
+    trend,
+    sentiment: impactSentiment(metricKey, trend),
   };
 }
 

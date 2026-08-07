@@ -393,6 +393,96 @@ a {
   line-height: 1.6;
 }
 
+/* Impact block — the card's centre of gravity (ADR-055 items 15–17).
+   Given the card's largest type and its own tinted panel so the tied KPI
+   reads before the proposal, never as a footnote. */
+.demo-plan__impact {
+  display: grid;
+  gap: var(--juli-space-1);
+  padding: var(--juli-space-4);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-medium);
+  background: var(--juli-primary-soft, var(--juli-surface-muted));
+}
+
+.demo-plan__impact p {
+  margin: 0;
+}
+
+.demo-plan__impact-metric {
+  color: var(--juli-muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.demo-plan__impact-reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--juli-space-2);
+}
+
+.demo-plan__impact-value {
+  font-size: clamp(1.75rem, 8vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.demo-plan__impact-delta {
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+/* Sentiment, not direction: a falling cancellation rate is a good move. */
+.demo-plan__impact-delta--positive {
+  color: var(--juli-success);
+}
+
+.demo-plan__impact-delta--negative {
+  color: var(--juli-danger, var(--juli-warning));
+}
+
+.demo-plan__impact-delta--neutral {
+  color: var(--juli-muted-foreground);
+}
+
+/* Honest unavailable state — deliberately quiet, and never a number. */
+.demo-plan__impact-unavailable {
+  padding: var(--juli-space-1) 0;
+  color: var(--juli-muted-foreground);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.demo-plan__impact-goal {
+  padding-top: var(--juli-space-1);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.demo-plan__impact-link {
+  padding-top: var(--juli-space-1);
+  font-size: 0.875rem;
+}
+
+.demo-plan__impact-link a {
+  color: var(--juli-primary-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.demo-plan__impact-link a:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}
+
 .demo-plan__decision p {
   margin: 0;
   line-height: 1.7;
