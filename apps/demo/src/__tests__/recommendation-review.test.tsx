@@ -305,11 +305,14 @@ describe("RecommendationReview", () => {
     );
   });
 
-  it("renders review stages for prevent_cancellation_8a", () => {
-    const stages = getWorkflowReviewStages("prevent_cancellation_8a");
+  // The five-stage journey test for prevent_cancellation_8a was superseded by
+  // the plan-review spine rollout (#769); the routing describe below asserts
+  // the spine instead. `process_order_5` still covers the five-stage path.
+  it("renders review stages for process_order_5", () => {
+    const stages = getWorkflowReviewStages("process_order_5");
     expect(stages).toHaveLength(5);
 
-    renderReview("prevent_cancellation_8a");
+    renderReview("process_order_5");
 
     expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
       stages[0].title,
@@ -518,6 +521,9 @@ describe("RecommendationReview routing between spine and five-stage review", () 
       OPTIMIZE_PRODUCT_WORKFLOW_KEY,
       "create_activity_7a",
       "update_activity_7c",
+      "prevent_cancellation_8a",
+      "prevent_return_8b",
+      "prevent_refund_8c",
     ]) {
       const { unmount } = renderReview(workflowKey);
 
@@ -532,14 +538,12 @@ describe("RecommendationReview routing between spine and five-stage review", () 
   });
 
   it("keeps every other workflow on the five-stage review", () => {
-    // The Inventory domain moved onto the spine in #766, so
-    // replenish_inventory_3 and clear_excess_4 are no longer listed here.
+    // The Inventory domain moved onto the spine in #766 and the Returns/
+    // refunds domain in #769, so replenish_inventory_3, clear_excess_4 and the
+    // three prevent_* workflows are no longer listed here.
     for (const workflowKey of [
       CREATE_HERO_PRODUCT_WORKFLOW_KEY,
       "process_order_5",
-      "prevent_cancellation_8a",
-      "prevent_return_8b",
-      "prevent_refund_8c",
     ]) {
       const { unmount } = renderReview(workflowKey);
 
