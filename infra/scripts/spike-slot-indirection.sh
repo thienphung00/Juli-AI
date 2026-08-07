@@ -50,7 +50,13 @@ bad()  { printf 'FAIL: %s\n' "$*" >&2; FAIL_COUNT=$((FAIL_COUNT + 1)); FINDINGS+
 
 free_mb() { free -m 2>/dev/null | awk '/^Mem:/{print $7}'; }
 
-http_code() { curl -s -o /dev/null -m 10 -w '%{http_code}' "$1" 2>/dev/null || echo "000"; }
+http_code() {
+    # curl already prints 000 on a connection failure; a `|| echo 000` fallback would
+    # concatenate onto it and report "000000", so capture and default instead.
+    local code
+    code="$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$1" 2>/dev/null)"
+    echo "${code:-000}"
+}
 
 # Live Demo must be healthy at every checkpoint. If it is not, stop immediately —
 # a spike must never be the reason production went down.
