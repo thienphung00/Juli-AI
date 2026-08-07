@@ -21,6 +21,7 @@ function collectPlanStrings(): string[] {
   return [
     plan.title,
     plan.decision.proposal,
+    plan.decision.reasoning,
     plan.decision.recommendedOptions?.disclosureQuestion ?? "",
     plan.situation.summary,
     plan.situation.disclosureQuestion,
@@ -96,6 +97,13 @@ describe("getOptimizeProductPlanReview", () => {
       expect(proposed).toHaveLength(1);
       expect(proposed?.[0]?.value).toBe(field?.prefillValue);
     }
+  });
+
+  it("carries the workflow's reasoning behind the decision disclosure — never empty", () => {
+    const plan = getOptimizeProductPlanReview();
+
+    expect(plan.decision.reasoning).toBe(fixture?.reasoning);
+    expect(plan.decision.reasoning.trim().length).toBeGreaterThan(0);
   });
 
   it("does not carry the risks copy anywhere in the plan", () => {

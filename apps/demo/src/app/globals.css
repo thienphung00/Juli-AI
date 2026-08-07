@@ -393,14 +393,28 @@ a {
   line-height: 1.6;
 }
 
+.demo-plan__decision {
+  display: grid;
+  gap: var(--juli-space-3);
+}
+
 .demo-plan__decision p {
   margin: 0;
   line-height: 1.7;
 }
 
-.demo-plan__decision {
+/* Reasoning disclosure body — same inset treatment as the Situation
+   expansion, so every "why?" reveal reads the same way. */
+.demo-plan__reasoning-detail {
   display: grid;
-  gap: var(--juli-space-3);
+  gap: var(--juli-space-2);
+  padding: var(--juli-space-3);
+  border-left: 2px solid var(--juli-border);
+}
+
+.demo-plan__reasoning-detail p {
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
 }
 
 .demo-plan__decision-options {

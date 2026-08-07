@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecommendationReview } from "../components/recommendation-review";
+import { PLAN_REASONING_DISCLOSURE_QUESTION } from "../lib/plan-reviews";
 import { recommendationFixtures } from "../lib/recommendations";
 import {
   REVIEW_UI_BANNED_PATTERNS,
@@ -137,12 +138,12 @@ describe("Workflow 7b plan review — Situation → Decision → Details spine",
     expect(summaryRow).toHaveAttribute("aria-expanded", "false");
     expect(summaryRow).toHaveTextContent(plan.situation.summary);
 
-    // Exactly one primary action, and exactly two buttons total
-    // (summary-row disclosure + Phê duyệt).
+    // Exactly one primary action, and exactly three buttons total
+    // (summary-row disclosure + reasoning disclosure + Phê duyệt).
     expect(
       within(card).getByRole("button", { name: "Phê duyệt" }),
     ).toBeInTheDocument();
-    expect(within(card).getAllByRole("button")).toHaveLength(2);
+    expect(within(card).getAllByRole("button")).toHaveLength(3);
 
     // No five-stage chrome: no progress tablist, no stage navigation.
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
@@ -256,6 +257,9 @@ describe("Workflow 7b plan review — Situation → Decision → Details spine",
         name: new RegExp(plan.situation.disclosureQuestion.replace("?", "\\?")),
       }),
     );
+    await user.click(
+      screen.getByRole("button", { name: PLAN_REASONING_DISCLOSURE_QUESTION }),
+    );
 
     expect(screen.queryByText(fixture!.risks)).not.toBeInTheDocument();
   });
@@ -276,6 +280,9 @@ describe("Workflow 7b plan review — Situation → Decision → Details spine",
       screen.getByRole("button", {
         name: new RegExp(plan.situation.disclosureQuestion.replace("?", "\\?")),
       }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: PLAN_REASONING_DISCLOSURE_QUESTION }),
     );
 
     for (const pattern of REVIEW_UI_BANNED_PATTERNS) {

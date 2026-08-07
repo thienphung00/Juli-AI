@@ -13,8 +13,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
-import type { PlanReviewContent } from "../lib/plan-reviews";
-import { SELLER_APPROVE_GATE } from "../lib/review-seller-copy";
+import {
+  PLAN_REASONING_DISCLOSURE_QUESTION,
+  type PlanReviewContent,
+} from "../lib/plan-reviews";
+import {
+  SELLER_APPROVE_GATE,
+  sanitizeSellerReviewText,
+} from "../lib/review-seller-copy";
 import { buildDecisionsHighlightHref } from "../lib/recommendations";
 import { useDemoState } from "./demo-state";
 
@@ -30,16 +36,22 @@ interface PlanReviewCardProps {
  *   adds detail below the row and keeps the summary line visible.
  * - Decision rests folded on the proposed outcome — one sentence.
  * - Details renders as nothing when the plan carries no branch-gated detail.
+ * - The Decision section carries the reasoning disclosure (ADR-055 items 3,
+ *   11): a question-labelled expansion revealing the workflow's pre-authored
+ *   reasoning — always present, never a conversation. Opening adds the
+ *   reasoning below the proposal; closing returns the card to resting height.
  * - A seller who agrees approves in one tap, without expanding anything.
  */
 export function PlanReviewCard({ plan }: PlanReviewCardProps) {
   const router = useRouter();
   const { startExecution } = useDemoState();
   const [situationOpen, setSituationOpen] = useState(false);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [approveGateOpen, setApproveGateOpen] = useState(false);
   const titleId = useId();
   const situationDetailId = useId();
+  const reasoningDetailId = useId();
   const decisionOptionsId = useId();
   const recommendedOptions = plan.decision.recommendedOptions;
 
@@ -91,6 +103,29 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
         </CardHeader>
         <CardBody className="demo-plan__decision" data-testid="plan-decision">
           <p>{plan.decision.proposal}</p>
+          <button
+            aria-controls={reasoningDetailId}
+            aria-expanded={reasoningOpen}
+            className="demo-plan__summary-row"
+            onClick={() => setReasoningOpen((open) => !open)}
+            type="button"
+          >
+            <span className="demo-plan__summary-question">
+              {PLAN_REASONING_DISCLOSURE_QUESTION}
+            </span>
+            <span aria-hidden="true" className="demo-plan__summary-chevron">
+              ›
+            </span>
+          </button>
+          {reasoningOpen ? (
+            <div
+              className="demo-plan__reasoning-detail"
+              data-testid="plan-reasoning"
+              id={reasoningDetailId}
+            >
+              <p>{sanitizeSellerReviewText(plan.decision.reasoning)}</p>
+            </div>
+          ) : null}
           {recommendedOptions ? (
             <>
               <button

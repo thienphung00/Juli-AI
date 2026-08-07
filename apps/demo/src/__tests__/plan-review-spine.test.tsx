@@ -6,8 +6,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecommendationReview } from "../components/recommendation-review";
 import { recommendationFixtures } from "../lib/recommendations";
-import type { PlanReviewContent } from "../lib/plan-reviews";
-import { REVIEW_UI_BANNED_PATTERNS } from "../lib/review-seller-copy";
+import {
+  PLAN_REASONING_DISCLOSURE_QUESTION,
+  type PlanReviewContent,
+} from "../lib/plan-reviews";
+import {
+  REVIEW_UI_BANNED_PATTERNS,
+  sanitizeSellerReviewText,
+} from "../lib/review-seller-copy";
 import { getDeleteActivityPlanReview } from "../lib/workflows/delete-activity/plan";
 import { DELETE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/delete-activity";
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
@@ -124,10 +130,25 @@ describe.each(SPINE_WORKFLOWS)(
       (entry) => entry.workflowKey === workflowKey,
     );
     const recommendedOptions = plan.decision.recommendedOptions;
-    const restingButtonCount = 2 + (recommendedOptions ? 1 : 0);
+    // Summary row + reasoning disclosure + Phê duyệt, plus the recommended
+    // options disclosure where the workflow carries one. The reasoning
+    // disclosure is unconditional — every plan has reasoning (ADR-055 item 11).
+    const restingButtonCount = 3 + (recommendedOptions ? 1 : 0);
 
     function renderSpine() {
       return render(<RecommendationReview workflowKey={workflowKey} />);
+    }
+
+    function getReasoningRow() {
+      return screen.getByRole("button", {
+        name: new RegExp(
+          PLAN_REASONING_DISCLOSURE_QUESTION.replace("?", "\\?"),
+        ),
+      });
+    }
+
+    function revealedReasoning() {
+      return sanitizeSellerReviewText(plan.decision.reasoning);
     }
 
     function getSituationRow() {
@@ -231,11 +252,79 @@ describe.each(SPINE_WORKFLOWS)(
       expect(getSituationRow()).toHaveTextContent(/\?/);
       expect(getSituationRow()).not.toHaveTextContent(/Chi tiết/);
 
+      expect(PLAN_REASONING_DISCLOSURE_QUESTION.trim().endsWith("?")).toBe(
+        true,
+      );
+      expect(getReasoningRow()).toHaveTextContent(/\?/);
+
       if (recommendedOptions) {
         expect(
           recommendedOptions.disclosureQuestion.trim().endsWith("?"),
         ).toBe(true);
       }
+    });
+
+    // Reasoning disclosure (ADR-055 items 3, 11). The ask affordance lives
+    // inside the section it explains — the Decision body — and is never empty:
+    // `reasoning` is required on every plan, so no workflow can ship an
+    // expansion that opens onto nothing.
+    it("carries a non-empty reasoning behind the disclosure", () => {
+      expect(plan.decision.reasoning.trim().length).toBeGreaterThan(0);
+      expect(revealedReasoning().trim().length).toBeGreaterThan(0);
+    });
+
+    it("rests with the reasoning disclosure closed, inside the Decision section", () => {
+      renderSpine();
+
+      const decision = screen.getByTestId("plan-decision");
+      const reasoningRow = within(decision).getByRole("button", {
+        name: new RegExp(
+          PLAN_REASONING_DISCLOSURE_QUESTION.replace("?", "\\?"),
+        ),
+      });
+
+      expect(reasoningRow).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByTestId("plan-reasoning")).not.toBeInTheDocument();
+      expect(screen.queryByText(revealedReasoning())).not.toBeInTheDocument();
+    });
+
+    it("adds the reasoning on expansion without replacing the proposal, and no free-text box", async () => {
+      const user = userEvent.setup();
+
+      renderSpine();
+
+      const reasoningRow = getReasoningRow();
+      await user.click(reasoningRow);
+
+      expect(reasoningRow).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByTestId("plan-reasoning")).toHaveTextContent(
+        revealedReasoning(),
+      );
+      // Expansion adds; it never replaces what was resting.
+      expect(screen.getByText(plan.decision.proposal)).toBeInTheDocument();
+
+      // Pre-authored copy, not a conversation: nothing to type into.
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    });
+
+    it("returns to the resting card when the reasoning disclosure closes", async () => {
+      const user = userEvent.setup();
+
+      renderSpine();
+
+      const card = screen.getByTestId("plan-review-card");
+      const reasoningRow = getReasoningRow();
+
+      await user.click(reasoningRow);
+      await user.click(reasoningRow);
+
+      expect(reasoningRow).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByTestId("plan-reasoning")).not.toBeInTheDocument();
+      expect(screen.queryByText(revealedReasoning())).not.toBeInTheDocument();
+      expect(within(card).getAllByRole("button")).toHaveLength(
+        restingButtonCount,
+      );
     });
 
     if (plan.details) {
@@ -337,6 +426,7 @@ describe.each(SPINE_WORKFLOWS)(
       expect(screen.queryByText(fixture!.risks)).not.toBeInTheDocument();
 
       await user.click(getSituationRow());
+      await user.click(getReasoningRow());
       if (recommendedOptions) {
         await user.click(
           screen.getByRole("button", {
@@ -362,6 +452,7 @@ describe.each(SPINE_WORKFLOWS)(
       }
 
       await user.click(getSituationRow());
+      await user.click(getReasoningRow());
       if (recommendedOptions) {
         await user.click(
           screen.getByRole("button", {
