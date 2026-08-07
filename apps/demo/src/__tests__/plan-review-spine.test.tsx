@@ -14,10 +14,14 @@ import {
   REVIEW_UI_BANNED_PATTERNS,
   sanitizeSellerReviewText,
 } from "../lib/review-seller-copy";
+import { getCreateActivityPlanReview } from "../lib/workflows/create-activity/plan";
+import { CREATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/create-activity";
 import { getDeleteActivityPlanReview } from "../lib/workflows/delete-activity/plan";
 import { DELETE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/delete-activity";
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/optimize-product";
+import { getUpdateActivityPlanReview } from "../lib/workflows/update-activity/plan";
+import { UPDATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/update-activity";
 import { confirmApproveThroughGate } from "./review-test-helpers";
 
 /**
@@ -39,6 +43,14 @@ const SPINE_WORKFLOWS: SpineTableEntry[] = [
   {
     workflowKey: OPTIMIZE_PRODUCT_WORKFLOW_KEY,
     getPlan: getOptimizeProductPlanReview,
+  },
+  {
+    workflowKey: CREATE_ACTIVITY_WORKFLOW_KEY,
+    getPlan: getCreateActivityPlanReview,
+  },
+  {
+    workflowKey: UPDATE_ACTIVITY_WORKFLOW_KEY,
+    getPlan: getUpdateActivityPlanReview,
   },
 ];
 

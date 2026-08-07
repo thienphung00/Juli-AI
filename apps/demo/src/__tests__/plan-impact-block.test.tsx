@@ -18,10 +18,14 @@ import {
 } from "../lib/plan-reviews";
 import { recommendationFixtures } from "../lib/recommendations";
 import { REVIEW_UI_BANNED_PATTERNS } from "../lib/review-seller-copy";
+import { CREATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/create-activity";
+import { getCreateActivityPlanReview } from "../lib/workflows/create-activity/plan";
 import { DELETE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/delete-activity";
 import { getDeleteActivityPlanReview } from "../lib/workflows/delete-activity/plan";
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/optimize-product";
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
+import { UPDATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/update-activity";
+import { getUpdateActivityPlanReview } from "../lib/workflows/update-activity/plan";
 import { confirmApproveThroughGate } from "./review-test-helpers";
 
 /**
@@ -45,6 +49,14 @@ const IMPACT_WORKFLOWS: ImpactTableEntry[] = [
   {
     workflowKey: OPTIMIZE_PRODUCT_WORKFLOW_KEY,
     getPlan: getOptimizeProductPlanReview,
+  },
+  {
+    workflowKey: CREATE_ACTIVITY_WORKFLOW_KEY,
+    getPlan: getCreateActivityPlanReview,
+  },
+  {
+    workflowKey: UPDATE_ACTIVITY_WORKFLOW_KEY,
+    getPlan: getUpdateActivityPlanReview,
   },
 ];
 
