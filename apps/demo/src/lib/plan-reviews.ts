@@ -3,6 +3,10 @@ import {
   type ImpactMetricKey,
 } from "./analytics/main-kpis";
 import {
+  CREATE_ACTIVITY_WORKFLOW_KEY,
+  getCreateActivityPlanReview,
+} from "./workflows/create-activity";
+import {
   DELETE_ACTIVITY_WORKFLOW_KEY,
   getDeleteActivityPlanReview,
 } from "./workflows/delete-activity";
@@ -10,6 +14,10 @@ import {
   OPTIMIZE_PRODUCT_WORKFLOW_KEY,
   getOptimizeProductPlanReview,
 } from "./workflows/optimize-product";
+import {
+  UPDATE_ACTIVITY_WORKFLOW_KEY,
+  getUpdateActivityPlanReview,
+} from "./workflows/update-activity";
 
 /**
  * Decision plan review — the Situation → Decision → Details spine (ADR-055
@@ -155,10 +163,14 @@ export function getWorkflowPlanReview(
   workflowKey: string,
 ): PlanReviewContent | null {
   switch (workflowKey) {
+    case CREATE_ACTIVITY_WORKFLOW_KEY:
+      return getCreateActivityPlanReview();
     case DELETE_ACTIVITY_WORKFLOW_KEY:
       return getDeleteActivityPlanReview();
     case OPTIMIZE_PRODUCT_WORKFLOW_KEY:
       return getOptimizeProductPlanReview();
+    case UPDATE_ACTIVITY_WORKFLOW_KEY:
+      return getUpdateActivityPlanReview();
     default:
       return null;
   }

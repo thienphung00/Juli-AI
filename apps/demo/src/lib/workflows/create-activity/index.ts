@@ -6,6 +6,8 @@ export {
   getCreateActivityReviewStages,
 } from "./review";
 
+export { getCreateActivityPlanReview } from "./plan";
+
 export {
   buildCreateActivityExecution,
   createCreateActivityTimeline,

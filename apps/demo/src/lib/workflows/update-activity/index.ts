@@ -6,6 +6,8 @@ export {
   getUpdateActivityReviewStages,
 } from "./review";
 
+export { getUpdateActivityPlanReview } from "./plan";
+
 export {
   buildUpdateActivityExecution,
   createUpdateActivityTimeline,
