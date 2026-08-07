@@ -468,13 +468,11 @@ async def backfill_analytics_history_auto_topup(
             )
         elif bucket == "product":
             await backfill_product_partition(
-                session=session,
+                session,
                 shop_id=shop_id,
                 partition_date=partition_date,
                 resource=analytics_resource,
                 budget=budget,
-                partitions_repo=partitions_repo,
-                performance_repo=performance_repo,
                 synced_at=synced_at,
             )
         elif bucket == "catalog":
@@ -483,9 +481,7 @@ async def backfill_analytics_history_auto_topup(
                 shop_id=shop_id,
                 partition_date=partition_date,
                 products=products_resource,
-                partitions_repo=partitions_repo,
-                performance_repo=performance_repo,
-                synced_at=synced_at,
+                budget=budget,
             )
         else:
             msg = f"Unknown bucket: {bucket}"
