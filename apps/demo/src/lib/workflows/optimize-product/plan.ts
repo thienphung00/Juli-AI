@@ -81,6 +81,9 @@ export function getOptimizeProductPlanReview(): PlanReviewContent {
     decision: {
       proposal:
         "Juli đề xuất cập nhật tiêu đề và mô tả SEO cho “Son môi số 12” để sản phẩm được nhấp xem nhiều hơn.",
+      // The workflow's pre-authored reasoning from the shared fixture table —
+      // revealed behind the question-labelled disclosure, sanitized at render.
+      reasoning: optimizeProductFixture.reasoning,
       recommendedOptions: {
         disclosureQuestion: "Juli đã cân nhắc phương án nào?",
         groups: buildRecommendedOptionGroups(),

@@ -15,6 +15,7 @@ function collectPlanStrings(): string[] {
   return [
     plan.title,
     plan.decision.proposal,
+    plan.decision.reasoning,
     plan.situation.summary,
     plan.situation.disclosureQuestion,
     ...plan.situation.detailLines,
@@ -52,6 +53,13 @@ describe("getDeleteActivityPlanReview", () => {
     const plan = getDeleteActivityPlanReview();
 
     expect(plan.situation.disclosureQuestion.trim().endsWith("?")).toBe(true);
+  });
+
+  it("carries the workflow's reasoning behind the decision disclosure — never empty", () => {
+    const plan = getDeleteActivityPlanReview();
+
+    expect(plan.decision.reasoning).toBe(fixture?.reasoning);
+    expect(plan.decision.reasoning.trim().length).toBeGreaterThan(0);
   });
 
   it("does not carry the risks copy anywhere in the plan", () => {

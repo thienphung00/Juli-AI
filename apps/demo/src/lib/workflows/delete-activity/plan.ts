@@ -37,6 +37,9 @@ export function getDeleteActivityPlanReview(): PlanReviewContent {
     decision: {
       proposal:
         "Juli đề xuất kết thúc chương trình “Giảm giá trực tiếp mùa hè” vì đã hết hiệu lực, để tránh giảm giá ngoài ý muốn.",
+      // The workflow's pre-authored reasoning from the shared fixture table —
+      // revealed behind the question-labelled disclosure, sanitized at render.
+      reasoning: deleteActivityFixture.reasoning,
     },
     // No `details` key: delete_activity_7b has no branch-gated detail, so the
     // Details section renders as nothing — never an empty stub.

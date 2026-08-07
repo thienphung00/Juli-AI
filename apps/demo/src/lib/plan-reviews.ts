@@ -28,6 +28,14 @@ export interface PlanSituationContent {
   analyticsMetricHref: string;
 }
 
+/**
+ * Shared label for the reasoning disclosure on every plan review — phrased as
+ * a question, never a noun (ADR-055 items 3, 13). One label across all
+ * workflows so the seller learns the pattern once.
+ */
+export const PLAN_REASONING_DISCLOSURE_QUESTION =
+  "Vì sao Juli đề xuất điều này?";
+
 export interface PlanDecisionRecommendedOption {
   /** Seller-language option text. */
   value: string;
@@ -45,6 +53,15 @@ export interface PlanDecisionOptionGroup {
 export interface PlanDecisionContent {
   /** One pre-authored sentence stating what Juli proposes. */
   proposal: string;
+  /**
+   * Why Juli proposes this — one short pre-authored seller sentence, revealed
+   * by the question-labelled disclosure inside the Decision section. REQUIRED:
+   * the expansion is a reasoning container, not a limits container (ADR-055
+   * item 11), and it must never open onto nothing. Source it from the shared
+   * fixture table's `reasoning`, which is populated for all eleven workflows;
+   * the card sanitizes it through the seller-copy sanitizer at render.
+   */
+  reasoning: string;
   /**
    * Recommended options resting behind a question-phrased disclosure.
    * Read-only: the editing interaction is out of scope (ADR-055 item 14).
