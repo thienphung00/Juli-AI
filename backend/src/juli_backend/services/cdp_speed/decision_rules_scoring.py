@@ -13,11 +13,15 @@ this module computes the ``DailyScoringResult`` candidate and, as of #715 (B-3
 wiring), durably persists it via the **existing**
 ``services.action_cards.persist.persist_scoring_result`` — the same idempotent,
 status-preserving persistence boundary the manual refresh path uses. No second
-persistence path is implemented here (ADR-021). This module does not apply an
-emission/surfacing budget (#716 / B-4) — every ranked recommendation is
-persisted as an ``"active"`` candidate; B-4 owns deciding which candidates get
-surfaced to a seller. Uses the shop-scoped inputs already fetched into
-bronze/silver by the same Shared Compute job — no second Partner fetch cycle.
+persistence path is implemented here (ADR-021). As of the #716 (B-4) Meta
+routing correction, this module also applies the emission/surfacing budget
+(``services.action_cards.emission_budget.apply_emission_budget``) immediately
+after persistence, on the same compute run — PRD #599's "candidate upsert ->
+emission filter" step. Every ranked recommendation is still persisted as an
+``"active"`` candidate regardless of budget outcome; the budget only decides
+``surfaced_at`` / ``suppressed_reason`` on top of that (dual cadence, ADR-038
+§6). Uses the shop-scoped inputs already fetched into bronze/silver by the
+same Shared Compute job — no second Partner fetch cycle.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.services.action_cards.emission_budget import apply_emission_budget
 from juli_backend.services.action_cards.persist import persist_scoring_result
 from juli_backend.services.aggregates.types import ShopLifecycleContext
 from juli_backend.services.cdp_speed.shared_compute_orchestrator import SharedComputeJob
@@ -58,6 +63,18 @@ async def decision_rules_scoring_stage(
     Orchestrator's isolated scoring failure domain, #713/B-1) rather than being
     swallowed here — the orchestrator rolls back only this stage's own writes,
     never the already-committed KPI envelope.
+
+    Applies the emission/surfacing budget (``apply_emission_budget``, #716/B-4)
+    right after persistence, on the same compute run (PRD #599: "candidate
+    upsert -> emission filter"). The candidates are committed *before* the
+    budget runs, on their own durability boundary — a budget failure never
+    discards what ``persist_scoring_result`` just wrote (dual cadence:
+    recomputation and surfacing are independently gated, which is the entire
+    point of #716). A budget failure is still not silently swallowed: it is
+    logged here with stage context, then re-raised so it also lands in the
+    orchestrator's own isolated scoring failure domain
+    (``SharedComputeResult.scoring_succeeded=False``) exactly like a
+    persistence failure would.
     """
     result = await run_daily_scoring_for_shop(
         session,
@@ -82,4 +99,41 @@ async def decision_rules_scoring_stage(
             "persisted_card_count": len(persisted_cards),
         },
     )
+
+    # Commit the persisted candidates on their own boundary, independent of
+    # the emission budget below. This is the dual-cadence guarantee: a
+    # recomputation must be durable even when the surfacing decision that
+    # follows it fails. Only the orchestrator's earlier KPI-envelope commit
+    # sits ahead of this one; nothing after this point can roll it back.
+    await session.commit()
+
+    try:
+        outcome = await apply_emission_budget(session, job.shop_id, now=computed_at)
+    except Exception:
+        logger.exception(
+            "decision_rules_scoring_stage_emission_failed",
+            extra={
+                "shop_id": str(job.shop_id),
+                "enqueue_reason": job.enqueue_reason,
+            },
+        )
+        # Roll back only the emission budget's own (uncommitted) writes —
+        # the candidates committed above are untouched. Re-raise: this is
+        # containment of the *data*, not suppression of the *failure*. The
+        # exception still propagates into the orchestrator's isolated
+        # scoring failure domain (#713/B-1), which logs it again and
+        # records scoring_succeeded=False for observability.
+        await session.rollback()
+        raise
+
+    logger.info(
+        "decision_rules_scoring_stage_emission_applied",
+        extra={
+            "shop_id": str(job.shop_id),
+            "enqueue_reason": job.enqueue_reason,
+            "surfaced_count": len(outcome.surfaced),
+            "suppressed_count": sum(len(cards) for cards in outcome.suppressed.values()),
+        },
+    )
+
     return result
