@@ -80,11 +80,20 @@ def _assert_signed_request(
     call_kwargs = session_method.call_args.kwargs
     params = call_kwargs.get("params") or session_method.call_args[1].get("params", {})
     assert "sign" in params
-    body = call_kwargs.get("json")
-    if body is None:
-        body_str = ""
+    # The client sends the exact bytes it signed via data=, so assert against those
+    # rather than re-deriving them from a dict. Re-deriving is what let the
+    # sign/send mismatch go unnoticed: the helper reproduced the client's intent
+    # instead of observing what actually went on the wire.
+    raw = call_kwargs.get("data")
+    if raw is None:
+        legacy_body = call_kwargs.get("json")
+        body_str = (
+            ""
+            if legacy_body is None
+            else json.dumps(legacy_body, separators=(",", ":"), sort_keys=True)
+        )
     else:
-        body_str = json.dumps(body, separators=(",", ":"), sort_keys=True)
+        body_str = raw if isinstance(raw, str) else raw.decode()
     expected = sign_request(
         app_secret=app_secret,
         path=path,
@@ -269,7 +278,9 @@ class TestFulfillmentWriteContract:
     def test_ship_package(self, fulfillment_resources):
         resources, client, config = fulfillment_resources
         path = fulfillment_ship_package_path(self.PACKAGE_ID)
-        resources.fulfillment.ship_package(package_id=self.PACKAGE_ID, body={"package_id": self.PACKAGE_ID})
+        resources.fulfillment.ship_package(
+            package_id=self.PACKAGE_ID, body={"package_id": self.PACKAGE_ID}
+        )
         _assert_signed_request(
             client._session.post,
             app_secret=config.app_secret,
@@ -462,8 +473,7 @@ class TestTechnicalValidationDocumentation:
         from pathlib import Path
 
         handoff = (
-            Path(__file__).resolve().parents[2]
-            / "docs/handoffs/phase-2-tiktok-implementation.md"
+            Path(__file__).resolve().parents[2] / "docs/handoffs/phase-2-tiktok-implementation.md"
         )
         text = handoff.read_text(encoding="utf-8")
         assert "Layer 2" in text
