@@ -1,0 +1,84 @@
+{
+  "planId": "rep-834-additive-only-migration-gate",
+  "affectedPublicSurfaces": [
+    "the release path for api.app-juli.com: no candidate instance may start until pending schema changes are proven additive"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local gate execution against fixture migrations; no candidate instance and no public traffic are involved in proving the gate itself",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "additive-change-passes",
+        "entryUrl": "local: gate run against a fixture migration adding a nullable column and a new table",
+        "assertions": [
+          "the gate exits zero",
+          "the additive change is permitted to proceed to candidate start"
+        ]
+      },
+      {
+        "name": "destructive-change-refused",
+        "entryUrl": "local: fixture migrations dropping a column, renaming a table, and narrowing a type",
+        "assertions": [
+          "each is refused with the offending change named in output",
+          "the gate exits non-zero and is a hard block, not a warning",
+          "no candidate instance is started after a refusal"
+        ]
+      },
+      {
+        "name": "data-moving-change-refused",
+        "entryUrl": "local: fixture migration executing a data backfill or row rewrite",
+        "assertions": [
+          "the data-moving migration is refused from automatic release",
+          "the refusal names the statement that moved data"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: the migration gate has no HTML route or static assets"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "The slice adds the gate that enforces additive-only change; it introduces no migration of its own. Additivity is what makes code rollback safe while two versions share one database, which is why this is a hard block rather than advisory. Migrations are never automatically reverted."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert the commit; the gate is additive to the existing safe-alembic pipeline and removing it restores the prior behaviour exactly",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_migration_additive_gate.py",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 834"
+  ],
+  "doNotInfer": [
+    "replacing or bypassing the existing safe-alembic pipeline and its allowlist — extend them",
+    "running the gate against the production database; it inspects pending migration definitions",
+    "automatic reversion of any migration",
+    "candidate slot, traffic-switch, or rollback wiring — those are #838 through #840"
+  ]
+}
