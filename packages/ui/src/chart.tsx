@@ -2,6 +2,8 @@ import type { KeyboardEvent, ReactNode, ReactElement } from "react";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -371,6 +373,98 @@ export function TrendLineChart({
             type="monotone"
           />
         </LineChart>
+      </div>
+    </figure>
+  );
+}
+
+export interface TrendBarsChartProps {
+  data: readonly { label: string; value: number }[];
+  trend: ChartTrend;
+  label: string;
+  value: string;
+  delta?: string;
+  width?: number;
+  height?: number;
+}
+
+export function TrendBarsChart({
+  data,
+  trend,
+  label,
+  value,
+  delta,
+  width = 280,
+  height = 120,
+}: TrendBarsChartProps) {
+  const stroke = CHART_SERIES_COLORS[trend];
+
+  // Custom shape for bars: 4px rounded ends, anchored to baseline
+  const CustomBar = (props: any): ReactElement => {
+    const { fill, x, y, width: barWidth, height: barHeight, index } = props;
+
+    if (barWidth === undefined || barHeight === undefined) {
+      return <g />;
+    }
+
+    const radius = 2; // 4px rounded means 2px radius
+
+    return (
+      <g data-chart-bar={index}>
+        {/* Rounded rectangle for the bar */}
+        <rect
+          x={x}
+          y={y}
+          width={barWidth}
+          height={barHeight}
+          fill={fill}
+          rx={radius}
+          ry={radius}
+        />
+      </g>
+    );
+  };
+
+  return (
+    <figure className="juli-chart-bars">
+      <ChartTextEquivalent
+        delta={delta}
+        label={label}
+        trend={trend}
+        value={value}
+      />
+      <div
+        aria-hidden="true"
+        className="juli-chart-bars__visual"
+        data-testid="trend-bars-chart-visual"
+      >
+        <BarChart
+          data={[...data]}
+          height={height}
+          margin={{ top: 4, right: 0, bottom: 0, left: 0 }}
+          width={width}
+        >
+          <CartesianGrid
+            stroke={GRID_STROKE}
+            strokeDasharray="3 3"
+            vertical={false}
+          />
+          <XAxis
+            axisLine={false}
+            dataKey="label"
+            interval="preserveStartEnd"
+            tick={AXIS_TICK}
+            tickLine={false}
+          />
+          {/* Bars start at zero baseline per ADR-060 */}
+          <Bar
+            dataKey="value"
+            fill={stroke}
+            isAnimationActive={false}
+            radius={[2, 2, 0, 0]}
+            shape={<CustomBar />}
+          />
+        </BarChart>
       </div>
     </figure>
   );

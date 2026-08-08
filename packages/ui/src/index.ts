@@ -166,6 +166,7 @@ export {
   ChartTextEquivalent,
   MetricSparkline,
   TrendAreaChart,
+  TrendBarsChart,
   TrendLineChart,
 } from "./chart";
 export type {
@@ -174,6 +175,7 @@ export type {
   ChartTrend,
   MetricSparklineProps,
   TrendAreaChartProps,
+  TrendBarsChartProps,
   TrendLineChartProps,
 } from "./chart";
 export { isNavTabActive } from "./navigation-utils";
