@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 858,
+  "executorDomain": "ui-ux",
+  "phaseRunId": "858-20260808T061531",
+  "startedAt": "2026-08-08T13:24:00Z",
+  "completedAt": "2026-08-08T13:33:00Z",
+  "executionDurationMs": 540000,
+  "tokenUsage": {
+    "input": 15000,
+    "output": 8500,
+    "total": 23500
+  },
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 8,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Edit",
+      "count": 4,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Write",
+      "count": 1,
+      "stage": "red"
+    },
+    {
+      "toolName": "Bash",
+      "count": 10,
+      "stage": "red"
+    }
+  ],
+  "toolInvocationCount": 23,
+  "contextFilesLoaded": [
+    "agent-runtime/artifacts/workflow-cache/issue-context-cache-858.json",
+    "agent-runtime/artifacts/workflow-cache/parent-cache-issue-854.json",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-858.md",
+    "apps/demo/MODULE.md",
+    "docs/adr/060-chart-form-follows-kpi-measurement-type.md"
+  ],
+  "skillsLoaded": [],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    "apps/demo/src/lib/analytics/main-kpis.ts",
+    "apps/demo/src/lib/analytics/envelope-mapper.ts",
+    "apps/demo/src/lib/analytics/__tests__/envelope-mapper.test.ts"
+  ],
+  "testsAdded": [
+    "apps/demo/src/lib/analytics/__tests__/tone-resolver.test.ts"
+  ],
+  "testsUpdated": [
+    "apps/demo/src/lib/analytics/__tests__/envelope-mapper.test.ts"
+  ],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "pnpm --filter @juli/demo test -- --run resolveToneFromDeltaAndGoal: 10 failed tests (expected), error: 'resolveToneFromDeltaAndGoal is not a function'",
+      "passingTestEvidence": "pnpm --filter @juli/demo test -- --run: 890 tests passed (first run), then 900 tests passed after adding integration tests",
+      "refactorEvidence": "Unified tone derivation by absorbing impactSentiment logic into resolveToneFromDeltaAndGoal; removed duplicate inversion logic; updated computeDelta to use resolver when metricKey provided",
+      "commands": [
+        {
+          "command": "pnpm --filter @juli/demo test -- --run tone-resolver",
+          "exitCode": 1,
+          "outputSummary": "10 tests failed: resolveToneFromDeltaAndGoal function not implemented"
+        },
+        {
+          "command": "pnpm --filter @julius/demo test -- --run",
+          "exitCode": 0,
+          "outputSummary": "890 tests passed after implementation"
+        },
+        {
+          "command": "pnpm --filter @juli/demo test -- --run",
+          "exitCode": 0,
+          "outputSummary": "900 tests passed after adding integration tests"
+        },
+        {
+          "command": "pnpm --filter @juli/demo exec tsc --noEmit",
+          "exitCode": 0,
+          "outputSummary": "TypeScript compilation successful, no type errors"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Issue #858: Rising cancellations must read as a problem, not a success.\n\n## What was implemented\n\n1. Added GoalDirection type (\"higher-is-better\" | \"lower-is-better\") to main-kpis.ts\n2. Added required goalDirection field to MainKpiDefinition interface\n3. Populated goalDirection for all 5 KPIs:\n   - gmv-tiktok: higher-is-better\n   - aov: higher-is-better\n   - ctor: higher-is-better\n   - live-hours: higher-is-better\n   - cancellation-rate: lower-is-better (only one)\n4. Created resolveToneFromDeltaAndGoal() as the single tone resolver:\n   - Takes percentage change and goal direction\n   - Returns semantic tone (positive/negative/neutral)\n   - Higher-is-better: rise→positive, fall→negative\n   - Lower-is-better: rise→negative, fall→positive\n   - Zero change always→neutral\n5. Updated computeDelta() to accept optional metricKey:\n   - When metricKey provided, uses resolver for goal-aware tone\n   - Arrow always reflects raw movement (▲/▼ based on pct direction)\n   - When metricKey not provided (supplementary charts), uses raw movement tone\n6. Updated buildLiveKpiSnapshot to pass metricKey to computeDelta\n7. Refactored buildImpactMetricSnapshot to use unified resolver\n   - Removed impactSentiment() function (duplicate logic absorbed into resolver)\n   - Now computes both trend (raw movement) and sentiment (goal-aware)\n8. Created comprehensive tests:\n   - tone-resolver.test.ts: 10 tests covering both goal directions × rise/fall/zero + edge cases\n   - Added 15 integration tests to envelope-mapper.test.ts\n   - All tests assert rendered tone, not internal enum\n\n## Acceptance criteria met\n\n✓ Every KPI definition declares goalDirection; field is required (type error if omitted)\n✓ Rising cancellation rate resolves to negative tone\n✓ Falling cancellation rate resolves to positive tone\n✓ Rising GMV/AOV/CTOR/LIVE hours resolve to positive tone\n✓ Zero delta resolves to neutral for every KPI\n✓ Arrow glyph still reflects raw movement only\n✓ Tone derived in exactly one place (resolveToneFromDeltaAndGoal)\n✓ Tests cover 6+ cases: both goal directions × rise/fall/zero, plus edge cases\n\n## Files changed\n\n- apps/demo/src/lib/analytics/main-kpis.ts (2 edits: type + definitions)\n- apps/demo/src/lib/analytics/envelope-mapper.ts (4 edits: imports + resolver + computeDelta refactor + buildImpactMetricSnapshot refactor)\n- apps/demo/src/lib/analytics/__tests__/envelope-mapper.test.ts (1 edit: add 15 integration tests)\n- apps/demo/src/lib/analytics/__tests__/tone-resolver.test.ts (new file: 10 resolver unit tests)",
+  "assumptions": [
+    "GoalDirection is a simple literal union type with no additional runtime behavior",
+    "Arrow glyph should always reflect raw movement direction, not goal-aware tone",
+    "Supplementary charts (product_funnel, live_performance) do not have goal directions and should use raw movement tone",
+    "All five Main KPIs fit into the two goal direction categories (four higher-is-better, one lower-is-better)"
+  ],
+  "risks": [
+    "No runtime risk: type system enforces goalDirection presence on all new KPIs",
+    "Behavioral change on analytics display: cancellation-rate rising now shows problem color instead of success color (intentional per spec)",
+    "The resolved tone is now used everywhere instead of raw-sign-based derivation, making the system more coherent"
+  ],
+  "releaseEvidencePlanId": "rep-858-analytics-tone-goal-direction"
+}
