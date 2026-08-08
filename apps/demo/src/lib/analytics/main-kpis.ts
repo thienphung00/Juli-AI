@@ -45,6 +45,13 @@ export interface UnavailableKpiReason {
   activationRequirement: string;
 }
 
+export interface BoundedRatioBounds {
+  /** Minimum value for the bounded-ratio scale (e.g., 0% for cancellation rate). */
+  min: number;
+  /** Maximum value for the bounded-ratio scale (e.g., 10% for acceptable cancellation rate). */
+  max: number;
+}
+
 export interface MainKpiDefinition {
   metricKey: MetricKey;
   category: string;
@@ -55,6 +62,8 @@ export interface MainKpiDefinition {
   chartKind: ChartKind;
   goalDirection: GoalDirection;
   measurementType: MeasurementType;
+  /** Bounds for bounded-ratio measurements, predetermined from metric definition. Only present for bounded-ratio KPIs. */
+  boundedRatioBounds?: BoundedRatioBounds;
   unavailableReason?: UnavailableKpiReason;
 }
 
@@ -157,6 +166,10 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     chartKind: "gauge",
     goalDirection: "lower-is-better",
     measurementType: "bounded-ratio",
+    boundedRatioBounds: {
+      min: 0,
+      max: 10,
+    },
   },
 };
 

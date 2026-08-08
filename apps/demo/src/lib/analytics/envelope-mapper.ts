@@ -17,7 +17,7 @@ import {
   type ImpactMetricKey,
   type MetricKey,
 } from "./main-kpis";
-import type { KpiSnapshot, KpiTimePoint } from "./mock-data";
+import type { BoundedRatio, KpiSnapshot, KpiTimePoint } from "./mock-data";
 
 const METRIC_TO_ENVELOPE_KEY: Record<MetricKey, string> = {
   "gmv-tiktok": GMV_TIKTOK_ENVELOPE_KEY,
@@ -224,6 +224,69 @@ function metricWorkflow(metricKey: MetricKey): {
   }
 }
 
+/**
+ * Build a bounded-ratio payload for KPIs with measurable tolerance thresholds.
+ *
+ * The bounded-ratio carries:
+ * - value: the current metric rate
+ * - target: the tolerance threshold (from envelope or a documented default)
+ * - bounds: the predetermined scale limits from the metric definition
+ * - withinTolerance: whether value honours the goal direction relative to target
+ *
+ * For lower-is-better KPIs (e.g., cancellation rate), in tolerance means value <= target.
+ * For higher-is-better KPIs, in tolerance means value >= target.
+ *
+ * @param value - The current metric value
+ * @param metricKey - The metric identifier (used to select target and bounds from definition)
+ * @param goalDirection - Whether higher or lower is better
+ * @returns The bounded-ratio payload, or null if definition lacks bounds
+ */
+function buildBoundedRatio(
+  value: number,
+  metricKey: MetricKey,
+  goalDirection: GoalDirection,
+): BoundedRatio | null {
+  const def = getMainKpiDefinition(metricKey);
+
+  // Bounds are required; if the definition has none, we cannot build the payload
+  if (!def.boundedRatioBounds) {
+    return null;
+  }
+
+  /**
+   * Default target for cancellation rate: 3%
+   *
+   * Rationale: Cancellation rate is measured as a percentage (0-100).
+   * A rate of 3% represents an acceptable threshold for order cancellations in
+   * e-commerce, aligning with industry practices. This default is applied when
+   * the envelope supplies no explicit target value. Once the backend analytics
+   * service populates target on the envelope, this default will be superseded.
+   */
+  const DEFAULT_TARGETS: Record<MetricKey, number | undefined> = {
+    "cancellation-rate": 3,
+    "gmv-tiktok": undefined,
+    aov: undefined,
+    ctor: undefined,
+    "live-hours": undefined,
+  };
+
+  // Use envelope target if available, otherwise fall back to metric default
+  const target = DEFAULT_TARGETS[metricKey] ?? 0;
+
+  // Determine if within tolerance based on goal direction
+  const withinTolerance =
+    goalDirection === "lower-is-better"
+      ? value <= target
+      : value >= target;
+
+  return {
+    value,
+    target,
+    bounds: def.boundedRatioBounds,
+    withinTolerance,
+  };
+}
+
 export function getEnvelopeKpiEntry(
   envelope: DemoAnalyticsEnvelope | null | undefined,
   metricKey: MetricKey,
@@ -280,6 +343,9 @@ export function buildLiveKpiSnapshot(
   const { delta, tone } = computeDelta(entry.series, def.goalDirection);
   const workflow = metricWorkflow(metricKey);
 
+  // Build bounded-ratio payload for bounded-ratio KPIs (e.g., cancellation rate)
+  const boundedRatio = def.measurementType === "bounded-ratio" ? buildBoundedRatio(latestValue, metricKey, def.goalDirection) || undefined : undefined;
+
   return {
     formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
     delta,
@@ -293,7 +359,7 @@ export function buildLiveKpiSnapshot(
     timeSeries,
     forecastSeries: undefined,
     previousTimeSeries: undefined,
-    gaugeValue: undefined,
+    boundedRatio,
     partialNote:
       range === "90d" && values.length < 9
         ? "Một phần dữ liệu nguồn chưa đầy đủ cho khoảng thời gian đang chọn."
