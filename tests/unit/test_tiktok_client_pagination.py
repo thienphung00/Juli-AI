@@ -92,7 +92,7 @@ class TestGetAllPages:
 
         # Simulate an API that echoes the page_token back, which would cause
         # an infinite loop in the old code
-        def echo_cursor_response(path, body, params):
+        def echo_cursor_response(path, body, params, retry_transient=False):
             cursor = params.get("page_token", "cursor-1")
             return {"orders": [{"id": f"o-{cursor}"}], "page_token": cursor}
 
@@ -122,7 +122,7 @@ class TestGetAllPages:
     def test_max_pages_cap_enforced_post(self, client, caplog):
         """Test that get_all_pages stops at max page count and logs warning."""
 
-        def infinite_cursor_response(path, body, params):
+        def infinite_cursor_response(path, body, params, retry_transient=False):
             cursor = params.get("page_token", "cursor-0")
             next_cursor = f"cursor-{int(cursor.split('-')[1]) + 1}"
             return {"orders": [{"id": f"o-{cursor}"}], "next_page_token": next_cursor}
