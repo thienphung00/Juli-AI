@@ -1,0 +1,37 @@
+{
+  "gateVersion": 1,
+  "issue": 716,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/core/config/__init__.py",
+      "backend/src/juli_backend/core/config/decision_emission.py",
+      "backend/src/juli_backend/database/migrations/versions/027_decision_emission_budget.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "backend/src/juli_backend/services/action_cards/emission_budget.py",
+      "backend/src/juli_backend/services/action_cards/persist.py",
+      "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+      "backend/src/juli_backend/services/cdp_speed/decision_rules_scoring.py",
+      "docs/architecture/ownership-registry.yml",
+      "tests/unit/test_action_cards_computed_at_migration.py",
+      "tests/unit/test_cdp_speed_decision_rules_scoring_emission.py",
+      "tests/unit/test_decision_emission_budget.py",
+      "tests/unit/test_decision_emission_migration.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-716.json",
+    "sha256": "671db755d13982e4df5ac1510f95854bec1b82473214a6017dec30d7a2ea0764",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-08T11:24:28Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-716.json",
+    "sha256": "56e3b1c5368a5deca2b1b9125096d91e78c895ddf13ad761a19464361a009153",
+    "status": "PASS"
+  },
+  "wave": null
+}
