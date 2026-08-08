@@ -153,7 +153,6 @@ export function AnalyticsHeroChart({
 interface AnalyticsPreviewChartProps {
   label: string;
   sparkline: readonly number[];
-  trend: ChartTrend;
   value: string;
   delta: string;
 }
@@ -161,7 +160,6 @@ interface AnalyticsPreviewChartProps {
 export function AnalyticsPreviewChart({
   label,
   sparkline,
-  trend,
   value,
   delta,
 }: AnalyticsPreviewChartProps) {
@@ -172,7 +170,7 @@ export function AnalyticsPreviewChart({
         delta={delta}
         height={32}
         label={label}
-        trend={trend}
+        trend={"neutral"}
         value={value}
         width={96}
       />

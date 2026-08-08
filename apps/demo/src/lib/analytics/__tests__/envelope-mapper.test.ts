@@ -387,8 +387,8 @@ describe("Issue #865: chart mark color separate from delta chip tone", () => {
     });
   });
 
-  describe("Issue #865 pairing: delta chip tone ≠ chart mark color", () => {
-    it("rising cancellation rate: snapshot.trend is problem tone (for chip), but chart receives neutral", () => {
+  describe("Issue #865 pairing: delta chip tone ≠ chart mark color (hero and card)", () => {
+    it("rising cancellation rate: hero chart mark receives neutral, chip shows problem tone", () => {
       // This test guards the pairing: snapshot.trend must carry goal-aware tone (#858 chip),
       // while chart components receive neutral hue (ADR-060 mark). The two must not be conflated.
       const envelope = createMockDemoAnalyticsEnvelope({
@@ -406,11 +406,36 @@ describe("Issue #865: chart mark color separate from delta chip tone", () => {
       const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
       // Snapshot.trend is goal-aware (negative tone = problem for seller, rising is bad)
       expect(snapshot?.trend).toBe("negative");
-      // But analytics-charts.tsx overrides it to neutral when rendering the chart mark
-      // (verified by separate UI test: chart mark stays neutral, delta chip shows negative)
+      // Hero chart mark receives neutral at render time (analytics-charts.tsx:117 override)
+      // Delta chip reads snapshot.trend for goal-aware tone (analytics-dashboard:242)
       expect(snapshot?.delta).toMatch(/▲/); // Arrow shows raw movement
       expect(snapshot?.signal).toContain("tăng"); // Signal shows direction
       expect(snapshot?.signal).toContain("rủi ro"); // Signal conveys the problem tone
+    });
+
+    it("rising cancellation rate: card sparkline receives neutral, chip shows problem tone", () => {
+      // Extends the pairing guard to selector cards: sparkline is also a trend mark.
+      // AnalyticsPreviewChart hardcodes trend="neutral" for MetricSparkline (no prop passed).
+      // Card delta chip reads snapshot.trend for goal-aware tone.
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 1.8 },
+              { t: "2026-07-20", v: 2.5 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+      // Snapshot.trend is negative (problem for seller)
+      expect(snapshot?.trend).toBe("negative");
+      // Card sparkline hardcodes trend="neutral" in AnalyticsPreviewChart (stable mark)
+      // Card delta chip uses analyticsDeltaClass(liveSnapshot.trend) = negative (shows problem)
+      expect(snapshot?.delta).toMatch(/▲/);
+      expect(snapshot?.signal).toContain("rủi ro");
     });
   });
 
