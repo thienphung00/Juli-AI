@@ -47,10 +47,33 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 | [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | data-platform + backend | `feature/issue-715` | 21/21 PASS | **merged to wave** (mig `026`) |
 | [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | data-platform + backend | `feature/issue-716` | 21/21 PASS, 6/6 AC | **merged to wave** (mig `027`) |
 | [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | `feature/issue-717` | 21/21 PASS | **merged to wave** (mig `028`) |
-| [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | `feature/issue-718` | 21/21 PASS | **merged to wave** |
+| [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | `feature/issue-718` | 21/21 PASS (slice + delta reviewed separately) | **merged to wave** |
 
 Wave at integration: **2351 passed, 4 skipped, 0 failed**; single Alembic head
 `028_demo_execution_records`; all six status records committed.
+
+## Review coverage — what was reviewed by whom
+
+Every slice had a Review-agent pass. Two hardening deltas landed **after** their slice's
+Review and needed separate treatment:
+
+| Delta | Reviewed by |
+|---|---|
+| #718 `c40cb591` (row resilience, flush→commit) | **Review agent**, scoped delta pass — ship-ready YES |
+| #717 `2b5da6e2` (import-boundary recursion, approve idempotency) | **Head Meta only** — no Review-agent pass |
+
+#717's delta remains the one place in this wave where a code change was verified by the
+coordinator rather than an independent Review. It is recorded here rather than smoothed over.
+
+The #718 delta pass independently reproduced the vacuity claim (reverted `commit()`→`flush()`,
+confirmed both tests still passed vacuously, restored byte-for-byte), confirmed the per-row
+handler catches `ValidationError` only and not bare `Exception`, and ruled the detail-endpoint
+500 is not a practical existence oracle — a malformed row in another shop, or a suppressed one,
+still 404s identically because the WHERE clause excludes it before validation runs.
+
+Two non-blocking recommendations carried forward: alert on `demo_decisions_row_dropped_invalid_shape`
+volume (an all-rows-malformed feed returns an empty 200 that a client cannot distinguish from a
+genuinely empty feed), and optionally log-500-respond-404 on detail for an absolute 404 invariant.
 
 ## Integration hazard found at merge time — stacked branches need explicit merges
 
