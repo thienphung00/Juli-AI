@@ -17,6 +17,7 @@ from juli_backend.services.cdp_speed import (
     FetchResource,
     run_shared_compute_job,
     SharedComputeJob,
+    scoring_stage_enabled,
 )
 ```
 
@@ -32,9 +33,22 @@ from juli_backend.services.cdp_speed import (
   (``orders``, ``products``, ``returns``, ``inventory``) for negative tests vs
   ``_FUJIWA_POLL_STEPS``.
 - ``run_shared_compute_job(session, job)`` / ``SharedComputeOrchestrator.run(job)``
-  → executes **bronze append → silver upsert → gold envelope write** in order for one
-  shop-scoped material trigger (ADR-046 Q4). Accepts ``enqueue_reason``,
-  ``TargetedFetchPlan``, and a per-trigger ``idempotency_key``.
+  → executes **bronze append → silver upsert → gold envelope write → Decision scoring
+  branch** in order for one shop-scoped material trigger (ADR-046 Q4). Accepts
+  ``enqueue_reason``, ``TargetedFetchPlan``, and a per-trigger ``idempotency_key``.
+- **Decision scoring branch (#713 / B-1):** after the gold KPI envelope commits, the
+  orchestrator dispatches an injectable ``scoring_stage`` callable — same enqueue, same
+  ``job`` inputs already fetched into bronze/silver this run, **no second Partner fetch
+  cycle**. Gated by ``scoring_stage_enabled()`` (env ``CDP_DECISIONS_SCORING_ENABLED``,
+  default **OFF**) or an explicit ``scoring_enabled=`` override on the orchestrator /
+  ``run_shared_compute_job``. **Isolated failure domain:** a scoring exception is caught,
+  logged (``shared_compute_scoring_stage_failed``), and rolled back on its own — it never
+  fails or reverts the already-committed KPI write. ``SharedComputeResult.scoring_dispatched``
+  / ``.scoring_succeeded`` (``None`` when the branch was skipped) surface the outcome. The
+  default ``scoring_stage`` is a **safe no-op stub** — B-1 is wiring/dispatch only; the
+  rules-scoring callable is #714 (B-2) and Action Card persistence is #715 (B-3). KPI
+  freshness and Decision surfacing cadences stay independently controllable (dual cadence,
+  ADR-038 §6) — this seam does not implement or throttle surfacing.
 - ``webhook_catalog_enqueue_reason(catalog_id)`` → ``webhook_catalog:<id>`` for material dispatch.
 - ``job_correlation_token(shop_id, idempotency_key)`` — bounded log/bronze correlation token.
 - ``execute_targeted_fetch_to_bronze`` — production fetch boundary via ``targeted_fetch_sync``

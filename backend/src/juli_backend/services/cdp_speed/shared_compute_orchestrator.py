@@ -1,8 +1,16 @@
-"""Shared Compute Orchestrator — bronze → silver → gold for material triggers (#627)."""
+"""Shared Compute Orchestrator — bronze → silver → gold for material triggers (#627).
+
+Also dispatches the Decision rules-scoring branch (#713 / B-1) after the KPI
+envelope write, on the same shop-job enqueue — no second Partner fetch cycle.
+The scoring callable itself (#714 / B-2) and Action Card persistence (#715 /
+B-3) are wired as an injectable stage with a safe no-op default; this module
+only owns the dispatch seam.
+"""
 
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -33,6 +41,21 @@ from juli_backend.services.gold_kpi_envelope_serving import write_demo_main_kpis
 
 logger = logging.getLogger(__name__)
 
+_SCORING_ENABLED_ENV_VAR = "CDP_DECISIONS_SCORING_ENABLED"
+_TRUTHY_ENV_VALUES = ("true", "1", "yes")
+
+
+def scoring_stage_enabled() -> bool:
+    """Rollout toggle for the Decision rules-scoring branch (#713 / B-1).
+
+    Default **OFF** — B-1 wires the dispatch seam only. The rules-scoring
+    callable (#714 / B-2) and Action Card persistence (#715 / B-3) are not
+    implemented on this path; flip ``CDP_DECISIONS_SCORING_ENABLED=true`` once
+    a real ``scoring_stage`` callable is injected.
+    """
+    flag = os.getenv(_SCORING_ENABLED_ENV_VAR, "false").strip().lower()
+    return flag in _TRUTHY_ENV_VALUES
+
 
 @dataclass(frozen=True, slots=True)
 class SharedComputeJob:
@@ -53,6 +76,8 @@ class SharedComputeResult:
     bronze_appended: int
     silver_promoted: int
     gold_written: bool
+    scoring_dispatched: bool = False
+    scoring_succeeded: bool | None = None
 
 
 BronzeStageFn = Callable[
@@ -64,6 +89,7 @@ SilverStageFn = Callable[
     Awaitable[int],
 ]
 GoldStageFn = Callable[[AsyncSession, uuid.UUID], Awaitable[bool]]
+ScoringStageFn = Callable[[AsyncSession, SharedComputeJob], Awaitable[Any]]
 
 
 async def _batch_promote_silver_rows(
@@ -159,12 +185,18 @@ class SharedComputeOrchestrator:
         bronze_stage: BronzeStageFn | None = None,
         silver_stage: SilverStageFn | None = None,
         gold_stage: GoldStageFn | None = None,
+        scoring_stage: ScoringStageFn | None = None,
+        scoring_enabled: bool | None = None,
     ) -> None:
         self._session = session
         self._fetch_executor = fetch_executor or execute_targeted_fetch_to_bronze
         self._bronze_stage = bronze_stage or self._default_bronze_stage
         self._silver_stage = silver_stage or self._default_silver_stage
         self._gold_stage = gold_stage or self._default_gold_stage
+        self._scoring_stage = scoring_stage or self._default_scoring_stage
+        # None -> resolve from CDP_DECISIONS_SCORING_ENABLED at run() time; an
+        # explicit bool always wins (used by callers/tests that need a fixed value).
+        self._scoring_enabled_override = scoring_enabled
 
     async def run(self, job: SharedComputeJob) -> SharedComputeResult:
         """Run medallion stages (bronze → silver → gold) with per-stage commits.
@@ -216,6 +248,52 @@ class SharedComputeOrchestrator:
         # Commit after gold stage for durability
         await self._session.commit()
 
+        # Decision scoring branch (#713 / B-1): dispatched from the same enqueue,
+        # after the KPI envelope is durably committed. Isolated failure domain —
+        # a scoring exception is caught and its own (uncommitted) writes are
+        # rolled back here; it never touches or reverts the already-committed
+        # bronze/silver/gold writes above. No second Partner fetch: the stage
+        # receives the same `job` (shop-scoped inputs already fetched into
+        # bronze/silver this run) and performs no fetch of its own.
+        scoring_dispatched = False
+        scoring_succeeded: bool | None = None
+        scoring_enabled = (
+            self._scoring_enabled_override
+            if self._scoring_enabled_override is not None
+            else scoring_stage_enabled()
+        )
+        if scoring_enabled:
+            scoring_dispatched = True
+            logger.info(
+                "shared_compute_scoring_stage_dispatched",
+                extra={
+                    "correlation_id": correlation_id,
+                    "enqueue_reason": job.enqueue_reason,
+                },
+            )
+            try:
+                await self._scoring_stage(self._session, job)
+                await self._session.commit()
+                scoring_succeeded = True
+            except Exception:
+                logger.exception(
+                    "shared_compute_scoring_stage_failed",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "enqueue_reason": job.enqueue_reason,
+                    },
+                )
+                await self._session.rollback()
+                scoring_succeeded = False
+        else:
+            logger.info(
+                "shared_compute_scoring_stage_skipped",
+                extra={
+                    "correlation_id": correlation_id,
+                    "enqueue_reason": job.enqueue_reason,
+                },
+            )
+
         logger.info(
             "shared_compute_job_completed",
             extra={
@@ -225,6 +303,8 @@ class SharedComputeOrchestrator:
                 "bronze_appended": bronze_tracker.appended_count,
                 "silver_promoted": silver_promoted,
                 "gold_written": gold_written,
+                "scoring_dispatched": scoring_dispatched,
+                "scoring_succeeded": scoring_succeeded,
             },
         )
 
@@ -232,6 +312,8 @@ class SharedComputeOrchestrator:
             bronze_appended=bronze_tracker.appended_count,
             silver_promoted=silver_promoted,
             gold_written=gold_written,
+            scoring_dispatched=scoring_dispatched,
+            scoring_succeeded=scoring_succeeded,
         )
 
     async def _default_bronze_stage(
@@ -375,6 +457,18 @@ class SharedComputeOrchestrator:
         await write_demo_main_kpis_envelope(session, shop_id)
         return True
 
+    @staticmethod
+    async def _default_scoring_stage(session: AsyncSession, job: SharedComputeJob) -> None:
+        """Safe no-op placeholder for the Decision rules-scoring branch (#713 / B-1).
+
+        B-1 wires the dispatch seam only — this default does not fetch, score,
+        or persist anything. The rules-scoring callable is #714 (B-2) and
+        Action Card persistence is #715 (B-3); callers inject the real
+        callable via ``scoring_stage=`` once those land.
+        """
+        del session, job
+        return None
+
 
 async def run_shared_compute_job(
     session: AsyncSession,
@@ -382,10 +476,17 @@ async def run_shared_compute_job(
     *,
     orchestrator: SharedComputeOrchestrator | None = None,
     fetch_executor: TargetedFetchExecutor | None = None,
+    scoring_stage: ScoringStageFn | None = None,
+    scoring_enabled: bool | None = None,
 ) -> SharedComputeResult:
     """Convenience entry for one shop-scoped Shared Compute job."""
     if orchestrator is not None:
         runner = orchestrator
     else:
-        runner = SharedComputeOrchestrator(session, fetch_executor=fetch_executor)
+        runner = SharedComputeOrchestrator(
+            session,
+            fetch_executor=fetch_executor,
+            scoring_stage=scoring_stage,
+            scoring_enabled=scoring_enabled,
+        )
     return await runner.run(job)

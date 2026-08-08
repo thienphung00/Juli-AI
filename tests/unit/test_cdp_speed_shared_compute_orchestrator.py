@@ -566,6 +566,158 @@ async def test_gold_stage_handles_all_cancelled_orders(medallion_session):
 
 
 @pytest.mark.asyncio
+async def test_dispatches_kpi_and_scoring_stage_from_one_enqueue(medallion_session):
+    """#713 B-1 AC1: one shop-job enqueue dispatches both KPI precompute and scoring."""
+    session, shop = medallion_session
+    stage_log: list[str] = []
+
+    async def track_gold(*args, **kwargs):
+        stage_log.append("gold")
+        return await SharedComputeOrchestrator._default_gold_stage(*args, **kwargs)
+
+    async def track_scoring(sess, job):
+        stage_log.append("scoring")
+
+    orchestrator = SharedComputeOrchestrator(
+        session,
+        fetch_executor=_fake_orders_fetch_executor,
+        gold_stage=track_gold,
+        scoring_stage=track_scoring,
+        scoring_enabled=True,
+    )
+
+    result = await orchestrator.run(_order_status_job(shop))
+
+    assert stage_log == ["gold", "scoring"]
+    assert result.gold_written is True
+    assert result.scoring_dispatched is True
+    assert result.scoring_succeeded is True
+
+
+@pytest.mark.asyncio
+async def test_scoring_stage_failure_isolated_from_kpi_write(medallion_session, caplog):
+    """#713 B-1 AC2: scoring failure must not fail or roll back the KPI write."""
+    session, shop = medallion_session
+
+    async def failing_scoring(sess, job):
+        raise RuntimeError("boom: scoring stage exploded")
+
+    orchestrator = SharedComputeOrchestrator(
+        session,
+        fetch_executor=_fake_orders_fetch_executor,
+        scoring_stage=failing_scoring,
+        scoring_enabled=True,
+    )
+
+    with caplog.at_level(logging.ERROR):
+        result = await orchestrator.run(_order_status_job(shop))
+
+    assert result.gold_written is True
+    assert result.scoring_dispatched is True
+    assert result.scoring_succeeded is False
+
+    # KPI envelope durably written despite the scoring stage raising.
+    gold = await session.get(GoldKpiEnvelope, shop.id)
+    assert gold is not None
+    assert "kpis" in gold.payload
+
+    failure_records = [
+        r for r in caplog.records if r.getMessage() == "shared_compute_scoring_stage_failed"
+    ]
+    assert len(failure_records) == 1
+
+
+def test_scoring_stage_enabled_defaults_off(monkeypatch):
+    """#713 B-1 AC3: scoring branch config flag defaults OFF (safe default)."""
+    from juli_backend.services.cdp_speed.shared_compute_orchestrator import (
+        scoring_stage_enabled,
+    )
+
+    monkeypatch.delenv("CDP_DECISIONS_SCORING_ENABLED", raising=False)
+    assert scoring_stage_enabled() is False
+
+
+@pytest.mark.parametrize("flag_value", ["true", "1", "yes", "TRUE"])
+def test_scoring_stage_enabled_reads_truthy_env_values(monkeypatch, flag_value):
+    from juli_backend.services.cdp_speed.shared_compute_orchestrator import (
+        scoring_stage_enabled,
+    )
+
+    monkeypatch.setenv("CDP_DECISIONS_SCORING_ENABLED", flag_value)
+    assert scoring_stage_enabled() is True
+
+
+@pytest.mark.asyncio
+async def test_scoring_branch_skipped_when_flag_disabled(medallion_session, monkeypatch):
+    """#713 B-1 AC3: scoring branch does not run at all when the flag is off."""
+    session, shop = medallion_session
+    monkeypatch.delenv("CDP_DECISIONS_SCORING_ENABLED", raising=False)
+
+    called = False
+
+    async def spy_scoring(sess, job):
+        nonlocal called
+        called = True
+
+    result = await run_shared_compute_job(
+        session,
+        _order_status_job(shop, idempotency_key="job-713-flag-off"),
+        fetch_executor=_fake_orders_fetch_executor,
+        scoring_stage=spy_scoring,
+    )
+
+    assert called is False
+    assert result.scoring_dispatched is False
+    assert result.scoring_succeeded is None
+    assert result.gold_written is True
+
+
+@pytest.mark.asyncio
+async def test_scoring_branch_does_not_trigger_a_second_fetch_cycle(medallion_session):
+    """#713 B-1 AC4: no second Partner fetch cycle for Decisions-only inputs."""
+    session, shop = medallion_session
+    fetch_calls = 0
+
+    async def counting_fetch_executor(sess, *, shop_id, shop_key, fetch_plan, idempotency_key):
+        nonlocal fetch_calls
+        fetch_calls += 1
+        return await _fake_orders_fetch_executor(
+            sess,
+            shop_id=shop_id,
+            shop_key=shop_key,
+            fetch_plan=fetch_plan,
+            idempotency_key=idempotency_key,
+        )
+
+    scoring_calls = 0
+
+    async def counting_scoring(sess, job):
+        nonlocal scoring_calls
+        scoring_calls += 1
+
+    result = await run_shared_compute_job(
+        session,
+        _order_status_job(shop, idempotency_key="job-713-single-fetch"),
+        fetch_executor=counting_fetch_executor,
+        scoring_stage=counting_scoring,
+        scoring_enabled=True,
+    )
+
+    assert fetch_calls == 1
+    assert scoring_calls == 1
+    assert result.bronze_appended >= 1
+
+
+def test_default_scoring_stage_is_wiring_only_stub():
+    """#713 B-1 scope: the rules-scoring callable is #714 — do not implement it here."""
+    import juli_backend.services.cdp_speed.shared_compute_orchestrator as orch
+
+    source = open(orch.__file__, encoding="utf-8").read()
+    for token in ("run_daily_scoring_for_shop", "services.scoring", "action_cards"):
+        assert token not in source
+
+
+@pytest.mark.asyncio
 async def test_gold_stage_handles_single_order(medallion_session):
     """Test with a single completed order."""
     from decimal import Decimal

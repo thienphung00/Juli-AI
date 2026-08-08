@@ -12,6 +12,7 @@ from juli_backend.services.cdp_speed.shared_compute_orchestrator import (
     SharedComputeOrchestrator,
     SharedComputeResult,
     run_shared_compute_job,
+    scoring_stage_enabled,
 )
 from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
     BronzeAppendTracker,
@@ -47,5 +48,6 @@ __all__ = [
     "plan_targeted_fetch",
     "quota_guard_reason",
     "run_shared_compute_job",
+    "scoring_stage_enabled",
     "webhook_catalog_enqueue_reason",
 ]
