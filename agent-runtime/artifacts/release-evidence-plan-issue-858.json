@@ -1,0 +1,84 @@
+{
+  "planId": "rep-858-analytics-tone-goal-direction",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-lower-is-better-rise-reads-as-problem",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "cancellation_rate_rise_renders_problem_tone_not_success",
+          "cancellation_rate_fall_renders_success_tone",
+          "gmv_aov_ctor_live_hours_rise_still_renders_success_tone",
+          "zero_or_unavailable_delta_renders_neutral_tone_for_every_kpi",
+          "arrow_glyph_still_reflects_raw_movement_on_lower_is_better"
+        ]
+      },
+      {
+        "name": "analytics-single-tone-source",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "no_call_site_maps_delta_sign_to_tone_outside_the_resolver",
+          "impact_block_sentiment_reads_the_same_resolver"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. goalDirection is an authored field on the apps/demo KPI definitions; tone derivation moves into a single resolver in envelope-mapper."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "which KPIs are lower-is-better (only cancellation rate, per ADR-060)",
+    "chart form or mark changes (#859 and its successors)",
+    "series hue policy (#865)"
+  ]
+}
