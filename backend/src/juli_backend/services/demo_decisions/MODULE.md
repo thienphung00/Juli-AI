@@ -84,6 +84,51 @@ existing authenticated `GET /v1/action-cards` precedent
   or a card belonging to another shop — all three are indistinguishable in
   the response, so detail lookup never leaks existence across tenants.
 
+## Row-level resilience (#718 Review finding 1)
+
+`mask_decision_payload` is a plain allowlist *copy* — it does not type-check
+values, so a persisted `recommendation_payload` with the wrong shape for a
+known-safe key (e.g. `source_kpi_ids` holding a list of dicts instead of
+`list[str]`) passes straight through it unchanged. The strict pydantic
+response schema in `api/routes/demo_decisions.py`
+(`DemoDecisionItem`/`DemoDecisionRecommendation`) is what actually rejects
+that shape — the correct security outcome, since it means a malformed row
+can never be serialized into the public response body regardless of cause.
+
+What the schema rejecting a row must **not** do is take the rest of a
+public, unauthenticated feed down with it:
+
+- **List** (`GET /v1/demo/decisions`) is per-row resilient:
+  `api/routes/demo_decisions.py::_build_masked_item` wraps
+  `DemoDecisionItem(**mask_decision_payload(card))` in its own
+  `try`/`except ValidationError` and returns `None` for a row that fails,
+  which `list_demo_decisions` filters out. A malformed row is dropped —
+  never serialized, never leaked, never distinguishable in the response from
+  a row that was simply never surfaced — while every other well-formed row
+  in the same response is still served. This module's own read functions
+  (`list_surfaced_decisions` / `get_surfaced_decision`) are untouched by
+  this — they still return whatever `ActionCard` rows the query matches; the
+  drop happens one layer up, at construction of the public envelope.
+- The drop is observable: one `demo_decisions_row_dropped_invalid_shape`
+  warning log per dropped row, carrying only `reference_shop_id` (the
+  server-bound demo shop id, never visitor-controlled), the card's own
+  opaque `id`, and a structural pydantic validation reason (field path +
+  error type/message via `ValidationError.errors(include_input=False, ...)`)
+  — never the raw `recommendation_payload`, never `title`/`description`,
+  and never `workflow_key`, matching the no-PII/no-raw-content discipline
+  `services/action_cards/emission_budget.py`'s suppression logging follows.
+- **Detail** (`GET /v1/demo/decisions/{id}`) is deliberately **not**
+  row-resilient the same way. A single lookup has no partial result to
+  preserve — there is nothing to "serve the rest of". Silently downgrading
+  a malformed row to a 404 would misrepresent a genuine data-integrity
+  problem as "this Decision doesn't exist" (a strictly worse signal for
+  on-call debugging, and a caller reaching this endpoint by id almost always
+  got that id from a prior list response, so a vanished-looking 404 would be
+  actively misleading). A malformed row at detail therefore surfaces through
+  the same `except Exception` -> 500 contract as any other unexpected read
+  failure on this route, logged via the existing
+  `demo_decisions_detail_failed` entry (now also carrying `action_card_id`).
+
 ## Out of scope
 
 - Any mutation of `ActionCard` (approve/dismiss/execute) — `services/

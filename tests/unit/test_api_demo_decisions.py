@@ -394,7 +394,15 @@ async def test_detail_404_response_shape_identical_for_suppressed_and_nonexisten
         suppressed_reason="cooldown",
     )
     session.add(suppressed)
-    await session.flush()
+    # commit (not flush): this test issues two sequential HTTP requests
+    # against a StaticPool sqlite engine, and each request runs in its own
+    # session/connection-transaction. A flush()-only row is only reliably
+    # visible to the FIRST such request — the first request's session
+    # closing without a commit rolls back the shared connection and erases
+    # an uncommitted row for every later request. commit() makes the row
+    # durably visible to both requests, so this test actually exercises the
+    # byte-identical-404 comparison it claims to (#718 Review finding).
+    await session.commit()
 
     resp_suppressed = await demo_client.get(f"/v1/demo/decisions/{suppressed.id}")
     resp_missing = await demo_client.get(f"/v1/demo/decisions/{uuid.uuid4()}")
@@ -505,7 +513,17 @@ async def test_no_internal_identifiers_or_leaked_content_in_response_body(
     )
 
     session.add_all([included, suppressed_poisoned, other_shop_poisoned])
-    await session.flush()
+    # commit (not flush): this test issues three sequential HTTP requests
+    # (list, detail_b, detail_c) against a StaticPool sqlite engine. A
+    # flush()-only row is only reliably visible to the FIRST request — by
+    # the time detail_b/detail_c run, an uncommitted row has already been
+    # rolled off the shared connection by the first request's session
+    # closing, so those two calls would 404 because the DB is empty, not
+    # because masking/tenant-isolation correctly excluded the poisoned
+    # cards. commit() makes the fixture rows durably visible to every
+    # request so the leak assertions on detail_b/detail_c actually test
+    # what they claim (#718 Review finding).
+    await session.commit()
 
     list_resp = await demo_client.get("/v1/demo/decisions")
     assert list_resp.status_code == 200
@@ -600,3 +618,136 @@ async def test_list_failure_surfaces_as_error_not_a_silently_invented_empty_list
 
     assert resp.status_code == 500
     assert resp.json() != {"success": True, "data": [], "error": None}
+
+
+# ---------------------------------------------------------------------------
+# Row-level resilience (#718 Review finding 1) — one malformed persisted row
+# must not 500 the whole public feed. Pydantic's typed response schema
+# rejecting an unexpected shape is the correct security outcome (no leak);
+# the bug is that the resulting ValidationError previously escaped the
+# route's try/except entirely and took down every other row with it.
+# ---------------------------------------------------------------------------
+
+
+def _malformed_card(
+    shop_id: uuid.UUID, *, priority: int = 5, workflow_key: str = "wf_malformed_shape"
+) -> ActionCard:
+    """A surfaced card whose persisted payload has the *wrong shape* for the
+    typed response schema — a list-of-dicts where `list[str]` is expected
+    (`source_kpi_ids`). This is not a JSON-parse failure (handled already by
+    `mask_decision_payload`'s `json.JSONDecodeError` catch) — the JSON is
+    valid, the allowlist copies the key through untouched, and only
+    `DemoDecisionItem`'s pydantic schema rejects the shape."""
+    payload = json.dumps(
+        {
+            "workflow_key": workflow_key,
+            "workflow_name": "Malformed row",
+            "priority": priority,
+            "rationale": "x",
+            "preconditions_met": True,
+            "user_action_required": True,
+            # Wrong shape: list[dict] where list[str] is expected. Mirrors
+            # the adversarial probe Review used — a list-of-dicts smuggling
+            # an internal tool_name/uuid into a field pydantic will reject.
+            "source_kpi_ids": [{"tool_name": "evil_tool", "internal_uuid": "aaaa-bbbb-cccc-dddd"}],
+        }
+    )
+    return ActionCard(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        workflow_key=workflow_key,
+        priority=priority,
+        severity="warning",
+        title="Malformed row",
+        description="This row has a malformed recommendation payload shape.",
+        recommendation_payload=payload,
+        status="active",
+        surfaced_at=COMPUTED_AT,
+        computed_at=COMPUTED_AT,
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_drops_malformed_row_and_still_serves_remaining_rows(
+    demo_client, session, reference_shop, caplog
+):
+    """The core regression test: one malformed row must not 500 the whole
+    feed, must not appear in the response, and must not leak any of its
+    own content — the remaining well-formed rows must still be served."""
+    good = _card(reference_shop.id, workflow_key="wf_good", priority=1, surfaced_at=COMPUTED_AT)
+    bad = _malformed_card(reference_shop.id, priority=2)
+    session.add_all([good, bad])
+    await session.commit()
+
+    with caplog.at_level("WARNING", logger="juli_backend.api.routes.demo_decisions"):
+        resp = await demo_client.get("/v1/demo/decisions")
+
+    # The list must not become empty and must not 500 just because one row
+    # is bad.
+    assert resp.status_code == 200
+    body = resp.json()
+    ids = [item["id"] for item in body["data"]]
+    assert ids == [str(good.id)]
+    assert str(bad.id) not in ids
+    assert len(body["data"]) == 1
+
+    # No leak: none of the malformed row's poisoned content reaches the
+    # response body, dropped or not.
+    assert "evil_tool" not in resp.text
+    assert "aaaa-bbbb-cccc-dddd" not in resp.text
+
+    # The drop must be observable — a structured log entry naming the shop
+    # and the card's opaque id, with no PII, no raw payload contents, and
+    # no workflow_key (same discipline as B-4's emission_budget logging).
+    drop_records = [
+        r for r in caplog.records if r.message == "demo_decisions_row_dropped_invalid_shape"
+    ]
+    assert len(drop_records) == 1
+    record = drop_records[0]
+    assert getattr(record, "reference_shop_id", None) == str(reference_shop.id)
+    assert getattr(record, "action_card_id", None) == str(bad.id)
+    log_text = str(record.__dict__)
+    assert "evil_tool" not in log_text
+    assert "wf_malformed_shape" not in log_text
+    assert "aaaa-bbbb-cccc-dddd" not in log_text
+
+
+@pytest.mark.asyncio
+async def test_list_with_all_rows_malformed_returns_empty_list_not_500(
+    demo_client, session, reference_shop
+):
+    """Every row bad is still not a 500 — an empty (but valid) list is the
+    correct degraded response, distinct from a query failure."""
+    bad_a = _malformed_card(reference_shop.id, priority=1, workflow_key="wf_malformed_a")
+    bad_b = _malformed_card(reference_shop.id, priority=2, workflow_key="wf_malformed_b")
+    session.add_all([bad_a, bad_b])
+    await session.commit()
+
+    resp = await demo_client.get("/v1/demo/decisions")
+
+    assert resp.status_code == 200
+    assert resp.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_detail_returns_500_for_malformed_persisted_row_not_a_misleading_404(
+    demo_client, session, reference_shop, caplog
+):
+    """Deliberate detail-endpoint decision (#718 Review finding 1): unlike
+    the list, a single detail lookup has no partial result to preserve — the
+    row the caller asked for genuinely cannot be represented. Degrading it
+    to 404 would misrepresent a data-integrity problem as "this Decision
+    doesn't exist", which is a worse signal for on-call debugging than an
+    honest, logged 500. So detail intentionally does NOT silently drop; it
+    surfaces the same 500 contract as any other unexpected read failure on
+    this route."""
+    bad = _malformed_card(reference_shop.id)
+    session.add(bad)
+    await session.commit()
+
+    with caplog.at_level("WARNING", logger="juli_backend.api.routes.demo_decisions"):
+        resp = await demo_client.get(f"/v1/demo/decisions/{bad.id}")
+
+    assert resp.status_code == 500
+    assert "evil_tool" not in resp.text
+    assert "wf_malformed_shape" not in resp.text
