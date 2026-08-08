@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 715,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/database/migrations/versions/026_action_cards_computed_at.py",
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/services/action_cards/persist.py",
+      "backend/src/juli_backend/services/action_cards/MODULE.md",
+      "backend/src/juli_backend/services/cdp_speed/decision_rules_scoring.py",
+      "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+      "tests/unit/test_action_card_freshness_persistence.py",
+      "tests/unit/test_action_cards_computed_at_migration.py",
+      "tests/unit/test_cdp_speed_decision_rules_scoring_persistence.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-715.json",
+    "sha256": "8da1301e372f1763b41b388a858e9df785866d1c60fd95cbcfcc026305d59037",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-08T09:46:25Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-715.json",
+    "sha256": "e9668373995a80aa3e0c3ea90f538689705ddf7c8fed081fac8461ed60ff7e64",
+    "status": "PASS"
+  },
+  "wave": null
+}

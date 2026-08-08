@@ -1,0 +1,31 @@
+B-4:
+  executorDomain: data-platform
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
+    - docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+    - backend/src/juli_backend/services/action_cards/persist.py
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/database/migrations/versions/
+    - backend/src/juli_backend/database/migrations/env.py
+    - backend/src/juli_backend/core/config/
+    - tests/unit/test_action_cards_contract.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/repositories/repos.py
+    - backend/src/juli_backend/services/scoring/pipeline.py
+    - backend/src/juli_backend/api/routes/action_cards.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - backend/src/juli_backend/services/cdp_batch/
+    - Sibling issue context caches

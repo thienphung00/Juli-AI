@@ -1,5 +1,6 @@
 """CDP Speed layer — fetch planning, shared compute, quota guards."""
 
+from juli_backend.services.cdp_speed.decision_rules_scoring import decision_rules_scoring_stage
 from juli_backend.services.cdp_speed.enqueue_reason import webhook_catalog_enqueue_reason
 from juli_backend.services.cdp_speed.job_correlation import job_correlation_token
 from juli_backend.services.cdp_speed.quota_guard import (
@@ -12,6 +13,7 @@ from juli_backend.services.cdp_speed.shared_compute_orchestrator import (
     SharedComputeOrchestrator,
     SharedComputeResult,
     run_shared_compute_job,
+    scoring_stage_enabled,
 )
 from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
     BronzeAppendTracker,
@@ -40,6 +42,7 @@ __all__ = [
     "SharedComputeResult",
     "TargetedFetchExecutor",
     "TargetedFetchPlan",
+    "decision_rules_scoring_stage",
     "execute_targeted_fetch_to_bronze",
     "is_quota_guarded",
     "job_correlation_token",
@@ -47,5 +50,6 @@ __all__ = [
     "plan_targeted_fetch",
     "quota_guard_reason",
     "run_shared_compute_job",
+    "scoring_stage_enabled",
     "webhook_catalog_enqueue_reason",
 ]

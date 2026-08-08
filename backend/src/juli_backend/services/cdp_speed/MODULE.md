@@ -17,6 +17,8 @@ from juli_backend.services.cdp_speed import (
     FetchResource,
     run_shared_compute_job,
     SharedComputeJob,
+    scoring_stage_enabled,
+    decision_rules_scoring_stage,
 )
 ```
 
@@ -32,9 +34,55 @@ from juli_backend.services.cdp_speed import (
   (``orders``, ``products``, ``returns``, ``inventory``) for negative tests vs
   ``_FUJIWA_POLL_STEPS``.
 - ``run_shared_compute_job(session, job)`` / ``SharedComputeOrchestrator.run(job)``
-  → executes **bronze append → silver upsert → gold envelope write** in order for one
-  shop-scoped material trigger (ADR-046 Q4). Accepts ``enqueue_reason``,
-  ``TargetedFetchPlan``, and a per-trigger ``idempotency_key``.
+  → executes **bronze append → silver upsert → gold envelope write → Decision scoring
+  branch** in order for one shop-scoped material trigger (ADR-046 Q4). Accepts
+  ``enqueue_reason``, ``TargetedFetchPlan``, and a per-trigger ``idempotency_key``.
+- **Decision scoring branch (#713 / B-1):** after the gold KPI envelope commits, the
+  orchestrator dispatches an injectable ``scoring_stage`` callable — same enqueue, same
+  ``job`` inputs already fetched into bronze/silver this run, **no second Partner fetch
+  cycle**. Gated by ``scoring_stage_enabled()`` (env ``CDP_DECISIONS_SCORING_ENABLED``,
+  default **OFF**) or an explicit ``scoring_enabled=`` override on the orchestrator /
+  ``run_shared_compute_job``. **Isolated failure domain:** a scoring exception is caught,
+  logged (``shared_compute_scoring_stage_failed``), and rolled back on its own — it never
+  fails or reverts the already-committed KPI write. ``SharedComputeResult.scoring_dispatched``
+  / ``.scoring_succeeded`` (``None`` when the branch was skipped) surface the outcome. The
+  default ``scoring_stage`` (when no override is injected) is a **safe no-op stub** —
+  B-1 is wiring/dispatch only. KPI freshness and Decision surfacing cadences stay
+  independently controllable (dual cadence, ADR-038 §6) — this seam does not implement
+  or throttle surfacing.
+- ``decision_rules_scoring_stage(session, job)`` **(#714 / B-2; wired to persistence
+  by the #715 / B-3 Meta routing correction; wired to the emission/surfacing budget
+  by the #716 / B-4 Meta routing correction):** the real ``ScoringStageFn``
+  implementation — adapts the seam's ``(session, SharedComputeJob)``
+  signature onto ``juli_backend.services.scoring.pipeline.run_daily_scoring_for_shop``,
+  the **same** callable manual refresh (``POST /v1/action-cards/refresh`` ->
+  ``run_action_card_refresh``) uses (ADR-021). One scoring implementation, no forked
+  math. Computes the ``DailyScoringResult`` candidate, **persists** it via
+  ``juli_backend.services.action_cards.persist.persist_scoring_result`` — the same
+  idempotent, status-preserving persistence boundary the manual refresh path uses, no
+  second persistence path (ADR-021) — then **applies the emission/surfacing budget**
+  via ``juli_backend.services.action_cards.emission_budget.apply_emission_budget``
+  immediately after, on the same compute run (PRD #599: "candidate upsert -> emission
+  filter"), and returns the ``DailyScoringResult`` unchanged. Every ranked
+  recommendation is still persisted as an ``"active"`` candidate regardless of budget
+  outcome — the budget only decides ``surfaced_at`` / ``suppressed_reason`` on top of
+  that. **Dual-cadence commit boundary:** the persisted candidates are committed
+  (``await session.commit()``) *before* the emission budget runs, so a budget failure
+  can never roll back what ``persist_scoring_result`` just wrote; the budget's own
+  writes are rolled back on failure and the exception is re-raised (logged with stage
+  context first) rather than swallowed, landing in the orchestrator's own isolated
+  scoring failure domain exactly like a persistence failure would (rolled back there,
+  never touching the already-committed KPI envelope). Wired as the default
+  ``scoring_stage`` at **both** production continuous-trigger call sites —
+  ``services/webhook/material_worker.py``'s ``_default_shared_compute`` (material
+  webhook trigger) and ``workers/tasks/mock_analytics_reconcile.py``'s
+  ``run_mock_analytics_reconcile_orchestrated`` (hourly Mock reconcile gap trigger,
+  PRD #599 user story 30 — gap reconciliation must heal Decision staleness the same
+  way it heals KPI envelope staleness); actual execution still stays gated by
+  ``scoring_stage_enabled()`` (default OFF) — wiring the callable does not flip the
+  rollout flag. The A2 Batch reconcile path (``services/cdp_batch/batch_reconcile_orchestrator.py``,
+  out of scope for A1) constructs ``SharedComputeOrchestrator`` directly and is not
+  wired here.
 - ``webhook_catalog_enqueue_reason(catalog_id)`` → ``webhook_catalog:<id>`` for material dispatch.
 - ``job_correlation_token(shop_id, idempotency_key)`` — bounded log/bronze correlation token.
 - ``execute_targeted_fetch_to_bronze`` — production fetch boundary via ``targeted_fetch_sync``
@@ -96,6 +144,17 @@ planner — batch gap plans live under ``cdp_batch`` (A2).
 - ``juli_backend.services.tiktok.webhook_catalog`` — material classification + event lookup
 - ``juli_backend.integrations.tiktok.constants`` — Partner API path constants
 - ``juli_backend.services.etl`` — one-writer-owned bronze append facade
+- ``juli_backend.services.scoring.pipeline`` (``decision_rules_scoring.py`` only, #714 /
+  B-2) — the shared rules-scoring pipeline.
+- ``juli_backend.services.action_cards.persist`` (``decision_rules_scoring.py`` only,
+  #715 / B-3 wiring) — reuses ``persist_scoring_result`` to make continuous-trigger
+  scoring candidates durable; no second persistence path.
+- ``juli_backend.services.action_cards.emission_budget`` (``decision_rules_scoring.py``
+  only, #716 / B-4 wiring) — reuses ``apply_emission_budget`` exactly as built to
+  decide which persisted candidates surface; no forked cap/cooldown/novelty logic.
+  ``shared_compute_orchestrator.py`` itself stays decoupled from ``services.scoring`` /
+  ``services.action_cards`` (guarded by ``test_default_scoring_stage_is_wiring_only_stub``);
+  only the adjacent ``decision_rules_scoring.py`` module carries these dependencies
 
 ## Must not
 

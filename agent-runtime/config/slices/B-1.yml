@@ -1,0 +1,33 @@
+B-1:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
+    - docs/adr/047-cdp-lambda-layers-prd-split.md
+    - docs/adr/048-cdp-webhook-first-spine-dual-credential.md
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/services/cdp_speed/MODULE.md
+    - backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py
+    - backend/src/juli_backend/services/gold_kpi_envelope_serving.py
+    - backend/src/juli_backend/services/scoring/MODULE.md
+    - backend/src/juli_backend/services/scoring/pipeline.py
+    - tests/unit/test_cdp_speed_shared_compute_orchestrator.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/cdp_speed/job_correlation.py
+    - backend/src/juli_backend/services/cdp_speed/enqueue_reason.py
+    - backend/src/juli_backend/workers/tasks/material_analytics_precompute.py
+    - backend/src/juli_backend/repositories/repos.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+    - .cursor/skills/domain/testing-patterns/python-patterns.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - backend/src/juli_backend/services/cdp_batch/
+    - Sibling issue context caches

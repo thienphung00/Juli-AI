@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-b-decisions",
+  "branch": "feature/b-decisions-wave",
+  "issues": [
+    713,
+    714,
+    715,
+    716,
+    717,
+    718
+  ]
+}
