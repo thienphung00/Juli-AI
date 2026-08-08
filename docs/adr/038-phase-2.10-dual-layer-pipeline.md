@@ -119,6 +119,17 @@ only — insufficient for the event-driven + cache-backed target.
    Worked example with defaults and 6 novel candidates in one week: 5 surface, the
    6th is suppressed as `active_cap`, and no slot is left idle.
 
+   **Known consequence — the novelty quota no longer throttles.** Under fill-to-cap,
+   novelty never suppresses: when slots are free the overflow fills them, and when
+   slots are full the active cap binds instead. `weekly_novelty_cap` is therefore
+   **structurally unreachable as a suppression reason**, and the quota degrades to an
+   *ordering preference* — within-quota candidates simply get scarce slots first.
+   Churn protection now rests entirely on the per-workflow cooldown and the active
+   cap. If more than 3 slots free up in a week, more than 3 new Decisions can be
+   promoted, which the original "soft weekly cap of 3 newly promoted" wording did not
+   anticipate. This is an accepted trade of churn protection for slot utilisation, not
+   an oversight. Revisit if Demo feeds prove too volatile.
+
 7. **2.10-A KPI must-haves (settled):** Live shop **GMV (TikTok)** series and
    supporting A-36 traffic fields where present; product funnel (A-34) and LIVE
    (A-28/A-29) charts the warm data supports. Inventory/Ops/CSAT only when
