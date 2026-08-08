@@ -30,15 +30,19 @@ class ReturnsResource:
         page_size: int | None = None,
         page_token: str | None = None,
     ) -> dict:
-        body = strip_nones({
-            "return_status": return_status,
-            "update_time_ge": update_time_from,
-            "update_time_lt": update_time_to,
-        })
-        params = strip_nones({
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        body = strip_nones(
+            {
+                "return_status": return_status,
+                "update_time_ge": update_time_from,
+                "update_time_lt": update_time_to,
+            }
+        )
+        params = strip_nones(
+            {
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         parsed = coerce_model(
             ReturnsSearchData,
             self._client.post(
@@ -58,16 +62,19 @@ class ReturnsResource:
         update_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
-        body = strip_nones({
-            "return_status": return_status,
-            "update_time_ge": update_time_from,
-            "update_time_lt": update_time_to,
-        })
+        body = strip_nones(
+            {
+                "return_status": return_status,
+                "update_time_ge": update_time_from,
+                "update_time_lt": update_time_to,
+            }
+        )
         return self._client.get_all_pages(
             path=RETURN_SEARCH_PATH,
             body=body,
             items_key="return_orders",
             page_size=page_size,
+            retry_transient=True,
         )
 
     def search_cancellations(
@@ -78,14 +85,18 @@ class ReturnsResource:
         page_size: int | None = None,
         page_token: str | None = None,
     ) -> dict:
-        body = strip_nones({
-            "update_time_ge": update_time_from,
-            "update_time_lt": update_time_to,
-        })
-        params = strip_nones({
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        body = strip_nones(
+            {
+                "update_time_ge": update_time_from,
+                "update_time_lt": update_time_to,
+            }
+        )
+        params = strip_nones(
+            {
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         parsed = coerce_model(
             CancellationsSearchData,
             self._client.post(
@@ -104,13 +115,16 @@ class ReturnsResource:
         update_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict]:
-        body = strip_nones({
-            "update_time_ge": update_time_from,
-            "update_time_lt": update_time_to,
-        })
+        body = strip_nones(
+            {
+                "update_time_ge": update_time_from,
+                "update_time_lt": update_time_to,
+            }
+        )
         return self._client.get_all_pages(
             path=CANCELLATION_SEARCH_PATH,
             body=body,
             items_key="cancellations",
             page_size=page_size,
+            retry_transient=True,
         )

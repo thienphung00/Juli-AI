@@ -10,12 +10,13 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from typing import Any, TypeVar, overload
 
 import requests
 from pydantic import BaseModel
 
-from juli_backend.integrations.tiktok.exceptions import error_from_response
+from juli_backend.integrations.tiktok.exceptions import TikTokAPIError, error_from_response
 from juli_backend.integrations.tiktok.schemas import validate_data
 from juli_backend.integrations.tiktok.signing import sign_request
 
@@ -32,6 +33,36 @@ _DEFAULT_MAX_PAGES = 20
 
 # Enough to carry a Partner API error envelope without flooding logs on an HTML 5xx page.
 _ERROR_BODY_LIMIT = 800
+
+# Transient-retry policy. TikTok tunnels application errors over HTTP 500 (#855's
+# invalid-sign arrived as a 500), so a status code alone can never justify a retry —
+# only the application code in the body can. 100005 is the documented rate limit and
+# 100006 the documented transient system error; everything else deterministic until
+# proven otherwise, because retrying a deterministic error just triples the noise
+# and the latency of every real failure.
+_RETRYABLE_APP_CODES = frozenset({100005, 100006})
+_TRANSIENT_RETRY_ATTEMPTS = 3
+_TRANSIENT_RETRY_BACKOFF_SECONDS = (1.0, 3.0)
+
+
+def transient_partner_error(exc: Exception) -> bool:
+    """True only when a retry can plausibly change the outcome."""
+    if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
+        return True
+    if isinstance(exc, TikTokAPIError):
+        return exc.code in _RETRYABLE_APP_CODES
+    if isinstance(exc, requests.HTTPError):
+        resp = exc.response
+        if resp is None:
+            return True
+        try:
+            code = resp.json().get("code")
+        except ValueError:
+            # No parseable envelope at all — an HTML page from an edge or load
+            # balancer, not the API explaining itself. Retry only server-side ones.
+            return resp.status_code >= 500
+        return code in _RETRYABLE_APP_CODES
+    return False
 
 
 def uses_header_auth(path: str) -> bool:
@@ -85,20 +116,23 @@ class TikTokClient:
         response_model: type[BaseModel] | None = None,
     ) -> dict[str, Any] | BaseModel:
         """Signed GET request. Returns the ``data`` payload (optionally validated)."""
-        all_params = self._build_params(path, params)
-        all_params["sign"] = sign_request(
-            app_secret=self._app_secret,
-            path=path,
-            params=all_params,
-        )
 
-        resp = self._session.get(
-            f"{self._base_url}{path}",
-            params=all_params,
-            headers=self._auth_headers(path),
-            timeout=self._timeout,
-        )
-        data = self._handle_response(resp)
+        def send() -> dict[str, Any]:
+            all_params = self._build_params(path, params)
+            all_params["sign"] = sign_request(
+                app_secret=self._app_secret,
+                path=path,
+                params=all_params,
+            )
+            resp = self._session.get(
+                f"{self._base_url}{path}",
+                params=all_params,
+                headers=self._auth_headers(path),
+                timeout=self._timeout,
+            )
+            return self._handle_response(resp)
+
+        data = self._request_with_retry(path, send)
         if response_model is not None:
             return validate_data(response_model, data)
         return data
@@ -111,6 +145,7 @@ class TikTokClient:
         params: dict[str, str] | None = None,
         *,
         response_model: type[T],
+        retry_transient: bool = False,
     ) -> T: ...
 
     @overload
@@ -121,6 +156,7 @@ class TikTokClient:
         params: dict[str, str] | None = None,
         *,
         response_model: None = None,
+        retry_transient: bool = False,
     ) -> dict[str, Any]: ...
 
     def post(
@@ -130,31 +166,40 @@ class TikTokClient:
         params: dict[str, str] | None = None,
         *,
         response_model: type[BaseModel] | None = None,
+        retry_transient: bool = False,
     ) -> dict[str, Any] | BaseModel:
-        """Signed POST request with JSON body. Returns the ``data`` payload."""
+        """Signed POST request with JSON body. Returns the ``data`` payload.
+
+        ``retry_transient`` is opt-in because POST serves both searches and writes.
+        Search endpoints are reads and pass True; write endpoints keep the single
+        attempt — a retried write after an ambiguous 5xx could execute twice.
+        """
         body = body or {}
         body_str = json.dumps(body, separators=(",", ":"), sort_keys=True)
 
-        all_params = self._build_params(path, params)
-        all_params["sign"] = sign_request(
-            app_secret=self._app_secret,
-            path=path,
-            params=all_params,
-            body=body_str,
-        )
+        def send() -> dict[str, Any]:
+            all_params = self._build_params(path, params)
+            all_params["sign"] = sign_request(
+                app_secret=self._app_secret,
+                path=path,
+                params=all_params,
+                body=body_str,
+            )
+            resp = self._session.post(
+                f"{self._base_url}{path}",
+                params=all_params,
+                # Send the exact bytes that were signed. Passing json=body lets
+                # requests re-serialize with its own separators and key order, so
+                # the body TikTok hashes differs from the one we signed and every
+                # non-empty body is rejected with code 106001 "the 'sign' query
+                # parameter is invalid".
+                data=body_str,
+                headers=self._json_auth_headers(path),
+                timeout=self._timeout,
+            )
+            return self._handle_response(resp)
 
-        resp = self._session.post(
-            f"{self._base_url}{path}",
-            params=all_params,
-            # Send the exact bytes that were signed. Passing json=body lets requests
-            # re-serialize with its own separators and key order, so the body TikTok
-            # hashes differs from the one we signed and every non-empty body is
-            # rejected with code 106001 "the 'sign' query parameter is invalid".
-            data=body_str,
-            headers=self._json_auth_headers(path),
-            timeout=self._timeout,
-        )
-        data = self._handle_response(resp)
+        data = self._request_with_retry(path, send) if retry_transient else send()
         if response_model is not None:
             return validate_data(response_model, data)
         return data
@@ -245,6 +290,7 @@ class TikTokClient:
         body: dict[str, Any],
         items_key: str,
         page_size: int = 50,
+        retry_transient: bool = False,
     ) -> list[dict]:
         """Auto-paginate a POST endpoint using ``page_token`` query param.
 
@@ -260,6 +306,8 @@ class TikTokClient:
         page_body = dict(body)
         page_count = 0
         last_token: str | None = None
+        total_count: int | None = None
+        truncated = False
 
         max_pages = int(os.getenv("TIKTOK_MAX_PAGES", str(_DEFAULT_MAX_PAGES)))
 
@@ -268,6 +316,7 @@ class TikTokClient:
 
             # Guard 1: Maximum page count
             if page_count > max_pages:
+                truncated = True
                 logger.warning(
                     "tiktok_pagination_max_pages_reached",
                     extra={
@@ -278,11 +327,15 @@ class TikTokClient:
                 )
                 break
 
-            data = self.post(path, body=page_body, params=query_params)
+            data = self.post(
+                path, body=page_body, params=query_params, retry_transient=retry_transient
+            )
             if not isinstance(data, dict):
                 break
             items = data.get(items_key, [])
             all_items.extend(items)
+            if total_count is None and isinstance(data.get("total_count"), int):
+                total_count = data["total_count"]
 
             next_token = data.get("next_page_token") or data.get("page_token")
             if not next_token:
@@ -306,6 +359,18 @@ class TikTokClient:
                 "page_token": str(next_token),
             }
 
+        # The vendor-side backlog is invisible without this: the fetch caps at
+        # max_pages, so "how far behind are we" is total_count minus what landed.
+        logger.info(
+            "tiktok_pagination_summary",
+            extra={
+                "path": path,
+                "pages": page_count - 1 if truncated else page_count,
+                "items": len(all_items),
+                "total_count": total_count,
+                "truncated": truncated,
+            },
+        )
         return all_items
 
     def get_all_pages_get(
@@ -397,6 +462,36 @@ class TikTokClient:
         headers = self._auth_headers(path)
         headers["Content-Type"] = "application/json"
         return headers
+
+    def _request_with_retry(
+        self,
+        path: str,
+        send: Callable[[], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Run ``send`` with bounded backoff on transient Partner failures.
+
+        ``send`` re-executes the whole build-sign-dispatch, never re-sends stale
+        bytes — the signing timestamp must stay within TikTok's 5-minute window.
+        """
+        for attempt in range(_TRANSIENT_RETRY_ATTEMPTS):
+            try:
+                return send()
+            except (requests.RequestException, TikTokAPIError) as exc:
+                final = attempt == _TRANSIENT_RETRY_ATTEMPTS - 1
+                if final or not transient_partner_error(exc):
+                    raise
+                delay = _TRANSIENT_RETRY_BACKOFF_SECONDS[attempt]
+                logger.warning(
+                    "tiktok_transient_retry",
+                    extra={
+                        "path": path,
+                        "attempt": attempt + 1,
+                        "delay_seconds": delay,
+                        "error": str(exc)[:200],
+                    },
+                )
+                time.sleep(delay)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     @staticmethod
     def _handle_response(resp: requests.Response) -> dict:
