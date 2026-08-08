@@ -278,29 +278,28 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
           )}
         </div>
 
-        {snapshot ? (
-          <div
-            className="analytics-hero__chart analytics-chart-chrome"
-            data-testid="analytics-chart-chrome"
-          >
-            <AnalyticsHeroChart
-              measurementType={heroDefinition.measurementType}
-              comparePreviousPeriod={compareEnabled}
-              label={heroDefinition.name}
-              snapshot={snapshot}
-              chartKind={heroDefinition.chartKind}
-            />
-            {compareEnabled ? (
-              <p className="analytics-hero__comparison-legend">
-                Đường liền: kỳ hiện tại · Đường nét đứt: kỳ trước
-              </p>
-            ) : heroDefinition.measurementType === "flow" ? (
-              <p className="analytics-hero__comparison-legend">
-                Đường liền: thực tế · Đường nét đứt: dự báo
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+        <div
+          className="analytics-hero__chart analytics-chart-chrome"
+          data-testid="analytics-chart-chrome"
+        >
+          <AnalyticsHeroChart
+            measurementType={heroDefinition.measurementType}
+            comparePreviousPeriod={compareEnabled}
+            label={heroDefinition.name}
+            snapshot={snapshot}
+            chartKind={heroDefinition.chartKind}
+            unavailableReason={heroDefinition.unavailableReason}
+          />
+          {compareEnabled && snapshot ? (
+            <p className="analytics-hero__comparison-legend">
+              Đường liền: kỳ hiện tại · Đường nét đứt: kỳ trước
+            </p>
+          ) : snapshot && heroDefinition.measurementType === "flow" ? (
+            <p className="analytics-hero__comparison-legend">
+              Đường liền: thực tế · Đường nét đứt: dự báo
+            </p>
+          ) : null}
+        </div>
       </article>
 
       <section

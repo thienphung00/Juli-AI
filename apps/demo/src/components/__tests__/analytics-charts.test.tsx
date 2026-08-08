@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MAIN_KPI_DEFINITIONS } from "../../lib/analytics/main-kpis";
+import {
+  type UnavailableKpiReason,
+  MAIN_KPI_DEFINITIONS,
+} from "../../lib/analytics/main-kpis";
 import { createMockSnapshot } from "../../lib/analytics/__tests__/fixtures";
 import { AnalyticsHeroChart } from "../analytics-charts";
 
@@ -149,6 +152,167 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
         container.querySelector('[data-testid="trend-area-chart-visual"]') ||
         container.querySelector('[data-testid="trend-line-chart-visual"]');
       expect(chart).toBeInTheDocument();
+    });
+  });
+
+  describe("AC5: No render path returns null for a declared form", () => {
+    it("RED: bounded-ratio with data but no gaugeValue renders explained state, not null", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      // Snapshot exists (data available) but gaugeValue is undefined
+      // This is the regression case: bounded-ratio form has no branch to render it
+      const snapshot = createMockSnapshot({
+        gaugeValue: undefined,
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      // Should render an explained state, not null/blank
+      // Criterion 5: "No render path returns null for a declared form"
+      const explained = container.querySelector(
+        '[data-testid="analytics-unavailable-explained"]'
+      );
+      expect(explained).toBeInTheDocument();
+
+      // Verify it's not just rendering nothing
+      expect(container.innerHTML.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("AC1-2: Unavailable KPI renders explained empty state", () => {
+    it("RED: unavailable KPI (null snapshot) renders explained state, not null", () => {
+      const gmv = MAIN_KPI_DEFINITIONS["gmv-tiktok"];
+      const unavailableReason: UnavailableKpiReason = {
+        dataSource: "TikTok Shop",
+        activationRequirement: "Cần kích hoạt TikTok Shop",
+      };
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={gmv.measurementType}
+          label={gmv.name}
+          snapshot={null}
+          comparePreviousPeriod={false}
+          chartKind={gmv.chartKind}
+          unavailableReason={unavailableReason}
+        />
+      );
+
+      // Should render an unavailable state, not null
+      const unavailableState = container.querySelector(
+        '[data-testid="analytics-unavailable-explained"]'
+      );
+      expect(unavailableState).toBeInTheDocument();
+    });
+
+    it("RED: unavailable state includes dataSource and activationRequirement", () => {
+      const gmv = MAIN_KPI_DEFINITIONS["gmv-tiktok"];
+      const unavailableReason: UnavailableKpiReason = {
+        dataSource: "TikTok Shop",
+        activationRequirement: "Cần kích hoạt TikTok Shop",
+      };
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={gmv.measurementType}
+          label={gmv.name}
+          snapshot={null}
+          comparePreviousPeriod={false}
+          chartKind={gmv.chartKind}
+          unavailableReason={unavailableReason}
+        />
+      );
+
+      const unavailableState = container.querySelector(
+        '[data-testid="analytics-unavailable-explained"]'
+      );
+      expect(unavailableState?.textContent).toContain("TikTok Shop");
+      expect(unavailableState?.textContent).toContain("Cần kích hoạt TikTok Shop");
+    });
+
+    it("RED: unavailable state is accessible (not aria-hidden)", () => {
+      const gmv = MAIN_KPI_DEFINITIONS["gmv-tiktok"];
+      const unavailableReason: UnavailableKpiReason = {
+        dataSource: "TikTok Shop",
+        activationRequirement: "Cần kích hoạt TikTok Shop",
+      };
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={gmv.measurementType}
+          label={gmv.name}
+          snapshot={null}
+          comparePreviousPeriod={false}
+          chartKind={gmv.chartKind}
+          unavailableReason={unavailableReason}
+        />
+      );
+
+      const unavailableState = container.querySelector(
+        '[data-testid="analytics-unavailable-explained"]'
+      );
+      // Should NOT have aria-hidden="true"
+      expect(unavailableState?.getAttribute("aria-hidden")).not.toBe("true");
+      // Should be in the document (not hidden to AT)
+      expect(unavailableState).toBeInTheDocument();
+    });
+
+    it("RED: available and unavailable states have matching layout structure", () => {
+      const gmv = MAIN_KPI_DEFINITIONS["gmv-tiktok"];
+      const snapshot = createMockSnapshot();
+      const unavailableReason: UnavailableKpiReason = {
+        dataSource: "TikTok Shop",
+        activationRequirement: "Cần kích hoạt TikTok Shop",
+      };
+
+      // Render available state
+      const { container: containerAvailable } = render(
+        <AnalyticsHeroChart
+          measurementType={gmv.measurementType}
+          label={gmv.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={gmv.chartKind}
+        />
+      );
+
+      // Render unavailable state
+      const { container: containerUnavailable } = render(
+        <AnalyticsHeroChart
+          measurementType={gmv.measurementType}
+          label={gmv.name}
+          snapshot={null}
+          comparePreviousPeriod={false}
+          chartKind={gmv.chartKind}
+          unavailableReason={unavailableReason}
+        />
+      );
+
+      // Both should render a figure element with consistent structure
+      const figureAvailable = containerAvailable.querySelector("figure");
+      const figureUnavailable = containerUnavailable.querySelector(
+        "figure.analytics-hero-chart--unavailable"
+      );
+
+      expect(figureAvailable).toBeInTheDocument();
+      expect(figureUnavailable).toBeInTheDocument();
+
+      // Both should have SVG visualizations to occupy similar space
+      const svgAvailable = figureAvailable?.querySelector("svg");
+      const svgUnavailable = figureUnavailable?.querySelector("svg");
+
+      expect(svgAvailable).toBeInTheDocument();
+      expect(svgUnavailable).toBeInTheDocument();
+
+      // Both should have viewBox attributes to scale responsively
+      expect(svgUnavailable?.getAttribute("viewBox")).toBeTruthy();
     });
   });
 });

@@ -1221,6 +1221,62 @@ a {
   font-weight: 700;
 }
 
+/* Unavailable KPI explained empty state: min-height 160px ensures consistent space
+   with available chart renders (TrendAreaChart, TrendLineChart with SVG viewBox 320×160).
+   SVG height: 160px with viewBox="0 0 320 160" maintains 2:1 aspect ratio and responsive
+   scaling. Caption overhead adds explanatory text; total height may exceed 160px by
+   caption + gaps, which is acceptable as the SVG visual component stays consistent. */
+.analytics-hero-chart--unavailable {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  min-height: 160px;
+  gap: var(--juli-space-3);
+}
+
+.analytics-hero-chart__unavailable-caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-2);
+  align-items: center;
+  text-align: center;
+  padding: 0 var(--juli-space-3);
+}
+
+.analytics-hero-chart__unavailable-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.analytics-hero-chart__unavailable-reason {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--juli-muted-foreground);
+}
+
+.analytics-hero-chart__unavailable-detail {
+  margin: var(--juli-space-1) 0 0;
+  font-size: 0.85rem;
+  color: var(--juli-muted-foreground);
+  line-height: 1.4;
+}
+
+.analytics-hero-chart__unavailable-detail strong {
+  color: var(--juli-foreground);
+}
+
+.analytics-hero-chart__unavailable-visual {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: 160px;
+  opacity: 0.4;
+}
+
 .analytics-kpi-section {
   display: grid;
   gap: var(--juli-space-3);
