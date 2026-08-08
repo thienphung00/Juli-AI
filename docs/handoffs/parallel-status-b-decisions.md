@@ -44,9 +44,9 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 |-------|-------|--------|-------------------|------|--------|
 | [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | ready | **DONE** `2403bdfe` — validate 21/21 PASS, readyForShip |
 | [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | ready | **DONE** `498705e4`+`3e467d01`+`de6f5e0b` — validate 21/21 PASS, readyForShip |
-| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | **data-platform** | `.worktrees/issue-715` / `feature/issue-715` | ready | Executor DONE `74f75f62`+`a677956f`+`91df2050` (mig `026`) — Review running |
-| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | **data-platform** | `.worktrees/issue-716` / `feature/issue-716` | ready | Executor DONE `1c05350c` (mig `027`) — wiring increment running |
-| [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | pending | readyForExecutor: true | blocked on #715 |
+| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | **data-platform** | `.worktrees/issue-715` / `feature/issue-715` | ready | **DONE** `74f75f62`..`8bfe6cfc` (mig `026`) — validate 21/21 PASS, readyForShip |
+| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | **data-platform** | `.worktrees/issue-716` / `feature/issue-716` | ready | Executor DONE `1c05350c`+`fc75b3ac` (mig `027`) — Review running |
+| [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | `.worktrees/issue-717` / `feature/issue-717` | ready | Executor running (single-domain routing, mig `028` authorized) |
 | [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | pending | readyForExecutor: true | blocked on #716 + #717 |
 
 ## Executor environment — mandatory
@@ -165,6 +165,23 @@ the gap be discovered after Review.
 
 **For B-5 (#717):** dispatch as a single `backend` Executor with explicit Meta authorization
 for migration `028_*` — the cost of the split has now been paid twice.
+
+## Open questions for the operator (not blockers, but real)
+
+1. **Is the weekly novelty quota meant to be soft?** PRD/ADR-038 §6 call it a *soft* quota of
+   3, but it runs as a gate ahead of the active cap of 5 — so a shop with more than 3 new
+   workflows in a week never reaches 5 surfaced Decisions. Routed to B-4's Review for a
+   ruling; if it is a genuine mismatch it is a product-config decision, not an Executor fix.
+2. **In-flight cards freeze their `computed_at`.** B-3 drops the recomputed candidate for an
+   approved/executing/dismissed card, so that row's freshness metadata stops advancing while
+   re-scoring keeps running. This matches AC2 exactly and is not a defect — but the Demo
+   surfaces `computed_at` as trust copy, so a card a seller is acting on will visibly age.
+   Worth a follow-up on what the Demo should display for in-flight cards.
+3. **AC4's savepoint rationale did not reproduce.** B-3's Executor redesigned its negative
+   test claiming SQLite/aiosqlite does not reliably roll back a released SAVEPOINT. Review
+   reproduced the scenario in four configurations and rollback worked correctly every time.
+   The delivered test still genuinely proves AC4, so this is not a defect — but the stated
+   rationale is unverified, and the original design may have been abandoned unnecessarily.
 
 ## Ops lock
 
