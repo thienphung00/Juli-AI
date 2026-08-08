@@ -13,6 +13,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Check frontend (app-juli.com)
         id: frontend
         run: |
@@ -26,6 +28,25 @@ jobs:
           code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.app-juli.com/health || echo 000)"
           echo "code=${code}" >> "$GITHUB_OUTPUT"
           echo "backend responded ${code}"
+
+      # A freshness failure is invisible to the checks above: /v1/demo/analytics
+      # returns 200 with plausible numbers whether or not they are current (#853).
+      - name: Check Demo KPI freshness
+        id: freshness
+        continue-on-error: true
+        run: |
+          set +e
+          out="$(python3 infra/scripts/check-kpi-freshness.py \
+            --url https://api.app-juli.com/v1/demo/analytics 2>&1)"
+          code=$?
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          {
+            echo 'detail<<FRESHNESS_EOF'
+            echo "${out}"
+            echo 'FRESHNESS_EOF'
+          } >> "$GITHUB_OUTPUT"
+          echo "${out}"
+          exit 0
 
       - name: Evaluate
         id: evaluate
@@ -56,6 +77,29 @@ jobs:
             --data "${payload}" \
             "${SLACK_WEBHOOK_URL}"
 
-      - name: Fail the run if unhealthy
-        if: steps.evaluate.outputs.failed == 'true'
+      - name: Alert Slack on KPI staleness
+        if: steps.freshness.outputs.code != '0'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          FRESHNESS_CODE: ${{ steps.freshness.outputs.code }}
+          FRESHNESS_DETAIL: ${{ steps.freshness.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::warning::KPI freshness check failed but SLACK_WEBHOOK_URL is not set — no alert sent." >&2
+            exit 1
+          fi
+          if [ "${FRESHNESS_CODE}" = "2" ]; then
+            headline=":warning: Juli Demo KPI freshness could not be determined"
+          else
+            headline=":hourglass_flowing_sand: Juli Demo KPIs are STALE — the endpoint is healthy but the numbers are not"
+          fi
+          text="$(printf '%s\n%s\n(run: %s)' "${headline}" "${FRESHNESS_DETAIL}" "${RUN_URL}")"
+          payload="$(python3 -c 'import json, sys; print(json.dumps({"text": sys.argv[1]}))' "${text}")"
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data "${payload}" \
+            "${SLACK_WEBHOOK_URL}"
+
+      - name: Fail the run if unhealthy or stale
+        if: steps.evaluate.outputs.failed == 'true' || steps.freshness.outputs.code != '0'
         run: exit 1

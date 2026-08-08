@@ -30,6 +30,9 @@ _ACCESS_TOKEN_HEADER = "x-tts-access-token"
 # since real fetches (with page_size=50) rarely need more than a few pages.
 _DEFAULT_MAX_PAGES = 20
 
+# Enough to carry a Partner API error envelope without flooding logs on an HTML 5xx page.
+_ERROR_BODY_LIMIT = 800
+
 
 def uses_header_auth(path: str) -> bool:
     """Versioned Partner API routes use header token transport, not query param."""
@@ -397,7 +400,22 @@ class TikTokClient:
 
     @staticmethod
     def _handle_response(resp: requests.Response) -> dict:
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as exc:
+            # Bare raise_for_status() reports only the status line and URL, so the
+            # Partner API's own explanation is thrown away exactly when it is needed.
+            # Re-raise the same exception type with the body appended; the body is the
+            # vendor's error envelope, never our credentials, and the signed request is
+            # not echoed back.
+            detail = resp.text[:_ERROR_BODY_LIMIT].strip()
+            if detail:
+                raise requests.HTTPError(
+                    f"{exc} — response body: {detail}",
+                    response=resp,
+                    request=exc.request,
+                ) from exc
+            raise
         data = resp.json()
         err = error_from_response(data)
         if err is not None:
