@@ -257,3 +257,120 @@ describe("getRelativeFreshness helper", () => {
     vi.useRealTimers();
   });
 });
+
+describe("Tone resolution (Issue #858): Goal-aware tone derivation", () => {
+  describe("Higher-is-better KPIs resolve tone based on goal direction", () => {
+    it("rising GMV resolves to positive tone", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "gmv-tiktok", "30d");
+      expect(snapshot?.trend).toBe("positive");
+    });
+
+    it("rising AOV resolves to positive tone", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "aov", "30d");
+      expect(snapshot?.trend).toBe("positive");
+    });
+
+    it("rising CTOR resolves to positive tone", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "ctor", "30d");
+      expect(snapshot?.trend).toBe("positive");
+    });
+
+    it("rising LIVE hours resolves to positive tone", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "live-hours", "30d");
+      expect(snapshot?.trend).toBe("positive");
+    });
+  });
+
+  describe("Lower-is-better KPI (cancellation rate) resolves tone inversely", () => {
+    it("falling cancellation rate resolves to positive tone", () => {
+      // Fixture: 2.5 → 1.8 is falling, which is good
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+      expect(snapshot?.trend).toBe("positive");
+    });
+
+    it("rising cancellation rate resolves to negative tone", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 1.8 },
+              { t: "2026-07-20", v: 2.5 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+      expect(snapshot?.trend).toBe("negative");
+    });
+  });
+
+  describe("Arrow glyph always reflects raw movement (not inverted)", () => {
+    it("shows upward arrow for rising cancellation rate", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 1.8 },
+              { t: "2026-07-20", v: 2.5 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+      // Even though rising is bad, the arrow still shows up
+      expect(snapshot?.delta).toMatch(/▲/);
+    });
+
+    it("shows downward arrow for falling cancellation rate", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+      // Even though falling is good, the arrow still shows down
+      expect(snapshot?.delta).toMatch(/▼/);
+    });
+  });
+
+  describe("Zero delta resolves to neutral tone for all KPIs", () => {
+    it("zero change in GMV yields neutral tone", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          gmv_tiktok: {
+            availability: "available",
+            label: "GMV (TikTok)",
+            series: [
+              { t: "2026-07-01", v: 485_000_000 },
+              { t: "2026-07-20", v: 485_000_000 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "gmv-tiktok", "30d");
+      expect(snapshot?.trend).toBe("neutral");
+    });
+
+    it("zero change in cancellation rate yields neutral tone", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 2.0 },
+              { t: "2026-07-20", v: 2.0 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+      expect(snapshot?.trend).toBe("neutral");
+    });
+  });
+});

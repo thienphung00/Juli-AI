@@ -5,6 +5,8 @@ export type MetricKey =
   | "live-hours"
   | "cancellation-rate";
 
+export type GoalDirection = "higher-is-better" | "lower-is-better";
+
 export type AnalyticsRange = "7d" | "30d" | "90d";
 
 export type ChartKind =
@@ -26,6 +28,7 @@ export interface MainKpiDefinition {
   icon: string;
   available: boolean;
   chartKind: ChartKind;
+  goalDirection: GoalDirection;
   unavailableReason?: UnavailableKpiReason;
 }
 
@@ -82,6 +85,7 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     icon: "₫",
     available: true,
     chartKind: "forecast-line",
+    goalDirection: "higher-is-better",
   },
   aov: {
     metricKey: "aov",
@@ -91,6 +95,7 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     icon: "₫",
     available: true,
     chartKind: "forecast-line",
+    goalDirection: "higher-is-better",
   },
   ctor: {
     metricKey: "ctor",
@@ -100,6 +105,7 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     icon: "◎",
     available: true,
     chartKind: "trend-line",
+    goalDirection: "higher-is-better",
   },
   "live-hours": {
     metricKey: "live-hours",
@@ -109,6 +115,7 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     icon: "◉",
     available: true,
     chartKind: "forecast-line",
+    goalDirection: "higher-is-better",
   },
   "cancellation-rate": {
     metricKey: "cancellation-rate",
@@ -118,6 +125,7 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     icon: "✗",
     available: true,
     chartKind: "gauge",
+    goalDirection: "lower-is-better",
   },
 };
 

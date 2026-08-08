@@ -13,6 +13,7 @@ import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../workflows/optimize-product/rev
 import {
   getMainKpiDefinition,
   type AnalyticsRange,
+  type GoalDirection,
   type ImpactMetricKey,
   type MetricKey,
 } from "./main-kpis";
@@ -74,7 +75,47 @@ export interface SupplementaryChartSnapshot {
   lastUpdated: string;
 }
 
-function computeDelta(series: readonly { v: number }[]): {
+/**
+ * Resolve semantic tone as a function of delta sign and goal direction.
+ * This is the single source of tone derivation (ADR-060).
+ *
+ * The tone represents whether the move is good or bad for the seller,
+ * considering both the direction of movement and the KPI's goal direction.
+ *
+ * @param pct - The percentage change; positive means rising, negative means falling
+ * @param goalDirection - Whether higher or lower is the desired direction
+ * @returns The semantic tone: "positive" for good direction, "negative" for bad, "neutral" for zero
+ */
+export function resolveToneFromDeltaAndGoal(
+  pct: number,
+  goalDirection: GoalDirection,
+): ChartTrend {
+  // Zero change is always neutral, regardless of goal direction
+  if (pct === 0) {
+    return "neutral";
+  }
+
+  // For higher-is-better KPIs: positive delta → positive tone, negative delta → negative tone
+  if (goalDirection === "higher-is-better") {
+    return pct > 0 ? "positive" : "negative";
+  }
+
+  // For lower-is-better KPIs: positive delta (increase) → negative tone, negative delta (decrease) → positive tone
+  return pct > 0 ? "negative" : "positive";
+}
+
+/**
+ * Compute the delta (change) between first and last value in a series.
+ * Arrow reflects raw movement; tone is resolved by goal direction if metricKey is provided.
+ *
+ * @param series - The time series data points
+ * @param metricKey - Optional KPI key; if provided, tone is resolved using goal direction
+ * @returns Delta string with arrow and tone (either goal-aware or raw-movement-based)
+ */
+function computeDelta(
+  series: readonly { v: number }[],
+  metricKey?: MetricKey,
+): {
   delta: string;
   trend: ChartTrend;
 } {
@@ -90,8 +131,19 @@ function computeDelta(series: readonly { v: number }[]): {
   }
 
   const pct = Math.round(((last - first) / Math.abs(first)) * 100);
-  const trend: ChartTrend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  // Arrow always reflects raw movement: up for positive pct, down for negative pct
   const arrow = pct > 0 ? "▲" : pct < 0 ? "▼" : "—";
+
+  // Tone is resolved using goal direction if metricKey is provided
+  let trend: ChartTrend;
+  if (metricKey) {
+    const def = getMainKpiDefinition(metricKey);
+    trend = resolveToneFromDeltaAndGoal(pct, def.goalDirection);
+  } else {
+    // Fallback for supplementary charts (no goal direction): raw movement
+    trend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  }
+
   return {
     delta: `${arrow} ${Math.abs(pct)}%`,
     trend,
@@ -224,7 +276,7 @@ export function buildLiveKpiSnapshot(
   const timeSeries = seriesToTimePoints(entry);
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend } = computeDelta(entry.series);
+  const { delta, trend } = computeDelta(entry.series, metricKey);
   const workflow = metricWorkflow(metricKey);
 
   return {
@@ -275,22 +327,6 @@ export interface ImpactMetricSnapshot {
   sentiment: ChartTrend;
 }
 
-/** KPIs where a falling value is the good direction. */
-const INVERTED_IMPACT_METRICS: readonly ImpactMetricKey[] = [
-  "cancellation-rate",
-];
-
-function impactSentiment(
-  metricKey: ImpactMetricKey,
-  trend: ChartTrend,
-): ChartTrend {
-  if (!INVERTED_IMPACT_METRICS.includes(metricKey) || trend === "neutral") {
-    return trend;
-  }
-
-  return trend === "positive" ? "negative" : "positive";
-}
-
 /**
  * Read the tied Main KPI's real current value and trend.
  *
@@ -298,6 +334,10 @@ function impactSentiment(
  * no envelope, when the KPI is unavailable, or when it carries no series.
  * Ratio KPIs (CTOR, cancellation rate) arrive pre-divided and are rendered as
  * stored; correcting that belongs to the CDP track, not here.
+ *
+ * The `sentiment` field is the goal-aware tone (whether the move is good for the
+ * seller), computed by the unified resolver (resolveToneFromDeltaAndGoal). The
+ * `trend` field is always raw movement (up = positive, down = negative).
  */
 export function buildImpactMetricSnapshot(
   envelope: DemoAnalyticsEnvelope | null | undefined,
@@ -314,7 +354,14 @@ export function buildImpactMetricSnapshot(
 
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend } = computeDelta(entry.series);
+  const { delta, trend: sentiment } = computeDelta(entry.series, metricKey);
+
+  // For the impact block, trend is the raw movement (▲▼), and sentiment is goal-aware
+  // But we need to compute raw trend separately for the trend field
+  const first = values[0]!;
+  const last = values[values.length - 1]!;
+  const pct = Math.round(((last - first) / Math.abs(first)) * 100);
+  const trend: ChartTrend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
 
   return {
     metricKey,
@@ -322,7 +369,7 @@ export function buildImpactMetricSnapshot(
     formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
     delta,
     trend,
-    sentiment: impactSentiment(metricKey, trend),
+    sentiment,
   };
 }
 
