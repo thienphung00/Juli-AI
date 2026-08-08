@@ -1,0 +1,109 @@
+{
+  "planId": "rep-838-demo-candidate-verify-and-discard",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com — the release path gains a candidate stage; a release that fails verification never reaches a visitor"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the candidate binds a locally-bound port on the server and is reachable only from the server itself; no nginx upstream, DNS record, or firewall rule exposes it, and the live instance is never touched while it runs",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "healthy-candidate-proceeds",
+        "entryUrl": "http://127.0.0.1:<candidate-port>/ and /decisions",
+        "assertions": [
+          "the migration gate from #834 runs and accepts before the candidate starts",
+          "the candidate starts from the CI artifact placed in the release directory, compiling nothing",
+          "the verification harness from #833 passes against the candidate: every referenced stylesheet and script is 2xx with a real body, and core API paths match on shape",
+          "only then does the existing cutover proceed"
+        ]
+      },
+      {
+        "name": "candidate-fails-readiness",
+        "entryUrl": "http://127.0.0.1:<candidate-port>/",
+        "assertions": [
+          "the candidate is stopped",
+          "the deploy exits non-zero",
+          "the previously live version is still serving, unmodified, and its process was never restarted"
+        ]
+      },
+      {
+        "name": "candidate-serves-a-page-with-a-missing-asset",
+        "entryUrl": "http://127.0.0.1:<candidate-port>/decisions with a deliberately removed stylesheet",
+        "assertions": [
+          "the harness names the failing asset URL",
+          "the candidate is stopped and the deploy exits non-zero",
+          "the live instance is untouched — this is the exact failure the slice exists to keep off the public site"
+        ]
+      },
+      {
+        "name": "candidate-fails-an-api-path",
+        "entryUrl": "the candidate's core API paths",
+        "assertions": [
+          "a healthy process with a broken route fails verification on response shape, not status",
+          "the candidate is stopped and the deploy exits non-zero"
+        ]
+      },
+      {
+        "name": "migration-gate-refuses",
+        "entryUrl": "the deploy with a pending destructive migration",
+        "assertions": [
+          "no candidate is started at all",
+          "the deploy exits non-zero naming the offending change",
+          "the live instance is untouched"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "The slice introduces no migration of its own. It wires the #834 gate so that migrations are applied before any candidate starts, making ordering deterministic. Migrations are never automatically reverted."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "the existing rollback-demo-release.sh path is unchanged by this slice; automatic post-cutover rollback is #840",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_demo_candidate_verification.py",
+    "bash -n infra/scripts/deploy-demo-release.sh",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 838"
+  ],
+  "doNotInfer": [
+    "zero-downtime or graceful cutover — deliberately out of scope; on success the existing cutover is acceptable and #839 makes it graceful",
+    "post-cutover checks or automatic rollback — that is #840",
+    "paired slots for the API or landing — that is #843",
+    "a single combined deploy command or release record — that is #844",
+    "changing nginx upstreams, DNS, or TLS",
+    "browser-level styling or interactivity assertions on the server; those run in CI per #837"
+  ]
+}
