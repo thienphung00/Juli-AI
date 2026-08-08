@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from datetime import UTC, date, datetime
+from collections.abc import Sequence
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -20,7 +21,9 @@ from juli_backend.models.models import (
 from juli_backend.repositories.repos import GoldKpiEnvelopesRepo
 from juli_backend.services.gold_kpi_envelope_contract import (
     ENVELOPE_VERSION,
+    KPI_SOURCE,
     build_honest_unavailable_shell_payload,
+    build_source_freshness,
 )
 
 
@@ -42,6 +45,22 @@ async def seed_unavailable_shell(
         payload=payload,
         computed_at=when,
     )
+
+
+def _newest_interval_at(
+    intervals: Sequence[AnalyticsPerformanceInterval],
+    current: datetime | None,
+) -> datetime | None:
+    """Newest start_date across interval rows, as an aware UTC datetime.
+
+    AnalyticsPerformanceInterval.start_date is a date (the day measured), so it is
+    normalised to midnight UTC to sit alongside Order.update_time in one comparison.
+    """
+    newest = max((i.start_date for i in intervals if i.start_date is not None), default=None)
+    if newest is None:
+        return current
+    as_dt = datetime.combine(newest, time.min, tzinfo=UTC)
+    return as_dt if current is None else max(current, as_dt)
 
 
 async def compute_demo_main_kpis_payload(
@@ -76,7 +95,18 @@ async def compute_demo_main_kpis_payload(
     cancellation_value: float | None = None
     gmv_series: list[dict[str, Any]] = []
 
+    # Newest source record behind the orders-derived KPIs. Distinct from computed_at:
+    # gold keeps recomputing on schedule even when the Partner fetch has been failing,
+    # so without this the envelope reports fresh numbers built on frozen data.
+    orders_as_of: datetime | None = None
+    intervals_as_of: datetime | None = None
+
     if orders:
+        orders_as_of = max(
+            (o.update_time for o in orders if o.update_time is not None),
+            default=None,
+        )
+
         # Separate cancelled and non-cancelled orders
         cancelled_statuses = ("CANCELLED", "CANCELED")
         non_cancelled_orders = [
@@ -151,6 +181,8 @@ async def compute_demo_main_kpis_payload(
     product_intervals = result_ctor.scalars().all()
 
     if product_intervals:
+        intervals_as_of = _newest_interval_at(product_intervals, intervals_as_of)
+
         # Calculate GMV-weighted average of click_order_rate
         total_gmv = Decimal("0")
         weighted_sum = Decimal("0")
@@ -183,6 +215,8 @@ async def compute_demo_main_kpis_payload(
     shop_intervals = result_live.scalars().all()
 
     if shop_intervals:
+        intervals_as_of = _newest_interval_at(shop_intervals, intervals_as_of)
+
         # Sum live_hours from all shop-grain rows
         total_live_hours = Decimal("0")
 
@@ -211,6 +245,30 @@ async def compute_demo_main_kpis_payload(
         cancellation_kpi["value"] = cancellation_value
     kpis["cancellation_rate"] = cancellation_kpi
 
+    # Freshness is per-source, then stamped onto each KPI, so a consumer can tell
+    # which specific numbers a stalled upstream affects rather than having to know
+    # the derivation. A KPI reading "available" with stale=True is the exact state a
+    # failing Partner fetch produces once the fetch stopped aborting the whole job.
+    source_freshness = {
+        "silver.orders": build_source_freshness(
+            source="silver.orders",
+            as_of=orders_as_of,
+            computed_at=computed_at,
+            row_count=len(orders),
+        ),
+        "analytics_performance_intervals": build_source_freshness(
+            source="analytics_performance_intervals",
+            as_of=intervals_as_of,
+            computed_at=computed_at,
+            row_count=len(product_intervals) + len(shop_intervals),
+        ),
+    }
+    for metric_id, kpi in kpis.items():
+        entry = source_freshness[KPI_SOURCE[metric_id]]
+        kpi["source"] = KPI_SOURCE[metric_id]
+        kpi["as_of"] = entry["as_of"]
+        kpi["stale"] = entry["stale"]
+
     # Build identity block for masking (preserves PII for local processing,
     # masked before public response via mask_public_analytics_envelope)
     identity: dict[str, Any] = {}
@@ -225,6 +283,9 @@ async def compute_demo_main_kpis_payload(
         "currency": currency,
         "identity": identity,
         "kpis": kpis,
+        # Top level, not meta: mask_public_analytics_envelope pops meta wholesale, and
+        # a freshness signal nobody can read defeats the point of emitting it.
+        "source_freshness": source_freshness,
         "meta": {
             "source_partitions": ["silver.orders", "analytics_performance_intervals"],
             "notes": ["A1 five-KPI precompute (#630)"],
