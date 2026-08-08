@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 714,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/cdp_speed/decision_rules_scoring.py",
+      "backend/src/juli_backend/services/cdp_speed/__init__.py",
+      "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+      "backend/src/juli_backend/services/webhook/material_worker.py",
+      "backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-714.json",
+    "sha256": "1305660d9690f166a22aa017161563e18ef3af1212813370f8956f5d9f35c11d",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-08T08:29:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-714.json",
+    "sha256": "a7fdc13ce8f1e33748218da28c472a960f6610b2e2d4864fe48048834032fa48",
+    "status": "PASS"
+  },
+  "wave": null
+}
