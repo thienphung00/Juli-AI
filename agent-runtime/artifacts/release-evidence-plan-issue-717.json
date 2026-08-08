@@ -1,0 +1,83 @@
+{
+  "planId": "rep-717-b5-demo-dry-run-execution",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com POST /v1/demo/decisions/{action_card_id}/approve (unauthenticated write)",
+    "demo.app-juli.com/decisions (approve action, once Track B #600 wires to this endpoint)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "candidate API release verified on the restricted route before any traffic move; no public canary traffic",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "demo-approve-is-dry-run-only",
+        "entryUrl": "/v1/demo/decisions/{action_card_id}/approve",
+        "assertions": [
+          "http_200_without_authentication",
+          "local_demo_execution_record_created_with_queued_running_done_narrative",
+          "zero_invocation_of_enqueue_approved_tool_and_run_tool_async",
+          "no_partner_write_client_reachable_by_static_import_graph",
+          "succeeds_with_no_tiktok_credentials_configured",
+          "repeat_approve_is_idempotent_and_creates_no_duplicate_record"
+        ]
+      },
+      {
+        "name": "demo-approve-tenant-isolation",
+        "entryUrl": "/v1/demo/decisions/{foreign_action_card_id}/approve",
+        "assertions": [
+          "shop_is_server_bound_via_DEMO_REFERENCE_SHOP_ID_only",
+          "no_client_controllable_shop_parameter_exists",
+          "foreign_shop_action_card_id_raises_decision_not_found",
+          "no_enumeration_of_other_tenant_cards"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": ["n/a — JSON API write surface only; Demo HTML consumption lands with Track B #600"],
+    "discoverFromHtml": false,
+    "assetTypes": ["n/a"],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "028_demo_execution_records adds a new standalone demo_execution_records table with FKs to shops and action_cards. No existing table or column is touched, so the currently-deployed release reads action_cards unchanged. The table is deliberately separate from tool_executions: those rows mean a real Partner write occurred, and mixing dry-run rows in would require the dry_run flag ADR-037 forbids."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_demo_execution_dry_run.py -q",
+    "python -m pytest tests/unit/test_demo_execution_import_boundary.py -q",
+    "python -m pytest tests/unit/test_api_demo_execution.py -q",
+    "python -m pytest tests/unit/test_demo_execution_records_migration.py tests/unit/test_migration_additive_gate.py -q",
+    "ruff check --config backend/pyproject.toml backend tests"
+  ],
+  "doNotInfer": [
+    "Public Demo Decisions read API (#718)",
+    "Track B Demo UI execution progress card (#600, #696, #697)",
+    "Real credentialed execution (Phase 3 Sign-in / 3.5-D)",
+    "Rate limiting or WAF posture for this endpoint — see #736",
+    "Wave to main promotion — blocked on #780 / A1 #601 exit",
+    "release evidence fields beyond this plan"
+  ]
+}
