@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 # Re-exported for backward compatibility: `Base` now lives in a dependency-free
 # leaf module (juli_backend.orm_base) to avoid the database<->models import cycle.
@@ -42,7 +43,15 @@ def ensure_worker_session_factory(database_url: str) -> async_sessionmaker[Async
     """
     factory = _worker_factories.get(database_url)
     if factory is None:
-        engine = create_async_engine(database_url)
+        # NullPool, deliberately (#871): worker tasks each enter through
+        # asyncio.run(), so every invocation runs on a fresh event loop. A pooled
+        # asyncpg connection created on one loop is poison on the next — checkout
+        # raises "Future attached to a different loop" and the task dies before
+        # doing any work. With no pooling, each session opens and closes its own
+        # connection inside the currently running loop, nothing loop-bound survives
+        # between tasks, and the Supabase session-mode pooler only ever sees
+        # in-flight connections (the #813 concern, solved without a shared pool).
+        engine = create_async_engine(database_url, poolclass=NullPool)
         factory = create_session_factory(engine)
         _worker_factories[database_url] = factory
         init_session_factory(factory)
