@@ -122,6 +122,28 @@ These cost two Review round-trips; brief every Executor on them up front.
    `.worktrees/issue-713` and are gitignored, so the generator cannot see them from the tip
    branch. Regenerate all status records at wave-integration time.
 
+## Design note for B-4 (#716) — read before dispatching
+
+B-3 landed status preservation as: if an existing card's status is in
+`IN_FLIGHT_STATUSES = {approved, dismissed, executing}`, the re-scoring candidate is
+**dropped entirely** for that `workflow_key` — the row is left untouched, content and
+`computed_at` included. That is exactly what B-3's AC2 asks for, and it is correct as
+delivered. It collides with two PRD requirements that land in B-4:
+
+1. **US-11 — "candidates recomputed even when emission budget suppresses surfacing, so
+   promotion logic can catch up."** With one row per `(shop_id, workflow_key)` and the
+   in-flight skip, a recomputed candidate for an in-flight card is discarded, not stored.
+   B-4's `candidate` / `surfaced` / `suppressed` split has to give the candidate somewhere
+   to live that is not the in-flight row.
+2. **7-day cooldown expiry.** `dismissed` is inside `IN_FLIGHT_STATUSES`, so a dismissed
+   card is never refreshed by re-scoring. Once B-4 adds "cooldown expires after 7 days and
+   the workflow may surface again", nothing will ever produce a fresh candidate for that
+   `workflow_key` — the cooldown can start but never finish. B-4 must either narrow the
+   skip set or let a post-cooldown candidate overwrite a `dismissed` row.
+
+Neither is a defect in B-3. Both are B-4's to resolve, and B-4 must not "fix" them by
+weakening B-3's status-preservation test.
+
 ## Ops lock
 
 **Holder:** Head Meta. Stagger remote ops ≥30s; one PR push/merge at a time. Only #716 and
