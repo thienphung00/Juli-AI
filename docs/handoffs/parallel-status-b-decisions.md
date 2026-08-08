@@ -33,7 +33,7 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 |---|----------|
 | 1 | PR base = `feature/b-decisions-wave`, never `main` |
 | 2 | Head Meta alone edits this file and `agent-runtime/config/slices/B-*.yml` |
-| 3 | Executor domain is `backend` for all six slices — never dual-load `data-platform` |
+| 3 | Executor domain: `backend` for B-1/B-2/B-5/B-6; **`data-platform` for B-3/B-4** (both need Alembic migrations — `computed_at` on cards, emission state + cooldown index). Never dual-load. |
 | 4 | Postgres is SoT for candidates + emission state; Redis read-through only (ADR-038/ADR-021) |
 | 5 | #716 and #718 are public-surface slices — release-evidence plan required before Executor |
 | 6 | Wave → `main` exit gate blocked on #780 / #601 exit (see above) |
@@ -71,6 +71,15 @@ Issue branches chain off their predecessor rather than waiting for the wave merg
 `feature/issue-714` is cut from `feature/issue-713`, not from the wave. Each branch is
 rebased onto the wave once its predecessor's PR lands, so the wave history stays linear
 and a slice never waits on its predecessor's Review to start.
+
+## Carried follow-ups (not in any slice's AC)
+
+| Item | Detail |
+|---|---|
+| A2 batch call site | `services/cdp_batch/batch_reconcile_orchestrator.py:200` constructs `SharedComputeOrchestrator` directly and so never dispatches the Decision scoring stage. `cdp_batch` is A2 and is in this epic's doNotLoad — PRD US-30 defers it ("when A2 exists"). Needs its own issue if Decisions must refresh on the A2 daily stagger. |
+| `cdp_speed` unregistered in `docs/architecture/map.md` | Makes the `module_boundaries` and `module_md_sync` validation gates **no-op pass** for that module — they report green without checking. The real contract in `.importlinter.toml` does cover it and passes. Pre-existing, not introduced by this wave. |
+| `ruff` config discovery | `ruff check backend tests` from the repo root does not discover `backend/pyproject.toml` for files under `tests/`, yielding ~124 spurious errors / ~104 reformat hits. `CLAUDE.md` documents the bare form. Needs `--config backend/pyproject.toml`. |
+| Reconcile scoring wiring | `workers/tasks/mock_analytics_reconcile.py:128` called `run_shared_compute_job` with no `scoring_stage` — folded into B-2 rather than deferred, since PRD US-30 requires reconcile to heal Decision staleness. |
 
 ## Ops lock
 

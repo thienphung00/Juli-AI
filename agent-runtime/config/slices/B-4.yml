@@ -1,5 +1,5 @@
 B-4:
-  executorDomain: backend
+  executorDomain: data-platform
   requiredDocs:
     - EXECUTION.md
     - "{handoffPath}"
@@ -11,6 +11,7 @@ B-4:
     - backend/src/juli_backend/services/action_cards/persist.py
     - backend/src/juli_backend/models/models.py
     - backend/src/juli_backend/database/migrations/versions/
+    - backend/src/juli_backend/database/migrations/env.py
     - backend/src/juli_backend/core/config/
     - tests/unit/test_action_cards_contract.py
   loadWhenNeeded:
