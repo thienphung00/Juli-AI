@@ -83,6 +83,7 @@ class GuardedTikTokClient(TikTokClient):
         params: dict[str, str] | None = None,
         *,
         response_model: type[T],
+        retry_transient: bool = False,
     ) -> T: ...
 
     @overload
@@ -93,6 +94,7 @@ class GuardedTikTokClient(TikTokClient):
         params: dict[str, str] | None = None,
         *,
         response_model: None = None,
+        retry_transient: bool = False,
     ) -> dict[str, Any]: ...
 
     def post(
@@ -102,6 +104,7 @@ class GuardedTikTokClient(TikTokClient):
         params: dict[str, str] | None = None,
         *,
         response_model: type[BaseModel] | None = None,
+        retry_transient: bool = False,
     ) -> dict[str, Any] | BaseModel:
         self._guard.assert_allowed("POST", path)
         log_outbound_request(
@@ -111,7 +114,13 @@ class GuardedTikTokClient(TikTokClient):
             path=path,
             shop_cipher=self._shop_cipher,
         )
-        return super().post(path, body=body, params=params, response_model=response_model)
+        return super().post(
+            path,
+            body=body,
+            params=params,
+            response_model=response_model,
+            retry_transient=retry_transient,
+        )
 
     def post_multipart(
         self,
