@@ -189,7 +189,7 @@ export const recommendationFixtures = [
     eligibility:
       "Cần đơn hàng FBS đã xác thực, địa chỉ đầy đủ, trạng thái chờ giao hàng, và thông tin vận chuyển/lấy hàng hợp lệ.",
     knownLimits:
-      "Ngưỡng thời gian chính xác để tạo đề xuất này chưa được xác định. FBT intake `process_order_5b`: Unresolved/Unfilled — không hiển thị Create Packages, nhãn vận chuyển, ship, split, hoặc confirm cho đến khi có hợp đồng executor FBT.",
+      "Ngưỡng thời gian chính xác để tạo đề xuất này chưa được xác định. Luồng giao hàng do TikTok quản lý chưa được hỗ trợ — không thể tạo lô hàng, tạo nhãn vận chuyển, chia lô, hoặc hoàn tất cho đến khi TikTok cung cấp API hỗ trợ.",
     risks:
       "Không thể tạo hoặc giao lô hàng khi đơn đang ở trạng thái tạm giữ; thông tin khách hàng chỉ hiển thị ở mức tối thiểu cần thiết.",
   },
@@ -213,7 +213,7 @@ export const recommendationFixtures = [
     eligibility:
       "Cần shop đã xác thực, SKU/giá đã biết, và đủ điều kiện chạy khuyến mãi.",
     knownLimits:
-      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất này chưa được xác định. Việc tìm chương trình khuyến mãi hiện có theo từ khoá chưa được hỗ trợ — cập nhật/kết thúc chương trình chỉ áp dụng cho một `activity_id` đã biết (nhánh update_activity_7c/delete_activity_7b). Luồng FBT (giao hàng do TikTok quản lý) cho khuyến mãi: Unresolved/Unfilled — không suy diễn parity từ FBS.",
+      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất này chưa được xác định. Việc tìm chương trình khuyến mãi hiện có theo từ khoá chưa được hỗ trợ — cập nhật/kết thúc chương trình chỉ áp dụng cho một `activity_id` đã biết (nhánh update_activity_7c/delete_activity_7b). Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa được hỗ trợ — không thể suy diễn tính nhất quán từ giao hàng của shop.",
     risks:
       "Không có số tiền giảm giá hoặc tác động nào được tự suy diễn — mọi thay đổi cần shop xác nhận trước khi gửi.",
   },
@@ -229,7 +229,7 @@ export const recommendationFixtures = [
       'Chương trình "Flash Sale chăm sóc da" (ACT-8842) cần điều chỉnh SKU hoặc cửa sổ khuyến mãi.',
     expectedImpactLabel: "—",
     reasoning:
-      "Activity đang hoạt động nhưng hiệu suất chưa đạt kỳ vọng — cần cập nhật cấu hình hoặc sản phẩm tham gia.",
+      "Chương trình khuyến mãi đang hoạt động nhưng hiệu suất chưa đạt kỳ vọng — cần cập nhật cấu hình hoặc sản phẩm tham gia.",
     sellerReason:
       "Điều chỉnh chương trình đang chạy có thể cải thiện hiệu suất bán.",
     evidence:
@@ -237,7 +237,7 @@ export const recommendationFixtures = [
     eligibility:
       "Cần shop đã xác thực, activity_id đã biết, SKU/giá hợp lệ, và đủ điều kiện cập nhật khuyến mãi.",
     knownLimits:
-      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất cập nhật này chưa được xác định. Tìm kiếm chương trình khuyến mãi không khả dụng — chỉ cập nhật theo activity_id đã biết. Webhook Activity change (#63) được catalog nhưng hỗ trợ hiển thị chưa xác định nếu môi trường chưa đăng ký. Luồng FBT cho khuyến mãi: Unresolved/Unfilled.",
+      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất cập nhật này chưa được xác định. Tìm kiếm chương trình khuyến mãi không khả dụng — chỉ cập nhật theo activity_id đã biết. Thông báo cập nhật chương trình khuyến mãi (#63) được đăng ký nhưng hỗ trợ hiển thị chưa xác định nếu môi trường chưa sẵn sàng. Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa được hỗ trợ.",
     risks:
       "TikTok có thể từ chối cập nhật theo trường hoặc SKU — cần chỉnh lại đầu vào, không tự gửi lại.",
   },
@@ -257,13 +257,13 @@ export const recommendationFixtures = [
     sellerReason:
       "Kết thúc chương trình hết hạn giúp tránh giảm giá ngoài ý muốn.",
     evidence:
-      "activity_id ACT-7720 đã được theo dõi; trạng thái hiện tại đọc qua Get Activity, không qua tìm kiếm.",
+      "activity_id ACT-7720 đã được theo dõi; trạng thái hiện tại đọc qua API chương trình khuyến mãi, không qua tìm kiếm.",
     eligibility:
       "Cần shop đã xác thực và activity_id đã biết; nếu activity đã inactive thì kết thúc như no-op.",
     knownLimits:
       "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất kết thúc này chưa được xác định. Tìm kiếm chương trình khuyến mãi không khả dụng. Luồng FBT cho khuyến mãi: Unresolved/Unfilled.",
     risks:
-      "Deactivate thất bại giữ activity hiển thị active — cho phép thử lại sau khi xác nhận.",
+      "Vô hiệu hoá thất bại sẽ giữ chương trình khuyến mãi hiển thị đang hoạt động — cho phép thử lại sau khi xác nhận.",
   },
   {
     workflowKey: "prevent_cancellation_8a",

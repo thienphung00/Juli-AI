@@ -1,5 +1,6 @@
 "use client";
 
+import { useId, useState } from "react";
 import type { ExecutionRecord } from "@juli/contracts";
 import {
   Badge,
@@ -16,14 +17,16 @@ import { DestinationPlaceholder } from "../../../../components/destination-place
 import {
   LIFECYCLE_STATUS_LABELS,
   STEP_KIND_LABELS,
-  STEP_STATUS_LABELS,
-  getLifecycleChipVariant,
-  getWorkflowTitle,
-  getCurrentStepLabel,
+  getLifecycleStatus,
   getNextActionText,
+  getRecoveryText,
+  getStepFraction,
+  getWorkflowTitle,
 } from "../../../../components/in-progress-panel";
 import { useDemoState } from "../../../../components/demo-state";
+import { RepeatConsentBlock } from "../../../../components/repeat-consent-block";
 import { getWorkflowReviewStages } from "../../../../lib/reviews";
+import { selectRepeatConsentSurfaces } from "../../../../lib/repeat-consent";
 import { sanitizeSellerReviewText } from "../../../../lib/review-seller-copy";
 
 function getApprovedInputLabel(
@@ -65,44 +68,11 @@ function ApprovedInputsSummary({ record }: { record: ExecutionRecord }) {
   );
 }
 
-function ExecutionStepsList({ record }: { record: ExecutionRecord }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tiến trình thực hiện</CardTitle>
-      </CardHeader>
-      <CardBody>
-        <ol aria-label="Tiến trình thực hiện" className="demo-decisions__list">
-          {record.timeline.map((step) => (
-            <li key={step.id} data-step-kind={step.kind} data-step-status={step.status}>
-              <article>
-                <p className="demo-kicker">
-                  Bước {step.stepNumber} · {STEP_KIND_LABELS[step.kind]}
-                </p>
-                <h3>{step.title}</h3>
-                <p className="demo-intro">
-                  {sanitizeSellerReviewText(step.description)}
-                </p>
-                {step.recoveryText ? (
-                  <p className="demo-notice">
-                    {sanitizeSellerReviewText(step.recoveryText)}
-                  </p>
-                ) : null}
-                {step.errorText ? (
-                  <p className="demo-notice" role="alert">
-                    {sanitizeSellerReviewText(step.errorText)}
-                  </p>
-                ) : null}
-              </article>
-            </li>
-          ))}
-        </ol>
-      </CardBody>
-    </Card>
-  );
-}
-
 export function InProgressDetailView({ executionId }: { executionId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const reactId = useId();
+  const panelId = `${reactId}-steps-panel`;
+
   const { mutableState, updateMutableState } = useDemoState();
   const record = mutableState.executionRecords[executionId];
 
@@ -119,20 +89,29 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
   }
 
   const workflowTitle = getWorkflowTitle(record.workflowKey);
-  const currentStepLabel = getCurrentStepLabel(record);
+  const lifecycleStatus = getLifecycleStatus(record);
+  const recoveryText = getRecoveryText(record);
   const nextAction = getNextActionText(record);
-  const modeLabel =
-    record.lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
+  const stepFraction = getStepFraction(record);
+  const modeLabel = lifecycleStatus === "needs_input" ? "Xác nhận" : "Đang chạy";
   const badgeVariant: "success" | "destructive" | "warning" | "live" =
-    record.lifecycleStatus === "completed"
+    lifecycleStatus === "completed"
       ? "success"
-      : record.lifecycleStatus === "needs_input"
+      : lifecycleStatus === "needs_input"
         ? "warning"
         : "live";
 
+  const repeatConsentSurface = selectRepeatConsentSurfaces({
+    records: [record],
+    promptedWorkflowKeys: mutableState.repeatConsentPromptedWorkflowKeys,
+    grants: mutableState.repeatConsentGrants,
+  })[record.executionId];
+
   const handleCancel = () => {
     updateMutableState((prev) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [executionId]: _, ...restRecords } = prev.executionRecords;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [executionId]: __, ...restProgress } = prev.executionProgress;
       return {
         ...prev,
@@ -150,7 +129,14 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
       />
       <div className="demo-decisions__list">
         {/* Main execution progress card */}
-        <Card>
+        <Card
+          className={
+            lifecycleStatus === "needs_input"
+              ? "execution-card--needs-input"
+              : undefined
+          }
+          data-lifecycle-status={lifecycleStatus}
+        >
           {/* Mode strip */}
           <div className="execution-card__mode-strip">
             <span className="execution-card__mode-label">{modeLabel}</span>
@@ -168,25 +154,72 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
 
           {/* Card Body */}
           <CardBody>
-            {/* Narrative step line */}
+            {/* Step fraction line */}
             <div className="execution-card__step-line">
-              <p>{currentStepLabel}</p>
-              {record.lifecycleStatus === "executing" && (
-                <span className="execution-card__duration">5–10 phút</span>
-              )}
+              <p>Bước {stepFraction}</p>
             </div>
 
-            {/* Next action / recovery text */}
-            {nextAction && (
-              <div className="execution-card__next-action">
-                <p>{nextAction}</p>
+            {/* Recovery text — the workflow stopped and needs the seller */}
+            {recoveryText ? (
+              <div className="execution-card__recovery" role="status">
+                <p>{recoveryText}</p>
               </div>
+            ) : (
+              nextAction && (
+                <div className="execution-card__next-action">
+                  <p>{sanitizeSellerReviewText(nextAction)}</p>
+                </div>
+              )
             )}
 
             {/* Policy line */}
             <div className="execution-card__policy-line">
               <p>Đã kiểm tra chính sách TikTok Shop</p>
             </div>
+
+            {/* Expansion control for steps list */}
+            <div className="execution-card__expansion-control">
+              <Button
+                variant="ghost"
+                size="small"
+                aria-controls={panelId}
+                aria-expanded={expanded}
+                onClick={() => setExpanded((current) => !current)}
+              >
+                {expanded ? "Thu gọn" : "Xem tất cả các bước"}
+              </Button>
+            </div>
+
+            {/* Expanded steps list */}
+            {expanded && (
+              <div className="execution-card__steps-panel" id={panelId}>
+                <ol aria-label="Tiến trình thực hiện" className="execution-card__steps-list">
+                  {record.timeline.map((step) => (
+                    <li key={step.id} data-step-kind={step.kind} data-step-status={step.status}>
+                      <article>
+                        <p className="demo-kicker">
+                          Bước {step.stepNumber} · {STEP_KIND_LABELS[step.kind]}
+                        </p>
+                        <h4>{sanitizeSellerReviewText(step.title)}</h4>
+                        <p className="demo-intro">
+                          {sanitizeSellerReviewText(step.description)}
+                        </p>
+                        {step.recoveryText ? (
+                          <p className="demo-notice">
+                            {sanitizeSellerReviewText(step.recoveryText)}
+                          </p>
+                        ) : null}
+                        {step.errorText ? (
+                          <p className="demo-notice" role="alert">
+                            {sanitizeSellerReviewText(step.errorText)}
+                          </p>
+                        ) : null}
+                      </article>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
 
             {/* Cancel/Rollback button */}
             <div className="execution-card__actions">
@@ -199,14 +232,17 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
                 Hủy
               </Button>
             </div>
+
+            {/* Repeat consent — after the work is finished, never before */}
+            <RepeatConsentBlock
+              surface={repeatConsentSurface}
+              workflowKey={record.workflowKey}
+            />
           </CardBody>
         </Card>
 
         {/* Approved inputs summary */}
         <ApprovedInputsSummary record={record} />
-
-        {/* Timeline/steps */}
-        <ExecutionStepsList record={record} />
       </div>
     </section>
   );

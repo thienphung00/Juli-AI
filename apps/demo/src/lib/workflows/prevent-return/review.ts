@@ -11,6 +11,13 @@ export const PREVENT_RETURN_WORKFLOW_KEY = "prevent_return_8b";
 export const PREVENT_RETURN_FBT_INTAKE_KEY = "prevent_return_8b_fbt";
 export const PREVENT_RETURN_TOOL_NAME = "returns.prevent_return";
 
+/**
+ * The Main KPI this workflow's decision is tied to — GMV (ADR-055 item 15).
+ * A return decided in time is revenue the shop either keeps or releases
+ * cleanly; nothing new is mapped here.
+ */
+export const defaultPreventReturnAnalyticsMetricKey = "gmv-tiktok";
+
 const preventReturnFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === PREVENT_RETURN_WORKFLOW_KEY,
 );
@@ -21,6 +28,16 @@ if (!preventReturnFixtureEntry) {
 
 const preventReturnFixture = preventReturnFixtureEntry;
 
+/**
+ * Seller-facing defaults for the approval flow.
+ *
+ * `resellable_quantity` ("Số lượng còn bán được (sau kiểm tra)") is
+ * deliberately absent: it describes an outcome that only exists **after
+ * inspection**, so no seller can answer it at approve time (ADR-055 Context;
+ * issue #769). It is removed from the approval flow entirely — not hidden, not
+ * disabled, not optional. Execution does not read it either; the run's
+ * inspection-result step belongs to a later lifecycle moment.
+ */
 export function buildPreventReturnReviewInputDefaults(): Record<string, string> {
   return {
     return_id: "RT-33190",
@@ -28,17 +45,16 @@ export function buildPreventReturnReviewInputDefaults(): Record<string, string> 
     return_reason: "Sản phẩm không đúng mô tả",
     decision_deadline: "2026-07-20 12:00",
     rma_state: "Đang chờ hàng về kho",
-    risk_evidence: "Quy tắc: lần trả đầu — không có điểm ML giả",
-    seller_decision: "",
+    risk_evidence: "Quy tắc: lần trả đầu — không có dấu hiệu gian lận",
+    seller_decision: "Phê duyệt",
     reject_reason: "",
-    review_notes: "",
+    review_notes: "Khách hàng yêu cầu hoàn tiền, chúng tôi đồng ý",
     restock_enabled: "off",
-    resellable_quantity: "",
   };
 }
 
 export function getPreventReturnReviewStages(
-  analyticsMetricKey = "gmv-tiktok",
+  analyticsMetricKey = defaultPreventReturnAnalyticsMetricKey,
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 
@@ -60,7 +76,7 @@ export function getPreventReturnReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Không có mặc định Phê duyệt/Từ chối. Nhập lại kho mặc định tắt đến khi kiểm tra thực tế; số lượng còn bán được cần nhập tường minh. Luồng trả hàng qua giao hàng do TikTok quản lý chỉ ghi nhận — không thực thi tại đây.",
+        "Không có mặc định Phê duyệt/Từ chối. Nhập lại kho mặc định tắt đến khi kiểm tra thực tế. Luồng trả hàng qua giao hàng do TikTok quản lý chỉ ghi nhận — không thực thi tại đây.",
       inputFields: [
         {
           key: "return_id",
@@ -132,13 +148,8 @@ export function getPreventReturnReviewStages(
           required: true,
           editable: true,
         },
-        {
-          key: "resellable_quantity",
-          label: "Số lượng còn bán được (sau kiểm tra)",
-          prefillValue: "",
-          required: false,
-          editable: true,
-        },
+        // No `resellable_quantity` field: it is post-execution ("sau kiểm
+        // tra") and is not collected at approve time (issue #769).
       ],
     },
     {

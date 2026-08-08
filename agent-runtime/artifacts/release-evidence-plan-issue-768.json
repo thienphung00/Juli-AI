@@ -1,0 +1,68 @@
+{
+  "planId": "rep-768-dpr-9-spine-rollout-promotions",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; issue-tier CI + Review Agent validate before merge into feature/dpr-demo-wave",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "promotions-domain-on-the-spine",
+        "entryUrl": "/decisions/recommendations/fixture-recommendation",
+        "assertions": [
+          "html_200",
+          "both_promotion_workflows_render_spine",
+          "delete_activity_still_matches_after_change",
+          "promotion_search_limitation_not_rendered_here"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/recommendations/fixture-recommendation"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "apps/demo frontend change under ADR-055; no DB migration and no backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "corepack pnpm check:demo",
+    "python agent-runtime/scripts/ci/generate_validation_artifact.py --issue 768"
+  ],
+  "doNotInfer": [
+    "class C limit presentation (DPR-13)",
+    "release evidence fields beyond this plan"
+  ]
+}

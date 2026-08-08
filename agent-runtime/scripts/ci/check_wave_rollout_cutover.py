@@ -40,6 +40,7 @@ def _run(cmd: list[str], *, cwd: Path | None = None) -> tuple[int, str, str]:
             cwd=cwd or REPO_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
         return proc.returncode, proc.stdout, proc.stderr

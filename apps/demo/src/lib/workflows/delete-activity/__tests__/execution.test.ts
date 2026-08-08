@@ -80,12 +80,12 @@ describe("buildDeleteActivityExecution", () => {
     });
   });
 
-  it("records confirmation-only approved inputs", () => {
+  it("records confirmation and activity id as approved inputs", () => {
     const { record } = buildDeleteActivityExecution();
     const defaults = buildDeleteActivityReviewInputDefaults();
 
     expect(record.approvedInputs.activity_id).toBe(defaults.activity_id);
-    expect(record.approvedInputs.confirm_end).toBe("");
+    expect(record.approvedInputs.confirm_end).toBe(defaults.confirm_end);
     expect(Object.keys(record.approvedInputs)).toEqual([
       "activity_id",
       "confirm_end",

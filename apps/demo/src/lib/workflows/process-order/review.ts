@@ -27,10 +27,10 @@ export function buildProcessOrderReviewInputDefaults(): Record<string, string> {
   return {
     order_priority: "Hàng đợi T5 — 6 đơn (chỉ đọc theo thứ hạng)",
     shipping_type: "Ship by TikTok",
-    document_type: "",
-    pickup_slot: "",
-    tracking_number: "",
-    shipping_provider_id: "",
+    document_type: "Hóa đơn thương mại",
+    pickup_slot: "09:00 - 12:00",
+    tracking_number: "TK-20260807-001",
+    shipping_provider_id: "SP-TKT-01",
     split_combine: "Tắt — chỉ bật khi ràng buộc đóng gói yêu cầu",
   };
 }

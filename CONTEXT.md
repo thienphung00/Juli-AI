@@ -195,9 +195,37 @@ _Avoid_: Mobbin as authoritative layout/copy, pixel-perfect Mobbin clones
 Demo composes from **`@juli/ui`** + **`@juli/theme`**; shadcn registry may refine atoms then migrate into `@juli/ui`. No wholesale replacement of Demo page scaffolding with raw shadcn. See [ADR-043](docs/adr/043-frontend-design-skill-wiring.md).
 _Avoid_: shadcn as Demo surface SoT, deleting `@juli/ui` for page composition
 
-**Five-stage decision review**:
-Seller-facing Recommendations detail flow — **Why → Analytics → Inputs → Preview → Approve** — using seller language; wired to existing Decision envelope/fixtures/Phase 2.10 feed when available. Does not change the **In Progress** sub-tab (deferred redesign).
-_Avoid_: backend step names in seller UI, inventing a new recommendation engine
+**Decision plan review**:
+Seller-facing Recommendations detail flow on `apps/demo` **mobile-web** — the agent presents a proposed plan the seller traverses **section by section**, planning-mode style, instead of a flat form. The agent **pre-commits a proposed value for every field**; each section offers recommended options, a custom input, and an **ask-before-deciding** follow-up. Sections rest **folded** and expand on demand — the AI recommendation explains when asked, it does not narrate by default. Optimises for minimal cognitive load and **minimal time to value**: agreeing with the plan requires expanding nothing. Supersedes the **Five-stage decision review** ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: Five-stage decision review (Why → Analytics → Inputs → Preview → Approve — superseded), flat all-fields form, blank-by-default seller fields, backend step names in seller UI, node/graph configuration surfaces, inventing a new recommendation engine
+
+**Agent-proposed value**:
+The value the agent commits to for **every** field of a Decision plan review before the seller opens it — there is no blank-by-default field and no class of fields the agent declines to propose. The seller accepts, picks another recommended option, supplies a custom input, or asks a follow-up first. Accepted trade-off: pre-committing judgment-bound fields risks **rubber-stamping**; the mitigation is the ask-before-deciding affordance, not a blank field ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: empty-string defaults as "the seller will fill it in", seller-reserved blank fields
+
+**Repeat consent**:
+The post-completion ask — whether Juli may run this workflow again without a fresh approval. Raised **after** the work finishes (acknowledgement → progress → repeat consent), never bundled into the initial approval. Gated three ways: only on lifecycle **`completed`** (never `needs_input`), **once per workflow kind** (not per execution), and only for workflows whose shipped copy carries **no no-auto-act promise** — 5 of 11 today. What is granted is **pre-approval with notification**, never silent automation ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: an automation toggle inside the approve step, consent implied by a single approval, prompting after `needs_input`, silent automation, conflating "không tự suy diễn" (won't infer a number) with a no-auto-act promise
+
+**No-auto-act promise**:
+Shipped seller copy stating Juli will not perform an action unaided — e.g. `prevent_cancellation_8a`'s "Juli không tự động xử lý thay", `clear_excess_4`'s "chỉ thực hiện sau khi có xác nhận thực tế". Lives in **`risks` as often as `knownLimits`**. Bars **Repeat consent** for that workflow; widening eligibility means changing the copy deliberately first ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: treating these as class-A "won't infer a number" caveats, a consent prompt that contradicts shipped copy
+
+**Impact metric**:
+The tied Main KPI shown on a Decision plan review card — the card's centre of gravity. Every workflow already maps to one [ADR-049](docs/adr/049-demo-analytics-main-kpi-override.md) Main KPI via `analyticsMetricKey`: **CTOR** (optimize-product, create/update/delete-activity), **GMV** (prevent-cancellation/return/refund, replenish-inventory, create-hero-product), **AOV** (clear-excess), **Cancellation rate** (process-order). Shows the KPI's **real current value and trend** from `gold.kpi_envelopes` plus a **directional goal** — never a projected magnitude, and **one state only** (pre-approval; unchanged after approval, since Mock executions are dry-run and no effect exists to observe). **LIVE hours is tied to no workflow.** See [ADR-055](docs/adr/055-decision-plan-review.md).
+_Avoid_: projected impact magnitudes, post-execution "what your approval achieved" deltas in Mock mode, retrofitting a workflow onto LIVE hours
+
+**Upload screening**:
+The pre-acceptance check on seller-supplied files — **image files only** (both `main_images` and `supporting_file`, so a PDF certificate must be photographed instead), enforced by **file-signature (magic-byte) allowlist**, **full image decode** (corruption and polyglot detection), a **size cap**, and rejection when declared extension/content type disagrees with the signature. **Server-side is authoritative**: the real boundary is `_decode_optional_base64` / `_resolve_image_uri` in `services/execution/listing.py`, not the Demo control. Rejection follows the `ValueError` → `VALIDATION` → HTTP 400 convention. Detection is backed by **mitigation**: the image is **re-encoded** and the re-encoded bytes forwarded, which destroys appended data and polyglot payloads (OWASP image rewriting); the **filename is generated** (UUID + detected extension), never accepted from the caller; and a **pixel cap** guards decompression bombs that byte caps miss. **Not antivirus** — re-encoding removes payloads, it does not identify them. AV/CDR are acknowledged by OWASP and deliberately deferred to a separate ADR ([ADR-055](docs/adr/055-decision-plan-review.md) item 20).
+_Avoid_: describing this as virus protection or AV, trusting the browser-supplied MIME type, client-side validation as the gate, widening the allowlist in code instead of amending the ADR
+
+**Post-execution field**:
+A workflow input that can only be answered **after** execution — e.g. `prevent-return.resellable_quantity` ("sau kiểm tra"), `replenish-inventory.received_quantity` ("sau giao"). Belongs to a later lifecycle moment; must not be collected at approve time ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: collecting post-execution fields in the approval flow
+
+**Branch discriminator**:
+The field whose value determines which later sections are relevant at all — `process-order.shipping_type` (Ship by TikTok vs Ship by Seller), `prevent-return.seller_decision` (approve vs reject). Gates section visibility; the superseded flat form rendered every branch's fields regardless ([ADR-055](docs/adr/055-decision-plan-review.md)).
+_Avoid_: rendering dead branch fields, treating conditional fields as always-required
 
 **Seller-surface copy**:
 Vietnamese Demo strings that are benefit-led, one idea per line, free of backend jargon (webhooks, endpoints, `feature_id`, tool names, FBS/FBT badges). Machine fields may remain in fixtures/code for dry-run but **never render** in Demo UI. Authority: **Copy dictionary** + **Design context** ([ADR-028](docs/adr/028-vietnamese-copy-dictionary-and-design-context.md)).

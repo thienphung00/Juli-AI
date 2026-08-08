@@ -262,3 +262,72 @@ def test_wave_artifacts_verify_integrity_fails_on_sha256_mismatch(
     result = validate_wave_artifacts(_valid_manifest(issues=[659]), verify_integrity=True)
     assert result["valid"] is False
     assert any("sha256 mismatch" in error for error in result["errors"])
+
+
+# --- Scoped artifact waiver (ADR-059) -------------------------------------
+
+
+def _waiver(issues: list[int], **overrides: Any) -> dict[str, Any]:
+    waiver = {
+        "adr": "docs/adr/059-dpr-wave-artifact-waiver.md",
+        "reason": "evidence unrecoverable; diffs reviewed in its place",
+        "approvedBy": "Repository owner",
+        "issues": issues,
+    }
+    waiver.update(overrides)
+    return waiver
+
+
+def test_waiver_accepts_named_issues_without_status_records(tmp_path: Path, monkeypatch) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    manifest = _valid_manifest(issues=[659, 660], artifactWaiver=_waiver([659, 660]))
+    result = validate_wave_artifacts(manifest)
+
+    assert result["valid"] is True
+    assert result["errors"] == []
+
+
+def test_waiver_does_not_cover_an_issue_it_omits(tmp_path: Path, monkeypatch) -> None:
+    """An issue added to the wave after the decision is not retroactively waived."""
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    manifest = _valid_manifest(issues=[659, 660], artifactWaiver=_waiver([659]))
+    result = validate_wave_artifacts(manifest)
+
+    assert result["valid"] is False
+    assert any("issue 660" in error for error in result["errors"])
+    assert not any("issue 659" in error for error in result["errors"])
+
+
+def test_waiver_covering_an_issue_outside_the_wave_is_an_error(tmp_path: Path, monkeypatch) -> None:
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    manifest = _valid_manifest(issues=[659], artifactWaiver=_waiver([659, 999]))
+    result = validate_wave_artifacts(manifest)
+
+    assert result["valid"] is False
+    assert any("not in this wave" in error for error in result["errors"])
+
+
+def test_wave_without_a_waiver_is_unchanged(tmp_path: Path, monkeypatch) -> None:
+    """The waiver is opt-in per manifest; it must not soften any other wave."""
+    _patch_status_dir(monkeypatch, tmp_path)
+
+    result = validate_wave_artifacts(_valid_manifest(issues=[659]))
+
+    assert result["valid"] is False
+    assert any("missing status record" in error for error in result["errors"])
+
+
+def test_waiver_is_described_for_the_gate_to_print() -> None:
+    from wave_manifest import describe_waiver
+
+    manifest = _valid_manifest(issues=[659], artifactWaiver=_waiver([659]))
+
+    described = describe_waiver(manifest)
+
+    assert described is not None
+    assert "059" in described
+    assert "Repository owner" in described
+    assert describe_waiver(_valid_manifest()) is None

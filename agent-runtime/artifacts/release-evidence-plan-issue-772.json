@@ -1,0 +1,68 @@
+{
+  "planId": "rep-772-dpr-13-typed-caveat-classes",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; issue-tier CI + Review Agent validate before merge into feature/dpr-demo-wave",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "caveat-classes-render-per-rule",
+        "entryUrl": "/decisions/recommendations/fixture-recommendation",
+        "assertions": [
+          "html_200",
+          "class_a_and_class_b_render_nowhere",
+          "class_c_renders_inside_reasoning_expansion",
+          "class_d_renders_as_trust_line_not_a_limitation"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/recommendations/fixture-recommendation"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "apps/demo frontend change under ADR-055; no DB migration and no backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "corepack pnpm check:demo",
+    "python agent-runtime/scripts/ci/generate_validation_artifact.py --issue 772"
+  ],
+  "doNotInfer": [
+    "repeat consent eligibility enforcement (DPR-16)",
+    "release evidence fields beyond this plan"
+  ]
+}

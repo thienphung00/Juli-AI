@@ -6,6 +6,8 @@ export {
   getDeleteActivityReviewStages,
 } from "./review";
 
+export { getDeleteActivityPlanReview } from "./plan";
+
 export {
   buildDeleteActivityExecution,
   createDeleteActivityTimeline,

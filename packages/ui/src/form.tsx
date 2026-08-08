@@ -343,6 +343,97 @@ export function OtpField({
   );
 }
 
+export interface SelectOption {
+  label: string;
+  value: string;
+}
+
+export interface SelectFieldProps
+  extends Omit<
+    ComponentPropsWithoutRef<"input">,
+    "id" | "aria-describedby" | "type" | "list"
+  > {
+  errorMessage?: string;
+  helperText?: string;
+  id?: string;
+  label: string;
+  options: SelectOption[];
+  prefillValue?: string;
+  required?: boolean;
+  suggestion?: boolean;
+}
+
+export function SelectField({
+  errorMessage,
+  helperText,
+  id: idProp,
+  label,
+  options,
+  prefillValue,
+  required,
+  suggestion,
+  ...inputProps
+}: SelectFieldProps) {
+  const generatedId = useId();
+  const inputId = idProp ?? generatedId;
+  const datalistId = `${inputId}-datalist`;
+  const errorId = `${inputId}-error`;
+  const helperId = `${inputId}-helper`;
+  const suggestionId = `${inputId}-suggestion`;
+  const describedBy = [
+    errorMessage ? errorId : null,
+    helperText ? helperId : null,
+    suggestion ? suggestionId : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const hasError = Boolean(errorMessage);
+
+  return (
+    <FormField data-testid={`field-${inputId}`}>
+      <div className="juli-form__label-container">
+        <FormLabel htmlFor={inputId} required={required}>
+          {label}
+        </FormLabel>
+        {suggestion ? (
+          <span className="juli-badge juli-badge--info" id={suggestionId}>
+            Gợi ý bởi Juli
+          </span>
+        ) : null}
+      </div>
+      <input
+        aria-describedby={describedBy || undefined}
+        aria-invalid={hasError || undefined}
+        className={[
+          "juli-form__select",
+          suggestion ? "juli-form__select--suggestion" : null,
+          hasError ? "juli-form__select--error" : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        id={inputId}
+        list={datalistId}
+        required={required}
+        type="text"
+        {...inputProps}
+      />
+      <datalist id={datalistId}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </datalist>
+      {errorMessage ? <FormError id={errorId}>{errorMessage}</FormError> : null}
+      {helperText && !errorMessage ? (
+        <p className="juli-form__helper" id={helperId}>
+          {helperText}
+        </p>
+      ) : null}
+    </FormField>
+  );
+}
+
 export interface FormActionsProps {
   children: ReactNode;
   className?: string;

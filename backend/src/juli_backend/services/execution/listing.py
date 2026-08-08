@@ -11,12 +11,60 @@ import base64
 from typing import Any
 
 from juli_backend.integrations.tiktok import SandboxWriteResources
+from juli_backend.services.execution.file_screening import (
+    MAX_ENCODED_SIZE_BYTES,
+    screen_and_reencode_image,
+    screen_upload_file,
+)
 
 
-def _decode_optional_base64(value: str | None) -> bytes | None:
+def _decode_base64(value: str | None) -> bytes | None:
+    """Decode a base64 payload after the encoded size cap, or None when absent.
+
+    Raises ValueError on an oversized payload (terminal VALIDATION category).
+    """
     if not value:
         return None
+
+    # Check encoded size cap before decoding
+    if len(value) > MAX_ENCODED_SIZE_BYTES:
+        raise ValueError(
+            f"Encoded payload size {len(value)} bytes exceeds maximum encoded size "
+            f"{MAX_ENCODED_SIZE_BYTES} bytes"
+        )
+
     return base64.b64decode(value)
+
+
+def _decode_and_screen_image(value: str | None) -> tuple[bytes, str] | None:
+    """Decode base64, screen, re-encode image, return sanitized bytes and safe filename.
+
+    Per OWASP: caller-supplied filename is discarded; generated filename (UUID +
+    detected extension) is used instead. Bytes are re-encoded to destroy payloads.
+
+    Returns (re_encoded_bytes, safe_filename) or None if value is empty.
+
+    Raises ValueError on validation failure (terminal VALIDATION category).
+    """
+    decoded = _decode_base64(value)
+    if decoded is None:
+        return None
+
+    # Screen, re-encode, and generate safe filename
+    return screen_and_reencode_image(decoded)
+
+
+def _decode_and_screen_file(value: str | None) -> tuple[bytes, str] | None:
+    """Decode base64 and screen a supporting document (PDF or image).
+
+    The image-only screener rejects every PDF, so the document upload must not
+    use it — see `screen_upload_file`.
+    """
+    decoded = _decode_base64(value)
+    if decoded is None:
+        return None
+
+    return screen_upload_file(decoded)
 
 
 def _attribute_required(attr: dict[str, Any]) -> bool:
@@ -97,9 +145,10 @@ def _first_suggestion_text(
 def _resolve_image_uri(payload: dict[str, Any], products) -> str | None:
     if payload.get("image_uri"):
         return str(payload["image_uri"])
-    image_bytes = _decode_optional_base64(payload.get("image_content_base64"))
-    if image_bytes is None:
+    result = _decode_and_screen_image(payload.get("image_content_base64"))
+    if result is None:
         return None
+    image_bytes, _ = result  # Discard generated filename for image (not used)
     upload = products.upload_product_image(image_bytes=image_bytes)
     return str(upload.get("uri") or "")
 
@@ -107,11 +156,12 @@ def _resolve_image_uri(payload: dict[str, Any], products) -> str | None:
 def _resolve_file_uri(payload: dict[str, Any], products) -> str | None:
     if payload.get("file_uri"):
         return str(payload["file_uri"])
-    file_bytes = _decode_optional_base64(payload.get("file_content_base64"))
-    filename = str(payload.get("file_name") or "supporting-document.pdf")
-    if file_bytes is None:
+    result = _decode_and_screen_file(payload.get("file_content_base64"))
+    if result is None:
         return None
-    upload = products.upload_product_file(file_bytes=file_bytes, filename=filename)
+    file_bytes, safe_filename = result
+    # Use generated safe filename; caller-supplied name is discarded
+    upload = products.upload_product_file(file_bytes=file_bytes, filename=safe_filename)
     return str(upload.get("uri") or "")
 
 

@@ -1,0 +1,71 @@
+{
+  "planId": "rep-774-dpr-15-hero-upload-image-only",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com/decisions/recommendations/[recommendationId]"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; issue-tier CI + Review Agent validate before merge into feature/dpr-demo-wave",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "upload-accepts-images-only",
+        "entryUrl": "/decisions/recommendations/fixture-recommendation",
+        "assertions": [
+          "html_200",
+          "upload_section_visible_at_rest",
+          "non_image_file_rejected_with_seller_language_copy",
+          "extension_signature_mismatch_rejected",
+          "no_virus_or_antivirus_claim_in_any_rendered_string",
+          "no_one_tap_approve_path_for_this_workflow"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/decisions/recommendations/fixture-recommendation"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "apps/demo frontend change under ADR-055; no DB migration and no backend API contract change."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "corepack pnpm check:demo",
+    "python agent-runtime/scripts/ci/generate_validation_artifact.py --issue 774"
+  ],
+  "doNotInfer": [
+    "server-side screening — tracked in #776, not this slice",
+    "candidate imagery proposal — out of MVP scope",
+    "release evidence fields beyond this plan"
+  ]
+}

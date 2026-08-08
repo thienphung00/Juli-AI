@@ -328,6 +328,241 @@ a {
   justify-content: space-between;
 }
 
+.demo-plan {
+  display: grid;
+  gap: var(--juli-space-4);
+}
+
+.demo-plan__header {
+  display: grid;
+  gap: var(--juli-space-3);
+}
+
+.demo-plan__summary-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--juli-space-1) var(--juli-space-2);
+  min-height: var(--juli-touch-target);
+  padding: var(--juli-space-2) var(--juli-space-3);
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius-medium);
+  background: var(--juli-surface-muted, var(--juli-surface));
+  color: var(--juli-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.demo-plan__summary-row:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
+.demo-plan__summary-line {
+  font-weight: 600;
+}
+
+.demo-plan__summary-chevron {
+  grid-row: span 2;
+  font-size: 1.25rem;
+  color: var(--juli-muted-foreground);
+  transition: transform 0.15s ease;
+}
+
+.demo-plan__summary-row[aria-expanded="true"] .demo-plan__summary-chevron {
+  transform: rotate(90deg);
+}
+
+.demo-plan__summary-question {
+  color: var(--juli-primary-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.demo-plan__situation-detail {
+  display: grid;
+  gap: var(--juli-space-2);
+  padding: var(--juli-space-3);
+  border-left: 2px solid var(--juli-border);
+}
+
+.demo-plan__situation-detail p {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+/* Impact block — the card's centre of gravity (ADR-055 items 15–17).
+   Given the card's largest type and its own tinted panel so the tied KPI
+   reads before the proposal, never as a footnote. */
+.demo-plan__impact {
+  display: grid;
+  gap: var(--juli-space-1);
+  padding: var(--juli-space-4);
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-medium);
+  background: var(--juli-primary-soft, var(--juli-surface-muted));
+}
+
+.demo-plan__impact p {
+  margin: 0;
+}
+
+.demo-plan__impact-metric {
+  color: var(--juli-muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.demo-plan__impact-reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--juli-space-2);
+}
+
+.demo-plan__impact-value {
+  font-size: clamp(1.75rem, 8vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.demo-plan__impact-delta {
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+/* Sentiment, not direction: a falling cancellation rate is a good move. */
+.demo-plan__impact-delta--positive {
+  color: var(--juli-success);
+}
+
+.demo-plan__impact-delta--negative {
+  color: var(--juli-danger, var(--juli-warning));
+}
+
+.demo-plan__impact-delta--neutral {
+  color: var(--juli-muted-foreground);
+}
+
+/* Honest unavailable state — deliberately quiet, and never a number. */
+.demo-plan__impact-unavailable {
+  padding: var(--juli-space-1) 0;
+  color: var(--juli-muted-foreground);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.demo-plan__impact-goal {
+  padding-top: var(--juli-space-1);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.demo-plan__impact-link {
+  padding-top: var(--juli-space-1);
+  font-size: 0.875rem;
+}
+
+.demo-plan__impact-link a {
+  color: var(--juli-primary-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.demo-plan__impact-link a:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}
+
+.demo-plan__decision {
+  display: grid;
+  gap: var(--juli-space-3);
+}
+
+.demo-plan__decision p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+/* Reasoning disclosure body — same inset treatment as the Situation
+   expansion, so every "why?" reveal reads the same way. */
+.demo-plan__reasoning-detail {
+  display: grid;
+  gap: var(--juli-space-2);
+  padding: var(--juli-space-3);
+  border-left: 2px solid var(--juli-border);
+}
+
+.demo-plan__reasoning-detail p {
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+/* Class C caveats — a genuine functional gap, answered alongside the reasoning
+   rather than shouted at rest. */
+.demo-plan__reasoning-caveats {
+  display: grid;
+  gap: var(--juli-space-2);
+}
+
+/* Class D caveats — what Juli will not do without the seller. Reassurance
+   rests in the Decision section; it is never filed under a limits heading. */
+.demo-plan__trust-lines {
+  display: grid;
+  gap: var(--juli-space-1);
+}
+
+.demo-plan__trust-line {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+.demo-plan__decision-options {
+  display: grid;
+  gap: var(--juli-space-3);
+  padding: var(--juli-space-3);
+  border-left: 2px solid var(--juli-border);
+}
+
+.demo-plan__option-group-label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.demo-plan__option-list {
+  margin: 0;
+  padding-left: var(--juli-space-4);
+  display: grid;
+  gap: var(--juli-space-1);
+  color: var(--juli-muted-foreground);
+}
+
+.demo-plan__option-proposed {
+  margin-left: var(--juli-space-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--juli-primary-text);
+}
+
+.demo-plan__actions {
+  display: flex;
+  justify-content: stretch;
+}
+
+.demo-plan__actions > button {
+  flex: 1;
+}
+
 .demo-assistance {
   width: min(100% - 2rem, 70rem);
   margin: 0 auto var(--juli-space-8);
@@ -1279,6 +1514,36 @@ a {
   color: var(--juli-muted-foreground);
 }
 
+/* Stopped workflow (needs_input) — must not look like a running one */
+.execution-card--needs-input .execution-card__mode-strip {
+  background: var(--juli-warning-tint);
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--juli-warning) 45%,
+    var(--juli-border)
+  );
+}
+
+.execution-card--needs-input .execution-card__mode-label {
+  color: var(--juli-warning);
+}
+
+.execution-card__recovery {
+  margin: var(--juli-space-4) 0 0;
+  padding: var(--juli-space-3);
+  border-radius: var(--juli-radius-medium);
+  background: var(--juli-warning-tint);
+  border: 1px solid
+    color-mix(in srgb, var(--juli-warning) 45%, var(--juli-border));
+}
+
+.execution-card__recovery p {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
 .execution-card__policy-line {
   margin: var(--juli-space-4) 0 0;
 }
@@ -1296,5 +1561,56 @@ a {
 }
 
 .execution-card__actions button {
+  min-height: var(--juli-touch-target);
+}
+
+/* Repeat consent — asked only after finished work, once per workflow kind */
+.repeat-consent {
+  margin: var(--juli-space-4) 0 0;
+  padding: var(--juli-space-4);
+  border-radius: var(--juli-radius-medium);
+  border: 1px solid var(--juli-border);
+  background: color-mix(in srgb, var(--juli-background) 65%, var(--juli-surface));
+}
+
+.repeat-consent--granted {
+  border-color: color-mix(in srgb, var(--juli-success) 45%, var(--juli-border));
+  background: var(--juli-success-tint);
+}
+
+.repeat-consent__title {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.repeat-consent__body {
+  margin: var(--juli-space-2) 0 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+.repeat-consent--withdrawn .repeat-consent__body {
+  margin: 0;
+}
+
+.repeat-consent__terms {
+  margin: var(--juli-space-3) 0 0;
+  padding-inline-start: var(--juli-space-5);
+  display: grid;
+  gap: var(--juli-space-2);
+  color: var(--juli-foreground);
+  line-height: 1.6;
+}
+
+.repeat-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-3);
+  margin: var(--juli-space-4) 0 0;
+}
+
+.repeat-consent__actions button {
   min-height: var(--juli-touch-target);
 }

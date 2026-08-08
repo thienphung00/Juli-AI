@@ -8,8 +8,10 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  FileUploadField,
   FilterChip,
   PageHeader,
+  SelectField,
   TextField,
 } from "@juli/ui";
 import Link from "next/link";
@@ -20,6 +22,7 @@ import {
   buildReviewInputDefaultsForWorkflow,
   getWorkflowReviewStages,
 } from "../lib/reviews";
+import { getWorkflowPlanReview } from "../lib/plan-reviews";
 import { SELLER_APPROVE_GATE } from "../lib/review-seller-copy";
 import {
   buildDecisionsHighlightHref,
@@ -27,7 +30,11 @@ import {
   type ActionCardInputsData,
 } from "../lib/recommendations";
 import { useDemoState } from "./demo-state";
-import { getReplenishInventoryReviewStages, REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
+import {
+  getReplenishInventoryReviewStages,
+  REPLENISH_INVENTORY_WORKFLOW_KEY,
+} from "../lib/workflows/replenish-inventory";
+import { PlanReviewCard } from "./plan-review-card";
 
 interface RecommendationReviewProps {
   workflowKey: string;
@@ -40,6 +47,19 @@ function renderBodyParagraphs(body: string) {
 }
 
 export function RecommendationReview({ workflowKey }: RecommendationReviewProps) {
+  // Route by workflow key (ADR-055 item 8): workflows with a plan review
+  // render the Situation → Decision → Details spine; every other workflow
+  // keeps the five-stage review while the spine rolls out.
+  const plan = getWorkflowPlanReview(workflowKey);
+
+  if (plan) {
+    return <PlanReviewCard plan={plan} />;
+  }
+
+  return <FiveStageReview workflowKey={workflowKey} />;
+}
+
+function FiveStageReview({ workflowKey }: RecommendationReviewProps) {
   const router = useRouter();
   const { mutableState, startExecution, updateMutableState } = useDemoState();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -72,7 +92,10 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
   };
 
   const handleInputChange = useCallback(
-    (fieldKey: string, value: string) => {
+    (fieldKey: string, value: string | File | null) => {
+      // Store file name for uploaded files, empty string for null
+      const storedValue = value instanceof File ? value.name : (value ?? "");
+
       updateMutableState((current) => ({
         ...current,
         workflowReviewDrafts: {
@@ -80,7 +103,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
           [workflowKey]: {
             ...buildReviewInputDefaultsForWorkflow(workflowKey),
             ...(current.workflowReviewDrafts[workflowKey] ?? {}),
-            [fieldKey]: value,
+            [fieldKey]: storedValue,
           },
         },
       }));
@@ -204,6 +227,37 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
                     field.prefillValue !== "" &&
                     currentValue === field.prefillValue;
 
+                  if (field.kind === "option-list" && field.options) {
+                    return (
+                      <SelectField
+                        disabled={field.editable === false}
+                        key={field.key}
+                        label={field.label}
+                        onChange={(event) =>
+                          handleInputChange(field.key, event.target.value)
+                        }
+                        options={field.options}
+                        prefillValue={field.prefillValue}
+                        required={field.required}
+                        suggestion={isSuggestion}
+                        value={currentValue}
+                      />
+                    );
+                  }
+
+                  if (field.kind === "upload") {
+                    return (
+                      <FileUploadField
+                        key={field.key}
+                        label={field.label}
+                        onChange={(file) =>
+                          handleInputChange(field.key, file)
+                        }
+                        required={field.required}
+                      />
+                    );
+                  }
+
                   return (
                     <TextField
                       disabled={field.editable === false}
@@ -215,7 +269,7 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
                       readOnly={field.editable === false}
                       required={field.required}
                       suggestion={isSuggestion}
-                      value={currentValue}
+                      value={currentValue as string}
                     />
                   );
                 })}

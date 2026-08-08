@@ -7,8 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RecommendationReview } from "../components/recommendation-review";
 import {
   buildReviewInputDefaults,
+  buildReviewInputDefaultsForWorkflow,
   CREATE_HERO_PRODUCT_WORKFLOW_KEY,
   getWorkflowReviewStages,
+  OPTIMIZE_PRODUCT_WORKFLOW_KEY,
 } from "../lib/reviews";
 import {
   REVIEW_UI_BANNED_PATTERNS,
@@ -101,8 +103,9 @@ function renderReview(workflowKey = CREATE_HERO_PRODUCT_WORKFLOW_KEY) {
 async function advanceToStage(
   user: ReturnType<typeof userEvent.setup>,
   targetTitle: string,
+  workflowKey = CREATE_HERO_PRODUCT_WORKFLOW_KEY,
 ) {
-  const stages = getWorkflowReviewStages(CREATE_HERO_PRODUCT_WORKFLOW_KEY);
+  const stages = getWorkflowReviewStages(workflowKey);
   const targetIndex = stages.findIndex((stage) => stage.title === targetTitle);
   expect(targetIndex).toBeGreaterThanOrEqual(0);
 
@@ -302,17 +305,9 @@ describe("RecommendationReview", () => {
     );
   });
 
-  it("renders review stages for prevent_cancellation_8a", () => {
-    const stages = getWorkflowReviewStages("prevent_cancellation_8a");
-    expect(stages).toHaveLength(5);
-
-    renderReview("prevent_cancellation_8a");
-
-    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
-      stages[0].title,
-    );
-  });
-
+  // The five-stage journey test for prevent_cancellation_8a was superseded by
+  // the plan-review spine rollout (#769); the routing describe below asserts
+  // the spine instead. `process_order_5` still covers the five-stage path.
   it("exposes a navigable analytics deep link on the Analytics stage", async () => {
     const user = userEvent.setup();
     const analytics = getWorkflowReviewStages(
@@ -498,5 +493,51 @@ describe("RecommendationReview", () => {
     // The preview summary should show the edited value
     const summary = screen.getByTestId("review-draft-summary");
     expect(summary).toHaveTextContent(editedValue);
+  });
+});
+
+describe("RecommendationReview routing between spine and five-stage review", () => {
+  beforeEach(() => {
+    workflowReviewDrafts = {};
+    mockStateListeners.clear();
+    push.mockClear();
+    mockStartExecution.mockClear();
+  });
+
+  it("routes migrated workflows to the plan-review spine, not the five-stage review", () => {
+    for (const workflowKey of [
+      "delete_activity_7b",
+      OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+      "create_activity_7a",
+      "update_activity_7c",
+      "process_order_5",
+      "prevent_cancellation_8a",
+      "prevent_return_8b",
+      "prevent_refund_8c",
+    ]) {
+      const { unmount } = renderReview(workflowKey);
+
+      expect(screen.getByTestId("plan-review-card")).toBeInTheDocument();
+      expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Tiếp theo" }),
+      ).not.toBeInTheDocument();
+
+      unmount();
+    }
+  });
+
+  it("keeps every other workflow on the five-stage review", () => {
+    // Ten of the eleven workflows have moved onto the spine across #765–#769.
+    // create_hero_product_1 is the only one still on the five-stage review.
+    for (const workflowKey of [CREATE_HERO_PRODUCT_WORKFLOW_KEY]) {
+      const { unmount } = renderReview(workflowKey);
+
+      expect(screen.queryByTestId("plan-review-card")).not.toBeInTheDocument();
+      expect(screen.getByRole("tablist")).toBeInTheDocument();
+      expect(getWorkflowReviewStages(workflowKey)).toHaveLength(5);
+
+      unmount();
+    }
   });
 });

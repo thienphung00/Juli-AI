@@ -1,0 +1,22 @@
+DPR-13:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/design/Screens/decisions.md
+    - docs/product/design/Components/badges.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/lib/recommendations.ts
+    - packages/contracts/src/review.ts
+  loadWhenNeeded: []
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - apps/dashboard/
+    - apps/landing/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

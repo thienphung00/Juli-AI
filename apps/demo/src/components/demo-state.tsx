@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import { startExecution as createExecutionRecord } from "../lib/executions";
+import type { RepeatConsentGrants } from "../lib/repeat-consent";
 import { buildReviewInputDefaultsForWorkflow } from "../lib/reviews";
 import { buildReplenishInventoryExecutionPayload } from "../lib/workflows/replenish-inventory/execution-payload";
 import { REPLENISH_INVENTORY_WORKFLOW_KEY } from "../lib/workflows/replenish-inventory";
@@ -46,6 +47,18 @@ export interface MutableMockState {
   settingsSaved: Record<string, string>;
   settingsLastSavedAt: string | null;
   settingsActiveSection: "templates" | "thresholds";
+  /**
+   * Workflow **kinds** the repeat-consent question has already been put to,
+   * granted or declined. This is the frequency gate's memory: a kind listed
+   * here is never asked again, however many executions the seller approves.
+   */
+  repeatConsentPromptedWorkflowKeys: string[];
+  /**
+   * Standing permissions keyed by workflow kind. Every grant is pre-approval
+   * with notification; a withdrawn grant is kept with `status: "withdrawn"` so
+   * the seller sees the withdrawal took effect rather than the block vanishing.
+   */
+  repeatConsentGrants: RepeatConsentGrants;
 }
 
 export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
@@ -63,6 +76,8 @@ export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
   settingsSaved: {},
   settingsLastSavedAt: null,
   settingsActiveSection: "templates",
+  repeatConsentPromptedWorkflowKeys: [],
+  repeatConsentGrants: {},
 };
 
 interface DemoStateValue {
@@ -94,6 +109,8 @@ function createDefaultMutableState(): MutableMockState {
     settingsSaved: {},
     settingsLastSavedAt: null,
     settingsActiveSection: "templates",
+    repeatConsentPromptedWorkflowKeys: [],
+    repeatConsentGrants: {},
   };
 }
 

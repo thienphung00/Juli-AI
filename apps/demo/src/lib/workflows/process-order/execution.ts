@@ -5,6 +5,11 @@ import {
 } from "@juli/contracts";
 
 import {
+  PROCESS_ORDER_RECOMMENDED_BRANCH,
+  type ProcessOrderBranch,
+  projectProcessOrderInputsToBranch,
+} from "./plan";
+import {
   PROCESS_ORDER_TOOL_NAME,
   PROCESS_ORDER_WORKFLOW_KEY,
   buildProcessOrderReviewInputDefaults,
@@ -249,6 +254,7 @@ function seedInitialTimeline(
 
 export function buildProcessOrderExecution(
   approvedInputs?: Record<string, string>,
+  branch: ProcessOrderBranch = PROCESS_ORDER_RECOMMENDED_BRANCH,
 ): {
   executionId: string;
   record: ExecutionRecord;
@@ -266,10 +272,13 @@ export function buildProcessOrderExecution(
     startedAt: now,
     updatedAt: now,
     timeline,
-    approvedInputs: {
-      ...buildProcessOrderReviewInputDefaults(),
-      ...(approvedInputs ?? {}),
-    },
+    approvedInputs: projectProcessOrderInputsToBranch(
+      {
+        ...buildProcessOrderReviewInputDefaults(),
+        ...(approvedInputs ?? {}),
+      },
+      branch,
+    ),
   };
 
   return { executionId, record };

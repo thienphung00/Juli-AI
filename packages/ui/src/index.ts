@@ -86,6 +86,8 @@ export type {
 } from "./popover";
 
 /* #413-B — Form and Table surface compositions */
+export { FileUploadField } from "./file-upload-field";
+export type { FileUploadFieldProps } from "./file-upload-field";
 export {
   Form,
   FormActions,
@@ -96,6 +98,7 @@ export {
   FormSubmit,
   OtpField,
   PasswordField,
+  SelectField,
   TextField,
 } from "./form";
 export type {
@@ -108,6 +111,8 @@ export type {
   FormSubmitProps,
   OtpFieldProps,
   PasswordFieldProps,
+  SelectFieldProps,
+  SelectOption,
   TextFieldProps,
 } from "./form";
 export {

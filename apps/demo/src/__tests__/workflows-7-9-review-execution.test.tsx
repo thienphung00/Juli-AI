@@ -86,12 +86,6 @@ function ExecutionProbe() {
   );
 }
 
-async function advanceToApprove(user: ReturnType<typeof userEvent.setup>) {
-  while (!screen.queryByRole("button", { name: "Phê duyệt" })) {
-    await user.click(screen.getByRole("button", { name: "Tiếp theo" }));
-  }
-}
-
 async function runReviewApproveInProgressCase({
   workflowKey,
   toolName,
@@ -102,15 +96,6 @@ async function runReviewApproveInProgressCase({
   recoverySnippet,
 }: (typeof WORKFLOWS)[number]) {
   const user = userEvent.setup();
-  const stages = getWorkflowReviewStages(workflowKey);
-
-  expect(stages.map((stage) => stage.stage)).toEqual([
-    "why",
-    "analytics",
-    "inputs",
-    "preview",
-    "approve",
-  ]);
 
   render(
     <DemoStateProvider>
@@ -119,11 +104,12 @@ async function runReviewApproveInProgressCase({
     </DemoStateProvider>,
   );
 
-  expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
-    stages[0].title,
-  );
+  // These three moved onto the Situation → Decision → Details spine in #769.
+  // Approval takes one tap from the resting card — there is no stage journey
+  // to walk. The spine's own assertions live in `plan-review-spine.test.tsx`;
+  // what this file still owns is the execution and In Progress behaviour.
+  expect(screen.getByTestId("plan-review-card")).toBeInTheDocument();
 
-  await advanceToApprove(user);
   await confirmApproveThroughGate(user);
 
   expect(push).toHaveBeenCalledWith(`/decisions/in-progress/${executionId}`);
@@ -157,7 +143,17 @@ async function runReviewApproveInProgressCase({
   // Seller-facing detail view never shows raw workflow_key/toolName (DUX-8, ADR-035 banned patterns).
   expect(screen.queryByText(workflowKey)).not.toBeInTheDocument();
   expect(screen.queryByText(toolName)).not.toBeInTheDocument();
-  expect(screen.getAllByRole("listitem")).toHaveLength(expectedStepCount);
+
+  // Expand the steps list to verify they exist (issue #762 - steps hidden by default)
+  const expandButton = screen.getByRole("button", {
+    name: "Xem tất cả các bước",
+  });
+  await user.click(expandButton);
+
+  await waitFor(() => {
+    expect(screen.getAllByRole("listitem")).toHaveLength(expectedStepCount);
+  });
+
   expect(screen.getByText(waitTitle)).toBeInTheDocument();
   expect(screen.getByText(outcomeTitle)).toBeInTheDocument();
   expect(
@@ -188,12 +184,6 @@ describe("Workflows 7–9 review → approve → In Progress", () => {
 
   it("completes prevent_refund_8c review and creates the correct mock execution", async () => {
     await runReviewApproveInProgressCase(WORKFLOWS[2]);
-  });
-
-  it("one integration test per workflow covers review approve In Progress public behavior", () => {
-    for (const { workflowKey } of WORKFLOWS) {
-      expect(getWorkflowReviewStages(workflowKey)).toHaveLength(5);
-    }
   });
 
   it("keeps prevent-return FBT intake scaffold-only and not executable", () => {

@@ -10,6 +10,13 @@ import {
 export const PREVENT_CANCELLATION_WORKFLOW_KEY = "prevent_cancellation_8a";
 export const PREVENT_CANCELLATION_TOOL_NAME = "returns.prevent_cancellation";
 
+/**
+ * The Main KPI this workflow's decision is tied to — GMV (ADR-055 item 15).
+ * Deciding a cancellation before the deadline is what keeps or releases the
+ * order's revenue; nothing new is mapped here.
+ */
+export const defaultPreventCancellationAnalyticsMetricKey = "gmv-tiktok";
+
 const preventCancellationFixtureEntry = recommendationFixtures.find(
   (fixture) => fixture.workflowKey === PREVENT_CANCELLATION_WORKFLOW_KEY,
 );
@@ -30,13 +37,13 @@ export function buildPreventCancellationReviewInputDefaults(): Record<
     buyer_reason: "Đổi ý trước khi giao",
     decision_deadline: "2026-07-18 17:00",
     eligibility: "Còn trong cửa sổ quyết định trước giao hàng",
-    seller_decision: "",
+    seller_decision: "Phê duyệt",
     reject_reason: "",
   };
 }
 
 export function getPreventCancellationReviewStages(
-  analyticsMetricKey = "gmv-tiktok",
+  analyticsMetricKey = defaultPreventCancellationAnalyticsMetricKey,
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 

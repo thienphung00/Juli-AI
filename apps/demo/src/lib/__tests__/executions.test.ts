@@ -125,7 +125,7 @@ describe("startExecution", () => {
       expect(record.lifecycleStatus).toBe("executing");
       expect(record.timeline).toHaveLength(stepCount);
       expect(record.timeline[0].status).toBe("running");
-      expect(record.approvedInputs.seller_decision).toBe("");
+      expect(record.approvedInputs.seller_decision).not.toBe("");
     },
   );
 });

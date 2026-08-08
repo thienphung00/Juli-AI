@@ -1,3 +1,5 @@
+import { SELLER_COPY_BANNED_PATTERNS } from "@juli/contracts";
+
 import type { RecommendationFixture } from "./recommendations";
 
 export const REVIEW_STAGE_TITLES = {
@@ -19,25 +21,8 @@ export const SELLER_APPROVE_GATE = {
   cancelLabel: "Hủy",
 } as const;
 
-export const REVIEW_UI_BANNED_PATTERNS = [
-  /tool_name/i,
-  /workflow_key/i,
-  /feature_id/i,
-  /\bwebhook\b/i,
-  /\bendpoint\b/i,
-  /\bFBS\b/,
-  /\bFBT\b/,
-  /Độ tin cậy:/,
-  /Công cụ:/,
-  /Khả năng:/,
-  /Get Product/i,
-  /Unresolved\/Unfilled/i,
-  /listing\./,
-  /inventory\./,
-  /fulfillment\./,
-  /returns\./,
-  /promotion\./,
-] as const;
+// Alias for backwards compatibility
+export const REVIEW_UI_BANNED_PATTERNS = SELLER_COPY_BANNED_PATTERNS;
 
 export function sanitizeSellerReviewText(text: string): string {
   return text

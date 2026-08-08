@@ -1,0 +1,24 @@
+DPR-12:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/design/Screens/analytics.md
+    - docs/product/design/Components/cards.md
+    - docs/product/design/Components/charts.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/components/recommendation-review.tsx
+    - apps/demo/src/lib/analytics/main-kpis.ts
+    - apps/demo/src/lib/analytics/envelope-mapper.ts
+  loadWhenNeeded: []
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - apps/dashboard/
+    - apps/landing/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

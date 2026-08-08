@@ -1,7 +1,22 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+/**
+ * The approval affordance lives in one of two mutually exclusive footers.
+ *
+ * ADR-055 item 8 routes every workflow with a plan review to the
+ * Situation → Decision → Details spine, whose `demo-plan__actions` footer
+ * offers Approve straight away. Workflows still on the five-stage review keep
+ * `demo-review__actions`, where Approve is reached by advancing stages.
+ * `RecommendationReview` renders exactly one of the two, so a single locator
+ * matching either is unambiguous — and the stage loop below simply returns on
+ * its first pass for the spine.
+ */
+function reviewActionsFooter(page: Page): Locator {
+  return page.locator(".demo-plan__actions, .demo-review__actions");
+}
 
 export async function advanceReviewToApproveStage(page: Page) {
-  const reviewActions = page.locator(".demo-review__actions");
+  const reviewActions = reviewActionsFooter(page);
   await expect(reviewActions).toBeVisible();
 
   for (let guard = 0; guard < 12; guard += 1) {
@@ -30,8 +45,7 @@ export async function advanceReviewToApproveStage(page: Page) {
 
 /** Open Approve-stage ConfirmDialog and confirm (DVR-A5 gate). */
 export async function confirmApproveThroughGate(page: Page) {
-  await page
-    .locator(".demo-review__actions")
+  await reviewActionsFooter(page)
     .getByRole("button", { name: "Phê duyệt" })
     .click();
   const dialog = page.getByRole("dialog");

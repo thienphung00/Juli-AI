@@ -1,0 +1,68 @@
+{
+  "planId": "rep-776-dpr-17-upload-screening",
+  "affectedPublicSurfaces": [
+    "backend /executions enqueue path (listing.create_hero_product / optimize_product)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate backend build — zero public canary traffic; issue-tier CI + Review Agent validate before merge into feature/dpr-demo-wave",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "upload-bytes-are-screened-before-forwarding",
+        "entryUrl": "/executions",
+        "assertions": [
+          "oversized_payload_rejected_before_full_decode",
+          "non_image_payload_rejected_regardless_of_declared_filename",
+          "corrupt_image_rejected",
+          "extension_signature_mismatch_rejected",
+          "valid_image_still_uploads_unchanged",
+          "rejections_are_terminal_validation_not_retryable",
+          "no_virus_or_antivirus_claim_in_code_comments_or_test_names"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [],
+    "discoverFromHtml": false,
+    "assetTypes": [],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Validation added at an existing ingest boundary; no DB migration and no API contract change. Previously-accepted malformed payloads now fail as VALIDATION."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest tests/unit/test_listing_executors_contract.py",
+    "ruff check backend tests scripts",
+    "python agent-runtime/scripts/ci/generate_validation_artifact.py --issue 776"
+  ],
+  "doNotInfer": [
+    "Demo-side upload control and its client-side feedback (#774)",
+    "any antivirus or malware-detection capability — explicitly out of scope",
+    "release evidence fields beyond this plan"
+  ]
+}

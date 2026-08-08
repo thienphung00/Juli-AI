@@ -85,6 +85,6 @@ describe("buildCreateActivityExecution", () => {
     const defaults = buildCreateActivityReviewInputDefaults();
 
     expect(record.approvedInputs.skus).toBe(defaults.skus);
-    expect(record.approvedInputs.discount_config).toBe("");
+    expect(record.approvedInputs.discount_config).toBe(defaults.discount_config);
   });
 });

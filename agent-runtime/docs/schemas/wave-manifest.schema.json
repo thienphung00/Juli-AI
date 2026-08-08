@@ -31,6 +31,39 @@
         "type": "integer",
         "minimum": 1
       }
+    },
+    "artifactWaiver": {
+      "type": "object",
+      "description": "Accepts a wave whose per-issue PASS evidence is unrecoverable. Scoped to this manifest's wave and to the issues named here, so an issue added later is never covered retroactively. Requires a recorded ADR and approver — the gate prints the waiver rather than passing quietly.",
+      "additionalProperties": false,
+      "required": ["adr", "reason", "approvedBy", "issues"],
+      "properties": {
+        "adr": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the ADR recording the decision, e.g. docs/adr/059-....md"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approvedBy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "issues": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
     }
   }
 }

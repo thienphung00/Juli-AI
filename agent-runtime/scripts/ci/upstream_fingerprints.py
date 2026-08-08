@@ -77,6 +77,7 @@ def default_fetch_github_issue_body(issue_id: int, repo_root: Path) -> str:
             cwd=repo_root,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
             timeout=_GH_SUBPROCESS_TIMEOUT_SEC,
         )
     except subprocess.TimeoutExpired as exc:
@@ -108,6 +109,7 @@ def default_fetch_github_issue_labels(issue_id: int, repo_root: Path) -> list[st
             cwd=repo_root,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
             timeout=_GH_SUBPROCESS_TIMEOUT_SEC,
         )
     except subprocess.TimeoutExpired as exc:

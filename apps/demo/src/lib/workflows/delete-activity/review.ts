@@ -24,7 +24,7 @@ const deleteActivityFixture = deleteActivityFixtureEntry;
 export function buildDeleteActivityReviewInputDefaults(): Record<string, string> {
   return {
     activity_id: "ACT-7720",
-    confirm_end: "",
+    confirm_end: "Tôi xác nhận kết thúc chương trình khuyến mãi",
   };
 }
 
