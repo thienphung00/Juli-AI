@@ -43,7 +43,7 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 | Issue | Slice | Domain | Worktree / branch | Gate | Status |
 |-------|-------|--------|-------------------|------|--------|
 | [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | ready | **DONE** `2403bdfe` — validate 21/21 PASS, readyForShip |
-| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | ready | Executor DONE `498705e4`+`3e467d01` — Review running |
+| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | ready | **DONE** `498705e4`+`3e467d01`+`de6f5e0b` — validate 21/21 PASS, readyForShip |
 | [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | **data-platform** | `.worktrees/issue-715` / `feature/issue-715` | ready | Executor running (migration `026_*`) |
 | [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | **data-platform** | pending | ready | blocked on #715 |
 | [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | pending | readyForExecutor: true | blocked on #715 |
@@ -98,6 +98,29 @@ revision ids are pre-assigned by Head Meta and the branches stay stacked:
 
 Throughput in this wave therefore comes from **stacked-branch pipelining**, not fan-out.
 Record this honestly rather than claiming parallelism the chain cannot deliver.
+
+## Artifact-hygiene gotchas hit in this wave
+
+These cost two Review round-trips; brief every Executor on them up front.
+
+1. **Run the Meta gate from the issue's own worktree.** `issue-context-cache-<n>.json` is
+   written into the CWD's worktree. Running it centrally leaves the issue worktree without
+   a cache, which fails five validate gates at once (`public_release_classification`,
+   `public_release_evidence_plan`, `executor_domain_matches_cache`, `phase_run_correlation`,
+   `release_evidence_plan_continuity`).
+2. **`implementation-artifact.schema.json` sets `additionalProperties: false`.** Only its
+   23 named keys are allowed. #713's artifact carried 7 extra keys; #714's had `stage`
+   values outside the `red|green|refactor|implementation|other` enum.
+3. **`tokenUsage` is required** by `implementation_artifact_present`, but its `input` /
+   `output` / `total` sub-fields are individually optional. When the harness exposes only a
+   cumulative figure, record `total` alone — do not fabricate a split, and do not add a
+   `note` field (schema-rejected).
+4. **Regenerate the status record after validation flips.** `generate_status_records.py`
+   snapshots the validation status; a record written while validate was FAIL keeps failing
+   `test_status_record_gate.py` after the underlying gate goes green.
+5. **#713's status record is still missing** — its review/validation artifacts live only in
+   `.worktrees/issue-713` and are gitignored, so the generator cannot see them from the tip
+   branch. Regenerate all status records at wave-integration time.
 
 ## Ops lock
 
