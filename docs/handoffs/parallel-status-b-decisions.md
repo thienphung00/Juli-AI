@@ -63,7 +63,7 @@ PYTHONPATH=$PWD/backend/src python -m pytest <paths> -q
 Verify with `PYTHONPATH=$PWD/backend/src python -c "import juli_backend;print(juli_backend.__file__)"` —
 the path must be inside the worktree. Baseline on this wave with the fix applied:
 `test_cdp_speed_shared_compute_orchestrator.py test_scoring.py test_action_cards_contract.py`
-= **44 passed**.
+= **44 passed**. Full `tests/unit` on the wave base: **2239 passed, 5 skipped** (94s).
 
 ## Ops lock
 
