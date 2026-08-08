@@ -284,16 +284,17 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
             data-testid="analytics-chart-chrome"
           >
             <AnalyticsHeroChart
-              chartKind={heroDefinition.chartKind}
+              measurementType={heroDefinition.measurementType}
               comparePreviousPeriod={compareEnabled}
               label={heroDefinition.name}
               snapshot={snapshot}
+              chartKind={heroDefinition.chartKind}
             />
             {compareEnabled ? (
               <p className="analytics-hero__comparison-legend">
                 Đường liền: kỳ hiện tại · Đường nét đứt: kỳ trước
               </p>
-            ) : heroDefinition.chartKind === "forecast-line" ? (
+            ) : heroDefinition.measurementType === "flow" ? (
               <p className="analytics-hero__comparison-legend">
                 Đường liền: thực tế · Đường nét đứt: dự báo
               </p>
