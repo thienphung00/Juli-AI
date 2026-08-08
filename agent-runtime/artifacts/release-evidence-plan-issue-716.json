@@ -1,20 +1,20 @@
 {
   "planId": "rep-716-b4-decision-emission-budget",
   "affectedPublicSurfaces": [
-    "none in this slice — emission state is persisted and queryable but is not yet read by any public surface; the public Demo Decisions GET lands in #718"
+    "none in this slice \u2014 emission state is persisted and queryable but is not yet read by any public surface; the public Demo Decisions GET lands in #718"
   ],
   "candidateVerificationJourney": {
     "mode": "candidate_verification",
     "stableTrafficPercent": 100,
     "candidatePublicTrafficPercent": 0,
-    "restrictedRoute": "local/candidate build — zero public canary traffic; PR fast CI + Review Agent validate before merge into feature/b-decisions-wave",
+    "restrictedRoute": "local/candidate build \u2014 zero public canary traffic; PR fast CI + Review Agent validate before merge into feature/b-decisions-wave",
     "syntheticShopRequired": true,
     "workersDisabledOnCandidate": false,
     "apiSideEffectsInScope": false,
     "journeys": [
       {
         "name": "emission-budget-gates-surfacing-not-recomputation",
-        "entryUrl": "n/a — service-level journey exercised via pytest against the Fujiwa Mock reference shop fixtures",
+        "entryUrl": "n/a \u2014 service-level journey exercised via pytest against the Fujiwa Mock reference shop fixtures",
         "assertions": [
           "active_surfaced_set_capped_at_config_default_5",
           "seven_day_per_workflow_cooldown_blocks_resurfacing_after_terminal_action",
@@ -28,9 +28,13 @@
   },
   "staticAssetChecks": {
     "required": false,
-    "htmlRoutes": [],
+    "htmlRoutes": [
+      "n/a \u2014 backend emission-state persistence only; no HTML surface in this slice"
+    ],
     "discoverFromHtml": false,
-    "assetTypes": [],
+    "assetTypes": [
+      "n/a"
+    ],
     "failOnMissing": false,
     "failOnNon200": false
   },
@@ -39,7 +43,7 @@
     "expandContractOnly": true,
     "stableAndCandidateCompatible": true,
     "destructiveMigrationAllowed": false,
-    "notes": "Additive only: emission/surfacing state on action_cards (or equivalent columns surfaced_at / suppressed_reason) plus a composite index supporting (shop_id, workflow_key) cooldown lookup on terminal timestamps. Stable release must keep reading action_cards unchanged — no column drops, no NOT NULL without default, no rename."
+    "notes": "Additive only: emission/surfacing state on action_cards (or equivalent columns surfaced_at / suppressed_reason) plus a composite index supporting (shop_id, workflow_key) cooldown lookup on terminal timestamps. Stable release must keep reading action_cards unchanged \u2014 no column drops, no NOT NULL without default, no rename."
   },
   "rollbackAssertion": {
     "preCutoverFailureBehavior": "revert_pr_branch",
@@ -65,7 +69,7 @@
     "Demo dry-run execution (#717)",
     "Track B Demo UI presentation of the active set (#600)",
     "ML promotion of scoring (Phase 4)",
-    "Wave to main promotion — blocked on #780 / A1 #601 exit",
+    "Wave to main promotion \u2014 blocked on #780 / A1 #601 exit",
     "release evidence fields beyond this plan"
   ]
 }

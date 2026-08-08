@@ -40,9 +40,13 @@
   },
   "staticAssetChecks": {
     "required": false,
-    "htmlRoutes": [],
+    "htmlRoutes": [
+      "n/a \u2014 JSON API surface only; Demo HTML consumption lands with Track B #600"
+    ],
     "discoverFromHtml": false,
-    "assetTypes": [],
+    "assetTypes": [
+      "n/a"
+    ],
     "failOnMissing": false,
     "failOnNon200": false
   },
@@ -76,7 +80,7 @@
     "Track B Demo UI polish and IA (#600)",
     "Authenticated Sign-in Decisions surface (Phase 3)",
     "Real credentialed execution (Phase 3 / 3.5-D)",
-    "Wave to main promotion — blocked on #780 / A1 #601 exit",
+    "Wave to main promotion \u2014 blocked on #780 / A1 #601 exit",
     "release evidence fields beyond this plan"
   ]
 }
