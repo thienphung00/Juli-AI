@@ -44,8 +44,8 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 |-------|-------|--------|-------------------|------|--------|
 | [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | ready | **DONE** `2403bdfe` — validate 21/21 PASS, readyForShip |
 | [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | ready | **DONE** `498705e4`+`3e467d01`+`de6f5e0b` — validate 21/21 PASS, readyForShip |
-| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | **data-platform** | `.worktrees/issue-715` / `feature/issue-715` | ready | Executor running (migration `026_*`) |
-| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | **data-platform** | pending | ready | blocked on #715 |
+| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | **data-platform** | `.worktrees/issue-715` / `feature/issue-715` | ready | Executor DONE `74f75f62`+`a677956f`+`91df2050` (mig `026`) — Review running |
+| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | **data-platform** | `.worktrees/issue-716` / `feature/issue-716` | ready | Executor DONE `1c05350c` (mig `027`) — wiring increment running |
 | [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | pending | readyForExecutor: true | blocked on #715 |
 | [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | pending | readyForExecutor: true | blocked on #716 + #717 |
 
@@ -143,6 +143,28 @@ delivered. It collides with two PRD requirements that land in B-4:
 
 Neither is a defect in B-3. Both are B-4's to resolve, and B-4 must not "fix" them by
 weakening B-3's status-preservation test.
+
+## Structural lesson — the data-platform/backend split leaks a wiring gap every time
+
+Twice now, routing a slice to `data-platform` produced correct, well-tested code that
+**nothing called**, because the call site lives in `services/cdp_speed/` (backend paths):
+
+| Slice | Built | Never called by | Caught by |
+|---|---|---|---|
+| B-3 #715 | `persist_scoring_result` upsert semantics | the scoring stage | Executor self-report |
+| B-4 #716 | `apply_emission_budget` | the scoring stage | Head Meta grep before Review |
+
+Both Executors behaved correctly — they stopped at their path boundary and reported rather
+than widening scope. The defect is in the **routing**, which is Meta's: these slices need a
+migration *and* a call site, and no single domain owns both.
+
+**Rule for the rest of this wave:** before dispatching any `data-platform` slice, decide up
+front who wires the call site, and either budget a backend increment on the same branch or
+route the slice to `backend` with explicit, documented migration authorization. Do not let
+the gap be discovered after Review.
+
+**For B-5 (#717):** dispatch as a single `backend` Executor with explicit Meta authorization
+for migration `028_*` — the cost of the split has now been paid twice.
 
 ## Ops lock
 
