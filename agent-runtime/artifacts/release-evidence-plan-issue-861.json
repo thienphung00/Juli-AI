@@ -1,0 +1,75 @@
+{
+  "planId": "rep-861-live-hours-discrete-bars",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-live-hours-renders-bars",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "live_hours_renders_discrete_bars_not_a_continuous_line",
+          "no_line_is_interpolated_between_broadcast_periods",
+          "bar_form_retains_its_text_equivalent"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Adds a bars primitive to packages/ui consumed via the measurement-type resolver from #859."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "which KPIs are counts (only LIVE hours, per ADR-060)",
+    "axis and marker chrome (#862)",
+    "series hue policy (#865)"
+  ]
+}
