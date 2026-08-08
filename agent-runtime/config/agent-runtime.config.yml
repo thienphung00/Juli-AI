@@ -354,6 +354,32 @@ workflow_prompt_cache:
         - backend/
         - ios/
         - Sibling issue context caches
+    820:
+      defaultSliceId: P0-DEL-1
+      handoffPath: docs/product/phases/phase-0-delivery/PRD.md
+      parentScopeBlock: "# Parent #820 — Pre-user zero-downtime delivery (constant)\\n## Decision\\n- Candidate verify-then-switch on the existing VPS; paired slots + owned upstream indirection\\n- Supersedes ADR-035/PRD-498 cloud platform for the pre-user phase only\\n## Constraints\\n- Single server, 2 vCPU / 4 GB: builds run in CI, lanes run sequentially\\n- Additive-only migrations; never auto-reverted\\n- Dashboard is dev-only; app-juli.com serves Landing; OAuth stays on the API domain\\n"
+      childSlices:
+        832: P0-DEL-ADR
+        833: P0-DEL-VERIFY
+        834: P0-DEL-MIGGATE
+        835: P0-DEL-SPIKE
+        836: P0-DEL-PKG
+        837: P0-DEL-ARTIFACT
+        838: P0-DEL-CANDIDATE
+        839: P0-DEL-SWITCH
+        840: P0-DEL-ROLLBACK
+        841: P0-DEL-LANDING
+        842: P0-DEL-CUTOVER
+        843: P0-DEL-SLOTS
+        844: P0-DEL-COMBINE
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/product/features/
+        - docs/product/design/
+        - docs/integrations/tiktok_api/
+        - ios/
+        - backend/src/juli_backend/ai/
+        - Sibling issue context caches
     419:
       defaultSliceId: P2-OPS-1
       handoffPath: docs/adr/027-database-migration-safety-pipeline.md
