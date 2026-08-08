@@ -386,3 +386,175 @@ describe("Tone resolution (Issue #858): Goal-aware tone derivation", () => {
     });
   });
 });
+
+describe("Issue #860: Bounded-ratio payload for cancellation rate", () => {
+  describe("AC1: Live path produces boundedRatio payload with value, target, and bounds", () => {
+    it("RED: cancellation-rate snapshot includes boundedRatio with all required fields", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      expect(snapshot).not.toBeNull();
+      expect(snapshot?.boundedRatio).toBeDefined();
+      expect(snapshot?.boundedRatio?.value).toBeDefined();
+      expect(typeof snapshot?.boundedRatio?.value).toBe("number");
+      expect(snapshot?.boundedRatio?.target).toBeDefined();
+      expect(typeof snapshot?.boundedRatio?.target).toBe("number");
+      expect(snapshot?.boundedRatio?.bounds).toBeDefined();
+      expect(snapshot?.boundedRatio?.bounds?.min).toBeDefined();
+      expect(snapshot?.boundedRatio?.bounds?.max).toBeDefined();
+      expect(typeof snapshot?.boundedRatio?.bounds?.min).toBe("number");
+      expect(typeof snapshot?.boundedRatio?.bounds?.max).toBe("number");
+    });
+
+    it("RED: boundedRatio.value reflects the latest data point from the series", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // From fixtures: last point is 1.8
+      expect(snapshot?.boundedRatio?.value).toBe(1.8);
+    });
+
+    it("RED: boundedRatio.target has a default value when envelope has none", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // Target should be a defined number (not undefined)
+      expect(snapshot?.boundedRatio?.target).not.toBeUndefined();
+      expect(typeof snapshot?.boundedRatio?.target).toBe("number");
+    });
+
+    it("RED: boundedRatio.bounds come from metric definition, not data range", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 0.5 },
+              { t: "2026-07-20", v: 0.1 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // Bounds should come from definition, not from data (which ranges 0.1-0.5)
+      expect(snapshot?.boundedRatio?.bounds?.min).toBe(0);
+      expect(snapshot?.boundedRatio?.bounds?.max).toBe(10);
+    });
+  });
+
+  describe("AC2: withinTolerance honours goalDirection", () => {
+    it("RED: value at or below target is within tolerance for lower-is-better KPI", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 3.0 },
+              { t: "2026-07-20", v: 2.5 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // 2.5 is below the default target (3%), so within tolerance
+      expect(snapshot?.boundedRatio?.withinTolerance).toBe(true);
+    });
+
+    it("RED: value exactly at target is within tolerance for lower-is-better KPI", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 2.5 },
+              { t: "2026-07-20", v: 3.0 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // 3.0 equals the default target, so within tolerance (value <= target)
+      expect(snapshot?.boundedRatio?.withinTolerance).toBe(true);
+    });
+
+    it("RED: value above target is out of tolerance for lower-is-better KPI", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 2.5 },
+              { t: "2026-07-20", v: 3.5 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // 3.5 is above the default target (3%), so out of tolerance
+      expect(snapshot?.boundedRatio?.withinTolerance).toBe(false);
+    });
+  });
+
+  describe("AC3: No code path assigns undefined to boundedRatio fields", () => {
+    it("RED: buildLiveKpiSnapshot never returns boundedRatio with undefined value", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      expect(snapshot?.boundedRatio?.value).not.toBeUndefined();
+      expect(snapshot?.boundedRatio?.target).not.toBeUndefined();
+      expect(snapshot?.boundedRatio?.bounds?.min).not.toBeUndefined();
+      expect(snapshot?.boundedRatio?.bounds?.max).not.toBeUndefined();
+      expect(snapshot?.boundedRatio?.withinTolerance).not.toBeUndefined();
+    });
+
+    it("RED: buildLiveKpiSnapshot returns null (unavailable) rather than partial payload when data is missing", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "unavailable",
+            label: "Tỷ lệ hủy đơn",
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // Should return null, not a partial boundedRatio
+      expect(snapshot).toBeNull();
+    });
+
+    it("RED: buildLiveKpiSnapshot returns null when series is empty", () => {
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // Should return null, not a partial boundedRatio
+      expect(snapshot).toBeNull();
+    });
+  });
+
+  describe("AC5: boundedRatio is populated on cancellation-rate", () => {
+    it("RED: boundedRatio is defined and fully populated on cancellation-rate", () => {
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+
+      // boundedRatio must be populated (not undefined or null)
+      expect(snapshot?.boundedRatio).toBeDefined();
+      expect(snapshot?.boundedRatio?.value).toEqual(1.8);
+    });
+  });
+});

@@ -123,6 +123,7 @@ export function createMockSnapshot(
       { label: "T2", value: 105 },
       { label: "T3", value: 115 },
     ],
+    boundedRatio: undefined,
     ...overrides,
   };
 }

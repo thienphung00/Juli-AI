@@ -43,15 +43,15 @@ export function AnalyticsHeroChart({
     ? snapshot.previousTimeSeries
     : undefined;
 
-  // For bounded-ratio (e.g., Cancellation rate), check if gaugeValue exists
-  // until slice #860/#864 implements the band chart. Fall back to gauge display.
-  if (measurementType === "bounded-ratio" && snapshot.gaugeValue !== undefined) {
+  // For bounded-ratio (e.g., Cancellation rate), #860 supplies the payload;
+  // #864 replaces this interim meter with the real tolerance band.
+  if (measurementType === "bounded-ratio" && snapshot.boundedRatio) {
     return (
       <figure className="analytics-hero-chart analytics-hero-chart--gauge">
         <p className="juli-sr-only">
           {label} — {snapshot.formattedValue} — {snapshot.delta}
         </p>
-        <ProgressBar label={label} value={snapshot.gaugeValue} />
+        <ProgressBar label={label} value={snapshot.boundedRatio.value} />
         <p aria-hidden="true" className="analytics-hero-chart__gauge-value">
           {snapshot.formattedValue}
         </p>

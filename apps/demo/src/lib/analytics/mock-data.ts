@@ -9,6 +9,17 @@ export interface KpiTimePoint {
   value: number;
 }
 
+export interface BoundedRatio {
+  /** Current rate value as a number (e.g., 1.8 for 1.8% cancellation rate). */
+  value: number;
+  /** Tolerance threshold: the target rate the seller should aim for. */
+  target: number;
+  /** Plot scale bounds — min and max are predetermined from the metric definition, not data-driven. */
+  bounds: { min: number; max: number };
+  /** Whether the current value is within the tolerance threshold, respecting goal direction. */
+  withinTolerance: boolean;
+}
+
 export interface KpiSnapshot {
   formattedValue: string;
   delta: string;
@@ -24,7 +35,8 @@ export interface KpiSnapshot {
   timeSeries: readonly KpiTimePoint[];
   forecastSeries?: readonly KpiTimePoint[];
   previousTimeSeries?: readonly KpiTimePoint[];
-  gaugeValue?: number;
+  /** Bounded-ratio payload for KPIs with measurable tolerance thresholds (e.g., cancellation rate). */
+  boundedRatio?: BoundedRatio;
 }
 
 const FIXTURE_UPDATED_AT = "2026-07-20T08:30:00+07:00";
@@ -103,6 +115,7 @@ function gmvTiktokSnapshot(range: AnalyticsRange): KpiSnapshot {
     timeSeries,
     forecastSeries,
     previousTimeSeries: buildPreviousSeries(timeSeries, 0.87),
+    boundedRatio: undefined,
   };
 }
 
