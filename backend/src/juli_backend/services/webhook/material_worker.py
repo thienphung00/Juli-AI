@@ -17,6 +17,7 @@ from juli_backend.services.cdp_speed import (
     plan_targeted_fetch,
     run_shared_compute_job,
 )
+from juli_backend.services.cdp_speed.decision_rules_scoring import decision_rules_scoring_stage
 from juli_backend.services.tiktok.webhook_catalog import catalog_id_for_event
 from juli_backend.services.webhook.material_gate import MaterialEnqueueGate
 
@@ -31,7 +32,16 @@ async def _default_shared_compute(
     *,
     fetch_executor: TargetedFetchExecutor | None = None,
 ) -> SharedComputeResult:
-    return await run_shared_compute_job(session, job, fetch_executor=fetch_executor)
+    # Continuous-trigger scoring callable (#714 / B-2) — same rules pipeline as
+    # manual refresh, wired onto the B-1 dispatch seam. Actual execution stays
+    # gated by CDP_DECISIONS_SCORING_ENABLED (default OFF); this only makes the
+    # real callable available in place of the seam's no-op default.
+    return await run_shared_compute_job(
+        session,
+        job,
+        fetch_executor=fetch_executor,
+        scoring_stage=decision_rules_scoring_stage,
+    )
 
 
 async def run_material_analytics_compute(

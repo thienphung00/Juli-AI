@@ -18,6 +18,7 @@ from juli_backend.services.cdp_speed import (
     run_shared_compute_job,
     SharedComputeJob,
     scoring_stage_enabled,
+    decision_rules_scoring_stage,
 )
 ```
 
@@ -45,10 +46,22 @@ from juli_backend.services.cdp_speed import (
   logged (``shared_compute_scoring_stage_failed``), and rolled back on its own — it never
   fails or reverts the already-committed KPI write. ``SharedComputeResult.scoring_dispatched``
   / ``.scoring_succeeded`` (``None`` when the branch was skipped) surface the outcome. The
-  default ``scoring_stage`` is a **safe no-op stub** — B-1 is wiring/dispatch only; the
-  rules-scoring callable is #714 (B-2) and Action Card persistence is #715 (B-3). KPI
-  freshness and Decision surfacing cadences stay independently controllable (dual cadence,
-  ADR-038 §6) — this seam does not implement or throttle surfacing.
+  default ``scoring_stage`` (when no override is injected) is a **safe no-op stub** —
+  B-1 is wiring/dispatch only. KPI freshness and Decision surfacing cadences stay
+  independently controllable (dual cadence, ADR-038 §6) — this seam does not implement
+  or throttle surfacing.
+- ``decision_rules_scoring_stage(session, job)`` **(#714 / B-2):** the real
+  ``ScoringStageFn`` implementation — adapts the seam's ``(session, SharedComputeJob)``
+  signature onto ``juli_backend.services.scoring.pipeline.run_daily_scoring_for_shop``,
+  the **same** callable manual refresh (``POST /v1/action-cards/refresh`` ->
+  ``run_action_card_refresh``) uses (ADR-021). One scoring implementation, no forked
+  math. Returns the computed ``DailyScoringResult`` **candidate** — it does not persist
+  Action Cards (persistence-on-compute is #715 / B-3) or apply an emission/surfacing
+  budget (#716 / B-4). Wired as the default ``scoring_stage`` at the production
+  continuous-trigger call site (``services/webhook/material_worker.py``'s
+  ``_default_shared_compute``); actual execution still stays gated by
+  ``scoring_stage_enabled()`` (default OFF) — wiring the callable does not flip the
+  rollout flag.
 - ``webhook_catalog_enqueue_reason(catalog_id)`` → ``webhook_catalog:<id>`` for material dispatch.
 - ``job_correlation_token(shop_id, idempotency_key)`` — bounded log/bronze correlation token.
 - ``execute_targeted_fetch_to_bronze`` — production fetch boundary via ``targeted_fetch_sync``
@@ -110,6 +123,11 @@ planner — batch gap plans live under ``cdp_batch`` (A2).
 - ``juli_backend.services.tiktok.webhook_catalog`` — material classification + event lookup
 - ``juli_backend.integrations.tiktok.constants`` — Partner API path constants
 - ``juli_backend.services.etl`` — one-writer-owned bronze append facade
+- ``juli_backend.services.scoring.pipeline`` (``decision_rules_scoring.py`` only, #714 /
+  B-2) — the shared rules-scoring pipeline. ``shared_compute_orchestrator.py`` itself
+  stays decoupled from ``services.scoring`` / ``services.action_cards`` (guarded by
+  ``test_default_scoring_stage_is_wiring_only_stub``); only the adjacent
+  ``decision_rules_scoring.py`` module carries this dependency
 
 ## Must not
 
