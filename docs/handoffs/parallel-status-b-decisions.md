@@ -1,6 +1,6 @@
 # Parallel status — Head Meta 3.5-B (Continuous CDP Decisions)
 
-**Status: IN PROGRESS** (2026-08-08)
+**Status: ALL SIX SLICES LANDED ON THE WAVE** (2026-08-08) — wave→`main` still gated on #780
 **Parent PRD:** [#599](https://github.com/thienphung00/Juli-AI/issues/599)
 **Integration branch:** `feature/b-decisions-wave` (`.worktrees/b-decisions-wave`), cut from `origin/main` @ `9e9e4ad1`
 **Head Meta:** owns this file, slice routing registration, ops-lock arbitration, exit gate
@@ -40,14 +40,37 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 
 ## Issue board
 
-| Issue | Slice | Domain | Worktree / branch | Gate | Status |
-|-------|-------|--------|-------------------|------|--------|
-| [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | ready | **DONE** `2403bdfe` — validate 21/21 PASS, readyForShip |
-| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | ready | **DONE** `498705e4`+`3e467d01`+`de6f5e0b` — validate 21/21 PASS, readyForShip |
-| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | **data-platform** | `.worktrees/issue-715` / `feature/issue-715` | ready | **DONE** `74f75f62`..`8bfe6cfc` (mig `026`) — validate 21/21 PASS, readyForShip |
-| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | **data-platform** | `.worktrees/issue-716` / `feature/issue-716` | ready | Executor DONE `1c05350c`+`fc75b3ac` (mig `027`) — Review running |
-| [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | `.worktrees/issue-717` / `feature/issue-717` | ready | Executor running (single-domain routing, mig `028` authorized) |
-| [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | pending | readyForExecutor: true | blocked on #716 + #717 |
+| Issue | Slice | Domain | Branch | Validate | Status |
+|-------|-------|--------|--------|----------|--------|
+| [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `feature/issue-713` | 21/21 PASS | **merged to wave** |
+| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `feature/issue-714` | 21/21 PASS | **merged to wave** |
+| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | data-platform + backend | `feature/issue-715` | 21/21 PASS | **merged to wave** (mig `026`) |
+| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | data-platform + backend | `feature/issue-716` | 21/21 PASS, 6/6 AC | **merged to wave** (mig `027`) |
+| [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | `feature/issue-717` | 21/21 PASS | **merged to wave** (mig `028`) |
+| [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | `feature/issue-718` | 21/21 PASS | **merged to wave** |
+
+Wave at integration: **2351 passed, 4 skipped, 0 failed**; single Alembic head
+`028_demo_execution_records`; all six status records committed.
+
+## Integration hazard found at merge time — stacked branches need explicit merges
+
+Each issue branch was cut from its predecessor *before* the predecessor received
+follow-up commits (Review sent work back three times). Merging only the tip branch
+(`feature/issue-717`) reported a **clean merge with no conflicts** while silently
+dropping five commits — including `e8e9da93`, the operator's fill-to-cap novelty
+decision, and the status records for #714/#715/#716.
+
+Verify with an explicit ancestry check per slice commit, never by trusting a clean
+tip merge:
+
+```bash
+for c in <every slice commit>; do
+  git merge-base --is-ancestor $c HEAD && echo "$c OK" || echo "$c MISSING"
+done
+```
+
+Every branch must be merged individually. This is the cost of stacked-branch
+pipelining, and it is worth paying — but only if the completeness check is run.
 
 ## Executor environment — mandatory
 
