@@ -595,16 +595,83 @@ class ActionCard(Base):
     # feed freshness reads on the same semantics as the Analytics envelope.
     # Nullable/additive: existing rows predate this column and read unchanged.
     computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Decision emission/surfacing budget (#716, B-4, ADR-038 §6, migration 027).
+    # Deliberately additive *columns* alongside the existing seller-lifecycle
+    # ``status`` (active/approved/dismissed/executing) rather than new status
+    # enum values — see services/action_cards/MODULE.md "Emission/surfacing
+    # persistence model" for the full rationale.
+    #
+    # ``dismissed_at``: terminal timestamp for a seller "dismiss" action,
+    # paralleling approved_at/executed_at. Used for the 7-day per-workflow
+    # cooldown (services.action_cards.persist / services.action_cards.emission_budget).
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # ``surfaced_at``: last time services.action_cards.emission_budget selected
+    # this candidate into the Demo active surfaced set. NULL means "not
+    # currently surfaced" — either never evaluated yet, or suppressed (see
+    # ``suppressed_reason``). Mutually exclusive with suppressed_reason after
+    # each apply_emission_budget run.
+    surfaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # ``suppressed_reason``: why the emission budget did not surface this
+    # candidate on its most recent evaluation — "active_cap" / "cooldown" /
+    # "weekly_novelty_cap" (services.action_cards.emission_budget) — or NULL
+    # when currently surfaced / not yet evaluated.
+    suppressed_reason: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_action_cards_shop", "shop_id"),
         Index("ix_action_cards_shop_status", "shop_id", "status"),
+        # Cooldown lookup (#716, B-4, ADR-038 §6): find a shop's cards' terminal
+        # markers by workflow_key without a table scan.
+        Index(
+            "ix_action_cards_shop_workflow_terminal",
+            "shop_id",
+            "workflow_key",
+            "dismissed_at",
+            "approved_at",
+            "executed_at",
+        ),
+        # Surfacing state must be queryable separately from "all scored rows"
+        # (#716, B-4).
+        Index("ix_action_cards_shop_surfaced_at", "shop_id", "surfaced_at"),
         UniqueConstraint(
             "shop_id",
             "workflow_key",
             name="uq_action_cards_shop_workflow",
+        ),
+    )
+
+
+class DecisionEmissionNoveltyLedger(Base):
+    """Durable weekly novelty ledger for the Decision emission budget.
+
+    Server-side (Postgres) record of which ``workflow_key``s have already
+    consumed a "new this week" novelty slot for a shop — #716 (B-4), ADR-038
+    §6. Postgres is the source of truth; Redis (if ever used as a read-through
+    cache in front of this) must never be the only place this state lives.
+    One row per (shop_id, week_start, workflow_key) — inserted the first time
+    ``services.action_cards.emission_budget.apply_emission_budget`` surfaces a
+    workflow_key that has not yet been counted in the current ISO week.
+    """
+
+    __tablename__ = "decision_emission_novelty_ledger"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    # Monday (UTC date) of the ISO week this novelty slot was consumed in.
+    week_start: Mapped[date] = mapped_column(Date, nullable=False)
+    workflow_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    first_surfaced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_decision_emission_novelty_shop_week", "shop_id", "week_start"),
+        UniqueConstraint(
+            "shop_id",
+            "week_start",
+            "workflow_key",
+            name="uq_decision_emission_novelty_shop_week_workflow",
         ),
     )
 

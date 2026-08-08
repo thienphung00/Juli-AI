@@ -145,6 +145,13 @@ databaseTables:
     notes: >
       Sole write owner via services/action_cards (Action Cards / Scoring);
       refresh → persist_scoring_result pipeline.
+  decision_emission_novelty_ledger:
+    owner: Intelligence
+    access: write
+    notes: >
+      Sole write owner via services/action_cards.emission_budget
+      (Decision emission/surfacing budget, #716 B-4). Durable, server-side
+      weekly novelty counter/window state — Postgres SoT, not Redis.
   recommendations:
     owner: Intelligence
     access: write
