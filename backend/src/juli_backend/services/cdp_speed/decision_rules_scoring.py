@@ -9,11 +9,15 @@ exactly one scoring implementation; this module only adapts its call signature t
 the continuous-trigger seam. No forked or parallel scoring math (ADR-021).
 
 Scope (see docs/handoffs/phase-3.5-prd-bodies/b-decisions.md "Rules Scoring Wire"):
-this module returns the computed ``DailyScoringResult`` candidate — it does not
-persist Action Cards (persistence-on-compute is #715 / B-3) and does not apply an
-emission/surfacing budget (#716 / B-4). Uses the shop-scoped inputs already
-fetched into bronze/silver by the same Shared Compute job — no second Partner
-fetch cycle.
+this module computes the ``DailyScoringResult`` candidate and, as of #715 (B-3
+wiring), durably persists it via the **existing**
+``services.action_cards.persist.persist_scoring_result`` — the same idempotent,
+status-preserving persistence boundary the manual refresh path uses. No second
+persistence path is implemented here (ADR-021). This module does not apply an
+emission/surfacing budget (#716 / B-4) — every ranked recommendation is
+persisted as an ``"active"`` candidate; B-4 owns deciding which candidates get
+surfaced to a seller. Uses the shop-scoped inputs already fetched into
+bronze/silver by the same Shared Compute job — no second Partner fetch cycle.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.services.action_cards.persist import persist_scoring_result
 from juli_backend.services.aggregates.types import ShopLifecycleContext
 from juli_backend.services.cdp_speed.shared_compute_orchestrator import SharedComputeJob
 from juli_backend.services.scoring.pipeline import run_daily_scoring_for_shop
@@ -45,6 +50,14 @@ async def decision_rules_scoring_stage(
     keyword-only test seams (default ``None``, mirroring
     ``run_daily_scoring_for_shop``'s own defaults) so golden/regression tests can
     pin a deterministic clock without touching the seam's call contract.
+
+    Persists the computed candidates via ``persist_scoring_result`` (#715, B-3)
+    before returning, so a webhook or reconcile-triggered scoring run produces
+    durable Action Card rows instead of a result that is computed and thrown
+    away. Persistence failures propagate to the caller (the Shared Compute
+    Orchestrator's isolated scoring failure domain, #713/B-1) rather than being
+    swallowed here — the orchestrator rolls back only this stage's own writes,
+    never the already-committed KPI envelope.
     """
     result = await run_daily_scoring_for_shop(
         session,
@@ -58,6 +71,15 @@ async def decision_rules_scoring_stage(
             "shop_id": str(job.shop_id),
             "enqueue_reason": job.enqueue_reason,
             "recommended_workflow_count": len(result.recommendations.recommended_workflows),
+        },
+    )
+    persisted_cards = await persist_scoring_result(session, job.shop_id, result)
+    logger.info(
+        "decision_rules_scoring_stage_persisted",
+        extra={
+            "shop_id": str(job.shop_id),
+            "enqueue_reason": job.enqueue_reason,
+            "persisted_card_count": len(persisted_cards),
         },
     )
     return result

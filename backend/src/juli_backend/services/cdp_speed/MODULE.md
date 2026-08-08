@@ -50,14 +50,21 @@ from juli_backend.services.cdp_speed import (
   B-1 is wiring/dispatch only. KPI freshness and Decision surfacing cadences stay
   independently controllable (dual cadence, ADR-038 §6) — this seam does not implement
   or throttle surfacing.
-- ``decision_rules_scoring_stage(session, job)`` **(#714 / B-2):** the real
-  ``ScoringStageFn`` implementation — adapts the seam's ``(session, SharedComputeJob)``
+- ``decision_rules_scoring_stage(session, job)`` **(#714 / B-2; wired to persistence
+  by the #715 / B-3 Meta routing correction):** the real ``ScoringStageFn``
+  implementation — adapts the seam's ``(session, SharedComputeJob)``
   signature onto ``juli_backend.services.scoring.pipeline.run_daily_scoring_for_shop``,
   the **same** callable manual refresh (``POST /v1/action-cards/refresh`` ->
   ``run_action_card_refresh``) uses (ADR-021). One scoring implementation, no forked
-  math. Returns the computed ``DailyScoringResult`` **candidate** — it does not persist
-  Action Cards (persistence-on-compute is #715 / B-3) or apply an emission/surfacing
-  budget (#716 / B-4). Wired as the default ``scoring_stage`` at **both** production
+  math. Computes the ``DailyScoringResult`` candidate, **persists** it via
+  ``juli_backend.services.action_cards.persist.persist_scoring_result`` — the same
+  idempotent, status-preserving persistence boundary the manual refresh path uses, no
+  second persistence path (ADR-021) — and returns the ``DailyScoringResult`` unchanged.
+  Does not apply an emission/surfacing budget (#716 / B-4); every ranked recommendation
+  is persisted as an ``"active"`` candidate. A persistence failure propagates out of
+  this callable rather than being swallowed, so it lands in the orchestrator's own
+  isolated scoring failure domain (rolled back there, never touching the already-
+  committed KPI envelope). Wired as the default ``scoring_stage`` at **both** production
   continuous-trigger call sites — ``services/webhook/material_worker.py``'s
   ``_default_shared_compute`` (material webhook trigger) and
   ``workers/tasks/mock_analytics_reconcile.py``'s
@@ -130,10 +137,13 @@ planner — batch gap plans live under ``cdp_batch`` (A2).
 - ``juli_backend.integrations.tiktok.constants`` — Partner API path constants
 - ``juli_backend.services.etl`` — one-writer-owned bronze append facade
 - ``juli_backend.services.scoring.pipeline`` (``decision_rules_scoring.py`` only, #714 /
-  B-2) — the shared rules-scoring pipeline. ``shared_compute_orchestrator.py`` itself
-  stays decoupled from ``services.scoring`` / ``services.action_cards`` (guarded by
-  ``test_default_scoring_stage_is_wiring_only_stub``); only the adjacent
-  ``decision_rules_scoring.py`` module carries this dependency
+  B-2) — the shared rules-scoring pipeline.
+- ``juli_backend.services.action_cards.persist`` (``decision_rules_scoring.py`` only,
+  #715 / B-3 wiring) — reuses ``persist_scoring_result`` to make continuous-trigger
+  scoring candidates durable; no second persistence path.
+  ``shared_compute_orchestrator.py`` itself stays decoupled from ``services.scoring`` /
+  ``services.action_cards`` (guarded by ``test_default_scoring_stage_is_wiring_only_stub``);
+  only the adjacent ``decision_rules_scoring.py`` module carries these dependencies
 
 ## Must not
 
