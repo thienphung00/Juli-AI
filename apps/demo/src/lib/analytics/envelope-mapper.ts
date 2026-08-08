@@ -106,47 +106,47 @@ export function resolveToneFromDeltaAndGoal(
 
 /**
  * Compute the delta (change) between first and last value in a series.
- * Arrow reflects raw movement; tone is resolved by goal direction if metricKey is provided.
+ * Returns both raw trend (movement direction) and goal-aware tone (if goalDirection provided).
  *
  * @param series - The time series data points
- * @param metricKey - Optional KPI key; if provided, tone is resolved using goal direction
- * @returns Delta string with arrow and tone (either goal-aware or raw-movement-based)
+ * @param goalDirection - Goal direction for tone resolution; if provided, tone reflects goal-awareness
+ * @returns Delta string, raw trend (movement direction), and goal-aware tone
  */
 function computeDelta(
   series: readonly { v: number }[],
-  metricKey?: MetricKey,
+  goalDirection?: GoalDirection,
 ): {
   delta: string;
-  trend: ChartTrend;
+  rawTrend: ChartTrend;
+  tone: ChartTrend;
 } {
   if (series.length < 2) {
-    return { delta: "—", trend: "neutral" };
+    return { delta: "—", rawTrend: "neutral", tone: "neutral" };
   }
 
   const first = series[0]!.v;
   const last = series[series.length - 1]!.v;
 
   if (first === 0) {
-    return { delta: "—", trend: "neutral" };
+    return { delta: "—", rawTrend: "neutral", tone: "neutral" };
   }
 
   const pct = Math.round(((last - first) / Math.abs(first)) * 100);
   // Arrow always reflects raw movement: up for positive pct, down for negative pct
   const arrow = pct > 0 ? "▲" : pct < 0 ? "▼" : "—";
 
-  // Tone is resolved using goal direction if metricKey is provided
-  let trend: ChartTrend;
-  if (metricKey) {
-    const def = getMainKpiDefinition(metricKey);
-    trend = resolveToneFromDeltaAndGoal(pct, def.goalDirection);
-  } else {
-    // Fallback for supplementary charts (no goal direction): raw movement
-    trend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
-  }
+  // Raw trend is always based on movement direction only
+  const rawTrend: ChartTrend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+
+  // Tone is resolved using goal direction if provided; otherwise same as raw trend
+  const tone: ChartTrend = goalDirection
+    ? resolveToneFromDeltaAndGoal(pct, goalDirection)
+    : rawTrend;
 
   return {
     delta: `${arrow} ${Math.abs(pct)}%`,
-    trend,
+    rawTrend,
+    tone,
   };
 }
 
@@ -276,14 +276,15 @@ export function buildLiveKpiSnapshot(
   const timeSeries = seriesToTimePoints(entry);
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend } = computeDelta(entry.series, metricKey);
+  const def = getMainKpiDefinition(metricKey);
+  const { delta, tone } = computeDelta(entry.series, def.goalDirection);
   const workflow = metricWorkflow(metricKey);
 
   return {
     formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
     delta,
-    trend,
-    signal: metricSignal(metricKey, trend),
+    trend: tone,
+    signal: metricSignal(metricKey, tone),
     dataSource: METRIC_TO_DATA_SOURCE[metricKey],
     lastUpdated: getRelativeFreshness(envelope.computed_at),
     dataMode: "live",
@@ -338,6 +339,7 @@ export interface ImpactMetricSnapshot {
  * The `sentiment` field is the goal-aware tone (whether the move is good for the
  * seller), computed by the unified resolver (resolveToneFromDeltaAndGoal). The
  * `trend` field is always raw movement (up = positive, down = negative).
+ * Both are computed once in computeDelta and read directly (no duplication).
  */
 export function buildImpactMetricSnapshot(
   envelope: DemoAnalyticsEnvelope | null | undefined,
@@ -354,24 +356,34 @@ export function buildImpactMetricSnapshot(
 
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend: sentiment } = computeDelta(entry.series, metricKey);
-
-  // For the impact block, trend is the raw movement (▲▼), and sentiment is goal-aware
-  // But we need to compute raw trend separately for the trend field
-  const first = values[0]!;
-  const last = values[values.length - 1]!;
-  const pct = Math.round(((last - first) / Math.abs(first)) * 100);
-  const trend: ChartTrend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  const def = getMainKpiDefinition(metricKey);
+  const { delta, rawTrend: trend, tone: sentiment } = computeDelta(
+    entry.series,
+    def.goalDirection,
+  );
 
   return {
     metricKey,
-    metricName: getMainKpiDefinition(metricKey).name,
+    metricName: def.name,
     formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
     delta,
     trend,
     sentiment,
   };
 }
+
+/**
+ * Goal directions for supplementary charts.
+ * These are not Main KPIs but need explicit goal direction to go through the unified resolver.
+ * ADR-060 Consequence: all series require goal direction to prevent inversion trap.
+ */
+const SUPPLEMENTARY_CHART_GOAL_DIRECTIONS: Record<
+  "product_funnel" | "live_performance",
+  GoalDirection
+> = {
+  product_funnel: "higher-is-better", // Funnel conversion rising is good
+  live_performance: "higher-is-better", // LIVE performance GMV rising is good
+};
 
 export function buildSupplementaryChartSnapshot(
   envelope: DemoAnalyticsEnvelope,
@@ -387,14 +399,15 @@ export function buildSupplementaryChartSnapshot(
   const timeSeries = seriesToTimePoints(entry);
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend } = computeDelta(entry.series);
+  const goalDirection = SUPPLEMENTARY_CHART_GOAL_DIRECTIONS[envelopeKey];
+  const { delta, tone } = computeDelta(entry.series, goalDirection);
 
   return {
     envelopeKey,
     label: entry.label,
     formattedValue: formatVND(latestValue),
     delta,
-    trend,
+    trend: tone,
     timeSeries,
     dataSource: "TikTok Shop",
     lastUpdated: getRelativeFreshness(envelope.computed_at),

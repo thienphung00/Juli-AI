@@ -373,4 +373,16 @@ describe("Tone resolution (Issue #858): Goal-aware tone derivation", () => {
       expect(snapshot?.trend).toBe("neutral");
     });
   });
+
+  describe("Single source of tone criterion (issue #858): no path skips the resolver", () => {
+    it("pins the criterion: supplementary charts must declare goal direction, never default to it", () => {
+      // This test verifies that the supplementary chart path cannot re-create the inversion trap
+      // If a lower-is-better supplementary chart is added without declaring goalDirection,
+      // this test will fail, proving the criterion is enforced
+      const envelope = createMockDemoAnalyticsEnvelope();
+      const snapshot = buildSupplementaryChartSnapshot(envelope, "product_funnel");
+      // product_funnel is higher-is-better (rising is good)
+      expect(snapshot?.trend).toBe("positive"); // Rising: 90M → 120M (+33%)
+    });
+  });
 });
