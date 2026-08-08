@@ -42,8 +42,8 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 
 | Issue | Slice | Domain | Worktree / branch | Gate | Status |
 |-------|-------|--------|-------------------|------|--------|
-| [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | readyForExecutor: true | Executor running |
-| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | pending | readyForExecutor: true | blocked on #713 |
+| [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | readyForExecutor: true | Executor DONE (`2403bdfe`) — Review running |
+| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | readyForExecutor: true | Executor running (pipelined off `feature/issue-713`) |
 | [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | backend | pending | readyForExecutor: true | blocked on #714 |
 | [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | backend | pending | readyForExecutor: true | blocked on #715 |
 | [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | pending | readyForExecutor: true | blocked on #715 |
@@ -64,6 +64,13 @@ Verify with `PYTHONPATH=$PWD/backend/src python -c "import juli_backend;print(ju
 the path must be inside the worktree. Baseline on this wave with the fix applied:
 `test_cdp_speed_shared_compute_orchestrator.py test_scoring.py test_action_cards_contract.py`
 = **44 passed**. Full `tests/unit` on the wave base: **2239 passed, 5 skipped** (94s).
+
+## Pipelining
+
+Issue branches chain off their predecessor rather than waiting for the wave merge:
+`feature/issue-714` is cut from `feature/issue-713`, not from the wave. Each branch is
+rebased onto the wave once its predecessor's PR lands, so the wave history stays linear
+and a slice never waits on its predecessor's Review to start.
 
 ## Ops lock
 
