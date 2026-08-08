@@ -1335,3 +1335,32 @@ class AnalyticsBackfillPartitionsRepo:
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_completed(
+        self,
+        shop_id: uuid.UUID,
+        bucket: str,
+        start: date,
+        end: date,
+    ) -> list[AnalyticsBackfillPartition]:
+        """Return all completed partitions for the given shop/bucket/date range.
+
+        Bulk-load completed (bucket, date) pairs for O(1) membership testing,
+        replacing the N-query pattern of calling is_complete per partition.
+        """
+        self.validate_bucket(bucket)
+        if end < start:
+            return []
+        stmt = (
+            select(AnalyticsBackfillPartition)
+            .where(
+                AnalyticsBackfillPartition.shop_id == shop_id,
+                AnalyticsBackfillPartition.bucket == bucket,
+                AnalyticsBackfillPartition.partition_date >= start,
+                AnalyticsBackfillPartition.partition_date <= end,
+                AnalyticsBackfillPartition.status == "complete",
+            )
+            .order_by(AnalyticsBackfillPartition.partition_date)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())

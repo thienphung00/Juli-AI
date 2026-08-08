@@ -26,6 +26,9 @@ RELEASES_ROOT="${RELEASES_ROOT:-$HOME/releases}"
 HISTORY_LOG="${RELEASES_ROOT}/deploy-history.log"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
 HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
+# shellcheck source=infra/scripts/lib/prune-releases.sh
+source "${CANONICAL_ROOT}/infra/scripts/lib/prune-releases.sh"
+
 API_ENV_FILE="/etc/juli/api.env"
 WEB_ENV_FILE="/etc/juli/web.env"
 
@@ -95,6 +98,18 @@ mv -Tf "${RELEASES_ROOT}/current.tmp" "${RELEASES_ROOT}/current"
 systemctl restart juli-api
 systemctl restart juli-web
 
+# --- 6b. Restart Celery units if installed (introduced in #720) ---
+# Guard with unit-existence checks to tolerate hosts without Celery units
+# (e.g. App Review envelope with single web process only).
+# Use systemctl cat to check existence: exits non-zero if unit not found.
+for unit in juli-celery-worker juli-celery-beat; do
+    if systemctl cat "${unit}" >/dev/null 2>&1; then
+        systemctl restart "${unit}"
+    else
+        echo "SKIP: ${unit} not installed on this host (expected on App Review-only boxes)"
+    fi
+done
+
 # --- 7. Health check — fail loudly, no auto-rollback (manual rollback.yml) ---
 echo "-- health check (timeout ${HEALTH_TIMEOUT_SECS}s) --"
 deadline=$((SECONDS + HEALTH_TIMEOUT_SECS))
@@ -122,17 +137,11 @@ echo "PASS: juli-api and juli-web are healthy on the new release."
 mkdir -p "${RELEASES_ROOT}"
 printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"
 
-echo "-- pruning old releases (keeping last ${KEEP_RELEASES}) --"
-mapfile -t old_releases < <(git -C "${CANONICAL_ROOT}" worktree list --porcelain \
-    | awk '/^worktree /{print $2}' \
-    | grep -F "${RELEASES_ROOT}/" \
-    | sort -r \
-    | tail -n "+$((KEEP_RELEASES + 1))")
-for old in "${old_releases[@]:-}"; do
-    [ -n "${old}" ] || continue
-    [ "${old}" = "${release_dir}" ] && continue
-    echo "Removing old release worktree: ${old}"
-    git -C "${CANONICAL_ROOT}" worktree remove --force "${old}" || rm -rf "${old}"
-done
+# Retention is shared with the Demo deploy because both lanes prune the same
+# ~/releases pool — see infra/scripts/lib/prune-releases.sh. It protects every
+# *current symlink target (including demo-current) and each lane's recent
+# rollback targets.
+echo "-- pruning old releases (keeping last ${KEEP_RELEASES} per lane) --"
+prune_release_worktrees "${CANONICAL_ROOT}" "${RELEASES_ROOT}" "${KEEP_RELEASES}" "${release_dir}"
 
 echo "== Deploy complete: ${sha} live via ~/releases/current -> ${release_dir} =="

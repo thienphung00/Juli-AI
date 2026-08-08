@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 745,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/core/security/tiktok_oauth.py",
+      "tests/unit/test_tiktok_oauth.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-745.json",
+    "sha256": "e189e2bf5bcab62c804a64c20837ce8ab5cb7d6b79702e90d69c83ea3282feec",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-05T14:44:11Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-745.json",
+    "sha256": "031db8c52671fbea4283bb805d22f3232893c0aa92f61d1452ec21251e113809",
+    "status": "PASS"
+  },
+  "wave": "wave-token-refresh"
+}

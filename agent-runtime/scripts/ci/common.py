@@ -319,10 +319,19 @@ def criterion_matches_test(criterion: str, test_name: str) -> bool:
 
 
 def parse_pytest_node(node_id: str) -> tuple[Path, str]:
+    """Split a pytest node id into its file path and test name.
+
+    The file path ends at the FIRST "::" — everything after it is class and/or test
+    name. Splitting from the right instead folds a class segment into the path
+    (``file.py::TestClass``), which never exists on disk, so class-based node ids
+    were reported as missing tests (#735). Any parametrisation suffix is dropped so
+    the name matches the function definition in the source.
+    """
     if "::" not in node_id:
-        path = REPO_ROOT / node_id
-        return path, ""
-    file_part, test_name = node_id.rsplit("::", 1)
+        return REPO_ROOT / node_id, ""
+    file_part = node_id.split("::", 1)[0]
+    test_name = node_id.rsplit("::", 1)[-1]
+    test_name = test_name.split("[", 1)[0]
     return REPO_ROOT / file_part, test_name
 
 

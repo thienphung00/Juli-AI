@@ -232,8 +232,12 @@ Vietnamese Demo strings that are benefit-led, one idea per line, free of backend
 _Avoid_: "Độ tin cậy" / "Có thể thực thi qua FBS" in seller UI, exposing `tool_name` or workflow internals on cards
 
 **`apps/landing`**:
-Public marketing site (`app-juli.com`). Own IA per Phase 2.7 PRD; reuses design tokens. **Not required for Phase 2.10.**
-_Avoid_: Landing Page IA inside `docs/product/design/Screens/`
+Public marketing site (`app-juli.com`). Own IA per Phase 2.7 PRD; reuses design tokens. **Not required for Phase 2.10.** Primary CTA is always the Demo (Mock mode); includes a curiosity CTA ("khám phá hiệu suất shop của bạn" → Demo). No pricing section until packaging is decided. Figma reference exports live outside the repo; extracted raster assets live in [`packages/brand`](packages/brand/) ([ADR-056](docs/adr/056-brand-asset-package.md)).
+_Avoid_: Landing Page IA inside `docs/product/design/Screens/`, pricing tiers on the public LP, "Đăng ký" as primary CTA (Demo is)
+
+**`packages/brand`**:
+Workspace package owning canonical Juli brand rasters (wordmark, bird glyph, mascot hero art) and the `<JuliLogo>` component. Exactly one bird and one wordmark are canonical — the raw brand set's other variants stay out. Apps import from it — never copy asset files into an app's `public/` ([ADR-056](docs/adr/056-brand-asset-package.md)).
+_Avoid_: per-app copies of the logo, binary assets inside `@juli/ui`, mixing bird/wordmark variants, shipping baked-copy infographic banners
 
 **Mock/Sign-in mode toggle**:
 `apps/demo`'s mode switch. **Mock mode** (2.10 default): shared masked reference-shop precompute; **material webhooks** (#1, #2, #5, #12, #27, #39, #67, #68 with coalesce) + hourly reconciliation advance data; **Demo Refresh is fake** (re-read cache/UI only); Decision actions are **dry-run**. **Sign-in mode** (Phase 3+): one user per shop; hybrid material webhooks + real Refresh recompute; approval-gated executors. See [ADR-038](docs/adr/038-phase-2.10-dual-layer-pipeline.md).

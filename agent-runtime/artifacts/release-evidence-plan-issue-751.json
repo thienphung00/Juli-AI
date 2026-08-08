@@ -1,0 +1,72 @@
+{
+  "planId": "deploy-release-celery-restart-2026-08-06",
+  "affectedPublicSurfaces": [
+    "app-juli.com",
+    "api.app-juli.com",
+    "demo.app-juli.com"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Contract tests on feature/issue-751; the script itself is exercised only on the next real deploy",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "deploy-restarts-celery-units",
+        "entryUrl": "https://api.app-juli.com/health",
+        "assertions": [
+          "deploy-release.sh restarts juli-celery-worker and juli-celery-beat in addition to juli-api and juli-web",
+          "the restart happens after the current symlink is flipped, so workers load the new release",
+          "a host without the Celery units installed does not fail the deploy",
+          "juli-api and juli-web restart behaviour is unchanged",
+          "api.app-juli.com/health returns 200 after deploy"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "https://api.app-juli.com/health"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "json"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. This edits the deploy shell script only; the alembic revision graph is untouched."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Deploys continue to leave Celery workers on the previous release, requiring a manual systemctl restart after every worker-code deploy — the current state, no regression.",
+    "postCutoverFailureBehavior": "Revert the script change. Reverting restores the manual-restart status quo and cannot leave services stopped, because the added restarts are additive and guarded by a unit-existence check. If a restart itself fails mid-deploy, juli-api and juli-web have already restarted and the operator can restart the Celery units by hand.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit -q -k 'deploy or release_script or celery'",
+    "bash -n infra/scripts/deploy-release.sh"
+  ],
+  "doNotInfer": [
+    "this health-checks the Celery workers after restart — the script health-checks only the HTTP surface, and worker health remains unverified",
+    "this changes the systemd units themselves — only deploy-release.sh is edited",
+    "the first deploy after this merges will pick up worker code automatically without verification — confirm via /proc/<pid>/cwd that workers loaded the new release",
+    "this addresses the hour-granular reconcile dedup that makes manual test runs appear to do nothing"
+  ]
+}

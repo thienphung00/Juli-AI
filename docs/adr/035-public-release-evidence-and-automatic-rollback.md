@@ -1,10 +1,21 @@
 # ADR 035: Public release evidence and automatic rollback
 
-**Status:** Accepted  
+**Status:** Accepted — **platform superseded in part** by
+[ADR-057](057-pre-user-delivery-on-single-vps.md)  
 **Date:** 2026-07-24  
 **Deciders:** grill-with-docs (Architect)
 **Supersedes (in part):** ADR-020's single-VPS/no-new-compute, manual-rollback, and
-no-staging constraints for public delivery
+no-staging constraints for public delivery  
+**Superseded by (in part):** [ADR-057](057-pre-user-delivery-on-single-vps.md) — for the
+**pre-user phase only**, the AWS ECS/Fargate + ALB + ECR + OIDC + CloudWatch **platform**
+paragraph below, and the consequence that "a single VPS with two local ports does not meet
+this boundary". The **release evidence contract, candidate isolation, automatic cutover,
+automatic rollback, release-metadata honesty, and the Meta halt gate are retained unchanged**,
+and this ADR remains the authority cited by `check_public_release_evidence_plan.py`,
+`check_release_evidence_plan_continuity.py`, and `check_public_release_classification.py`.
+ADR-057 also records what narrows with the deferred platform (dedicated Synthetic shop,
+in-network verifier task, digest-level release metadata) and the re-entry trigger that
+restores it.
 
 ## Context
 

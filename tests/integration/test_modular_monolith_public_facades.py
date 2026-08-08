@@ -26,8 +26,12 @@ APP_KEY = "mmu14_integration_app_key"
 APP_SECRET = "mmu14_integration_app_secret"
 
 
-def _sign_webhook(app_key: str, app_secret: str, path: str, body: bytes) -> str:
-    sign_string = f"{app_key}{path}{body.decode()}"
+def _sign_webhook(app_key: str, app_secret: str, body: bytes) -> str:
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    """
+    sign_string = f"{app_key}{body.decode()}"
     return hmac.new(
         app_secret.encode(),
         sign_string.encode(),
@@ -92,7 +96,7 @@ async def test_integration_example_uses_public_facades_only(
         "mmu14-webhook",
     )
     body = _order_event_body()
-    signature = _sign_webhook(APP_KEY, APP_SECRET, WEBHOOK_PATH, body)
+    signature = _sign_webhook(APP_KEY, APP_SECRET, body)
 
     response = await webhook_client.post(
         WEBHOOK_PATH,

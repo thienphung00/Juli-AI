@@ -54,6 +54,116 @@ jobs:
             git pull --ff-only origin main
             ./infra/scripts/deploy-release.sh "${{ github.sha }}"
 
+  # Application release artifacts (#837, slice P0-DEL-ARTIFACT of PRD #820).
+  #
+  # NOT the same thing as `generate-release-artifact` below. That job emits release
+  # *metadata* (a JSON provenance document). This one emits the *deployable* — the
+  # built application plus its production dependency tree, in the shape ADR-058
+  # fixed. Both are uploaded; neither replaces the other.
+  #
+  # This job is why the server no longer compiles: `infra/scripts/build-demo.sh` used
+  # to run `pnpm install --frozen-lockfile` and `turbo run build` on a 2 vCPU / 4 GB
+  # box mid-release. Both now happen here.
+  #
+  # Producing and publishing the artifact is the whole of this slice. Delivering it to
+  # the server, starting a candidate from it, and cutover are #838 and #841.
+  app-release-artifact:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      # One deployable failing must not suppress the others' artifacts.
+      fail-fast: false
+      matrix:
+        # PRD #820's Next deployables. apps/dashboard is absent on purpose: it is
+        # npm-owned, is not a pnpm workspace member, and PRD #820 retires it from
+        # production rather than deploying it.
+        app: [demo, landing]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Resolve artifact paths
+        id: paths
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA::7}"
+          {
+            echo "short=$short"
+            echo "out=${{ github.workspace }}/dist/release"
+            echo "stage=${{ github.workspace }}/dist/release/juli-${{ matrix.app }}-$short"
+            echo "tarball=${{ github.workspace }}/dist/release/juli-${{ matrix.app }}-$short.tar.gz"
+          } >> "$GITHUB_OUTPUT"
+      # Fails non-zero and writes no tarball if the install, the build, the
+      # dependency resolution, or the packaging fails.
+      - name: Build release artifact
+        run: |
+          ./infra/scripts/build-release-artifact.sh \
+            --app "${{ matrix.app }}" \
+            --commit "${{ github.sha }}" \
+            --out "${{ steps.paths.outputs.out }}"
+      # Browser-level gate — the deliberate counterpart to the protocol-level
+      # on-server checks in infra/scripts/verify-release-assets.sh (#833). Computed
+      # styling and interactivity need a real browser, which is too expensive to run
+      # on the server mid-release, so they run here instead. This extends apps/demo's
+      # existing exit-gate Playwright suite rather than adding a parallel one; the
+      # only change is DEMO_E2E_ARTIFACT_DIR, which makes it start the artifact
+      # instead of rebuilding, so it checks what actually ships.
+      - name: Install Playwright Chromium
+        if: matrix.app == 'demo'
+        run: pnpm --filter @juli/demo exec playwright install --with-deps chromium
+      - name: Browser-level checks against the artifact
+        if: matrix.app == 'demo'
+        env:
+          DEMO_E2E_ARTIFACT_DIR: ${{ steps.paths.outputs.stage }}
+        run: pnpm --filter @juli/demo test:e2e
+      # apps/landing has no browser suite yet (#841 gives it a production home).
+      # Until it does, prove at least that the artifact's own dependency tree starts
+      # and serves — which is what a broken CI-resolved tree would fail.
+      - name: Smoke-start the artifact
+        if: matrix.app != 'demo'
+        working-directory: ${{ steps.paths.outputs.stage }}
+        run: |
+          set -euo pipefail
+          node_modules/.bin/next start -p 3210 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3210/ || true)"
+            if [[ "$code" =~ ^2 ]]; then
+              echo "PASS: ${{ matrix.app }} artifact served / with HTTP $code"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "FAIL: ${{ matrix.app }} artifact did not serve / within 60s" >&2
+          exit 1
+      # Assert on the artifact itself, not on a success line in the log above: a
+      # step that dies before it prints leaves no marker to grep for.
+      - name: Assert the artifact is traceable to this commit
+        run: |
+          set -euo pipefail
+          test -f "${{ steps.paths.outputs.tarball }}"
+          recorded="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["commit"])' \
+            "${{ steps.paths.outputs.stage }}/release-artifact.json")"
+          if [[ "$recorded" != "${{ github.sha }}" ]]; then
+            echo "FAIL: artifact records commit $recorded, not ${{ github.sha }}" >&2
+            exit 1
+          fi
+          echo "PASS: artifact is traceable to $recorded"
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: juli-${{ matrix.app }}-${{ steps.paths.outputs.short }}
+          path: ${{ steps.paths.outputs.tarball }}
+          # A missing artifact must fail the job rather than upload nothing.
+          if-no-files-found: error
+
   generate-release-artifact:
     runs-on: ubuntu-latest
     needs: deploy
@@ -87,7 +197,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: release-${{ steps.version.outputs.value }}
-          path: artifacts/releases/release-${{ steps.version.outputs.value }}.json
+          # generate_release_artifact.py writes to common.RELEASES_DIR, which is
+          # agent-runtime/artifacts/releases. The path was missing that prefix, so
+          # every release silently uploaded nothing.
+          path: agent-runtime/artifacts/releases/release-${{ steps.version.outputs.value }}.json
+          # Default is a warning; a missing provenance artifact should fail the job
+          # rather than disappear into the log.
+          if-no-files-found: error
 
   github-release:
     runs-on: ubuntu-latest

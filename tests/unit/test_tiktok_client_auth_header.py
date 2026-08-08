@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from juli_backend.integrations.tiktok.client import (
+    _ACCESS_TOKEN_HEADER,
     TikTokClient,
     uses_header_auth,
 )
@@ -61,7 +62,9 @@ class TestTikTokClientAuthTransport:
 
         _, kwargs = client._session.post.call_args
         assert "access_token" in kwargs["params"]
-        assert kwargs["headers"] == {}
+        # Content-Type is set because the signed body is sent as raw bytes;
+        # what matters here is that no access-token header is used.
+        assert _ACCESS_TOKEN_HEADER not in kwargs["headers"]
 
     def test_product_inventory_search_uses_header(self, client):
         mock_resp = MagicMock()

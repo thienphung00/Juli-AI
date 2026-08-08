@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Continuous delivery for Demo only: cut a release worktree, build apps/demo,
-# cut over the demo-current symlink, restart juli-demo, and health-check.
+# Continuous delivery for Demo only: cut a release worktree, verify the Demo
+# artifact CI built for this commit, cut over the demo-current symlink, restart
+# juli-demo, and health-check. No compilation happens on the server (#837).
 #
 # Independent of deploy-release.sh — juli-api and juli-web are not restarted.
 # Run from the canonical checkout on the VPS (~/Juli-AI-v2).
@@ -29,6 +30,9 @@ KEEP_DEMO_RELEASES="${KEEP_DEMO_RELEASES:-3}"
 HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
 DEMO_PORT="3001"
 
+# shellcheck source=infra/scripts/lib/prune-releases.sh
+source "${CANONICAL_ROOT}/infra/scripts/lib/prune-releases.sh"
+
 sha="${1:-}"
 if [ -z "${sha}" ]; then
     sha="$(git -C "${CANONICAL_ROOT}" rev-parse origin/main)"
@@ -50,13 +54,17 @@ else
     git -C "${CANONICAL_ROOT}" worktree add --force "${release_dir}" "${sha}"
 fi
 
-# --- 2. Demo build (mock mode — no backend secrets) ---
-echo "-- demo frontend --"
-DEMO_RELEASE_BUILD=1 REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
+# --- 2. Verify the release directory carries a runnable Demo artifact ---
+# Nothing is compiled here any more (#837, ADR-058): CI builds the artifact and
+# packages it with a production dependency tree resolved there. This step only
+# checks that the artifact is present and complete before cutover. Placing it into
+# the release directory is #838.
+echo "-- demo frontend (verify only) --"
+REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
 
 NEXT_BIN="${release_dir}/apps/demo/node_modules/.bin/next"
 if [ ! -e "${NEXT_BIN}" ]; then
-    echo "FAIL: next binary missing after build: ${NEXT_BIN}" >&2
+    echo "FAIL: next binary missing from the placed artifact: ${NEXT_BIN}" >&2
     exit 1
 fi
 
@@ -104,22 +112,9 @@ echo "PASS: juli-demo is healthy on the new release (/decisions returned 2xx)."
 # --- 7. Record + prune history ---
 printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"
 
-echo "-- pruning old Demo release worktrees (keeping last ${KEEP_DEMO_RELEASES}) --"
-mapfile -t old_releases < <(git -C "${CANONICAL_ROOT}" worktree list --porcelain \
-    | awk '/^worktree /{print $2}' \
-    | grep -F "${RELEASES_ROOT}/" \
-    | sort -r \
-    | tail -n "+$((KEEP_DEMO_RELEASES + 1))")
-for old in "${old_releases[@]:-}"; do
-    [ -n "${old}" ] || continue
-    [ "${old}" = "${release_dir}" ] && continue
-    # Do not remove the worktree still referenced by App Review current symlink.
-    app_current="$(readlink -f "${RELEASES_ROOT}/current" 2>/dev/null || true)"
-    [ "${old}" = "${app_current}" ] && continue
-    demo_current_target="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || true)"
-    [ "${old}" = "${demo_current_target}" ] && continue
-    echo "Removing old release worktree: ${old}"
-    git -C "${CANONICAL_ROOT}" worktree remove --force "${old}" || rm -rf "${old}"
-done
+# Shared with deploy-release.sh so neither lane can delete a worktree the other
+# is live on — see infra/scripts/lib/prune-releases.sh.
+echo "-- pruning old release worktrees (keeping last ${KEEP_DEMO_RELEASES} per lane) --"
+prune_release_worktrees "${CANONICAL_ROOT}" "${RELEASES_ROOT}" "${KEEP_DEMO_RELEASES}" "${release_dir}"
 
 echo "== Demo deploy complete: ${sha} live via ${DEMO_CURRENT} -> ${release_dir} =="

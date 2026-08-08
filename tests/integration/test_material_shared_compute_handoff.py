@@ -26,7 +26,6 @@ from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
     BronzeAppendTracker,
     make_targeted_fetch_bronze_handoff,
 )
-from juli_backend.services.webhook.app import WEBHOOK_PATH
 from juli_backend.services.webhook.deployed import handle_tiktok_webhook_delivery
 from juli_backend.services.webhook.material_gate import InMemoryMaterialEnqueueGate
 from juli_backend.services.webhook.material_worker import run_material_analytics_compute
@@ -37,7 +36,11 @@ INTEGRATION_ORDER_ID = "577000000000627-int"
 
 
 def _sign(body: bytes) -> str:
-    sign_string = f"{APP_KEY}{WEBHOOK_PATH}{body.decode()}"
+    """Compute HMAC-SHA256 signature for webhook: HMAC-SHA256(app_secret, app_key + body).
+
+    The path is NOT included in webhook signatures (unlike API request signing).
+    """
+    sign_string = f"{APP_KEY}{body.decode()}"
     return hmac.new(APP_SECRET.encode(), sign_string.encode(), hashlib.sha256).hexdigest()
 
 

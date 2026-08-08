@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 752,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "workers/tasks/mock_analytics_reconcile.py",
+      "tests/unit/test_mock_analytics_hourly_reconcile.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-752.json",
+    "sha256": "63e3d584f0f7d190859c59d6c2bd1a44955a9c963b0cd41cc5c32e34b267bb80",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-06T03:09:19Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-752.json",
+    "sha256": "33f2a5b002ec9b99f029e4027ebd691a1db21f1e40da1402dc2c4f6e02dca500",
+    "status": "PASS"
+  },
+  "wave": "wave-reconcile-commit"
+}

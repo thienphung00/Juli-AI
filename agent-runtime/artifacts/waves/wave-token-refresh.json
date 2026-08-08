@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-token-refresh",
+  "branch": "feature/token-refresh-wave",
+  "issues": [745]
+}

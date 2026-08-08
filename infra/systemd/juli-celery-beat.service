@@ -21,11 +21,18 @@ Type=simple
 User=root
 WorkingDirectory=/root/releases/current
 # Re-fetch secrets on every start/restart so the env file is never stale.
+ExecStartPre=/usr/bin/mkdir -p /var/lib/juli
 ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
 # Env file lives on the VPS only, outside any release dir.
 EnvironmentFile=/etc/juli/api.env
 # Single beat scheduler is sufficient for review; no HA/multi-worker tuning in Phase 2.5.
+# --schedule must point outside the release tree. Without it, Celery Beat writes
+# celerybeat-schedule into WorkingDirectory, which is a symlink into a per-release
+# directory that flips on every deploy and is pruned by KEEP_RELEASES. Beat's record
+# of when each entry last ran then vanishes underneath it, and a schedule that never
+# fires produces no error — it simply does nothing.
 ExecStart=/root/releases/current/.venv/bin/celery -A juli_backend.workers.celery_app beat \
+    --schedule=/var/lib/juli/celerybeat-schedule \
     --loglevel=info
 Restart=on-failure
 RestartSec=5

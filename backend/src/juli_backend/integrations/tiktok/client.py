@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from typing import Any, TypeVar, overload
 
@@ -23,6 +24,11 @@ T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 _ACCESS_TOKEN_HEADER = "x-tts-access-token"
+# Maximum pages per paginated fetch. Prevents infinite loops if an API endpoint
+# echoes the page_token back in its response, creating an unbounded cursor.
+# Env-overridable via TIKTOK_MAX_PAGES. A low double-digit cap is appropriate
+# since real fetches (with page_size=50) rarely need more than a few pages.
+_DEFAULT_MAX_PAGES = 20
 
 
 def uses_header_auth(path: str) -> bool:
@@ -137,8 +143,12 @@ class TikTokClient:
         resp = self._session.post(
             f"{self._base_url}{path}",
             params=all_params,
-            json=body,
-            headers=self._auth_headers(path),
+            # Send the exact bytes that were signed. Passing json=body lets requests
+            # re-serialize with its own separators and key order, so the body TikTok
+            # hashes differs from the one we signed and every non-empty body is
+            # rejected with code 106001 "the 'sign' query parameter is invalid".
+            data=body_str,
+            headers=self._json_auth_headers(path),
             timeout=self._timeout,
         )
         data = self._handle_response(resp)
@@ -216,8 +226,9 @@ class TikTokClient:
         resp = self._session.put(
             f"{self._base_url}{path}",
             params=all_params,
-            json=body,
-            headers=self._auth_headers(path),
+            # See post(): the signed bytes must be sent verbatim.
+            data=body_str,
+            headers=self._json_auth_headers(path),
             timeout=self._timeout,
         )
         data = self._handle_response(resp)
@@ -236,12 +247,34 @@ class TikTokClient:
 
         Official responses expose the next cursor as ``next_page_token``; legacy
         testing-tool aliases may return ``page_token`` instead.
+
+        Stops early if:
+        - Maximum page count is reached (prevents infinite loops on echoed cursors)
+        - The returned token equals the sent token (non-advancing cursor detection)
         """
         all_items: list[dict] = []
         query_params: dict[str, str] = {"page_size": str(page_size)}
         page_body = dict(body)
+        page_count = 0
+        last_token: str | None = None
+
+        max_pages = int(os.getenv("TIKTOK_MAX_PAGES", str(_DEFAULT_MAX_PAGES)))
 
         while True:
+            page_count += 1
+
+            # Guard 1: Maximum page count
+            if page_count > max_pages:
+                logger.warning(
+                    "tiktok_pagination_max_pages_reached",
+                    extra={
+                        "path": path,
+                        "page_count": page_count - 1,
+                        "reason": "max_pages_exceeded",
+                    },
+                )
+                break
+
             data = self.post(path, body=page_body, params=query_params)
             if not isinstance(data, dict):
                 break
@@ -251,6 +284,20 @@ class TikTokClient:
             next_token = data.get("next_page_token") or data.get("page_token")
             if not next_token:
                 break
+
+            # Guard 2: Non-advancing cursor detection
+            if next_token == last_token:
+                logger.warning(
+                    "tiktok_pagination_non_advancing_cursor",
+                    extra={
+                        "path": path,
+                        "page_count": page_count,
+                        "reason": "cursor_not_advancing",
+                    },
+                )
+                break
+
+            last_token = next_token
             query_params = {
                 "page_size": str(page_size),
                 "page_token": str(next_token),
@@ -265,11 +312,34 @@ class TikTokClient:
         items_key: str,
         page_size: int = 50,
     ) -> list[dict]:
-        """Auto-paginate a GET endpoint using ``page_token`` query param."""
+        """Auto-paginate a GET endpoint using ``page_token`` query param.
+
+        Stops early if:
+        - Maximum page count is reached (prevents infinite loops on echoed cursors)
+        - The returned token equals the sent token (non-advancing cursor detection)
+        """
         all_items: list[dict] = []
         query_params: dict[str, str] = {**params, "page_size": str(page_size)}
+        page_count = 0
+        last_token: str | None = None
+
+        max_pages = int(os.getenv("TIKTOK_MAX_PAGES", str(_DEFAULT_MAX_PAGES)))
 
         while True:
+            page_count += 1
+
+            # Guard 1: Maximum page count
+            if page_count > max_pages:
+                logger.warning(
+                    "tiktok_pagination_max_pages_reached",
+                    extra={
+                        "path": path,
+                        "page_count": page_count - 1,
+                        "reason": "max_pages_exceeded",
+                    },
+                )
+                break
+
             data = self.get(path, params=query_params)
             if not isinstance(data, dict):
                 break
@@ -279,13 +349,25 @@ class TikTokClient:
             next_token = data.get("next_page_token") or data.get("page_token")
             if not next_token:
                 break
+
+            # Guard 2: Non-advancing cursor detection
+            if next_token == last_token:
+                logger.warning(
+                    "tiktok_pagination_non_advancing_cursor",
+                    extra={
+                        "path": path,
+                        "page_count": page_count,
+                        "reason": "cursor_not_advancing",
+                    },
+                )
+                break
+
+            last_token = next_token
             query_params = {**params, "page_size": str(page_size), "page_token": str(next_token)}
 
         return all_items
 
-    def _build_params(
-        self, path: str, extra: dict[str, str] | None = None
-    ) -> dict[str, str]:
+    def _build_params(self, path: str, extra: dict[str, str] | None = None) -> dict[str, str]:
         params: dict[str, str] = {
             "app_key": self._app_key,
             "timestamp": str(int(time.time())),
@@ -302,6 +384,16 @@ class TikTokClient:
         if uses_header_auth(path):
             return {_ACCESS_TOKEN_HEADER: self._access_token}
         return {}
+
+    def _json_auth_headers(self, path: str) -> dict[str, str]:
+        """Auth headers plus an explicit JSON content type.
+
+        Needed because the signed body is sent as raw bytes via ``data=``; requests
+        only sets Content-Type automatically for ``json=``.
+        """
+        headers = self._auth_headers(path)
+        headers["Content-Type"] = "application/json"
+        return headers
 
     @staticmethod
     def _handle_response(resp: requests.Response) -> dict:

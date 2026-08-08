@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 751,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "infra/scripts/deploy-release.sh",
+      "tests/unit/test_deploy_release_script_contract.py",
+      "docs/runbooks/app-review-runbook.md"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-751.json",
+    "sha256": "c1c96b3d9578d889fa785ea49e3b08fcfa4f1446b24bf0d9b4df657c7b6ee38e",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-06T04:04:15Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-751.json",
+    "sha256": "bad754d8c9ef9b04504c0e4f5236acda1e23d8063f53993f47177851481ad50d",
+    "status": "PASS"
+  },
+  "wave": "wave-webhook-deploy"
+}

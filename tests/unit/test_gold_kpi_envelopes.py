@@ -134,6 +134,203 @@ async def test_compat_adapter_reads_and_writes_gold_not_legacy(session, shop) ->
     assert fetched.payload["kpis"] == payload["kpis"]
 
 
+@pytest.mark.asyncio
+async def test_live_hours_resolves_from_shop_grain_rows(session, shop, user_id) -> None:
+    """live_hours must resolve from shop-grain analytics_performance_intervals rows."""
+    from decimal import Decimal
+
+    from juli_backend.models.models import AnalyticsPerformanceInterval
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    # Add a shop-grain row with live_hours populated
+    interval = AnalyticsPerformanceInterval(
+        shop_id=shop.id,
+        snapshot_key=f"{shop.id}:shop:2026-08-01",
+        grain="shop",
+        start_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        end_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        live_hours=Decimal("12.5"),
+        update_time=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+    )
+    session.add(interval)
+    await session.flush()
+
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # live_hours should be available with the value from the interval
+    assert payload["kpis"]["live_hours"]["availability"] == "available"
+    assert payload["kpis"]["live_hours"]["value"] == 12.5
+    assert payload["kpis"]["live_hours"]["label"] == "LIVE hours"
+
+
+@pytest.mark.asyncio
+async def test_ctor_is_gmv_weighted_click_order_rate_from_product_grain(
+    session, shop, user_id
+) -> None:
+    """CTOR must be GMV-weighted click_order_rate over product-grain rows."""
+    from decimal import Decimal
+
+    from juli_backend.models.models import AnalyticsPerformanceInterval
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    # Add product-grain rows with click_order_rate and gmv
+    # Row 1: 100 GMV, 0.05 click_order_rate (5 orders)
+    interval1 = AnalyticsPerformanceInterval(
+        shop_id=shop.id,
+        snapshot_key=f"{shop.id}:product:sku1:2026-08-01",
+        grain="product",
+        start_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        end_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        tiktok_product_id="prod1",
+        tiktok_sku_id="sku1",
+        gmv=Decimal("100.00"),
+        click_order_rate=Decimal("0.05"),
+        update_time=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+    )
+    # Row 2: 200 GMV, 0.10 click_order_rate (20 orders)
+    interval2 = AnalyticsPerformanceInterval(
+        shop_id=shop.id,
+        snapshot_key=f"{shop.id}:product:sku2:2026-08-01",
+        grain="product",
+        start_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        end_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        tiktok_product_id="prod2",
+        tiktok_sku_id="sku2",
+        gmv=Decimal("200.00"),
+        click_order_rate=Decimal("0.10"),
+        update_time=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+    )
+    session.add(interval1)
+    session.add(interval2)
+    await session.flush()
+
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # CTOR should be GMV-weighted average of click_order_rate
+    # weighted_ctor = (100 * 0.05 + 200 * 0.10) / (100 + 200) = 25 / 300 = 0.0833...
+    assert payload["kpis"]["ctor"]["availability"] == "available"
+    expected_ctor = (100 * 0.05 + 200 * 0.10) / (100 + 200)
+    assert abs(float(payload["kpis"]["ctor"]["value"]) - expected_ctor) < 0.0001
+    assert payload["kpis"]["ctor"]["label"] == "CTOR (click→đơn)"
+
+
+@pytest.mark.asyncio
+async def test_live_hours_and_ctor_unavailable_when_no_rows(session, shop, user_id) -> None:
+    """live_hours and ctor must fall back to unavailable (ADR-044) when no analytics rows exist."""
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    # No analytics rows added
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # Both should be unavailable with no value key
+    assert payload["kpis"]["live_hours"]["availability"] == "unavailable"
+    assert "value" not in payload["kpis"]["live_hours"]
+    assert payload["kpis"]["ctor"]["availability"] == "unavailable"
+    assert "value" not in payload["kpis"]["ctor"]
+
+
+@pytest.mark.asyncio
+async def test_live_hours_zero_is_available_not_unavailable(session, shop, user_id) -> None:
+    """live_hours must report value: 0.0 when rows exist but sum is zero (honest measurement)."""
+    from decimal import Decimal
+
+    from juli_backend.models.models import AnalyticsPerformanceInterval
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    # Add shop-grain rows with live_hours = 0
+    interval = AnalyticsPerformanceInterval(
+        shop_id=shop.id,
+        snapshot_key=f"{shop.id}:shop:2026-08-01",
+        grain="shop",
+        start_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        end_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        live_hours=Decimal("0.0"),
+        update_time=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+    )
+    session.add(interval)
+    await session.flush()
+
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # Should be available (rows exist) with value 0.0, not unavailable
+    assert payload["kpis"]["live_hours"]["availability"] == "available"
+    assert payload["kpis"]["live_hours"]["value"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_ctor_zero_is_available_when_gmv_exists(session, shop, user_id) -> None:
+    """CTOR must report value: 0.0 when rows with sum(gmv) > 0 but all rates are 0."""
+    from decimal import Decimal
+
+    from juli_backend.models.models import AnalyticsPerformanceInterval
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    # Add product-grain rows with gmv > 0 but click_order_rate = 0
+    interval = AnalyticsPerformanceInterval(
+        shop_id=shop.id,
+        snapshot_key=f"{shop.id}:product:sku1:2026-08-01",
+        grain="product",
+        start_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        end_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        tiktok_product_id="prod1",
+        tiktok_sku_id="sku1",
+        gmv=Decimal("100.00"),
+        click_order_rate=Decimal("0.0"),
+        update_time=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+    )
+    session.add(interval)
+    await session.flush()
+
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # Should be available (sum(gmv) > 0) with value 0.0, not unavailable
+    assert payload["kpis"]["ctor"]["availability"] == "available"
+    assert payload["kpis"]["ctor"]["value"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_ctor_unavailable_when_no_gmv_denominator(session, shop, user_id) -> None:
+    """CTOR must be unavailable when sum(gmv) == 0 (undefined weighted mean)."""
+    from decimal import Decimal
+
+    from juli_backend.models.models import AnalyticsPerformanceInterval
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    # Add product-grain rows but all gmv = 0 (no denominator)
+    interval = AnalyticsPerformanceInterval(
+        shop_id=shop.id,
+        snapshot_key=f"{shop.id}:product:sku1:2026-08-01",
+        grain="product",
+        start_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        end_date=datetime(2026, 8, 1, tzinfo=UTC).date(),
+        tiktok_product_id="prod1",
+        tiktok_sku_id="sku1",
+        gmv=Decimal("0.00"),
+        click_order_rate=Decimal("0.05"),
+        update_time=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+    )
+    session.add(interval)
+    await session.flush()
+
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # Should be unavailable (no denominator, undefined) with no value key
+    assert payload["kpis"]["ctor"]["availability"] == "unavailable"
+    assert "value" not in payload["kpis"]["ctor"]
+
+
 def test_scope_excludes_demo_ui_and_partner() -> None:
     from pathlib import Path
 
@@ -150,3 +347,96 @@ def test_scope_excludes_demo_ui_and_partner() -> None:
     for rel in touched:
         assert (repo_root / rel).is_file(), rel
         assert "apps/demo" not in rel
+
+
+@pytest.mark.asyncio
+async def test_kpis_ignore_non_target_grains_from_real_data_shape(session, shop, user_id) -> None:
+    """Grain filtering must hold against the real four-grain data shape.
+
+    The 2026-07-30 dump being restored under #789 contains four grains for the
+    reference shop: product (4,424 rows, click_order_rate populated), live
+    (1,982), shop (128, live_hours populated) and catalog_daily (128).
+
+    live_hours must sum ONLY shop-grain rows and ctor must weight ONLY
+    product-grain rows. A regression that broadened either filter would double
+    count live sessions into LIVE hours, or fold NULL-rate rows into the CTOR
+    denominator — both producing a plausible-looking but wrong number rather
+    than an obvious failure.
+    """
+    from decimal import Decimal
+
+    from juli_backend.models.models import AnalyticsPerformanceInterval
+    from juli_backend.services.gold_kpi_envelope_serving import (
+        compute_demo_main_kpis_payload,
+    )
+
+    day = datetime(2026, 3, 17, tzinfo=UTC).date()
+    rows = [
+        # shop grain — the only legitimate source of live_hours
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:shop:{day}",
+            grain="shop",
+            start_date=day,
+            end_date=day,
+            gmv=Decimal("6114649.00"),
+            live_hours=Decimal("12.3289"),
+            live_sessions=8,
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        # live grain — per-session rows that also carry live_hours. Counting
+        # these would double count against the shop-grain rollup.
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:live:{day}:a",
+            grain="live",
+            start_date=day,
+            end_date=day,
+            live_hours=Decimal("5.5"),
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        # product grain — the only legitimate source of ctor
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:product:{day}:p1",
+            grain="product",
+            start_date=day,
+            end_date=day,
+            gmv=Decimal("100.00"),
+            click_order_rate=Decimal("0.05"),
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:product:{day}:p2",
+            grain="product",
+            start_date=day,
+            end_date=day,
+            gmv=Decimal("200.00"),
+            click_order_rate=Decimal("0.10"),
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+        # catalog_daily — carries neither KPI's inputs; must be ignored
+        AnalyticsPerformanceInterval(
+            shop_id=shop.id,
+            snapshot_key=f"{shop.id}:catalog_daily:{day}",
+            grain="catalog_daily",
+            start_date=day,
+            end_date=day,
+            active_products=42,
+            new_products=3,
+            update_time=datetime(2026, 3, 17, 12, 0, tzinfo=UTC),
+        ),
+    ]
+    session.add_all(rows)
+    await session.flush()
+
+    payload = await compute_demo_main_kpis_payload(session, shop.id)
+
+    # Only the shop-grain 12.3289 — not 17.8289 with the live-grain row folded in
+    assert payload["kpis"]["live_hours"]["availability"] == "available"
+    assert payload["kpis"]["live_hours"]["value"] == pytest.approx(12.3289)
+
+    # Only product-grain: (100*0.05 + 200*0.10) / 300
+    assert payload["kpis"]["ctor"]["availability"] == "available"
+    assert payload["kpis"]["ctor"]["value"] == pytest.approx((100 * 0.05 + 200 * 0.10) / 300)

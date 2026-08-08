@@ -115,6 +115,7 @@ export function buildReviewInputDefaults(): Record<string, string> {
 
 export function buildReviewInputDefaultsForWorkflow(
   workflowKey: string,
+  computedReorderQuantity?: number | null,
 ): Record<string, string> {
   switch (workflowKey) {
     case CREATE_HERO_PRODUCT_WORKFLOW_KEY:
@@ -122,7 +123,7 @@ export function buildReviewInputDefaultsForWorkflow(
     case OPTIMIZE_PRODUCT_WORKFLOW_KEY:
       return buildOptimizeProductReviewInputDefaults();
     case REPLENISH_INVENTORY_WORKFLOW_KEY:
-      return buildReplenishInventoryReviewInputDefaults();
+      return buildReplenishInventoryReviewInputDefaults(computedReorderQuantity);
     case CLEAR_EXCESS_WORKFLOW_KEY:
       return buildClearExcessReviewInputDefaults();
     case PROCESS_ORDER_WORKFLOW_KEY:

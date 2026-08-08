@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 pytestmark = pytest.mark.phase_scaffold
 
@@ -41,21 +42,51 @@ def test_dashboard_app_has_runtime_package():
         assert task in scripts, f"missing npm script: {task}"
 
 
-def test_only_the_phase_2_6_demo_app_is_added():
-    """Demo exists now; landing and mobile retain their later phase gates."""
+def test_only_phase_gated_apps_are_added():
+    """Demo (2.6) and Landing (2.7 PRD) exist; mobile retains its later phase gate."""
     assert (REPO_ROOT / "apps/demo/package.json").is_file()
-    for deferred_app in ("landing", "mobile"):
+    assert (REPO_ROOT / "apps/landing/package.json").is_file()
+    for deferred_app in ("mobile",):
         assert not (REPO_ROOT / "apps" / deferred_app).exists(), (
-            f"apps/{deferred_app} is not in Phase 2.6"
+            f"apps/{deferred_app} is gated to a later phase"
         )
 
 
-def test_phase_2_6_packages_are_real_consumed_workspace_members():
-    """Shared packages are populated for Demo, not empty scaffold directories."""
+def test_apps_with_workspace_deps_are_workspace_members():
+    """An app depending on ``workspace:*`` must be listed in pnpm-workspace.yaml.
+
+    apps/landing shipped in Phase 2.7 declaring ``@juli/brand``/``@juli/theme``/
+    ``@juli/ui`` as ``workspace:*`` but was never added to the workspace globs,
+    so ``pnpm install`` skipped it, its dev server could not start from a clean
+    checkout, and turbo/CI never ran its tests. apps/dashboard is deliberately
+    npm-owned and excluded (see the pnpm-workspace.yaml comment), so it is only
+    exempt for as long as it declares no workspace dependency.
+    """
+    workspace_globs = yaml.safe_load((REPO_ROOT / "pnpm-workspace.yaml").read_text())["packages"]
+
+    for pkg_path in sorted((REPO_ROOT / "apps").glob("*/package.json")):
+        pkg = _read_json(pkg_path)
+        deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+        if not any(spec.startswith("workspace:") for spec in deps.values()):
+            continue
+        app_dir = pkg_path.parent.name
+        assert f"apps/{app_dir}" in workspace_globs, (
+            f"apps/{app_dir} declares workspace:* dependencies but is not a "
+            f"pnpm workspace member; pnpm install will skip it"
+        )
+
+
+def test_workspace_packages_are_real_consumed_members():
+    """Shared packages are populated and consumed, not empty scaffold directories.
+
+    ``@juli/brand`` joined in Phase 2.7 as the canonical brand asset owner
+    (ADR-056).
+    """
     package_names = {
         _read_json(path)["name"] for path in (REPO_ROOT / "packages").glob("*/package.json")
     }
     assert package_names == {
+        "@juli/brand",
         "@juli/contracts",
         "@juli/theme",
         "@juli/ui",

@@ -27,6 +27,7 @@ from juli_backend.services.cdp_speed import (
     run_shared_compute_job,
 )
 from juli_backend.workers.celery_app import celery_app
+from juli_backend.workers.tasks.database import get_async_database_url
 from juli_backend.workers.tasks.material_analytics_precompute import (
     material_analytics_precompute_sync,
 )
@@ -43,18 +44,13 @@ def get_demo_reference_shop_id() -> uuid.UUID | None:
 
 
 def _database_url() -> str:
-    return os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    return get_async_database_url()
 
 
 def _ensure_session_factory():
-    from sqlalchemy.ext.asyncio import create_async_engine
+    from juli_backend.database.database import ensure_worker_session_factory
 
-    from juli_backend.database.database import create_session_factory, init_session_factory
-
-    engine = create_async_engine(_database_url())
-    factory = create_session_factory(engine)
-    init_session_factory(factory)
-    return factory
+    return ensure_worker_session_factory(_database_url())
 
 
 async def _lookup_tiktok_shop_key_async(shop_id: uuid.UUID) -> str | None:
@@ -173,7 +169,9 @@ async def _run_hourly_reconcile_async() -> None:
         )
         return
 
-    shop_key = _lookup_tiktok_shop_key(shop_id)
+    # Await the async lookup directly — the sync `_lookup_tiktok_shop_key` wrapper
+    # opens its own event loop, which raises inside this already-running one (#733).
+    shop_key = await _lookup_tiktok_shop_key_async(shop_id)
     if shop_key is None:
         return
 
@@ -184,6 +182,7 @@ async def _run_hourly_reconcile_async() -> None:
             shop_id=shop_id,
             shop_key=shop_key,
         )
+        await session.commit()
 
 
 @celery_app.task(name="juli_backend.mock_analytics_hourly_reconcile")

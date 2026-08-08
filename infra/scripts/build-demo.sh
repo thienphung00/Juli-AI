@@ -1,17 +1,26 @@
 #!/usr/bin/env bash
-# Build the Demo frontend (apps/demo) with mock data only.
+# Verify that a Demo release directory carries a runnable, already-built app.
 #
-# No backend credentials or NEXT_PUBLIC_API_URL are required — the Demo is
-# self-contained. Always run this before restarting juli-demo when code changes.
+# THIS SCRIPT NO LONGER BUILDS ANYTHING (#837, PRD #820, ADR-058).
 #
-# On the VPS, juli-demo serves ~/releases/demo-current/apps/demo. Prefer
-# ./infra/scripts/deploy-demo-release.sh so the build lands in the release
-# worktree that the service actually runs.
+# It used to run `pnpm install --frozen-lockfile` and `turbo run build` here, on a
+# 2 vCPU / 4 GB box, in the middle of a release. Both now run in CI
+# (.github/workflows/release.yml -> app-release-artifact), which packages the built
+# output together with a production dependency tree resolved there. The server's
+# job is to start processes, never to compile.
+#
+# So the checks below are the same checks as before, doing a different job: they no
+# longer confirm that a build just succeeded, they confirm that the artifact placed
+# in this directory is complete and runnable before anything is cut over to it. A
+# missing .next or a missing `next` binary now means the artifact was never placed,
+# not that the build failed.
+#
+# Placing the artifact into the release directory is #838/#841; #844 retires this
+# script once the combined path has completed a real release.
 #
 # Usage (on the VPS or locally):
-#   cd ~/Juli-AI-v2
 #   ./infra/scripts/build-demo.sh
-#   DEMO_RELEASE_BUILD=1 REPO_ROOT=~/releases/<sha> ./infra/scripts/build-demo.sh
+#   REPO_ROOT=~/releases/<sha> ./infra/scripts/build-demo.sh
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
@@ -29,66 +38,17 @@ if [ ! -f "${ENV_FILE}" ] && [ -f "${ENV_EXAMPLE}" ]; then
     echo "Created ${ENV_FILE} from template (mock mode — no secrets required)."
 fi
 
-_demo_service_app_dir() {
-    local unit="/etc/systemd/system/juli-demo.service"
-    [ -f "${unit}" ] || return 1
-    grep -E '^WorkingDirectory=' "${unit}" | head -1 | cut -d= -f2-
-}
-
-_is_release_build() {
-    [ "${DEMO_RELEASE_BUILD:-}" = "1" ] && return 0
-    case "${REPO_ROOT}" in
-        */releases/*) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
-echo "== Juli Demo frontend build (apps/demo, mock mode) =="
-
-# Guard accidental builds in the canonical checkout while juli-demo serves
-# demo-current. Release deploys build into ~/releases/<sha> before cutover, so
-# a temporary path mismatch is expected — skip the guard for those builds.
-if ! _is_release_build; then
-    if service_app_dir="$(_demo_service_app_dir)"; then
-        build_app_dir="$(cd "${DEMO_DIR}" && pwd)"
-        service_resolved="$(readlink -f "${service_app_dir}" 2>/dev/null || echo "${service_app_dir}")"
-        build_resolved="$(readlink -f "${build_app_dir}")"
-        if [ "${service_resolved}" != "${build_resolved}" ]; then
-            if [ "${DEMO_BUILD_ALLOW_MISMATCH:-}" != "1" ]; then
-                echo "FAIL: juli-demo serves ${service_resolved} but this build writes to ${build_resolved}." >&2
-                echo "On the VPS run: ./infra/scripts/deploy-demo-release.sh" >&2
-                echo "Local dev only: DEMO_BUILD_ALLOW_MISMATCH=1 ./infra/scripts/build-demo.sh" >&2
-                exit 1
-            fi
-            echo "WARN: build dir != juli-demo WorkingDirectory (DEMO_BUILD_ALLOW_MISMATCH=1)."
-        fi
-    fi
-fi
-
-cd "${REPO_ROOT}"
-corepack enable pnpm 2>/dev/null || true
-pnpm install --frozen-lockfile --filter @juli/demo...
-
-# Git worktrees share Turborepo's local cache. A cache hit can restore .next from
-# the canonical checkout into a release worktree so HTML/static verify passes
-# while `next start` under demo-current fails (502 / upstream down). Force a real
-# build for every release deploy.
-if _is_release_build; then
-    echo "-- release build: forcing turbo rebuild (no shared worktree cache hit) --"
-    export TURBO_FORCE=1
-    rm -rf "${DEMO_DIR}/.next"
-    pnpm exec turbo run build --filter=@juli/demo --force
-else
-    pnpm build:demo
-fi
+echo "== Juli Demo release verification (apps/demo, mock mode) =="
+echo "-- no build runs here; the artifact is built in CI (#837) --"
 
 if [ ! -f "${DEMO_DIR}/.next/server/app/decisions.html" ]; then
-    echo "FAIL: /decisions route not built (.next/server/app/decisions.html missing)" >&2
+    echo "FAIL: /decisions route missing from the artifact (.next/server/app/decisions.html)" >&2
+    echo "The artifact is built in CI and placed here by the release delivery step (#838)." >&2
     exit 1
 fi
 
 if [ ! -f "${DEMO_DIR}/.next/server/app/index.html" ]; then
-    echo "FAIL: home route not built (.next/server/app/index.html missing)" >&2
+    echo "FAIL: home route missing from the artifact (.next/server/app/index.html)" >&2
     exit 1
 fi
 
@@ -99,11 +59,11 @@ fi
 
 NEXT_BIN="${DEMO_DIR}/node_modules/.bin/next"
 if [ ! -e "${NEXT_BIN}" ]; then
-    echo "FAIL: next binary missing at ${NEXT_BIN} (pnpm install did not link apps/demo)" >&2
+    echo "FAIL: next binary missing at ${NEXT_BIN} — the artifact did not ship its production dependency tree (ADR-058)" >&2
     exit 1
 fi
 
-echo "PASS: Demo home and /decisions routes built (mock mode, no API dependency)"
+echo "PASS: Demo artifact is complete and runnable (home + /decisions, mock mode)"
 
 VERIFY_STATIC="${REPO_ROOT}/infra/scripts/verify-demo-static-assets.sh"
 if [ -x "${VERIFY_STATIC}" ]; then

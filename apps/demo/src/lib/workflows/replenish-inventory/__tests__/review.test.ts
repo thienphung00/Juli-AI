@@ -72,6 +72,34 @@ describe("getReplenishInventoryReviewStages", () => {
     );
   });
 
+  it("prefills reorder quantity from computed inputs when available", () => {
+    const computedQuantity = 96;
+    const inputs = getReplenishInventoryReviewStages(
+      "cancellation-rate",
+      computedQuantity,
+    ).find((stage) => stage.stage === "inputs");
+
+    const reorderQtyField = inputs?.inputFields?.find(
+      (f) => f.key === "reorder_quantity",
+    );
+
+    expect(reorderQtyField?.prefillValue).toBe("96");
+    expect(reorderQtyField?.editable).toBe(true);
+  });
+
+  it("returns fallback message when computed quantity is unavailable", () => {
+    const inputs = getReplenishInventoryReviewStages().find(
+      (stage) => stage.stage === "inputs",
+    );
+
+    const reorderQtyField = inputs?.inputFields?.find(
+      (f) => f.key === "reorder_quantity",
+    );
+
+    expect(reorderQtyField?.prefillValue).toMatch(/chưa có mặc định/i);
+    expect(reorderQtyField?.editable).toBe(true);
+  });
+
   it("does not fabricate a supplier or ERP integration contract in preview or approve", () => {
     const preview = getReplenishInventoryReviewStages().find(
       (stage) => stage.stage === "preview",
@@ -96,5 +124,30 @@ describe("buildReplenishInventoryReviewInputDefaults", () => {
     expect(defaults.reorder_quantity).not.toBe("");
     expect(defaults.external_path).not.toBe("");
     expect(defaults.warehouse_id).toMatch(/WH-HCM/);
+  });
+
+  it("populates reorder quantity from computed value when available", () => {
+    const computedQuantity = 120.5;
+    const defaults = buildReplenishInventoryReviewInputDefaults(computedQuantity);
+
+    expect(defaults.reorder_quantity).toBe("121"); // ceil(120.5) = 121
+    expect(defaults.warehouse_id).toMatch(/WH-HCM/);
+  });
+
+  it("remains editable even when prefilled with computed quantity", () => {
+    const computedQuantity = 96;
+    const defaults = buildReplenishInventoryReviewInputDefaults(computedQuantity);
+    const stages = getReplenishInventoryReviewStages(
+      "cancellation-rate",
+      computedQuantity,
+    );
+
+    const inputsStage = stages.find((s) => s.stage === "inputs");
+    const reorderQtyField = inputsStage?.inputFields?.find(
+      (f) => f.key === "reorder_quantity",
+    );
+
+    expect(reorderQtyField?.editable).toBe(true);
+    expect(defaults.reorder_quantity).toBe("96");
   });
 });

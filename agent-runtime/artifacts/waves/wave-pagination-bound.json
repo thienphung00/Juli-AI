@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-pagination-bound",
+  "branch": "feature/pagination-bound-wave",
+  "issues": [744]
+}

@@ -198,6 +198,11 @@ celeryTasks:
     wrapper: backend/src/juli_backend/workers/tasks/cdp_batch_reconcile.py
     delegatesTo: services.cdp_batch.batch_reconcile_orchestrator.BatchReconcileOrchestrator.run
     notes: A2 daily staggered per-shop reconcile via StaggerScheduler (#615/#621/#622). Config-flag gated, default OFF.
+  juli_backend.analytics_backfill_topup:
+    owner: Data Pipeline
+    wrapper: backend/src/juli_backend/workers/tasks/analytics_backfill_topup.py
+    delegatesTo: services.analytics_backfill.backfill_analytics_history
+    notes: A1 automatic analytics history top-up for reference shop only (#791). Idempotent via resumable checkpoints.
 
 redisNamespaces:
   - pattern: "ratelimit:*"

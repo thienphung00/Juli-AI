@@ -19,11 +19,34 @@ export interface RecommendationFixture {
 }
 
 export const DEMO_RECOMMENDATIONS_API_PATH = "/v1/demo/recommendations" as const;
+export const ACTION_CARD_INPUTS_API_PATH = "/v1/action-cards" as const;
 
 export class DemoRecommendationsFetchError extends Error {
   constructor(public readonly status: number) {
     super(`Demo recommendations fetch failed (${status})`);
     this.name = "DemoRecommendationsFetchError";
+  }
+}
+
+export interface ActionCardInputsData {
+  workflow_key: string;
+  sku_id: string | null;
+  tiktok_product_id: string | null;
+  current_stock: number | null;
+  reorder_quantity: number | null;
+  editable: boolean;
+  basis: {
+    daily_velocity: number;
+    lead_time_days: number;
+    safety_stock_days: number;
+    days_until_stockout: number;
+  } | null;
+}
+
+export class ActionCardInputsFetchError extends Error {
+  constructor(public readonly status: number) {
+    super(`Action card inputs fetch failed (${status})`);
+    this.name = "ActionCardInputsFetchError";
   }
 }
 
@@ -341,4 +364,36 @@ export async function fetchRecommendations(
   }
 
   return recommendationFixtures;
+}
+
+export async function fetchActionCardInputs(
+  workflowKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ActionCardInputsData | null> {
+  try {
+    const response = await fetchImpl(
+      `${ACTION_CARD_INPUTS_API_PATH}/${workflowKey}/inputs`,
+      {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      throw new ActionCardInputsFetchError(response.status);
+    }
+
+    const payload = (await response.json()) as {
+      success?: boolean;
+      data?: ActionCardInputsData;
+    };
+
+    if (payload.data) {
+      return payload.data;
+    }
+  } catch {
+    // Fallback to fixture when backend unavailable — demo remains functional offline.
+  }
+
+  return null;
 }

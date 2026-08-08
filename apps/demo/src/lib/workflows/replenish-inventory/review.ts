@@ -41,22 +41,28 @@ const replenishFixture = replenishFixtureEntry;
  * removed from the approval flow entirely — not hidden, not disabled, not
  * optional. Execution does not read it either; the run's receipt-confirmation
  * step belongs to a later lifecycle moment.
+ *
+ * `computedReorderQuantity` (RA-1, #721) prefills the quantity from the
+ * sales-pace advisory when one is available; the seller-facing fallbacks stay
+ * non-empty so the approval flow never renders a blank input (#760).
  */
-export function buildReplenishInventoryReviewInputDefaults(): Record<
-  string,
-  string
-> {
+export function buildReplenishInventoryReviewInputDefaults(
+  computedReorderQuantity?: number | null,
+): Record<string, string> {
   return {
     sku_id: "SKU-SPF50-001",
     current_stock: "48",
     warehouse_id: "WH-HCM-01",
-    reorder_quantity: "240",
+    reorder_quantity: computedReorderQuantity
+      ? String(Math.ceil(computedReorderQuantity))
+      : "240",
     external_path: "NCC Hóa Mỹ Phẩm",
   };
 }
 
 export function getReplenishInventoryReviewStages(
   analyticsMetricKey = defaultReplenishInventoryAnalyticsMetricKey,
+  computedReorderQuantity?: number | null,
 ): ReviewStageContent[] {
   const analyticsMetricHref = `/analytics/${analyticsMetricKey}`;
 
@@ -108,7 +114,9 @@ export function getReplenishInventoryReviewStages(
         {
           key: "reorder_quantity",
           label: "Số lượng đặt hàng lại",
-          prefillValue: "Chưa có mặc định — cần shop nhập sau khi xem dữ liệu",
+          prefillValue: computedReorderQuantity
+            ? String(Math.ceil(computedReorderQuantity))
+            : "Chưa có mặc định — cần shop nhập sau khi xem dữ liệu",
           required: true,
           editable: true,
         },

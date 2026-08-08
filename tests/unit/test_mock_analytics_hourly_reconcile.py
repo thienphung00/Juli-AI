@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 import pytest_asyncio
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.database.database import Base
 from juli_backend.models.models import (
+    AnalyticsPerformanceInterval,
     BronzeOrderRawPayload,
     GoldKpiEnvelope,
     Order,
@@ -146,6 +148,7 @@ async def medallion_session():
                     Shop.__table__,
                     Order.__table__,
                     BronzeOrderRawPayload.__table__,
+                    AnalyticsPerformanceInterval.__table__,
                     GoldKpiEnvelope.__table__,
                 ],
             )
@@ -340,7 +343,9 @@ async def test_hourly_reconcile_does_not_invoke_run_fujiwa_poll_cycle(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(medallion_session):
+async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(
+    medallion_session,
+):
     """Hourly and material enqueues should coexist without duplicate writes via idempotency."""
     session, shop = medallion_session
 
@@ -392,3 +397,358 @@ async def test_hourly_and_material_enqueue_coexist_via_idempotency_key(medallion
     )
     # With same data, bronze should have at least 1 (idempotency-keyed append)
     assert len(bronze_rows) >= 1
+
+
+# --- Issue #733: nested asyncio.run() in the Celery entrypoint ---
+
+
+class _FakeSession:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def commit(self):
+        """Fake commit for testing."""
+        pass
+
+
+def test_hourly_reconcile_task_resolves_shop_key_without_nested_event_loop(
+    monkeypatch, reference_shop_id: uuid.UUID
+):
+    """The Celery entrypoint must reach the orchestrator with a resolved shop_key.
+
+    Issue #733: ``mock_analytics_hourly_reconcile`` opens an event loop via
+    ``asyncio.run``. If ``_run_hourly_reconcile_async`` then calls the *synchronous*
+    ``_lookup_tiktok_shop_key`` wrapper, that wrapper's own ``asyncio.run`` raises
+    ``RuntimeError: asyncio.run() cannot be called from a running event loop`` and the
+    task dies before any envelope is computed. This exercises the real task entrypoint,
+    not the coroutine, so the production failure path is covered.
+    """
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(reference_shop_id))
+
+    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+        return "shop-key-733"
+
+    orchestrated: list[dict] = []
+
+    async def fake_orchestrated(*, session, shop_id, shop_key):
+        orchestrated.append({"shop_id": shop_id, "shop_key": shop_key})
+
+    monkeypatch.setattr(
+        mock_analytics_reconcile, "_lookup_tiktok_shop_key_async", fake_lookup_async
+    )
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "run_mock_analytics_reconcile_orchestrated",
+        fake_orchestrated,
+    )
+    monkeypatch.setattr(mock_analytics_reconcile, "_ensure_session_factory", lambda: _FakeSession)
+
+    mock_analytics_reconcile.mock_analytics_hourly_reconcile()
+
+    assert orchestrated == [{"shop_id": reference_shop_id, "shop_key": "shop-key-733"}], (
+        "task must reach the orchestrator with the resolved shop_key"
+    )
+
+
+def test_sync_lookup_wrapper_still_usable_outside_an_event_loop(
+    monkeypatch, reference_shop_id: uuid.UUID
+):
+    """``_lookup_tiktok_shop_key`` is retained for the non-orchestrated sync path."""
+
+    async def fake_lookup_async(shop_id: uuid.UUID) -> str | None:
+        return "shop-key-sync"
+
+    monkeypatch.setattr(
+        mock_analytics_reconcile, "_lookup_tiktok_shop_key_async", fake_lookup_async
+    )
+
+    assert mock_analytics_reconcile._lookup_tiktok_shop_key(reference_shop_id) == "shop-key-sync"
+
+
+# --- Issue #752: session commit durability ---
+
+
+@pytest.mark.asyncio
+async def test_hourly_reconcile_is_durable_across_new_session(monkeypatch):
+    """AC: bronze, silver, and gold writes must be durable across new session.
+
+    Issue #752: _run_hourly_reconcile_async opens a session and runs the orchestrator
+    but never committed, causing all writes to be rolled back. This test calls the
+    REAL _run_hourly_reconcile_async (not a simulation) with stubbed I/O to verify it
+    commits correctly and all three medallion stages (bronze/silver/gold) persist.
+    The test FAILS without the production fix and PASSES with it.
+    """
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    # Create an in-memory database with attached schemas
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.execute(text("ATTACH DATABASE ':memory:' AS bronze"))
+        await conn.execute(text("ATTACH DATABASE ':memory:' AS silver"))
+        await conn.execute(text("ATTACH DATABASE ':memory:' AS gold"))
+        await conn.run_sync(
+            lambda sync_conn: Base.metadata.create_all(
+                sync_conn,
+                tables=[
+                    User.__table__,
+                    Shop.__table__,
+                    BronzeOrderRawPayload.__table__,
+                    Order.__table__,
+                    GoldKpiEnvelope.__table__,
+                ],
+            )
+        )
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    # Setup: create shop
+    shop_id = None
+    async with factory() as setup_session:
+        user = User(phone="+84901234632", display_name="Test User")
+        setup_session.add(user)
+        await setup_session.flush()
+        shop = Shop(
+            user_id=user.id,
+            shop_name="Test Shop",
+            tiktok_shop_id="shop_752",
+        )
+        setup_session.add(shop)
+        await setup_session.flush()
+        shop_id = shop.id
+        await setup_session.commit()
+
+    # Monkeypatch the session factory so the real function uses our test engine
+    def mock_ensure_session_factory():
+        return factory
+
+    # Monkeypatch the orchestrator to write bronze, silver, and gold rows but NOT commit
+    # (mimics real orchestrator behavior)
+    async def mock_orchestrator(
+        *,
+        session,
+        shop_id,
+        shop_key,
+        orchestrator_run_fn=None,
+    ):
+        """Mock orchestrator: writes all three medallion stages but does NOT commit."""
+        # Bronze: raw payload
+        bronze_row = BronzeOrderRawPayload(
+            shop_id=shop_id,
+            ingest_source="test",
+            payload={"order_id": "test_order_752"},
+        )
+        session.add(bronze_row)
+
+        # Silver: normalized order
+        silver_row = Order(
+            shop_id=shop_id,
+            tiktok_order_id="tiktok_order_752",
+            status="AWAITING_SHIPMENT",
+            total_amount=Decimal("120.00"),
+            currency="VND",
+            update_time=datetime(2026, 8, 6, 12, 0, tzinfo=UTC),
+        )
+        session.add(silver_row)
+
+        # Gold: KPI envelope
+        gold_row = GoldKpiEnvelope(
+            shop_id=shop_id,
+            computed_at=datetime(2026, 8, 6, 12, 0, tzinfo=UTC),
+            envelope_version=1,
+            payload={"kpis": {"revenue": 120.00}},
+        )
+        session.add(gold_row)
+
+        await session.flush()
+        # NO COMMIT HERE - the real orchestrator doesn't commit;
+        # _run_hourly_reconcile_async should commit
+
+    # Monkeypatch shop key lookup
+    async def mock_lookup_shop_key(shop_id_arg):
+        return "shop_752"
+
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "_ensure_session_factory",
+        mock_ensure_session_factory,
+    )
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "run_mock_analytics_reconcile_orchestrated",
+        mock_orchestrator,
+    )
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "_lookup_tiktok_shop_key_async",
+        mock_lookup_shop_key,
+    )
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(shop_id))
+
+    # Call the REAL function under test
+    from juli_backend.workers.tasks.mock_analytics_reconcile import (
+        _run_hourly_reconcile_async,
+    )
+
+    await _run_hourly_reconcile_async()
+
+    # Verify durability: read from a NEW session
+    # This proves the commit happened in _run_hourly_reconcile_async
+    async with factory() as read_session:
+        # Assert bronze rows are durable
+        bronze_rows = (
+            (
+                await read_session.execute(
+                    select(BronzeOrderRawPayload).where(BronzeOrderRawPayload.shop_id == shop_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(bronze_rows) > 0, (
+            "Bronze rows must be durable across new session. "
+            "_run_hourly_reconcile_async must commit the session."
+        )
+
+        # Assert silver rows (Order) are durable
+        silver_rows = (
+            (await read_session.execute(select(Order).where(Order.shop_id == shop_id)))
+            .scalars()
+            .all()
+        )
+        assert len(silver_rows) > 0, "Silver (Order) rows must be durable across new session."
+
+        # Assert gold rows (KpiEnvelope) are durable
+        gold_rows = (
+            (
+                await read_session.execute(
+                    select(GoldKpiEnvelope).where(GoldKpiEnvelope.shop_id == shop_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(gold_rows) > 0, "Gold (KpiEnvelope) rows must be durable across new session."
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_hourly_reconcile_exception_rolls_back_uncommitted_writes(
+    monkeypatch,
+):
+    """AC: Document the chosen semantics for mid-orchestration exceptions.
+
+    Issue #752: If orchestrator raises mid-stage, flushed-but-uncommitted writes roll back.
+    This test encodes the CHOSEN semantics: mid-orchestration exceptions cause full rollback
+    (flushed writes are discarded). This is acceptable for MVP; staged per-resource commits
+    can be added later if idempotency proves insufficient.
+    """
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.execute(text("ATTACH DATABASE ':memory:' AS bronze"))
+        await conn.execute(text("ATTACH DATABASE ':memory:' AS silver"))
+        await conn.execute(text("ATTACH DATABASE ':memory:' AS gold"))
+        await conn.run_sync(
+            lambda sync_conn: Base.metadata.create_all(
+                sync_conn,
+                tables=[
+                    User.__table__,
+                    Shop.__table__,
+                    BronzeOrderRawPayload.__table__,
+                ],
+            )
+        )
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    # Setup: create shop
+    shop_id = None
+    async with factory() as setup_session:
+        user = User(phone="+84901234632", display_name="Test User")
+        setup_session.add(user)
+        await setup_session.flush()
+        shop = Shop(
+            user_id=user.id,
+            shop_name="Test Shop",
+            tiktok_shop_id="shop_752",
+        )
+        setup_session.add(shop)
+        await setup_session.flush()
+        shop_id = shop.id
+        await setup_session.commit()
+
+    # Monkeypatch orchestrator to fail AFTER writing bronze
+    async def failing_orchestrator(
+        *,
+        session,
+        shop_id,
+        shop_key,
+        orchestrator_run_fn=None,
+    ):
+        """Mock orchestrator: writes bronze, flushes, then raises."""
+        bronze_row = BronzeOrderRawPayload(
+            shop_id=shop_id,
+            ingest_source="test",
+            payload={"order_id": "test_exception_752"},
+        )
+        session.add(bronze_row)
+        await session.flush()
+        # Exception raised mid-orchestration, before commit
+        raise RuntimeError("Simulated orchestrator failure")
+
+    def mock_ensure_session_factory():
+        return factory
+
+    async def mock_lookup_shop_key(shop_id_arg):
+        return "shop_752"
+
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "_ensure_session_factory",
+        mock_ensure_session_factory,
+    )
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "run_mock_analytics_reconcile_orchestrated",
+        failing_orchestrator,
+    )
+    monkeypatch.setattr(
+        mock_analytics_reconcile,
+        "_lookup_tiktok_shop_key_async",
+        mock_lookup_shop_key,
+    )
+    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(shop_id))
+
+    from juli_backend.workers.tasks.mock_analytics_reconcile import (
+        _run_hourly_reconcile_async,
+    )
+
+    # Run the function; it should raise
+    with pytest.raises(RuntimeError, match="Simulated orchestrator failure"):
+        await _run_hourly_reconcile_async()
+
+    # SEMANTICS UNDER TEST: When orchestrator raises before commit, flushed writes roll back.
+    # The commit was never reached, and the session context exit rolls back the transaction.
+    # This proves that partial progress is NOT persisted.
+    async with factory() as read_session:
+        bronze_rows = (
+            (
+                await read_session.execute(
+                    select(BronzeOrderRawPayload).where(BronzeOrderRawPayload.shop_id == shop_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # Verify: no partial progress persisted (flushed-but-uncommitted writes rolled back)
+        assert len(bronze_rows) == 0, (
+            "Chosen semantics: mid-orchestration exception causes full rollback "
+            "of all flushed writes (no per-stage commits for MVP)."
+        )
+
+    await engine.dispose()

@@ -292,3 +292,59 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`popover.unavailable_kpi.heading`**
 - EN: [KPI] unavailable
 - VI: [KPI] chưa khả dụng
+
+**`landing.nav.features`**
+- EN: Features
+- VI: Tính năng
+- Definition: Landing header/footer anchor to the feature showcase section.
+
+**`landing.nav.solutions`**
+- EN: Solutions
+- VI: Giải pháp
+- Definition: Landing header/footer anchor to the market-comparison section.
+
+**`landing.nav.contact`**
+- EN: Contact
+- VI: Liên hệ
+- Definition: Landing header anchor to the footer contact block.
+
+**`landing.cta.try_demo`**
+- EN: Try the Demo
+- VI: Dùng thử Demo
+- _Avoid_: Đăng ký (the Demo is the primary CTA; registration is not)
+- Definition: Header CTA — always links to the Demo in Mock mode.
+
+**`landing.cta.experience_demo`**
+- EN: Experience the Demo
+- VI: Trải nghiệm Demo
+- Definition: Hero primary CTA into the Demo.
+
+**`landing.cta.explore_features`**
+- EN: Explore features
+- VI: Tìm hiểu tính năng
+- Definition: Hero secondary CTA — in-page anchor, not a Demo link.
+
+**`landing.cta.see_juli_work`**
+- EN: See Juli work in the Demo
+- VI: Xem Juli làm việc trong Demo
+- Definition: Comparison-section CTA into the Demo.
+
+**`landing.cta.experience_now`**
+- EN: Experience it now
+- VI: Trải nghiệm ngay
+- Definition: Feature-showcase CTA into the Demo.
+
+**`landing.curiosity.heading`**
+- EN: How is your shop doing?
+- VI: Shop của bạn đang vận hành thế nào?
+- Definition: Curiosity CTA heading — a question the Demo answers on sample data.
+
+**`landing.cta.discover_performance`**
+- EN: Discover your shop's performance
+- VI: Khám phá hiệu suất shop của bạn
+- Definition: Curiosity CTA button into the Demo.
+
+**`landing.footer.tagline`**
+- EN: The AI assistant for TikTok Shop sellers
+- VI: Trợ lý AI cho người bán TikTok Shop
+- Definition: Footer brand tagline under the logo lockup.
