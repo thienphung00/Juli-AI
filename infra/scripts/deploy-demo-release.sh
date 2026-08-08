@@ -1,10 +1,38 @@
 #!/usr/bin/env bash
-# Continuous delivery for Demo only: cut a release worktree, verify the Demo
-# artifact CI built for this commit, cut over the demo-current symlink, restart
-# juli-demo, and health-check. No compilation happens on the server (#837).
+# Continuous delivery for Demo, candidate-first (Issue #838, slice P0-DEL-CANDIDATE of
+# PRD #820).
 #
-# Independent of deploy-release.sh — juli-api and juli-web are not restarted.
-# Run from the canonical checkout on the VPS (~/Juli-AI-v2).
+# WHAT CHANGED AND WHY (#838)
+# ---------------------------
+# This script used to mutate first and verify second: it flipped ~/releases/demo-current,
+# restarted juli-demo, and only then health-checked. By the time a check failed, the
+# broken release was already public. The order is now inverted:
+#
+#   migration gate  ->  place the CI artifact  ->  start a CANDIDATE on 127.0.0.1:3021
+#                   ->  run the #833 verification harness against the candidate
+#                   ->  only on a pass: stop the candidate and cut over
+#
+# The candidate binds 127.0.0.1 only. Spike #835 confirmed on the real VPS that a
+# loopback-bound instance does not answer on the external interface, so no nginx, DNS, or
+# firewall change is needed to keep it private — the bind address is the whole mechanism.
+#
+# On ANY failure after the candidate starts, fail_candidate stops the candidate and exits
+# non-zero. The live instance is never restarted, demo-current is never repointed, and no
+# visitor ever sees the release. Zero-downtime cutover is deliberately NOT in this slice
+# (#839); post-cutover rollback is #840.
+#
+# NEVER PRUNE ON A FAILURE PATH. ~/releases is a single pool shared by every deploy lane,
+# and a prune has previously destroyed the live release. Pruning runs only after a
+# successful cutover.
+#
+# WHERE THE BUILD COMES FROM (#837, ADR-058)
+# ------------------------------------------
+# Nothing is compiled here. CI (.github/workflows/release.yml, job app-release-artifact)
+# publishes juli-demo-<short-sha> containing .next, public, package.json, a
+# `pnpm deploy --prod` dependency tree, and release-artifact.json carrying the full
+# 40-char commit. This script downloads that artifact for the target commit and overlays
+# it onto the release worktree's apps/demo, refusing any artifact whose recorded commit is
+# not the commit being deployed.
 #
 # Release model:
 #   ~/Juli-AI-v2              canonical clone; source of truth for `git worktree add`
@@ -12,14 +40,38 @@
 #   ~/releases/demo-current   symlink to the active Demo release
 #   ~/releases/demo-deploy-history.log   append-only log for Demo rollback
 #
-# Local health probe: http://127.0.0.1:3001/decisions must return 2xx before success.
+# Health probes:
+#   candidate, before any traffic moves: http://127.0.0.1:3021/decisions
+#   live, after cutover:                 http://127.0.0.1:3001/decisions must return 2xx
 #
-# Usage (on the VPS):
+# Usage (on the VPS, as root):
 #   cd ~/Juli-AI-v2 && git fetch origin main && git checkout main && git pull
 #   ./infra/scripts/deploy-demo-release.sh <sha>
 #   ./infra/scripts/deploy-demo-release.sh                 # defaults to origin/main HEAD
 #
-# Env overrides: KEEP_DEMO_RELEASES (default 3), HEALTH_TIMEOUT_SECS (default 60).
+# If `gh` is not authenticated on the server, download the artifact elsewhere and point at
+# the tarball directly:
+#   DEMO_ARTIFACT_TARBALL=/root/juli-demo-abc1234.tar.gz ./infra/scripts/deploy-demo-release.sh <sha>
+#
+# Env overrides:
+#   KEEP_DEMO_RELEASES (3)          releases kept per lane after a successful cutover
+#   HEALTH_TIMEOUT_SECS (60)        post-cutover health probe budget
+#   DEMO_CANDIDATE_PORT (3021)      loopback port the candidate binds
+#   DEMO_CANDIDATE_UNIT             transient systemd unit name
+#   CANDIDATE_TIMEOUT_SECS (120)    candidate readiness budget
+#   DEMO_CANDIDATE_ROUTES           HTML routes the harness verifies (default "/ /decisions")
+#   DEMO_CANDIDATE_API_BASE_URL     set to also run --api-check specs against an API
+#   DEMO_CANDIDATE_API_CHECKS       space-separated PATH:key1,key2 specs. Empty by default:
+#                                   apps/demo is mock-mode and exposes no JSON API, so
+#                                   there is no API path to assert here. The wiring exists
+#                                   so a deployable that does have one gets shape checks
+#                                   (not merely status) for free.
+#   DEMO_ARTIFACT_TARBALL           use this local tarball instead of downloading
+#   ARTIFACT_CACHE_ROOT             where artifacts are downloaded (~/.cache/juli-release-artifacts)
+#   DEMO_MIGRATION_GATE_BASE_SHA    baseline commit for pending-migration discovery
+#   DEMO_DEPLOY_SOURCE_ONLY=1       define the functions and return; deploy nothing
+#                                   (this is how tests/unit/test_demo_candidate_verification.py
+#                                   exercises the functions for real)
 set -euo pipefail
 
 CANONICAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -30,91 +82,448 @@ KEEP_DEMO_RELEASES="${KEEP_DEMO_RELEASES:-3}"
 HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
 DEMO_PORT="3001"
 
+DEMO_CANDIDATE_PORT="${DEMO_CANDIDATE_PORT:-3021}"
+DEMO_CANDIDATE_UNIT="${DEMO_CANDIDATE_UNIT:-juli-demo-candidate}"
+CANDIDATE_TIMEOUT_SECS="${CANDIDATE_TIMEOUT_SECS:-120}"
+DEMO_CANDIDATE_ROUTES="${DEMO_CANDIDATE_ROUTES:-/ /decisions}"
+DEMO_CANDIDATE_API_BASE_URL="${DEMO_CANDIDATE_API_BASE_URL:-}"
+DEMO_CANDIDATE_API_CHECKS="${DEMO_CANDIDATE_API_CHECKS:-}"
+
+VERIFY_HARNESS="${CANONICAL_ROOT}/infra/scripts/verify-release-assets.sh"
+MIGRATION_GATE="${CANONICAL_ROOT}/infra/scripts/migration_additive_gate.py"
+MIGRATIONS_VERSIONS_REL="backend/src/juli_backend/database/migrations/versions"
+
+# Downloaded artifacts are staged OUTSIDE ~/releases on purpose: that directory is a pool
+# of release worktrees shared by every deploy lane, and nothing but a worktree, a *current
+# symlink, or a history log belongs in it.
+ARTIFACT_CACHE_ROOT="${ARTIFACT_CACHE_ROOT:-$HOME/.cache/juli-release-artifacts}"
+
 # shellcheck source=infra/scripts/lib/prune-releases.sh
 source "${CANONICAL_ROOT}/infra/scripts/lib/prune-releases.sh"
 
-sha="${1:-}"
-if [ -z "${sha}" ]; then
-    sha="$(git -C "${CANONICAL_ROOT}" rev-parse origin/main)"
-fi
-short_sha="$(git -C "${CANONICAL_ROOT}" rev-parse --short "${sha}")"
-release_dir="${RELEASES_ROOT}/${short_sha}"
+log()  { printf '\n== %s ==\n' "$*"; }
+note() { printf '   %s\n' "$*"; }
+die()  { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
-echo "== Juli Demo deploy: ${sha} (${short_sha}) =="
-mkdir -p "${RELEASES_ROOT}"
+# curl already prints 000 on a connection failure; `|| echo 000` would concatenate onto
+# it and report "000000", so capture and default instead (same fix as the #835 spike).
+http_code() {
+    local code
+    code="$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$1" 2>/dev/null)"
+    echo "${code:-000}"
+}
 
-# --- 1. Cut (or reuse) the release worktree ---
-if [ -d "${release_dir}" ]; then
-    echo "Release dir ${release_dir} already exists — re-checking out ${short_sha}."
-    git -C "${release_dir}" fetch --depth 1 origin "${sha}"
-    git -C "${release_dir}" checkout --force "${sha}"
-else
-    echo "Creating release worktree at ${release_dir}."
-    git -C "${CANONICAL_ROOT}" fetch origin main
-    git -C "${CANONICAL_ROOT}" worktree add --force "${release_dir}" "${sha}"
-fi
+# What the operator needs to see on every failure: that live is still answering and that
+# demo-current still points where it did before this run.
+report_live_state() {
+    local code target
+    code="$(http_code "http://127.0.0.1:${DEMO_PORT}/decisions")"
+    target="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || echo MISSING)"
+    printf '   live juli-demo :%s/decisions -> HTTP %s\n' "${DEMO_PORT}" "${code}"
+    printf '   demo-current still -> %s (not repointed by this run)\n' "${target}"
+}
 
-# --- 2. Verify the release directory carries a runnable Demo artifact ---
-# Nothing is compiled here any more (#837, ADR-058): CI builds the artifact and
-# packages it with a production dependency tree resolved there. This step only
-# checks that the artifact is present and complete before cutover. Placing it into
-# the release directory is #838.
-echo "-- demo frontend (verify only) --"
-REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
+# ---------------------------------------------------------------------------------------
+# The candidate
+# ---------------------------------------------------------------------------------------
 
-NEXT_BIN="${release_dir}/apps/demo/node_modules/.bin/next"
-if [ ! -e "${NEXT_BIN}" ]; then
-    echo "FAIL: next binary missing from the placed artifact: ${NEXT_BIN}" >&2
+# The one place a Demo process is ever spawned. Kept as a separate function so the argv
+# under test is literally the argv systemd-run launches — the loopback bind cannot drift
+# away from what the tests assert.
+demo_candidate_argv() {
+    local release_dir="$1" port="$2"
+    printf '%s\n' \
+        "${release_dir}/apps/demo/node_modules/.bin/next" \
+        "start" \
+        "--port" "${port}" \
+        "--hostname" "127.0.0.1"
+}
+
+start_candidate() {
+    local release_dir="$1" port="$2"
+    local argv=() line
+    while IFS= read -r line; do
+        argv+=("${line}")
+    done < <(demo_candidate_argv "${release_dir}" "${port}")
+
+    systemctl reset-failed "${DEMO_CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+    systemd-run --unit="${DEMO_CANDIDATE_UNIT}" --collect \
+        --property=Type=simple \
+        --property=WorkingDirectory="${release_dir}/apps/demo" \
+        --property=Restart=no \
+        "${argv[@]}" >&2
+}
+
+stop_candidate() {
+    systemctl stop "${DEMO_CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+    systemctl reset-failed "${DEMO_CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+}
+
+dump_candidate_unit() {
+    echo "-- ${DEMO_CANDIDATE_UNIT} status --" >&2
+    systemctl --no-pager --full status "${DEMO_CANDIDATE_UNIT}" 2>&1 | head -20 >&2 || true
+    echo "-- ${DEMO_CANDIDATE_UNIT} logs --" >&2
+    journalctl -u "${DEMO_CANDIDATE_UNIT}" -n 60 --no-pager >&2 2>&1 || true
+}
+
+# Every failure after the candidate is up funnels through here. It stops the candidate and
+# exits non-zero. It deliberately contains no prune, no worktree removal, and no command
+# that touches the live service — the release under test is simply discarded.
+fail_candidate() {
+    local reason="$1"
+    printf 'FAIL: %s\n' "${reason}" >&2
+    stop_candidate
+    dump_candidate_unit
+    printf '\nThe candidate was stopped and discarded. Nothing was cut over:\n' >&2
+    report_live_state >&2
+    printf '   the release worktree is left in place for inspection; no worktree was pruned\n' >&2
     exit 1
-fi
+}
 
-# --- 3. Install/refresh systemd unit (keeps ExecStart in sync with repo) ---
-SYSTEMD_SRC="${CANONICAL_ROOT}/infra/systemd/juli-demo.service"
-if [ -f "${SYSTEMD_SRC}" ]; then
-    echo "-- install juli-demo.service --"
-    install -m 0644 "${SYSTEMD_SRC}" /etc/systemd/system/juli-demo.service
-    systemctl daemon-reload
-fi
+wait_for_candidate() {
+    local url="$1" deadline=$((SECONDS + CANDIDATE_TIMEOUT_SECS)) code="000"
+    while [ "${SECONDS}" -lt "${deadline}" ]; do
+        code="$(http_code "${url}")"
+        if [ "${code#2}" != "${code}" ] && [ "${#code}" -eq 3 ]; then
+            echo "${code}"
+            return 0
+        fi
+        sleep 3
+    done
+    echo "${code}"
+    return 1
+}
 
-# --- 4. Cut over: atomically flip the demo-current symlink ---
-echo "-- cutover --"
-ln -sfn "${release_dir}" "${RELEASES_ROOT}/demo-current.tmp"
-mv -Tf "${RELEASES_ROOT}/demo-current.tmp" "${DEMO_CURRENT}"
-
-# --- 5. Restart Demo service only ---
-systemctl restart juli-demo
-
-# --- 6. Local health check before success ---
-echo "-- health check (timeout ${HEALTH_TIMEOUT_SECS}s) --"
-deadline=$((SECONDS + HEALTH_TIMEOUT_SECS))
-demo_ok=false
-demo_code="000"
-while [ "${SECONDS}" -lt "${deadline}" ]; do
-    demo_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DEMO_PORT}/decisions" || true)"
-    [[ "${demo_code}" =~ ^2 ]] && demo_ok=true
-    if [ "${demo_ok}" = true ]; then
-        break
+# Run the #833 harness against the candidate. Its assertions are not reimplemented here:
+# it discovers every referenced stylesheet and script and rejects a 2xx that carries an
+# empty or HTML body, which is the failure a status probe cannot see.
+verify_candidate() {
+    local base_url="$1"
+    local args=(--base-url "${base_url}") routes=() checks=() route spec
+    read -r -a routes <<<"${DEMO_CANDIDATE_ROUTES}"
+    for route in ${routes[@]+"${routes[@]}"}; do
+        args+=(--route "${route}")
+    done
+    if [ -n "${DEMO_CANDIDATE_API_BASE_URL}" ]; then
+        args+=(--api-base-url "${DEMO_CANDIDATE_API_BASE_URL}")
     fi
-    sleep 3
-done
+    read -r -a checks <<<"${DEMO_CANDIDATE_API_CHECKS}"
+    for spec in ${checks[@]+"${checks[@]}"}; do
+        args+=(--api-check "${spec}")
+    done
+    [ -x "${VERIFY_HARNESS}" ] || die "verification harness missing: ${VERIFY_HARNESS}"
+    "${VERIFY_HARNESS}" "${args[@]}"
+}
 
-if [ "${demo_ok}" != true ]; then
-    echo "FAIL: Demo health check did not pass within ${HEALTH_TIMEOUT_SECS}s (last_code=${demo_code})." >&2
-    echo "The new Demo release is live at ${DEMO_CURRENT} — run rollback-demo-release.sh if this is a regression." >&2
-    echo "-- juli-demo status --" >&2
-    systemctl --no-pager --full status juli-demo || true
-    echo "-- juli-demo recent logs --" >&2
-    journalctl -u juli-demo -n 80 --no-pager || true
-    exit 1
+# ---------------------------------------------------------------------------------------
+# The migration gate (#834) — runs before any candidate starts
+# ---------------------------------------------------------------------------------------
+
+# Thin passthrough so callers and tests exercise the real gate. Exit 0 accepted, 3 refused.
+run_migration_gate() {
+    [ -f "${MIGRATION_GATE}" ] || die "migration gate missing: ${MIGRATION_GATE}"
+    python3 "${MIGRATION_GATE}" "$@"
+}
+
+# The commit the live Demo release was cut from. That is the "previous code" the gate asks
+# about compatibility with, so it is the correct baseline for pending-migration discovery.
+live_release_commit() {
+    local live
+    live="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || true)"
+    [ -n "${live}" ] || return 1
+    [ -d "${live}" ] || return 1
+    git -C "${live}" rev-parse HEAD 2>/dev/null || return 1
+}
+
+# Emit the gate's argv, one token per line. Pending == the migration files this release
+# adds or changes relative to the live release. That is a pure git question: no database
+# connection and no alembic import is needed at the front of a release.
+#
+# A diff that *errors* is not the same as a diff that finds nothing. A shallow clone, or a
+# baseline commit this checkout does not have, would otherwise be silently reported as "no
+# pending schema change" and the gate would accept without inspecting anything. That is a
+# vacuous pass, so it is a hard failure instead.
+migration_gate_args() {
+    local release_dir="$1" base_sha="$2" target_sha="$3"
+    local changed="" rel
+    if [ -n "${base_sha}" ]; then
+        if ! changed="$(git -C "${CANONICAL_ROOT}" diff --name-only --diff-filter=AMR \
+            "${base_sha}" "${target_sha}" -- "${MIGRATIONS_VERSIONS_REL}" 2>/dev/null)"; then
+            echo "FAIL: cannot diff ${base_sha} against ${target_sha} for pending migrations." >&2
+            echo "      Refusing to read that as 'no pending schema change' — the additive-only" >&2
+            echo "      gate would then accept without inspecting anything. Deepen the checkout" >&2
+            echo "      (git fetch --unshallow) or set DEMO_MIGRATION_GATE_BASE_SHA to a commit" >&2
+            echo "      this clone actually has." >&2
+            return 1
+        fi
+    fi
+    if [ -z "${changed}" ]; then
+        # Still invoke the gate for real, with an empty pending set, so a release with no
+        # schema change produces a genuine ACCEPTED verdict rather than a skipped step.
+        printf '%s\n' "--migrations-dir" "${release_dir}/${MIGRATIONS_VERSIONS_REL}" "--revisions" ""
+        return 0
+    fi
+    while IFS= read -r rel; do
+        [ -n "${rel}" ] || continue
+        printf '%s\n%s\n' "--migration-file" "${release_dir}/${rel}"
+    done <<<"${changed}"
+}
+
+# ---------------------------------------------------------------------------------------
+# The CI artifact (#837, ADR-058)
+# ---------------------------------------------------------------------------------------
+
+# Print the path of the tarball for ${sha} on stdout; everything chatty goes to stderr so
+# the caller can capture the path. Fails loudly rather than falling back to a server-side
+# build — compilation left the server on purpose.
+fetch_release_artifact() {
+    local sha="$1" short7="$2" dest_dir="$3"
+    local name="juli-demo-${short7}" run_id="" tarball=""
+
+    if [ -n "${DEMO_ARTIFACT_TARBALL:-}" ]; then
+        echo "Using the operator-supplied artifact ${DEMO_ARTIFACT_TARBALL}" >&2
+        printf '%s\n' "${DEMO_ARTIFACT_TARBALL}"
+        return 0
+    fi
+
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "FAIL: gh is not installed, so the CI artifact ${name} cannot be downloaded." >&2
+        echo "      Download it on a machine that has gh and re-run with" >&2
+        echo "      DEMO_ARTIFACT_TARBALL=/path/to/${name}.tar.gz" >&2
+        return 1
+    fi
+
+    mkdir -p "${dest_dir}"
+    echo "Locating the release.yml run for ${sha}" >&2
+    run_id="$(gh run list --commit "${sha}" --workflow release.yml --limit 20 \
+        --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
+    if [ -z "${run_id}" ]; then
+        run_id="$(gh run list --commit "${sha}" --limit 50 \
+            --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
+    fi
+    if [ -z "${run_id}" ]; then
+        echo "FAIL: no workflow run found for ${sha}; CI has not published ${name}." >&2
+        echo "      Push the commit and let release.yml finish, or supply the tarball via" >&2
+        echo "      DEMO_ARTIFACT_TARBALL=/path/to/${name}.tar.gz" >&2
+        return 1
+    fi
+    echo "Downloading artifact ${name} from run ${run_id}" >&2
+    if ! gh run download "${run_id}" --name "${name}" --dir "${dest_dir}" >&2; then
+        echo "FAIL: artifact ${name} is not attached to run ${run_id}." >&2
+        echo "      The app-release-artifact job did not publish a Demo artifact for this" >&2
+        echo "      commit. Deploy a commit whose release.yml run is green, or supply the" >&2
+        echo "      tarball via DEMO_ARTIFACT_TARBALL." >&2
+        return 1
+    fi
+    tarball="$(find "${dest_dir}" -maxdepth 2 -name '*.tar.gz' -type f 2>/dev/null | head -n 1)"
+    if [ -z "${tarball}" ]; then
+        echo "FAIL: downloaded ${name} but found no tarball under ${dest_dir}." >&2
+        return 1
+    fi
+    printf '%s\n' "${tarball}"
+}
+
+# Overlay the artifact onto the release worktree's apps/demo. The tarball is extracted
+# rather than copied from a directory so the pnpm symlink farm survives (ADR-058); nothing
+# below dereferences it. Refuses before writing anything if the artifact records a
+# different commit, so a release directory is never half-populated by the wrong build.
+place_release_artifact() {
+    local tarball="$1" release_dir="$2" expected_sha="$3"
+    local stage_root stage recorded dest entry name
+
+    if [ ! -f "${tarball}" ]; then
+        echo "FAIL: release artifact tarball not found: ${tarball}" >&2
+        echo "      Nothing is compiled on the server (#837): the artifact must come from CI." >&2
+        return 1
+    fi
+    stage_root="$(mktemp -d)" || return 1
+    if ! tar -xzf "${tarball}" -C "${stage_root}"; then
+        echo "FAIL: could not extract ${tarball}" >&2
+        rm -rf "${stage_root}"
+        return 1
+    fi
+    stage="$(find "${stage_root}" -maxdepth 1 -mindepth 1 -type d | head -n 1)"
+    if [ -z "${stage}" ] || [ ! -d "${stage}" ]; then
+        echo "FAIL: ${tarball} contained no artifact directory" >&2
+        rm -rf "${stage_root}"
+        return 1
+    fi
+    if [ ! -f "${stage}/release-artifact.json" ]; then
+        echo "FAIL: ${tarball} carries no release-artifact.json — it is not an ADR-058 artifact" >&2
+        rm -rf "${stage_root}"
+        return 1
+    fi
+    recorded="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["commit"])' \
+        "${stage}/release-artifact.json" 2>/dev/null || true)"
+    if [ "${recorded}" != "${expected_sha}" ]; then
+        echo "FAIL: artifact records commit ${recorded}, not the commit being deployed ${expected_sha}" >&2
+        echo "      Refusing to place it; the release directory is left untouched." >&2
+        rm -rf "${stage_root}"
+        return 1
+    fi
+
+    dest="${release_dir}/apps/demo"
+    mkdir -p "${dest}"
+    for entry in "${stage}"/* "${stage}"/.[!.]*; do
+        [ -e "${entry}" ] || continue
+        name="$(basename "${entry}")"
+        rm -rf "${dest:?}/${name}"
+        cp -a "${entry}" "${dest}/${name}"
+    done
+    rm -rf "${stage_root}"
+    echo "Placed ${tarball} (commit ${recorded}) into ${dest}"
+}
+
+# ---------------------------------------------------------------------------------------
+# Deploy
+# ---------------------------------------------------------------------------------------
+
+main() {
+    local sha short_sha short7 release_dir base_sha artifact_dir tarball
+    local gate_args=() token candidate_url code live_before gate_argv_file
+
+    sha="${1:-}"
+    if [ -z "${sha}" ]; then
+        sha="$(git -C "${CANONICAL_ROOT}" rev-parse origin/main)"
+    fi
+    # The full 40-char commit: CI names the artifact from exactly the first 7 characters,
+    # which `git rev-parse --short` does not promise.
+    sha="$(git -C "${CANONICAL_ROOT}" rev-parse "${sha}")"
+    short_sha="$(git -C "${CANONICAL_ROOT}" rev-parse --short "${sha}")"
+    short7="${sha:0:7}"
+    release_dir="${RELEASES_ROOT}/${short_sha}"
+    candidate_url="http://127.0.0.1:${DEMO_CANDIDATE_PORT}"
+
+    log "Juli Demo deploy — candidate verify-and-discard (#838): ${sha} (${short_sha})"
+    live_before="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || echo NONE)"
+    note "live now      : ${live_before}"
+    note "candidate     : ${candidate_url} (loopback only; not reachable off this server)"
+    mkdir -p "${RELEASES_ROOT}"
+
+    # --- 1. Cut (or reuse) the release worktree. Additive only; never prunes. ---
+    log "release worktree"
+    if [ -d "${release_dir}" ]; then
+        note "reusing ${release_dir} — re-checking out ${short_sha}"
+        git -C "${release_dir}" fetch --depth 1 origin "${sha}"
+        git -C "${release_dir}" checkout --force "${sha}"
+    else
+        note "creating ${release_dir}"
+        git -C "${CANONICAL_ROOT}" fetch origin main
+        git -C "${CANONICAL_ROOT}" worktree add --force "${release_dir}" "${sha}"
+    fi
+
+    # --- 2. Migration gate (#834) — BEFORE any candidate exists. ---
+    log "migration gate (#834)"
+    base_sha="${DEMO_MIGRATION_GATE_BASE_SHA:-}"
+    if [ -z "${base_sha}" ]; then
+        base_sha="$(live_release_commit || true)"
+    fi
+    if [ -n "${base_sha}" ]; then
+        note "pending schema change measured against the live release ${base_sha:0:7}"
+    else
+        note "no previous live release resolvable — there is no earlier code to stay compatible with"
+    fi
+    # Written to a file rather than consumed through a process substitution so the
+    # argv-building failure above is observable, and so the empty final line that carries
+    # the empty --revisions value is not stripped the way command substitution would.
+    gate_argv_file="$(mktemp)"
+    if ! migration_gate_args "${release_dir}" "${base_sha}" "${sha}" >"${gate_argv_file}"; then
+        rm -f "${gate_argv_file}"
+        echo "FAIL: could not determine this release's pending migration set." >&2
+        echo "      No candidate was started and nothing was cut over." >&2
+        report_live_state >&2
+        exit 1
+    fi
+    while IFS= read -r token; do
+        gate_args+=("${token}")
+    done <"${gate_argv_file}"
+    rm -f "${gate_argv_file}"
+    if ! run_migration_gate "${gate_args[@]}"; then
+        echo "FAIL: the additive-only migration gate refused this release." >&2
+        echo "      No candidate was started and nothing was cut over." >&2
+        report_live_state >&2
+        exit 1
+    fi
+
+    # --- 3. Fetch and place the CI artifact (closes the #837 deploy freeze). ---
+    log "release artifact (#837, ADR-058)"
+    [ -n "${short7}" ] || die "could not resolve a short commit for ${sha}"
+    artifact_dir="${ARTIFACT_CACHE_ROOT}/${short7}"
+    rm -rf "${artifact_dir:?}"
+    if ! tarball="$(fetch_release_artifact "${sha}" "${short7}" "${artifact_dir}")"; then
+        die "could not obtain the Demo release artifact for ${sha} — nothing was cut over."
+    fi
+    if ! place_release_artifact "${tarball}" "${release_dir}" "${sha}"; then
+        die "could not place the Demo release artifact for ${sha} — nothing was cut over."
+    fi
+
+    # --- 4. The artifact must be complete before it is worth starting. ---
+    log "artifact completeness (verify only; nothing is compiled here)"
+    REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
+
+    # --- 5. Start the CANDIDATE on a loopback port. The live instance is untouched. ---
+    log "candidate on ${candidate_url}"
+    if ! start_candidate "${release_dir}" "${DEMO_CANDIDATE_PORT}"; then
+        fail_candidate "the candidate process would not start at all"
+    fi
+    if ! code="$(wait_for_candidate "${candidate_url}/decisions")"; then
+        fail_candidate "the candidate never became ready within ${CANDIDATE_TIMEOUT_SECS}s (last HTTP ${code})"
+    fi
+    note "candidate answered HTTP ${code} on ${candidate_url}/decisions"
+
+    # --- 6. Verify the candidate (#833) BEFORE any traffic moves. ---
+    log "verification harness (#833) against the candidate"
+    if ! verify_candidate "${candidate_url}"; then
+        fail_candidate "the candidate failed release verification — it will not be cut over"
+    fi
+
+    # --- 7. Verified. Only now is anything about the live instance allowed to change. ---
+    log "verified — cutting over"
+    stop_candidate
+    note "candidate stopped; its port is free"
+
+    SYSTEMD_SRC="${CANONICAL_ROOT}/infra/systemd/juli-demo.service"
+    if [ -f "${SYSTEMD_SRC}" ]; then
+        install -m 0644 "${SYSTEMD_SRC}" /etc/systemd/system/juli-demo.service
+        systemctl daemon-reload
+    fi
+
+    ln -sfn "${release_dir}" "${RELEASES_ROOT}/demo-current.tmp"
+    mv -Tf "${RELEASES_ROOT}/demo-current.tmp" "${DEMO_CURRENT}"
+    systemctl restart juli-demo
+
+    log "post-cutover health check (timeout ${HEALTH_TIMEOUT_SECS}s)"
+    local deadline=$((SECONDS + HEALTH_TIMEOUT_SECS)) demo_ok=false demo_code="000"
+    while [ "${SECONDS}" -lt "${deadline}" ]; do
+        demo_code="$(http_code "http://127.0.0.1:${DEMO_PORT}/decisions")"
+        if [ "${#demo_code}" -eq 3 ] && [ "${demo_code#2}" != "${demo_code}" ]; then
+            demo_ok=true
+            break
+        fi
+        sleep 3
+    done
+    if [ "${demo_ok}" != true ]; then
+        # The candidate passed and this still failed, so the fault is in cutover, not in
+        # the release. Automatic post-cutover rollback is #840; say so rather than guess.
+        echo "FAIL: juli-demo did not come back healthy after cutover (last_code=${demo_code})." >&2
+        echo "      The release itself passed candidate verification, so this is a cutover" >&2
+        echo "      fault. Run rollback-demo-release.sh to return to ${live_before}." >&2
+        systemctl --no-pager --full status juli-demo >&2 || true
+        journalctl -u juli-demo -n 80 --no-pager >&2 || true
+        exit 1
+    fi
+    echo "PASS: juli-demo is healthy on the verified release (/decisions returned 2xx)."
+
+    # --- 8. Record, then prune. Pruning happens only after a successful cutover. ---
+    printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"
+    log "pruning old release worktrees (keeping last ${KEEP_DEMO_RELEASES} per lane)"
+    prune_release_worktrees "${CANONICAL_ROOT}" "${RELEASES_ROOT}" "${KEEP_DEMO_RELEASES}" "${release_dir}"
+
+    log "Demo deploy complete: ${sha} live via ${DEMO_CURRENT} -> ${release_dir}"
+}
+
+# Library mode: define the functions and deploy nothing. Used by
+# tests/unit/test_demo_candidate_verification.py to exercise them for real.
+if [ "${DEMO_DEPLOY_SOURCE_ONLY:-0}" != "1" ]; then
+    main "$@"
 fi
-echo "PASS: juli-demo is healthy on the new release (/decisions returned 2xx)."
-
-# --- 7. Record + prune history ---
-printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"
-
-# Shared with deploy-release.sh so neither lane can delete a worktree the other
-# is live on — see infra/scripts/lib/prune-releases.sh.
-echo "-- pruning old release worktrees (keeping last ${KEEP_DEMO_RELEASES} per lane) --"
-prune_release_worktrees "${CANONICAL_ROOT}" "${RELEASES_ROOT}" "${KEEP_DEMO_RELEASES}" "${release_dir}"
-
-echo "== Demo deploy complete: ${sha} live via ${DEMO_CURRENT} -> ${release_dir} =="
