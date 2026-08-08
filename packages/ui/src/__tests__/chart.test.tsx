@@ -389,5 +389,43 @@ describe("Chart primitives", () => {
       const circles = visual?.querySelectorAll("circle");
       expect((circles?.length ?? 0) > 0).toBe(true);
     });
+
+    it("endpoint label renders within chart bounds (no horizontal overflow)", () => {
+      const testData = [
+        { label: "T1", value: 100 },
+        { label: "T2", value: 120 },
+        { label: "T3", value: 150 },
+      ];
+
+      const { container } = render(
+        <TrendLineChart
+          currentData={testData}
+          label="Test KPI"
+          trend="positive"
+          value="150"
+        />,
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-line-chart-visual"]',
+      );
+      const svg = visual?.querySelector("svg");
+      const endpointLabel = visual?.querySelector(
+        "text[data-chart-endpoint-label]",
+      );
+
+      // Get SVG viewBox or width to determine chart bounds
+      const svgRect = svg?.getBoundingClientRect();
+      const labelRect = endpointLabel?.getBoundingClientRect();
+
+      if (svgRect && labelRect) {
+        // Label should end before the right edge of the SVG
+        const labelRightEdge = labelRect.right;
+        const svgRightEdge = svgRect.right;
+
+        // Allow small overflow tolerance (1px for rounding)
+        expect(labelRightEdge).toBeLessThanOrEqual(svgRightEdge + 1);
+      }
+    });
   });
 });

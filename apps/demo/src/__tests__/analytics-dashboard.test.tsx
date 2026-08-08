@@ -85,9 +85,13 @@ describe("Analytics dashboard", () => {
       </DemoShell>,
     );
 
-    expect(await screen.findByText("485.000.000 ₫")).toHaveClass(
-      "analytics-hero__value",
+    // Query for the hero value element specifically (disambiguate from chart endpoint label with class filter)
+    const heroValue = await screen.findAllByText("485.000.000 ₫");
+    const heroValueElement = heroValue.find(
+      (el) => el.className.includes("analytics-hero__value"),
     );
+    expect(heroValueElement).toBeDefined();
+
     expect(screen.getByText("▲ 15%")).toBeInTheDocument();
     expect(screen.getByText("Dữ liệu thực")).toBeInTheDocument();
     expect(screen.queryByText("Doanh thu thuần")).not.toBeInTheDocument();

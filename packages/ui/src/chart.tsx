@@ -148,12 +148,12 @@ export function TrendAreaChart({
   const fill = `color-mix(in srgb, ${stroke} 12%, transparent)`;
 
   // Custom dot component that only renders for the last point
-  const CustomEndpointDot = (props: DotProps): ReactElement | null => {
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
     const { cx, cy, index } = props;
 
     // Only render for last point
     if (index !== data.length - 1) {
-      return null;
+      return <g />;
     }
 
     const markerRadius = 5; // 10px diameter
@@ -212,7 +212,7 @@ export function TrendAreaChart({
         <AreaChart
           data={[...data]}
           height={height}
-          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
           width={width}
         >
           <CartesianGrid
@@ -271,12 +271,12 @@ export function TrendLineChart({
   }));
 
   // Custom dot component that only renders for the last point
-  const CustomEndpointDot = (props: DotProps): ReactElement | null => {
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
     const { cx, cy, index } = props;
 
     // Only render for last point
     if (index !== mergedData.length - 1) {
-      return null;
+      return <g />;
     }
 
     const markerRadius = 5; // 10px diameter
@@ -335,7 +335,7 @@ export function TrendLineChart({
         <LineChart
           data={mergedData}
           height={height}
-          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
           width={width}
         >
           <CartesianGrid
