@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "implementation",
+  "issueId": 715,
+  "executorDomain": "data-platform",
+  "phaseRunId": "2026-08-08T083900Z-issue-715-data-platform",
+  "startedAt": "2026-08-08T08:05:00Z",
+  "completedAt": "2026-08-08T08:39:00Z",
+  "executionDurationMs": 2040000,
+  "toolsUsed": [
+    {
+      "toolName": "Read",
+      "count": 22,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Bash",
+      "count": 46,
+      "stage": "implementation"
+    },
+    {
+      "toolName": "Edit",
+      "count": 12,
+      "stage": "green"
+    },
+    {
+      "toolName": "Write",
+      "count": 4,
+      "stage": "red"
+    }
+  ],
+  "toolInvocationCount": 84,
+  "contextFilesLoaded": [
+    "backend/src/juli_backend/services/action_cards/persist.py",
+    "backend/src/juli_backend/services/action_cards/MODULE.md",
+    "backend/src/juli_backend/services/action_cards/refresh.py",
+    "backend/src/juli_backend/services/action_cards/legacy_recommendations.py",
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/repositories/repos.py",
+    "backend/src/juli_backend/services/cdp_speed/MODULE.md",
+    "backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py",
+    "backend/src/juli_backend/services/cdp_speed/decision_rules_scoring.py",
+    "backend/src/juli_backend/services/scoring/types.py",
+    "backend/src/juli_backend/services/aggregates/types.py",
+    "backend/src/juli_backend/services/gold_kpi_envelope_contract.py",
+    "backend/src/juli_backend/database/migrations/versions/025_silver_orders_returns.py",
+    "backend/src/juli_backend/database/migrations/versions/014_action_cards.py",
+    "backend/src/juli_backend/database/migrations/versions/023_bronze_orders_returns.py",
+    "tests/unit/test_action_cards_contract.py",
+    "tests/unit/test_mmu11_decision_persistence_ownership.py",
+    "tests/unit/test_bronze_orders_returns_migration.py",
+    "tests/unit/test_migration_additive_gate.py",
+    "tests/unit/test_safe_alembic_helpers.py",
+    "tests/unit/conftest.py",
+    "docs/handoffs/phase-3.5-prd-bodies/b-decisions.md",
+    "docs/adr/038-phase-2.10-dual-layer-pipeline.md",
+    "agent-runtime/artifacts/workflow-cache/scope-alignment-issue-715.md",
+    "agent-runtime/config/issue-prepare/715.yml",
+    ".importlinter.toml",
+    "pytest.ini",
+    "alembic.ini"
+  ],
+  "skillsLoaded": [],
+  "rulesLoaded": [],
+  "mcpsUsed": [],
+  "filesModified": [
+    "backend/src/juli_backend/models/models.py",
+    "backend/src/juli_backend/services/action_cards/persist.py",
+    "backend/src/juli_backend/services/action_cards/MODULE.md",
+    "backend/src/juli_backend/database/migrations/versions/026_action_cards_computed_at.py",
+    "tests/unit/test_action_card_freshness_persistence.py",
+    "tests/unit/test_action_cards_computed_at_migration.py"
+  ],
+  "testsAdded": [
+    "tests/unit/test_action_card_freshness_persistence.py::test_repeated_webhook_bursts_do_not_duplicate_rows",
+    "tests/unit/test_action_card_freshness_persistence.py::test_inflight_status_not_overwritten_by_rescoring[approved]",
+    "tests/unit/test_action_card_freshness_persistence.py::test_inflight_status_not_overwritten_by_rescoring[executing]",
+    "tests/unit/test_action_card_freshness_persistence.py::test_inflight_status_not_overwritten_by_rescoring[dismissed]",
+    "tests/unit/test_action_card_freshness_persistence.py::test_computed_at_persisted_and_queryable",
+    "tests/unit/test_action_card_freshness_persistence.py::test_scoring_failure_leaves_last_good_cards_untouched",
+    "tests/unit/test_action_card_freshness_persistence.py::test_in_flight_statuses_exported_and_cover_approved_dismissed_executing",
+    "tests/unit/test_action_cards_computed_at_migration.py::test_migration_file_exists",
+    "tests/unit/test_action_cards_computed_at_migration.py::test_migration_revision_chain_extends_current_head",
+    "tests/unit/test_action_cards_computed_at_migration.py::test_migration_adds_nullable_computed_at_column_only",
+    "tests/unit/test_action_cards_computed_at_migration.py::test_migration_documents_adr_038_freshness_alignment",
+    "tests/unit/test_action_cards_computed_at_migration.py::test_migration_satisfies_additive_gate",
+    "tests/unit/test_action_cards_computed_at_migration.py::test_action_cards_still_has_exactly_one_alembic_head"
+  ],
+  "testsUpdated": [],
+  "redGreenRefactorEvidence": [
+    {
+      "cycle": 1,
+      "failingTestEvidence": "ImportError: cannot import name 'IN_FLIGHT_STATUSES' from 'juli_backend.services.action_cards.persist' (tests/unit/test_action_card_freshness_persistence.py collection failure) before persist.py/models.py changes",
+      "passingTestEvidence": "7 passed in 10.14s for tests/unit/test_action_card_freshness_persistence.py after adding ActionCard.computed_at column and status-preserving upsert logic in persist.py",
+      "refactorEvidence": "Negative test (AC4) redesigned from an insert-path (NOT NULL constraint via begin_nested SAVEPOINT) to an update-path failure after discovering aiosqlite/pysqlite does not reliably roll back a released SAVEPOINT on session.rollback() in this test environment; verified with standalone repro scripts that plain UPDATE+flush+rollback behaves correctly under SQLite while INSERT-via-begin_nested+rollback does not \u2014 an aiosqlite driver limitation orthogonal to persist.py's correctness, not a defect being tested around.",
+      "commands": [
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_action_card_freshness_persistence.py -q",
+          "exitCode": 1,
+          "outputSummary": "ImportError collecting module: IN_FLIGHT_STATUSES not yet defined in persist.py"
+        },
+        {
+          "command": "PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_action_card_freshness_persistence.py -q",
+          "exitCode": 0,
+          "outputSummary": "7 passed in 10.14s"
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "failingTestEvidence": "FileNotFoundError / AssertionError (expected head '026_action_cards_computed_at' got '025_silver_orders_returns') across all 6 tests in tests/unit/test_action_cards_computed_at_migration.py when the migration file was temporarily moved aside",
+      "passingTestEvidence": "6 passed in 0.75s for tests/unit/test_action_cards_computed_at_migration.py with migration 026_action_cards_computed_at.py restored",
+      "commands": [
+        {
+          "command": "mv backend/.../versions/026_action_cards_computed_at.py /tmp/026_hold.py && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_action_cards_computed_at_migration.py -q",
+          "exitCode": 1,
+          "outputSummary": "6 failed: FileNotFoundError and alembic head assertion mismatch"
+        },
+        {
+          "command": "mv /tmp/026_hold.py backend/.../versions/026_action_cards_computed_at.py && PYTHONPATH=$PWD/backend/src python -m pytest tests/unit/test_action_cards_computed_at_migration.py -q",
+          "exitCode": 0,
+          "outputSummary": "6 passed in 0.75s"
+        }
+      ]
+    }
+  ],
+  "implementationSummary": "Made ranked Action Card candidates from continuous scoring (#714, B-2) durable and freshness-stamped (#715, B-3). Added a nullable ActionCard.computed_at column (models.py + additive Alembic migration 026_action_cards_computed_at, single head, down_revision=025_silver_orders_returns) carrying ScoringSignals.computed_at on a real queryable column, aligned with GoldKpiEnvelope/AnalyticsKpiEnvelope freshness semantics (ADR-038). Extended persist.py's persist_scoring_result (the existing manual-refresh persistence entry point, reused rather than forked) with a pre-upsert lookup: a card whose status is already in IN_FLIGHT_STATUSES (approved/dismissed/executing) is left completely untouched by a new candidate from re-scoring, while an 'active' or not-yet-persisted card is upserted as before via the existing (shop_id, workflow_key) unique constraint. No commit is issued inside persist_scoring_result (unchanged), so a caller's transaction rollback on failure (e.g. the Shared Compute Orchestrator's isolated scoring failure domain from #713) leaves previously-committed cards untouched with no partial write from the failed run. Did not touch shared_compute_orchestrator.py, decision_rules_scoring.py, or the material_worker/mock_analytics_reconcile call sites \u2014 those are outside the authorized path list for this domain routing; wiring persist_scoring_result onto the continuous compute scoring stage's output is called out in MODULE.md as not owned by this module and remains open (see risks).",
+  "assumptions": [
+    "'Promotion timestamp' from the issue text is satisfied by the pre-existing updated_at column (bumped on every non-suppressed upsert) plus the new computed_at column, rather than adding a dedicated surfaced_at/promoted_at column \u2014 a distinct surfacing-state column is explicitly B-4's (#716) emission-budget scope per the b-decisions.md handoff ('Pick one model in implementation... status values candidate/surfaced/suppressed or equivalent columns'), which this slice must not build.",
+    "IN_FLIGHT_STATUSES was scoped to {approved, dismissed, executing} per the issue's 'What to build' text; the AC2 bullet names only approved/executing, so dismissed-preservation is covered by a parametrized test but has no separate named AC citation.",
+    "computed_at uses DateTime(timezone=True) (matching GoldKpiEnvelope/AnalyticsKpiEnvelope) even though action_cards' other timestamp columns (approved_at, executed_at, created_at, updated_at) are naive DateTime \u2014 deliberate, since the ADR-038 alignment requirement is specifically with the envelope freshness columns, not the rest of this table.",
+    "The negative-path (AC4) test exercises real persist.py + ActionCardsRepo.upsert code via an update-path failure (not a mocked exception) because a genuine insert-path (NOT NULL constraint via a nested SAVEPOINT) failure was found not to roll back cleanly under this repo's SQLite/aiosqlite unit-test engine (no isolation_level=None + explicit BEGIN event listener is configured for it) \u2014 verified as a driver-level limitation via standalone repro scripts, not a persist.py defect."
+  ],
+  "risks": [
+    "Wiring the continuous compute scoring stage (cdp_speed.decision_rules_scoring_stage / shared_compute_orchestrator.py's scoring_stage callable) to call persist_scoring_result is NOT done in this slice \u2014 that file and its call sites (services/webhook/material_worker.py, workers/tasks/mock_analytics_reconcile.py) are outside this domain's authorized paths (models.py + persist.py + database/migrations only). Until that wiring lands, persist_scoring_result is durable/idempotent/status-preserving but is not yet actually invoked from the continuous trigger in production \u2014 only from the existing manual refresh path. Flagged to Meta for correct routing of the remaining wiring task.",
+    "The AC4 negative-path test intentionally avoids exercising ActionCardsRepo's begin_nested()-savepoint insert path under failure, because that path was found unreliable to roll back under SQLite/aiosqlite in this test environment (a driver/test-fixture limitation, not observed or expected under Postgres/asyncpg in production). Production correctness of the insert-path failure/rollback is not independently verified by this slice's tests against a real Postgres engine."
+  ]
+}

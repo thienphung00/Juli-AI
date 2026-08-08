@@ -590,6 +590,11 @@ class ActionCard(Base):
     executed_at: Mapped[datetime | None] = mapped_column()
     outcome: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[str | None] = mapped_column(Text)
+    # Scoring-run freshness timestamp (#715, B-3, ADR-038) — mirrors
+    # GoldKpiEnvelope.computed_at / AnalyticsKpiEnvelope.computed_at so Decision
+    # feed freshness reads on the same semantics as the Analytics envelope.
+    # Nullable/additive: existing rows predate this column and read unchanged.
+    computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
