@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent, ReactNode, ReactElement } from "react";
 import {
   Area,
   AreaChart,
@@ -34,6 +34,19 @@ const TREND_DIRECTION_LABEL: Record<ChartTrend, string> = {
   neutral: "xu hướng ổn định",
   warning: "xu hướng cảnh báo",
 };
+
+/**
+ * Props passed by Recharts to a custom dot shape component.
+ * Typing this prevents the need for `any` casts and maintains type safety.
+ */
+interface DotProps {
+  cx: number;
+  cy: number;
+  index: number;
+  payload?: unknown;
+  fill?: string;
+  stroke?: string;
+}
 
 
 export interface ChartTextEquivalentProps {
@@ -135,7 +148,7 @@ export function TrendAreaChart({
   const fill = `color-mix(in srgb, ${stroke} 12%, transparent)`;
 
   // Custom dot component that only renders for the last point
-  const CustomEndpointDot = ((props: any) => {
+  const CustomEndpointDot = (props: DotProps): ReactElement | null => {
     const { cx, cy, index } = props;
 
     // Only render for last point
@@ -181,7 +194,7 @@ export function TrendAreaChart({
         </text>
       </g>
     );
-  }) as any;
+  };
 
   return (
     <figure className="juli-chart-area">
@@ -214,16 +227,9 @@ export function TrendAreaChart({
             tick={AXIS_TICK}
             tickLine={false}
           />
-          <YAxis
-            axisLine={false}
-            tick={AXIS_TICK}
-            tickCount={3}
-            tickLine={false}
-            width={36}
-          />
           <Area
             dataKey="value"
-            dot={CustomEndpointDot}
+            dot={CustomEndpointDot as any}
             fill={fill}
             isAnimationActive={false}
             stroke={stroke}
@@ -265,7 +271,7 @@ export function TrendLineChart({
   }));
 
   // Custom dot component that only renders for the last point
-  const CustomEndpointDot = ((props: any) => {
+  const CustomEndpointDot = (props: DotProps): ReactElement | null => {
     const { cx, cy, index } = props;
 
     // Only render for last point
@@ -311,7 +317,7 @@ export function TrendLineChart({
         </text>
       </g>
     );
-  }) as any;
+  };
 
   return (
     <figure className="juli-chart-line">
@@ -344,13 +350,6 @@ export function TrendLineChart({
             tick={AXIS_TICK}
             tickLine={false}
           />
-          <YAxis
-            axisLine={false}
-            tick={AXIS_TICK}
-            tickCount={3}
-            tickLine={false}
-            width={36}
-          />
           {previousData ? (
             // Previous-period comparison is non-directional — ADR-054 chart-neutral.
             <Line
@@ -365,7 +364,7 @@ export function TrendLineChart({
           ) : null}
           <Line
             dataKey="current"
-            dot={CustomEndpointDot}
+            dot={CustomEndpointDot as any}
             isAnimationActive={false}
             stroke={currentStroke}
             strokeWidth={2}

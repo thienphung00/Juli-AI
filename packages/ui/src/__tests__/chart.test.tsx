@@ -254,7 +254,7 @@ describe("Chart primitives", () => {
       expect(labelFill).not.toContain("warning");
     });
 
-    it("limits y-axis ticks to a maximum of 3", () => {
+    it("drops the y-axis entirely now that endpoint label is present", () => {
       const testData = [
         { label: "T1", value: 100 },
         { label: "T2", value: 200 },
@@ -273,12 +273,9 @@ describe("Chart primitives", () => {
       const visual = document.querySelector(
         '[data-testid="trend-line-chart-visual"]',
       );
-      const yAxisTicks = visual?.querySelectorAll(
-        ".recharts-yaxis .recharts-cartesian-axis-tick",
-      );
-
-      // Should have 3 or fewer ticks
-      expect((yAxisTicks?.length ?? 0) <= 3).toBe(true);
+      // With endpoint label present, YAxis should not render
+      const yAxis = visual?.querySelector(".recharts-yaxis");
+      expect(yAxis).not.toBeInTheDocument();
     });
 
     it("displays first and last period labels on time axis", () => {
