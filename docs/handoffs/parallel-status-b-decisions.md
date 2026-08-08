@@ -42,10 +42,10 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 
 | Issue | Slice | Domain | Worktree / branch | Gate | Status |
 |-------|-------|--------|-------------------|------|--------|
-| [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | readyForExecutor: true | Executor DONE (`2403bdfe`) — Review running |
-| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | readyForExecutor: true | Executor running (pipelined off `feature/issue-713`) |
-| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | backend | pending | readyForExecutor: true | blocked on #714 |
-| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | backend | pending | readyForExecutor: true | blocked on #715 |
+| [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | ready | **DONE** `2403bdfe` — validate 21/21 PASS, readyForShip |
+| [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | `.worktrees/issue-714` / `feature/issue-714` | ready | Executor DONE `498705e4`+`3e467d01` — Review running |
+| [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | **data-platform** | `.worktrees/issue-715` / `feature/issue-715` | ready | Executor running (migration `026_*`) |
+| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | **data-platform** | pending | ready | blocked on #715 |
 | [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | pending | readyForExecutor: true | blocked on #715 |
 | [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | pending | readyForExecutor: true | blocked on #716 + #717 |
 
@@ -80,6 +80,24 @@ and a slice never waits on its predecessor's Review to start.
 | `cdp_speed` unregistered in `docs/architecture/map.md` | Makes the `module_boundaries` and `module_md_sync` validation gates **no-op pass** for that module — they report green without checking. The real contract in `.importlinter.toml` does cover it and passes. Pre-existing, not introduced by this wave. |
 | `ruff` config discovery | `ruff check backend tests` from the repo root does not discover `backend/pyproject.toml` for files under `tests/`, yielding ~124 spurious errors / ~104 reformat hits. `CLAUDE.md` documents the bare form. Needs `--config backend/pyproject.toml`. |
 | Reconcile scoring wiring | `workers/tasks/mock_analytics_reconcile.py:128` called `run_shared_compute_job` with no `scoring_stage` — folded into B-2 rather than deferred, since PRD US-30 requires reconcile to heal Decision staleness. |
+
+## Alembic serialization — why #716 ∥ #717 probably cannot run concurrently
+
+The repo keeps exactly **one** Alembic head (currently `025_silver_orders_returns`). B-3,
+B-4 and B-5 each need a migration. Two executors branching from the same base would both
+author `026_*` with `down_revision = 025_*`, producing **two heads** and a broken chain.
+
+So the only concurrency the logical DAG offers is cancelled by the revision chain unless
+revision ids are pre-assigned by Head Meta and the branches stay stacked:
+
+| Slice | Revision | down_revision |
+|---|---|---|
+| B-3 #715 | `026_*` | `025_silver_orders_returns` |
+| B-4 #716 | `027_*` | `026_*` |
+| B-5 #717 | `028_*` | `027_*` |
+
+Throughput in this wave therefore comes from **stacked-branch pipelining**, not fan-out.
+Record this honestly rather than claiming parallelism the chain cannot deliver.
 
 ## Ops lock
 
