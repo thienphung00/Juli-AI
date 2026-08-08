@@ -13,11 +13,17 @@ Additive/expand-only, same discipline as 026:
   (active/approved/dismissed/executing) rather than new ``status`` enum
   values — see ``services/action_cards/MODULE.md`` for the full rationale.
   No existing column is dropped, renamed, narrowed, or made NOT NULL.
-- A composite index on ``action_cards`` supports an efficient cooldown
-  lookup by (shop_id, workflow_key) plus the three terminal timestamps
-  (``dismissed_at`` / ``approved_at`` / ``executed_at``), and a second index
-  makes the surfaced/suppressed state queryable separately from "all scored
-  rows" without a table scan.
+- A composite index on ``action_cards`` (shop_id, workflow_key) plus the
+  three terminal timestamps (``dismissed_at`` / ``approved_at`` /
+  ``executed_at``) is provisioned ahead of need for a cooldown lookup query a
+  future slice may issue directly against Postgres. It is **not** exercised
+  today: ``apply_emission_budget``'s only query is
+  ``WHERE shop_id=:s AND status='active'`` (served by the pre-existing
+  ``ix_action_cards_shop_status``), and the cooldown itself is computed in
+  Python over those already-loaded rows. A second index makes the
+  surfaced/suppressed state queryable separately from "all scored rows"
+  without a table scan — this one *is* live (``GET`` paths / diagnostics can
+  filter on ``surfaced_at`` directly).
 - A brand-new table, ``decision_emission_novelty_ledger``, durably tracks
   (Postgres, not Redis) which workflow_keys have already consumed a "new
   this week" novelty slot per shop per ISO week — the server-side novelty

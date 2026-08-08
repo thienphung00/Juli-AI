@@ -188,8 +188,14 @@ ledger surfaces "for free" (no further novelty cost); the cap only gates
 - Redis read-through cache (emission-budget state included — Postgres is SoT
   per ADR-038; `test_no_redis_dependency_in_emission_budget_module` guards this)
 - Seller-facing "Decision" UI (`web/`)
-- Wiring `apply_emission_budget` onto a scheduled/webhook trigger — no
-  production caller is added in this slice (mirrors how B-3 shipped
-  `persist_scoring_result` before B-2/orchestrator wiring landed)
+- Wiring `apply_emission_budget` onto a scheduled/webhook trigger was
+  originally out of scope for this slice (mirroring how B-3 shipped
+  `persist_scoring_result` before B-2/orchestrator wiring landed), but a
+  Meta routing correction under the #716 (B-4) issue added a real production
+  caller: `cdp_speed.decision_rules_scoring_stage` (commit `fc75b3ac`) now
+  invokes `apply_emission_budget` immediately after `persist_scoring_result`
+  on every continuous-trigger compute run — see
+  `services/cdp_speed/decision_rules_scoring.py` and
+  `tests/unit/test_cdp_speed_decision_rules_scoring_emission.py`.
 - Public Decision read API — #718, B-6
 - Demo dry-run execution — #717, B-5

@@ -10,6 +10,9 @@ AC4 → candidates are still recomputed/persisted when the budget suppresses
       surfacing (dual cadence — surfacing != recomputation). This is also the
       resolution proof for Collision 1 (US-11 vs the in-flight skip).
 AC5 → suppression reason is recorded and queryable.
+AC6 → emission-drop reason codes are logged (structured, per-suppression, for
+      on-call Decision-lag diagnosability) — without leaking PII, tokens, or
+      raw financial values into the log line.
 
 Two additional tests prove the Collision 2 resolution (the 7-day cooldown
 starting on a dismiss but never completing, because B-3's IN_FLIGHT_STATUSES
@@ -21,6 +24,7 @@ by a fresh candidate once the cooldown has fully elapsed, while
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -372,6 +376,115 @@ async def test_suppression_reason_is_recorded_and_queryable(session, shop):
     )
     surfaced_rows = (await session.execute(stmt_surfaced)).scalars().all()
     assert {row.workflow_key for row in surfaced_rows} == {"wf_1"}
+
+
+# ---------------------------------------------------------------------------
+# AC6 — emission-drop reason codes are logged (on-call diagnosability)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_suppression_reason_codes_are_logged_per_suppressed_card(session, shop, caplog):
+    """Per-suppression visibility, not just an aggregate count — an on-call
+    engineer diagnosing Decision lag for one shop needs to see *which*
+    workflow_key dropped and *why*, not only "N suppressed"."""
+    for i in range(1, 4):  # 3 candidates, cap is 1 -> 2 suppressed by active_cap
+        session.add(_make_card(shop.id, f"wf_log_{i}", priority=i))
+    await session.flush()
+
+    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
+    config = DecisionEmissionConfig(max_active=1, cooldown_days=7, weekly_novelty_cap=10)
+
+    with caplog.at_level(logging.INFO, logger="juli_backend.services.action_cards.emission_budget"):
+        outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
+
+    assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 2
+
+    suppressed_records = [
+        record
+        for record in caplog.records
+        if record.name == "juli_backend.services.action_cards.emission_budget"
+        and record.getMessage() == "emission_budget_suppressed"
+    ]
+    # One structured log entry per suppressed card, not merely an aggregate.
+    assert len(suppressed_records) == 2
+    logged_pairs = {
+        (record.workflow_key, record.suppressed_reason) for record in suppressed_records
+    }
+    assert logged_pairs == {
+        ("wf_log_2", SUPPRESSED_REASON_ACTIVE_CAP),
+        ("wf_log_3", SUPPRESSED_REASON_ACTIVE_CAP),
+    }
+    for record in suppressed_records:
+        assert record.shop_id == str(shop.id)
+
+    # A per-reason aggregate is also useful (dashboarding/alerting) but must
+    # be *in addition to*, never *instead of*, the per-suppression detail
+    # above.
+    summary_records = [
+        record
+        for record in caplog.records
+        if record.name == "juli_backend.services.action_cards.emission_budget"
+        and record.getMessage() == "emission_budget_applied"
+    ]
+    assert len(summary_records) == 1
+    summary = summary_records[0]
+    assert summary.shop_id == str(shop.id)
+    assert summary.surfaced_count == 1
+    assert summary.suppressed_active_cap == 2
+    assert summary.suppressed_cooldown == 0
+    assert summary.suppressed_weekly_novelty_cap == 0
+
+
+@pytest.mark.asyncio
+async def test_suppression_log_lines_contain_no_pii_tokens_or_financial_values(
+    session, shop, caplog
+):
+    """Hard constraint (PRD security stories 22 & 23): the emission-drop log
+    must never carry seller-identifying content, secrets, or raw money
+    figures, even though those values live on the suppressed row itself."""
+    forbidden_values = [
+        "jane.seller@example.com",
+        "+84901234567",
+        "4111111111111111",
+        "sk_live_abcdef0123456789",
+        "987654321.99",
+    ]
+    card = _make_card(shop.id, "wf_sensitive", priority=1)
+    card.title = "Contact jane.seller@example.com re: card 4111111111111111"
+    card.description = "Seller phone +84901234567, token sk_live_abcdef0123456789"
+    card.recommendation_payload = (
+        '{"customer_email": "jane.seller@example.com", "revenue": 987654321.99}'
+    )
+    session.add(card)
+    await session.flush()
+
+    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
+    config = DecisionEmissionConfig(max_active=0, cooldown_days=7, weekly_novelty_cap=10)
+
+    with caplog.at_level(logging.INFO, logger="juli_backend.services.action_cards.emission_budget"):
+        outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
+
+    assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 1
+
+    own_records = [
+        record
+        for record in caplog.records
+        if record.name == "juli_backend.services.action_cards.emission_budget"
+    ]
+    assert own_records, "expected at least one emission_budget log record"
+
+    for record in own_records:
+        haystack_parts = [record.getMessage()]
+        for key, value in vars(record).items():
+            if key in logging.LogRecord.__dict__ or key in {"message", "args", "msg"}:
+                continue
+            haystack_parts.append(f"{key}={value}")
+        haystack = " ".join(haystack_parts)
+        for forbidden in forbidden_values:
+            assert forbidden not in haystack, (
+                f"forbidden value {forbidden!r} leaked into log record: {haystack}"
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -15,6 +15,7 @@ Nothing in this module reads or writes Redis.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -24,6 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import DecisionEmissionConfig, decision_emission_config
 from juli_backend.models.models import ActionCard, DecisionEmissionNoveltyLedger
+
+logger = logging.getLogger(__name__)
 
 SUPPRESSED_REASON_ACTIVE_CAP = "active_cap"
 SUPPRESSED_REASON_COOLDOWN = "cooldown"
@@ -66,9 +69,14 @@ def _terminal_marker(card: ActionCard) -> datetime | None:
     """Most recent terminal-action timestamp on *card*, if any.
 
     Considers all three terminal markers (approved_at / executed_at /
-    dismissed_at) — a composite cooldown lookup index
-    (``ix_action_cards_shop_workflow_terminal``) backs this by (shop_id,
-    workflow_key) plus all three columns.
+    dismissed_at). These are read off *already-loaded* ``ActionCard`` rows
+    (the caller's single ``WHERE shop_id=:s AND status='active'`` query,
+    served by the pre-existing ``ix_action_cards_shop_status``) — this
+    function issues no query of its own, so no index backs it today. The
+    composite ``ix_action_cards_shop_workflow_terminal`` index (shop_id,
+    workflow_key, dismissed_at, approved_at, executed_at) is provisioned
+    ahead of need, for a cooldown lookup query a future slice may issue
+    directly against Postgres instead of computing this in Python.
     """
     raw_markers = (card.approved_at, card.executed_at, card.dismissed_at)
     markers = [ts for ts in raw_markers if ts is not None]
@@ -95,6 +103,28 @@ async def _novel_workflow_keys_this_week(
     return set(result.scalars().all())
 
 
+def _log_suppressed(shop_id_str: str, card: ActionCard, reason: str) -> None:
+    """One structured log entry per suppressed candidate (on-call diagnosability
+    of Decision lag, #716 AC "emission-drop reason codes are logged").
+
+    Deliberately per-suppression, not only an aggregate: an on-call engineer
+    investigating why a *specific* shop's Decision feed looks stale needs to
+    see which ``workflow_key`` dropped and why, not just a count. Carries
+    only system identifiers (shop id, workflow key, reason code) — never
+    ``card.title`` / ``card.description`` / ``card.recommendation_payload``,
+    which may carry seller-identifying or financial content (PRD security
+    stories 22/23 — no PII, no tokens, no raw financial values in logs).
+    """
+    logger.info(
+        "emission_budget_suppressed",
+        extra={
+            "shop_id": shop_id_str,
+            "workflow_key": card.workflow_key,
+            "suppressed_reason": reason,
+        },
+    )
+
+
 async def apply_emission_budget(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -115,6 +145,7 @@ async def apply_emission_budget(
     now = _as_aware(now) if now is not None else datetime.now(UTC)
     config = config or decision_emission_config()
     week_start = _week_start(now)
+    shop_id_str = str(shop_id)
 
     stmt = (
         select(ActionCard)
@@ -134,6 +165,7 @@ async def apply_emission_budget(
             card.surfaced_at = None
             card.suppressed_reason = SUPPRESSED_REASON_COOLDOWN
             suppressed[SUPPRESSED_REASON_COOLDOWN].append(card)
+            _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_COOLDOWN)
             continue
 
         is_new_this_week = card.workflow_key not in counted_novel
@@ -141,12 +173,14 @@ async def apply_emission_budget(
             card.surfaced_at = None
             card.suppressed_reason = SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP
             suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP].append(card)
+            _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP)
             continue
 
         if len(surfaced) >= config.max_active:
             card.surfaced_at = None
             card.suppressed_reason = SUPPRESSED_REASON_ACTIVE_CAP
             suppressed[SUPPRESSED_REASON_ACTIVE_CAP].append(card)
+            _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_ACTIVE_CAP)
             continue
 
         card.surfaced_at = now
@@ -167,4 +201,19 @@ async def apply_emission_budget(
             )
 
     await session.flush()
+
+    # Aggregate, per-reason counts *in addition to* (never instead of) the
+    # per-suppression ``emission_budget_suppressed`` entries logged above —
+    # cheap to scan/alert on, but not a substitute for drilling into which
+    # workflow_key dropped for a given shop.
+    logger.info(
+        "emission_budget_applied",
+        extra={
+            "shop_id": shop_id_str,
+            "surfaced_count": len(surfaced),
+            "suppressed_active_cap": len(suppressed[SUPPRESSED_REASON_ACTIVE_CAP]),
+            "suppressed_cooldown": len(suppressed[SUPPRESSED_REASON_COOLDOWN]),
+            "suppressed_weekly_novelty_cap": len(suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP]),
+        },
+    )
     return EmissionBudgetOutcome(surfaced=surfaced, suppressed=suppressed)

@@ -622,8 +622,13 @@ class ActionCard(Base):
     __table_args__ = (
         Index("ix_action_cards_shop", "shop_id"),
         Index("ix_action_cards_shop_status", "shop_id", "status"),
-        # Cooldown lookup (#716, B-4, ADR-038 §6): find a shop's cards' terminal
-        # markers by workflow_key without a table scan.
+        # Provisioned ahead of need (#716, B-4, ADR-038 §6) for a cooldown
+        # lookup by (shop_id, workflow_key) plus terminal markers that a
+        # future slice may query directly. Not exercised today:
+        # apply_emission_budget's only query is
+        # WHERE shop_id=:s AND status='active' (served by the
+        # ix_action_cards_shop_status index above); the cooldown check
+        # itself runs in Python over those already-loaded rows.
         Index(
             "ix_action_cards_shop_workflow_terminal",
             "shop_id",
