@@ -62,8 +62,9 @@ def test_action_cards_still_has_exactly_one_alembic_head():
     """Alembic revision chain has one head — this migration does not branch it.
 
     The literal head id advances as later slices stack on top of 026 (e.g.
-    027_decision_emission_budget, #716 B-4) — what this test actually
-    guards is the single-head invariant, not this specific revision string.
+    027_decision_emission_budget, #716 B-4; 028_demo_execution_records, #717
+    B-5) — what this test actually guards is the single-head invariant, not
+    this specific revision string.
     """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
@@ -72,4 +73,4 @@ def test_action_cards_still_has_exactly_one_alembic_head():
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
     assert len(heads) == 1
-    assert heads == ["027_decision_emission_budget"]
+    assert heads == ["028_demo_execution_records"]

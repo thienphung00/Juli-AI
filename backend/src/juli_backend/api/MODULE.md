@@ -33,6 +33,11 @@ from juli_backend.api.dependencies import get_active_shop
 - `GET /v1/demo/analytics` — unauthenticated masked Analytics envelope for the
   server-configured reference shop (Issue #531, ADR-037). No visitor `shop_id`;
   read-through Redis → Postgres SoT; masking applied before response.
+- `POST /v1/demo/decisions/{action_card_id}/approve` — unauthenticated Demo
+  approve → dry-run execute for a Decision (#717, B-5, ADR-037/038 §9). Same
+  server-configured reference shop as `GET /v1/demo/analytics`; never calls a
+  real Partner write client; creates a local `DemoExecutionRecord` only. See
+  `services/demo_execution/MODULE.md`.
 - `POST /webhooks/tiktok` — TikTok Shop webhook ingress (Issue #381), not under `/v1`.
   Mounted from `juli_backend.services.webhook`; see `api/routes/webhook_tiktok.py` and
   `services/webhook/MODULE.md`.
@@ -46,11 +51,14 @@ analytics, and threshold alerting). See `docs/adr/006-matching-pivot.md`.
 - `core/security` — `get_current_user` for JWT-based authentication
 - `database` — repos and models for shop-scoped persistence
 - `services/action_cards` — legacy recommendation persist delegate (MMU-11); scoring refresh enqueue
+- `services/demo_execution` — Demo approve → dry-run execute (#717, B-5); reads
+  `ActionCard` directly, never imports `services/execution` or `integrations/tiktok`
 - `ai/recommendations` — engine functions consumed by action_cards owner (not API writes)
 
 ## Invariants
 - All /v1/* endpoints require a valid Supabase JWT (401 on failure), except
-  `GET /v1/demo/analytics` which is intentionally public (ADR-037)
+  `GET /v1/demo/analytics` and `POST /v1/demo/decisions/{id}/approve`, which
+  are intentionally public (ADR-037)
 - X-Shop-Id header is validated against user ownership (403 on mismatch)
 - No endpoint leaks data across tenants — all queries scoped by authenticated user
 - All list endpoints use cursor-based pagination with `limit` + `after` params

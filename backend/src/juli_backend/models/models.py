@@ -676,6 +676,51 @@ class DecisionEmissionNoveltyLedger(Base):
     )
 
 
+class DemoExecutionRecord(Base):
+    """Local/demo dry-run execution record for a Decision approve (#717, B-5).
+
+    ADR-037/ADR-038 §9: Public Mock Demo approve→execute never calls a real
+    Partner write client and never uses reference-merchant credentials. This
+    table is the *entire* durability boundary for that dry-run — it is
+    deliberately a standalone table, not a reuse of ``tool_executions``
+    (``ToolExecution``, migration 015), because ``tool_executions`` rows are
+    Celery-dispatched and mean "this really called a TikTok write endpoint via
+    ``services.execution.dispatch.enqueue_approved_tool``". Mixing dry-run rows
+    into that table would blur a real-execution reconciliation job's view of
+    "what actually still needs a Partner call" with rows that will never be
+    picked up by Celery. See ``services/demo_execution/MODULE.md`` for the
+    full write-up of this decision.
+
+    Progress state machine (``status``): ``queued`` -> ``running`` -> ``done``
+    — entirely local/in-process; no Celery task, no TikTok call. ``narrative_json``
+    is the ordered list of ``{state, message, at}`` steps Track B UI (#600,
+    execution progress card #696/#697) reads to render dry-run progress.
+    """
+
+    __tablename__ = "demo_execution_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    action_card_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("action_cards.id"), nullable=False)
+    workflow_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    narrative_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_demo_execution_records_shop", "shop_id"),
+        Index("ix_demo_execution_records_shop_status", "shop_id", "status"),
+        Index(
+            "ix_demo_execution_records_action_card",
+            "shop_id",
+            "action_card_id",
+        ),
+    )
+
+
 class Recommendation(Base):
     __tablename__ = "recommendations"
 
