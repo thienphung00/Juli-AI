@@ -145,6 +145,13 @@ databaseTables:
     notes: >
       Sole write owner via services/action_cards (Action Cards / Scoring);
       refresh → persist_scoring_result pipeline.
+  decision_emission_novelty_ledger:
+    owner: Intelligence
+    access: write
+    notes: >
+      Sole write owner via services/action_cards.emission_budget
+      (Decision emission/surfacing budget, #716 B-4). Durable, server-side
+      weekly novelty counter/window state — Postgres SoT, not Redis.
   recommendations:
     owner: Intelligence
     access: write
@@ -152,6 +159,15 @@ databaseTables:
       Legacy table retained for GET /v1/recommendations; sole write owner is
       services/action_cards.persist_legacy_recommendations (Action Cards / Scoring).
       API routes delegate — do not call RecommendationsRepo.create directly.
+  demo_execution_records:
+    owner: Intelligence
+    access: write
+    notes: >
+      Sole write owner via services/demo_execution.approve_decision_dry_run
+      (Public Demo approve → execute dry-run, #717 B-5, ADR-037/038 §9).
+      Deliberately standalone — not tool_executions/Workers & Async — because
+      these rows must never be reachable by the Celery/Partner-write path;
+      no worker or Celery task ever writes this table.
   tool_executions:
     owner: Workers & Async
     access: write

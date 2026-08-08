@@ -1,0 +1,28 @@
+{
+  "gateVersion": 1,
+  "issue": 717,
+  "metrics": {
+    "acceptanceMapped": 10,
+    "acceptanceTotal": 10,
+    "criticalFindings": 3,
+    "modulesTouched": [
+      "backend/src/juli_backend/api",
+      "backend/src/juli_backend/services/demo_execution",
+      "backend/src/juli_backend/models",
+      "backend/src/juli_backend/database/migrations",
+      "docs/architecture"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-717.json",
+    "sha256": "83a797e795d33b11777b611fa08c53ebcda57e1fa7ec6c21c8dfd0775a0def74",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-08T11:30:21Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-717.json",
+    "sha256": "bd65abc6e14c0a6cad144ad24e3a4ea7522498ffef15fbfe2e071fd5b475ce6b",
+    "status": "PASS"
+  },
+  "wave": null
+}
