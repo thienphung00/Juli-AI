@@ -1,0 +1,91 @@
+{
+  "planId": "rep-839-demo-graceful-upstream-switch",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com — the public target is resolved through an upstream definition the deployment owns, and cutover becomes an atomic replacement plus a graceful reload"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "the candidate remains loopback-only and is verified before any traffic moves, exactly as #838 established; this slice changes only how traffic is repointed once verification has already passed",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "graceful-cutover-drops-nothing",
+        "entryUrl": "https://demo.app-juli.com/ under continuous load during a release",
+        "assertions": [
+          "requests in flight during cutover complete rather than erroring",
+          "no request observes an unavailable upstream at any point in the release",
+          "the upstream definition is replaced atomically, then reloaded gracefully — never edited in place while serving"
+        ]
+      },
+      {
+        "name": "invalid-configuration-is-rejected-without-interrupting-service",
+        "entryUrl": "the web server configuration test, run before every reload",
+        "assertions": [
+          "an invalid configuration is rejected before any reload is attempted",
+          "the previously loaded configuration keeps serving, unchanged",
+          "the deploy exits non-zero and the live site is unaffected"
+        ]
+      },
+      {
+        "name": "the-live-definition-is-the-single-source-of-truth",
+        "entryUrl": "the owned upstream definition on the server",
+        "assertions": [
+          "what is serving can be read from the live upstream definition alone",
+          "the immediately previous definition is retained beside it as the undo",
+          "site configuration is otherwise unchanged apart from the indirection"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "The slice changes how traffic is repointed. It touches no database, queue, or persistence surface. The #834 gate still runs before any candidate starts, unchanged from #838."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore the retained previous upstream definition and reload; this slice makes that undo *possible* and manual, and #840 makes it automatic on a post-cutover check failure",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_demo_upstream_switch.py",
+    "bash -n infra/scripts/deploy-demo-release.sh",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 839"
+  ],
+  "doNotInfer": [
+    "post-cutover checks or automatic rollback — that is #840",
+    "paired slots for the API or landing — that is #843",
+    "a combined deploy command or release record — that is #844",
+    "percentage-based traffic canaries or request mirroring — explicitly out of scope in PRD #820",
+    "new DNS records, subdomains, or TLS certificates",
+    "changing what the candidate verification in #838 asserts"
+  ]
+}

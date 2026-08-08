@@ -44,9 +44,18 @@ def test_rollback_script_exists_and_is_executable() -> None:
     assert ROLLBACK_DEMO_PATH.stat().st_mode & 0o111, "rollback-demo-release.sh must be executable"
 
 
-def test_rollback_script_restarts_juli_demo_only() -> None:
+def test_rollback_script_affects_the_demo_lane_only() -> None:
     script = _read(ROLLBACK_DEMO_PATH)
-    assert "systemctl restart juli-demo" in script
+    directives = "\n".join(
+        line for line in script.splitlines() if not line.lstrip().startswith("#")
+    )
+    # This used to require `systemctl restart juli-demo`. #839 removed it: the live port
+    # is now decided by the upstream definition, so restarting the durable unit would
+    # collide with whatever is serving. Rollback starts the target on the free port and
+    # goes through the same graceful switch a deploy uses. What must still hold — that
+    # rollback touches nothing outside the Demo lane — is unchanged.
+    assert "systemctl restart juli-demo" not in directives
+    assert "switch_demo_upstream" in directives
     assert "systemctl restart juli-api" not in script
     assert "systemctl restart juli-web" not in script
     assert "demo-current" in script

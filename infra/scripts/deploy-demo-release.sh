@@ -1,9 +1,44 @@
 #!/usr/bin/env bash
-# Continuous delivery for Demo, candidate-first (Issue #838, slice P0-DEL-CANDIDATE of
-# PRD #820).
+# Continuous delivery for Demo: candidate-first (#838) with a graceful cutover (#839).
+# Slices P0-DEL-CANDIDATE and P0-DEL-SWITCH of PRD #820.
 #
-# WHAT CHANGED AND WHY (#838)
-# ---------------------------
+# WHAT CHANGED AND WHY (#839) — THE GRACEFUL SWITCH
+# -------------------------------------------------
+# Cutover used to be `mv -Tf demo-current` followed by `systemctl restart juli-demo`.
+# Nginx proxied straight at 127.0.0.1:3001, so that restart WAS the error window: every
+# in-flight and arriving request failed until the process came back.
+#
+# There is no restart in the cutover path any more. Nginx proxies to an upstream whose
+# definition the deployment owns:
+#
+#   /etc/nginx/juli/demo-upstream.conf        what is serving RIGHT NOW (source of truth)
+#   /etc/nginx/juli/demo-upstream.conf.prev   the immediately previous definition (the undo)
+#
+# The Demo lane alternates between two loopback ports, 127.0.0.1:3001 and 127.0.0.1:3021.
+# The live definition names one of them; the candidate is started on the other. Once the
+# candidate has passed verification it is ALREADY answering, so cutover is:
+#
+#   render -> stage to a temp file -> retain the current definition as .prev
+#          -> mv -Tf into place -> nginx -t -> systemctl reload nginx
+#
+# reload, never restart: reload lets nginx finish in-flight requests on the old worker
+# processes. And because the upstream is only ever repointed at a process that is already
+# answering, no request can observe an unavailable upstream at any instant of a release.
+# If `nginx -t` refuses the new definition, nothing is reloaded — the configuration nginx
+# already loaded keeps serving — the retained definition is put back, and the deploy exits
+# non-zero.
+#
+# ONE-TIME PROVISIONING: `sudo ./infra/scripts/provision-nginx.sh` must have installed
+# /etc/nginx/juli/demo-upstream.conf before the first deploy that uses the indirection.
+# This script refuses to create it: doing so would hide that nginx never had it.
+#
+# THE PREVIOUS INSTANCE IS NOT STOPPED. It keeps running on the port it had, which is what
+# makes .prev a real undo — restoring that file and reloading returns traffic instantly.
+# It is stopped at the START of the NEXT deploy (free_candidate_port), when its port is
+# needed and it has long since drained. Automatic post-cutover rollback is #840.
+#
+# WHAT CHANGED AND WHY (#838) — CANDIDATE FIRST
+# ---------------------------------------------
 # This script used to mutate first and verify second: it flipped ~/releases/demo-current,
 # restarted juli-demo, and only then health-checked. By the time a check failed, the
 # broken release was already public. The order is now inverted:
@@ -18,8 +53,7 @@
 #
 # On ANY failure after the candidate starts, fail_candidate stops the candidate and exits
 # non-zero. The live instance is never restarted, demo-current is never repointed, and no
-# visitor ever sees the release. Zero-downtime cutover is deliberately NOT in this slice
-# (#839); post-cutover rollback is #840.
+# visitor ever sees the release. Post-cutover rollback is #840.
 #
 # NEVER PRUNE ON A FAILURE PATH. ~/releases is a single pool shared by every deploy lane,
 # and a prune has previously destroyed the live release. Pruning runs only after a
@@ -40,9 +74,9 @@
 #   ~/releases/demo-current   symlink to the active Demo release
 #   ~/releases/demo-deploy-history.log   append-only log for Demo rollback
 #
-# Health probes:
+# Health probes (the pair alternates, so which port is which swaps every release):
 #   candidate, before any traffic moves: http://127.0.0.1:3021/decisions
-#   live, after cutover:                 http://127.0.0.1:3001/decisions must return 2xx
+#   live, seeded by provisioning:        http://127.0.0.1:3001/decisions must return 2xx
 #
 # Usage (on the VPS, as root):
 #   cd ~/Juli-AI-v2 && git fetch origin main && git checkout main && git pull
@@ -56,8 +90,13 @@
 # Env overrides:
 #   KEEP_DEMO_RELEASES (3)          releases kept per lane after a successful cutover
 #   HEALTH_TIMEOUT_SECS (60)        post-cutover health probe budget
-#   DEMO_CANDIDATE_PORT (3021)      loopback port the candidate binds
-#   DEMO_CANDIDATE_UNIT             transient systemd unit name
+#   DEMO_CANDIDATE_PORT (3021)      fallback candidate port; normally derived as the peer
+#                                   of whatever the live upstream definition names
+#   DEMO_CANDIDATE_UNIT             transient systemd unit prefix (suffixed with the port)
+#   DEMO_UPSTREAM_CONF              the live upstream definition nginx includes
+#                                   (/etc/nginx/juli/demo-upstream.conf)
+#   DEMO_RUNTIME_ENV                where the live port is recorded for juli-demo.service
+#                                   (/etc/juli/demo-runtime.env)
 #   CANDIDATE_TIMEOUT_SECS (120)    candidate readiness budget
 #   DEMO_CANDIDATE_ROUTES           HTML routes the harness verifies (default "/ /decisions")
 #   DEMO_CANDIDATE_API_BASE_URL     set to also run --api-check specs against an API
@@ -82,8 +121,28 @@ KEEP_DEMO_RELEASES="${KEEP_DEMO_RELEASES:-3}"
 HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
 DEMO_PORT="3001"
 
+# The Demo lane alternates between these two loopback ports. Whichever the live upstream
+# definition names is serving; the other is where the next candidate is started.
+DEMO_PORT_A="3001"
+DEMO_PORT_B="3021"
+
+# The upstream indirection this deploy owns (#839).
+NGINX_UPSTREAM_DIR="${NGINX_UPSTREAM_DIR:-/etc/nginx/juli}"
+DEMO_UPSTREAM_CONF="${DEMO_UPSTREAM_CONF:-${NGINX_UPSTREAM_DIR}/demo-upstream.conf}"
+DEMO_UPSTREAM_PREV="${DEMO_UPSTREAM_CONF}.prev"
+DEMO_UPSTREAM_NAME="juli_demo"
+DEMO_RUNTIME_ENV="${DEMO_RUNTIME_ENV:-/etc/juli/demo-runtime.env}"
+
+# Resolved from the live upstream definition in main(); the seed default is only a
+# fallback for library mode and for reporting before anything has been read.
+LIVE_PORT="${DEMO_PORT}"
+
 DEMO_CANDIDATE_PORT="${DEMO_CANDIDATE_PORT:-3021}"
 DEMO_CANDIDATE_UNIT="${DEMO_CANDIDATE_UNIT:-juli-demo-candidate}"
+# The unit name is suffixed with the candidate's port in main(). After #839 a verified
+# candidate is PROMOTED to live rather than stopped, so the previous deploy's instance is
+# still running and a fixed unit name would collide with it.
+CANDIDATE_UNIT="${DEMO_CANDIDATE_UNIT}"
 CANDIDATE_TIMEOUT_SECS="${CANDIDATE_TIMEOUT_SECS:-120}"
 DEMO_CANDIDATE_ROUTES="${DEMO_CANDIDATE_ROUTES:-/ /decisions}"
 DEMO_CANDIDATE_API_BASE_URL="${DEMO_CANDIDATE_API_BASE_URL:-}"
@@ -117,10 +176,190 @@ http_code() {
 # demo-current still points where it did before this run.
 report_live_state() {
     local code target
-    code="$(http_code "http://127.0.0.1:${DEMO_PORT}/decisions")"
+    code="$(http_code "http://127.0.0.1:${LIVE_PORT}/decisions")"
     target="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || echo MISSING)"
-    printf '   live juli-demo :%s/decisions -> HTTP %s\n' "${DEMO_PORT}" "${code}"
+    printf '   live Demo :%s/decisions -> HTTP %s\n' "${LIVE_PORT}" "${code}"
     printf '   demo-current still -> %s (not repointed by this run)\n' "${target}"
+}
+
+# ---------------------------------------------------------------------------------------
+# The owned upstream indirection (#839)
+# ---------------------------------------------------------------------------------------
+
+# Atomic replacement, never an in-place edit: a file nginx reads half-written is a live
+# outage. GNU -T refuses to descend into DEST when DEST is a directory, which is what
+# stops a replacement silently becoming a move-inside; the explicit guard gives the same
+# protection where mv has no -T (BSD/macOS, i.e. the contract tests). Onto an existing
+# regular file this is a single rename(2) either way.
+atomic_replace() {
+    local src="$1" dest="$2"
+    if [ -d "${dest}" ]; then
+        echo "FAIL: ${dest} is a directory; refusing to replace it" >&2
+        return 1
+    fi
+    if mv -Tf "${src}" "${dest}" 2>/dev/null; then
+        return 0
+    fi
+    mv -f "${src}" "${dest}"
+}
+
+# The definition that will be written. One place, so what is generated cannot drift from
+# what is asserted. Anything that is not a bare in-range port number is refused: this
+# string ends up inside the live nginx configuration, and a malformed switch must never be
+# able to take the site down.
+render_demo_upstream() {
+    local port="$1"
+    case "${port}" in
+        '' | *[!0-9]*)
+            echo "FAIL: refusing to render an upstream for non-numeric port '${port}'" >&2
+            return 1
+            ;;
+    esac
+    if [ "${port}" -lt 1 ] || [ "${port}" -gt 65535 ]; then
+        echo "FAIL: upstream port ${port} is out of range" >&2
+        return 1
+    fi
+    cat <<EOF
+# Generated by infra/scripts/deploy-demo-release.sh (#839) on $(date -u +%Y-%m-%dT%H:%M:%SZ).
+# Do not edit by hand. This file is the single source of truth for which Demo instance is
+# serving demo.app-juli.com. The immediately previous definition is retained beside it at
+# ${DEMO_UPSTREAM_PREV} — restoring that file and reloading nginx is the undo.
+upstream ${DEMO_UPSTREAM_NAME} {
+    server 127.0.0.1:${port};
+    keepalive 16;
+}
+EOF
+}
+
+# Which Demo instance is serving, read from the live definition itself. There is no
+# fallback on purpose: guessing here would start a candidate on the port that is already
+# serving, which would take the site down.
+live_upstream_port() {
+    local port
+    if [ ! -f "${DEMO_UPSTREAM_CONF}" ]; then
+        echo "FAIL: ${DEMO_UPSTREAM_CONF} does not exist, so nothing can be read about what" >&2
+        echo "      is serving. Run the one-time step 'sudo ./infra/scripts/provision-nginx.sh'" >&2
+        echo "      to install the upstream indirection, then re-run this deploy." >&2
+        return 1
+    fi
+    port="$(awk 'match($0, /server[[:space:]]+127\.0\.0\.1:[0-9]+;/) {
+            s = substr($0, RSTART, RLENGTH); sub(/.*:/, "", s); sub(/;/, "", s); print s; exit
+        }' "${DEMO_UPSTREAM_CONF}")"
+    if [ -z "${port}" ]; then
+        echo "FAIL: ${DEMO_UPSTREAM_CONF} names no 127.0.0.1 server directive." >&2
+        return 1
+    fi
+    printf '%s\n' "${port}"
+}
+
+# The pair member that is not live — where the next candidate goes.
+demo_peer_port() {
+    local live="$1"
+    case "${live}" in
+        "${DEMO_PORT_A}") printf '%s\n' "${DEMO_PORT_B}" ;;
+        "${DEMO_PORT_B}") printf '%s\n' "${DEMO_PORT_A}" ;;
+        *)
+            echo "FAIL: the live upstream names port '${live}', which is not a member of the" >&2
+            echo "      Demo port pair (${DEMO_PORT_A}/${DEMO_PORT_B}). Refusing to guess where" >&2
+            echo "      to start a candidate." >&2
+            return 1
+            ;;
+    esac
+}
+
+# The cutover itself. Atomic replacement, then validation, then a GRACEFUL reload.
+#
+#   * The previous definition is retained as .prev BEFORE anything moves, so a rejected
+#     configuration can be put back and #840 has an undo to automate.
+#   * nginx is reloaded only AFTER `nginx -t` passes, so an invalid configuration is
+#     rejected while the configuration nginx already loaded keeps serving, untouched.
+#   * reload, never restart: reload finishes in-flight requests on the old workers.
+switch_demo_upstream() {
+    local port="$1" tmp prev_tmp restore_tmp
+
+    if [ ! -f "${DEMO_UPSTREAM_CONF}" ]; then
+        echo "FAIL: ${DEMO_UPSTREAM_CONF} is missing, so demo.app-juli.com is not routed" >&2
+        echo "      through the upstream indirection yet. Run the one-time step" >&2
+        echo "      'sudo ./infra/scripts/provision-nginx.sh' and re-run this deploy." >&2
+        echo "      Creating it here would hide that nginx never had it." >&2
+        return 1
+    fi
+
+    tmp="${DEMO_UPSTREAM_CONF}.tmp.$$"
+    prev_tmp="${DEMO_UPSTREAM_PREV}.tmp.$$"
+    if ! render_demo_upstream "${port}" >"${tmp}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
+
+    if ! cp -p "${DEMO_UPSTREAM_CONF}" "${prev_tmp}"; then
+        echo "FAIL: could not retain the current definition; refusing to switch without an undo." >&2
+        rm -f "${tmp}" "${prev_tmp}"
+        return 1
+    fi
+    if ! atomic_replace "${prev_tmp}" "${DEMO_UPSTREAM_PREV}"; then
+        rm -f "${tmp}" "${prev_tmp}"
+        return 1
+    fi
+
+    if ! atomic_replace "${tmp}" "${DEMO_UPSTREAM_CONF}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
+
+    if ! nginx -t >&2; then
+        echo "FAIL: nginx rejected the configuration carrying the new upstream definition." >&2
+        echo "      No reload was attempted, so the configuration nginx already loaded is" >&2
+        echo "      still serving, unchanged. Restoring ${DEMO_UPSTREAM_PREV}." >&2
+        restore_tmp="${DEMO_UPSTREAM_CONF}.restore.$$"
+        if cp -p "${DEMO_UPSTREAM_PREV}" "${restore_tmp}" &&
+            atomic_replace "${restore_tmp}" "${DEMO_UPSTREAM_CONF}"; then
+            echo "      Restored; on-disk and loaded configuration agree again." >&2
+        else
+            rm -f "${restore_tmp}"
+            echo "FAIL: could not restore ${DEMO_UPSTREAM_PREV} onto ${DEMO_UPSTREAM_CONF}." >&2
+            echo "      Nothing was reloaded, so the site is still serving, but the file on" >&2
+            echo "      disk no longer matches it. Fix it before any nginx reload." >&2
+        fi
+        nginx -t >&2 ||
+            echo "FAIL: nginx rejects the restored configuration too — the fault is elsewhere in /etc/nginx." >&2
+        return 1
+    fi
+
+    systemctl reload nginx
+}
+
+# Record the live port for juli-demo.service. Transient candidate units do not survive a
+# reboot; the durable unit does, and it must come back on the port nginx is pointed at
+# rather than on whatever used to be live.
+write_demo_runtime_env() {
+    local port="$1" tmp
+    mkdir -p "$(dirname "${DEMO_RUNTIME_ENV}")" || return 1
+    tmp="${DEMO_RUNTIME_ENV}.tmp.$$"
+    {
+        printf '# Written by infra/scripts/deploy-demo-release.sh (#839). Do not edit by hand.\n'
+        printf '# The loopback port %s is pointed at.\n' "${DEMO_UPSTREAM_CONF}"
+        printf 'DEMO_LIVE_PORT=%s\n' "${port}"
+    } >"${tmp}" || {
+        rm -f "${tmp}"
+        return 1
+    }
+    atomic_replace "${tmp}" "${DEMO_RUNTIME_ENV}"
+}
+
+# Free the port the next candidate needs. By construction that port is NOT the live one —
+# the live port is read from the upstream definition and the candidate takes its peer — so
+# whatever holds it is a drained previous instance, never something serving public traffic.
+# Two things can hold it: a candidate promoted by an earlier deploy, or juli-demo.service.
+free_candidate_port() {
+    local port="$1"
+    systemctl stop "${DEMO_CANDIDATE_UNIT}-${port}" >/dev/null 2>&1 || true
+    systemctl reset-failed "${DEMO_CANDIDATE_UNIT}-${port}" >/dev/null 2>&1 || true
+    if [ "$(http_code "http://127.0.0.1:${port}/decisions")" != "000" ]; then
+        note "something still answers on :${port} — stopping juli-demo, which is not serving"
+        note "public traffic (public traffic is on :${LIVE_PORT})"
+        systemctl stop juli-demo >/dev/null 2>&1 || true
+    fi
 }
 
 # ---------------------------------------------------------------------------------------
@@ -146,8 +385,8 @@ start_candidate() {
         argv+=("${line}")
     done < <(demo_candidate_argv "${release_dir}" "${port}")
 
-    systemctl reset-failed "${DEMO_CANDIDATE_UNIT}" >/dev/null 2>&1 || true
-    systemd-run --unit="${DEMO_CANDIDATE_UNIT}" --collect \
+    systemctl reset-failed "${CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+    systemd-run --unit="${CANDIDATE_UNIT}" --collect \
         --property=Type=simple \
         --property=WorkingDirectory="${release_dir}/apps/demo" \
         --property=Restart=no \
@@ -155,15 +394,15 @@ start_candidate() {
 }
 
 stop_candidate() {
-    systemctl stop "${DEMO_CANDIDATE_UNIT}" >/dev/null 2>&1 || true
-    systemctl reset-failed "${DEMO_CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+    systemctl stop "${CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+    systemctl reset-failed "${CANDIDATE_UNIT}" >/dev/null 2>&1 || true
 }
 
 dump_candidate_unit() {
-    echo "-- ${DEMO_CANDIDATE_UNIT} status --" >&2
-    systemctl --no-pager --full status "${DEMO_CANDIDATE_UNIT}" 2>&1 | head -20 >&2 || true
-    echo "-- ${DEMO_CANDIDATE_UNIT} logs --" >&2
-    journalctl -u "${DEMO_CANDIDATE_UNIT}" -n 60 --no-pager >&2 2>&1 || true
+    echo "-- ${CANDIDATE_UNIT} status --" >&2
+    systemctl --no-pager --full status "${CANDIDATE_UNIT}" 2>&1 | head -20 >&2 || true
+    echo "-- ${CANDIDATE_UNIT} logs --" >&2
+    journalctl -u "${CANDIDATE_UNIT}" -n 60 --no-pager >&2 2>&1 || true
 }
 
 # Every failure after the candidate is up funnels through here. It stops the candidate and
@@ -381,6 +620,7 @@ place_release_artifact() {
 main() {
     local sha short_sha short7 release_dir base_sha artifact_dir tarball
     local gate_args=() token candidate_url code live_before gate_argv_file
+    local live_port candidate_port
 
     sha="${1:-}"
     if [ -z "${sha}" ]; then
@@ -392,11 +632,25 @@ main() {
     short_sha="$(git -C "${CANONICAL_ROOT}" rev-parse --short "${sha}")"
     short7="${sha:0:7}"
     release_dir="${RELEASES_ROOT}/${short_sha}"
-    candidate_url="http://127.0.0.1:${DEMO_CANDIDATE_PORT}"
 
-    log "Juli Demo deploy — candidate verify-and-discard (#838): ${sha} (${short_sha})"
+    # The live upstream definition — not this script's defaults — decides what is serving,
+    # and therefore where the candidate may go. Read it before anything else happens.
+    if ! live_port="$(live_upstream_port)"; then
+        echo "FAIL: could not read the live upstream definition; nothing was cut over." >&2
+        exit 1
+    fi
+    if ! candidate_port="$(demo_peer_port "${live_port}")"; then
+        echo "FAIL: could not choose a candidate port; nothing was cut over." >&2
+        exit 1
+    fi
+    LIVE_PORT="${live_port}"
+    DEMO_CANDIDATE_PORT="${candidate_port}"
+    CANDIDATE_UNIT="${DEMO_CANDIDATE_UNIT}-${candidate_port}"
+    candidate_url="http://127.0.0.1:${candidate_port}"
+
+    log "Juli Demo deploy — candidate-first (#838), graceful switch (#839): ${sha} (${short_sha})"
     live_before="$(readlink -f "${DEMO_CURRENT}" 2>/dev/null || echo NONE)"
-    note "live now      : ${live_before}"
+    note "live now      : ${live_before} on 127.0.0.1:${live_port} (per ${DEMO_UPSTREAM_CONF})"
     note "candidate     : ${candidate_url} (loopback only; not reachable off this server)"
     mkdir -p "${RELEASES_ROOT}"
 
@@ -462,7 +716,13 @@ main() {
     REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
 
     # --- 5. Start the CANDIDATE on a loopback port. The live instance is untouched. ---
+    #
+    # The candidate port is the peer of the live one, so anything still bound there is the
+    # instance the PREVIOUS release promoted and then left running as its undo. It has long
+    # since drained and it serves no public traffic, so freeing it now is safe — and it is
+    # the only moment at which a previous instance is ever stopped.
     log "candidate on ${candidate_url}"
+    free_candidate_port "${candidate_port}"
     if ! start_candidate "${release_dir}" "${DEMO_CANDIDATE_PORT}"; then
         fail_candidate "the candidate process would not start at all"
     fi
@@ -477,25 +737,46 @@ main() {
         fail_candidate "the candidate failed release verification — it will not be cut over"
     fi
 
-    # --- 7. Verified. Only now is anything about the live instance allowed to change. ---
-    log "verified — cutting over"
-    stop_candidate
-    note "candidate stopped; its port is free"
+    # --- 7. Verified. THE GRACEFUL SWITCH (#839) — the first publicly visible step. ---
+    #
+    # The candidate is already up and has already passed verification, so nothing is
+    # started, stopped, or restarted here: the upstream is repointed at a process that is
+    # answering, and nginx is reloaded gracefully. No request can observe an unavailable
+    # upstream, because at no instant is the upstream pointed at anything that is not
+    # already serving.
+    #
+    # The switch goes first so that a rejected configuration leaves EVERYTHING as it was —
+    # demo-current included. The candidate is deliberately not stopped: it is now live.
+    log "verified — graceful cutover (#839)"
+    if ! switch_demo_upstream "${candidate_port}"; then
+        echo "FAIL: the upstream switch was refused, so nothing was cut over." >&2
+        echo "      127.0.0.1:${live_port} is still serving and demo-current was not repointed." >&2
+        report_live_state >&2
+        echo "      The candidate is left running on :${candidate_port} for inspection; no" >&2
+        echo "      release worktree was pruned or removed." >&2
+        exit 1
+    fi
+    LIVE_PORT="${candidate_port}"
+    note "demo.app-juli.com now resolves to 127.0.0.1:${candidate_port} (was ${live_port})"
+    note "undo: ${DEMO_UPSTREAM_PREV} still names :${live_port}, which is still running"
 
+    ln -sfn "${release_dir}" "${RELEASES_ROOT}/demo-current.tmp"
+    mv -Tf "${RELEASES_ROOT}/demo-current.tmp" "${DEMO_CURRENT}"
+
+    # Reboot durability. Transient candidate units do not survive a reboot; the durable
+    # juli-demo.service does, and it must come back on the port nginx is pointed at.
     SYSTEMD_SRC="${CANONICAL_ROOT}/infra/systemd/juli-demo.service"
     if [ -f "${SYSTEMD_SRC}" ]; then
         install -m 0644 "${SYSTEMD_SRC}" /etc/systemd/system/juli-demo.service
         systemctl daemon-reload
     fi
-
-    ln -sfn "${release_dir}" "${RELEASES_ROOT}/demo-current.tmp"
-    mv -Tf "${RELEASES_ROOT}/demo-current.tmp" "${DEMO_CURRENT}"
-    systemctl restart juli-demo
+    write_demo_runtime_env "${candidate_port}" ||
+        die "cut over, but could not record the live port in ${DEMO_RUNTIME_ENV}."
 
     log "post-cutover health check (timeout ${HEALTH_TIMEOUT_SECS}s)"
     local deadline=$((SECONDS + HEALTH_TIMEOUT_SECS)) demo_ok=false demo_code="000"
     while [ "${SECONDS}" -lt "${deadline}" ]; do
-        demo_code="$(http_code "http://127.0.0.1:${DEMO_PORT}/decisions")"
+        demo_code="$(http_code "http://127.0.0.1:${LIVE_PORT}/decisions")"
         if [ "${#demo_code}" -eq 3 ] && [ "${demo_code#2}" != "${demo_code}" ]; then
             demo_ok=true
             break
@@ -505,14 +786,17 @@ main() {
     if [ "${demo_ok}" != true ]; then
         # The candidate passed and this still failed, so the fault is in cutover, not in
         # the release. Automatic post-cutover rollback is #840; say so rather than guess.
-        echo "FAIL: juli-demo did not come back healthy after cutover (last_code=${demo_code})." >&2
+        echo "FAIL: Demo is not healthy on :${LIVE_PORT} after cutover (last_code=${demo_code})." >&2
         echo "      The release itself passed candidate verification, so this is a cutover" >&2
-        echo "      fault. Run rollback-demo-release.sh to return to ${live_before}." >&2
-        systemctl --no-pager --full status juli-demo >&2 || true
-        journalctl -u juli-demo -n 80 --no-pager >&2 || true
+        echo "      fault. The previous instance on :${live_port} is still running, so the" >&2
+        echo "      fastest undo is to restore the retained definition and reload:" >&2
+        echo "        cp -p ${DEMO_UPSTREAM_PREV} ${DEMO_UPSTREAM_CONF} && nginx -t && systemctl reload nginx" >&2
+        echo "      That returns traffic to ${live_before}. Automating it is #840." >&2
+        systemctl --no-pager --full status "${CANDIDATE_UNIT}" >&2 || true
+        journalctl -u "${CANDIDATE_UNIT}" -n 80 --no-pager >&2 || true
         exit 1
     fi
-    echo "PASS: juli-demo is healthy on the verified release (/decisions returned 2xx)."
+    echo "PASS: Demo is healthy on the verified release (:${LIVE_PORT}/decisions returned 2xx)."
 
     # --- 8. Record, then prune. Pruning happens only after a successful cutover. ---
     printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"

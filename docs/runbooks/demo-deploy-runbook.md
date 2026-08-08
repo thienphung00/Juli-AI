@@ -14,18 +14,36 @@ Demo release without affecting app-juli.com or api.app-juli.com.
 ## Topology
 
 ```
-https://demo.app-juli.com  →  Nginx  →  juli-demo (127.0.0.1:3001)  →  Next.js production build
+https://demo.app-juli.com  →  Nginx  →  upstream juli_demo  →  Next.js production build
+                                             ↑
+                        /etc/nginx/juli/demo-upstream.conf  (the deploy owns this file)
 ```
+
+**The live upstream definition is the single source of truth for what is serving** (#839).
+Nginx does not proxy to a fixed port any more; it proxies to the named upstream `juli_demo`,
+whose definition the deploy replaces atomically at cutover and then reloads nginx
+gracefully. Ask the server what is live:
+
+```bash
+grep 'server 127.0.0.1' /etc/nginx/juli/demo-upstream.conf     # what is serving now
+grep 'server 127.0.0.1' /etc/nginx/juli/demo-upstream.conf.prev # the undo
+```
+
+The Demo lane alternates between **two** loopback ports, `3001` and `3021`. Whichever the
+live definition names is serving; a new release is started and verified on the other one
+and then promoted by repointing the definition. Nothing is restarted at cutover, so no
+in-flight request is dropped.
 
 | Item | Value |
 |------|-------|
 | Domain | `demo.app-juli.com` |
 | Service | `juli-demo` (systemd) |
-| Upstream | `127.0.0.1:3001` |
+| Upstream | `upstream juli_demo` → `/etc/nginx/juli/demo-upstream.conf` (ports 3001/3021) |
 | App path | `apps/demo/` (pnpm monorepo) |
 | Release symlink | `~/releases/demo-current` |
 | Deploy history | `~/releases/demo-deploy-history.log` |
 | Nginx vhost | `infra/nginx/demo.app-juli.com.conf` |
+| Upstream seed | `infra/nginx/demo-upstream.conf` |
 | Build script | `./infra/scripts/build-demo.sh` |
 | Deploy script | `./infra/scripts/deploy-demo-release.sh` |
 | Rollback script | `./infra/scripts/rollback-demo-release.sh` |
@@ -38,7 +56,7 @@ https://demo.app-juli.com  →  Nginx  →  juli-demo (127.0.0.1:3001)  →  Nex
 |---------|---------|------|
 | `app-juli.com` | `juli-web` | 3000 |
 | `api.app-juli.com` | `juli-api` | 8000 |
-| `demo.app-juli.com` | `juli-demo` | 3001 |
+| `demo.app-juli.com` | `juli-demo` | 3001 / 3021 (alternating) |
 
 Restarting or rolling back Demo **does not** restart `juli-web` or `juli-api`.
 
@@ -82,7 +100,25 @@ sudo certbot --nginx -d demo.app-juli.com
 sudo certbot renew --dry-run   # confirm auto-renew
 ```
 
-Config source: `infra/nginx/demo.app-juli.com.conf` (proxies to `127.0.0.1:3001`).
+Config source: `infra/nginx/demo.app-juli.com.conf` (proxies to `upstream juli_demo`).
+
+### One-time upstream indirection (#839) — required before the first graceful deploy
+
+`demo.app-juli.com.conf` now `include`s `/etc/nginx/juli/demo-upstream.conf`. That include
+is an explicit filename, so **if the file is missing nginx refuses to load every site, not
+just Demo.** `provision-nginx.sh` seeds it before installing any vhost, and never
+overwrites an existing one (the existing one is what is currently serving):
+
+```bash
+cd ~/Juli-AI-v2 && git pull
+sudo ./infra/scripts/provision-nginx.sh
+```
+
+Pass: prints `Seeded /etc/nginx/juli/demo-upstream.conf ...` (or `Kept ...` on a re-run),
+then `Nginx reloaded.` Failure: `nginx -t` reports the error and **nothing is reloaded** —
+the configuration nginx already loaded keeps serving. `deploy-demo-release.sh` refuses to
+run until this file exists; it will not create it, because doing so would hide that nginx
+never had it.
 
 ---
 
@@ -146,13 +182,30 @@ git fetch origin main && git checkout main && git pull
 What `deploy-demo-release.sh` does:
 
 1. Cut or reuse release worktree at `~/releases/<short-sha>/`
-2. Build `apps/demo` with **forced** turbo rebuild (`DEMO_RELEASE_BUILD=1`) so shared
-   worktree cache hits cannot restore a `.next` from `~/Juli-AI-v2`
-3. Refresh `/etc/systemd/system/juli-demo.service` from the repo
-4. Atomically flip `~/releases/demo-current` symlink
-5. `systemctl restart juli-demo` **only** (starts `node_modules/.bin/next start`)
-6. Local health check: `http://127.0.0.1:3001/decisions` must return 2xx
-7. Append to `~/releases/demo-deploy-history.log`
+2. Read `/etc/nginx/juli/demo-upstream.conf` to learn the live port; the candidate takes
+   the other member of the pair (3001 ↔ 3021)
+3. Additive-only migration gate (#834) — **before** any candidate starts
+4. Fetch and place the CI release artifact (#837); nothing is compiled on the server
+5. Free the candidate port, then start the release there, **loopback-bound and private**
+6. Run the #833 verification harness against the candidate — every live mutation below is
+   gated on this passing
+7. **Graceful cutover (#839):** render the new upstream definition, retain the current one
+   as `demo-upstream.conf.prev`, `mv -Tf` the new one into place, `nginx -t`, then
+   `systemctl reload nginx`. Nothing is restarted, so in-flight requests complete.
+8. Atomically flip `~/releases/demo-current` symlink
+9. Refresh `/etc/systemd/system/juli-demo.service` and record the live port in
+   `/etc/juli/demo-runtime.env`, so a **reboot** brings the durable unit back on the port
+   nginx is pointed at
+10. Local health check on the newly live port: `/decisions` must return 2xx
+11. Append to `~/releases/demo-deploy-history.log`, then prune (only after success)
+
+**If `nginx -t` rejects the new definition**, nothing is reloaded, the retained definition
+is put back, the deploy exits non-zero, and the site keeps serving the configuration nginx
+already loaded. `demo-current` is not repointed.
+
+**The previous instance keeps running** on its port after cutover. That is deliberate — it
+is what makes the retained definition an instant undo. It is stopped at the start of the
+*next* deploy, when its port is needed and it has long since drained.
 
 ---
 
@@ -166,8 +219,26 @@ cd ~/Juli-AI-v2
 ./infra/scripts/rollback-demo-release.sh <sha-or-short-sha>
 ```
 
-Rollback re-points `~/releases/demo-current`, restarts `juli-demo` only, and verifies
-local `/decisions` health before success.
+Rollback starts the target release on the free port, waits for it to answer, and only then
+repoints the upstream definition and reloads nginx — the same graceful switch a deploy
+uses. If the target never becomes healthy, **nothing is switched** and the current release
+keeps serving. It never restarts the live process and never prunes a release worktree.
+
+**Fastest undo of the release just cut over** — no restart and no wait, because the
+instance the retained definition names is still running:
+
+```bash
+cp -p /etc/nginx/juli/demo-upstream.conf.prev /etc/nginx/juli/demo-upstream.conf \
+  && nginx -t && systemctl reload nginx
+```
+
+Use the rollback script instead when that instance is gone (after a reboot) or to reach an
+older release. Automating this undo on a failed post-cutover check is #840.
+
+To restart Demo by hand outside a release — `sudo systemctl restart juli-demo` — note that
+the unit binds `DEMO_LIVE_PORT` from `/etc/juli/demo-runtime.env`, so it will collide with
+a promoted candidate already on that port. Stop that instance first, or just reload nginx
+onto whichever port is healthy.
 
 ---
 

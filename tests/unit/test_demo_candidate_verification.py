@@ -571,7 +571,11 @@ def test_verification_precedes_every_live_mutation() -> None:
     body = main_body()
     verify_at = first_index(body, "verify_candidate ")
     for mutation in (
-        "systemctl restart juli-demo",
+        # `systemctl restart juli-demo` used to head this list. #839 deleted that step:
+        # the restart *was* the outage. Its successor as the first publicly visible
+        # mutation is the upstream switch, and it is gated on verification exactly the
+        # same way.
+        "switch_demo_upstream ",
         "prune_release_worktrees ",
         "/etc/systemd/system/juli-demo.service",
         "mv -Tf",
