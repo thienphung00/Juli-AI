@@ -30,7 +30,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "025_silver_orders_returns"
+LATEST_REVISION = "028_demo_execution_records"
 
 
 def _validate_destructive_db_url(url: str) -> None:
@@ -85,6 +85,7 @@ def _validate_destructive_db_url(url: str) -> None:
 REVISION_024_GOLD_TABLE = "kpi_envelopes"
 REVISION_024_COMPAT_VIEW = "analytics_kpi_envelopes_compat"
 REVISION_025_SILVER_TABLES = ("orders", "returns")
+REVISION_028_DEMO_EXECUTION_TABLE = "demo_execution_records"
 REVISION_010_COLUMNS = {
     "orders": (
         "order_value",
@@ -891,15 +892,20 @@ def test_bronze_to_silver_promotion_integration(postgres_at_head: Engine):
 
 
 @requires_postgres
-def test_latest_downgrade_drops_only_revision_025_silver(postgres_at_head: Engine):
-    """Downgrading head removes silver orders/returns; gold tables remain."""
+def test_downgrade_to_024_drops_revision_025_silver(postgres_at_head: Engine):
+    """Downgrading to 024 removes silver orders/returns; gold tables remain.
+
+    Targets revision 024 explicitly rather than ``-1``: since #715/#716/#717 added
+    026/027/028, silver is no longer the newest revision, so ``-1`` would step back
+    through the Decision slices instead. The invariant under test is unchanged.
+    """
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
     for table in REVISION_025_SILVER_TABLES:
         assert _table_exists_in_schema(postgres_at_head, "silver", table)
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "024_gold_kpi_envelopes")
 
     for table in REVISION_025_SILVER_TABLES:
         assert not _table_exists_in_schema(postgres_at_head, "silver", table)
@@ -908,6 +914,25 @@ def test_latest_downgrade_drops_only_revision_025_silver(postgres_at_head: Engin
     command.upgrade(cfg, "head")
     for table in REVISION_025_SILVER_TABLES:
         assert _table_exists_in_schema(postgres_at_head, "silver", table)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_028_demo_execution(postgres_at_head: Engine):
+    """Downgrading head one step removes only 028's table; 025/024 objects remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
+
+    command.downgrade(cfg, "-1")
+
+    assert not _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
+    for table in REVISION_025_SILVER_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "silver", table)
+    assert _table_exists_in_schema(postgres_at_head, "gold", REVISION_024_GOLD_TABLE)
+
+    command.upgrade(cfg, "head")
+    assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
 
 
 @requires_postgres
