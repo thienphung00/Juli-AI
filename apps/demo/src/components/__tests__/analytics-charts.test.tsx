@@ -20,7 +20,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={gmv.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={gmv.chartKind}
         />
       );
 
@@ -43,7 +42,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={aov.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={aov.chartKind}
         />
       );
 
@@ -72,7 +70,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={ctor.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={ctor.chartKind}
         />
       );
 
@@ -101,7 +98,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={gmv.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={gmv.chartKind}
         />
       );
 
@@ -122,7 +118,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={aov.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={aov.chartKind}
         />
       );
 
@@ -143,7 +138,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={ctor.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={ctor.chartKind}
         />
       );
 
@@ -171,7 +165,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -198,7 +191,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={liveHours.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={liveHours.chartKind}
         />
       );
 
@@ -225,7 +217,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={liveHours.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={liveHours.chartKind}
         />
       );
 
@@ -262,7 +253,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={liveHours.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={liveHours.chartKind}
         />
       );
 
@@ -290,7 +280,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={gmv.name}
           snapshot={null}
           comparePreviousPeriod={false}
-          chartKind={gmv.chartKind}
           unavailableReason={unavailableReason}
         />
       );
@@ -315,7 +304,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={gmv.name}
           snapshot={null}
           comparePreviousPeriod={false}
-          chartKind={gmv.chartKind}
           unavailableReason={unavailableReason}
         />
       );
@@ -340,7 +328,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={gmv.name}
           snapshot={null}
           comparePreviousPeriod={false}
-          chartKind={gmv.chartKind}
           unavailableReason={unavailableReason}
         />
       );
@@ -369,7 +356,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={gmv.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={gmv.chartKind}
         />
       );
 
@@ -380,7 +366,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={gmv.name}
           snapshot={null}
           comparePreviousPeriod={false}
-          chartKind={gmv.chartKind}
           unavailableReason={unavailableReason}
         />
       );
@@ -424,7 +409,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -452,7 +436,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -481,7 +464,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -514,7 +496,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -547,7 +528,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -578,7 +558,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -614,7 +593,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -647,7 +625,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 
@@ -678,7 +655,6 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
           label={cancellationRate.name}
           snapshot={snapshot}
           comparePreviousPeriod={false}
-          chartKind={cancellationRate.chartKind}
         />
       );
 

@@ -10,7 +10,6 @@ import {
 } from "@juli/ui";
 
 import type {
-  ChartKind,
   MeasurementType,
   UnavailableKpiReason,
   getChartFormFromMeasurementType,
@@ -26,12 +25,6 @@ interface AnalyticsHeroChartProps {
   label: string;
   snapshot: KpiSnapshot | null;
   comparePreviousPeriod: boolean;
-  /**
-   * Deprecated: chartKind is kept for backwards compatibility during transition.
-   * When slice #867 retires ChartKind, this prop can be removed and the resolver
-   * will be the only decision point for chart appearance.
-   */
-  chartKind?: ChartKind;
   /**
    * When snapshot is null, provides the reason why the KPI is unavailable
    * (dataSource and activationRequirement). Used to render an explained empty state.
@@ -49,7 +42,6 @@ export function AnalyticsHeroChart({
   label,
   snapshot,
   comparePreviousPeriod,
-  chartKind,
   unavailableReason,
   onScrubIndexChange,
 }: AnalyticsHeroChartProps) {
