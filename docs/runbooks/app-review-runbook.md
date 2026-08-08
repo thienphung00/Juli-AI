@@ -797,10 +797,50 @@ RELEASE_DIR=/root/releases/current BACKUP_DIR=/root/backups \
 ### Monitoring
 
 - **Uptime:** `.github/workflows/uptime.yml` — 15-minute health poll, Slack alert on failure.
+  The same job also checks **Demo KPI freshness** (see below), which alerts separately.
 - **Logs:** `journalctl -u juli-api` / `journalctl -u juli-web`.
 - **Restore drill:** `journalctl -u juli-restore-drill.service` — look for a single summary line:
   `RESTORE DRILL PASS` or `RESTORE DRILL FAIL`.
 - **AWS:** CloudTrail for Roles Anywhere `CreateSession` and Secrets Manager `GetSecretValue`.
+
+#### Demo KPI staleness (#853)
+
+`GET /v1/demo/analytics` returns 200 with entirely plausible numbers whether or not those
+numbers are current, so the health poll above cannot see a freshness failure. On 2026-08-06
+the envelope went un-recomputed for over 25 hours and nothing surfaced it.
+`infra/scripts/check-kpi-freshness.py` closes that gap and runs on the same 15-minute cadence.
+
+It checks two things that fail independently:
+
+| Signal | Field | Threshold | Why that number |
+|---|---|---|---|
+| Envelope age | `computed_at` | **3 hours** | The reconcile is hourly. Three hours absorbs one slow run — the slowest observed took 2244.9s — without tolerating a dead one. |
+| Orders data age | `source_freshness["silver.orders"].age_seconds` | **3 hours** | Same cadence, same allowance. Kept equal to the envelope threshold so the alarm and the envelope cannot disagree about what "stale" means. |
+| Interval data age | `source_freshness["analytics_performance_intervals"].age_seconds` | **48 hours** | These are daily-grain rows keyed by the day measured, so the newest row is already up to 24h old the moment it lands. Anything under ~2 days flags a healthy backfill every afternoon. |
+
+Exit codes are deliberately distinct, because the two faults need different responses:
+
+- `0` — fresh.
+- `1` — **stale**: the endpoint is healthy, the numbers are not. Check whether the hourly
+  reconcile is running (`journalctl -u juli-celery-worker | grep mock_analytics_hourly_reconcile`)
+  and whether the Partner fetch is failing (`grep targeted_fetch_orders_failed`). A failing
+  fetch no longer aborts the job, so gold keeps recomputing on frozen data — `computed_at`
+  will look perfect and only the source ages give it away.
+- `2` — **unreachable or malformed**: a different fault. Note the edge rejects the default
+  `Python-urllib` User-Agent with 403, so the script sends its own; if that header is ever
+  dropped the alarm reports `2` on every run.
+
+**If a reconcile slowdown starts breaching the 3-hour threshold**, raise it here and in
+`SOURCE_STALE_AFTER_SECONDS` (`backend/src/juli_backend/services/gold_kpi_envelope_contract.py`)
+together — a test pins the two to the same value so they cannot drift apart silently.
+
+To verify the alarm without waiting for an outage:
+
+```bash
+python3 infra/scripts/check-kpi-freshness.py --url https://api.app-juli.com/v1/demo/analytics
+# or against a saved payload:
+python3 infra/scripts/check-kpi-freshness.py --from-file /tmp/envelope.json
+```
 
 #### Interpreting a failed restore drill
 
