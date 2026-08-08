@@ -1,0 +1,88 @@
+{
+  "planId": "rep-833-asset-level-verification-harness",
+  "affectedPublicSurfaces": [
+    "no public surface changes in this slice; it adds the harness that will gate demo.app-juli.com, app-juli.com, and api.app-juli.com releases from #838 onward"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local fixture server plus an operator-supplied base URL; the harness is runnable against local dev, a candidate instance, or current production, and this slice exercises only the first",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "healthy-page-passes",
+        "entryUrl": "local fixture: a page whose referenced stylesheets and scripts all resolve",
+        "assertions": [
+          "every referenced stylesheet and script is fetched and asserted 2xx",
+          "each asset body is asserted non-trivial, so an empty or HTML-error response served in place of a stylesheet fails",
+          "the harness exits zero"
+        ]
+      },
+      {
+        "name": "broken-page-fails",
+        "entryUrl": "local fixture: a page referencing a stylesheet that 404s, and one served as an HTML error body",
+        "assertions": [
+          "the harness exits non-zero",
+          "the specific failing asset URL is named in output",
+          "a 200 response carrying an error page in place of CSS is rejected on body size, not accepted on status"
+        ]
+      },
+      {
+        "name": "core-api-paths",
+        "entryUrl": "operator-supplied API base URL",
+        "assertions": [
+          "core API paths are asserted on response shape, not only status",
+          "a healthy process with a broken route fails the harness"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "The slice adds a verification script and its tests. It touches no database, queue, or persistence surface."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert the commit; the harness is not yet wired into any deploy path in this slice, so removing it restores the prior behaviour exactly",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_verify_release_assets.py",
+    "bash infra/scripts/verify-release-assets.sh --help",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 833"
+  ],
+  "doNotInfer": [
+    "wiring the harness into deploy-demo-release.sh or any cutover path — that is #838",
+    "browser-level computed-styling or interactivity assertions — those run in CI against the artifact per #837, and the split is deliberate",
+    "VPS-specific assumptions; the harness must run against an arbitrary base URL",
+    "nginx, systemd, slot, or traffic-switch changes"
+  ]
+}
