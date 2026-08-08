@@ -1,6 +1,23 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
+// Polyfill PointerEvent for jsdom tests
+if (typeof globalThis.PointerEvent === "undefined") {
+  class MockPointerEvent extends Event {
+    clientX = 0;
+    clientY = 0;
+    isPrimary = true;
+
+    constructor(type: string, init?: Partial<PointerEvent>) {
+      super(type, init);
+      this.clientX = init?.clientX ?? 0;
+      this.clientY = init?.clientY ?? 0;
+      this.isPrimary = init?.isPrimary ?? true;
+    }
+  }
+  globalThis.PointerEvent = MockPointerEvent as any;
+}
 
 import {
   CHART_SERIES_COLORS,
@@ -618,6 +635,241 @@ describe("Chart primitives", () => {
       // for the value text itself — not merely for its origin point.
       expect(labelX).toBeLessThan(CHART_WIDTH);
       expect(CHART_WIDTH - labelX).toBeGreaterThanOrEqual(MIN_LABEL_ROOM);
+    });
+  });
+
+  describe("Chart scrubbing (issue #866)", () => {
+    it("GREEN: renders a scrub controller for charts with ≥10 points", () => {
+      const testData = Array.from({ length: 30 }, (_, i) => ({
+        label: `Day ${i + 1}`,
+        value: Math.floor(Math.random() * 100),
+      }));
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="30-day trend"
+          trend="neutral"
+          value="150"
+        />,
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-area-chart-visual"]',
+      );
+      expect(visual).toBeInTheDocument();
+      // Scrub controller should be present for high-density data
+      const scrubController = container.querySelector(
+        '[data-chart-scrub-controller]',
+      );
+      expect(scrubController).toBeInTheDocument();
+    });
+
+    it("GREEN: does not render a scrub controller for charts with <10 points", () => {
+      const testData = [
+        { label: "Day 1", value: 100 },
+        { label: "Day 2", value: 120 },
+        { label: "Day 3", value: 115 },
+        { label: "Day 4", value: 130 },
+        { label: "Day 5", value: 125 },
+        { label: "Day 6", value: 128 },
+        { label: "Day 7", value: 135 },
+      ];
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="7-day trend"
+          trend="neutral"
+          value="135"
+        />,
+      );
+
+      const scrubController = container.querySelector(
+        '[data-chart-scrub-controller]',
+      );
+      // No scrub controller for low-density data
+      expect(scrubController).not.toBeInTheDocument();
+    });
+
+    it("GREEN: pointer events can select nearest point by horizontal position", async () => {
+      const testData = Array.from({ length: 30 }, (_, i) => ({
+        label: `Day ${i + 1}`,
+        value: 50 + i * 10,
+      }));
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="30-day trend"
+          trend="neutral"
+          value="340"
+        />,
+      );
+
+      const scrubController = container.querySelector(
+        '[data-chart-scrub-controller]',
+      ) as HTMLElement;
+      expect(scrubController).toBeInTheDocument();
+
+      // Use fireEvent to trigger React's synthetic event handling
+      fireEvent.pointerMove(scrubController, {
+        clientX: 150,
+        clientY: 60,
+        isPrimary: true,
+      });
+
+      // After pointer move, check if scrub marker gets rendered
+      // The scrub marker is rendered conditionally based on selectedIndex state
+      const scrubMarker = container.querySelector(
+        '[data-chart-scrub-marker-selected="true"]',
+      );
+      expect(scrubMarker).toBeInTheDocument();
+    });
+
+    it("GREEN: scrub line renders when a point is selected", async () => {
+      const testData = Array.from({ length: 30 }, (_, i) => ({
+        label: `Day ${i + 1}`,
+        value: 50 + i * 10,
+      }));
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="30-day trend"
+          trend="neutral"
+          value="340"
+        />,
+      );
+
+      const scrubController = container.querySelector(
+        '[data-chart-scrub-controller]',
+      ) as HTMLElement;
+
+      // Use fireEvent to trigger pointer move
+      fireEvent.pointerMove(scrubController, {
+        clientX: 150,
+        clientY: 60,
+        isPrimary: true,
+      });
+
+      // Scrub line should be rendered
+      const scrubLine = container.querySelector('[data-chart-scrub-line]');
+      expect(scrubLine).toBeInTheDocument();
+    });
+
+    it("GREEN: releasing pointer clears the scrub selection", async () => {
+      const testData = Array.from({ length: 30 }, (_, i) => ({
+        label: `Day ${i + 1}`,
+        value: 50 + i * 10,
+      }));
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="30-day trend"
+          trend="neutral"
+          value="340"
+        />,
+      );
+
+      const scrubController = container.querySelector(
+        '[data-chart-scrub-controller]',
+      ) as HTMLElement;
+
+      // Simulate drag start
+      fireEvent.pointerMove(scrubController, {
+        clientX: 150,
+        clientY: 60,
+        isPrimary: true,
+      });
+
+      let scrubLine = container.querySelector('[data-chart-scrub-line]');
+      expect(scrubLine).toBeInTheDocument();
+
+      // Simulate release (pointerleave)
+      fireEvent.pointerLeave(scrubController);
+
+      // Scrub line should be gone after release
+      scrubLine = container.querySelector('[data-chart-scrub-line]');
+      expect(scrubLine).not.toBeInTheDocument();
+    });
+
+    it("GREEN: readout is not drawn as a descendant of the plot container", () => {
+      const testData = Array.from({ length: 30 }, (_, i) => ({
+        label: `Day ${i + 1}`,
+        value: 50 + i * 10,
+      }));
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="30-day trend"
+          trend="neutral"
+          value="340"
+        />,
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-area-chart-visual"]',
+      );
+      expect(visual).toBeInTheDocument();
+
+      // Find any tooltip/readout/pill elements
+      const tooltip = visual?.querySelector('[data-chart-tooltip]');
+      const pill = visual?.querySelector('[data-chart-pill]');
+      const overlay = visual?.querySelector('[data-chart-overlay]');
+
+      // None of these should be inside the plot visual
+      expect(tooltip).not.toBeInTheDocument();
+      expect(pill).not.toBeInTheDocument();
+      expect(overlay).not.toBeInTheDocument();
+    });
+
+    it("GREEN: scrubbed marker does not use status-palette colors (ADR-060 § 5)", () => {
+      const testData = Array.from({ length: 30 }, (_, i) => ({
+        label: `Day ${i + 1}`,
+        value: 50 + i * 10,
+      }));
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="30-day trend"
+          trend="neutral"
+          value="340"
+        />,
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-area-chart-visual"]',
+      );
+
+      // Trigger pointer move to select a point (scrub marker appears)
+      const scrubController = container.querySelector(
+        '[data-chart-scrub-controller]',
+      ) as HTMLElement;
+
+      fireEvent.pointerMove(scrubController, {
+        clientX: 150,
+        clientY: 60,
+        isPrimary: true,
+      });
+
+      // Find the scrubbed marker (emphasis via size: 6px radius instead of 5px)
+      const scrubbedMarker = visual?.querySelector(
+        '[data-chart-scrub-marker-selected="true"] circle[r="6"]',
+      ) as SVGCircleElement;
+
+      expect(scrubbedMarker).toBeInTheDocument();
+
+      // The scrubbed marker fill must not be a status-palette color (ADR-060 § 5)
+      const markerFill = scrubbedMarker?.getAttribute("fill");
+      expect(markerFill).not.toBe("var(--juli-warning)");
+      expect(markerFill).not.toBe("var(--juli-success)");
+      expect(markerFill).not.toBe("var(--juli-destructive)");
+      // It should be the series color (neutral in this case)
+      expect(markerFill).toBe("var(--juli-chart-neutral)");
     });
   });
 

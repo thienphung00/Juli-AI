@@ -37,6 +37,11 @@ interface AnalyticsHeroChartProps {
    * (dataSource and activationRequirement). Used to render an explained empty state.
    */
   unavailableReason?: UnavailableKpiReason;
+  /**
+   * Callback fired when a point is scrubbed on the chart.
+   * Called with the index and the point data (label, value).
+   */
+  onScrubIndexChange?: (index: number, point?: { label: string; value: number }) => void;
 }
 
 export function AnalyticsHeroChart({
@@ -46,6 +51,7 @@ export function AnalyticsHeroChart({
   comparePreviousPeriod,
   chartKind,
   unavailableReason,
+  onScrubIndexChange,
 }: AnalyticsHeroChartProps) {
   // Handle unavailable KPI: render explained state instead of null
   if (!snapshot) {
@@ -78,6 +84,7 @@ export function AnalyticsHeroChart({
           trend={"neutral" as ChartTrend}
           value={snapshot.formattedValue}
           width={320}
+          onScrubIndexChange={onScrubIndexChange}
         />
       );
     }
@@ -98,6 +105,7 @@ export function AnalyticsHeroChart({
           trend={"neutral"}
           value={snapshot.formattedValue}
           width={320}
+          onScrubIndexChange={onScrubIndexChange}
         />
       );
     }
@@ -114,6 +122,7 @@ export function AnalyticsHeroChart({
           trend={"neutral"}
           value={snapshot.formattedValue}
           width={320}
+          onScrubIndexChange={onScrubIndexChange}
         />
       );
     }
