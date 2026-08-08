@@ -22,6 +22,7 @@ SYSTEMD_DIR = REPO_ROOT / "infra/systemd"
 
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/demo-deploy-runbook.md"
 NGINX_DEMO_PATH = NGINX_DIR / "demo.app-juli.com.conf"
+NGINX_DEMO_UPSTREAM_PATH = NGINX_DIR / "demo-upstream.conf"
 NGINX_APP_PATH = NGINX_DIR / "app-juli.com.conf"
 
 pytestmark = pytest.mark.demo_contract
@@ -55,6 +56,16 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _directives(text: str) -> str:
+    """Drop comment-only lines.
+
+    Several assertions below are of the form "X must no longer appear". The headers of
+    these files legitimately explain what X was and why it went away, so matching on the
+    raw text would let a comment satisfy — or falsely fail — the check.
+    """
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+
 @pytest.fixture
 def runbook_text() -> str:
     return _read(RUNBOOK_PATH)
@@ -72,7 +83,15 @@ def test_nginx_demo_vhost_routes_to_independent_upstream():
     assert NGINX_DEMO_PATH.is_file(), f"missing nginx config: {NGINX_DEMO_PATH}"
     conf = _read(NGINX_DEMO_PATH)
     assert DEMO_DOMAIN in conf
-    assert f"127.0.0.1:{DEMO_PORT}" in conf
+    # Until #839 the demo port was written literally in this vhost. It now lives in the
+    # deployment-owned definition the vhost includes, so that a release can repoint it
+    # atomically. Independence from the App Review and API ports is unchanged, and the
+    # demo port is asserted on the seed definition instead.
+    assert "proxy_pass http://juli_demo;" in conf
+    assert NGINX_DEMO_UPSTREAM_PATH.is_file(), (
+        f"missing seed upstream definition: {NGINX_DEMO_UPSTREAM_PATH}"
+    )
+    assert f"127.0.0.1:{DEMO_PORT}" in _read(NGINX_DEMO_UPSTREAM_PATH)
     assert f"127.0.0.1:{FRONTEND_PORT}" not in conf, (
         "demo vhost must not proxy to the App Review port"
     )
@@ -94,9 +113,14 @@ def test_app_and_api_nginx_configs_unchanged_for_demo_independence():
 def test_systemd_demo_unit_is_independent_service():
     assert SYSTEMD_DEMO_PATH.is_file(), f"missing systemd unit: {SYSTEMD_DEMO_PATH}"
     unit = _read(SYSTEMD_DEMO_PATH)
+    directives = _directives(unit)
     assert "juli-demo" in unit or "Demo" in unit
-    assert f"--port {DEMO_PORT}" in unit or f":{DEMO_PORT}" in unit
-    assert "127.0.0.1" in unit
+    # #839 made the port an indirection so the lane can alternate between two loopback
+    # ports; the seed default is still 3001. Asserted on directives, not on the whole
+    # file, so the header comment cannot satisfy this.
+    assert "--port ${DEMO_LIVE_PORT}" in directives
+    assert f"Environment=DEMO_LIVE_PORT={DEMO_PORT}" in directives
+    assert "127.0.0.1" in directives
     assert "apps/demo" in unit
     assert "juli-api.service" not in unit
     assert "juli-web.service" not in unit
@@ -108,16 +132,22 @@ def test_systemd_demo_uses_demo_release_symlink():
 
 
 # AC2: Release automation builds apps/demo and restarts only Demo with local health check.
-def test_deploy_demo_script_builds_and_restarts_demo_only():
+def test_deploy_demo_script_builds_and_cuts_over_demo_only():
     assert DEPLOY_DEMO_PATH.is_file()
     script = _read(DEPLOY_DEMO_PATH)
+    directives = _directives(script)
     assert "build-demo.sh" in script
     assert "apps/demo" in script
     assert "juli-demo" in script
-    assert "systemctl restart juli-demo" in script
+    # This used to require `systemctl restart juli-demo`. #839 removed that step because
+    # the restart *was* the error window; its successor is an atomic replacement of the
+    # deployment-owned upstream definition followed by a graceful nginx reload.
+    assert "systemctl restart juli-demo" not in directives
+    assert "switch_demo_upstream" in directives
+    assert "systemctl reload nginx" in directives
     assert "systemctl restart juli-api" not in script
     assert "systemctl restart juli-web" not in script
-    assert f"127.0.0.1:{DEMO_PORT}" in script
+    assert "systemctl restart nginx" not in directives
     assert "demo-deploy-history.log" in script
 
 
@@ -137,15 +167,23 @@ def test_runbook_documents_independent_demo_restart(runbook_text: str):
 
 
 # AC3: Rollback restores previous healthy Demo release independently.
-def test_rollback_demo_script_restarts_demo_only():
+def test_rollback_demo_script_switches_demo_only():
     assert ROLLBACK_DEMO_PATH.is_file()
     script = _read(ROLLBACK_DEMO_PATH)
+    directives = _directives(script)
     assert "demo-deploy-history.log" in script
     assert "demo-current" in script
-    assert "systemctl restart juli-demo" in script
+    # Rollback used to `systemctl restart juli-demo`. Since #839 the live port is decided
+    # by the upstream definition, so restarting the durable unit would collide with the
+    # instance that is serving. Rollback now starts the target on the free port and goes
+    # through the same graceful switch a deploy uses.
+    assert "systemctl restart juli-demo" not in directives
+    assert "switch_demo_upstream" in directives
     assert "systemctl restart juli-api" not in script
     assert "systemctl restart juli-web" not in script
-    assert f"127.0.0.1:{DEMO_PORT}" in script
+    # ~/releases is one pool shared by every deploy lane; rollback must never prune it.
+    assert "prune_release_worktrees" not in directives
+    assert "git worktree remove" not in directives
 
 
 def test_runbook_documents_demo_rollback(runbook_text: str):
