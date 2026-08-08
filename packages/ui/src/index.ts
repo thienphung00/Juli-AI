@@ -161,19 +161,23 @@ export type {
 
 /* #414-B */
 export {
+  BandedLineChart,
   CHART_SERIES_COLORS,
   ChartExpandableTile,
   ChartTextEquivalent,
   MetricSparkline,
   TrendAreaChart,
+  TrendBarsChart,
   TrendLineChart,
 } from "./chart";
 export type {
+  BandedLineChartProps,
   ChartExpandableTileProps,
   ChartTextEquivalentProps,
   ChartTrend,
   MetricSparklineProps,
   TrendAreaChartProps,
+  TrendBarsChartProps,
   TrendLineChartProps,
 } from "./chart";
 export { isNavTabActive } from "./navigation-utils";

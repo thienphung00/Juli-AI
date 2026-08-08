@@ -71,9 +71,13 @@ describe("Analytics live wire (#534)", () => {
       </DemoShell>,
     );
 
-    expect(await screen.findByText("485.000.000 ₫")).toHaveClass(
-      "analytics-hero__value",
+    // Query for the hero value element specifically (disambiguate from chart endpoint label with class filter)
+    const heroValue = await screen.findAllByText("485.000.000 ₫");
+    const heroValueElement = heroValue.find(
+      (el) => el.className.includes("analytics-hero__value"),
     );
+    expect(heroValueElement).toBeDefined();
+
     expect(screen.getByText("Dữ liệu thực")).toBeInTheDocument();
 
     // Removed KPIs are not rendered at all (not ADR-023 six-card set)

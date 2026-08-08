@@ -1,0 +1,76 @@
+{
+  "planId": "rep-860-cancellation-bounded-ratio-data",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-cancellation-rate-has-bounded-ratio-payload",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "cancellation_rate_payload_carries_value_target_and_bounds",
+          "within_tolerance_honours_goal_direction_at_or_below_target",
+          "bounds_come_from_the_metric_definition_not_the_data_range",
+          "no_code_path_assigns_undefined_to_the_bounded_ratio_payload",
+          "kpi_genuinely_lacking_data_reports_unavailable_not_a_partial_payload"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. boundedRatio replaces the hardcoded gaugeValue on the apps/demo KPI snapshot; mock and live envelope paths both populate it."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "the band that draws the payload (#864)",
+    "the default target value where the envelope supplies none — document the chosen default explicitly",
+    "chart form resolution (#859)"
+  ]
+}

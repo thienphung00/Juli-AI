@@ -1,0 +1,76 @@
+{
+  "planId": "rep-865-stable-series-hue",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-metric-keeps-its-hue",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "metric_renders_the_same_hue_for_a_positive_and_a_negative_delta",
+          "switching_7d_30d_90d_does_not_change_a_metric_hue",
+          "success_and_destructive_colours_absent_from_trend_lines_for_ordinary_movement",
+          "delta_chip_still_conveys_direction_via_arrow_and_figure",
+          "dark_mode_steps_validated_against_the_dark_surface_not_inverted"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Series colour policy in packages/ui chart primitives; --juli-chart-neutral already exists in packages/theme/tokens.css per ADR-054."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "the tolerance-band breach state (#864) — status palette is reserved for it",
+    "palette validator results — run the dataviz validator for light and dark and record the real output"
+  ]
+}

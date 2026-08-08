@@ -1,10 +1,15 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent, ReactNode, ReactElement } from "react";
+import { useCallback, useState } from "react";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceArea,
+  ReferenceLine,
   XAxis,
   YAxis,
 } from "recharts";
@@ -34,6 +39,94 @@ const TREND_DIRECTION_LABEL: Record<ChartTrend, string> = {
   neutral: "xu hướng ổn định",
   warning: "xu hướng cảnh báo",
 };
+
+// Density threshold: below ~10 points, no scrub is needed
+const SCRUB_DENSITY_THRESHOLD = 10;
+
+/**
+ * Props passed by Recharts to a custom dot shape component.
+ * Typing this prevents the need for `any` casts and maintains type safety.
+ */
+interface DotProps {
+  cx: number;
+  cy: number;
+  index: number;
+  payload?: unknown;
+  fill?: string;
+  stroke?: string;
+}
+
+/**
+ * useScrubState manages the selected point index during chart scrubbing.
+ * Returns the current selected index or -1 if no scrub is active.
+ */
+export function useScrubState() {
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  return {
+    selectedIndex,
+    setSelectedIndex,
+  };
+}
+
+/**
+ * ChartScrubController handles pointer events to select data points.
+ * Only renders for data with ≥10 points (ADR-060 § 6).
+ */
+export interface ChartScrubControllerProps {
+  dataLength: number;
+  onIndexChange?: (index: number) => void;
+  children: ReactNode;
+}
+
+export function ChartScrubController({
+  dataLength,
+  onIndexChange,
+  children,
+}: ChartScrubControllerProps) {
+  // No scrub for low-density data
+  if (dataLength < SCRUB_DENSITY_THRESHOLD) {
+    return <>{children}</>;
+  }
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!event.isPrimary) return;
+
+      const target = event.currentTarget;
+      const rect = target.getBoundingClientRect();
+      const relativeX = event.clientX - rect.left;
+      const proportion = Math.max(0, Math.min(1, relativeX / rect.width));
+
+      // Select the nearest point based on horizontal position
+      const selectedIndex = Math.round(proportion * (dataLength - 1));
+      onIndexChange?.(selectedIndex);
+    },
+    [dataLength, onIndexChange],
+  );
+
+  const handlePointerLeave = useCallback(() => {
+    // Clear selection on pointer leave
+    onIndexChange?.(-1);
+  }, [onIndexChange]);
+
+  return (
+    <div
+      data-chart-scrub-controller
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 
 export interface ChartTextEquivalentProps {
   label: string;
@@ -119,6 +212,7 @@ export interface TrendAreaChartProps {
   delta?: string;
   width?: number;
   height?: number;
+  onScrubIndexChange?: (index: number, point?: { label: string; value: number }) => void;
 }
 
 export function TrendAreaChart({
@@ -129,9 +223,86 @@ export function TrendAreaChart({
   delta,
   width = 280,
   height = 120,
+  onScrubIndexChange,
 }: TrendAreaChartProps) {
   const stroke = CHART_SERIES_COLORS[trend];
   const fill = `color-mix(in srgb, ${stroke} 12%, transparent)`;
+  const { selectedIndex, setSelectedIndex } = useScrubState();
+
+  const handleIndexChange = useCallback(
+    (index: number) => {
+      setSelectedIndex(index);
+      if (onScrubIndexChange) {
+        onScrubIndexChange(index, index >= 0 && index < data.length ? data[index] : undefined);
+      }
+    },
+    [data, onScrubIndexChange, setSelectedIndex],
+  );
+
+  // Custom dot component that renders endpoint marker and optional scrub marker
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
+    const { cx, cy, index } = props;
+
+    // Check if this is the selected scrub point
+    const isSelected = selectedIndex === index;
+    // Only render endpoint marker for last point unless scrubbing
+    const isEndpoint = index === data.length - 1 && selectedIndex === -1;
+
+    if (!isEndpoint && !isSelected) {
+      return <g />;
+    }
+
+    const isScrubbedPoint = isSelected && selectedIndex !== -1;
+    // Scrubbed marker is emphasis through size: 6px radius (endpoint is 5px)
+    // Endpoint marker: 5px inner, 7px outer ring
+    // Scrubbed marker: 6px inner, 8px outer ring (structurally distinct, no status color)
+    const markerRadius = isScrubbedPoint ? 6 : 5;
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g data-chart-scrub-marker-selected={isScrubbedPoint || undefined}>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker — series color for both endpoint and scrubbed (ADR-060 § 5) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={stroke}
+          stroke="none"
+          data-chart-marker-endpoint={isEndpoint || undefined}
+        />
+        {/* Value label only for endpoint */}
+        {isEndpoint ? (
+          <text
+            x={cx + 12}
+            y={cy + 4}
+            fill="var(--juli-foreground)"
+            fontSize="12"
+            fontWeight="600"
+            textAnchor="start"
+            data-chart-endpoint-label="true"
+          >
+            {value}
+          </text>
+        ) : null}
+      </g>
+    );
+  };
+
+  // Render scrub line at selected point
+  const scrubLineX =
+    selectedIndex >= 0 && selectedIndex < data.length
+      ? ((selectedIndex / (data.length - 1)) * (width - 80)) // Account for right margin
+      : null;
 
   return (
     <figure className="juli-chart-area">
@@ -141,46 +312,57 @@ export function TrendAreaChart({
         trend={trend}
         value={value}
       />
-      <div
-        aria-hidden="true"
-        className="juli-chart-area__visual"
-        data-testid="trend-area-chart-visual"
+      <ChartScrubController
+        dataLength={data.length}
+        onIndexChange={handleIndexChange}
       >
-        <AreaChart
-          data={[...data]}
-          height={height}
-          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-          width={width}
+        <div
+          aria-hidden="true"
+          className="juli-chart-area__visual"
+          data-testid="trend-area-chart-visual"
         >
-          <CartesianGrid
-            stroke={GRID_STROKE}
-            strokeDasharray="3 3"
-            vertical={false}
-          />
-          <XAxis
-            axisLine={false}
-            dataKey="label"
-            interval="preserveStartEnd"
-            tick={AXIS_TICK}
-            tickLine={false}
-          />
-          <YAxis
-            axisLine={false}
-            tick={AXIS_TICK}
-            tickCount={3}
-            tickLine={false}
-            width={36}
-          />
-          <Area
-            dataKey="value"
-            fill={fill}
-            isAnimationActive={false}
-            stroke={stroke}
-            strokeWidth={2}
-            type="monotone"
-          />
-        </AreaChart>
-      </div>
+          <AreaChart
+            data={[...data]}
+            height={height}
+            margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
+            width={width}
+          >
+            <CartesianGrid
+              stroke={GRID_STROKE}
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+            <XAxis
+              axisLine={false}
+              dataKey="label"
+              interval="preserveStartEnd"
+              tick={AXIS_TICK}
+              tickLine={false}
+            />
+            <Area
+              dataKey="value"
+              dot={CustomEndpointDot as any}
+              fill={fill}
+              isAnimationActive={false}
+              stroke={stroke}
+              strokeWidth={2}
+              type="monotone"
+            />
+            {scrubLineX !== null && (
+              <line
+                x1={scrubLineX}
+                y1={0}
+                x2={scrubLineX}
+                y2={height}
+                stroke="var(--juli-muted-foreground)"
+                strokeWidth={1}
+                data-chart-scrub-line="true"
+                pointerEvents="none"
+              />
+            )}
+          </AreaChart>
+        </div>
+      </ChartScrubController>
     </figure>
   );
 }
@@ -194,6 +376,7 @@ export interface TrendLineChartProps {
   delta?: string;
   width?: number;
   height?: number;
+  onScrubIndexChange?: (index: number, point?: { label: string; value: number }) => void;
 }
 
 export function TrendLineChart({
@@ -205,6 +388,7 @@ export function TrendLineChart({
   delta,
   width = 280,
   height = 120,
+  onScrubIndexChange,
 }: TrendLineChartProps) {
   const currentStroke = CHART_SERIES_COLORS[trend];
   const mergedData = currentData.map((point, index) => ({
@@ -212,6 +396,82 @@ export function TrendLineChart({
     current: point.value,
     previous: previousData?.[index]?.value,
   }));
+  const { selectedIndex, setSelectedIndex } = useScrubState();
+
+  const handleIndexChange = useCallback(
+    (index: number) => {
+      setSelectedIndex(index);
+      if (onScrubIndexChange) {
+        onScrubIndexChange(index, index >= 0 && index < currentData.length ? currentData[index] : undefined);
+      }
+    },
+    [currentData, onScrubIndexChange, setSelectedIndex],
+  );
+
+  // Custom dot component that renders endpoint marker and optional scrub marker
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
+    const { cx, cy, index } = props;
+
+    // Check if this is the selected scrub point
+    const isSelected = selectedIndex === index;
+    // Only render endpoint marker for last point unless scrubbing
+    const isEndpoint = index === mergedData.length - 1 && selectedIndex === -1;
+
+    if (!isEndpoint && !isSelected) {
+      return <g />;
+    }
+
+    const isScrubbedPoint = isSelected && selectedIndex !== -1;
+    // Scrubbed marker is emphasis through size: 6px radius (endpoint is 5px)
+    // Endpoint marker: 5px inner, 7px outer ring
+    // Scrubbed marker: 6px inner, 8px outer ring (structurally distinct, no status color)
+    const markerRadius = isScrubbedPoint ? 6 : 5;
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g data-chart-scrub-marker-selected={isScrubbedPoint || undefined}>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker — series color for both endpoint and scrubbed (ADR-060 § 5) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={currentStroke}
+          stroke="none"
+          data-chart-marker-endpoint={isEndpoint || undefined}
+        />
+        {/* Value label only for endpoint */}
+        {isEndpoint ? (
+          <text
+            x={cx + 12}
+            y={cy + 4}
+            fill="var(--juli-foreground)"
+            fontSize="12"
+            fontWeight="600"
+            textAnchor="start"
+            data-chart-endpoint-label="true"
+          >
+            {value}
+          </text>
+        ) : null}
+      </g>
+    );
+  };
+
+  // Render scrub line at selected point
+  const scrubLineX =
+    selectedIndex >= 0 && selectedIndex < mergedData.length
+      ? ((selectedIndex / (mergedData.length - 1)) * (width - 80)) // Account for right margin
+      : null;
 
   return (
     <figure className="juli-chart-line">
@@ -221,15 +481,337 @@ export function TrendLineChart({
         trend={trend}
         value={value}
       />
+      <ChartScrubController
+        dataLength={mergedData.length}
+        onIndexChange={handleIndexChange}
+      >
+        <div
+          aria-hidden="true"
+          className="juli-chart-line__visual"
+          data-testid="trend-line-chart-visual"
+        >
+          <LineChart
+            data={mergedData}
+            height={height}
+            margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
+            width={width}
+          >
+            <CartesianGrid
+              stroke={GRID_STROKE}
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+            <XAxis
+              axisLine={false}
+              dataKey="label"
+              interval="preserveStartEnd"
+              tick={AXIS_TICK}
+              tickLine={false}
+            />
+            {previousData ? (
+              // Previous-period comparison is non-directional — ADR-054 chart-neutral.
+              <Line
+                dataKey="previous"
+                dot={false}
+                isAnimationActive={false}
+                stroke="var(--juli-chart-neutral)"
+                strokeDasharray="4 4"
+                strokeWidth={2}
+                type="monotone"
+              />
+            ) : null}
+            <Line
+              dataKey="current"
+              dot={CustomEndpointDot as any}
+              isAnimationActive={false}
+              stroke={currentStroke}
+              strokeWidth={2}
+              type="monotone"
+            />
+            {scrubLineX !== null && (
+              <line
+                x1={scrubLineX}
+                y1={0}
+                x2={scrubLineX}
+                y2={height}
+                stroke="var(--juli-muted-foreground)"
+                strokeWidth={1}
+                data-chart-scrub-line="true"
+                pointerEvents="none"
+              />
+            )}
+          </LineChart>
+        </div>
+      </ChartScrubController>
+    </figure>
+  );
+}
+
+export interface TrendBarsChartProps {
+  data: readonly { label: string; value: number }[];
+  trend: ChartTrend;
+  label: string;
+  value: string;
+  delta?: string;
+  width?: number;
+  height?: number;
+  onScrubIndexChange?: (index: number, point?: { label: string; value: number }) => void;
+}
+
+export function TrendBarsChart({
+  data,
+  trend,
+  label,
+  value,
+  delta,
+  width = 280,
+  height = 120,
+  onScrubIndexChange,
+}: TrendBarsChartProps) {
+  const stroke = CHART_SERIES_COLORS[trend];
+  const { selectedIndex, setSelectedIndex } = useScrubState();
+
+  const handleIndexChange = useCallback(
+    (index: number) => {
+      setSelectedIndex(index);
+      if (onScrubIndexChange) {
+        onScrubIndexChange(index, index >= 0 && index < data.length ? data[index] : undefined);
+      }
+    },
+    [data, onScrubIndexChange, setSelectedIndex],
+  );
+
+  // Custom shape for bars: 4px rounded ends, anchored to baseline
+  const CustomBar = (props: any): ReactElement => {
+    const { fill, x, y, width: barWidth, height: barHeight, index } = props;
+
+    if (barWidth === undefined || barHeight === undefined) {
+      return <g />;
+    }
+
+    const radius = 2; // 4px rounded means 2px radius
+    const isSelected = selectedIndex === index;
+    // Scrubbed bar emphasis through opacity: selected bars are more opaque
+    // No status-palette color (ADR-060 § 5)
+    const barOpacity = isSelected ? 1.0 : 0.8;
+
+    return (
+      <g data-chart-bar={index} data-chart-scrub-marker-selected={isSelected || undefined}>
+        {/* Rounded rectangle for the bar — series color, emphasis via opacity */}
+        <rect
+          x={x}
+          y={y}
+          width={barWidth}
+          height={barHeight}
+          fill={fill}
+          opacity={barOpacity}
+          rx={radius}
+          ry={radius}
+        />
+      </g>
+    );
+  };
+
+  // Render scrub line at selected point
+  const scrubLineX =
+    selectedIndex >= 0 && selectedIndex < data.length
+      ? ((selectedIndex / (data.length - 1)) * width)
+      : null;
+
+  return (
+    <figure className="juli-chart-bars">
+      <ChartTextEquivalent
+        delta={delta}
+        label={label}
+        trend={trend}
+        value={value}
+      />
+      <ChartScrubController
+        dataLength={data.length}
+        onIndexChange={handleIndexChange}
+      >
+        <div
+          aria-hidden="true"
+          className="juli-chart-bars__visual"
+          data-testid="trend-bars-chart-visual"
+        >
+          <BarChart
+            data={[...data]}
+            height={height}
+            margin={{ top: 4, right: 0, bottom: 0, left: 0 }}
+            width={width}
+          >
+            <CartesianGrid
+              stroke={GRID_STROKE}
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+            <XAxis
+              axisLine={false}
+              dataKey="label"
+              interval="preserveStartEnd"
+              tick={AXIS_TICK}
+              tickLine={false}
+            />
+            {/* Bars start at zero baseline per ADR-060 */}
+            <Bar
+              dataKey="value"
+              fill={stroke}
+              isAnimationActive={false}
+              radius={[2, 2, 0, 0]}
+              shape={<CustomBar />}
+            />
+            {scrubLineX !== null && (
+              <line
+                x1={scrubLineX}
+                y1={0}
+                x2={scrubLineX}
+                y2={height}
+                stroke="var(--juli-muted-foreground)"
+                strokeWidth={1}
+                data-chart-scrub-line="true"
+                pointerEvents="none"
+              />
+            )}
+          </BarChart>
+        </div>
+      </ChartScrubController>
+    </figure>
+  );
+}
+
+export interface BandedLineChartProps {
+  data: readonly { label: string; value: number }[];
+  label: string;
+  value: string;
+  target: number;
+  bounds: { min: number; max: number };
+  withinTolerance: boolean;
+  delta?: string;
+  width?: number;
+  height?: number;
+}
+
+export function BandedLineChart({
+  data,
+  label,
+  value,
+  target,
+  bounds,
+  withinTolerance,
+  delta,
+  width = 280,
+  height = 120,
+}: BandedLineChartProps) {
+  // Series line uses neutral hue; band color reflects tolerance state
+  const seriesStroke = CHART_SERIES_COLORS["neutral"];
+  const bandFill = withinTolerance
+    ? "var(--juli-muted-foreground)"
+    : "var(--juli-destructive)";
+
+  const bandOpacity = withinTolerance ? 0.12 : 0.2;
+
+  // Custom dot component that only renders for the last point
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
+    const { cx, cy, index } = props;
+
+    if (index !== data.length - 1) {
+      return <g />;
+    }
+
+    const markerRadius = 5; // 10px diameter
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={seriesStroke}
+          stroke="none"
+          data-chart-marker-endpoint="true"
+        />
+        {/* Value label */}
+        <text
+          x={cx + 12}
+          y={cy + 4}
+          fill="var(--juli-foreground)"
+          fontSize="12"
+          fontWeight="600"
+          textAnchor="start"
+          data-chart-endpoint-label="true"
+        >
+          {value}
+        </text>
+      </g>
+    );
+  };
+
+  // Custom component for the target line label
+  const TargetLineLabel = (): ReactElement => {
+    return (
+      <text
+        x={10}
+        y={-5}
+        fill="var(--juli-muted-foreground)"
+        fontSize="10"
+        textAnchor="start"
+        data-chart-target-label="true"
+      >
+        Mục tiêu: {target}
+      </text>
+    );
+  };
+
+  // Screen reader text equivalent
+  const toleranceText = withinTolerance ? "Trong ngưỡng" : "Ngoài ngưỡng";
+
+  // Custom shape component for the tolerance band that includes the data attribute
+  const BandShape = (props: any): ReactElement => {
+    const { x, y, width: bandWidth, height: bandHeight } = props;
+    return (
+      <rect
+        x={x}
+        y={y}
+        width={bandWidth}
+        height={bandHeight}
+        fill={bandFill}
+        fillOpacity={withinTolerance ? 0.12 : 0.2}
+        stroke="none"
+        data-chart-tolerance-band="true"
+      />
+    );
+  };
+
+  return (
+    <figure className="juli-chart-banded">
+      <ChartTextEquivalent
+        delta={delta}
+        label={label}
+        value={`${value} — Mục tiêu: ${target.toFixed(1)} — ${toleranceText}`}
+        trend="neutral"
+      />
       <div
         aria-hidden="true"
-        className="juli-chart-line__visual"
-        data-testid="trend-line-chart-visual"
+        className="juli-chart-banded__visual"
+        data-testid="banded-line-chart-visual"
       >
         <LineChart
-          data={mergedData}
+          data={[...data]}
           height={height}
-          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
           width={width}
         >
           <CartesianGrid
@@ -245,31 +827,40 @@ export function TrendLineChart({
             tickLine={false}
           />
           <YAxis
-            axisLine={false}
-            tick={AXIS_TICK}
-            tickCount={3}
-            tickLine={false}
-            width={36}
+            domain={[bounds.min, bounds.max]}
+            data-chart-y-axis="true"
+            data-domain-min={bounds.min.toString()}
+            data-domain-max={bounds.max.toString()}
           />
-          {previousData ? (
-            // Previous-period comparison is non-directional — ADR-054 chart-neutral.
-            <Line
-              dataKey="previous"
-              dot={false}
-              isAnimationActive={false}
-              stroke="var(--juli-chart-neutral)"
-              strokeDasharray="4 4"
-              strokeWidth={2}
-              type="monotone"
-            />
-          ) : null}
+
+          {/* Render a shaded band area for tolerance region using ReferenceArea */}
+          <ReferenceArea
+            y1={bounds.min}
+            y2={bounds.max}
+            fill={bandFill}
+            stroke="none"
+            fillOpacity={withinTolerance ? 0.12 : 0.2}
+            shape={<BandShape />}
+          />
+
+          {/* Render a ReferenceLine for the target */}
+          <ReferenceLine
+            y={target}
+            stroke="var(--juli-muted-foreground)"
+            strokeDasharray="4 4"
+            data-chart-target-line="true"
+            label={<TargetLineLabel />}
+          />
+
+          {/* Series line plotted over the band */}
           <Line
-            dataKey="current"
-            dot={false}
+            dataKey="value"
+            dot={CustomEndpointDot as any}
             isAnimationActive={false}
-            stroke={currentStroke}
+            stroke={seriesStroke}
             strokeWidth={2}
             type="monotone"
+            data-chart-series-line="true"
           />
         </LineChart>
       </div>

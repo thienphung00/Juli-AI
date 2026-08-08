@@ -1,0 +1,85 @@
+{
+  "planId": "rep-859-chart-form-follows-measurement-type",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-form-derives-from-measurement-type",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "gmv_renders_filled_line_as_an_accumulating_quantity",
+          "aov_renders_plain_line_with_no_area_fill",
+          "ctor_renders_plain_line_with_no_area_fill",
+          "every_declared_measurement_type_resolves_to_a_form_that_renders",
+          "business_category_does_not_select_the_mark"
+        ]
+      },
+      {
+        "name": "analytics-text-equivalent-retained",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "every_chart_retains_its_text_equivalent"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. measurementType is an authored field on the apps/demo KPI definitions; a single resolver maps it to a chart form consumed by packages/ui primitives."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "goal direction and tone (#858)",
+    "bars for LIVE hours (#861)",
+    "the bounded-ratio band (#860, #864)",
+    "retiring the ChartKind union (#867)"
+  ]
+}

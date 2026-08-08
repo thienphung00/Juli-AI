@@ -380,6 +380,28 @@ workflow_prompt_cache:
         - ios/
         - backend/src/juli_backend/ai/
         - Sibling issue context caches
+    854:
+      defaultSliceId: P2-CHART-1
+      handoffPath: docs/adr/060-chart-form-follows-kpi-measurement-type.md
+      parentScopeBlock: "# Parent #854 — Analytics chart system (constant)\\n## Decision\\n- Chart form derives from KPI measurementType, never business category ([ADR-060](docs/adr/060-chart-form-follows-kpi-measurement-type.md))\\n- Tone = f(delta sign, goalDirection); series hue is stable; status palette reserved for goal breaches\\n- Touch scrub readout replaces the hero value, never overlays the plot\\n## Scope\\n- apps/demo Analytics + packages/ui chart primitives only\\n- The five ADR-049 KPIs; this changes how they are drawn, not which exist\\n## Keep\\n- packages/ui HealthBar is a live meter primitive, NOT the retired health-bar chart kind\\n"
+      childSlices:
+        858: P2-CHART-TONE
+        859: P2-CHART-FORM
+        860: P2-CHART-BOUNDDATA
+        861: P2-CHART-BARS
+        862: P2-CHART-MARKS
+        863: P2-CHART-EMPTY
+        864: P2-CHART-BAND
+        865: P2-CHART-HUE
+        866: P2-CHART-SCRUB
+        867: P2-CHART-RETIRE
+      doNotLoad:
+        - docs/handoffs/archive/
+        - docs/integrations/tiktok_api/
+        - backend/
+        - ios/
+        - apps/dashboard/
+        - Sibling issue context caches
     419:
       defaultSliceId: P2-OPS-1
       handoffPath: docs/adr/027-database-migration-safety-pipeline.md

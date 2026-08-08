@@ -5,17 +5,45 @@ export type MetricKey =
   | "live-hours"
   | "cancellation-rate";
 
+export type GoalDirection = "higher-is-better" | "lower-is-better";
+
 export type AnalyticsRange = "7d" | "30d" | "90d";
 
-export type ChartKind =
-  | "health-bar"
-  | "forecast-line"
-  | "trend-line"
-  | "gauge";
+/**
+ * Measurement type determines chart form (ADR-060).
+ * - flow: sum-able quantity (GMV) → line with gradient fill
+ * - average: average measure (AOV) → line, no fill
+ * - rate: rate/percentage (CTOR) → line, no fill, percentage axis
+ * - count: discrete per period (LIVE hours) → bars
+ * - bounded-ratio: ratio with bounds (cancellation rate) → threshold band
+ */
+export type MeasurementType =
+  | "flow"
+  | "average"
+  | "rate"
+  | "count"
+  | "bounded-ratio";
+
+/**
+ * Chart form is derived from measurement type, not hand-assigned.
+ * Used internally by the resolver; not exposed in KPI definitions.
+ */
+export type ChartForm =
+  | "filled-line"
+  | "plain-line"
+  | "bars"
+  | "bounded-ratio";
 
 export interface UnavailableKpiReason {
   dataSource: string;
   activationRequirement: string;
+}
+
+export interface BoundedRatioBounds {
+  /** Minimum value for the bounded-ratio scale (e.g., 0% for cancellation rate). */
+  min: number;
+  /** Maximum value for the bounded-ratio scale (e.g., 10% for acceptable cancellation rate). */
+  max: number;
 }
 
 export interface MainKpiDefinition {
@@ -25,7 +53,10 @@ export interface MainKpiDefinition {
   description: string;
   icon: string;
   available: boolean;
-  chartKind: ChartKind;
+  goalDirection: GoalDirection;
+  measurementType: MeasurementType;
+  /** Bounds for bounded-ratio measurements, predetermined from metric definition. Only present for bounded-ratio KPIs. */
+  boundedRatioBounds?: BoundedRatioBounds;
   unavailableReason?: UnavailableKpiReason;
 }
 
@@ -81,7 +112,8 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tổng giá trị đơn hàng trên TikTok Shop trước hoàn tiền và hủy đơn.",
     icon: "₫",
     available: true,
-    chartKind: "forecast-line",
+    goalDirection: "higher-is-better",
+    measurementType: "flow",
   },
   aov: {
     metricKey: "aov",
@@ -90,7 +122,8 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Giá trị trung bình một đơn hàng.",
     icon: "₫",
     available: true,
-    chartKind: "forecast-line",
+    goalDirection: "higher-is-better",
+    measurementType: "average",
   },
   ctor: {
     metricKey: "ctor",
@@ -99,7 +132,8 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tỷ lệ chuyển đổi từ click thành đơn hàng.",
     icon: "◎",
     available: true,
-    chartKind: "trend-line",
+    goalDirection: "higher-is-better",
+    measurementType: "rate",
   },
   "live-hours": {
     metricKey: "live-hours",
@@ -108,7 +142,8 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tổng số giờ phát sóng LIVE trong khoảng thời gian.",
     icon: "◉",
     available: true,
-    chartKind: "forecast-line",
+    goalDirection: "higher-is-better",
+    measurementType: "count",
   },
   "cancellation-rate": {
     metricKey: "cancellation-rate",
@@ -117,7 +152,12 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tỷ lệ phần trăm đơn hàng bị hủy.",
     icon: "✗",
     available: true,
-    chartKind: "gauge",
+    goalDirection: "lower-is-better",
+    measurementType: "bounded-ratio",
+    boundedRatioBounds: {
+      min: 0,
+      max: 10,
+    },
   },
 };
 
@@ -166,4 +206,34 @@ export function getSelectorMetricKeys(
   }
 
   return [...negatives, ...neutrals, ...positives];
+}
+
+/**
+ * Resolve chart form from measurement type (ADR-060).
+ * This is the single decision point for chart appearance.
+ * No other module decides what a KPI looks like.
+ *
+ * | Measurement type | Form | Example |
+ * |---|---|---|
+ * | flow | filled-line | GMV (sum-able quantity) |
+ * | average | plain-line | AOV (average value) |
+ * | rate | plain-line | CTOR (percentage) |
+ * | count | bars | LIVE hours (discrete per period) |
+ * | bounded-ratio | bounded-ratio | Cancellation rate (threshold band) |
+ */
+export function getChartFormFromMeasurementType(
+  measurementType: MeasurementType
+): ChartForm {
+  switch (measurementType) {
+    case "flow":
+      return "filled-line";
+    case "average":
+      return "plain-line";
+    case "rate":
+      return "plain-line";
+    case "count":
+      return "bars";
+    case "bounded-ratio":
+      return "bounded-ratio";
+  }
 }
