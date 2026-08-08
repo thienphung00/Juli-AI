@@ -391,6 +391,8 @@ describe("Analytics dashboard", () => {
       screen.getByRole("heading", { level: 2, name: "KPI chính khác" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("analytics-chart-chrome")).toBeInTheDocument();
+    // Delta chip shows goal-aware tone (positive for rising metric, #858).
+    // Chart mark itself uses neutral hue (ADR-060 § 5).
     expect(screen.getByText("▲ 15%")).toHaveClass("analytics-delta--positive");
 
     expect(css).toContain(".analytics-chart-chrome");

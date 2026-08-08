@@ -258,42 +258,53 @@ describe("getRelativeFreshness helper", () => {
   });
 });
 
-describe("Tone resolution (Issue #858): Goal-aware tone derivation", () => {
-  describe("Higher-is-better KPIs resolve tone based on goal direction", () => {
-    it("rising GMV resolves to positive tone", () => {
+describe("Issue #865: chart mark color separate from delta chip tone", () => {
+  describe("Snapshot.trend is goal-aware tone (for delta chip #858)", () => {
+    it("rising GMV: snapshot.trend is positive (for chip); chart receives neutral at render time", () => {
+      // Snapshot.trend carries goal-aware tone for delta chip (#858).
+      // Analytics-charts.tsx overrides it to neutral when passing to chart components (ADR-060).
       const envelope = createMockDemoAnalyticsEnvelope();
       const snapshot = buildLiveKpiSnapshot(envelope, "gmv-tiktok", "30d");
-      expect(snapshot?.trend).toBe("positive");
+      expect(snapshot?.trend).toBe("positive"); // For delta chip tone
+      expect(snapshot?.signal).toContain("tăng mạnh");
     });
 
-    it("rising AOV resolves to positive tone", () => {
+    it("rising AOV: snapshot.trend is positive (for chip)", () => {
       const envelope = createMockDemoAnalyticsEnvelope();
       const snapshot = buildLiveKpiSnapshot(envelope, "aov", "30d");
       expect(snapshot?.trend).toBe("positive");
+      expect(snapshot?.signal).toContain("tăng");
     });
 
-    it("rising CTOR resolves to positive tone", () => {
+    it("rising CTOR: snapshot.trend is positive (for chip)", () => {
       const envelope = createMockDemoAnalyticsEnvelope();
       const snapshot = buildLiveKpiSnapshot(envelope, "ctor", "30d");
       expect(snapshot?.trend).toBe("positive");
+      expect(snapshot?.signal).toContain("cải thiện");
     });
 
-    it("rising LIVE hours resolves to positive tone", () => {
+    it("rising LIVE hours: snapshot.trend is positive (for chip)", () => {
       const envelope = createMockDemoAnalyticsEnvelope();
       const snapshot = buildLiveKpiSnapshot(envelope, "live-hours", "30d");
       expect(snapshot?.trend).toBe("positive");
+      expect(snapshot?.signal).toContain("tăng");
     });
   });
 
-  describe("Lower-is-better KPI (cancellation rate) resolves tone inversely", () => {
-    it("falling cancellation rate resolves to positive tone", () => {
-      // Fixture: 2.5 → 1.8 is falling, which is good
+  describe("Cancellation rate (lower-is-better): tone inverted, chart always neutral", () => {
+    it("falling cancellation rate: snapshot.trend is positive (good), chart receives neutral", () => {
+      // DEFAULT fixture: 2.5 → 1.8 = falling (good for lower-is-better)
+      // Snapshot.trend is positive (for chip), but chart gets neutral (ADR-060 mark stability)
       const envelope = createMockDemoAnalyticsEnvelope();
       const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
-      expect(snapshot?.trend).toBe("positive");
+      expect(snapshot?.trend).toBe("positive"); // Tone: falling is good
+      expect(snapshot?.signal).toContain("giảm"); // Signal shows movement direction
+      expect(snapshot?.signal).toContain("cải thiện"); // And that it's good
     });
 
-    it("rising cancellation rate resolves to negative tone", () => {
+    it("rising cancellation rate: snapshot.trend is negative (problem), chart receives neutral", () => {
+      // Custom fixture: 1.8 → 2.5 = rising (bad for lower-is-better)
+      // Snapshot.trend is negative (for chip), but chart gets neutral (ADR-060 mark stability)
       const envelope = createMockDemoAnalyticsEnvelope({
         kpis: {
           cancellation_rate: {
@@ -307,7 +318,9 @@ describe("Tone resolution (Issue #858): Goal-aware tone derivation", () => {
         },
       });
       const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
-      expect(snapshot?.trend).toBe("negative");
+      expect(snapshot?.trend).toBe("negative"); // Tone: rising is bad
+      expect(snapshot?.signal).toContain("tăng"); // Signal shows movement direction
+      expect(snapshot?.signal).toContain("rủi ro"); // And that it's a problem
     });
   });
 
@@ -374,15 +387,43 @@ describe("Tone resolution (Issue #858): Goal-aware tone derivation", () => {
     });
   });
 
-  describe("Single source of tone criterion (issue #858): no path skips the resolver", () => {
-    it("pins the criterion: supplementary charts must declare goal direction, never default to it", () => {
-      // This test verifies that the supplementary chart path cannot re-create the inversion trap
-      // If a lower-is-better supplementary chart is added without declaring goalDirection,
-      // this test will fail, proving the criterion is enforced
+  describe("Issue #865 pairing: delta chip tone ≠ chart mark color", () => {
+    it("rising cancellation rate: snapshot.trend is problem tone (for chip), but chart receives neutral", () => {
+      // This test guards the pairing: snapshot.trend must carry goal-aware tone (#858 chip),
+      // while chart components receive neutral hue (ADR-060 mark). The two must not be conflated.
+      const envelope = createMockDemoAnalyticsEnvelope({
+        kpis: {
+          cancellation_rate: {
+            availability: "available",
+            label: "Tỷ lệ hủy đơn",
+            series: [
+              { t: "2026-07-01", v: 1.8 },
+              { t: "2026-07-20", v: 2.5 },
+            ],
+          },
+        },
+      });
+      const snapshot = buildLiveKpiSnapshot(envelope, "cancellation-rate", "30d");
+      // Snapshot.trend is goal-aware (negative tone = problem for seller, rising is bad)
+      expect(snapshot?.trend).toBe("negative");
+      // But analytics-charts.tsx overrides it to neutral when rendering the chart mark
+      // (verified by separate UI test: chart mark stays neutral, delta chip shows negative)
+      expect(snapshot?.delta).toMatch(/▲/); // Arrow shows raw movement
+      expect(snapshot?.signal).toContain("tăng"); // Signal shows direction
+      expect(snapshot?.signal).toContain("rủi ro"); // Signal conveys the problem tone
+    });
+  });
+
+  describe("Single source of tone criterion (issue #858): tone resolved once per path", () => {
+    it("supplementary chart: snapshot.trend is goal-aware tone; chart gets neutral at render time", () => {
+      // Supplementary chart snapshot.trend carries goal-aware tone (#858, for chip/signal).
+      // At render time (analytics-charts.tsx), this is overridden to neutral (ADR-060 mark stability).
+      // This test guards the snapshot data structure.
       const envelope = createMockDemoAnalyticsEnvelope();
       const snapshot = buildSupplementaryChartSnapshot(envelope, "product_funnel");
-      // product_funnel is higher-is-better (rising is good)
-      expect(snapshot?.trend).toBe("positive"); // Rising: 90M → 120M (+33%)
+      // product_funnel is higher-is-better; rising 90M → 120M is good → positive tone
+      expect(snapshot?.trend).toBe("positive"); // Snapshot carries tone for chip/signal
+      // (chart gets neutral at render time via analytics-charts.tsx override)
     });
   });
 });

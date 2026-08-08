@@ -103,6 +103,8 @@ function gmvTiktokSnapshot(range: AnalyticsRange): KpiSnapshot {
   return {
     formattedValue: formatVND(bundle.gmvTiktok),
     delta: bundle.gmvTiktokDelta,
+    // Trend carries goal-aware tone for delta chip (#858). Chart mark color (neutral)
+    // is set separately at render time per ADR-060 § 5.
     trend: "positive",
     signal:
       "GMV TikTok tăng mạnh → cơ hội tăng trưởng → xem xét mở rộng sản phẩm chủ lực",

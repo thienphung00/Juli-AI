@@ -74,7 +74,7 @@ export function AnalyticsHeroChart({
           data={snapshot.timeSeries}
           delta={snapshot.delta}
           label={label}
-          trend={snapshot.trend as ChartTrend}
+          trend={"neutral" as ChartTrend}
           value={snapshot.formattedValue}
           width={320}
         />
@@ -94,7 +94,7 @@ export function AnalyticsHeroChart({
           delta={snapshot.delta}
           label={label}
           previousData={overlayData}
-          trend={snapshot.trend}
+          trend={"neutral"}
           value={snapshot.formattedValue}
           width={320}
         />
@@ -114,7 +114,7 @@ export function AnalyticsHeroChart({
           delta={snapshot.delta}
           label={label}
           previousData={overlayData}
-          trend={snapshot.trend}
+          trend={"neutral"}
           value={snapshot.formattedValue}
           width={320}
         />
