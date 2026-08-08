@@ -9,12 +9,6 @@ export type GoalDirection = "higher-is-better" | "lower-is-better";
 
 export type AnalyticsRange = "7d" | "30d" | "90d";
 
-export type ChartKind =
-  | "health-bar"
-  | "forecast-line"
-  | "trend-line"
-  | "gauge";
-
 /**
  * Measurement type determines chart form (ADR-060).
  * - flow: sum-able quantity (GMV) → line with gradient fill
@@ -59,7 +53,6 @@ export interface MainKpiDefinition {
   description: string;
   icon: string;
   available: boolean;
-  chartKind: ChartKind;
   goalDirection: GoalDirection;
   measurementType: MeasurementType;
   /** Bounds for bounded-ratio measurements, predetermined from metric definition. Only present for bounded-ratio KPIs. */
@@ -119,7 +112,6 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tổng giá trị đơn hàng trên TikTok Shop trước hoàn tiền và hủy đơn.",
     icon: "₫",
     available: true,
-    chartKind: "forecast-line",
     goalDirection: "higher-is-better",
     measurementType: "flow",
   },
@@ -130,7 +122,6 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Giá trị trung bình một đơn hàng.",
     icon: "₫",
     available: true,
-    chartKind: "forecast-line",
     goalDirection: "higher-is-better",
     measurementType: "average",
   },
@@ -141,7 +132,6 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tỷ lệ chuyển đổi từ click thành đơn hàng.",
     icon: "◎",
     available: true,
-    chartKind: "trend-line",
     goalDirection: "higher-is-better",
     measurementType: "rate",
   },
@@ -152,7 +142,6 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tổng số giờ phát sóng LIVE trong khoảng thời gian.",
     icon: "◉",
     available: true,
-    chartKind: "forecast-line",
     goalDirection: "higher-is-better",
     measurementType: "count",
   },
@@ -163,7 +152,6 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
     description: "Tỷ lệ phần trăm đơn hàng bị hủy.",
     icon: "✗",
     available: true,
-    chartKind: "gauge",
     goalDirection: "lower-is-better",
     measurementType: "bounded-ratio",
     boundedRatioBounds: {

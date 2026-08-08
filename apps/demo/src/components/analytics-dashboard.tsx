@@ -300,7 +300,6 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
             comparePreviousPeriod={compareEnabled}
             label={heroDefinition.name}
             snapshot={snapshot}
-            chartKind={heroDefinition.chartKind}
             unavailableReason={heroDefinition.unavailableReason}
             onScrubIndexChange={handleScrubIndexChange}
           />
