@@ -30,6 +30,17 @@ logger = logging.getLogger(__name__)
 
 SUPPRESSED_REASON_ACTIVE_CAP = "active_cap"
 SUPPRESSED_REASON_COOLDOWN = "cooldown"
+# Retained for schema/API stability (ActionCard.suppressed_reason column,
+# MODULE.md contract, any future hard-gate mode) even though current code
+# never assigns it. Operator decision (#716 B-4, cycle 2): the weekly
+# novelty quota is a *churn target*, not a supply ceiling — it only orders
+# preference among candidates competing for active-cap slots (see
+# apply_emission_budget below). A candidate is suppressed only by
+# SUPPRESSED_REASON_COOLDOWN (hard, unconditional) or
+# SUPPRESSED_REASON_ACTIVE_CAP (hard, the only real surfacing ceiling); once
+# the novelty quota is spent, an additional novel candidate still surfaces
+# as long as a slot remains under max_active, so nothing is ever suppressed
+# *because of* novelty alone anymore.
 SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP = "weekly_novelty_cap"
 
 SUPPRESSED_REASONS: frozenset[str] = frozenset(
@@ -135,11 +146,37 @@ async def apply_emission_budget(
     """Throttle persisted candidate Action Cards into the active surfaced set.
 
     Evaluates every ``status == "active"`` candidate row for *shop_id*, in
-    priority order, against three gates (in this order): the 7-day
-    per-workflow cooldown, the soft weekly novelty quota, then the active-cap
-    budget. Every evaluated candidate gets a fresh ``surfaced_at`` /
+    priority order, against two *hard* gates plus one *soft* preference pass
+    (operator decision, #716 B-4 cycle 2 — "soft means fill to cap"):
+
+    1. **Cooldown (hard, unconditional).** A workflow inside its 7-day
+       post-terminal-action window never surfaces, regardless of free slots.
+    2. **Weekly novelty quota (soft — a *churn target*, not a supply
+       ceiling).** Candidates are partitioned into a "within-quota" group
+       (already-novel-this-week candidates, plus the first
+       ``weekly_novelty_cap`` distinct new ``workflow_key``s in priority
+       order) and a "novelty-overflow" group (new ``workflow_key``s beyond
+       the quota). The within-quota group is ranked ahead of the overflow
+       group for the active-cap pass below — the quota still shapes *which*
+       Decisions win a scarce slot first — but this partitioning by itself
+       never removes a candidate from the surfaced set. Priority order is
+       preserved within each group.
+    3. **Active cap (hard, the only true supply ceiling).** The
+       within-quota group, followed by the overflow group, is walked in
+       that order and surfaced until ``max_active`` is reached; anything
+       left over is suppressed as ``active_cap`` — including
+       novelty-overflow candidates once room runs out. Consequently
+       ``SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP`` is never assigned by this
+       function: nothing is suppressed *because of* novelty alone anymore,
+       only because of cooldown or lack of room.
+
+    Every evaluated candidate gets a fresh ``surfaced_at`` /
     ``suppressed_reason`` decision — this function never touches candidate
-    content. Performs no commit (same isolated-failure-domain pattern as
+    content. The novelty ledger records every candidate that actually ends
+    up surfaced this week (within-quota or overflow alike), so the weekly
+    counter stays a truthful account of real surfacings for tuning — a
+    suppressed (never-surfaced) candidate is never recorded. Performs no
+    commit (same isolated-failure-domain pattern as
     ``persist_scoring_result``); the caller controls the transaction.
     """
     now = _as_aware(now) if now is not None else datetime.now(UTC)
@@ -154,12 +191,15 @@ async def apply_emission_budget(
     )
     candidates = list((await session.execute(stmt)).scalars().all())
 
-    counted_novel = await _novel_workflow_keys_this_week(session, shop_id, week_start)
-    novelty_used = len(counted_novel)
+    already_novel_this_week = await _novel_workflow_keys_this_week(session, shop_id, week_start)
+    novelty_used = len(already_novel_this_week)
 
     surfaced: list[ActionCard] = []
     suppressed: dict[str, list[ActionCard]] = {reason: [] for reason in SUPPRESSED_REASONS}
 
+    # Gate 1 (hard, unchanged): cooldown. Anything still cooling down is
+    # dropped outright and never competes for a surfaced slot.
+    eligible: list[ActionCard] = []
     for card in candidates:
         if _in_cooldown(card, now=now, cooldown_days=config.cooldown_days):
             card.surfaced_at = None
@@ -167,15 +207,32 @@ async def apply_emission_budget(
             suppressed[SUPPRESSED_REASON_COOLDOWN].append(card)
             _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_COOLDOWN)
             continue
+        eligible.append(card)
 
-        is_new_this_week = card.workflow_key not in counted_novel
-        if is_new_this_week and novelty_used >= config.weekly_novelty_cap:
-            card.surfaced_at = None
-            card.suppressed_reason = SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP
-            suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP].append(card)
-            _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP)
-            continue
+    # Gate 2 (soft preference, not elimination): partition by novelty quota.
+    # Already-novel keys are always "free" (never consume/gate on the
+    # quota); the first `weekly_novelty_cap` distinct new keys (in priority
+    # order) join them in the within-quota group, everything after that
+    # becomes novelty-overflow. Order within each group mirrors the
+    # original priority order.
+    within_quota: list[ActionCard] = []
+    overflow: list[ActionCard] = []
+    is_new_this_week: dict[uuid.UUID, bool] = {}
+    for card in eligible:
+        is_new = card.workflow_key not in already_novel_this_week
+        is_new_this_week[card.id] = is_new
+        if is_new and novelty_used >= config.weekly_novelty_cap:
+            overflow.append(card)
+        else:
+            within_quota.append(card)
+            if is_new:
+                novelty_used += 1
 
+    # Gate 3 (hard): active cap. within-quota candidates are offered a slot
+    # before overflow candidates — the quota's only remaining effect is this
+    # ordering — then whatever is left once max_active is reached is
+    # suppressed as active_cap (the true, sole supply ceiling).
+    for card in within_quota + overflow:
         if len(surfaced) >= config.max_active:
             card.surfaced_at = None
             card.suppressed_reason = SUPPRESSED_REASON_ACTIVE_CAP
@@ -187,9 +244,8 @@ async def apply_emission_budget(
         card.suppressed_reason = None
         surfaced.append(card)
 
-        if is_new_this_week:
-            novelty_used += 1
-            counted_novel.add(card.workflow_key)
+        if is_new_this_week[card.id]:
+            already_novel_this_week.add(card.workflow_key)
             session.add(
                 DecisionEmissionNoveltyLedger(
                     id=uuid.uuid4(),

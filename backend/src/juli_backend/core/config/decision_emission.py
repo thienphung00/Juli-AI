@@ -5,6 +5,12 @@ environment variable so ops can retune the Demo active surfaced set without a
 code change. Defaults mirror the ADR-038 §6 starting values named in the
 issue: max 5 active, 7-day per-workflow cooldown after a terminal action,
 soft weekly novelty cap of 3.
+
+"Soft" (operator decision, #716 B-4 cycle 2): the weekly novelty cap is a
+churn *target*, not a supply ceiling — ``max_active`` is the only hard
+ceiling on surfacing. See
+``services.action_cards.emission_budget.apply_emission_budget`` for the
+fill-to-cap gate order this config feeds.
 """
 
 from __future__ import annotations

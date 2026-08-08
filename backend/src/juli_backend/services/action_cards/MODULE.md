@@ -38,7 +38,10 @@ slice — see "Out of scope".
 - `emission_budget.EmissionBudgetOutcome` — `surfaced: list[ActionCard]`,
   `suppressed: dict[str, list[ActionCard]]` (keyed by reason)
 - `emission_budget.SUPPRESSED_REASON_ACTIVE_CAP` / `_COOLDOWN` /
-  `_WEEKLY_NOVELTY_CAP` — the three `ActionCard.suppressed_reason` values
+  `_WEEKLY_NOVELTY_CAP` — the three defined `ActionCard.suppressed_reason`
+  values. Only the first two are ever actually assigned by current code
+  (fill-to-cap, #716 B-4 cycle 2 — see "Soft novelty quota = fill to cap"
+  below); `_WEEKLY_NOVELTY_CAP` is retained for schema/API stability.
 - `core.config.decision_emission_config()` / `DecisionEmissionConfig` —
   tunables consumed by both `persist_scoring_result` (cooldown-expiry
   supersede) and `apply_emission_budget` (cap / cooldown / novelty)
@@ -108,6 +111,68 @@ gated** — `apply_emission_budget` runs on its own cadence and never touches
 candidate content; `persist_scoring_result` runs on its own cadence and
 never touches the surfacing columns.
 
+### Soft novelty quota = fill to cap (operator decision, #716 B-4 cycle 2)
+
+The quota shipped in cycle 1 was, as built, a **hard gate**:
+`apply_emission_budget` ran cooldown → novelty → active_cap as three
+sequential unconditional suppressions. Because `weekly_novelty_cap` (3) <
+`max_active` (5) and novelty ran first, a shop with more than 3 new
+workflows in a week could never reach 5 surfaced Decisions — `max_active`
+was structurally unreachable through fresh candidates, even though the PRD
+and ADR-038 §6 call the quota *soft*. Review ruled this a defect; the
+operator decided **soft means "fill to cap"**: the weekly novelty cap is a
+**churn target**, not a supply ceiling — `max_active` is the only hard
+ceiling on surfacing. Once the weekly quota is consumed, additional novel
+candidates still surface as long as the surfaced set is below `max_active`
+— they fill the remaining slots rather than leaving them idle.
+
+`apply_emission_budget` now runs three passes, in this order:
+
+1. **Cooldown (hard, unconditional, unchanged).** A workflow inside its
+   `cooldown_days` window after a terminal action never surfaces, no matter
+   how many slots are free. This gate was not touched by the cycle-2 change.
+2. **Weekly novelty quota (soft — orders preference, does not eliminate).**
+   Candidates that pass cooldown are partitioned, in priority order, into a
+   **within-quota** group (any candidate whose `workflow_key` was already
+   counted novel earlier this week, plus the first `weekly_novelty_cap`
+   distinct *new* `workflow_key`s) and a **novelty-overflow** group
+   (additional new `workflow_key`s beyond the quota). Priority order is
+   preserved inside each group. This partitioning by itself never removes a
+   candidate — it only decides who gets first claim on a scarce slot.
+3. **Active cap (hard, the only real supply ceiling).** The within-quota
+   group is walked first, then the overflow group, surfacing candidates
+   until `max_active` is reached; everything left over — from either
+   group — is suppressed as `active_cap`.
+
+**Suppression-reason consequence:** because step 2 no longer eliminates
+candidates, `SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP` (`"weekly_novelty_cap"`)
+is **structurally unreachable** under current code — every suppression is
+now either `cooldown` (step 1) or `active_cap` (step 3, whether the
+candidate was within-quota or overflow). The constant and its
+`SUPPRESSED_REASONS` membership are kept — the `ActionCard.suppressed_reason`
+column, `EmissionBudgetOutcome.suppressed` dict shape, and the
+`emission_budget_applied` log's `suppressed_weekly_novelty_cap` aggregate
+field all still reference it (always `0`/empty under current semantics) —
+for schema/API stability and in case a future slice reintroduces a
+hard-gate mode. `test_weekly_novelty_cap_reason_is_structurally_unreachable`
+in `tests/unit/test_decision_emission_budget.py` documents this rather than
+leaving it as silent dead code.
+
+**Worked example** (defaults: `max_active=5`, `weekly_novelty_cap=3`,
+`cooldown_days=7`), 6 brand-new candidates in one week, none in cooldown:
+the first 3 (priority order) fill the quota, the other 3 overflow it; the
+active-cap pass then surfaces 5 of the 6 (quota-satisfied first, then the
+best-priority overflow candidate) and suppresses the 6th as `active_cap` —
+zero slots left idle. See
+`test_worked_example_six_novel_candidates_default_config_fills_zero_idle_slots`.
+
+**Ledger accounting stays truthful:** `DecisionEmissionNoveltyLedger` only
+ever gets a row for a candidate that actually ends up in the surfaced set
+this run — including novelty-overflow candidates that made it in because a
+slot was free (the weekly counter must track real surfacings for tuning,
+not just quota-abiding ones) — and never for a candidate suppressed by
+`active_cap`, novelty-overflow or not.
+
 ### Emission/surfacing persistence model — columns, not a status enum
 
 Two models were on the table (per the issue): a new `status` enum
@@ -174,13 +239,18 @@ default cooldown, so behavior there is identical to pre-#716.
 
 `DecisionEmissionNoveltyLedger` (`decision_emission_novelty_ledger`, migration
 `027_decision_emission_budget`) — one row per `(shop_id, week_start,
-workflow_key)`, inserted the first time a workflow_key is surfaced in an ISO
-week. `apply_emission_budget` reads this table (never Redis) to know how much
-of the week's novelty quota is already spent — across calls, across
-processes — so the "soft" cap holds even if `apply_emission_budget` runs
-more than once in the same week. A workflow_key already in this week's
-ledger surfaces "for free" (no further novelty cost); the cap only gates
-*new* workflow_keys entering the surfaced set for the first time that week.
+workflow_key)`, inserted the first time a workflow_key actually surfaces in
+an ISO week (never for a candidate that only got *classified* novel but was
+then suppressed by `active_cap`). `apply_emission_budget` reads this table
+(never Redis) to know how much of the week's novelty quota is already
+spent — across calls, across processes — so the churn target holds even if
+`apply_emission_budget` runs more than once in the same week. A
+workflow_key already in this week's ledger surfaces "for free" (it joins
+the within-quota group with no further novelty cost); the quota only
+partitions *new* workflow_keys entering the surfaced set for the first time
+that week into within-quota vs. novelty-overflow (#716 B-4 cycle 2 —
+fill-to-cap; see "Soft novelty quota = fill to cap" above) — it no longer
+gates them outright as long as room remains under `max_active`.
 
 ## Out of scope
 
