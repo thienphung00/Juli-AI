@@ -5,8 +5,12 @@
  * CRITICAL: This list forbids:
  * - Internal implementation details (tool_name, workflow_key, FBS/FBT internal IDs)
  * - False security claims (virus, antivirus, malware, "an toàn")
- *   The file validation catches bad MIME types and truncation only, not threats.
- *   Affirmative safety language ("tệp an toàn", "kiểm tra an toàn") is forbidden.
+ *   Screening rejects files outside a format allowlist, caps their size, and
+ *   re-encodes images so appended payloads do not survive. That is a boundary
+ *   check, not a threat scan — nothing here inspects for malware, and PDFs are
+ *   forwarded as supplied because they cannot be re-encoded. Affirmative safety
+ *   language ("tệp an toàn", "kiểm tra an toàn") therefore stays forbidden: it
+ *   would promise the seller a guarantee no layer actually makes.
  */
 export const SELLER_COPY_BANNED_PATTERNS = [
   /tool_name/i,

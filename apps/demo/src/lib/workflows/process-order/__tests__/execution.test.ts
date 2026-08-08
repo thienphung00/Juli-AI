@@ -7,6 +7,10 @@ import {
   createProcessOrderTimeline,
   resetProcessOrderExecutionCountersForTests,
 } from "../execution";
+import {
+  PROCESS_ORDER_BRANCH_SELLER,
+  PROCESS_ORDER_BRANCH_TIKTOK,
+} from "../plan";
 import { buildProcessOrderReviewInputDefaults } from "../review";
 
 describe("createProcessOrderTimeline", () => {
@@ -121,7 +125,50 @@ describe("buildProcessOrderExecution", () => {
     const defaults = buildProcessOrderReviewInputDefaults();
 
     expect(record.approvedInputs.order_priority).toBe(defaults.order_priority);
-    expect(record.approvedInputs.shipping_type).toBe(defaults.shipping_type);
     expect(record.approvedInputs.split_combine).toBe(defaults.split_combine);
+  });
+
+  describe("branch exclusivity (issue #767; PRD #758 user story 12)", () => {
+    it("carries only the TikTok pickup fields on the recommended branch", () => {
+      const { record } = buildProcessOrderExecution();
+
+      expect(record.approvedInputs.document_type).toBeDefined();
+      expect(record.approvedInputs.pickup_slot).toBeDefined();
+      expect(record.approvedInputs.tracking_number).toBeUndefined();
+      expect(record.approvedInputs.shipping_provider_id).toBeUndefined();
+    });
+
+    it("carries only the seller delivery fields on the seller branch", () => {
+      const { record } = buildProcessOrderExecution(
+        undefined,
+        PROCESS_ORDER_BRANCH_SELLER,
+      );
+
+      expect(record.approvedInputs.tracking_number).toBeDefined();
+      expect(record.approvedInputs.shipping_provider_id).toBeDefined();
+      expect(record.approvedInputs.document_type).toBeUndefined();
+      expect(record.approvedInputs.pickup_slot).toBeUndefined();
+    });
+
+    it("names the chosen branch instead of a hardcoded vendor string", () => {
+      const { record: tiktok } = buildProcessOrderExecution();
+      const { record: seller } = buildProcessOrderExecution(
+        undefined,
+        PROCESS_ORDER_BRANCH_SELLER,
+      );
+
+      expect(tiktok.approvedInputs.shipping_type).not.toBe(seller.approvedInputs.shipping_type);
+      // The old default contradicted a seller-delivery choice outright.
+      expect(seller.approvedInputs.shipping_type).not.toMatch(/Ship by TikTok/i);
+    });
+
+    it("does not let a caller reintroduce the abandoned branch's values", () => {
+      const { record } = buildProcessOrderExecution(
+        { tracking_number: "TK-LEAK-001" },
+        PROCESS_ORDER_BRANCH_TIKTOK,
+      );
+
+      expect(record.approvedInputs.tracking_number).toBeUndefined();
+    });
   });
 });

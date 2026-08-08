@@ -14,7 +14,26 @@ from juli_backend.integrations.tiktok import SandboxWriteResources
 from juli_backend.services.execution.file_screening import (
     MAX_ENCODED_SIZE_BYTES,
     screen_and_reencode_image,
+    screen_upload_file,
 )
+
+
+def _decode_base64(value: str | None) -> bytes | None:
+    """Decode a base64 payload after the encoded size cap, or None when absent.
+
+    Raises ValueError on an oversized payload (terminal VALIDATION category).
+    """
+    if not value:
+        return None
+
+    # Check encoded size cap before decoding
+    if len(value) > MAX_ENCODED_SIZE_BYTES:
+        raise ValueError(
+            f"Encoded payload size {len(value)} bytes exceeds maximum encoded size "
+            f"{MAX_ENCODED_SIZE_BYTES} bytes"
+        )
+
+    return base64.b64decode(value)
 
 
 def _decode_and_screen_image(value: str | None) -> tuple[bytes, str] | None:
@@ -27,21 +46,25 @@ def _decode_and_screen_image(value: str | None) -> tuple[bytes, str] | None:
 
     Raises ValueError on validation failure (terminal VALIDATION category).
     """
-    if not value:
+    decoded = _decode_base64(value)
+    if decoded is None:
         return None
-
-    # Check encoded size cap before decoding
-    if len(value) > MAX_ENCODED_SIZE_BYTES:
-        raise ValueError(
-            f"Encoded payload size {len(value)} bytes exceeds maximum encoded size "
-            f"{MAX_ENCODED_SIZE_BYTES} bytes"
-        )
-
-    # Decode base64
-    decoded = base64.b64decode(value)
 
     # Screen, re-encode, and generate safe filename
     return screen_and_reencode_image(decoded)
+
+
+def _decode_and_screen_file(value: str | None) -> tuple[bytes, str] | None:
+    """Decode base64 and screen a supporting document (PDF or image).
+
+    The image-only screener rejects every PDF, so the document upload must not
+    use it — see `screen_upload_file`.
+    """
+    decoded = _decode_base64(value)
+    if decoded is None:
+        return None
+
+    return screen_upload_file(decoded)
 
 
 def _attribute_required(attr: dict[str, Any]) -> bool:
@@ -133,7 +156,7 @@ def _resolve_image_uri(payload: dict[str, Any], products) -> str | None:
 def _resolve_file_uri(payload: dict[str, Any], products) -> str | None:
     if payload.get("file_uri"):
         return str(payload["file_uri"])
-    result = _decode_and_screen_image(payload.get("file_content_base64"))
+    result = _decode_and_screen_file(payload.get("file_content_base64"))
     if result is None:
         return None
     file_bytes, safe_filename = result

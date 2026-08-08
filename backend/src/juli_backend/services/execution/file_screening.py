@@ -1,4 +1,12 @@
-"""Image file screening and re-encoding for executions (OWASP File Upload Cheat Sheet).
+"""File screening and re-encoding for executions (OWASP File Upload Cheat Sheet).
+
+Two upload paths with deliberately different strength:
+
+- **Product images** (`screen_and_reencode_image`) get the full treatment below,
+  ending in a re-encode that destroys anything appended to the file.
+- **Supporting documents** (`screen_upload_file`) accept an image *or* a PDF. A
+  PDF cannot be re-encoded without a parser, so it gets the allowlist, the size
+  cap and a generated filename, and its bytes are forwarded as supplied.
 
 Validates and sanitizes base64-encoded images:
 1. Size caps (encoded and decoded)
@@ -19,10 +27,17 @@ from typing import Final
 
 from PIL import Image
 
-# Size caps (ADR-055 item 20)
-# Base64 overhead is ~33%, so a 10MB encoded payload decodes to ~7.5MB
-MAX_ENCODED_SIZE_BYTES: Final[int] = 10 * 1024 * 1024  # 10 MB
-MAX_DECODED_SIZE_BYTES: Final[int] = 50 * 1024 * 1024  # 50 MB
+# Size caps (ADR-055 item 20).
+#
+# The cap that matters to a seller is the one on the file they picked, so the
+# real limit is stated on the decoded bytes and the encoded limit is *derived*
+# from it. Capping the base64 string at 10 MB instead would reject a 10 MB file
+# the upload control accepted, because base64 inflates 3 bytes into 4 — the
+# effective limit would have been ~7.5 MB, silently narrower than the client's.
+# Keep MAX_DECODED_SIZE_BYTES in step with FileUploadField's `maxSize` default.
+MAX_DECODED_SIZE_BYTES: Final[int] = 10 * 1024 * 1024  # 10 MB of real bytes
+# 4 chars per 3 bytes, plus slack for padding and any line breaks in transit.
+MAX_ENCODED_SIZE_BYTES: Final[int] = 4 * ((MAX_DECODED_SIZE_BYTES + 2) // 3) + 1024
 
 # Decompression bomb protection: max pixel count in decoded image
 # PIL default is 89.5 MP; we use 100 MP to be slightly generous for high-res photos
@@ -36,6 +51,19 @@ SUPPORTED_IMAGE_SIGNATURES: Final[dict[bytes, tuple[str, str]]] = {
     b"GIF87a": ("GIF", ".gif"),
     b"GIF89a": ("GIF", ".gif"),
     b"RIFF": ("WebP", ".webp"),  # Verified by checking WEBP marker in _detect_image_format
+}
+
+# Formats that can carry more than one frame; re-encoding these needs save_all.
+ANIMATED_CAPABLE_FORMATS: Final[frozenset[str]] = frozenset({"GIF", "WebP"})
+
+# Supporting documents are a different upload path from product images
+# (`upload_product_file`, contract-collection.md §B-2a). They cannot be
+# re-encoded the way an image can, so screening here is an allowlist plus the
+# size cap plus a generated filename. That is materially weaker than the image
+# path and is stated plainly rather than implied: a PDF's bytes are forwarded
+# as supplied, so this is a boundary check, not sanitisation.
+SUPPORTED_DOCUMENT_SIGNATURES: Final[dict[bytes, str]] = {
+    b"%PDF-": ".pdf",
 }
 
 
@@ -89,11 +117,20 @@ def screen_and_reencode_image(data: bytes) -> tuple[bytes, str]:
             img.load()
 
             # Re-encode to fresh buffer in detected format (destroys payloads)
-            # This is the real mitigation: no appended data survives the round trip
+            # This is the real mitigation: no appended data survives the round trip.
+            # Animated formats need every frame written, or the round trip
+            # silently flattens the image to its first frame.
             reencoded_buffer = io.BytesIO()
-            img.save(reencoded_buffer, format=pil_format)
+            save_options: dict[str, object] = {}
+            if pil_format in ANIMATED_CAPABLE_FORMATS and getattr(img, "n_frames", 1) > 1:
+                save_options["save_all"] = True
+            img.save(reencoded_buffer, format=pil_format, **save_options)
             reencoded_bytes = reencoded_buffer.getvalue()
 
+    except ValueError:
+        # Our own rejections (e.g. the dimension cap above) are already precise;
+        # re-raise before the catch-all relabels them as "corrupt or invalid".
+        raise
     except Image.UnidentifiedImageError as e:
         raise ValueError(f"Image is corrupt or invalid: {str(e)}")
     except Image.DecompressionBombError as e:
@@ -105,6 +142,52 @@ def screen_and_reencode_image(data: bytes) -> tuple[bytes, str]:
     safe_filename = f"{uuid.uuid4().hex}{extension}"
 
     return reencoded_bytes, safe_filename
+
+
+def screen_upload_file(data: bytes) -> tuple[bytes, str]:
+    """Screen bytes headed for the supporting-document upload, return bytes + filename.
+
+    The document path accepts what a seller can plausibly attach as supporting
+    evidence: an image, or a PDF.
+
+    - Images take the full image path — decoded, bomb-checked and re-encoded, so
+      appended data and polyglot payloads do not survive.
+    - PDFs cannot be re-encoded without a parser, so they get the allowlist, the
+      size cap and a generated filename only. Their bytes are forwarded as
+      supplied. This is weaker than the image path, deliberately and visibly.
+
+    Screening a document with the image-only screener rejects every PDF, which
+    is what shipped in #776 and broke this path outright.
+
+    Args:
+        data: Raw file bytes (already base64-decoded)
+
+    Returns:
+        (bytes_to_forward, safe_filename)
+
+    Raises:
+        ValueError: If the file fails any validation check
+    """
+    if not data:
+        raise ValueError("File data is empty")
+
+    if len(data) > MAX_DECODED_SIZE_BYTES:
+        raise ValueError(
+            f"File size {len(data)} bytes exceeds maximum decoded size "
+            f"{MAX_DECODED_SIZE_BYTES} bytes"
+        )
+
+    pil_format, _ = _detect_image_format(data)
+    if pil_format:
+        return screen_and_reencode_image(data)
+
+    for signature, extension in SUPPORTED_DOCUMENT_SIGNATURES.items():
+        if data.startswith(signature):
+            return data, f"{uuid.uuid4().hex}{extension}"
+
+    raise ValueError(
+        "File is not a supported document format (PDF) or image (PNG, JPEG, GIF, or WebP)"
+    )
 
 
 def _detect_image_format(data: bytes) -> tuple[str, str] | tuple[None, None]:

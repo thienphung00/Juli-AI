@@ -103,6 +103,10 @@ export function FileUploadField({
   helperText = "Chỉ hỗ trợ các tệp ảnh (JPEG, PNG, WebP, GIF).",
   id: idProp,
   label,
+  // Mirrors MAX_DECODED_SIZE_BYTES in the backend's file_screening module: the
+  // seller-facing limit is on the file they picked, and the server derives its
+  // base64 cap from this number. Raising one without the other reintroduces the
+  // band where a file passes here and is always rejected on arrival.
   maxSize = 10 * 1024 * 1024,
   onChange,
   required,

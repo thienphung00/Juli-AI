@@ -53,6 +53,50 @@ const DELIVERY_OPTION_LABELS: Record<ProcessOrderBranch, string> = {
   [PROCESS_ORDER_BRANCH_SELLER]: "Shop tự sắp xếp giao hàng",
 };
 
+/**
+ * The execution fields each branch owns. The two sets are disjoint by contract:
+ * TikTok pickup needs the document type and the pickup window, seller delivery
+ * needs the tracking number and the carrier.
+ */
+const BRANCH_FIELD_KEYS: Record<ProcessOrderBranch, readonly string[]> = {
+  [PROCESS_ORDER_BRANCH_TIKTOK]: ["document_type", "pickup_slot"],
+  [PROCESS_ORDER_BRANCH_SELLER]: ["tracking_number", "shipping_provider_id"],
+};
+
+const ALL_BRANCH_FIELD_KEYS: readonly string[] = Object.values(
+  BRANCH_FIELD_KEYS,
+).flat();
+
+/**
+ * Narrows an input set to the chosen branch — the invariant above, applied to
+ * what would actually execute rather than only to the rendered Details.
+ *
+ * Replacing the Details section is not enough on its own: the execution record
+ * is built from the full default set, so without this projection an approved
+ * seller-delivery run still carried the pickup window and a `shipping_type` of
+ * "Ship by TikTok", flatly contradicting the branch the seller chose.
+ */
+export function projectProcessOrderInputsToBranch(
+  inputs: Readonly<Record<string, string>>,
+  branch: ProcessOrderBranch,
+): Record<string, string> {
+  const owned = new Set(BRANCH_FIELD_KEYS[branch]);
+  const projected: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(inputs)) {
+    if (ALL_BRANCH_FIELD_KEYS.includes(key) && !owned.has(key)) {
+      continue;
+    }
+    projected[key] = value;
+  }
+
+  // The discriminator itself must name the chosen branch, in the same words the
+  // seller read on the plan, rather than a hardcoded vendor string.
+  projected.shipping_type = DELIVERY_OPTION_LABELS[branch];
+
+  return projected;
+}
+
 const PROPOSALS: Record<ProcessOrderBranch, string> = {
   [PROCESS_ORDER_BRANCH_TIKTOK]:
     "Juli đề xuất xử lý 6 đơn theo thứ tự ưu tiên và để TikTok tới lấy hàng ngay hôm nay.",
