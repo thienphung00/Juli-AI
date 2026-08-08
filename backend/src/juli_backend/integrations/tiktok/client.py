@@ -40,7 +40,11 @@ _ERROR_BODY_LIMIT = 800
 # 100006 the documented transient system error; everything else deterministic until
 # proven otherwise, because retrying a deterministic error just triples the noise
 # and the latency of every real failure.
-_RETRYABLE_APP_CODES = frozenset({100005, 100006})
+# 36009003 was captured live on 2026-08-08 (request_id 202608081300060C6F542C42A3ED1E4CE0),
+# the first orders/search 500 body ever seen: "Internal error. Please try again. If the
+# issue persists after multiple attempts, please contact platform support." The vendor's
+# own remedy is retry, so it belongs here.
+_RETRYABLE_APP_CODES = frozenset({100005, 100006, 36009003})
 _TRANSIENT_RETRY_ATTEMPTS = 3
 _TRANSIENT_RETRY_BACKOFF_SECONDS = (1.0, 3.0)
 

@@ -70,6 +70,14 @@ class TestClassification:
             (_http_error(500, "<html>502 from some edge</html>"), True),
             (requests.HTTPError("no response attached"), True),
             (_http_error(500, {"code": 100006, "message": "internal error"}), True),
+            # Captured live 2026-08-08 — the body that explained three days of 500s,
+            # and whose own message instructs "Please try again."
+            (
+                _http_error(
+                    500, {"code": 36009003, "message": "Internal error. Please try again."}
+                ),
+                True,
+            ),
             (_http_error(500, {"code": 100005, "message": "throttled"}), True),
             # The proven trap: a deterministic app error wearing a 500 status.
             (_http_error(500, {"code": 106001, "message": "sign invalid"}), False),
@@ -86,6 +94,7 @@ class TestClassification:
             "5xx_unparseable",
             "no_response",
             "5xx_code_100006",
+            "5xx_code_36009003_vendor_internal",
             "5xx_code_100005",
             "5xx_code_106001_sign",
             "401_auth",
