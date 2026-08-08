@@ -11,6 +11,8 @@ import json
 import logging
 from typing import Any
 
+import requests
+
 from juli_backend.integrations.tiktok import (
     CANCELLATION_SEARCH_PATH,
     ORDER_SEARCH_PATH,
@@ -48,9 +50,16 @@ async def sync_orders(
 
     update_from = sync_state.get("orders_last_update_time")
 
+    # The Partner API fails in two disjoint ways and a bronze fetch must survive both:
+    # _handle_response calls raise_for_status() before it inspects the JSON body, so a
+    # transport or 5xx failure arrives as requests.RequestException and only an
+    # application-level code (e.g. 106001) arrives as TikTokAPIError. Catching just the
+    # latter let an upstream 500 abort the whole Shared Compute job, taking the silver
+    # and gold stages with it — including ctor and live_hours, which read local rows and
+    # need nothing from TikTok at all.
     try:
         orders = resource.search_all(update_time_from=update_from)
-    except TikTokAPIError:
+    except (TikTokAPIError, requests.RequestException):
         logger.warning(
             "targeted_fetch_orders_failed",
             extra={"correlation_id": correlation_id},
@@ -96,7 +105,7 @@ async def sync_returns(
 
     try:
         returns = resource.search_returns_all(update_time_from=update_from)
-    except TikTokAPIError:
+    except (TikTokAPIError, requests.RequestException):
         logger.warning(
             "targeted_fetch_returns_failed",
             extra={"correlation_id": correlation_id},
@@ -148,7 +157,7 @@ async def sync_cancellations(
 
     try:
         cancellations = resource.search_cancellations_all(update_time_from=update_from)
-    except TikTokAPIError:
+    except (TikTokAPIError, requests.RequestException):
         logger.warning(
             "targeted_fetch_cancellations_failed",
             extra={"correlation_id": correlation_id},
