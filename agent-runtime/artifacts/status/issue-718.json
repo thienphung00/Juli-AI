@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 718,
+  "metrics": {
+    "acceptanceMapped": 5,
+    "acceptanceTotal": 5,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/api/routes/demo_decisions.py (new)",
+      "backend/src/juli_backend/api/app.py",
+      "backend/src/juli_backend/api/MODULE.md",
+      "backend/src/juli_backend/services/demo_decisions/__init__.py (new)",
+      "backend/src/juli_backend/services/demo_decisions/read.py (new)",
+      "backend/src/juli_backend/services/demo_decisions/MODULE.md (new)",
+      "tests/unit/test_api_demo_decisions.py (new)",
+      "tests/unit/test_demo_decisions_masking.py (new)"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-718.json",
+    "sha256": "946f3e8b5b3454a3c3ea2a42592b23b649d1aaa4f982895681a4f1f8e9306fe6",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-08T12:39:27Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-718.json",
+    "sha256": "1354572707e3117bd937271e3a0463a242a60eee7d87177fee31ba87937c6506",
+    "status": "PASS"
+  },
+  "wave": null
+}
