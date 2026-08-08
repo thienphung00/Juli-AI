@@ -61,4 +61,5 @@
 | [053](053-demo-home-activity-summary.md) | Demo Home activity summary — done/running/needs-attention counts above the launcher cards (apps/demo only) | Accepted |
 | [054](054-brand-pink-role-separation.md) | Brand pink role separation — `--pink-text` for AA-compliant text, `--chart-neutral` for non-directional series | Accepted |
 | [056](056-brand-asset-package.md) | Brand assets live in `packages/brand` — single owner for logo/photography/renders; no per-app copies | Accepted |
+| [058](058-release-packaging-shape.md) | Release packaging shape — build output plus a production dependency install, not `output: 'standalone'`; #837 ships both halves | Accepted |
 | [057](057-pre-user-delivery-on-single-vps.md) | Pre-user delivery stays on the single VPS — ADR-035's platform superseded, its evidence contract retained; re-entry triggers T1–T5 | Accepted |
