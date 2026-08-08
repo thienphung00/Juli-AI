@@ -1,22 +1,30 @@
 # Parallel status — Head Meta 3.5-B (Continuous CDP Decisions)
 
-**Status: ALL SIX SLICES LANDED ON THE WAVE** (2026-08-08) — wave→`main` still gated on #780
+**Status: ALL SIX SLICES LANDED; EXIT GATE SATISFIED** (2026-08-08) — cleared to merge
 **Parent PRD:** [#599](https://github.com/thienphung00/Juli-AI/issues/599)
 **Integration branch:** `feature/b-decisions-wave` (`.worktrees/b-decisions-wave`), cut from `origin/main` @ `9e9e4ad1`
 **Head Meta:** owns this file, slice routing registration, ops-lock arbitration, exit gate
 
-## Epic gate — READ FIRST
+## Epic gate — SATISFIED 2026-08-08
 
-#599 is **blocked on A1 Speed (#601) exit** per ADR-047. **A1 has not exited:**
-[#780](https://github.com/thienphung00/Juli-AI/issues/780) is open — `ctor` and `live_hours`
-have no bronze domain, so 3 of the 5 Demo Main KPIs resolve `unavailable` on every reconcile.
+#599 was blocked on **A1 Speed (#601) exit** per ADR-047. When this wave was built,
+[#780](https://github.com/thienphung00/Juli-AI/issues/780) was open and 3 of the 5 Demo Main
+KPIs resolved `unavailable`; the operator authorised building on this wave branch anyway,
+with `main` explicitly withheld.
 
-**Operator decision (2026-08-08):** build 3.5-B on this wave branch anyway. The gate is a
-*sequencing* gate, not a technical one — B-1 extends the already-merged #627 orchestrator,
-which does not depend on the missing bronze domains.
+**#780 closed 2026-08-08T14:32Z** with runtime evidence on release `55dd9a67`: all five KPIs
+(`gmv_tiktok`, `aov`, `cancellation_rate`, `ctor`, `live_hours`) report `available`, sustained
+since 05:00; envelope recomputing hourly; orders sync 12s behind the run with `silver.orders`
+not stale. The A1 exit condition (5/5 available) is met, so this wave's merge gate is cleared.
 
-**Hard constraint:** `feature/b-decisions-wave` → `main` is **not** authorized until #780
-closes and #601 exit is confirmed. Issue PRs merge into the wave only.
+**What that close explicitly does not claim** — carried forward, not quietly dropped: the
+original cause stands. No bronze domain exists for A-34/A-28, `targeted_fetch_bronze_deferred`
+still fires every run, and the interval source is a frozen snapshot ending 2026-07-21
+(`stale = true`, ~18.6 days and growing, surfaced continuously by the envelope and the
+15-minute alarm). That work is re-scoped to
+[#880](https://github.com/thienphung00/Juli-AI/issues/880) and is **not** exit-blocking.
+3.5-B does not depend on it — the Decision chain reads persisted candidates, not the
+`ctor`/`live_hours` inputs.
 
 ## Slice DAG
 
@@ -240,5 +248,5 @@ execution module).
 - [ ] All six slices merged into `feature/b-decisions-wave`, Review + validate PASS each
 - [ ] Release-evidence plans committed for #716 and #718
 - [ ] Dry-run isolation test proves no `/v1/executions`, `enqueue_approved_tool`, or `run_tool_async` on the Demo path
-- [ ] **#780 closed and #601 A1 exit confirmed** — hard prerequisite, operator sign-off
+- [x] **#780 closed and A1 exit confirmed** — 5/5 KPIs available on `55dd9a67`; residual cause re-scoped to #880 (non-blocking)
 - [ ] `feature/b-decisions-wave` → `main` PR green
