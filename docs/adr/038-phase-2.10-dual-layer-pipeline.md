@@ -99,6 +99,26 @@ only — insufficient for the event-driven + cache-backed target.
    weekly cap of **3** newly promoted Decisions into the active set. Candidates
    may still be recomputed; only **surfacing** is throttled.
 
+   **Amendment (2026-08-08, operator decision during Phase 3.5-B / #716).** "Soft"
+   was never defined here, and the first implementation read it as a hard gate ahead
+   of the active cap — which, since 3 < 5, made `max_active = 5` structurally
+   unreachable through fresh candidates and left surfacing slots idle. Settled
+   semantics:
+
+   - The **weekly novelty quota is a churn target, not a supply ceiling.** Once it is
+     consumed, additional novel candidates may still surface **while the active
+     surfaced set is below `max_active`** — they fill remaining slots rather than
+     leaving them idle. Candidates within the quota surface first, so the quota still
+     shapes *which* Decisions appear.
+   - The **per-workflow cooldown stays hard**: a workflow inside its cooldown window
+     never surfaces, regardless of free slots.
+   - The **active cap stays hard**: it is the only ceiling on the surfaced set.
+   - Suppression reason codes must name the gate that actually bound — a candidate
+     dropped once the set is full is `active_cap`, not `weekly_novelty_cap`.
+
+   Worked example with defaults and 6 novel candidates in one week: 5 surface, the
+   6th is suppressed as `active_cap`, and no slot is left idle.
+
 7. **2.10-A KPI must-haves (settled):** Live shop **GMV (TikTok)** series and
    supporting A-36 traffic fields where present; product funnel (A-34) and LIVE
    (A-28/A-29) charts the warm data supports. Inventory/Ops/CSAT only when
