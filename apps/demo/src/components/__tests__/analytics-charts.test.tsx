@@ -406,3 +406,32 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
     });
   });
 });
+
+describe("#865 sweep: no mark carries direction", () => {
+  it("every chart mark in the Analytics surface receives the neutral identity hue", async () => {
+    // Guards the gap the original sweep missed: the hero chart was fixed while
+    // the supplementary section still passed a goal-aware tone into its mark,
+    // so those series kept repainting green/red with performance.
+    const { readFileSync } = await import("node:fs");
+    const sources = [
+      "src/components/analytics-charts.tsx",
+      "src/components/analytics-supplementary-sections.tsx",
+      "src/components/analytics-kpi-card.tsx",
+    ];
+
+    const directional: string[] = [];
+    for (const file of sources) {
+      const text = readFileSync(file, "utf8");
+      for (const [index, line] of text.split("\n").entries()) {
+        // A mark's trend prop bound to anything other than a literal "neutral"
+        // is a directional hue. The delta chip uses analyticsDeltaClass(), not
+        // a trend prop, so it is unaffected by this rule.
+        if (/^\s*trend=\{(?!"neutral")/.test(line)) {
+          directional.push(`${file}:${index + 1} ${line.trim()}`);
+        }
+      }
+    }
+
+    expect(directional).toEqual([]);
+  });
+});

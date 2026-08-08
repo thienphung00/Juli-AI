@@ -340,7 +340,7 @@ export function buildLiveKpiSnapshot(
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
   const def = getMainKpiDefinition(metricKey);
-  const { delta, tone } = computeDelta(entry.series, def.goalDirection);
+  const { delta, rawTrend, tone } = computeDelta(entry.series, def.goalDirection);
   const workflow = metricWorkflow(metricKey);
 
   // Build bounded-ratio payload for bounded-ratio KPIs (e.g., cancellation rate)
@@ -349,8 +349,10 @@ export function buildLiveKpiSnapshot(
   return {
     formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
     delta,
+    // Snapshot.trend carries goal-aware tone for delta chip (#858).
+    // Chart mark color (neutral per ADR-060 § 5) is set separately in analytics-charts.tsx.
     trend: tone,
-    signal: metricSignal(metricKey, tone),
+    signal: metricSignal(metricKey, rawTrend),
     dataSource: METRIC_TO_DATA_SOURCE[metricKey],
     lastUpdated: getRelativeFreshness(envelope.computed_at),
     dataMode: "live",
@@ -473,6 +475,8 @@ export function buildSupplementaryChartSnapshot(
     label: entry.label,
     formattedValue: formatVND(latestValue),
     delta,
+    // Snapshot.trend carries goal-aware tone for delta chip (#858).
+    // Chart mark color (neutral per ADR-060 § 5) is set separately at render time.
     trend: tone,
     timeSeries,
     dataSource: "TikTok Shop",

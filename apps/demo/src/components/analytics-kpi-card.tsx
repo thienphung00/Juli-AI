@@ -73,7 +73,6 @@ export function AnalyticsKpiCard({
               delta={liveSnapshot.delta}
               label={definition.name}
               sparkline={liveSnapshot.sparkline}
-              trend={liveSnapshot.trend}
               value={liveSnapshot.formattedValue}
             />
           </>
