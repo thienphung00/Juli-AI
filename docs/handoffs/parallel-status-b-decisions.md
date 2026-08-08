@@ -45,9 +45,25 @@ Parallelism is available only at **#716 ∥ #717**; the rest is a strict chain.
 | [#713](https://github.com/thienphung00/Juli-AI/issues/713) | B-1 | backend | `.worktrees/issue-713` / `feature/issue-713` | readyForExecutor: true | Executor running |
 | [#714](https://github.com/thienphung00/Juli-AI/issues/714) | B-2 | backend | pending | readyForExecutor: true | blocked on #713 |
 | [#715](https://github.com/thienphung00/Juli-AI/issues/715) | B-3 | backend | pending | readyForExecutor: true | blocked on #714 |
-| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | backend | pending | **halt** — release-evidence plan missing | blocked on #715 |
+| [#716](https://github.com/thienphung00/Juli-AI/issues/716) | B-4 | backend | pending | readyForExecutor: true | blocked on #715 |
 | [#717](https://github.com/thienphung00/Juli-AI/issues/717) | B-5 | backend | pending | readyForExecutor: true | blocked on #715 |
 | [#718](https://github.com/thienphung00/Juli-AI/issues/718) | B-6 | backend | pending | readyForExecutor: true | blocked on #716 + #717 |
+
+## Executor environment — mandatory
+
+`juli_backend` is installed into the ambient python (`/opt/homebrew/anaconda3`) as an
+editable install pointing at the **main checkout**. A bare `python -m pytest` inside any
+worktree therefore imports the wrong source tree, and the main checkout is parked on an
+unrelated stale branch. Every Executor and the Review agent must run:
+
+```bash
+PYTHONPATH=$PWD/backend/src python -m pytest <paths> -q
+```
+
+Verify with `PYTHONPATH=$PWD/backend/src python -c "import juli_backend;print(juli_backend.__file__)"` —
+the path must be inside the worktree. Baseline on this wave with the fix applied:
+`test_cdp_speed_shared_compute_orchestrator.py test_scoring.py test_action_cards_contract.py`
+= **44 passed**.
 
 ## Ops lock
 
