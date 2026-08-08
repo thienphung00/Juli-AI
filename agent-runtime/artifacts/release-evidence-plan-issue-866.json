@@ -1,0 +1,80 @@
+{
+  "planId": "rep-866-touch-scrub-readout-above-plot",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-drag-to-inspect",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "dragging_moves_a_scrub_line_and_emphasises_the_nearest_point",
+          "headline_value_and_date_reflect_the_scrubbed_point_while_dragging",
+          "releasing_restores_the_latest_value_and_freshness_line",
+          "no_readout_or_tooltip_is_drawn_over_the_plot_area_at_any_viewport_width",
+          "ranges_below_ten_points_render_per_point_markers_and_offer_no_scrub",
+          "horizontal_position_alone_selects_a_point",
+          "mouse_drag_behaves_identically_to_touch",
+          "text_equivalent_remains_present_and_unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Pointer-event scrub controller in packages/ui with the readout bound to the existing headline in apps/demo."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "the density threshold beyond the ~10 points ADR-060 fixes",
+    "desktop hover affordances",
+    "chart animation and transitions"
+  ]
+}

@@ -3,7 +3,7 @@
 import { FilterChip, LoadingSkeleton, StatusChip } from "@juli/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import {
   ANALYTICS_RANGE_LABELS,
@@ -41,6 +41,7 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
   const heroRef = useRef<HTMLElement>(null);
   const { mutableState, updateMutableState } = useDemoState();
   const { envelope, status, loadAnalytics } = useAnalyticsData();
+  const [scrubbedPoint, setScrubbedPoint] = useState<{ label: string; value: number } | null>(null);
 
   const range = mutableState.analyticsRange ?? DEFAULT_ANALYTICS_RANGE;
   useAnalyticsBootstrap(range);
@@ -134,6 +135,14 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
       analyticsComparisonEnabled: !current.analyticsComparisonEnabled,
     }));
   };
+
+  const handleScrubIndexChange = useCallback(
+    (index: number, point?: { label: string; value: number }) => {
+      // Set scrubbed point when index >= 0, clear when index < 0
+      setScrubbedPoint(index >= 0 ? (point ?? null) : null);
+    },
+    [],
+  );
 
   if (invalidDeepLink) {
     return (
@@ -238,9 +247,13 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
           ) : snapshot ? (
             <>
               <p className="analytics-hero__lead">Shop của bạn hiện đạt</p>
-              <p className="analytics-hero__value">{snapshot.formattedValue}</p>
+              <p className="analytics-hero__value" data-testid="analytics-hero-value">
+                {scrubbedPoint ? scrubbedPoint.value : snapshot.formattedValue}
+              </p>
               <p className={analyticsDeltaClass(snapshot.trend)}>{snapshot.delta}</p>
-              <p className="analytics-hero__signal">{snapshot.signal}</p>
+              <p className="analytics-hero__signal" data-testid="analytics-hero-signal">
+                {scrubbedPoint ? scrubbedPoint.label : snapshot.signal}
+              </p>
               <div className="analytics-hero__provenance">
                 <p>
                   <strong>Nguồn dữ liệu:</strong> {snapshot.dataSource}
@@ -278,28 +291,28 @@ export function AnalyticsDashboard({ metricKey: routeMetricKey }: AnalyticsDashb
           )}
         </div>
 
-        {snapshot ? (
-          <div
-            className="analytics-hero__chart analytics-chart-chrome"
-            data-testid="analytics-chart-chrome"
-          >
-            <AnalyticsHeroChart
-              chartKind={heroDefinition.chartKind}
-              comparePreviousPeriod={compareEnabled}
-              label={heroDefinition.name}
-              snapshot={snapshot}
-            />
-            {compareEnabled ? (
-              <p className="analytics-hero__comparison-legend">
-                Đường liền: kỳ hiện tại · Đường nét đứt: kỳ trước
-              </p>
-            ) : heroDefinition.chartKind === "forecast-line" ? (
-              <p className="analytics-hero__comparison-legend">
-                Đường liền: thực tế · Đường nét đứt: dự báo
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+        <div
+          className="analytics-hero__chart analytics-chart-chrome"
+          data-testid="analytics-chart-chrome"
+        >
+          <AnalyticsHeroChart
+            measurementType={heroDefinition.measurementType}
+            comparePreviousPeriod={compareEnabled}
+            label={heroDefinition.name}
+            snapshot={snapshot}
+            unavailableReason={heroDefinition.unavailableReason}
+            onScrubIndexChange={handleScrubIndexChange}
+          />
+          {compareEnabled && snapshot ? (
+            <p className="analytics-hero__comparison-legend">
+              Đường liền: kỳ hiện tại · Đường nét đứt: kỳ trước
+            </p>
+          ) : snapshot && heroDefinition.measurementType === "flow" ? (
+            <p className="analytics-hero__comparison-legend">
+              Đường liền: thực tế · Đường nét đứt: dự báo
+            </p>
+          ) : null}
+        </div>
       </article>
 
       <section

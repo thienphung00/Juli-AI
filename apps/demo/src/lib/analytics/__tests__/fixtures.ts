@@ -92,3 +92,38 @@ export function createMockFetchResponse(
 
 // Re-export from production code for test usage
 export { createFallbackDemoAnalyticsEnvelope } from "../fallback-envelope";
+
+// Helper for creating mock KpiSnapshot for component tests
+import type { KpiSnapshot } from "../mock-data";
+
+export function createMockSnapshot(
+  overrides: Partial<KpiSnapshot> = {}
+): KpiSnapshot {
+  return {
+    formattedValue: "500 triệu",
+    delta: "▲ 15%",
+    trend: "positive",
+    signal: "Tín hiệu tích cực",
+    dataSource: "Mock fixture",
+    lastUpdated: "20/07/2026",
+    dataMode: "fixture",
+    sparkline: [12, 14, 13, 16, 18],
+    timeSeries: [
+      { label: "T1", value: 100 },
+      { label: "T2", value: 120 },
+      { label: "T3", value: 135 },
+    ],
+    forecastSeries: [
+      { label: "T1", value: 100 },
+      { label: "T2", value: 125 },
+      { label: "T3", value: 140 },
+    ],
+    previousTimeSeries: [
+      { label: "T1", value: 90 },
+      { label: "T2", value: 105 },
+      { label: "T3", value: 115 },
+    ],
+    boundedRatio: undefined,
+    ...overrides,
+  };
+}

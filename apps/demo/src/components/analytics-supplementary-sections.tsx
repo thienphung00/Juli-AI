@@ -41,7 +41,9 @@ export function AnalyticsSupplementarySections({
               data={chart.timeSeries}
               delta={chart.delta}
               label={chart.label}
-              trend={chart.trend}
+              // Stable identity hue: a mark never carries direction (#865).
+              // The delta chip above carries it, via analyticsDeltaClass.
+              trend={"neutral"}
               value={chart.formattedValue}
               width={320}
             />

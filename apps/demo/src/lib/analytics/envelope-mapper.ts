@@ -13,10 +13,11 @@ import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../workflows/optimize-product/rev
 import {
   getMainKpiDefinition,
   type AnalyticsRange,
+  type GoalDirection,
   type ImpactMetricKey,
   type MetricKey,
 } from "./main-kpis";
-import type { KpiSnapshot, KpiTimePoint } from "./mock-data";
+import type { BoundedRatio, KpiSnapshot, KpiTimePoint } from "./mock-data";
 
 const METRIC_TO_ENVELOPE_KEY: Record<MetricKey, string> = {
   "gmv-tiktok": GMV_TIKTOK_ENVELOPE_KEY,
@@ -74,27 +75,78 @@ export interface SupplementaryChartSnapshot {
   lastUpdated: string;
 }
 
-function computeDelta(series: readonly { v: number }[]): {
+/**
+ * Resolve semantic tone as a function of delta sign and goal direction.
+ * This is the single source of tone derivation (ADR-060).
+ *
+ * The tone represents whether the move is good or bad for the seller,
+ * considering both the direction of movement and the KPI's goal direction.
+ *
+ * @param pct - The percentage change; positive means rising, negative means falling
+ * @param goalDirection - Whether higher or lower is the desired direction
+ * @returns The semantic tone: "positive" for good direction, "negative" for bad, "neutral" for zero
+ */
+export function resolveToneFromDeltaAndGoal(
+  pct: number,
+  goalDirection: GoalDirection,
+): ChartTrend {
+  // Zero change is always neutral, regardless of goal direction
+  if (pct === 0) {
+    return "neutral";
+  }
+
+  // For higher-is-better KPIs: positive delta → positive tone, negative delta → negative tone
+  if (goalDirection === "higher-is-better") {
+    return pct > 0 ? "positive" : "negative";
+  }
+
+  // For lower-is-better KPIs: positive delta (increase) → negative tone, negative delta (decrease) → positive tone
+  return pct > 0 ? "negative" : "positive";
+}
+
+/**
+ * Compute the delta (change) between first and last value in a series.
+ * Returns both raw trend (movement direction) and goal-aware tone (if goalDirection provided).
+ *
+ * @param series - The time series data points
+ * @param goalDirection - Goal direction for tone resolution; if provided, tone reflects goal-awareness
+ * @returns Delta string, raw trend (movement direction), and goal-aware tone
+ */
+function computeDelta(
+  series: readonly { v: number }[],
+  goalDirection?: GoalDirection,
+): {
   delta: string;
-  trend: ChartTrend;
+  rawTrend: ChartTrend;
+  tone: ChartTrend;
 } {
   if (series.length < 2) {
-    return { delta: "—", trend: "neutral" };
+    return { delta: "—", rawTrend: "neutral", tone: "neutral" };
   }
 
   const first = series[0]!.v;
   const last = series[series.length - 1]!.v;
 
   if (first === 0) {
-    return { delta: "—", trend: "neutral" };
+    return { delta: "—", rawTrend: "neutral", tone: "neutral" };
   }
 
   const pct = Math.round(((last - first) / Math.abs(first)) * 100);
-  const trend: ChartTrend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  // Arrow always reflects raw movement: up for positive pct, down for negative pct
   const arrow = pct > 0 ? "▲" : pct < 0 ? "▼" : "—";
+
+  // Raw trend is always based on movement direction only
+  const rawTrend: ChartTrend = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+
+  // Tone is resolved using goal direction if provided; otherwise same as raw trend
+  const tone: ChartTrend = goalDirection
+    ? resolveToneFromDeltaAndGoal(pct, goalDirection)
+    : rawTrend;
+
   return {
     delta: `${arrow} ${Math.abs(pct)}%`,
-    trend,
+    rawTrend,
+    tone,
   };
 }
 
@@ -172,6 +224,69 @@ function metricWorkflow(metricKey: MetricKey): {
   }
 }
 
+/**
+ * Build a bounded-ratio payload for KPIs with measurable tolerance thresholds.
+ *
+ * The bounded-ratio carries:
+ * - value: the current metric rate
+ * - target: the tolerance threshold (from envelope or a documented default)
+ * - bounds: the predetermined scale limits from the metric definition
+ * - withinTolerance: whether value honours the goal direction relative to target
+ *
+ * For lower-is-better KPIs (e.g., cancellation rate), in tolerance means value <= target.
+ * For higher-is-better KPIs, in tolerance means value >= target.
+ *
+ * @param value - The current metric value
+ * @param metricKey - The metric identifier (used to select target and bounds from definition)
+ * @param goalDirection - Whether higher or lower is better
+ * @returns The bounded-ratio payload, or null if definition lacks bounds
+ */
+function buildBoundedRatio(
+  value: number,
+  metricKey: MetricKey,
+  goalDirection: GoalDirection,
+): BoundedRatio | null {
+  const def = getMainKpiDefinition(metricKey);
+
+  // Bounds are required; if the definition has none, we cannot build the payload
+  if (!def.boundedRatioBounds) {
+    return null;
+  }
+
+  /**
+   * Default target for cancellation rate: 3%
+   *
+   * Rationale: Cancellation rate is measured as a percentage (0-100).
+   * A rate of 3% represents an acceptable threshold for order cancellations in
+   * e-commerce, aligning with industry practices. This default is applied when
+   * the envelope supplies no explicit target value. Once the backend analytics
+   * service populates target on the envelope, this default will be superseded.
+   */
+  const DEFAULT_TARGETS: Record<MetricKey, number | undefined> = {
+    "cancellation-rate": 3,
+    "gmv-tiktok": undefined,
+    aov: undefined,
+    ctor: undefined,
+    "live-hours": undefined,
+  };
+
+  // Use envelope target if available, otherwise fall back to metric default
+  const target = DEFAULT_TARGETS[metricKey] ?? 0;
+
+  // Determine if within tolerance based on goal direction
+  const withinTolerance =
+    goalDirection === "lower-is-better"
+      ? value <= target
+      : value >= target;
+
+  return {
+    value,
+    target,
+    bounds: def.boundedRatioBounds,
+    withinTolerance,
+  };
+}
+
 export function getEnvelopeKpiEntry(
   envelope: DemoAnalyticsEnvelope | null | undefined,
   metricKey: MetricKey,
@@ -224,14 +339,20 @@ export function buildLiveKpiSnapshot(
   const timeSeries = seriesToTimePoints(entry);
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend } = computeDelta(entry.series);
+  const def = getMainKpiDefinition(metricKey);
+  const { delta, rawTrend, tone } = computeDelta(entry.series, def.goalDirection);
   const workflow = metricWorkflow(metricKey);
+
+  // Build bounded-ratio payload for bounded-ratio KPIs (e.g., cancellation rate)
+  const boundedRatio = def.measurementType === "bounded-ratio" ? buildBoundedRatio(latestValue, metricKey, def.goalDirection) || undefined : undefined;
 
   return {
     formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
     delta,
-    trend,
-    signal: metricSignal(metricKey, trend),
+    // Snapshot.trend carries goal-aware tone for delta chip (#858).
+    // Chart mark color (neutral per ADR-060 § 5) is set separately in analytics-charts.tsx.
+    trend: tone,
+    signal: metricSignal(metricKey, rawTrend),
     dataSource: METRIC_TO_DATA_SOURCE[metricKey],
     lastUpdated: getRelativeFreshness(envelope.computed_at),
     dataMode: "live",
@@ -240,7 +361,7 @@ export function buildLiveKpiSnapshot(
     timeSeries,
     forecastSeries: undefined,
     previousTimeSeries: undefined,
-    gaugeValue: undefined,
+    boundedRatio,
     partialNote:
       range === "90d" && values.length < 9
         ? "Một phần dữ liệu nguồn chưa đầy đủ cho khoảng thời gian đang chọn."
@@ -275,22 +396,6 @@ export interface ImpactMetricSnapshot {
   sentiment: ChartTrend;
 }
 
-/** KPIs where a falling value is the good direction. */
-const INVERTED_IMPACT_METRICS: readonly ImpactMetricKey[] = [
-  "cancellation-rate",
-];
-
-function impactSentiment(
-  metricKey: ImpactMetricKey,
-  trend: ChartTrend,
-): ChartTrend {
-  if (!INVERTED_IMPACT_METRICS.includes(metricKey) || trend === "neutral") {
-    return trend;
-  }
-
-  return trend === "positive" ? "negative" : "positive";
-}
-
 /**
  * Read the tied Main KPI's real current value and trend.
  *
@@ -298,6 +403,11 @@ function impactSentiment(
  * no envelope, when the KPI is unavailable, or when it carries no series.
  * Ratio KPIs (CTOR, cancellation rate) arrive pre-divided and are rendered as
  * stored; correcting that belongs to the CDP track, not here.
+ *
+ * The `sentiment` field is the goal-aware tone (whether the move is good for the
+ * seller), computed by the unified resolver (resolveToneFromDeltaAndGoal). The
+ * `trend` field is always raw movement (up = positive, down = negative).
+ * Both are computed once in computeDelta and read directly (no duplication).
  */
 export function buildImpactMetricSnapshot(
   envelope: DemoAnalyticsEnvelope | null | undefined,
@@ -314,17 +424,34 @@ export function buildImpactMetricSnapshot(
 
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend } = computeDelta(entry.series);
+  const def = getMainKpiDefinition(metricKey);
+  const { delta, rawTrend: trend, tone: sentiment } = computeDelta(
+    entry.series,
+    def.goalDirection,
+  );
 
   return {
     metricKey,
-    metricName: getMainKpiDefinition(metricKey).name,
+    metricName: def.name,
     formattedValue: formatKpiValue(metricKey, latestValue, envelope.currency),
     delta,
     trend,
-    sentiment: impactSentiment(metricKey, trend),
+    sentiment,
   };
 }
+
+/**
+ * Goal directions for supplementary charts.
+ * These are not Main KPIs but need explicit goal direction to go through the unified resolver.
+ * ADR-060 Consequence: all series require goal direction to prevent inversion trap.
+ */
+const SUPPLEMENTARY_CHART_GOAL_DIRECTIONS: Record<
+  "product_funnel" | "live_performance",
+  GoalDirection
+> = {
+  product_funnel: "higher-is-better", // Funnel conversion rising is good
+  live_performance: "higher-is-better", // LIVE performance GMV rising is good
+};
 
 export function buildSupplementaryChartSnapshot(
   envelope: DemoAnalyticsEnvelope,
@@ -340,14 +467,17 @@ export function buildSupplementaryChartSnapshot(
   const timeSeries = seriesToTimePoints(entry);
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
-  const { delta, trend } = computeDelta(entry.series);
+  const goalDirection = SUPPLEMENTARY_CHART_GOAL_DIRECTIONS[envelopeKey];
+  const { delta, tone } = computeDelta(entry.series, goalDirection);
 
   return {
     envelopeKey,
     label: entry.label,
     formattedValue: formatVND(latestValue),
     delta,
-    trend,
+    // Snapshot.trend carries goal-aware tone for delta chip (#858).
+    // Chart mark color (neutral per ADR-060 § 5) is set separately at render time.
+    trend: tone,
     timeSeries,
     dataSource: "TikTok Shop",
     lastUpdated: getRelativeFreshness(envelope.computed_at),
