@@ -5,6 +5,7 @@ import {
   MetricSparkline,
   ProgressBar,
   TrendAreaChart,
+  TrendBarsChart,
   TrendLineChart,
 } from "@juli/ui";
 
@@ -102,18 +103,14 @@ export function AnalyticsHeroChart({
     }
 
     case "count": {
-      // Render plain-line form for discrete counts (LIVE hours).
-      // Slice #861 will upgrade this to bars; until then, plain-line interim form.
-      const overlayData = comparePreviousPeriod
-        ? previousData
-        : snapshot.forecastSeries;
-
+      // Render bars form for discrete counts (LIVE hours).
+      // Counts are individual per-period quantities; bars show each period distinctly
+      // without implying interpolation between periods (ADR-060, issue #861).
       return (
-        <TrendLineChart
-          currentData={snapshot.timeSeries}
+        <TrendBarsChart
+          data={snapshot.timeSeries}
           delta={snapshot.delta}
           label={label}
-          previousData={overlayData}
           trend={snapshot.trend}
           value={snapshot.formattedValue}
           width={320}

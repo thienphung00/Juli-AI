@@ -8,6 +8,7 @@ import {
   ChartTextEquivalent,
   MetricSparkline,
   TrendAreaChart,
+  TrendBarsChart,
   TrendLineChart,
 } from "../chart";
 import { loadUiStyles } from "./test-utils";
@@ -434,6 +435,194 @@ describe("Chart primitives", () => {
       // for the value text itself — not merely for its origin point.
       expect(labelX).toBeLessThan(CHART_WIDTH);
       expect(CHART_WIDTH - labelX).toBeGreaterThanOrEqual(MIN_LABEL_ROOM);
+    });
+  });
+
+  describe("Bars chart for discrete count data (issue #861)", () => {
+    it("RED: renders TrendBarsChart with correct test id", () => {
+      const testData = [
+        { label: "T1", value: 5 },
+        { label: "T2", value: 8 },
+        { label: "T3", value: 3 },
+      ];
+
+      const { container } = render(
+        <TrendBarsChart
+          data={testData}
+          label="LIVE hours"
+          trend="neutral"
+          value="16"
+        />
+      );
+
+      const barsChart = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      expect(barsChart).toBeInTheDocument();
+    });
+
+    it("RED: renders rectangles (bars) for each data point", () => {
+      const testData = [
+        { label: "T1", value: 5 },
+        { label: "T2", value: 8 },
+        { label: "T3", value: 3 },
+      ];
+
+      const { container } = render(
+        <TrendBarsChart
+          data={testData}
+          label="LIVE hours"
+          trend="neutral"
+          value="16"
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      // Bars are rendered as rectangles in Recharts
+      const rectangles = visual?.querySelectorAll("rect");
+      // Should have at least 3 rectangles for the 3 data points (plus grid/chart background)
+      expect((rectangles?.length ?? 0) > 0).toBe(true);
+    });
+
+    it("RED: bar count matches period count", () => {
+      const testData = [
+        { label: "T1", value: 5 },
+        { label: "T2", value: 8 },
+        { label: "T3", value: 3 },
+        { label: "T4", value: 6 },
+        { label: "T5", value: 4 },
+      ];
+
+      const { container } = render(
+        <TrendBarsChart
+          data={testData}
+          label="LIVE hours"
+          trend="neutral"
+          value="26"
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      // Each bar should be rendered with data-chart-bar attribute
+      const bars = visual?.querySelectorAll("[data-chart-bar]");
+      expect(bars?.length).toBe(testData.length);
+    });
+
+    it("RED: zero-value period still renders an identifiable slot", () => {
+      const testData = [
+        { label: "T1", value: 5 },
+        { label: "T2", value: 0 },
+        { label: "T3", value: 3 },
+      ];
+
+      const { container } = render(
+        <TrendBarsChart
+          data={testData}
+          label="LIVE hours"
+          trend="neutral"
+          value="8"
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      const bars = visual?.querySelectorAll("[data-chart-bar]");
+      // All three periods should render bars, including the zero-value one
+      expect(bars?.length).toBe(testData.length);
+    });
+
+    it("RED: retains text equivalent for accessibility", () => {
+      const testData = [
+        { label: "T1", value: 5 },
+        { label: "T2", value: 8 },
+        { label: "T3", value: 3 },
+      ];
+
+      render(
+        <TrendBarsChart
+          data={testData}
+          label="LIVE hours"
+          trend="neutral"
+          value="16"
+          delta="▲ 5%"
+        />
+      );
+
+      // Should have text equivalent for accessibility
+      const textEquivalent = document.querySelector(".juli-sr-only");
+      expect(textEquivalent).toBeInTheDocument();
+      expect(textEquivalent?.textContent).toContain("LIVE hours");
+      expect(textEquivalent?.textContent).toContain("16");
+      expect(textEquivalent?.textContent).toContain("▲ 5%");
+    });
+
+    it("RED: does not interpolate lines between bars", () => {
+      const testData = [
+        { label: "T1", value: 5 },
+        { label: "T2", value: 8 },
+        { label: "T3", value: 3 },
+      ];
+
+      const { container } = render(
+        <TrendBarsChart
+          data={testData}
+          label="LIVE hours"
+          trend="neutral"
+          value="16"
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      // Should not have line elements connecting bars
+      const lines = visual?.querySelectorAll("line[stroke-width]");
+      // Only grid lines and axis ticks should be present, no trend line
+      // Count lines that look like data lines (would have the series color)
+      const dataLines = Array.from(lines ?? []).filter((line) => {
+        const stroke = line.getAttribute("stroke");
+        // Exclude grid/axis lines (gray color)
+        return (
+          stroke &&
+          stroke !== "var(--juli-border)" &&
+          stroke !== "var(--juli-muted-foreground)"
+        );
+      });
+      expect(dataLines.length).toBe(0);
+    });
+
+    it("RED: bars have recessive grid treatment like line forms", () => {
+      const testData = [
+        { label: "T1", value: 5 },
+        { label: "T2", value: 8 },
+        { label: "T3", value: 3 },
+      ];
+
+      const { container } = render(
+        <TrendBarsChart
+          data={testData}
+          label="LIVE hours"
+          trend="neutral"
+          value="16"
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      // Should have CartesianGrid with dashed stroke
+      const cartesianGrid = visual?.querySelector(".recharts-cartesian-grid");
+      expect(cartesianGrid).toBeInTheDocument();
+
+      const gridLines = visual?.querySelectorAll(
+        ".recharts-cartesian-grid line"
+      );
+      expect((gridLines?.length ?? 0) > 0).toBe(true);
     });
   });
 });

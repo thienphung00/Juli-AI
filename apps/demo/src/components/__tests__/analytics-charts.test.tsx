@@ -187,6 +187,95 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
     });
   });
 
+  describe("AC6-7: LIVE hours (count) renders as bars, not a line", () => {
+    it("RED: live-hours (count) renders TrendBarsChart", () => {
+      const liveHours = MAIN_KPI_DEFINITIONS["live-hours"];
+      const snapshot = createMockSnapshot();
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={liveHours.measurementType}
+          label={liveHours.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={liveHours.chartKind}
+        />
+      );
+
+      // TrendBarsChart renders with its test id
+      const barsChart = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      expect(barsChart).toBeInTheDocument();
+
+      // Should NOT render a line chart
+      const lineChart = container.querySelector(
+        '[data-testid="trend-line-chart-visual"]'
+      );
+      expect(lineChart).not.toBeInTheDocument();
+    });
+
+    it("RED: live-hours renders bars for each period, not a line", () => {
+      const liveHours = MAIN_KPI_DEFINITIONS["live-hours"];
+      const snapshot = createMockSnapshot();
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={liveHours.measurementType}
+          label={liveHours.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={liveHours.chartKind}
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+
+      // Should have bars (rectangles with data-chart-bar)
+      const bars = visual?.querySelectorAll("[data-chart-bar]");
+      expect((bars?.length ?? 0) > 0).toBe(true);
+
+      // Should not have trend lines connecting bars
+      // Count the SVG line elements (excluding grid lines)
+      const lines = visual?.querySelectorAll("line[stroke-width]");
+      const trendLines = Array.from(lines ?? []).filter((line) => {
+        const stroke = line.getAttribute("stroke");
+        // Exclude grid/axis visual elements
+        return (
+          stroke &&
+          stroke !== "var(--juli-border)" &&
+          stroke !== "var(--juli-muted-foreground)"
+        );
+      });
+      expect(trendLines.length).toBe(0);
+    });
+
+    it("RED: bars count matches the period count", () => {
+      const liveHours = MAIN_KPI_DEFINITIONS["live-hours"];
+      const snapshot = createMockSnapshot();
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={liveHours.measurementType}
+          label={liveHours.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={liveHours.chartKind}
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-bars-chart-visual"]'
+      );
+      const bars = visual?.querySelectorAll("[data-chart-bar]");
+
+      // Should have one bar per period in the time series
+      expect(bars?.length).toBe(snapshot.timeSeries.length);
+    });
+  });
+
   describe("AC1-2: Unavailable KPI renders explained empty state", () => {
     it("RED: unavailable KPI (null snapshot) renders explained state, not null", () => {
       const gmv = MAIN_KPI_DEFINITIONS["gmv-tiktok"];

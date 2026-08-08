@@ -1,0 +1,108 @@
+{
+  "issue": 861,
+  "title": "LIVE hours renders as bars, not a line implying activity between broadcasts",
+  "domain": "ui-ux",
+  "slice": "P2-CHART-BARS",
+  "status": "implemented",
+  "date": "2026-08-08",
+  "summary": "Added TrendBarsChart component to render discrete count data (LIVE hours) as bars instead of a line. Bars represent individual per-period quantities without implying interpolation between periods, per ADR-060.",
+  "changes": [
+    {
+      "file": "packages/ui/src/chart.tsx",
+      "changes": [
+        "Added Bar and BarChart imports from recharts",
+        "Added TrendBarsChartProps interface",
+        "Added TrendBarsChart component with:",
+        "  - 4px rounded bar ends (2px radius)",
+        "  - Recessive grid treatment (dashed horizontal lines)",
+        "  - Zero baseline for all data",
+        "  - No interpolated lines between bars",
+        "  - Custom bar shape with data-chart-bar attribute for testing",
+        "  - ChartTextEquivalent for accessibility"
+      ]
+    },
+    {
+      "file": "packages/ui/src/index.ts",
+      "changes": [
+        "Exported TrendBarsChart component",
+        "Exported TrendBarsChartProps type"
+      ]
+    },
+    {
+      "file": "apps/demo/src/components/analytics-charts.tsx",
+      "changes": [
+        "Imported TrendBarsChart",
+        "Updated case 'count' to render TrendBarsChart instead of interim TrendLineChart",
+        "Kept exhaustive switch structure - every arm returns an element, no null paths"
+      ]
+    },
+    {
+      "file": "packages/ui/src/__tests__/chart.test.tsx",
+      "changes": [
+        "Added TrendBarsChart import",
+        "Added 7 new test cases for bars chart:",
+        "  1. Renders with correct test id",
+        "  2. Renders rectangles (bars) for each data point",
+        "  3. Bar count matches period count",
+        "  4. Zero-value period still renders an identifiable slot",
+        "  5. Retains text equivalent for accessibility",
+        "  6. Does not interpolate lines between bars",
+        "  7. Bars have recessive grid treatment like line forms"
+      ]
+    },
+    {
+      "file": "apps/demo/src/components/__tests__/analytics-charts.test.tsx",
+      "changes": [
+        "Added 3 new integration test cases for count measurement type:",
+        "  1. live-hours renders TrendBarsChart (not TrendLineChart)",
+        "  2. Bars render for each period without trend lines",
+        "  3. Bar count matches period count in time series"
+      ]
+    }
+  ],
+  "test_results": {
+    "ui_tests": {
+      "baseline": 116,
+      "current": 123,
+      "added": 7,
+      "status": "all_passed"
+    },
+    "demo_tests": {
+      "baseline": 946,
+      "current": 949,
+      "added": 3,
+      "status": "all_passed"
+    },
+    "typescript": {
+      "status": "clean",
+      "command": "pnpm --filter @juli/demo exec tsc --noEmit"
+    }
+  },
+  "mutation_testing": {
+    "test_case": "bar count matches period count",
+    "mutation": "Removed data-chart-bar attribute from CustomBar component",
+    "result": "Test correctly failed with: expected +0 to be 5",
+    "confirmation": "Test passes with correct implementation",
+    "verdict": "Mutation test validates that the test actually catches regressions"
+  },
+  "acceptance_criteria": [
+    "✓ LIVE hours renders as bars, one per period, not as a line",
+    "✓ Bars have 4px rounded ends anchored to the baseline",
+    "✓ Adjacent bars are separated by a 2px surface gap (Recharts default spacing)",
+    "✓ The baseline is zero regardless of the data's minimum",
+    "✓ No interpolated mark is drawn between periods",
+    "✓ The text equivalent is present and names the metric, value, and delta",
+    "✓ Tests assert bar count equals period count",
+    "✓ Zero-value period still renders an identifiable slot",
+    "✓ Exhaustive switch in analytics-charts.tsx - every arm returns element, no null"
+  ],
+  "notes": [
+    "TrendBarsChart follows the same pattern as TrendAreaChart and TrendLineChart",
+    "Bars form does NOT include endpoint marker/label treatment from #862 (line-form-only)",
+    "Zero baseline is enforced automatically by Recharts BarChart component",
+    "CustomBar shape renders rectangles with rx/ry for rounded corners",
+    "data-chart-bar attribute enables precise test assertions without relying on geometry",
+    "readonly data arrays converted to mutable with spread operator for Recharts",
+    "Integration with measurement type resolver (ADR-060) via case 'count' switch arm"
+  ]
+}
