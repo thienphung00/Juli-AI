@@ -1,0 +1,33 @@
+B-2:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md
+    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/services/scoring/MODULE.md
+    - backend/src/juli_backend/services/scoring/pipeline.py
+    - backend/src/juli_backend/services/scoring/signals.py
+    - backend/src/juli_backend/services/scoring/recommendations.py
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+    - backend/src/juli_backend/services/action_cards/refresh.py
+    - backend/src/juli_backend/services/cdp_speed/shared_compute_orchestrator.py
+    - tests/unit/test_scoring.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/scoring/types.py
+    - backend/src/juli_backend/services/scoring/kpi_catalog.py
+    - backend/src/juli_backend/services/aggregates/
+    - tests/unit/test_daily_batch_scoring_contract.py
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - backend/src/juli_backend/services/cdp_batch/
+    - Sibling issue context caches

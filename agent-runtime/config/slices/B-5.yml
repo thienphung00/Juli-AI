@@ -1,0 +1,31 @@
+B-5:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/037-phase-2.10-demo-real-data-no-auth.md
+    - docs/adr/048-cdp-webhook-first-spine-dual-credential.md
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/services/execution/MODULE.md
+    - backend/src/juli_backend/services/execution/dispatch.py
+    - backend/src/juli_backend/services/action_cards/dispatch.py
+    - backend/src/juli_backend/api/routes/executions.py
+    - backend/src/juli_backend/models/models.py
+    - tests/unit/test_action_cards_contract.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/execution/sandbox_guard.py
+    - backend/src/juli_backend/workers/dispatch_binding.py
+    - backend/src/juli_backend/api/routes/demo_analytics.py
+    - backend/src/juli_backend/database/migrations/versions/
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - backend/src/juli_backend/services/cdp_batch/
+    - Sibling issue context caches

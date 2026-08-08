@@ -1,0 +1,31 @@
+B-6:
+  executorDomain: backend
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/037-phase-2.10-demo-real-data-no-auth.md
+    - docs/adr/035-public-release-evidence-and-automatic-rollback.md
+    - docs/adr/038-phase-2.10-dual-layer-pipeline.md
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/api/routes/demo_analytics.py
+    - backend/src/juli_backend/api/app.py
+    - backend/src/juli_backend/services/analytics_kpi_masking/mask.py
+    - backend/src/juli_backend/services/action_cards/persist.py
+    - tests/unit/test_api_demo_analytics.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/analytics_kpi_masking/MODULE.md
+    - backend/src/juli_backend/services/gold_kpi_envelope_serving.py
+    - backend/src/juli_backend/api/routes/action_cards.py
+    - backend/src/juli_backend/core/config/
+    - .cursor/skills/domain/testing-patterns/python-testing.md
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - docs/product/design/
+    - apps/
+    - web/
+    - ios/
+    - docs/integrations/tiktok_corpora/
+    - backend/src/juli_backend/services/cdp_batch/
+    - Sibling issue context caches
