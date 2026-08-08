@@ -8,27 +8,44 @@ import {
   TrendLineChart,
 } from "@juli/ui";
 
-import type { ChartKind } from "../lib/analytics/main-kpis";
+import type {
+  ChartKind,
+  MeasurementType,
+  getChartFormFromMeasurementType,
+} from "../lib/analytics/main-kpis";
 import type { KpiSnapshot } from "../lib/analytics/mock-data";
 
 interface AnalyticsHeroChartProps {
-  chartKind: ChartKind;
+  /**
+   * Measurement type determines chart form (ADR-060).
+   * Used to select between filled-line, plain-line, bars, and bounded-ratio forms.
+   */
+  measurementType: MeasurementType;
   label: string;
   snapshot: KpiSnapshot;
   comparePreviousPeriod: boolean;
+  /**
+   * Deprecated: chartKind is kept for backwards compatibility during transition.
+   * When slice #867 retires ChartKind, this prop can be removed and the resolver
+   * will be the only decision point for chart appearance.
+   */
+  chartKind?: ChartKind;
 }
 
 export function AnalyticsHeroChart({
-  chartKind,
+  measurementType,
   label,
   snapshot,
   comparePreviousPeriod,
+  chartKind,
 }: AnalyticsHeroChartProps) {
   const previousData = comparePreviousPeriod
     ? snapshot.previousTimeSeries
     : undefined;
 
-  if (chartKind === "gauge" && snapshot.gaugeValue !== undefined) {
+  // For bounded-ratio (e.g., Cancellation rate), check if gaugeValue exists
+  // until slice #860/#864 implements the band chart. Fall back to gauge display.
+  if (measurementType === "bounded-ratio" && snapshot.gaugeValue !== undefined) {
     return (
       <figure className="analytics-hero-chart analytics-hero-chart--gauge">
         <p className="juli-sr-only">
@@ -42,7 +59,26 @@ export function AnalyticsHeroChart({
     );
   }
 
-  if (chartKind === "forecast-line") {
+  // Render filled-line form: gradient fill for sum-able quantities (e.g., GMV)
+  if (measurementType === "flow") {
+    const overlayData = comparePreviousPeriod
+      ? previousData
+      : snapshot.forecastSeries;
+
+    return (
+      <TrendAreaChart
+        data={snapshot.timeSeries}
+        delta={snapshot.delta}
+        label={label}
+        trend={snapshot.trend as ChartTrend}
+        value={snapshot.formattedValue}
+        width={320}
+      />
+    );
+  }
+
+  // Render plain-line form: no fill for averages and rates (e.g., AOV, CTOR)
+  if (measurementType === "average" || measurementType === "rate") {
     const overlayData = comparePreviousPeriod
       ? previousData
       : snapshot.forecastSeries;
@@ -60,13 +96,20 @@ export function AnalyticsHeroChart({
     );
   }
 
-  if (chartKind === "trend-line") {
+  // For count (LIVE hours) and bounded-ratio (when band chart is ready),
+  // fall back to plain-line until slices #861 and #860/#864 land.
+  if (measurementType === "count") {
+    const overlayData = comparePreviousPeriod
+      ? previousData
+      : snapshot.forecastSeries;
+
     return (
-      <TrendAreaChart
-        data={snapshot.timeSeries}
+      <TrendLineChart
+        currentData={snapshot.timeSeries}
         delta={snapshot.delta}
         label={label}
-        trend={snapshot.trend as ChartTrend}
+        previousData={overlayData}
+        trend={snapshot.trend}
         value={snapshot.formattedValue}
         width={320}
       />
