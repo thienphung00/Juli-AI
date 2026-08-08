@@ -143,8 +143,12 @@ class TikTokClient:
         resp = self._session.post(
             f"{self._base_url}{path}",
             params=all_params,
-            json=body,
-            headers=self._auth_headers(path),
+            # Send the exact bytes that were signed. Passing json=body lets requests
+            # re-serialize with its own separators and key order, so the body TikTok
+            # hashes differs from the one we signed and every non-empty body is
+            # rejected with code 106001 "the 'sign' query parameter is invalid".
+            data=body_str,
+            headers=self._json_auth_headers(path),
             timeout=self._timeout,
         )
         data = self._handle_response(resp)
@@ -222,8 +226,9 @@ class TikTokClient:
         resp = self._session.put(
             f"{self._base_url}{path}",
             params=all_params,
-            json=body,
-            headers=self._auth_headers(path),
+            # See post(): the signed bytes must be sent verbatim.
+            data=body_str,
+            headers=self._json_auth_headers(path),
             timeout=self._timeout,
         )
         data = self._handle_response(resp)
@@ -379,6 +384,16 @@ class TikTokClient:
         if uses_header_auth(path):
             return {_ACCESS_TOKEN_HEADER: self._access_token}
         return {}
+
+    def _json_auth_headers(self, path: str) -> dict[str, str]:
+        """Auth headers plus an explicit JSON content type.
+
+        Needed because the signed body is sent as raw bytes via ``data=``; requests
+        only sets Content-Type automatically for ``json=``.
+        """
+        headers = self._auth_headers(path)
+        headers["Content-Type"] = "application/json"
+        return headers
 
     @staticmethod
     def _handle_response(resp: requests.Response) -> dict:
