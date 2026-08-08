@@ -197,6 +197,37 @@ def _verify_body_integrity(
     return []
 
 
+def waived_issues(manifest: dict[str, Any]) -> set[int]:
+    """Issue numbers this manifest's waiver covers, if it carries one.
+
+    The waiver lives inside the wave's own manifest and names its issues one by
+    one, so it cannot reach another wave and cannot grow to cover an issue added
+    after the decision was recorded.
+    """
+    waiver = manifest.get("artifactWaiver")
+    if not isinstance(waiver, dict):
+        return set()
+
+    listed = waiver.get("issues")
+    if not isinstance(listed, list):
+        return set()
+
+    return {issue for issue in listed if isinstance(issue, int) and not isinstance(issue, bool)}
+
+
+def describe_waiver(manifest: dict[str, Any]) -> str | None:
+    """One-line summary of an active waiver, for the gate to print. None if absent."""
+    waiver = manifest.get("artifactWaiver")
+    if not isinstance(waiver, dict):
+        return None
+
+    covered = sorted(waived_issues(manifest))
+    return (
+        f"artifact waiver active for {len(covered)} issue(s) {covered} "
+        f"— {waiver.get('adr')}, approved by {waiver.get('approvedBy')}: {waiver.get('reason')}"
+    )
+
+
 def validate_wave_artifacts(
     manifest: Any,
     *,
@@ -204,7 +235,12 @@ def validate_wave_artifacts(
     expected_branch: str | None = None,
     verify_integrity: bool = False,
 ) -> dict[str, Any]:
-    """Wave→main artifact gate: manifest valid and every issue has a PASS status record."""
+    """Wave→main artifact gate: manifest valid and every issue has a PASS status record.
+
+    An issue named by this manifest's ``artifactWaiver`` is accepted without a
+    status record. The waiver never suppresses the failure silently — the CLI
+    prints it — and it cannot cover an issue that is not in the wave.
+    """
     schema_result = validate_wave_manifest(manifest)
     if not schema_result["valid"]:
         return schema_result
@@ -224,9 +260,18 @@ def validate_wave_artifacts(
     if not isinstance(issues, list):
         return {"valid": False, "errors": ["issues must be an array"]}
 
+    waived = waived_issues(manifest)
+
+    # A waiver may only excuse issues the wave actually carries. Anything else is
+    # a drafting error and must fail rather than sit unnoticed in the manifest.
+    for issue in sorted(waived - {i for i in issues if isinstance(i, int)}):
+        errors.append(f"artifactWaiver covers issue {issue}, which is not in this wave")
+
     for issue in issues:
         if not isinstance(issue, int) or isinstance(issue, bool):
             errors.append(f"issues contains non-integer entry: {issue!r}")
+            continue
+        if issue in waived:
             continue
         errors.extend(_validate_issue_artifacts(issue, verify_integrity=verify_integrity))
 
@@ -306,6 +351,10 @@ def main() -> int:
             expected_branch=expected_branch,
             verify_integrity=args.verify_integrity,
         )
+        # A waived gate must never read like a clean one in the log.
+        waiver_line = describe_waiver(manifest) if isinstance(manifest, dict) else None
+        if waiver_line:
+            print(f"wave_artifact_gate: WAIVED — {waiver_line}")
         detail = result["errors"][0] if result["errors"] else ""
         return print_check_result("wave_artifact_gate", result["valid"], detail)
 
