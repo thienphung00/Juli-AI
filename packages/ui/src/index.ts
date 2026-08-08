@@ -161,6 +161,7 @@ export type {
 
 /* #414-B */
 export {
+  BandedLineChart,
   CHART_SERIES_COLORS,
   ChartExpandableTile,
   ChartTextEquivalent,
@@ -170,6 +171,7 @@ export {
   TrendLineChart,
 } from "./chart";
 export type {
+  BandedLineChartProps,
   ChartExpandableTileProps,
   ChartTextEquivalentProps,
   ChartTrend,

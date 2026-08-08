@@ -405,6 +405,289 @@ describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => 
       expect(svgUnavailable?.getAttribute("viewBox")).toBeTruthy();
     });
   });
+
+  describe("AC9: bounded-ratio renders as a banded trend, not a meter", () => {
+    it("RED: cancellation-rate (bounded-ratio) renders BandedLineChart", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        boundedRatio: {
+          value: 3.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: false,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      // BandedLineChart renders with its test id
+      const bandedChart = container.querySelector(
+        '[data-testid="banded-line-chart-visual"]'
+      );
+      expect(bandedChart).toBeInTheDocument();
+    });
+
+    it("RED: tolerance band renders across the plot width", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        boundedRatio: {
+          value: 3.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: false,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      // The band is rendered as a rectangle with the tolerance bounds
+      const visual = container.querySelector(
+        '[data-testid="banded-line-chart-visual"]'
+      );
+      const band = visual?.querySelector("[data-chart-tolerance-band]");
+      expect(band).toBeInTheDocument();
+    });
+
+    it("RED: target line renders as a dotted reference line with label", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        boundedRatio: {
+          value: 3.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: false,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="banded-line-chart-visual"]'
+      );
+      // Target line should be rendered (either as a line or a reference line)
+      const targetLine = visual?.querySelector("[data-chart-target-line]");
+      expect(targetLine).toBeInTheDocument();
+
+      // Should have a label for the target
+      const targetLabel = visual?.querySelector("[data-chart-target-label]");
+      expect(targetLabel).toBeInTheDocument();
+    });
+
+    it("RED: series line renders over the band with endpoint marker", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        boundedRatio: {
+          value: 3.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: false,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="banded-line-chart-visual"]'
+      );
+      // Series line is rendered as part of the chart
+      const seriesLine = visual?.querySelector("svg line");
+      expect(seriesLine).toBeInTheDocument();
+
+      // Should have an endpoint marker
+      const marker = visual?.querySelector("[data-chart-marker-endpoint]");
+      expect(marker).toBeInTheDocument();
+    });
+
+    it("RED: value within tolerance renders with neutral hue", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        boundedRatio: {
+          value: 2.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: true,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="banded-line-chart-visual"]'
+      );
+      // When within tolerance, series should use neutral hue
+      const seriesLine = visual?.querySelector(
+        "[data-chart-series-line]"
+      );
+      expect(seriesLine?.getAttribute("stroke")).toBe("var(--juli-chart-neutral)");
+    });
+
+    it("RED: value outside tolerance renders with status palette color", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        boundedRatio: {
+          value: 6.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: false,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="banded-line-chart-visual"]'
+      );
+      // When outside tolerance, band should render with status color
+      const band = visual?.querySelector("[data-chart-tolerance-band]");
+      const fill = band?.getAttribute("fill");
+      // Should be destructive color or a status palette color
+      expect(fill).toContain("destructive");
+    });
+
+    it("RED: y-scale uses bounds from payload, not data range", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        timeSeries: [
+          { label: "T1", value: 2.0 },
+          { label: "T2", value: 3.0 },
+          { label: "T3", value: 2.5 },
+        ],
+        boundedRatio: {
+          value: 2.5,
+          target: 3.0,
+          bounds: { min: 0, max: 100 }, // Much larger than the data range
+          withinTolerance: true,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="banded-line-chart-visual"]'
+      );
+      // The Y-axis should reflect the bounds, not the data
+      const yAxis = visual?.querySelector("[data-chart-y-axis]");
+      expect(yAxis).toBeInTheDocument();
+      // Check that the domain reflects the bounds
+      expect(yAxis?.getAttribute("data-domain-min")).toBe("0");
+      expect(yAxis?.getAttribute("data-domain-max")).toBe("100");
+    });
+
+    it("RED: text equivalent includes value, target, and tolerance state", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        formattedValue: "3.5%",
+        boundedRatio: {
+          value: 3.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: false,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      // Screen reader text should mention the value and tolerance state
+      const srText = container.querySelector(".juli-sr-only");
+      expect(srText?.textContent).toContain("3.5%"); // formatted value
+      expect(srText?.textContent).toContain("3.0"); // target
+      // Should indicate whether within/outside tolerance
+      const tolerance = srText?.textContent?.includes("tolerance") ||
+                       srText?.textContent?.includes("Ngoài");
+      expect(tolerance).toBe(true);
+    });
+
+    it("MUTATION: removing the tolerance band should fail the band-exists test", () => {
+      const cancellationRate = MAIN_KPI_DEFINITIONS["cancellation-rate"];
+      const snapshot = createMockSnapshot({
+        boundedRatio: {
+          value: 3.5,
+          target: 3.0,
+          bounds: { min: 0, max: 10 },
+          withinTolerance: false,
+        },
+      });
+
+      const { container } = render(
+        <AnalyticsHeroChart
+          measurementType={cancellationRate.measurementType}
+          label={cancellationRate.name}
+          snapshot={snapshot}
+          comparePreviousPeriod={false}
+          chartKind={cancellationRate.chartKind}
+        />
+      );
+
+      // This test verifies that the band element is actually rendered
+      // If we remove the band in the implementation, this should fail
+      const band = container.querySelector("[data-chart-tolerance-band]");
+      expect(band).toBeInTheDocument();
+    });
+  });
 });
 
 describe("#865 sweep: no mark carries direction", () => {

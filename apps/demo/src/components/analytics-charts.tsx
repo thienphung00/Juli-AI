@@ -2,8 +2,8 @@
 
 import type { ChartTrend } from "@juli/ui";
 import {
+  BandedLineChart,
   MetricSparkline,
-  ProgressBar,
   TrendAreaChart,
   TrendBarsChart,
   TrendLineChart,
@@ -119,24 +119,25 @@ export function AnalyticsHeroChart({
     }
 
     case "bounded-ratio": {
-      // Bounded-ratio (e.g., Cancellation rate) will render as a threshold band
-      // when slice #864 lands. #860 supplies the payload; until the band
-      // exists this renders an interim meter. Criterion 5: no null renders.
+      // Bounded-ratio (e.g., Cancellation rate) renders as a banded trend showing
+      // the actual series against its tolerance threshold (ADR-060). #860 supplies
+      // the boundedRatio payload with value, target, bounds, and tolerance state.
       if (snapshot.boundedRatio) {
         return (
-          <figure className="analytics-hero-chart analytics-hero-chart--gauge">
-            <p className="juli-sr-only">
-              {label} — {snapshot.formattedValue} — {snapshot.delta}
-            </p>
-            <ProgressBar label={label} value={snapshot.boundedRatio.value} />
-            <p aria-hidden="true" className="analytics-hero-chart__gauge-value">
-              {snapshot.formattedValue}
-            </p>
-          </figure>
+          <BandedLineChart
+            data={snapshot.timeSeries}
+            label={label}
+            value={snapshot.formattedValue}
+            target={snapshot.boundedRatio.target}
+            bounds={snapshot.boundedRatio.bounds}
+            withinTolerance={snapshot.boundedRatio.withinTolerance}
+            delta={snapshot.delta}
+            width={320}
+          />
         );
       }
 
-      // Bounded-ratio with no payload: render explained state, not null
+      // Bounded-ratio with no payload: render explained state, not null (criterion 5)
       return (
         <AnalyticsUnavailableExplainedChart
           label={label}
