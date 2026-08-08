@@ -35,6 +35,7 @@ const TREND_DIRECTION_LABEL: Record<ChartTrend, string> = {
   warning: "xu hướng cảnh báo",
 };
 
+
 export interface ChartTextEquivalentProps {
   label: string;
   value: string;
@@ -133,6 +134,55 @@ export function TrendAreaChart({
   const stroke = CHART_SERIES_COLORS[trend];
   const fill = `color-mix(in srgb, ${stroke} 12%, transparent)`;
 
+  // Custom dot component that only renders for the last point
+  const CustomEndpointDot = ((props: any) => {
+    const { cx, cy, index } = props;
+
+    // Only render for last point
+    if (index !== data.length - 1) {
+      return null;
+    }
+
+    const markerRadius = 5; // 10px diameter
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={stroke}
+          stroke="none"
+          data-chart-marker-endpoint="true"
+        />
+        {/* Value label */}
+        <text
+          x={cx + 12}
+          y={cy + 4}
+          fill="var(--juli-foreground)"
+          fontSize="12"
+          fontWeight="600"
+          textAnchor="start"
+          data-chart-endpoint-label="true"
+        >
+          {value}
+        </text>
+      </g>
+    );
+  }) as any;
+
   return (
     <figure className="juli-chart-area">
       <ChartTextEquivalent
@@ -173,6 +223,7 @@ export function TrendAreaChart({
           />
           <Area
             dataKey="value"
+            dot={CustomEndpointDot}
             fill={fill}
             isAnimationActive={false}
             stroke={stroke}
@@ -212,6 +263,55 @@ export function TrendLineChart({
     current: point.value,
     previous: previousData?.[index]?.value,
   }));
+
+  // Custom dot component that only renders for the last point
+  const CustomEndpointDot = ((props: any) => {
+    const { cx, cy, index } = props;
+
+    // Only render for last point
+    if (index !== mergedData.length - 1) {
+      return null;
+    }
+
+    const markerRadius = 5; // 10px diameter
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={currentStroke}
+          stroke="none"
+          data-chart-marker-endpoint="true"
+        />
+        {/* Value label */}
+        <text
+          x={cx + 12}
+          y={cy + 4}
+          fill="var(--juli-foreground)"
+          fontSize="12"
+          fontWeight="600"
+          textAnchor="start"
+          data-chart-endpoint-label="true"
+        >
+          {value}
+        </text>
+      </g>
+    );
+  }) as any;
 
   return (
     <figure className="juli-chart-line">
@@ -265,7 +365,7 @@ export function TrendLineChart({
           ) : null}
           <Line
             dataKey="current"
-            dot={false}
+            dot={CustomEndpointDot}
             isAnimationActive={false}
             stroke={currentStroke}
             strokeWidth={2}
