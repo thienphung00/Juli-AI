@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent, ReactNode, ReactElement } from "react";
 import {
   Area,
   AreaChart,
@@ -34,6 +34,20 @@ const TREND_DIRECTION_LABEL: Record<ChartTrend, string> = {
   neutral: "xu hướng ổn định",
   warning: "xu hướng cảnh báo",
 };
+
+/**
+ * Props passed by Recharts to a custom dot shape component.
+ * Typing this prevents the need for `any` casts and maintains type safety.
+ */
+interface DotProps {
+  cx: number;
+  cy: number;
+  index: number;
+  payload?: unknown;
+  fill?: string;
+  stroke?: string;
+}
+
 
 export interface ChartTextEquivalentProps {
   label: string;
@@ -133,6 +147,55 @@ export function TrendAreaChart({
   const stroke = CHART_SERIES_COLORS[trend];
   const fill = `color-mix(in srgb, ${stroke} 12%, transparent)`;
 
+  // Custom dot component that only renders for the last point
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
+    const { cx, cy, index } = props;
+
+    // Only render for last point
+    if (index !== data.length - 1) {
+      return <g />;
+    }
+
+    const markerRadius = 5; // 10px diameter
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={stroke}
+          stroke="none"
+          data-chart-marker-endpoint="true"
+        />
+        {/* Value label */}
+        <text
+          x={cx + 12}
+          y={cy + 4}
+          fill="var(--juli-foreground)"
+          fontSize="12"
+          fontWeight="600"
+          textAnchor="start"
+          data-chart-endpoint-label="true"
+        >
+          {value}
+        </text>
+      </g>
+    );
+  };
+
   return (
     <figure className="juli-chart-area">
       <ChartTextEquivalent
@@ -149,7 +212,7 @@ export function TrendAreaChart({
         <AreaChart
           data={[...data]}
           height={height}
-          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
           width={width}
         >
           <CartesianGrid
@@ -164,15 +227,9 @@ export function TrendAreaChart({
             tick={AXIS_TICK}
             tickLine={false}
           />
-          <YAxis
-            axisLine={false}
-            tick={AXIS_TICK}
-            tickCount={3}
-            tickLine={false}
-            width={36}
-          />
           <Area
             dataKey="value"
+            dot={CustomEndpointDot as any}
             fill={fill}
             isAnimationActive={false}
             stroke={stroke}
@@ -213,6 +270,55 @@ export function TrendLineChart({
     previous: previousData?.[index]?.value,
   }));
 
+  // Custom dot component that only renders for the last point
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
+    const { cx, cy, index } = props;
+
+    // Only render for last point
+    if (index !== mergedData.length - 1) {
+      return <g />;
+    }
+
+    const markerRadius = 5; // 10px diameter
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={currentStroke}
+          stroke="none"
+          data-chart-marker-endpoint="true"
+        />
+        {/* Value label */}
+        <text
+          x={cx + 12}
+          y={cy + 4}
+          fill="var(--juli-foreground)"
+          fontSize="12"
+          fontWeight="600"
+          textAnchor="start"
+          data-chart-endpoint-label="true"
+        >
+          {value}
+        </text>
+      </g>
+    );
+  };
+
   return (
     <figure className="juli-chart-line">
       <ChartTextEquivalent
@@ -229,7 +335,7 @@ export function TrendLineChart({
         <LineChart
           data={mergedData}
           height={height}
-          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
           width={width}
         >
           <CartesianGrid
@@ -243,13 +349,6 @@ export function TrendLineChart({
             interval="preserveStartEnd"
             tick={AXIS_TICK}
             tickLine={false}
-          />
-          <YAxis
-            axisLine={false}
-            tick={AXIS_TICK}
-            tickCount={3}
-            tickLine={false}
-            width={36}
           />
           {previousData ? (
             // Previous-period comparison is non-directional — ADR-054 chart-neutral.
@@ -265,7 +364,7 @@ export function TrendLineChart({
           ) : null}
           <Line
             dataKey="current"
-            dot={false}
+            dot={CustomEndpointDot as any}
             isAnimationActive={false}
             stroke={currentStroke}
             strokeWidth={2}
