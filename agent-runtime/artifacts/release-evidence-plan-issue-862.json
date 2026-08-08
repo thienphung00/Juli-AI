@@ -1,0 +1,77 @@
+{
+  "planId": "rep-862-anchor-the-line-marks-and-axis-economy",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-endpoint-marker-and-direct-label",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "latest_point_is_clearly_marked_with_its_value",
+          "dates_are_anchored_on_the_chart",
+          "short_ranges_render_a_marker_per_point",
+          "axis_and_gridline_chrome_does_not_compete_with_the_data",
+          "comparison_overlay_is_visually_distinct_from_the_current_period"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Mark and axis treatment inside packages/ui chart primitives and their stylesheet."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "scrub interaction (#866)",
+    "series hue policy (#865)",
+    "desktop-specific hover affordances — the surface is mobile-web"
+  ]
+}
