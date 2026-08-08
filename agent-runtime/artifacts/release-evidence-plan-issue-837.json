@@ -1,0 +1,98 @@
+{
+  "planId": "rep-837-ci-built-release-artifacts",
+  "affectedPublicSurfaces": [
+    "the release path for demo.app-juli.com and api.app-juli.com, and the future landing surface: every deployed release becomes a CI-produced artifact rather than a server-side build"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "CI runners only; the artifact is built and verified in continuous integration and is not delivered to the server in this slice, so no candidate instance and no public traffic are involved",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "artifact-is-produced-and-traceable",
+        "entryUrl": "CI: the artifact build job for each deployable",
+        "assertions": [
+          "an artifact is produced for each deployable",
+          "the artifact records the exact commit it was built from, and that commit is recoverable from the artifact alone",
+          "the artifact carries the shape ADR-058 fixed: the built output and its production dependency tree, resolved in CI"
+        ]
+      },
+      {
+        "name": "browser-level-checks-run-in-ci-against-the-artifact",
+        "entryUrl": "CI: a server started from the artifact, driven by a real browser",
+        "assertions": [
+          "computed styling is asserted, not merely that a stylesheet responded",
+          "interactivity is asserted on at least one core interaction",
+          "these checks run before the artifact is publishable, and are the deliberate counterpart to the protocol-level on-server checks in #833"
+        ]
+      },
+      {
+        "name": "a-failed-build-publishes-nothing",
+        "entryUrl": "CI: a deliberately failing build",
+        "assertions": [
+          "no artifact is produced or published when the build fails",
+          "no artifact is produced when the browser-level checks fail",
+          "the job exits non-zero and the failure is visible rather than silent"
+        ]
+      },
+      {
+        "name": "the-server-no-longer-compiles",
+        "entryUrl": "repository: the deploy scripts the server executes",
+        "assertions": [
+          "no application build step remains in what the server runs",
+          "dependency resolution happens in CI, not on the server, per ADR-058",
+          "the existing per-app deploy path still works until #844 retires it"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "The slice changes where builds happen. It touches no database, queue, or persistence surface."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "the existing per-application deploy scripts remain functional throughout this slice, so reverting the commit restores the current server-side build path exactly",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python agent-runtime/scripts/validate/run_validate.py --issue 837",
+    "pytest -q tests/unit/test_release_artifact_build.py"
+  ],
+  "doNotInfer": [
+    "delivering the artifact to the server, starting a candidate from it, or any cutover — those are #838 and #841",
+    "removing the per-application deploy scripts; #844 retires them only after the combined path has completed a real release",
+    "switching to self-contained build output; ADR-058 fixed the packaging shape and this slice produces that shape",
+    "pulling protocol-level asset checks out of #833 into CI, or browser-level checks out of CI onto the server — the split is deliberate",
+    "database, queue, or TikTok integration changes"
+  ]
+}

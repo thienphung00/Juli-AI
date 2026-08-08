@@ -103,23 +103,33 @@ def test_systemd_demo_matches_juli_web_loopback_start_pattern(systemd_demo_text:
 def test_build_demo_validates_next_static_output(build_demo_text: str):
     assert BUILD_DEMO_PATH.is_file()
     assert ".next/static" in build_demo_text, (
-        "build-demo.sh must verify hashed static assets exist after next build"
-    )
-    assert "_demo_service_app_dir" in build_demo_text, (
-        "build-demo.sh must guard against building in canonical checkout "
-        "while juli-demo serves demo-current"
-    )
-    assert "TURBO_FORCE" in build_demo_text, (
-        "release builds must force turbo rebuild to avoid shared worktree cache hits"
+        "build-demo.sh must verify hashed static assets exist in the artifact"
     )
     assert "node_modules/.bin/next" in build_demo_text, (
-        "build-demo.sh must verify the next binary is linked before deploy cutover"
+        "build-demo.sh must verify the next binary is present before deploy cutover"
     )
+    # Two assertions here previously pinned server-side build mechanics: a guard
+    # against building in the canonical checkout while juli-demo served
+    # demo-current, and TURBO_FORCE to defeat a shared worktree cache hit. ADR-058
+    # and #837 moved the build into CI, so neither has anything left to protect —
+    # nothing writes .next on the server any more. They are replaced by the
+    # invariant that succeeded them, not dropped, so this cannot regress silently.
+    executable = "\n".join(
+        line for line in build_demo_text.splitlines() if not line.lstrip().startswith("#")
+    )
+    for compile_step in ("pnpm install", "turbo run build", "pnpm build:demo", "next build"):
+        assert compile_step not in executable, (
+            f"build-demo.sh runs {compile_step!r} on the server; ADR-058 moved both the "
+            "build and the dependency resolution into CI (#837)"
+        )
 
 
 def test_deploy_demo_reinstalls_systemd_and_dumps_logs_on_failure() -> None:
     deploy = _read(REPO_ROOT / "infra/scripts/deploy-demo-release.sh")
-    assert "DEMO_RELEASE_BUILD=1" in deploy
+    # DEMO_RELEASE_BUILD=1 used to tell build-demo.sh "this is a release build,
+    # force a rebuild". #837 left it nothing to switch on. What must still hold is
+    # that the deploy invokes the verification step at all.
+    assert "build-demo.sh" in deploy
     assert "juli-demo.service" in deploy
     assert "journalctl -u juli-demo" in deploy
     assert "node_modules/.bin/next" in deploy

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Continuous delivery for Demo only: cut a release worktree, build apps/demo,
-# cut over the demo-current symlink, restart juli-demo, and health-check.
+# Continuous delivery for Demo only: cut a release worktree, verify the Demo
+# artifact CI built for this commit, cut over the demo-current symlink, restart
+# juli-demo, and health-check. No compilation happens on the server (#837).
 #
 # Independent of deploy-release.sh — juli-api and juli-web are not restarted.
 # Run from the canonical checkout on the VPS (~/Juli-AI-v2).
@@ -53,13 +54,17 @@ else
     git -C "${CANONICAL_ROOT}" worktree add --force "${release_dir}" "${sha}"
 fi
 
-# --- 2. Demo build (mock mode — no backend secrets) ---
-echo "-- demo frontend --"
-DEMO_RELEASE_BUILD=1 REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
+# --- 2. Verify the release directory carries a runnable Demo artifact ---
+# Nothing is compiled here any more (#837, ADR-058): CI builds the artifact and
+# packages it with a production dependency tree resolved there. This step only
+# checks that the artifact is present and complete before cutover. Placing it into
+# the release directory is #838.
+echo "-- demo frontend (verify only) --"
+REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-demo.sh"
 
 NEXT_BIN="${release_dir}/apps/demo/node_modules/.bin/next"
 if [ ! -e "${NEXT_BIN}" ]; then
-    echo "FAIL: next binary missing after build: ${NEXT_BIN}" >&2
+    echo "FAIL: next binary missing from the placed artifact: ${NEXT_BIN}" >&2
     exit 1
 fi
 
