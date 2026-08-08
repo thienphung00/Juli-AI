@@ -10,7 +10,9 @@ c2bf2d0efaad846371a587bc49211f1f0fa6f9ed:apps/demo/src/lib/recommendations.ts:ge
 # False positive: synthetic idempotency_key test fixture value, not a secret (#628)
 057ae838cad8595b8ae03d8856ca787fcabe2af8:tests/unit/test_silver_cancellations_reconcile.py:generic-api-key:268
 # False positives: Decision workflow_key domain identifier resembles a generic API key (#717, B-5)
-# Verified content at 8defcdd6: workflow_key="replenish_inventory_3" — same class as the #399/#407 entries above.
+# Verified at 8defcdd6: each hit is a Decision workflow key literal assigned to the
+# workflow_key field — a domain identifier, not a credential. Same class as #399/#407 above.
+# (Deliberately not quoting the literal here: the comment itself would trip the same rule.)
 8defcdd68dcc975e821abee8314992689622e99e:tests/unit/test_demo_execution_dry_run.py:generic-api-key:49
 8defcdd68dcc975e821abee8314992689622e99e:tests/unit/test_demo_execution_dry_run.py:generic-api-key:72
 8defcdd68dcc975e821abee8314992689622e99e:tests/unit/test_api_demo_execution.py:generic-api-key:49
