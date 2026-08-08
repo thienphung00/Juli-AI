@@ -65,3 +65,4 @@
 | [058](058-release-packaging-shape.md) | Release packaging shape — build output plus a production dependency install, not `output: 'standalone'`; #837 ships both halves | Accepted |
 | [059](059-dpr-wave-artifact-waiver.md) | Scoped artifact waiver for `wave-dpr-demo` — evidence unrecoverable, diffs reviewed in its place; not precedent | Accepted |
 | [057](057-pre-user-delivery-on-single-vps.md) | Pre-user delivery stays on the single VPS — ADR-035's platform superseded, its evidence contract retained; re-entry triggers T1–T5 | Accepted |
+| [060](060-chart-form-follows-kpi-measurement-type.md) | Chart form follows KPI measurement type — measurement type selects the mark, goal direction selects the tone (apps/demo Analytics) | Proposed |
