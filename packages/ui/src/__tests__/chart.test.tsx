@@ -825,6 +825,52 @@ describe("Chart primitives", () => {
       expect(pill).not.toBeInTheDocument();
       expect(overlay).not.toBeInTheDocument();
     });
+
+    it("GREEN: scrubbed marker does not use status-palette colors (ADR-060 § 5)", () => {
+      const testData = Array.from({ length: 30 }, (_, i) => ({
+        label: `Day ${i + 1}`,
+        value: 50 + i * 10,
+      }));
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="30-day trend"
+          trend="neutral"
+          value="340"
+        />,
+      );
+
+      const visual = container.querySelector(
+        '[data-testid="trend-area-chart-visual"]',
+      );
+
+      // Trigger pointer move to select a point (scrub marker appears)
+      const scrubController = container.querySelector(
+        '[data-chart-scrub-controller]',
+      ) as HTMLElement;
+
+      fireEvent.pointerMove(scrubController, {
+        clientX: 150,
+        clientY: 60,
+        isPrimary: true,
+      });
+
+      // Find the scrubbed marker (emphasis via size: 6px radius instead of 5px)
+      const scrubbedMarker = visual?.querySelector(
+        '[data-chart-scrub-marker-selected="true"] circle[r="6"]',
+      ) as SVGCircleElement;
+
+      expect(scrubbedMarker).toBeInTheDocument();
+
+      // The scrubbed marker fill must not be a status-palette color (ADR-060 § 5)
+      const markerFill = scrubbedMarker?.getAttribute("fill");
+      expect(markerFill).not.toBe("var(--juli-warning)");
+      expect(markerFill).not.toBe("var(--juli-success)");
+      expect(markerFill).not.toBe("var(--juli-destructive)");
+      // It should be the series color (neutral in this case)
+      expect(markerFill).toBe("var(--juli-chart-neutral)");
+    });
   });
 
   describe("Bars chart for discrete count data (issue #861)", () => {

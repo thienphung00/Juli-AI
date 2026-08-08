@@ -250,10 +250,12 @@ export function TrendAreaChart({
       return <g />;
     }
 
-    const markerRadius = 5; // 10px diameter
-    const ringRadius = markerRadius + 2;
     const isScrubbedPoint = isSelected && selectedIndex !== -1;
-    const markerFill = isScrubbedPoint ? "var(--juli-warning)" : stroke;
+    // Scrubbed marker is emphasis through size: 6px radius (endpoint is 5px)
+    // Endpoint marker: 5px inner, 7px outer ring
+    // Scrubbed marker: 6px inner, 8px outer ring (structurally distinct, no status color)
+    const markerRadius = isScrubbedPoint ? 6 : 5;
+    const ringRadius = markerRadius + 2;
 
     return (
       <g data-chart-scrub-marker-selected={isScrubbedPoint || undefined}>
@@ -267,12 +269,12 @@ export function TrendAreaChart({
           strokeWidth={2}
           data-chart-marker-ring="true"
         />
-        {/* Inner filled marker */}
+        {/* Inner filled marker — series color for both endpoint and scrubbed (ADR-060 § 5) */}
         <circle
           cx={cx}
           cy={cy}
           r={markerRadius}
-          fill={markerFill}
+          fill={stroke}
           stroke="none"
           data-chart-marker-endpoint={isEndpoint || undefined}
         />
@@ -417,10 +419,12 @@ export function TrendLineChart({
       return <g />;
     }
 
-    const markerRadius = 5; // 10px diameter
-    const ringRadius = markerRadius + 2;
     const isScrubbedPoint = isSelected && selectedIndex !== -1;
-    const markerFill = isScrubbedPoint ? "var(--juli-warning)" : currentStroke;
+    // Scrubbed marker is emphasis through size: 6px radius (endpoint is 5px)
+    // Endpoint marker: 5px inner, 7px outer ring
+    // Scrubbed marker: 6px inner, 8px outer ring (structurally distinct, no status color)
+    const markerRadius = isScrubbedPoint ? 6 : 5;
+    const ringRadius = markerRadius + 2;
 
     return (
       <g data-chart-scrub-marker-selected={isScrubbedPoint || undefined}>
@@ -434,12 +438,12 @@ export function TrendLineChart({
           strokeWidth={2}
           data-chart-marker-ring="true"
         />
-        {/* Inner filled marker */}
+        {/* Inner filled marker — series color for both endpoint and scrubbed (ADR-060 § 5) */}
         <circle
           cx={cx}
           cy={cy}
           r={markerRadius}
-          fill={markerFill}
+          fill={currentStroke}
           stroke="none"
           data-chart-marker-endpoint={isEndpoint || undefined}
         />
@@ -585,17 +589,20 @@ export function TrendBarsChart({
 
     const radius = 2; // 4px rounded means 2px radius
     const isSelected = selectedIndex === index;
-    const barFill = isSelected ? "var(--juli-warning)" : fill;
+    // Scrubbed bar emphasis through opacity: selected bars are more opaque
+    // No status-palette color (ADR-060 § 5)
+    const barOpacity = isSelected ? 1.0 : 0.8;
 
     return (
       <g data-chart-bar={index} data-chart-scrub-marker-selected={isSelected || undefined}>
-        {/* Rounded rectangle for the bar */}
+        {/* Rounded rectangle for the bar — series color, emphasis via opacity */}
         <rect
           x={x}
           y={y}
           width={barWidth}
           height={barHeight}
-          fill={barFill}
+          fill={fill}
+          opacity={barOpacity}
           rx={radius}
           ry={radius}
         />
