@@ -1,0 +1,86 @@
+{
+  "planId": "rep-718-b6-public-demo-decisions-read-api",
+  "affectedPublicSurfaces": [
+    "api.app-juli.com /v1/demo/decisions (unauthenticated list)",
+    "api.app-juli.com /v1/demo/decisions/{id} (unauthenticated detail)",
+    "demo.app-juli.com/decisions (consumer of the above once Track B #600 swaps off fixtures)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "candidate API release verified on the restricted route before any traffic move; no public canary traffic",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "public-demo-decisions-emission-gated-read",
+        "entryUrl": "/v1/demo/decisions",
+        "assertions": [
+          "http_200_without_authentication",
+          "shop_is_server_bound_reference_shop_no_visitor_supplied_shop_id",
+          "only_surfaced_cards_returned_suppressed_candidates_absent",
+          "active_set_count_respects_emission_cap",
+          "envelope_exposes_computed_at_and_surfaced_at_freshness_metadata",
+          "financial_fields_masked_per_demo_masking_contract",
+          "no_raw_pii_in_payload",
+          "last_good_envelope_served_when_scoring_unavailable_no_empty_truth_invention"
+        ]
+      },
+      {
+        "name": "public-demo-decisions-tenant-isolation",
+        "entryUrl": "/v1/demo/decisions?shop_id=<other>",
+        "assertions": [
+          "visitor_supplied_shop_id_ignored_or_rejected",
+          "no_enumeration_of_other_tenant_cards"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "n/a \u2014 JSON API surface only; Demo HTML consumption lands with Track B #600"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "n/a"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Read-only surface over persistence landed in #715/#716. No schema change in this slice."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "revert_pr_branch",
+    "postCutoverFailureBehavior": "revert_merge_commit",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit/test_api_demo_analytics.py -q",
+    "python -m pytest tests/unit -k demo_decisions -q",
+    "ruff check backend tests && ruff format --check backend tests",
+    "python agent-runtime/scripts/validate/run_validate.py --issue 718"
+  ],
+  "doNotInfer": [
+    "Track B Demo UI polish and IA (#600)",
+    "Authenticated Sign-in Decisions surface (Phase 3)",
+    "Real credentialed execution (Phase 3 / 3.5-D)",
+    "Wave to main promotion \u2014 blocked on #780 / A1 #601 exit",
+    "release evidence fields beyond this plan"
+  ]
+}
