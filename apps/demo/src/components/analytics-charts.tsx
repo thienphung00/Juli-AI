@@ -11,6 +11,7 @@ import {
 import type {
   ChartKind,
   MeasurementType,
+  UnavailableKpiReason,
   getChartFormFromMeasurementType,
 } from "../lib/analytics/main-kpis";
 import type { KpiSnapshot } from "../lib/analytics/mock-data";
@@ -22,7 +23,7 @@ interface AnalyticsHeroChartProps {
    */
   measurementType: MeasurementType;
   label: string;
-  snapshot: KpiSnapshot;
+  snapshot: KpiSnapshot | null;
   comparePreviousPeriod: boolean;
   /**
    * Deprecated: chartKind is kept for backwards compatibility during transition.
@@ -30,6 +31,11 @@ interface AnalyticsHeroChartProps {
    * will be the only decision point for chart appearance.
    */
   chartKind?: ChartKind;
+  /**
+   * When snapshot is null, provides the reason why the KPI is unavailable
+   * (dataSource and activationRequirement). Used to render an explained empty state.
+   */
+  unavailableReason?: UnavailableKpiReason;
 }
 
 export function AnalyticsHeroChart({
@@ -38,85 +44,110 @@ export function AnalyticsHeroChart({
   snapshot,
   comparePreviousPeriod,
   chartKind,
+  unavailableReason,
 }: AnalyticsHeroChartProps) {
+  // Handle unavailable KPI: render explained state instead of null
+  if (!snapshot) {
+    return (
+      <AnalyticsUnavailableExplainedChart
+        label={label}
+        unavailableReason={unavailableReason}
+      />
+    );
+  }
+
   const previousData = comparePreviousPeriod
     ? snapshot.previousTimeSeries
     : undefined;
 
-  // For bounded-ratio (e.g., Cancellation rate), #860 supplies the payload;
-  // #864 replaces this interim meter with the real tolerance band.
-  if (measurementType === "bounded-ratio" && snapshot.boundedRatio) {
-    return (
-      <figure className="analytics-hero-chart analytics-hero-chart--gauge">
-        <p className="juli-sr-only">
-          {label} — {snapshot.formattedValue} — {snapshot.delta}
-        </p>
-        <ProgressBar label={label} value={snapshot.boundedRatio.value} />
-        <p aria-hidden="true" className="analytics-hero-chart__gauge-value">
-          {snapshot.formattedValue}
-        </p>
-      </figure>
-    );
+  // Exhaustive switch on measurement type ensures every declared form renders
+  // either its proper chart or an explained state — never null (ADR-060).
+  switch (measurementType) {
+    case "flow": {
+      // Render filled-line form: gradient fill for sum-able quantities (e.g., GMV)
+      const overlayData = comparePreviousPeriod
+        ? previousData
+        : snapshot.forecastSeries;
+
+      return (
+        <TrendAreaChart
+          data={snapshot.timeSeries}
+          delta={snapshot.delta}
+          label={label}
+          trend={snapshot.trend as ChartTrend}
+          value={snapshot.formattedValue}
+          width={320}
+        />
+      );
+    }
+
+    case "average":
+    case "rate": {
+      // Render plain-line form: no fill for averages and rates (e.g., AOV, CTOR)
+      const overlayData = comparePreviousPeriod
+        ? previousData
+        : snapshot.forecastSeries;
+
+      return (
+        <TrendLineChart
+          currentData={snapshot.timeSeries}
+          delta={snapshot.delta}
+          label={label}
+          previousData={overlayData}
+          trend={snapshot.trend}
+          value={snapshot.formattedValue}
+          width={320}
+        />
+      );
+    }
+
+    case "count": {
+      // Render plain-line form for discrete counts (LIVE hours).
+      // Slice #861 will upgrade this to bars; until then, plain-line interim form.
+      const overlayData = comparePreviousPeriod
+        ? previousData
+        : snapshot.forecastSeries;
+
+      return (
+        <TrendLineChart
+          currentData={snapshot.timeSeries}
+          delta={snapshot.delta}
+          label={label}
+          previousData={overlayData}
+          trend={snapshot.trend}
+          value={snapshot.formattedValue}
+          width={320}
+        />
+      );
+    }
+
+    case "bounded-ratio": {
+      // Bounded-ratio (e.g., Cancellation rate) will render as a threshold band
+      // when slice #864 lands. #860 supplies the payload; until the band
+      // exists this renders an interim meter. Criterion 5: no null renders.
+      if (snapshot.boundedRatio) {
+        return (
+          <figure className="analytics-hero-chart analytics-hero-chart--gauge">
+            <p className="juli-sr-only">
+              {label} — {snapshot.formattedValue} — {snapshot.delta}
+            </p>
+            <ProgressBar label={label} value={snapshot.boundedRatio.value} />
+            <p aria-hidden="true" className="analytics-hero-chart__gauge-value">
+              {snapshot.formattedValue}
+            </p>
+          </figure>
+        );
+      }
+
+      // Bounded-ratio with no payload: render explained state, not null
+      return (
+        <AnalyticsUnavailableExplainedChart
+          label={label}
+          unavailableReason={unavailableReason}
+        />
+      );
+    }
   }
-
-  // Render filled-line form: gradient fill for sum-able quantities (e.g., GMV)
-  if (measurementType === "flow") {
-    const overlayData = comparePreviousPeriod
-      ? previousData
-      : snapshot.forecastSeries;
-
-    return (
-      <TrendAreaChart
-        data={snapshot.timeSeries}
-        delta={snapshot.delta}
-        label={label}
-        trend={snapshot.trend as ChartTrend}
-        value={snapshot.formattedValue}
-        width={320}
-      />
-    );
-  }
-
-  // Render plain-line form: no fill for averages and rates (e.g., AOV, CTOR)
-  if (measurementType === "average" || measurementType === "rate") {
-    const overlayData = comparePreviousPeriod
-      ? previousData
-      : snapshot.forecastSeries;
-
-    return (
-      <TrendLineChart
-        currentData={snapshot.timeSeries}
-        delta={snapshot.delta}
-        label={label}
-        previousData={overlayData}
-        trend={snapshot.trend}
-        value={snapshot.formattedValue}
-        width={320}
-      />
-    );
-  }
-
-  // For count (LIVE hours) and bounded-ratio (when band chart is ready),
-  // fall back to plain-line until slices #861 and #860/#864 land.
-  if (measurementType === "count") {
-    const overlayData = comparePreviousPeriod
-      ? previousData
-      : snapshot.forecastSeries;
-
-    return (
-      <TrendLineChart
-        currentData={snapshot.timeSeries}
-        delta={snapshot.delta}
-        label={label}
-        previousData={overlayData}
-        trend={snapshot.trend}
-        value={snapshot.formattedValue}
-        width={320}
-      />
-    );
-  }
-
-  return null;
 }
 
 interface AnalyticsPreviewChartProps {
@@ -190,5 +221,77 @@ export function AnalyticsUnavailableChartPattern({
         />
       </svg>
     </div>
+  );
+}
+
+interface AnalyticsUnavailableExplainedChartProps {
+  label: string;
+  unavailableReason?: UnavailableKpiReason;
+}
+
+/**
+ * Render an explained empty state for an unavailable KPI in the chart's footprint.
+ * Provides the dataSource and activationRequirement to help the seller understand
+ * why the KPI is unavailable and what would make it available.
+ * ADR-060: "When a KPI has no data, render a labelled empty state in the chart's
+ * own footprint: the reason it is unavailable and what would make it available."
+ */
+export function AnalyticsUnavailableExplainedChart({
+  label,
+  unavailableReason,
+}: AnalyticsUnavailableExplainedChartProps) {
+  return (
+    <figure
+      className="analytics-hero-chart analytics-hero-chart--unavailable"
+      data-testid="analytics-unavailable-explained"
+    >
+      <figcaption className="analytics-hero-chart__unavailable-caption">
+        <h3 className="analytics-hero-chart__unavailable-title">{label}</h3>
+        <p className="analytics-hero-chart__unavailable-reason">
+          Chưa khả dụng
+        </p>
+        {unavailableReason?.dataSource && (
+          <p className="analytics-hero-chart__unavailable-detail">
+            <strong>Nguồn dữ liệu:</strong> {unavailableReason.dataSource}
+          </p>
+        )}
+        {unavailableReason?.activationRequirement && (
+          <p className="analytics-hero-chart__unavailable-detail">
+            <strong>Để sử dụng:</strong> {unavailableReason.activationRequirement}
+          </p>
+        )}
+      </figcaption>
+      <svg
+        aria-hidden="true"
+        className="analytics-hero-chart__unavailable-visual"
+        focusable="false"
+        viewBox="0 0 320 160"
+      >
+        <line
+          stroke="var(--juli-border)"
+          strokeDasharray="4 4"
+          x1="0"
+          x2="320"
+          y1="80"
+          y2="80"
+        />
+        <line
+          stroke="var(--juli-border)"
+          strokeDasharray="2 6"
+          x1="0"
+          x2="320"
+          y1="32"
+          y2="32"
+        />
+        <line
+          stroke="var(--juli-border)"
+          strokeDasharray="2 6"
+          x1="0"
+          x2="320"
+          y1="128"
+          y2="128"
+        />
+      </svg>
+    </figure>
   );
 }
