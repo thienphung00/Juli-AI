@@ -17,6 +17,7 @@ NEXT_CONFIG_PATH = REPO_ROOT / "apps/demo/next.config.ts"
 SYSTEMD_DEMO_PATH = REPO_ROOT / "infra/systemd/juli-demo.service"
 SYSTEMD_WEB_PATH = REPO_ROOT / "infra/systemd/juli-web.service"
 NGINX_DEMO_PATH = REPO_ROOT / "infra/nginx/demo.app-juli.com.conf"
+NGINX_DEMO_UPSTREAM_PATH = REPO_ROOT / "infra/nginx/demo-upstream.conf"
 BUILD_DEMO_PATH = REPO_ROOT / "infra/scripts/build-demo.sh"
 
 pytestmark = pytest.mark.demo_contract
@@ -131,14 +132,21 @@ def test_deploy_demo_reinstalls_systemd_and_dumps_logs_on_failure() -> None:
     # that the deploy invokes the verification step at all.
     assert "build-demo.sh" in deploy
     assert "juli-demo.service" in deploy
-    assert "journalctl -u juli-demo" in deploy
+    # This used to pin `journalctl -u juli-demo`. Since #839 the instance that can fail a
+    # release is the promoted candidate, which runs under a per-port unit name, so the
+    # invariant is that the deploy dumps the logs of the unit it was actually driving.
+    assert 'journalctl -u "${CANDIDATE_UNIT}"' in deploy
     assert "node_modules/.bin/next" in deploy
 
 
 def test_nginx_proxies_all_paths_to_next_upstream():
     conf = _read(NGINX_DEMO_PATH)
     assert NGINX_DEMO_PATH.is_file()
-    assert f"127.0.0.1:{DEMO_PORT}" in conf
+    # The literal port moved out of the vhost in #839: the vhost proxies to a named
+    # upstream whose definition the deployment owns and replaces at cutover. The port
+    # itself is asserted on the seed definition below.
+    assert "proxy_pass http://juli_demo;" in conf
+    assert f"127.0.0.1:{DEMO_PORT}" in _read(NGINX_DEMO_UPSTREAM_PATH)
     directive_lines = [
         line for line in conf.splitlines() if line.strip() and not line.lstrip().startswith("#")
     ]

@@ -1,4 +1,4 @@
-# Demo frontend service — Next.js (apps/demo) on 127.0.0.1:3001
+# Demo frontend service — Next.js (apps/demo) on a loopback port (default 127.0.0.1:3001)
 #
 # Runtime model matches juli-web: standard next build + `next start` from the app
 # directory (not standalone output). Nginx proxies all paths including /_next/static
@@ -14,6 +14,22 @@
 # VPS layout (continuous delivery, see deploy-demo-release.sh):
 #   ~/releases/demo-current -> ~/releases/<sha>   symlink flipped on every Demo deploy
 #   Mock mode is self-contained — no backend env files required.
+#
+# WHICH PORT (#839). The Demo lane alternates between two loopback ports so a release can
+# be cut over by repointing nginx at an already-verified instance instead of restarting
+# this one. /etc/nginx/juli/demo-upstream.conf is the source of truth for which port is
+# serving; the deploy writes that same port to /etc/juli/demo-runtime.env so that after a
+# reboot this unit comes back on the port nginx is pointed at, not on whatever used to be
+# live. The baked default is listed first so the deployment-written file overrides it, and
+# so the unit still starts on a host that has never been deployed to.
+#
+# KNOWN, BOUNDED HAZARD. Between a cutover and the next deploy this unit is the RETAINED
+# PREVIOUS instance, still bound to the port it started on, while the env file already
+# names the new live port. If it crashes in that window, Restart=on-failure brings it back
+# against the new port, which the promoted candidate holds, so it fails to bind and hits
+# the start limit. The consequence is that the instant undo is lost — NOT that the site
+# goes down: what is serving is the promoted candidate, which is untouched. Recover with
+# ./infra/scripts/rollback-demo-release.sh, which starts the target on the free port.
 [Unit]
 Description=Juli Demo frontend (apps/demo, mock mode)
 After=network-online.target
@@ -23,8 +39,10 @@ Wants=network-online.target
 Type=simple
 User=root
 WorkingDirectory=/root/releases/demo-current/apps/demo
+Environment=DEMO_LIVE_PORT=3001
+EnvironmentFile=-/etc/juli/demo-runtime.env
 # Production Next.js server bound to the loopback upstream Nginx proxies to.
-ExecStart=/root/releases/demo-current/apps/demo/node_modules/.bin/next start --port 3001 --hostname 127.0.0.1
+ExecStart=/root/releases/demo-current/apps/demo/node_modules/.bin/next start --port ${DEMO_LIVE_PORT} --hostname 127.0.0.1
 Restart=on-failure
 RestartSec=5
 
