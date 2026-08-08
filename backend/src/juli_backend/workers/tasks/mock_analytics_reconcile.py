@@ -23,6 +23,7 @@ from juli_backend.services.cdp_speed import (
     FetchResource,
     SharedComputeJob,
     TargetedFetchPlan,
+    decision_rules_scoring_stage,
     is_quota_guarded,
     run_shared_compute_job,
 )
@@ -125,7 +126,15 @@ async def run_mock_analytics_reconcile_orchestrated(
         # Test-only: allow custom orchestrator function
         await orchestrator_run_fn(job)
     else:
-        await run_shared_compute_job(session, job)
+        # Continuous-trigger scoring callable (#714 / B-2): hourly Mock reconcile
+        # is a continuous trigger too (PRD #599 user story 30) — gap reconciliation
+        # must heal Decision staleness the same way it heals KPI envelope staleness.
+        # Execution stays gated by CDP_DECISIONS_SCORING_ENABLED (default OFF).
+        await run_shared_compute_job(
+            session,
+            job,
+            scoring_stage=decision_rules_scoring_stage,
+        )
 
     logger.info(
         "mock_analytics_reconcile_orchestrated_completed",

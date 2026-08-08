@@ -57,11 +57,17 @@ from juli_backend.services.cdp_speed import (
   ``run_action_card_refresh``) uses (ADR-021). One scoring implementation, no forked
   math. Returns the computed ``DailyScoringResult`` **candidate** — it does not persist
   Action Cards (persistence-on-compute is #715 / B-3) or apply an emission/surfacing
-  budget (#716 / B-4). Wired as the default ``scoring_stage`` at the production
-  continuous-trigger call site (``services/webhook/material_worker.py``'s
-  ``_default_shared_compute``); actual execution still stays gated by
+  budget (#716 / B-4). Wired as the default ``scoring_stage`` at **both** production
+  continuous-trigger call sites — ``services/webhook/material_worker.py``'s
+  ``_default_shared_compute`` (material webhook trigger) and
+  ``workers/tasks/mock_analytics_reconcile.py``'s
+  ``run_mock_analytics_reconcile_orchestrated`` (hourly Mock reconcile gap trigger,
+  PRD #599 user story 30 — gap reconciliation must heal Decision staleness the same
+  way it heals KPI envelope staleness); actual execution still stays gated by
   ``scoring_stage_enabled()`` (default OFF) — wiring the callable does not flip the
-  rollout flag.
+  rollout flag. The A2 Batch reconcile path (``services/cdp_batch/batch_reconcile_orchestrator.py``,
+  out of scope for A1) constructs ``SharedComputeOrchestrator`` directly and is not
+  wired here.
 - ``webhook_catalog_enqueue_reason(catalog_id)`` → ``webhook_catalog:<id>`` for material dispatch.
 - ``job_correlation_token(shop_id, idempotency_key)`` — bounded log/bronze correlation token.
 - ``execute_targeted_fetch_to_bronze`` — production fetch boundary via ``targeted_fetch_sync``
