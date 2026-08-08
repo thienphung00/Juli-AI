@@ -8,6 +8,12 @@ AC2 -> a local execution record is created with a progress state machine
       (queued -> running -> done) on approve.
 AC4 -> negative: Demo approve with no live shop credentials configured still
       succeeds — dry-run must not require Partner auth.
+
+Idempotency (Review hardening, #717 B-5): POST is a public, unauthenticated
+write with no rate limiting in this diff — a repeat approve for the same
+`action_card_id` must return the existing `DemoExecutionRecord` rather than
+creating a duplicate row (unbounded row growth from anonymous re-clicks /
+retries otherwise). Cross-shop approve must still raise `DecisionNotFound`.
 """
 
 from __future__ import annotations
@@ -175,6 +181,47 @@ async def test_approve_succeeds_with_no_tiktok_credentials_configured(session, u
     )
 
     assert record.status == "done"
+
+
+@pytest.mark.asyncio
+async def test_repeat_approve_returns_the_existing_record_without_creating_a_duplicate(
+    session, shop, action_card
+):
+    """A second approve for the same action_card_id must not create a second row."""
+    first = await approve_decision_dry_run(session, shop_id=shop.id, action_card_id=action_card.id)
+    second = await approve_decision_dry_run(session, shop_id=shop.id, action_card_id=action_card.id)
+
+    assert second.id == first.id
+
+    stmt = select(DemoExecutionRecord).where(
+        DemoExecutionRecord.shop_id == shop.id,
+        DemoExecutionRecord.action_card_id == action_card.id,
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_repeat_approve_still_raises_decision_not_found_for_a_different_shop(
+    session, shop, action_card
+):
+    """Idempotency must not weaken the existing cross-shop tenancy guard."""
+    await approve_decision_dry_run(session, shop_id=shop.id, action_card_id=action_card.id)
+
+    other_user = User(id=uuid.uuid4(), phone="+849170000720")
+    other_shop = Shop(
+        id=uuid.uuid4(),
+        user_id=other_user.id,
+        shop_name="Other Shop (idempotency)",
+        tiktok_shop_id="tiktok_shop_other_720",
+    )
+    session.add_all([other_user, other_shop])
+    await session.flush()
+
+    with pytest.raises(DecisionNotFound):
+        await approve_decision_dry_run(
+            session, shop_id=other_shop.id, action_card_id=action_card.id
+        )
 
 
 @pytest.mark.asyncio

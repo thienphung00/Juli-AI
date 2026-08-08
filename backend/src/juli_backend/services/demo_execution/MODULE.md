@@ -78,6 +78,46 @@ paths — `api/routes/demo_execution.py`).
 - `DecisionNotFound` — `ValueError` subclass.
 - `narrative_steps(record)` → `list[dict]` — decode `narrative_json`.
 
+## Idempotency contract (Review hardening, #717 B-5)
+
+`POST /v1/demo/decisions/{action_card_id}/approve` is a public,
+**unauthenticated** write with no rate limiting anywhere in this diff.
+Without a guard, every repeat approve for the same card (double-click,
+client retry, replay) would create a new `DemoExecutionRecord` row —
+unbounded row growth driven entirely by anonymous traffic.
+
+`approve_decision_dry_run` is therefore idempotent per `(shop_id,
+action_card_id)`: after the tenancy check (`DecisionNotFound` still raised
+first for a card belonging to another shop, or a card that does not exist —
+idempotency never masks that), it looks up an existing
+`DemoExecutionRecord` for that pair using the existing
+`ix_demo_execution_records_action_card` `(shop_id, action_card_id)` index.
+If one exists, it is returned as-is — already `done`, from the first call's
+synchronous `queued → running → done` run — with no re-run of the state
+machine and no second write to `ActionCard.status`/`approved_at`. Only the
+first approve for a given card runs the narrative; every repeat is a
+read-only no-op from the caller's point of view.
+
+**Enforced in application logic only, not a DB uniqueness constraint.** A
+`UNIQUE (shop_id, action_card_id)` constraint would be the stronger,
+concurrency-safe guarantee, but adding one now is not provably a *safely
+additive* migration: this table (migration `028_demo_execution_records`) has
+already shipped ahead of this hardening pass, on a public, unauthenticated
+endpoint, with the exact duplicate-row bug this fix closes — so a deployed
+environment may already contain duplicate `(shop_id, action_card_id)` rows,
+and a `CREATE UNIQUE INDEX` / `ALTER TABLE ... ADD CONSTRAINT` against
+existing duplicates fails outright rather than applying. Application-level
+idempotency (the read-then-return-existing check above) has no such
+precondition and degrades gracefully in every environment, deployed or not.
+This means the guard is not race-safe under truly concurrent duplicate
+requests for the same card arriving before either has committed (a
+uniqueness constraint would be); given this is a Demo surface behind a
+severity Review rated medium (not a ship-blocker), that trade-off is
+accepted rather than blocking on a schema change whose safety cannot be
+verified against unknown deployed data. A future slice that adds a
+migration to de-duplicate any existing rows first could safely add the
+constraint afterward.
+
 ## HTTP (via `api/routes/demo_execution.py`)
 
 - `POST /v1/demo/decisions/{action_card_id}/approve` — unauthenticated,

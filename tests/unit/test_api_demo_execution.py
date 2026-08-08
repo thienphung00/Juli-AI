@@ -122,6 +122,37 @@ async def test_approve_endpoint_never_invokes_the_partner_write_module(
 
 
 @pytest.mark.asyncio
+async def test_approve_endpoint_is_idempotent_and_does_not_create_a_duplicate_row(
+    demo_client, reference_action_card, session
+):
+    """Repeat approve (double-click / retry on an unauthenticated public endpoint) must
+    return the same execution_id and must not grow the table."""
+    from sqlalchemy import select
+
+    from juli_backend.models.models import DemoExecutionRecord
+
+    first = await demo_client.post(f"/v1/demo/decisions/{reference_action_card.id}/approve")
+    second = await demo_client.post(f"/v1/demo/decisions/{reference_action_card.id}/approve")
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert second.json()["data"]["execution_id"] == first.json()["data"]["execution_id"]
+
+    rows = (
+        (
+            await session.execute(
+                select(DemoExecutionRecord).where(
+                    DemoExecutionRecord.action_card_id == reference_action_card.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
 async def test_approve_endpoint_succeeds_without_live_shop_credentials(
     demo_client, reference_action_card, session
 ):

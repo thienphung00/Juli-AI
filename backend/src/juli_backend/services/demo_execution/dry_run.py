@@ -25,6 +25,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ActionCard, DemoExecutionRecord
@@ -76,12 +77,36 @@ async def approve_decision_dry_run(
 
     Raises `DecisionNotFound` if no `ActionCard` with `action_card_id` exists
     for `shop_id` (tenant-scoped lookup — never leaks another shop's row).
+
+    Idempotent per `(shop_id, action_card_id)` (Review hardening, #717 B-5):
+    this is a public, unauthenticated write with no rate limiting in this
+    diff, so a repeat approve (double-click, retry, replay) must not create a
+    second `DemoExecutionRecord` row. A repeat call for a card that already
+    has a record returns that existing record as-is (already `done`, from the
+    first call's synchronous run) rather than re-running the state machine or
+    re-touching `ActionCard.status`/`approved_at`. See MODULE.md for why this
+    is enforced in application logic only, not a DB uniqueness constraint.
     """
     clock = now or _default_clock
 
     card = await session.get(ActionCard, action_card_id)
     if card is None or card.shop_id != shop_id:
         raise DecisionNotFound(f"Decision {action_card_id} not found for shop {shop_id}")
+
+    existing = (
+        (
+            await session.execute(
+                select(DemoExecutionRecord).where(
+                    DemoExecutionRecord.shop_id == shop_id,
+                    DemoExecutionRecord.action_card_id == action_card_id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if existing is not None:
+        return existing
 
     approved_at = clock()
     card.status = "approved"
