@@ -7,6 +7,8 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceArea,
+  ReferenceLine,
   XAxis,
   YAxis,
 } from "recharts";
@@ -465,6 +467,194 @@ export function TrendBarsChart({
             shape={<CustomBar />}
           />
         </BarChart>
+      </div>
+    </figure>
+  );
+}
+
+export interface BandedLineChartProps {
+  data: readonly { label: string; value: number }[];
+  label: string;
+  value: string;
+  target: number;
+  bounds: { min: number; max: number };
+  withinTolerance: boolean;
+  delta?: string;
+  width?: number;
+  height?: number;
+}
+
+export function BandedLineChart({
+  data,
+  label,
+  value,
+  target,
+  bounds,
+  withinTolerance,
+  delta,
+  width = 280,
+  height = 120,
+}: BandedLineChartProps) {
+  // Series line uses neutral hue; band color reflects tolerance state
+  const seriesStroke = CHART_SERIES_COLORS["neutral"];
+  const bandFill = withinTolerance
+    ? "var(--juli-muted-foreground)"
+    : "var(--juli-destructive)";
+
+  const bandOpacity = withinTolerance ? 0.12 : 0.2;
+
+  // Custom dot component that only renders for the last point
+  const CustomEndpointDot = (props: DotProps): ReactElement => {
+    const { cx, cy, index } = props;
+
+    if (index !== data.length - 1) {
+      return <g />;
+    }
+
+    const markerRadius = 5; // 10px diameter
+    const ringRadius = markerRadius + 2;
+
+    return (
+      <g>
+        {/* Outer ring (surface-colored) */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={ringRadius}
+          fill="none"
+          stroke="var(--juli-surface)"
+          strokeWidth={2}
+          data-chart-marker-ring="true"
+        />
+        {/* Inner filled marker */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={markerRadius}
+          fill={seriesStroke}
+          stroke="none"
+          data-chart-marker-endpoint="true"
+        />
+        {/* Value label */}
+        <text
+          x={cx + 12}
+          y={cy + 4}
+          fill="var(--juli-foreground)"
+          fontSize="12"
+          fontWeight="600"
+          textAnchor="start"
+          data-chart-endpoint-label="true"
+        >
+          {value}
+        </text>
+      </g>
+    );
+  };
+
+  // Custom component for the target line label
+  const TargetLineLabel = (): ReactElement => {
+    return (
+      <text
+        x={10}
+        y={-5}
+        fill="var(--juli-muted-foreground)"
+        fontSize="10"
+        textAnchor="start"
+        data-chart-target-label="true"
+      >
+        Mục tiêu: {target}
+      </text>
+    );
+  };
+
+  // Screen reader text equivalent
+  const toleranceText = withinTolerance ? "Trong ngưỡng" : "Ngoài ngưỡng";
+
+  // Custom shape component for the tolerance band that includes the data attribute
+  const BandShape = (props: any): ReactElement => {
+    const { x, y, width: bandWidth, height: bandHeight } = props;
+    return (
+      <rect
+        x={x}
+        y={y}
+        width={bandWidth}
+        height={bandHeight}
+        fill={bandFill}
+        fillOpacity={withinTolerance ? 0.12 : 0.2}
+        stroke="none"
+        data-chart-tolerance-band="true"
+      />
+    );
+  };
+
+  return (
+    <figure className="juli-chart-banded">
+      <ChartTextEquivalent
+        delta={delta}
+        label={label}
+        value={`${value} — Mục tiêu: ${target.toFixed(1)} — ${toleranceText}`}
+        trend="neutral"
+      />
+      <div
+        aria-hidden="true"
+        className="juli-chart-banded__visual"
+        data-testid="banded-line-chart-visual"
+      >
+        <LineChart
+          data={[...data]}
+          height={height}
+          margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
+          width={width}
+        >
+          <CartesianGrid
+            stroke={GRID_STROKE}
+            strokeDasharray="3 3"
+            vertical={false}
+          />
+          <XAxis
+            axisLine={false}
+            dataKey="label"
+            interval="preserveStartEnd"
+            tick={AXIS_TICK}
+            tickLine={false}
+          />
+          <YAxis
+            domain={[bounds.min, bounds.max]}
+            data-chart-y-axis="true"
+            data-domain-min={bounds.min.toString()}
+            data-domain-max={bounds.max.toString()}
+          />
+
+          {/* Render a shaded band area for tolerance region using ReferenceArea */}
+          <ReferenceArea
+            y1={bounds.min}
+            y2={bounds.max}
+            fill={bandFill}
+            stroke="none"
+            fillOpacity={withinTolerance ? 0.12 : 0.2}
+            shape={<BandShape />}
+          />
+
+          {/* Render a ReferenceLine for the target */}
+          <ReferenceLine
+            y={target}
+            stroke="var(--juli-muted-foreground)"
+            strokeDasharray="4 4"
+            data-chart-target-line="true"
+            label={<TargetLineLabel />}
+          />
+
+          {/* Series line plotted over the band */}
+          <Line
+            dataKey="value"
+            dot={CustomEndpointDot as any}
+            isAnimationActive={false}
+            stroke={seriesStroke}
+            strokeWidth={2}
+            type="monotone"
+            data-chart-series-line="true"
+          />
+        </LineChart>
       </div>
     </figure>
   );
