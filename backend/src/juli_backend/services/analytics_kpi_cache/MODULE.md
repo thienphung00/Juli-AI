@@ -16,7 +16,7 @@ after successful precompute upserts.
   — overwrite cache with versioned envelope payload after Postgres upsert; fail-open
 - ``create_redis_client(redis_url=None)`` → shared async Redis client or ``None``
   when ``REDIS_URL`` unset (compat alias for ``get_shared_redis_client``)
-- ``get_shared_redis_client(redis_url=None)`` → process-lifetime singleton
+- ``get_shared_redis_client(redis_url=None)`` → per-event-loop shared client (#871: one per loop, so asyncio.run-per-task workers get a fresh client each run)
 - ``close_shared_redis_client()`` → awaitable shutdown close (API lifespan)
 
 ## Cache contract

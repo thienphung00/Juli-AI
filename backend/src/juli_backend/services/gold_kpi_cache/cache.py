@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ CACHE_KEY_PREFIX = "gold:kpi_envelope:"
 
 _shared_client: Any | None = None
 _shared_client_url: str | None = None
+_shared_client_loop: Any | None = None
 _last_good_cache: dict[uuid.UUID, dict[str, Any]] = {}
 
 
@@ -34,21 +36,35 @@ def _resolve_redis_url(redis_url: str | None = None) -> str:
 
 
 def get_shared_redis_client(redis_url: str | None = None) -> Any | None:
-    """Return process-lifetime async Redis client from REDIS_URL (or None)."""
-    global _shared_client, _shared_client_url
+    """Return the shared async Redis client for the current event loop (or None).
+
+    Cached per (URL, running loop), not per process (#871): an async client's
+    connections bind to the loop that first uses them. The API runs one loop for
+    the process lifetime and keeps one client, but worker tasks each enter through
+    asyncio.run() — reusing a previous task's client there makes every cache
+    refresh after a worker child's first run fail cross-loop, and since the gold
+    cache key has no TTL, the Demo would serve the stale envelope indefinitely.
+    """
+    global _shared_client, _shared_client_url, _shared_client_loop
 
     url = _resolve_redis_url(redis_url)
     if not url:
         return None
-    if _shared_client is not None and _shared_client_url == url:
+    try:
+        loop: Any = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if _shared_client is not None and _shared_client_url == url and _shared_client_loop is loop:
         return _shared_client
 
     import redis.asyncio as redis
 
-    # URL changed without close — drop the old handle; caller should prefer
-    # close_shared_redis_client() on shutdown. We cannot await aclose here.
+    # Replacing the handle without aclose() is accepted: the superseded client's
+    # loop is closed or closing (asyncio.run tears it down), so its connections
+    # are already unusable and cannot be awaited shut from here.
     _shared_client = redis.from_url(url, decode_responses=True)
     _shared_client_url = url
+    _shared_client_loop = loop
     return _shared_client
 
 
@@ -65,11 +81,12 @@ async def close_shared_redis_client() -> None:
     already effectively gone — log and move on rather than raise, matching
     this module's fail-open philosophy for every other Redis operation.
     """
-    global _shared_client, _shared_client_url
+    global _shared_client, _shared_client_url, _shared_client_loop
 
     client = _shared_client
     _shared_client = None
     _shared_client_url = None
+    _shared_client_loop = None
     if client is None:
         return
     try:
