@@ -103,6 +103,8 @@ export function createMockSnapshot(
     formattedValue: "500 triệu",
     delta: "▲ 15%",
     trend: "positive",
+    // Matches delta/trend above: a rise on a higher-is-better KPI (#887).
+    movement: { direction: "up", assessment: "favorable" },
     signal: "Tín hiệu tích cực",
     dataSource: "Mock fixture",
     lastUpdated: "20/07/2026",

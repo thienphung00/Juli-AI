@@ -1,0 +1,22 @@
+P2-CHART-A11YTREND:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/product/design/Components/charts.md
+  requiredModules:
+    - packages/ui/MODULE.md
+    - packages/ui/src/chart.tsx
+    - apps/demo/src/components/analytics-charts.tsx
+  loadWhenNeeded: []
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - backend/
+    - ios/
+    - apps/dashboard/
+    - apps/landing/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+

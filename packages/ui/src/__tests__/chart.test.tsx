@@ -20,6 +20,7 @@ if (typeof globalThis.PointerEvent === "undefined") {
 }
 
 import {
+  BandedLineChart,
   CHART_SERIES_COLORS,
   ChartExpandableTile,
   ChartTextEquivalent,
@@ -27,6 +28,7 @@ import {
   TrendAreaChart,
   TrendBarsChart,
   TrendLineChart,
+  type ChartMovement,
 } from "../chart";
 import { loadUiStyles } from "./test-utils";
 
@@ -591,13 +593,166 @@ describe("Chart primitives", () => {
       expect((circles?.length ?? 0) > 0).toBe(true);
     });
 
-    it("endpoint label renders within chart bounds (no horizontal overflow)", () => {
-      // Explicit width: the component default must not silently change what
-      // this test measures. Before the right margin was reserved the label was
-      // authored past the right edge (x=324 in a 320-wide chart).
-      const CHART_WIDTH = 280;
-      // Room for the widest formatted value at font-size 12, ~0.6em per char.
-      const MIN_LABEL_ROOM = 60;
+    // Issue #886: the previous guard asserted the label's *origin*
+    // (labelX < CHART_WIDTH) with a fixed allowance and a 3-digit value, so a
+    // 20px overflow of rendered text shipped green. These tests assert the
+    // label's rendered *extent* instead: authored x combined with the label's
+    // text-anchor and an independent character-count width estimate.
+    //
+    // jsdom does not lay out SVG, so getBoundingClientRect() returns an
+    // all-zero rect and MUST NOT be used here — an extent computed from it
+    // passes for any x whatsoever. The authored x / text-anchor attributes
+    // are real data in the DOM; the width estimate is computed in this test,
+    // independently of the component's own estimator, so a broken estimator
+    // in the source cannot vacuously satisfy the assertion.
+    const GMV_VALUE = "420.000.000 ₫"; // 13 chars — the longest hero value today
+    const LONGER_THAN_GMV_VALUE = "1.420.000.000 ₫"; // 15 chars — tomorrow's problem
+
+    // Independent estimate: 12px font, ~0.62em average glyph advance.
+    const estimateTextWidth = (value: string) => value.length * 12 * 0.62;
+
+    function expectLabelExtentWithinBounds(
+      root: HTMLElement,
+      testId: string,
+      value: string,
+      chartWidth: number,
+    ) {
+      const visual = root.querySelector(`[data-testid="${testId}"]`);
+      const endpointLabel = visual?.querySelector(
+        "text[data-chart-endpoint-label]",
+      );
+      expect(endpointLabel).not.toBeNull();
+
+      const labelX = Number(endpointLabel?.getAttribute("x"));
+      expect(Number.isFinite(labelX)).toBe(true);
+      const anchor = endpointLabel?.getAttribute("text-anchor");
+      expect(["start", "end"]).toContain(anchor);
+
+      const textWidth = estimateTextWidth(value);
+      const rightEdge = anchor === "end" ? labelX : labelX + textWidth;
+      const leftEdge = anchor === "end" ? labelX - textWidth : labelX;
+
+      // The rendered text — not merely its origin — stays inside the chart.
+      expect(rightEdge).toBeLessThanOrEqual(chartWidth);
+      expect(leftEdge).toBeGreaterThanOrEqual(0);
+
+      // The component also authors its own width estimate onto the element;
+      // it must exist and be at least as wide as this test's estimate.
+      const authoredWidth = Number(
+        endpointLabel?.getAttribute("data-chart-endpoint-label-width"),
+      );
+      expect(Number.isFinite(authoredWidth)).toBe(true);
+      expect(authoredWidth).toBeGreaterThanOrEqual(Math.floor(textWidth));
+    }
+
+    it("endpoint label's rendered extent stays within bounds for a GMV-length value (TrendLineChart)", () => {
+      const CHART_WIDTH = 320; // hero geometry at a 375px viewport
+      const testData = [
+        { label: "T1", value: 100 },
+        { label: "T2", value: 120 },
+        { label: "T3", value: 150 },
+      ];
+
+      const { container } = render(
+        <TrendLineChart
+          currentData={testData}
+          label="GMV"
+          trend="positive"
+          value={GMV_VALUE}
+          width={CHART_WIDTH}
+        />,
+      );
+
+      expectLabelExtentWithinBounds(
+        container,
+        "trend-line-chart-visual",
+        GMV_VALUE,
+        CHART_WIDTH,
+      );
+    });
+
+    it("endpoint label's rendered extent stays within bounds for a GMV-length value (TrendAreaChart — the GMV hero form)", () => {
+      const CHART_WIDTH = 320;
+      const testData = [
+        { label: "T1", value: 100 },
+        { label: "T2", value: 120 },
+        { label: "T3", value: 150 },
+      ];
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="GMV"
+          trend="neutral"
+          value={GMV_VALUE}
+          width={CHART_WIDTH}
+        />,
+      );
+
+      expectLabelExtentWithinBounds(
+        container,
+        "trend-area-chart-visual",
+        GMV_VALUE,
+        CHART_WIDTH,
+      );
+    });
+
+    it("endpoint label's rendered extent stays within bounds for a GMV-length value (BandedLineChart)", () => {
+      const CHART_WIDTH = 320;
+      const testData = [
+        { label: "T1", value: 2.1 },
+        { label: "T2", value: 2.4 },
+        { label: "T3", value: 2.2 },
+      ];
+
+      const { container } = render(
+        <BandedLineChart
+          bounds={{ min: 0, max: 5 }}
+          data={testData}
+          label="Tỷ lệ hủy"
+          target={2.5}
+          value={GMV_VALUE}
+          width={CHART_WIDTH}
+          withinTolerance
+        />,
+      );
+
+      expectLabelExtentWithinBounds(
+        container,
+        "banded-line-chart-visual",
+        GMV_VALUE,
+        CHART_WIDTH,
+      );
+    });
+
+    it("endpoint label treatment generalises to a value longer than today's GMV string", () => {
+      const CHART_WIDTH = 320;
+      const testData = [
+        { label: "T1", value: 100 },
+        { label: "T2", value: 120 },
+        { label: "T3", value: 150 },
+      ];
+
+      const { container } = render(
+        <TrendAreaChart
+          data={testData}
+          label="GMV"
+          trend="neutral"
+          value={LONGER_THAN_GMV_VALUE}
+          width={CHART_WIDTH}
+        />,
+      );
+
+      expectLabelExtentWithinBounds(
+        container,
+        "trend-area-chart-visual",
+        LONGER_THAN_GMV_VALUE,
+        CHART_WIDTH,
+      );
+    });
+
+    it("a short value keeps its rightward start-anchored placement beside the marker", () => {
+      const CHART_WIDTH = 320;
       const testData = [
         { label: "T1", value: 100 },
         { label: "T2", value: 120 },
@@ -617,24 +772,18 @@ describe("Chart primitives", () => {
       const visual = container.querySelector(
         '[data-testid="trend-line-chart-visual"]',
       );
-      const svg = visual?.querySelector("svg");
       const endpointLabel = visual?.querySelector(
         "text[data-chart-endpoint-label]",
       );
-
-      // jsdom does not lay out SVG, so getBoundingClientRect() returns an
-      // all-zero rect and would assert 0 <= 1 for any x whatsoever. Assert the
-      // authored x attribute against the chart width instead — that is real
-      // data in the DOM, and it is what regressed: before the right margin was
-      // reserved the label was authored at x=324 in a 320-wide chart.
-      const labelX = Number(endpointLabel?.getAttribute("x"));
-
       expect(endpointLabel).not.toBeNull();
-      expect(Number.isFinite(labelX)).toBe(true);
-      // The label starts inside the plot, and enough margin remains to its right
-      // for the value text itself — not merely for its origin point.
-      expect(labelX).toBeLessThan(CHART_WIDTH);
-      expect(CHART_WIDTH - labelX).toBeGreaterThanOrEqual(MIN_LABEL_ROOM);
+      expect(endpointLabel?.getAttribute("text-anchor")).toBe("start");
+
+      const marker = visual?.querySelector("circle[data-chart-marker-endpoint]");
+      const markerCx = Number(marker?.getAttribute("cx"));
+      const labelX = Number(endpointLabel?.getAttribute("x"));
+      // Sits to the right of the marker, and its extent still fits.
+      expect(labelX).toBeGreaterThan(markerCx);
+      expect(labelX + estimateTextWidth("150")).toBeLessThanOrEqual(CHART_WIDTH);
     });
   });
 
@@ -1059,5 +1208,161 @@ describe("Chart primitives", () => {
       );
       expect((gridLines?.length ?? 0) > 0).toBe(true);
     });
+  });
+});
+
+describe("#887: text equivalent states real movement, decoupled from mark hue", () => {
+  const srText = (movement: ChartMovement | undefined) => {
+    const { container, unmount } = render(
+      <ChartTextEquivalent
+        delta="▲ 10%"
+        label="KPI"
+        movement={movement}
+        trend="neutral"
+        value="100"
+      />,
+    );
+    const text = container.querySelector(".juli-sr-only")?.textContent;
+    unmount();
+    return text;
+  };
+
+  it("a rise toward the goal reads as a rise that is positive", () => {
+    expect(srText({ direction: "up", assessment: "favorable" })).toBe(
+      "KPI — 100 — ▲ 10% — xu hướng tăng — tích cực",
+    );
+  });
+
+  it("a rise against the goal reads as a rise that needs attention, never as good", () => {
+    const text = srText({ direction: "up", assessment: "adverse" });
+    expect(text).toBe("KPI — 100 — ▲ 10% — xu hướng tăng — cần chú ý");
+    expect(text).not.toContain("tích cực");
+  });
+
+  it("a fall toward the goal reads as a fall that is positive", () => {
+    expect(srText({ direction: "down", assessment: "favorable" })).toBe(
+      "KPI — 100 — ▲ 10% — xu hướng giảm — tích cực",
+    );
+  });
+
+  it("a fall against the goal reads as a fall that needs attention", () => {
+    expect(srText({ direction: "down", assessment: "adverse" })).toBe(
+      "KPI — 100 — ▲ 10% — xu hướng giảm — cần chú ý",
+    );
+  });
+
+  it("a flat series reads as stable, with no goal qualifier", () => {
+    const text = srText({ direction: "flat", assessment: "neutral" });
+    expect(text).toBe("KPI — 100 — ▲ 10% — xu hướng ổn định");
+    expect(text).not.toContain("tích cực");
+    expect(text).not.toContain("cần chú ý");
+  });
+
+  it("movement overrides the neutral-pinned trend prop entirely", () => {
+    // trend="neutral" is passed above in every case; a moving series must
+    // never be announced as stable.
+    expect(srText({ direction: "up", assessment: "favorable" })).not.toContain(
+      "ổn định",
+    );
+  });
+
+  it("without movement, the legacy trend-derived phrase is unchanged", () => {
+    expect(srText(undefined)).toBe("KPI — 100 — ▲ 10% — xu hướng ổn định");
+  });
+
+  it("every chart primitive threads movement into its text equivalent while the mark stays neutral", () => {
+    const movement: ChartMovement = { direction: "up", assessment: "adverse" };
+    const expectSr = (container: HTMLElement) => {
+      expect(
+        container.querySelector(".juli-sr-only")?.textContent,
+      ).toContain("xu hướng tăng — cần chú ý");
+    };
+
+    const sparkline = render(
+      <MetricSparkline
+        data={sampleSeries}
+        delta="▲ 9%"
+        label="CTOR"
+        movement={movement}
+        trend="neutral"
+        value="4%"
+      />,
+    );
+    expectSr(sparkline.container);
+    sparkline.unmount();
+
+    const area = render(
+      <TrendAreaChart
+        data={timeSeries}
+        delta="▲ 5%"
+        label="GMV (TikTok)"
+        movement={movement}
+        trend="neutral"
+        value="485 triệu"
+      />,
+    );
+    expectSr(area.container);
+    area.unmount();
+
+    const line = render(
+      <TrendLineChart
+        currentData={timeSeries}
+        delta="▲ 10%"
+        label="AOV"
+        movement={movement}
+        trend="neutral"
+        value="500 nghìn"
+      />,
+    );
+    expectSr(line.container);
+    line.unmount();
+
+    const bars = render(
+      <TrendBarsChart
+        data={timeSeries}
+        delta="▲ 50%"
+        label="LIVE hours"
+        movement={movement}
+        trend="neutral"
+        value="10"
+      />,
+    );
+    expectSr(bars.container);
+    bars.unmount();
+
+    const tile = render(
+      <ChartExpandableTile
+        delta="▲ 8%"
+        label="Doanh thu ròng"
+        movement={movement}
+        trend="neutral"
+        value="98 triệu"
+      >
+        <span />
+      </ChartExpandableTile>,
+    );
+    expectSr(tile.container);
+    tile.unmount();
+  });
+
+  it("BandedLineChart keeps its tolerance-aware value string and appends the movement phrase", () => {
+    const { container } = render(
+      <BandedLineChart
+        bounds={{ min: 0, max: 10 }}
+        data={timeSeries}
+        delta="▼ 14%"
+        label="Tỷ lệ hủy đơn"
+        movement={{ direction: "down", assessment: "favorable" }}
+        target={3}
+        value="1.8%"
+        withinTolerance
+      />,
+    );
+
+    const text = container.querySelector(".juli-sr-only")?.textContent;
+    expect(text).toContain("Mục tiêu: 3.0");
+    expect(text).toContain("Trong ngưỡng");
+    expect(text).toContain("xu hướng giảm — tích cực");
+    expect(text).not.toContain("ổn định");
   });
 });

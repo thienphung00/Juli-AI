@@ -6,7 +6,7 @@ import {
   type AnalyticsKpiEntry,
   type DemoAnalyticsEnvelope,
 } from "@juli/contracts";
-import type { ChartTrend } from "@juli/ui";
+import type { ChartMovement, ChartTrend } from "@juli/ui";
 import { formatDateTime, formatNumber, formatVND } from "@juli/utils";
 
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../workflows/optimize-product/review";
@@ -70,6 +70,8 @@ export interface SupplementaryChartSnapshot {
   formattedValue: string;
   delta: string;
   trend: ChartTrend;
+  /** Real movement for the chart's accessible text equivalent (#887). */
+  movement: ChartMovement;
   timeSeries: readonly KpiTimePoint[];
   dataSource: string;
   lastUpdated: string;
@@ -119,16 +121,27 @@ function computeDelta(
   delta: string;
   rawTrend: ChartTrend;
   tone: ChartTrend;
+  movement: ChartMovement;
 } {
   if (series.length < 2) {
-    return { delta: "—", rawTrend: "neutral", tone: "neutral" };
+    return {
+      delta: "—",
+      rawTrend: "neutral",
+      tone: "neutral",
+      movement: { direction: "flat", assessment: "neutral" },
+    };
   }
 
   const first = series[0]!.v;
   const last = series[series.length - 1]!.v;
 
   if (first === 0) {
-    return { delta: "—", rawTrend: "neutral", tone: "neutral" };
+    return {
+      delta: "—",
+      rawTrend: "neutral",
+      tone: "neutral",
+      movement: { direction: "flat", assessment: "neutral" },
+    };
   }
 
   const pct = Math.round(((last - first) / Math.abs(first)) * 100);
@@ -143,10 +156,26 @@ function computeDelta(
     ? resolveToneFromDeltaAndGoal(pct, goalDirection)
     : rawTrend;
 
+  // Movement for the accessible text equivalent (#887): raw direction from
+  // the delta sign, assessment as a rename of the resolver's tone — the one
+  // goal-direction rule (resolveToneFromDeltaAndGoal, ADR-060) decides it;
+  // no second inversion table exists here.
+  const movement: ChartMovement = {
+    direction: pct > 0 ? "up" : pct < 0 ? "down" : "flat",
+    assessment: goalDirection
+      ? tone === "positive"
+        ? "favorable"
+        : tone === "negative"
+          ? "adverse"
+          : "neutral"
+      : undefined,
+  };
+
   return {
     delta: `${arrow} ${Math.abs(pct)}%`,
     rawTrend,
     tone,
+    movement,
   };
 }
 
@@ -340,7 +369,7 @@ export function buildLiveKpiSnapshot(
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
   const def = getMainKpiDefinition(metricKey);
-  const { delta, rawTrend, tone } = computeDelta(entry.series, def.goalDirection);
+  const { delta, rawTrend, tone, movement } = computeDelta(entry.series, def.goalDirection);
   const workflow = metricWorkflow(metricKey);
 
   // Build bounded-ratio payload for bounded-ratio KPIs (e.g., cancellation rate)
@@ -352,6 +381,8 @@ export function buildLiveKpiSnapshot(
     // Snapshot.trend carries goal-aware tone for delta chip (#858).
     // Chart mark color (neutral per ADR-060 § 5) is set separately in analytics-charts.tsx.
     trend: tone,
+    // Movement feeds the accessible text equivalent only (#887) — never a mark hue.
+    movement,
     signal: metricSignal(metricKey, rawTrend),
     dataSource: METRIC_TO_DATA_SOURCE[metricKey],
     lastUpdated: getRelativeFreshness(envelope.computed_at),
@@ -468,7 +499,7 @@ export function buildSupplementaryChartSnapshot(
   const values = entry.series.map((point) => point.v);
   const latestValue = values[values.length - 1]!;
   const goalDirection = SUPPLEMENTARY_CHART_GOAL_DIRECTIONS[envelopeKey];
-  const { delta, tone } = computeDelta(entry.series, goalDirection);
+  const { delta, tone, movement } = computeDelta(entry.series, goalDirection);
 
   return {
     envelopeKey,
@@ -478,6 +509,8 @@ export function buildSupplementaryChartSnapshot(
     // Snapshot.trend carries goal-aware tone for delta chip (#858).
     // Chart mark color (neutral per ADR-060 § 5) is set separately at render time.
     trend: tone,
+    // Movement feeds the accessible text equivalent only (#887).
+    movement,
     timeSeries,
     dataSource: "TikTok Shop",
     lastUpdated: getRelativeFreshness(envelope.computed_at),

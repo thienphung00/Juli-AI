@@ -92,6 +92,33 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - _Avoid_: So với trước
 - Definition: Hero-only control that overlays the equivalent prior period.
 
+**`analytics.trend.rising`**
+- EN: Rising trend
+- VI: xu hướng tăng
+- Definition: Raw upward movement of a charted series, in the chart's screen-reader text equivalent. States what the data did, never whether it is good.
+
+**`analytics.trend.falling`**
+- EN: Falling trend
+- VI: xu hướng giảm
+- Definition: Raw downward movement of a charted series, in the chart's screen-reader text equivalent.
+
+**`analytics.trend.stable`**
+- EN: Stable trend
+- VI: xu hướng ổn định
+- Definition: A flat charted series, in the chart's screen-reader text equivalent. Never used for a series that moved.
+
+**`analytics.trend.favorable`**
+- EN: Positive (movement toward the KPI's goal)
+- VI: tích cực
+- _Avoid_: tốt (vague), tăng trưởng (implies rising — a favorable move can be a fall)
+- Definition: Goal-aware qualifier appended to a rising/falling trend phrase when the movement runs toward the KPI's goal direction, e.g. "xu hướng giảm — tích cực" for falling cancellations. Status: needs_review.
+
+**`analytics.trend.adverse`**
+- EN: Needs attention (movement against the KPI's goal)
+- VI: cần chú ý
+- _Avoid_: xấu, tiêu cực (alarmist)
+- Definition: Goal-aware qualifier appended to a rising/falling trend phrase when the movement runs against the KPI's goal direction, e.g. "xu hướng tăng — cần chú ý" for rising cancellations. Echoes `common.attention_needed`. Status: needs_review.
+
 **`nav.settings`**
 - EN: Settings
 - VI: Cài đặt

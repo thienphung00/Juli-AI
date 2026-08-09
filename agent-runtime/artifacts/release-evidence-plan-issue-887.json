@@ -1,0 +1,76 @@
+{
+  "planId": "rep-887-text-equivalent-states-real-direction",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/analytics"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change to the Analytics surface",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "analytics-text-equivalent-matches-movement",
+        "entryUrl": "/analytics",
+        "assertions": [
+          "html_200",
+          "rising_metric_text_equivalent_says_it_rose",
+          "falling_metric_text_equivalent_says_it_fell",
+          "flat_metric_text_equivalent_says_stable",
+          "rise_in_a_lower_is_better_metric_is_not_described_as_good",
+          "mark_keeps_the_neutral_identity_hue_and_the_865_sweep_guard_still_passes"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Direction for the accessible text equivalent is decoupled from the mark's colour prop in packages/ui."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "making the mark directional again to fix the sentence",
+    "which phrasing is correct without stating the choice"
+  ]
+}
