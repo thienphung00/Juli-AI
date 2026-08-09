@@ -165,6 +165,7 @@ export {
   CHART_SERIES_COLORS,
   ChartExpandableTile,
   ChartTextEquivalent,
+  chartMovementPhrase,
   MetricSparkline,
   TrendAreaChart,
   TrendBarsChart,
@@ -173,6 +174,9 @@ export {
 export type {
   BandedLineChartProps,
   ChartExpandableTileProps,
+  ChartMovement,
+  ChartMovementAssessment,
+  ChartMovementDirection,
   ChartTextEquivalentProps,
   ChartTrend,
   MetricSparklineProps,

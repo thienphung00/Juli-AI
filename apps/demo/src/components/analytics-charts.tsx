@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChartTrend } from "@juli/ui";
+import type { ChartMovement, ChartTrend } from "@juli/ui";
 import {
   BandedLineChart,
   MetricSparkline,
@@ -73,6 +73,7 @@ export function AnalyticsHeroChart({
           data={snapshot.timeSeries}
           delta={snapshot.delta}
           label={label}
+          movement={snapshot.movement}
           trend={"neutral" as ChartTrend}
           value={snapshot.formattedValue}
           width={320}
@@ -93,6 +94,7 @@ export function AnalyticsHeroChart({
           currentData={snapshot.timeSeries}
           delta={snapshot.delta}
           label={label}
+          movement={snapshot.movement}
           previousData={overlayData}
           trend={"neutral"}
           value={snapshot.formattedValue}
@@ -111,6 +113,7 @@ export function AnalyticsHeroChart({
           data={snapshot.timeSeries}
           delta={snapshot.delta}
           label={label}
+          movement={snapshot.movement}
           trend={"neutral"}
           value={snapshot.formattedValue}
           width={320}
@@ -133,6 +136,7 @@ export function AnalyticsHeroChart({
             bounds={snapshot.boundedRatio.bounds}
             withinTolerance={snapshot.boundedRatio.withinTolerance}
             delta={snapshot.delta}
+            movement={snapshot.movement}
             width={320}
           />
         );
@@ -154,6 +158,8 @@ interface AnalyticsPreviewChartProps {
   sparkline: readonly number[];
   value: string;
   delta: string;
+  /** Real movement for the sparkline's text equivalent (#887). */
+  movement: ChartMovement;
 }
 
 export function AnalyticsPreviewChart({
@@ -161,6 +167,7 @@ export function AnalyticsPreviewChart({
   sparkline,
   value,
   delta,
+  movement,
 }: AnalyticsPreviewChartProps) {
   return (
     <div aria-hidden="true" className="analytics-kpi-card__preview">
@@ -169,6 +176,7 @@ export function AnalyticsPreviewChart({
         delta={delta}
         height={32}
         label={label}
+        movement={movement}
         trend={"neutral"}
         value={value}
         width={96}

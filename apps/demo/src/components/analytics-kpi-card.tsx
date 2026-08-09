@@ -72,6 +72,7 @@ export function AnalyticsKpiCard({
             <AnalyticsPreviewChart
               delta={liveSnapshot.delta}
               label={definition.name}
+              movement={liveSnapshot.movement}
               sparkline={liveSnapshot.sparkline}
               value={liveSnapshot.formattedValue}
             />

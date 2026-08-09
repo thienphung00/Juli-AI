@@ -1,11 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { GMV_TIKTOK_ENVELOPE_KEY } from "@juli/contracts";
+
 import {
   type UnavailableKpiReason,
   MAIN_KPI_DEFINITIONS,
 } from "../../lib/analytics/main-kpis";
-import { createMockSnapshot } from "../../lib/analytics/__tests__/fixtures";
+import { buildLiveKpiSnapshot } from "../../lib/analytics/envelope-mapper";
+import {
+  createMockDemoAnalyticsEnvelope,
+  createMockSnapshot,
+} from "../../lib/analytics/__tests__/fixtures";
 import { AnalyticsHeroChart } from "../analytics-charts";
 
 describe("AnalyticsHeroChart (P2-CHART-FORM: measurement type → form)", () => {
@@ -692,5 +698,91 @@ describe("#865 sweep: no mark carries direction", () => {
     }
 
     expect(directional).toEqual([]);
+  });
+});
+
+describe("#887: the accessible sentence states real movement (rise/fall/flat × goal direction)", () => {
+  // End-to-end through the single goal-direction resolver: envelope series →
+  // buildLiveKpiSnapshot (delta sign × MAIN_KPI_DEFINITIONS.goalDirection) →
+  // AnalyticsHeroChart → rendered .juli-sr-only paragraph.
+  const buildEnvelopeWith = (
+    envelopeKey: string,
+    values: readonly number[],
+  ) => {
+    const base = createMockDemoAnalyticsEnvelope();
+    return createMockDemoAnalyticsEnvelope({
+      kpis: {
+        ...base.kpis,
+        [envelopeKey]: {
+          ...base.kpis[envelopeKey]!,
+          series: values.map((v, index) => ({
+            t: `2026-07-${String(index + 1).padStart(2, "0")}`,
+            v,
+          })),
+        },
+      },
+    });
+  };
+
+  const heroSrText = (
+    metricKey: "gmv-tiktok" | "cancellation-rate",
+    envelopeKey: string,
+    values: readonly number[],
+  ) => {
+    const definition = MAIN_KPI_DEFINITIONS[metricKey];
+    const envelope = buildEnvelopeWith(envelopeKey, values);
+    const snapshot = buildLiveKpiSnapshot(envelope, metricKey, "30d");
+    expect(snapshot).not.toBeNull();
+
+    const { container, unmount } = render(
+      <AnalyticsHeroChart
+        measurementType={definition.measurementType}
+        label={definition.name}
+        snapshot={snapshot}
+        comparePreviousPeriod={false}
+      />
+    );
+    const text = container.querySelector(".juli-sr-only")?.textContent ?? "";
+    unmount();
+    return text;
+  };
+
+  it("higher-is-better rise: GMV rising says it rose, and is positive", () => {
+    const text = heroSrText("gmv-tiktok", GMV_TIKTOK_ENVELOPE_KEY, [420_000_000, 485_000_000]);
+    expect(text).toContain("xu hướng tăng — tích cực");
+    expect(text).not.toContain("ổn định");
+  });
+
+  it("higher-is-better fall: GMV falling says it fell, and needs attention", () => {
+    const text = heroSrText("gmv-tiktok", GMV_TIKTOK_ENVELOPE_KEY, [485_000_000, 420_000_000]);
+    expect(text).toContain("xu hướng giảm — cần chú ý");
+    expect(text).not.toContain("ổn định");
+  });
+
+  it("higher-is-better flat: GMV unchanged says it is stable, with no qualifier", () => {
+    const text = heroSrText("gmv-tiktok", GMV_TIKTOK_ENVELOPE_KEY, [485_000_000, 485_000_000]);
+    expect(text).toContain("xu hướng ổn định");
+    expect(text).not.toContain("tích cực");
+    expect(text).not.toContain("cần chú ý");
+  });
+
+  it("lower-is-better rise: rising cancellations say they rose and need attention — never described as good", () => {
+    const text = heroSrText("cancellation-rate", "cancellation_rate", [2.5, 3.5]);
+    expect(text).toContain("xu hướng tăng — cần chú ý");
+    expect(text).not.toContain("tích cực");
+    expect(text).not.toContain("ổn định");
+  });
+
+  it("lower-is-better fall: falling cancellations say they fell, and are positive", () => {
+    const text = heroSrText("cancellation-rate", "cancellation_rate", [2.5, 1.8]);
+    expect(text).toContain("xu hướng giảm — tích cực");
+    expect(text).not.toContain("ổn định");
+  });
+
+  it("lower-is-better flat: unchanged cancellations say they are stable, with no qualifier", () => {
+    const text = heroSrText("cancellation-rate", "cancellation_rate", [2.5, 2.5]);
+    expect(text).toContain("xu hướng ổn định");
+    expect(text).not.toContain("tích cực");
+    expect(text).not.toContain("cần chú ý");
   });
 });

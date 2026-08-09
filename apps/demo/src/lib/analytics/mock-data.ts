@@ -1,4 +1,4 @@
-import type { ChartTrend } from "@juli/ui";
+import type { ChartMovement, ChartTrend } from "@juli/ui";
 import { formatDateTime, formatNumber, formatVND } from "@juli/utils";
 
 import { OPTIMIZE_PRODUCT_WORKFLOW_KEY } from "../workflows/optimize-product/review";
@@ -24,6 +24,13 @@ export interface KpiSnapshot {
   formattedValue: string;
   delta: string;
   trend: ChartTrend;
+  /**
+   * Real movement of the series for the chart's accessible text equivalent
+   * (#887). `trend` above is the goal-aware tone for the delta chip and the
+   * mark-hue axis is pinned neutral (#865) — neither may carry direction to
+   * the screen reader, so movement travels separately.
+   */
+  movement: ChartMovement;
   signal: string;
   dataSource: string;
   lastUpdated: string;
@@ -106,6 +113,8 @@ function gmvTiktokSnapshot(range: AnalyticsRange): KpiSnapshot {
     // Trend carries goal-aware tone for delta chip (#858). Chart mark color (neutral)
     // is set separately at render time per ADR-060 § 5.
     trend: "positive",
+    // Fixture deltas are all rises on a higher-is-better KPI (#887).
+    movement: { direction: "up", assessment: "favorable" },
     signal:
       "GMV TikTok tăng mạnh → cơ hội tăng trưởng → xem xét mở rộng sản phẩm chủ lực",
     dataSource: "TikTok Shop Order API (fixture)",
@@ -150,7 +159,10 @@ export function getKpiSnapshot(
 export function getPreviewSnapshot(
   metricKey: MetricKey,
   range: AnalyticsRange,
-): Pick<KpiSnapshot, "formattedValue" | "delta" | "trend" | "sparkline"> | null {
+): Pick<
+  KpiSnapshot,
+  "formattedValue" | "delta" | "trend" | "movement" | "sparkline"
+> | null {
   const snapshot = getKpiSnapshot(metricKey, range);
 
   if (!snapshot) {
@@ -161,6 +173,7 @@ export function getPreviewSnapshot(
     formattedValue: snapshot.formattedValue,
     delta: snapshot.delta,
     trend: snapshot.trend,
+    movement: snapshot.movement,
     sparkline: snapshot.sparkline,
   };
 }
