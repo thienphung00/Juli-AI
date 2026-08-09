@@ -226,11 +226,17 @@ registry.
   - **Shipped:** JWT verify · TikTok Shop OAuth · Business holder/advertiser auth routes ·
     token crypto · webhook HMAC.
   - **In progress:** TBD.
-  - **Planned:** Phase 3 Demo Sign-in OAuth; Phase 3.5 full web auth.
+  - **Planned:** **First-user security baseline ([ADR-061](../adr/061-first-user-security-baseline.md))** —
+    a startup assertion making `SUPABASE_JWT_SECRET` required (it currently defaults to `""`,
+    so auth fails open when the var is unset); a route-auth CI invariant asserting every `/v1/*`
+    route carries `get_current_user` / `get_active_shop`; closing the unauthenticated
+    `/debug/tiktok/verify-connection` cross-tenant probe; gating `docs_url` / `redoc_url` on a new
+    `ENVIRONMENT` discriminator (none exists today). Then Phase 3 Demo Sign-in OAuth;
+    Phase 3.5 full web auth.
 - **Related EXECUTION slices:** App Review / Phase 3 auth themes
 - **Out of scope:** Buyer PII stores; Seller Center scrape auth.
 - **Links:** [`core/security/MODULE.md`](../../backend/src/juli_backend/core/security/MODULE.md) ·
-  [`ownership-registry.yml`](ownership-registry.yml) · ADR-002, ADR-034
+  [`ownership-registry.yml`](ownership-registry.yml) · ADR-002, ADR-034, ADR-061
 
 ---
 
@@ -254,12 +260,19 @@ registry.
     ingestion ledgers; action_cards / tool_executions / outcomes; safe-alembic pipeline.
   - **In progress:** Analytics historical schema usage (Phase 2.9 themes).
   - **Planned:** KPI / intelligence precompute tables for Phase 2.10 read model;
-    Phase 3 polyglot target — ClickHouse (OLAP), S3 (raw landing), SQS
-    (async ingest) — documented; not deployed (ADR-012 / related).
+    Polyglot target (ClickHouse / S3 / SQS) — **rejected for Phase 3.5** by
+    [ADR-046](../adr/046-cdp-medallion-physical-model.md) and
+    [ADR-047](../adr/047-cdp-lambda-layers-prd-split.md) in favour of Postgres medallion
+    schemas (`bronze`/`silver`/`gold`/`ops`) in the existing Supabase project. Revisit only
+    if volume/latency justifies it; **default-deny `public` boundary ([ADR-061](../adr/061-first-user-security-baseline.md))** —
+    extend migration 021's `ALTER DEFAULT PRIVILEGES` revoke to `public` so new tables are born
+    closed (thirteen tables carry no RLS today, two of which landed in the last week), and treat
+    the ten `current_setting('app.current_user_id')` policies as **non-functional** until they are
+    rewritten onto `auth.uid()` for `gold` at 3.5-C.
 - **Related EXECUTION slices:** Phase 2 data plane; 2.9 backfill; 2.10 precompute; later polyglot
 - **Out of scope:** Treating Alembic as a data migration/backup tool; buyer CDP as current mandate.
 - **Links:** [`database/MODULE.md`](../../backend/src/juli_backend/database/MODULE.md) ·
-  ADR-002, ADR-027, ADR-029, ADR-038
+  ADR-002, ADR-027, ADR-029, ADR-038, ADR-046, ADR-061
 
 ---
 
@@ -401,10 +414,14 @@ registry.
   - **Shipped:** `app-juli.com` → :3000; `demo.app-juli.com` → :3001; `api.app-juli.com` → :8000;
     systemd units; secrets-refresh / restore-drill timers.
   - **In progress:** Public release evidence / rollback automation refinements (ADR-035).
-  - **Planned:** TBD (Architect) if multi-host topology ever replaces single-VPS edge.
+  - **Planned:** **Inbound rate limiting ([ADR-061](../adr/061-first-user-security-baseline.md))** — `limit_req`
+    zones per location (strict on `/webhooks/tiktok`, `/v1/demo/*`, `/v1/auth/*`); the edge is the
+    only layer that can defend a `--workers 1` uvicorn, and no inbound throttling exists anywhere
+    today. Also `--proxy-headers` so access logs carry the real client IP rather than `127.0.0.1`.
+    Then TBD (Architect) if multi-host topology ever replaces single-VPS edge.
 - **Related EXECUTION slices:** Phase 2.5+ deploy; Demo deploy
 - **Out of scope:** Kong/AWS API Gateway unless an ADR supersedes VPS edge.
-- **Links:** `infra/README.md` · ADR-020, ADR-035
+- **Links:** `infra/README.md` · ADR-020, ADR-035, ADR-057, ADR-061
 
 ---
 
@@ -425,11 +442,16 @@ registry.
     secrets fetch/refresh; safe-alembic; `/health` + smoke scripts.
   - **In progress:** Release evidence / rollback automation.
   - **Planned:** **Required** Redis read-through cache for Analytics/Decision envelopes
-    (Phase 2.10 — ADR-038); stronger DLQ persistence/replay.
+    (Phase 2.10 — ADR-038); stronger DLQ persistence/replay;
+    **security logging baseline ([ADR-061](../adr/061-first-user-security-baseline.md))** — root `dictConfig`
+    JSON logging (none is configured today, so every `logger.info` is discarded and every
+    `logger.warning` loses its `extra` context), `request_id` middleware, and coverage of webhook
+    signature rejections and auth failures. A vendor-free floor beneath DOCP (ADR-039), not a
+    replacement for it.
 - **Related EXECUTION slices:** infra / reliability slices; Phase 2.10
 - **Out of scope:** Sentry/APM as a required module until product adopts it explicitly;
   Redis as system of record.
-- **Links:** ADR-027, ADR-033, ADR-035, ADR-038
+- **Links:** ADR-027, ADR-033, ADR-035, ADR-038, ADR-061
 
 ---
 
@@ -503,10 +525,15 @@ declaring this module healthy for heavier Phase 3+ reliance.
   - **Shipped:** `pr.yml`, `release.yml`, rollback/uptime/architecture-audit workflows;
     deploy/rollback/smoke/provision scripts; Demo independent deploy path.
   - **In progress:** Public release evidence + automatic rollback (ADR-035).
-  - **Planned:** TBD (Architect) for staging topology if EXECUTION ever requires it.
+  - **Planned:** **Security invariants suite ([ADR-061](../adr/061-first-user-security-baseline.md))** — a
+    data-boundary assertion hung off the existing `migration-check` job (creating the
+    `anon`/`authenticated` roles there also gives ADR-046's medallion revokes their first real test
+    coverage, since its `IF EXISTS` guards skip on every CI run today), a route-auth walk, a
+    debug-surface check, a credentials-in-query-string lint, and an Nginx `limit_req` conf lint.
+    Then TBD (Architect) for staging topology if EXECUTION ever requires it.
 - **Related EXECUTION slices:** Phase 2.5 deployment architecture onward
 - **Out of scope:** Railway/Vercel as primary App Review runtime (superseded by VPS ADRs).
-- **Links:** `infra/README.md` · ADR-017, ADR-020, ADR-035
+- **Links:** `infra/README.md` · ADR-017, ADR-020, ADR-035, ADR-061
 
 ---
 

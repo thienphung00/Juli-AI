@@ -1,4 +1,4 @@
-# ADR 005: Buyer-behavior anomaly scope
+# ADR 008: Buyer-behavior anomaly scope
 
 ## Status
 Accepted

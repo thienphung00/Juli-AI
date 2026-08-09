@@ -36,7 +36,7 @@ This is the **only** file that assigns a phase to a data source.
 | **Redis** | — | Live | — | Live | Live | Live | Action cards, view cache, sessions | [`phase-2-mvp.md`](../product/phases/phase-2-mvp.md) |
 | **Claude Haiku 3.5** | — | — | — | — | Live | Live | Copy layer | Deferred from P2; rules-only in P2 |
 | **Kalodata / Shoplus** | Optional | — | — | — | Optional | Optional | Validation only | Never user-facing |
-| **ClickHouse / S3 / SQS** | — | — | — | — | — | Live | Polyglot plane | Phase 4.5 — ADR-004 |
+| **ClickHouse / S3 / SQS** | — | — | — | — | — | Deferred | Polyglot plane | **Rejected for Phase 3.5** — ADR-046 / ADR-047 chose Postgres medallion schemas |
 | **Demo mock fixtures** | — | — | Live | — | — | — | `apps/demo` storytelling | Hardcoded; no API calls |
 
 ## Operational rules

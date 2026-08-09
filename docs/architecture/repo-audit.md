@@ -1,7 +1,17 @@
 # Repository Audit — Phase 0
 
+> **⚠ DEPRECATED — historical snapshot, do not read as current state.**
+> This is a point-in-time investigation memo from 2026-07-10. Its recommendation (`web/` →
+> `apps/dashboard/`) shipped the same day, and its findings have since been overtaken: `web/`
+> is empty, `apps/dashboard/` and `apps/demo/` are both live, the backend is packaged at
+> `backend/src/juli_backend/` with a `pyproject.toml`, and pnpm/turbo were **kept** for
+> demo/packages per [ADR-025](../adr/025-demo-workspace-transition.md), contradicting this
+> memo's own Option A. For current state read [`map.md`](map.md) (as-built paths),
+> [`MODULES.md`](MODULES.md) (module catalog), and [`migration-plan.md`](migration-plan.md).
+> Retained for traceability only.
+
 **Date:** 2026-07-10  
-**Status:** Investigation complete — no code changes in this phase  
+**Status:** Superseded — investigation complete, recommendations executed or reversed  
 **Gates:** Frontend consolidation (Phase 3), agent-runtime consolidation (proposed Phase 7)
 
 This report resolves ambiguity around `web/` vs `apps/`, inventories scattered

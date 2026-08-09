@@ -1,7 +1,18 @@
 # ADR 020: VPS/SSH continuous delivery + AWS Secrets Manager for runtime secrets
 
-**Status:** Accepted  
+**Status:** Accepted — **partially superseded, then partially reinstated**; see banner below  
 **Date:** 2026-07-09  
+**Superseded / amended in part:**
+- [ADR-035](035-public-release-evidence-and-automatic-rollback.md) superseded the single-VPS /
+  no-new-compute, manual-rollback and no-staging constraints **for public delivery**. ADR-035's
+  own ECS/Fargate platform was in turn superseded by ADR-057 — only its evidence contract stands.
+- [ADR-057](057-pre-user-delivery-on-single-vps.md) **reinstates** this ADR's single-VPS /
+  "no new compute infra" constraint and single `~/releases` pool for the pre-user phase. This
+  ADR's *manual-only* rollback is **not** reinstated — cutover and rollback are automatic.
+- [ADR-039](039-docp-phase-2.11-openobserve-posthog.md) amends the "journalctl-only /
+  no Datadog-New Relic-ELK" monitoring stance for production public surfaces.
+- [ADR-061](061-first-user-security-baseline.md) builds on this ADR's `bandit`/`gitleaks` CI
+  hardening and corrects `backend-deploy-runbook.md`'s "optional" `SUPABASE_JWT_SECRET`.  
 **Supersedes:** the "Deployment — Railway for MVP" line in
 [ADR-012](012-architecture-reconciliation-mvp-vs-target.md) (all other ADR-012 decisions —
 Postgres, Haiku, real-time scope, tenant isolation — are unaffected and remain in force).  

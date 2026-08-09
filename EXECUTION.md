@@ -5,7 +5,14 @@
 > Start every task here, then open **one** component doc from the routing table below.  
 > Full index: [`docs/README.md`](docs/README.md)
 
-**Owner:** Product lead · **Last reset:** Phase 2.5 complete → Phase 2 active (2026-07-04)
+**Owner:** Product lead · **Last reset:** Phase 2.5 complete → Phase 2 active (2026-07-04)  
+**Currency check (2026-08-09):** the reset line above is historical. Live work is **Phase 3.5** —
+3.5-A0 ([#598](https://github.com/thienphung00/Juli-AI/issues/598)) and 3.5-A2
+([#602](https://github.com/thienphung00/Juli-AI/issues/602)) are closed; 3.5-A1
+([#601](https://github.com/thienphung00/Juli-AI/issues/601)) and 3.5-B
+([#599](https://github.com/thienphung00/Juli-AI/issues/599)) are open. The CDP slice structure is
+specified in [ADR-046](docs/adr/046-cdp-medallion-physical-model.md)–[ADR-050](docs/adr/050-cdp-slice-3-5-c-two-gated-exits.md)
+and is **not yet reflected in the phase tables below** — a Product-lead pass is owed.
 
 ---
 
@@ -79,7 +86,9 @@ Read **down** the hierarchy — never load peer Tier 1 files unless the task spa
 | **4.5 — Real-Time Infrastructure** | Latency reduction at scale | Growing base | Real-time updates justified by product scale |
 | **5 — Full Launch** | Production-grade platform | Public | Security, billing, monitoring, operational excellence |
 
-**Active phase:** Phase 2 — Pipeline Validation (App Review deploy live on `app-juli.com`; backend runtime in `backend/`).
+**Active phase:** Phase 3.5 — CDP (Speed layer 3.5-A1 open; Decisions 3.5-B in flight).
+Phases 2 through 2.11 are complete or superseded; the per-phase detail below has not been
+re-baselined since 2026-07-04 and lags the ADR record.
 
 ### Architecture evolution (by phase)
 
@@ -192,7 +201,8 @@ Focus: repository restructuring · frontend/backend separation · monorepo organ
 deployment pipelines · shared packages · real domains · CI/CD · production environment setup.
 
 **Completed (2026-07-03):** App Review deploy live at `app-juli.com` + `api.app-juli.com`;
-backend runtime in `backend/`; legacy `web/` serves review frontend until Phase 3.
+backend runtime in `backend/`. (**Superseded 2026-07-10:** `web/` was consolidated into
+`apps/dashboard/`; the `web/` directory is now empty.)
 Sign-off: [`docs/runbooks/smoke-checklist-runbook.md`](docs/runbooks/smoke-checklist-runbook.md).
 
 **Naming collision:** Top-level `apps/` holds product deployables (landing, demo, dashboard,
@@ -447,8 +457,8 @@ copy · cross-platform analytics · user behavior tracking · Web ↔ Mobile syn
 Potential additions: webhooks · event-driven processing · real-time updates · live execution
 tracking · streaming architecture. Implement only when product scale justifies cost.
 
-Detail: [`phase-4.5-realtime.md`](docs/product/phases/phase-4.5-realtime.md) (supersedes old
-[`phase-3-vision.md`](docs/product/phases/phase-3-vision.md))
+Detail: `phase-4.5-realtime.md` — **not yet written**. Until it exists, the standing reference is
+[`phase-3-vision.md`](docs/product/phases/phase-3-vision.md), which it will supersede.
 
 ---
 

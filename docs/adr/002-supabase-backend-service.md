@@ -103,7 +103,10 @@ go through FastAPI with the issued JWT when backend auth is enabled.
 
 ## References
 
-- [`src/modules/identity/infrastructure/auth/MODULE.md`](../../src/modules/identity/infrastructure/auth/MODULE.md)
-- [`src/shared/utils/data/MODULE.md`](../../src/shared/utils/data/MODULE.md)
+- `src/modules/identity/infrastructure/auth/MODULE.md` — path retired by
+  [ADR-019](019-src-shim-removal.md); auth now lives under
+  [`backend/src/juli_backend/core/security/`](../../backend/src/juli_backend/core/security/)
+- `src/shared/utils/data/MODULE.md` — path retired by [ADR-019](019-src-shim-removal.md);
+  no successor module doc exists
 - [`docs/architecture/map.md`](../architecture/map.md)
 - [`EXECUTION.md`](../../EXECUTION.md) — phased execution plan (single source of truth)

@@ -4,7 +4,7 @@
 Accepted
 
 **Supersedes:** Closed "six validated workflows" catalog and Copilot-surface grouping.  
-**Workflow taxonomy:** [`execution_layer.md`](../execution_layer.md).
+**Workflow taxonomy:** [`execution_layer.md`](../product/execution_layer.md).
 
 ## Context
 

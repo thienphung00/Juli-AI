@@ -35,14 +35,14 @@ module goals; do not load every peer Tier 1 file.
 | Repo restructure, path mapping, migration sequence | [`architecture/migration-plan.md`](architecture/migration-plan.md) | Current → target path mapping; migration PR sequence |
 | Phase 2 pipeline validation — stack, schedule | [`product/phases/phase-2-mvp.md`](product/phases/phase-2-mvp.md) | Backend pipeline; daily batch; rules copy; no production deploy |
 | Phase 2.5 deployment architecture | [`product/phases/phase-2.5-deployment.md`](product/phases/phase-2.5-deployment.md) | Monorepo layout, domains, package boundaries |
-| Phase 3 Landing + Interactive Demo | [`product/phases/phase-3-landing-demo.md`](product/phases/phase-3-landing-demo.md) | Mock demo IA (Home + Actions); no login |
-| Phase 4.5 real-time infrastructure | [`product/phases/phase-4.5-realtime.md`](product/phases/phase-4.5-realtime.md) | Webhooks, polyglot, event-driven (when justified) |
+| Phase 3 Landing + Interactive Demo | [`product/phases/phase-3-landing-demo.md`](product/phases/phase-3-landing-demo.md) | Four-destination IA (Home, Decisions, Analytics, Settings) per ADR-023; no login |
+| Phase 4.5 real-time infrastructure | [`product/phases/phase-3-vision.md`](product/phases/phase-3-vision.md) | Webhooks, polyglot, event-driven (when justified). `phase-4.5-realtime.md` not yet written |
 | KPI charts, T1–T8 techniques | [`ml/ml_layer.md`](ml/ml_layer.md) | Per-KPI technique mapping |
 | Home rendering, advisory signals | [`ml/visual_layer.md`](ml/visual_layer.md) | Chart + signal spec |
 | Workflow → action taxonomy | [`product/execution_layer.md`](product/execution_layer.md) | Workflow IDs and routing |
 | Entity schemas, features, synthetic data | [`api/data-models/`](api/data-models/README.md) | Canonical schemas only |
 | TikTok API field maps | [`integrations/tiktok_api/endpoints.md`](integrations/tiktok_api/endpoints.md) | Ingestion layer only |
-| TikTok API family names | [`integrations/tiktok_api/api-families.md`](integrations/tiktok_api/api-families.md) | Seller, Products, Promotion, … |
+| TikTok API family names | [`integrations/tiktok_api/endpoints.md`](integrations/tiktok_api/endpoints.md) | Seller, Products, Promotion, … (families documented alongside the field maps) |
 | Pre-MVP history | [`product/phases/phase-1-completed.md`](product/phases/phase-1-completed.md) | Historical summary only |
 | Deploy runbooks | [`runbooks/`](runbooks/) | Step-by-step VPS, frontend, backend, smoke sign-off |
 | CI gates | [`deployment/implementation-guide.md`](deployment/implementation-guide.md) | Validate pipeline, artifact contracts |
