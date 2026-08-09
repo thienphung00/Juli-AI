@@ -26,8 +26,12 @@ ExecStartPre=/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh
 # infra/scripts/fetch-secrets.sh and the "Secrets" section of app-review-runbook.md.
 EnvironmentFile=/etc/juli/api.env
 # Single worker is sufficient for review; no HA/multi-worker tuning in Phase 2.5.
+# #843: the API lane alternates 8000/8020; the deploy records the live port so a
+# reboot brings this unit back on the port nginx is pointed at.
+Environment=API_LIVE_PORT=8000
+EnvironmentFile=-/etc/juli/api-runtime.env
 ExecStart=/root/releases/current/.venv/bin/uvicorn juli_backend.api.main:app \
-    --host 127.0.0.1 --port 8000 --workers 1
+    --host 127.0.0.1 --port ${API_LIVE_PORT} --workers 1
 Restart=on-failure
 RestartSec=5
 

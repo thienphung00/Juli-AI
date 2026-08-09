@@ -30,7 +30,9 @@ Type=simple
 User=root
 WorkingDirectory=/root/releases/landing-current/apps/landing
 # Production Next.js server bound to the loopback port nginx will later proxy to (#842).
-ExecStart=/root/releases/landing-current/apps/landing/node_modules/.bin/next start --port 3007 --hostname 127.0.0.1
+Environment=LANDING_LIVE_PORT=3007
+EnvironmentFile=-/etc/juli/landing-runtime.env
+ExecStart=/root/releases/landing-current/apps/landing/node_modules/.bin/next start --port ${LANDING_LIVE_PORT} --hostname 127.0.0.1
 Restart=on-failure
 RestartSec=5
 
