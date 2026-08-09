@@ -419,6 +419,123 @@ fail_candidate() {
     exit 1
 }
 
+# ---------------------------------------------------------------------------------------
+# Post-cutover public check and automatic rollback (#840)
+# ---------------------------------------------------------------------------------------
+# The candidate checks (#833) run on loopback and prove the release; they cannot prove
+# the cutover. Only a request through the public address exercises DNS, TLS, nginx, and
+# the upstream indirection together — the layer where a cutover fault lives. On failure,
+# traffic returns to the version that was serving moments earlier, without a human:
+#
+#   tier 1  the previous instance still runs (it always does straight after a cutover —
+#           it is only ever stopped by the NEXT deploy freeing its port), so rollback is
+#           a traffic switch measured in seconds: upstream to the previous port,
+#           validate, graceful reload. No rebuild, no restart.
+#   tier 2  the previous instance is gone (a reboot between cutover and check), so it is
+#           restarted from its retained release worktree first, then tier 1 applies.
+#
+# Migrations are never reverted here, by design: the additive-only gate (#834) is what
+# makes the previous code compatible with the new schema, so a code rollback needs no
+# schema undo — and an automatic schema undo is exactly the #734 class of disaster.
+
+DEMO_PUBLIC_BASE_URL="${DEMO_PUBLIC_BASE_URL:-https://demo.app-juli.com}"
+DEMO_PUBLIC_CHECK_ROUTES="${DEMO_PUBLIC_CHECK_ROUTES:-/ /decisions}"
+DEMO_PUBLIC_CHECK_TIMEOUT_SECS="${DEMO_PUBLIC_CHECK_TIMEOUT_SECS:-45}"
+
+# Every route must answer 2xx through the public address before the deadline. Retries
+# absorb nginx's reload settling; a persistent non-2xx on any route is a failed cutover.
+demo_public_check() {
+    local base="$1" deadline=$((SECONDS + DEMO_PUBLIC_CHECK_TIMEOUT_SECS))
+    local routes=() route code failed
+    read -r -a routes <<<"${DEMO_PUBLIC_CHECK_ROUTES}"
+    while :; do
+        failed=""
+        for route in ${routes[@]+"${routes[@]}"}; do
+            code="$(http_code "${base}${route}")"
+            if [ "${#code}" -ne 3 ] || [ "${code#2}" = "${code}" ]; then
+                failed="${route} (HTTP ${code})"
+                break
+            fi
+        done
+        if [ -z "${failed}" ]; then
+            return 0
+        fi
+        if [ "${SECONDS}" -ge "${deadline}" ]; then
+            echo "FAIL: public check did not pass within ${DEMO_PUBLIC_CHECK_TIMEOUT_SECS}s — last failure: ${failed}" >&2
+            return 1
+        fi
+        sleep 3
+    done
+}
+
+# Whether an instance answers 2xx on a loopback port — this decides the rollback tier.
+previous_instance_ready() {
+    local port="$1" code
+    code="$(http_code "http://127.0.0.1:${port}/decisions")"
+    [ "${#code}" -eq 3 ] && [ "${code#2}" != "${code}" ]
+}
+
+# Tier 2 only: bring the retained previous release back up on its old port. Uses the
+# same argv builder as the candidate path, so what rollback starts cannot drift from
+# what deploys start.
+restart_previous_release() {
+    local release_dir="$1" port="$2" code
+    # Dynamic scoping on purpose: start_candidate is THE one place a Demo process is
+    # ever spawned (pinned by test_only_the_candidate_helper_spawns_next), so rollback
+    # borrows it under its own unit name rather than growing a second spawn site.
+    local CANDIDATE_UNIT="${DEMO_CANDIDATE_UNIT}-${port}"
+    # The binary path comes from the argv helper — the single place it is named — so
+    # this guard cannot drift from what start_candidate would actually launch.
+    local next_bin
+    next_bin="$(demo_candidate_argv "${release_dir}" "${port}" | head -n 1)"
+    if [ ! -x "${next_bin}" ]; then
+        echo "FAIL: retained release ${release_dir} has no runnable Demo build —" >&2
+        echo "      it cannot be restarted. Was it pruned?" >&2
+        return 1
+    fi
+    systemctl stop "${CANDIDATE_UNIT}" >/dev/null 2>&1 || true
+    start_candidate "${release_dir}" "${port}" || return 1
+    if ! code="$(wait_for_candidate "http://127.0.0.1:${port}/decisions")"; then
+        echo "FAIL: the previous release did not become ready on :${port} (last HTTP ${code})." >&2
+        return 1
+    fi
+    return 0
+}
+
+# The undo itself. On success LIVE_PORT points back at the previous instance and
+# demo-current names the previous release again. The failed release's instance is left
+# running for inspection — it serves no traffic once the upstream is restored.
+rollback_demo_cutover() {
+    local prev_port="$1" prev_release="$2"
+    log "automatic rollback (#840) — returning traffic to :${prev_port}"
+    if [ ! -f "${DEMO_UPSTREAM_PREV}" ]; then
+        echo "FAIL: ${DEMO_UPSTREAM_PREV} is missing — no retained definition exists, so" >&2
+        echo "      nothing can be restored automatically." >&2
+        return 1
+    fi
+    if [ -z "${prev_release}" ] || [ ! -d "${prev_release}" ]; then
+        echo "FAIL: the previous release directory '${prev_release}' does not exist;" >&2
+        echo "      refusing a rollback that would repoint demo-current at nothing." >&2
+        return 1
+    fi
+    if previous_instance_ready "${prev_port}"; then
+        note "tier 1: the previous instance still answers on :${prev_port} — traffic switch only"
+    else
+        note "tier 2: nothing answers on :${prev_port} — restarting the retained release first"
+        restart_previous_release "${prev_release}" "${prev_port}" || return 1
+    fi
+    # switch_demo_upstream retains the current (failed) definition as .prev — deliberate:
+    # after a rollback the undo file names the release that failed, which is exactly what
+    # an operator investigating the failure wants preserved.
+    switch_demo_upstream "${prev_port}" || return 1
+    ln -sfn "${prev_release}" "${RELEASES_ROOT}/demo-current.tmp"
+    mv -Tf "${RELEASES_ROOT}/demo-current.tmp" "${DEMO_CURRENT}"
+    write_demo_runtime_env "${prev_port}" || true
+    LIVE_PORT="${prev_port}"
+    note "traffic restored to :${prev_port}; demo-current -> ${prev_release}"
+    return 0
+}
+
 wait_for_candidate() {
     local url="$1" deadline=$((SECONDS + CANDIDATE_TIMEOUT_SECS)) code="000"
     while [ "${SECONDS}" -lt "${deadline}" ]; do
@@ -773,6 +890,31 @@ main() {
     write_demo_runtime_env "${candidate_port}" ||
         die "cut over, but could not record the live port in ${DEMO_RUNTIME_ENV}."
 
+    # Any failure past this point invokes the automatic undo (#840). On a successful
+    # rollback the deploy still exits non-zero — the release did NOT ship — but traffic
+    # is already back on the previous version and no human action is pending.
+    abort_with_rollback() {
+        local reason="$1"
+        echo "FAIL: ${reason}." >&2
+        if rollback_demo_cutover "${live_port}" "${live_before}"; then
+            if demo_public_check "${DEMO_PUBLIC_BASE_URL}"; then
+                echo "ROLLED BACK: traffic is back on :${live_port} serving ${live_before}," >&2
+                echo "             verified through ${DEMO_PUBLIC_BASE_URL}. The failed" >&2
+                echo "             release's instance is left on :${candidate_port} for" >&2
+                echo "             inspection; it serves no traffic." >&2
+            else
+                echo "ROLLED BACK, BUT the public check still fails — the fault is not the" >&2
+                echo "      release. Inspect nginx and DNS/TLS for ${DEMO_PUBLIC_BASE_URL}." >&2
+            fi
+        else
+            echo "FAIL: automatic rollback did not complete. Manual undo:" >&2
+            echo "        cp -p ${DEMO_UPSTREAM_PREV} ${DEMO_UPSTREAM_CONF} && nginx -t && systemctl reload nginx" >&2
+            echo "      That returns traffic to ${live_before}." >&2
+        fi
+        report_live_state >&2
+        exit 1
+    }
+
     log "post-cutover health check (timeout ${HEALTH_TIMEOUT_SECS}s)"
     local deadline=$((SECONDS + HEALTH_TIMEOUT_SECS)) demo_ok=false demo_code="000"
     while [ "${SECONDS}" -lt "${deadline}" ]; do
@@ -785,18 +927,21 @@ main() {
     done
     if [ "${demo_ok}" != true ]; then
         # The candidate passed and this still failed, so the fault is in cutover, not in
-        # the release. Automatic post-cutover rollback is #840; say so rather than guess.
+        # the release. Roll back automatically (#840) rather than leave a human to do it.
         echo "FAIL: Demo is not healthy on :${LIVE_PORT} after cutover (last_code=${demo_code})." >&2
-        echo "      The release itself passed candidate verification, so this is a cutover" >&2
-        echo "      fault. The previous instance on :${live_port} is still running, so the" >&2
-        echo "      fastest undo is to restore the retained definition and reload:" >&2
-        echo "        cp -p ${DEMO_UPSTREAM_PREV} ${DEMO_UPSTREAM_CONF} && nginx -t && systemctl reload nginx" >&2
-        echo "      That returns traffic to ${live_before}. Automating it is #840." >&2
         systemctl --no-pager --full status "${CANDIDATE_UNIT}" >&2 || true
         journalctl -u "${CANDIDATE_UNIT}" -n 80 --no-pager >&2 || true
-        exit 1
+        abort_with_rollback "the loopback health check failed after cutover"
     fi
     echo "PASS: Demo is healthy on the verified release (:${LIVE_PORT}/decisions returned 2xx)."
+
+    # --- 7b. The public check (#840). Loopback proved the process; only the public ---
+    # address proves the cutover: DNS, TLS, nginx, and the upstream indirection together.
+    log "public check (#840) against ${DEMO_PUBLIC_BASE_URL}"
+    if ! demo_public_check "${DEMO_PUBLIC_BASE_URL}"; then
+        abort_with_rollback "the public check failed after cutover"
+    fi
+    echo "PASS: public check — every route answered 2xx through ${DEMO_PUBLIC_BASE_URL}."
 
     # --- 8. Record, then prune. Pruning happens only after a successful cutover. ---
     printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${sha}" "${release_dir}" >> "${HISTORY_LOG}"

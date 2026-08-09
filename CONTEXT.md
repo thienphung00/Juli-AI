@@ -68,12 +68,12 @@ The `pg_dump` backup + row-count invariant + token-decrypt check wrapping every 
 _Avoid_: safe-alembic wrapper (production-only framing), backup script (undersells row-count/decrypt verification)
 
 **Layered model**:
-The product's three-layer structure — **visual layer** (Analytics KPI charts + one-line advisory signals), **ML layer** (T1–T8 advisory techniques), and **execution layer** (workflow → action taxonomy a signal links to). Authoritative docs: `docs/ml/visual_layer.md`, `docs/ml/ml_layer.md`, `docs/product/execution_layer.md` ([ADR-005](docs/adr/011-display-grade-analytics-layer.md) Decision #6).
-_Avoid_: 3 Copilots, Copilot surfaces, "exactly six validated workflows" (retired by ADR-005)
+The product's three-layer structure — **visual layer** (Analytics KPI charts + one-line advisory signals), **ML layer** (T1–T8 advisory techniques), and **execution layer** (workflow → action taxonomy a signal links to). Authoritative docs: `docs/ml/visual_layer.md`, `docs/ml/ml_layer.md`, `docs/product/execution_layer.md` ([ADR-011](docs/adr/011-display-grade-analytics-layer.md) Decision #6).
+_Avoid_: 3 Copilots, Copilot surfaces, "exactly six validated workflows" (retired by ADR-011)
 
 **Workflow taxonomy**:
 The domain-organized catalog of workflows (Catalog · Ads · Inventory · Operations · Customer Service) and their actions, each action owned by exactly one workflow. SoT: `docs/product/execution_layer.md`. Shop profile selects the **rule set** via the T8 router, not a UI grouping.
-_Avoid_: validated workflow catalog (closed "six only" framing — superseded by ADR-005)
+_Avoid_: validated workflow catalog (closed "six only" framing — superseded by ADR-011)
 
 **Copy layer**:
 The stage that turns structured ML/rules signals into seller-facing Vietnamese copy for Decisions/cards. Phase 2 is rules-only (`copy_source: "rules"`); Haiku deferred to Phase 4. Receives computed signals only, never raw financial PII. Wording must match the **Copy dictionary**; voice/rules from **Design context**.
@@ -88,7 +88,7 @@ Repo-root [`dictionary.md`](dictionary.md) — sole EN → VI catalog (Keywords 
 _Avoid_: `CONTEXT.md` (domain glossary), duplicating glossary rows in Design context, shipping invented VI without a dictionary key
 
 **Display-grade analytics**:
-The lightweight ML layer powering the visual layer — reusable techniques (T1–T8) applied across KPIs. Charts plus one-line advisory signals in Analytics; advisory only, never executes ([ADR-005](docs/adr/011-display-grade-analytics-layer.md)).
+The lightweight ML layer powering the visual layer — reusable techniques (T1–T8) applied across KPIs. Charts plus one-line advisory signals in Analytics; advisory only, never executes ([ADR-011](docs/adr/011-display-grade-analytics-layer.md)).
 _Avoid_: per-KPI models (implies ~19 separate trained models)
 
 **Main KPI**:
@@ -96,11 +96,11 @@ The representative KPI marked `(main)` for each visual-layer category. Analytics
 _Avoid_: primary KPI, featured metric, headline metric (when referring to this canonical six-KPI set)
 
 **Decision-grade ML**:
-Trained techniques (T2, T6, T8) that must pass backtest promotion gates before Phase 2.5 artifact load. All Home outputs remain **display-grade** (advisory only); gates vet accuracy, not execute authority. Former "3 vetted suites" logic is **recycled** into T2/T6/T8 per ADR-005.
-_Avoid_: the 3 vetted suites (closed catalog — superseded by ADR-005)
+Trained techniques (T2, T6, T8) that must pass backtest promotion gates before Phase 2.5 artifact load. All Home outputs remain **display-grade** (advisory only); gates vet accuracy, not execute authority. Former "3 vetted suites" logic is **recycled** into T2/T6/T8 per ADR-011.
+_Avoid_: the 3 vetted suites (closed catalog — superseded by ADR-011)
 
 **Manual refresh pipeline**:
-Phase 2's on-demand execution model for aggregates → signals → recommendations → copy → persist — triggered by `POST /v1/action-cards/refresh`, never by Celery beat or cron ([ADR-021](docs/adr/021-manual-refresh-pipeline.md)).
+Phase 2's on-demand execution model for aggregates → signals → recommendations → copy → persist — triggered by `POST /v1/action-cards/refresh`, never by Celery beat or cron ([ADR-021](docs/adr/021-manual-refresh-pipeline-and-action-card-persistence.md)).
 _Avoid_: daily batch, cron pipeline, scheduled scoring
 
 **Phase 3 polyglot target**:
@@ -270,7 +270,7 @@ _Avoid_: using `seller_connect` as a silent fallback for production analytics re
 ## Seller workspace
 
 **Decision**:
-The seller-facing primary object — a ranked recommendation envelope wrapping one validated workflow plus reasoning, required inputs, status, and impact estimate ([ADR-014](docs/adr/014-decision-object-model.md)). What sellers review on `/decisions`.
+The seller-facing primary object — a ranked recommendation envelope wrapping one validated workflow plus reasoning, required inputs, status, and impact estimate ([ADR-014](docs/adr/014-decision-copilot-app-structure-and-journey.md)). What sellers review on `/decisions`.
 _Avoid_: AI Action Card, recommendation card (UI renderings — see **Action Card (backend)**)
 
 **Action Card (backend)**:
@@ -336,6 +336,28 @@ _Avoid_: treating outputs as decision-grade, persisting experiment rows into Ana
 **Mediated Juli GMV impact**:
 The intended future way to estimate Juli's effect on client GMV: compose **Juli → Product/LIVE mediators** and **mediators → GMV** elasticities. Requires shipped workflows plus enough history; calibration-grade until promotion gates exist. Hop detail: [ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md).
 _Avoid_: direct Juli→GMV as the only story, Value calculator assumption tabs as measured Juli impact
+
+## Security baseline
+
+**Default-deny data boundary**:
+The stance that a Postgres schema is closed to `anon`/`authenticated` by **default privileges**, not by per-table opt-in — `REVOKE ALL` plus `ALTER DEFAULT PRIVILEGES … REVOKE ALL ON TABLES/SEQUENCES`, so tables created later are born closed with no author action. Already true for `bronze`/`silver`/`ops` via [migration 021](backend/src/juli_backend/database/migrations/versions/021_medallion_schemas.py); extended to **`public`** by [ADR-061](docs/adr/061-first-user-security-baseline.md). `gold` is the only client-reachable schema, by explicit allowlist.
+_Avoid_: per-table RLS as the primary tenant boundary, treating a one-time `REVOKE` as equivalent (it leaves future tables open)
+
+**Security invariant**:
+A control asserted mechanically in `pr.yml` so drift fails the build — data boundary, route auth coverage, debug surface disabled in production, no credentials in query strings, rate limiter attached. Distinct from a **Startup assertion**. See [ADR-061](docs/adr/061-first-user-security-baseline.md).
+_Avoid_: documenting a control in a runbook and calling it enforced, security checklists as review-time judgment only
+
+**Startup assertion**:
+A boot-time check for controls that live in deployed configuration — AWS Secrets Manager, systemd env files, the Supabase console — and are therefore invisible to CI. The process refuses to start rather than degrading silently; `require_env("SUPABASE_JWT_SECRET")` is the motivating case. See [ADR-061](docs/adr/061-first-user-security-baseline.md).
+_Avoid_: `os.environ.get(name, "")` for any security-critical value, treating a missing secret as a soft default
+
+**Security logging baseline**:
+The vendor-free logging floor shipped with the first-user security work — root `dictConfig` JSON to stdout/journald, `request_id` middleware, `--proxy-headers` for real client IPs, and coverage of webhook signature rejections, auth failures, and limiter 429s. Distinct from **DOCP**: this is the evidence floor for incident response, not the observability control plane. Phase 2.11 points a shipper at the same stream. See [ADR-061](docs/adr/061-first-user-security-baseline.md).
+_Avoid_: treating DOCP/OpenObserve as a prerequisite for having any security logs, calling journald-only logging "structured" before the `dictConfig` lands
+
+**Non-functional RLS policies**:
+The ten existing `USING (… = current_setting('app.current_user_id')::uuid)` policies (migrations 001, 002, 017, 019, 020, 022, 024). The backend never sets that GUC, so they have never scoped a row — they only deny by raising. Treat as **absent** until rewritten onto `auth.uid()` when 3.5-C Login mode ships client-direct `gold` reads.
+_Avoid_: citing these as existing tenant isolation, assuming RLS-enabled means RLS-working
 
 ## CI / test lanes
 

@@ -1,7 +1,11 @@
 # ADR 021: Manual-refresh pipeline, Postgres-only Action Card persistence, and Phase 2 scope reconciliation
 
 ## Status
-Accepted
+Accepted — **Redis stance amended** by [ADR-038](038-phase-2.10-dual-layer-pipeline.md)
+
+**Amended by:** [ADR-038](038-phase-2.10-dual-layer-pipeline.md) — this ADR's "Redis is an
+explicitly optional future cache" decision is **reversed for Phase 2.10+ product reads**, where a
+read-through cache is required; the refresh-only trigger is likewise extended for 2.10+.
 
 **Context session:** `grill-with-docs`, 2026-07-13 — Phase 2 exit-gate reconciliation.
 **Amends:** [`EXECUTION.md`](../../EXECUTION.md) Milestone A/B slice list, [`phase-2-mvp.md`](../product/phases/phase-2-mvp.md)

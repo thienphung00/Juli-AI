@@ -19,9 +19,9 @@
 | [009](009-entity-centric-data-model.md) | Entity-centric canonical data model | Accepted |
 | [010](010-ml-module-tree-and-trainers.md) | ML module tree, features, trainers, artifacts | Accepted |
 | [011](011-display-grade-analytics-layer.md) | Display-grade analytics layer — T1–T8; layered model | Accepted |
-| [012](012-architecture-reconciliation-mvp-vs-target.md) | Postgres MVP, Haiku copy, Railway; polyglot = Phase 3 | Accepted |
+| [012](012-architecture-reconciliation-mvp-vs-target.md) | Postgres MVP, Haiku copy, Railway; polyglot = Phase 3 | Accepted — Railway line superseded by [020](020-vps-ssh-continuous-delivery-and-secrets-manager.md) |
 | [013](013-operations-pipeline-spine.md) | Operations pipeline spine | Accepted |
-| [014](014-decision-copilot-app-structure-and-journey.md) | 3-tab IA + RRAA user journey | Accepted |
+| [014](014-decision-copilot-app-structure-and-journey.md) | 3-tab IA + RRAA user journey | Partially superseded by [023](023-four-destination-analytics-ownership.md) |
 | [015](015-design-system-token-foundation.md) | Design system and token foundation | Accepted |
 | [016](016-listing-workflow-implementation.md) | Listing workflow implementation | Accepted |
 | [017](017-product-monorepo-deployment-architecture.md) | Product monorepo deployment architecture (Phase 2.5) | Accepted |
@@ -62,7 +62,8 @@
 | [054](054-brand-pink-role-separation.md) | Brand pink role separation — `--pink-text` for AA-compliant text, `--chart-neutral` for non-directional series | Accepted |
 | [055](055-decision-plan-review.md) | Decision plan review — sectioned agent-proposed plan replaces the five-stage review (apps/demo mobile-web) | Accepted |
 | [056](056-brand-asset-package.md) | Brand assets live in `packages/brand` — single owner for logo/photography/renders; no per-app copies | Accepted |
+| [057](057-pre-user-delivery-on-single-vps.md) | Pre-user delivery stays on the single VPS — ADR-035's platform superseded, its evidence contract retained; re-entry triggers T1–T5 | Accepted |
 | [058](058-release-packaging-shape.md) | Release packaging shape — build output plus a production dependency install, not `output: 'standalone'`; #837 ships both halves | Accepted |
 | [059](059-dpr-wave-artifact-waiver.md) | Scoped artifact waiver for `wave-dpr-demo` — evidence unrecoverable, diffs reviewed in its place; not precedent | Accepted |
-| [057](057-pre-user-delivery-on-single-vps.md) | Pre-user delivery stays on the single VPS — ADR-035's platform superseded, its evidence contract retained; re-entry triggers T1–T5 | Accepted |
 | [060](060-chart-form-follows-kpi-measurement-type.md) | Chart form follows KPI measurement type — measurement type selects the mark, goal direction selects the tone (apps/demo Analytics) | Proposed |
+| [061](061-first-user-security-baseline.md) | First-user security baseline — default-deny data boundary + enforced invariants | Accepted |
