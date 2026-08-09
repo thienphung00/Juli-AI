@@ -70,8 +70,10 @@ export function AnalyticsKpiCard({
               {liveSnapshot.delta}
             </p>
             <AnalyticsPreviewChart
+              boundedRatio={liveSnapshot.boundedRatio}
               delta={liveSnapshot.delta}
               label={definition.name}
+              measurementType={definition.measurementType}
               movement={liveSnapshot.movement}
               sparkline={liveSnapshot.sparkline}
               value={liveSnapshot.formattedValue}

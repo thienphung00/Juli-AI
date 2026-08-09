@@ -1341,7 +1341,10 @@ a {
 .analytics-kpi-card__preview {
   position: absolute;
   inset: auto 0 0 0;
-  opacity: 0.35;
+  /* #885: 0.35 crushed the 1.5px neutral stroke into a hairline on a white
+     card. 0.55 keeps the preview subordinate to the hero (whose marks render
+     at full opacity) while letting the mark read as a chart at 96×32. */
+  opacity: 0.55;
   pointer-events: none;
 }
 

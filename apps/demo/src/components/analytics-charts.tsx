@@ -3,18 +3,18 @@
 import type { ChartMovement, ChartTrend } from "@juli/ui";
 import {
   BandedLineChart,
-  MetricSparkline,
+  MetricSparklinePreview,
   TrendAreaChart,
   TrendBarsChart,
   TrendLineChart,
 } from "@juli/ui";
 
+import { getChartFormFromMeasurementType } from "../lib/analytics/main-kpis";
 import type {
   MeasurementType,
   UnavailableKpiReason,
-  getChartFormFromMeasurementType,
 } from "../lib/analytics/main-kpis";
-import type { KpiSnapshot } from "../lib/analytics/mock-data";
+import type { BoundedRatio, KpiSnapshot } from "../lib/analytics/mock-data";
 
 interface AnalyticsHeroChartProps {
   /**
@@ -155,34 +155,81 @@ export function AnalyticsHeroChart({
 
 interface AnalyticsPreviewChartProps {
   label: string;
+  /**
+   * Measurement type resolves the preview's mark through the same resolver the
+   * hero uses (ADR-060) — the preview is a simplified member of the hero's
+   * graph family, never an independently chosen mark.
+   */
+  measurementType: MeasurementType;
   sparkline: readonly number[];
   value: string;
   delta: string;
   /** Real movement for the sparkline's text equivalent (#887). */
   movement: ChartMovement;
+  /** Threshold payload; required for a bounded-ratio preview to show its target. */
+  boundedRatio?: BoundedRatio;
 }
 
 export function AnalyticsPreviewChart({
   label,
+  measurementType,
   sparkline,
   value,
   delta,
   movement,
+  boundedRatio,
 }: AnalyticsPreviewChartProps) {
-  return (
-    <div aria-hidden="true" className="analytics-kpi-card__preview">
-      <MetricSparkline
-        data={sparkline}
-        delta={delta}
-        height={32}
-        label={label}
-        movement={movement}
-        trend={"neutral"}
-        value={value}
-        width={96}
-      />
-    </div>
-  );
+  // Single decision point for chart appearance (ADR-060) — no second mapping.
+  const form = getChartFormFromMeasurementType(measurementType);
+
+  switch (form) {
+    case "filled-line":
+    case "plain-line":
+    case "bars":
+      return (
+        <div aria-hidden="true" className="analytics-kpi-card__preview">
+          <MetricSparklinePreview
+            data={sparkline}
+            delta={delta}
+            form={form}
+            height={32}
+            label={label}
+            movement={movement}
+            value={value}
+            width={96}
+          />
+        </div>
+      );
+
+    case "bounded-ratio": {
+      if (boundedRatio) {
+        return (
+          <div aria-hidden="true" className="analytics-kpi-card__preview">
+            <MetricSparklinePreview
+              boundedRatio={{
+                target: boundedRatio.target,
+                bounds: boundedRatio.bounds,
+                withinTolerance: boundedRatio.withinTolerance,
+              }}
+              data={sparkline}
+              delta={delta}
+              form="bounded-ratio"
+              height={32}
+              label={label}
+              movement={movement}
+              value={value}
+              width={96}
+            />
+          </div>
+        );
+      }
+
+      // Without a target payload the banded preview cannot be drawn honestly —
+      // a bounded-ratio chart minus its threshold is a different chart (#885).
+      // Mirror the hero's explained-empty philosophy with the neutral motif.
+      return <AnalyticsUnavailableChartPattern label={label} />;
+    }
+  }
 }
 
 interface AnalyticsUnavailableChartPatternProps {

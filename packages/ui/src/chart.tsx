@@ -357,6 +357,299 @@ export function MetricSparkline({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Selector-card preview marks (#885, ADR-060)
+//
+// A KPI selector card shows a 96×32 preview that is a simplified, low-contrast
+// member of the same graph family as its hero (Components/charts.md). Treatment
+// decisions, made once here so every preview stays subordinate to the hero:
+//
+// - Amplitude normalization: line series are min–max scaled into a 26px band
+//   (3px padding) so real variation always fills the mark. This — not extra
+//   ink — is what separates a preview from a hairline rule at thumbnail size.
+// - Marks are thin (1.5px stroke) and carry no axes, gridlines, endpoint
+//   marker, label, tooltip, or comparison overlay; the hero keeps all of those.
+// - The identity hue is structurally neutral: the preview accepts no trend
+//   prop at all (ADR-060 § 5 / #865). Direction lives in the card's delta chip.
+// - `bounded-ratio` plots against its fixed bounds (never min–max, so the
+//   spatial relation to the target stays honest) and shows the target as a
+//   1px dashed reference line; the dash pattern gives the threshold a second
+//   line character so the two strokes cannot fuse into one rule at 32px. The
+//   status palette touches that line only on a genuine breach (#864).
+// - `count` renders zero-baselined 4px-pitched bars, never a continuous line.
+// ---------------------------------------------------------------------------
+
+const PREVIEW_AMPLITUDE_PAD = 3;
+const PREVIEW_STROKE_WIDTH = 1.5;
+const PREVIEW_FILL_OPACITY = 0.14;
+const PREVIEW_BAR_OPACITY = 0.7;
+const PREVIEW_BAR_GAP = 2;
+
+export type SparklinePreviewForm =
+  | "filled-line"
+  | "plain-line"
+  | "bars"
+  | "bounded-ratio";
+
+export interface SparklinePreviewBoundedRatio {
+  target: number;
+  bounds: { min: number; max: number };
+  withinTolerance: boolean;
+}
+
+interface MetricSparklinePreviewBaseProps {
+  data: readonly number[];
+  label: string;
+  value: string;
+  delta?: string;
+  width?: number;
+  height?: number;
+  /**
+   * Real movement for the text equivalent (#887). The preview's mark is always
+   * neutral, so without this its sentence would fall back to "stable" — the
+   * exact defect #887 fixed for the hero charts.
+   */
+  movement?: ChartMovement;
+}
+
+// Discriminated on `form`: a bounded-ratio preview without its target is not a
+// smaller version of the chart, it is a different chart — so the payload is
+// required at the type level rather than defaulted away at runtime.
+export type MetricSparklinePreviewProps = MetricSparklinePreviewBaseProps &
+  (
+    | { form: Exclude<SparklinePreviewForm, "bounded-ratio"> }
+    | { form: "bounded-ratio"; boundedRatio: SparklinePreviewBoundedRatio }
+  );
+
+function previewXAt(index: number, count: number, width: number): number {
+  if (count <= 1) {
+    return width / 2;
+  }
+  return (index / (count - 1)) * width;
+}
+
+function previewYScale(
+  min: number,
+  max: number,
+  height: number,
+): (value: number) => number {
+  const top = PREVIEW_AMPLITUDE_PAD;
+  const bottom = height - PREVIEW_AMPLITUDE_PAD;
+  const span = max - min;
+
+  return (value: number) => {
+    if (span === 0) {
+      return (top + bottom) / 2;
+    }
+    const clamped = Math.min(Math.max(value, min), max);
+    return bottom - ((clamped - min) / span) * (bottom - top);
+  };
+}
+
+function previewLinePoints(
+  data: readonly number[],
+  width: number,
+  yFor: (value: number) => number,
+): string {
+  return data
+    .map(
+      (value, index) =>
+        `${previewXAt(index, data.length, width)},${yFor(value)}`,
+    )
+    .join(" ");
+}
+
+function PreviewLineMark({
+  data,
+  width,
+  height,
+  filled,
+}: {
+  data: readonly number[];
+  width: number;
+  height: number;
+  filled: boolean;
+}): ReactElement {
+  const yFor = previewYScale(Math.min(...data), Math.max(...data), height);
+  const points = previewLinePoints(data, width, yFor);
+  const neutral = CHART_SERIES_COLORS.neutral;
+  const firstX = previewXAt(0, data.length, width);
+  const lastX = previewXAt(data.length - 1, data.length, width);
+
+  return (
+    <g>
+      {filled ? (
+        // Solid low-opacity silhouette down to the mark's bottom edge — a
+        // gradient vanishes at 32px, a silhouette still reads as an area.
+        <path
+          d={`M ${firstX},${height} L ${points.replaceAll(" ", " L ")} L ${lastX},${height} Z`}
+          data-preview-fill="true"
+          fill={neutral}
+          fillOpacity={PREVIEW_FILL_OPACITY}
+          stroke="none"
+        />
+      ) : null}
+      <polyline
+        data-preview-line="true"
+        fill="none"
+        points={points}
+        stroke={neutral}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={PREVIEW_STROKE_WIDTH}
+      />
+    </g>
+  );
+}
+
+function PreviewBarsMark({
+  data,
+  width,
+  height,
+}: {
+  data: readonly number[];
+  width: number;
+  height: number;
+}): ReactElement {
+  // Counts anchor to a zero baseline — bars must never be min–max rescaled.
+  const maxValue = Math.max(...data, 0);
+  const pitch = width / data.length;
+  const gap = pitch >= PREVIEW_BAR_GAP * 2 ? PREVIEW_BAR_GAP : 1;
+  const barWidth = Math.max(1.5, pitch - gap);
+  const neutral = CHART_SERIES_COLORS.neutral;
+
+  return (
+    <g>
+      {data.map((value, index) => {
+        const scaled =
+          maxValue > 0
+            ? (value / maxValue) * (height - PREVIEW_AMPLITUDE_PAD)
+            : 0;
+        // A zero-value period keeps a 1px slot so the period stays visible.
+        const barHeight = Math.max(scaled, 1);
+
+        return (
+          <rect
+            data-preview-bar={index}
+            fill={neutral}
+            height={barHeight}
+            key={index}
+            opacity={PREVIEW_BAR_OPACITY}
+            rx={1}
+            ry={1}
+            width={barWidth}
+            x={index * pitch + (pitch - barWidth) / 2}
+            y={height - barHeight}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+function PreviewBoundedRatioMark({
+  data,
+  width,
+  height,
+  boundedRatio,
+}: {
+  data: readonly number[];
+  width: number;
+  height: number;
+  boundedRatio: SparklinePreviewBoundedRatio;
+}): ReactElement {
+  const { target, bounds, withinTolerance } = boundedRatio;
+  const yFor = previewYScale(bounds.min, bounds.max, height);
+  // Status palette is reserved for a genuine breach (#864); otherwise the
+  // threshold stays in the muted reference ink.
+  const targetStroke = withinTolerance
+    ? "var(--juli-muted-foreground)"
+    : "var(--juli-destructive)";
+
+  return (
+    <g>
+      <line
+        data-preview-target="true"
+        stroke={targetStroke}
+        strokeDasharray="3 3"
+        strokeWidth={1}
+        x1={0}
+        x2={width}
+        y1={yFor(target)}
+        y2={yFor(target)}
+      />
+      <polyline
+        data-preview-line="true"
+        fill="none"
+        points={previewLinePoints(data, width, yFor)}
+        stroke={CHART_SERIES_COLORS.neutral}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={PREVIEW_STROKE_WIDTH}
+      />
+    </g>
+  );
+}
+
+// Exhaustive over every preview form — no default branch, so a new form
+// cannot silently fall back to a line (same idiom as the hero's switch, #863).
+function renderPreviewMark(
+  props: MetricSparklinePreviewProps,
+  width: number,
+  height: number,
+): ReactElement {
+  switch (props.form) {
+    case "filled-line":
+    case "plain-line":
+      return (
+        <PreviewLineMark
+          data={props.data}
+          filled={props.form === "filled-line"}
+          height={height}
+          width={width}
+        />
+      );
+    case "bars":
+      return <PreviewBarsMark data={props.data} height={height} width={width} />;
+    case "bounded-ratio":
+      return (
+        <PreviewBoundedRatioMark
+          boundedRatio={props.boundedRatio}
+          data={props.data}
+          height={height}
+          width={width}
+        />
+      );
+  }
+}
+
+export function MetricSparklinePreview(props: MetricSparklinePreviewProps) {
+  const { label, value, delta, movement, width = 96, height = 32 } = props;
+
+  return (
+    <figure className="juli-chart-sparkline-preview">
+      <ChartTextEquivalent
+        delta={delta}
+        label={label}
+        movement={movement}
+        value={value}
+      />
+      <svg
+        aria-hidden="true"
+        className="juli-chart-sparkline-preview__visual"
+        data-preview-form={props.form}
+        data-testid="metric-sparkline-preview"
+        focusable="false"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+      >
+        {renderPreviewMark(props, width, height)}
+      </svg>
+    </figure>
+  );
+}
+
 export interface TrendAreaChartProps {
   data: readonly { label: string; value: number }[];
   trend: ChartTrend;
