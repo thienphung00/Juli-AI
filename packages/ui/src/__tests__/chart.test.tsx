@@ -20,6 +20,7 @@ if (typeof globalThis.PointerEvent === "undefined") {
 }
 
 import {
+  BandedLineChart,
   CHART_SERIES_COLORS,
   ChartExpandableTile,
   ChartTextEquivalent,
@@ -27,6 +28,7 @@ import {
   TrendAreaChart,
   TrendBarsChart,
   TrendLineChart,
+  type ChartMovement,
 } from "../chart";
 import { loadUiStyles } from "./test-utils";
 
@@ -1059,5 +1061,161 @@ describe("Chart primitives", () => {
       );
       expect((gridLines?.length ?? 0) > 0).toBe(true);
     });
+  });
+});
+
+describe("#887: text equivalent states real movement, decoupled from mark hue", () => {
+  const srText = (movement: ChartMovement | undefined) => {
+    const { container, unmount } = render(
+      <ChartTextEquivalent
+        delta="▲ 10%"
+        label="KPI"
+        movement={movement}
+        trend="neutral"
+        value="100"
+      />,
+    );
+    const text = container.querySelector(".juli-sr-only")?.textContent;
+    unmount();
+    return text;
+  };
+
+  it("a rise toward the goal reads as a rise that is positive", () => {
+    expect(srText({ direction: "up", assessment: "favorable" })).toBe(
+      "KPI — 100 — ▲ 10% — xu hướng tăng — tích cực",
+    );
+  });
+
+  it("a rise against the goal reads as a rise that needs attention, never as good", () => {
+    const text = srText({ direction: "up", assessment: "adverse" });
+    expect(text).toBe("KPI — 100 — ▲ 10% — xu hướng tăng — cần chú ý");
+    expect(text).not.toContain("tích cực");
+  });
+
+  it("a fall toward the goal reads as a fall that is positive", () => {
+    expect(srText({ direction: "down", assessment: "favorable" })).toBe(
+      "KPI — 100 — ▲ 10% — xu hướng giảm — tích cực",
+    );
+  });
+
+  it("a fall against the goal reads as a fall that needs attention", () => {
+    expect(srText({ direction: "down", assessment: "adverse" })).toBe(
+      "KPI — 100 — ▲ 10% — xu hướng giảm — cần chú ý",
+    );
+  });
+
+  it("a flat series reads as stable, with no goal qualifier", () => {
+    const text = srText({ direction: "flat", assessment: "neutral" });
+    expect(text).toBe("KPI — 100 — ▲ 10% — xu hướng ổn định");
+    expect(text).not.toContain("tích cực");
+    expect(text).not.toContain("cần chú ý");
+  });
+
+  it("movement overrides the neutral-pinned trend prop entirely", () => {
+    // trend="neutral" is passed above in every case; a moving series must
+    // never be announced as stable.
+    expect(srText({ direction: "up", assessment: "favorable" })).not.toContain(
+      "ổn định",
+    );
+  });
+
+  it("without movement, the legacy trend-derived phrase is unchanged", () => {
+    expect(srText(undefined)).toBe("KPI — 100 — ▲ 10% — xu hướng ổn định");
+  });
+
+  it("every chart primitive threads movement into its text equivalent while the mark stays neutral", () => {
+    const movement: ChartMovement = { direction: "up", assessment: "adverse" };
+    const expectSr = (container: HTMLElement) => {
+      expect(
+        container.querySelector(".juli-sr-only")?.textContent,
+      ).toContain("xu hướng tăng — cần chú ý");
+    };
+
+    const sparkline = render(
+      <MetricSparkline
+        data={sampleSeries}
+        delta="▲ 9%"
+        label="CTOR"
+        movement={movement}
+        trend="neutral"
+        value="4%"
+      />,
+    );
+    expectSr(sparkline.container);
+    sparkline.unmount();
+
+    const area = render(
+      <TrendAreaChart
+        data={timeSeries}
+        delta="▲ 5%"
+        label="GMV (TikTok)"
+        movement={movement}
+        trend="neutral"
+        value="485 triệu"
+      />,
+    );
+    expectSr(area.container);
+    area.unmount();
+
+    const line = render(
+      <TrendLineChart
+        currentData={timeSeries}
+        delta="▲ 10%"
+        label="AOV"
+        movement={movement}
+        trend="neutral"
+        value="500 nghìn"
+      />,
+    );
+    expectSr(line.container);
+    line.unmount();
+
+    const bars = render(
+      <TrendBarsChart
+        data={timeSeries}
+        delta="▲ 50%"
+        label="LIVE hours"
+        movement={movement}
+        trend="neutral"
+        value="10"
+      />,
+    );
+    expectSr(bars.container);
+    bars.unmount();
+
+    const tile = render(
+      <ChartExpandableTile
+        delta="▲ 8%"
+        label="Doanh thu ròng"
+        movement={movement}
+        trend="neutral"
+        value="98 triệu"
+      >
+        <span />
+      </ChartExpandableTile>,
+    );
+    expectSr(tile.container);
+    tile.unmount();
+  });
+
+  it("BandedLineChart keeps its tolerance-aware value string and appends the movement phrase", () => {
+    const { container } = render(
+      <BandedLineChart
+        bounds={{ min: 0, max: 10 }}
+        data={timeSeries}
+        delta="▼ 14%"
+        label="Tỷ lệ hủy đơn"
+        movement={{ direction: "down", assessment: "favorable" }}
+        target={3}
+        value="1.8%"
+        withinTolerance
+      />,
+    );
+
+    const text = container.querySelector(".juli-sr-only")?.textContent;
+    expect(text).toContain("Mục tiêu: 3.0");
+    expect(text).toContain("Trong ngưỡng");
+    expect(text).toContain("xu hướng giảm — tích cực");
+    expect(text).not.toContain("ổn định");
   });
 });

@@ -40,6 +40,63 @@ const TREND_DIRECTION_LABEL: Record<ChartTrend, string> = {
   warning: "xu hướng cảnh báo",
 };
 
+/**
+ * Real movement of the plotted series, for the accessible text equivalent
+ * only (#887). This is deliberately NOT `ChartTrend`: `trend` is the
+ * mark-hue axis and is pinned to `"neutral"` at every Analytics call site
+ * for stable identity (#865, ADR-060 § 5) — movement must never travel
+ * through it, or neutralising the colour neutralises the sentence again.
+ */
+export type ChartMovementDirection = "up" | "down" | "flat";
+
+/**
+ * Goal-aware read of the movement — whether it runs toward or against the
+ * KPI's goal. Resolved upstream by the single goal-direction resolver
+ * (delta sign × goalDirection, ADR-060 § 4); this package only renders it
+ * and never recomputes the inversion.
+ */
+export type ChartMovementAssessment = "favorable" | "adverse" | "neutral";
+
+export interface ChartMovement {
+  direction: ChartMovementDirection;
+  assessment?: ChartMovementAssessment;
+}
+
+// dictionary.md: analytics.trend.rising / analytics.trend.falling /
+// analytics.trend.stable
+const MOVEMENT_DIRECTION_LABEL: Record<ChartMovementDirection, string> = {
+  up: "xu hướng tăng",
+  down: "xu hướng giảm",
+  flat: "xu hướng ổn định",
+};
+
+// dictionary.md: analytics.trend.favorable / analytics.trend.adverse
+const MOVEMENT_ASSESSMENT_LABEL: Record<"favorable" | "adverse", string> = {
+  favorable: "tích cực",
+  adverse: "cần chú ý",
+};
+
+/**
+ * Compose the accessible trend phrase: always the raw movement, qualified
+ * by the goal-aware assessment when the metric actually moved. A rise in a
+ * lower-is-better metric is therefore stated as a rise that needs attention
+ * ("xu hướng tăng — cần chú ý"), never as good news; a fall toward the goal
+ * is a fall that is positive ("xu hướng giảm — tích cực").
+ */
+export function chartMovementPhrase(movement: ChartMovement): string {
+  const directionLabel = MOVEMENT_DIRECTION_LABEL[movement.direction];
+
+  if (
+    movement.direction === "flat" ||
+    !movement.assessment ||
+    movement.assessment === "neutral"
+  ) {
+    return directionLabel;
+  }
+
+  return `${directionLabel} — ${MOVEMENT_ASSESSMENT_LABEL[movement.assessment]}`;
+}
+
 // Density threshold: below ~10 points, no scrub is needed
 const SCRUB_DENSITY_THRESHOLD = 10;
 
@@ -132,7 +189,16 @@ export interface ChartTextEquivalentProps {
   label: string;
   value: string;
   delta?: string;
+  /**
+   * Mark-hue axis. Pinned to "neutral" at Analytics call sites (#865), so it
+   * can no longer describe movement — pass `movement` for that instead.
+   */
   trend?: ChartTrend;
+  /**
+   * Real movement of the series (#887). When present it owns the trend
+   * phrase, overriding the `trend`-derived label entirely.
+   */
+  movement?: ChartMovement;
 }
 
 export function ChartTextEquivalent({
@@ -140,6 +206,7 @@ export function ChartTextEquivalent({
   value,
   delta,
   trend,
+  movement,
 }: ChartTextEquivalentProps) {
   const parts = [label, value];
 
@@ -147,7 +214,9 @@ export function ChartTextEquivalent({
     parts.push(delta);
   }
 
-  if (trend) {
+  if (movement) {
+    parts.push(chartMovementPhrase(movement));
+  } else if (trend) {
     parts.push(TREND_DIRECTION_LABEL[trend]);
   }
 
@@ -160,6 +229,7 @@ export interface MetricSparklineProps {
   label: string;
   value: string;
   delta?: string;
+  movement?: ChartMovement;
   width?: number;
   height?: number;
 }
@@ -170,6 +240,7 @@ export function MetricSparkline({
   label,
   value,
   delta,
+  movement,
   width = 120,
   height = 40,
 }: MetricSparklineProps) {
@@ -181,6 +252,7 @@ export function MetricSparkline({
       <ChartTextEquivalent
         delta={delta}
         label={label}
+        movement={movement}
         trend={trend}
         value={value}
       />
@@ -210,6 +282,7 @@ export interface TrendAreaChartProps {
   label: string;
   value: string;
   delta?: string;
+  movement?: ChartMovement;
   width?: number;
   height?: number;
   onScrubIndexChange?: (index: number, point?: { label: string; value: number }) => void;
@@ -221,6 +294,7 @@ export function TrendAreaChart({
   label,
   value,
   delta,
+  movement,
   width = 280,
   height = 120,
   onScrubIndexChange,
@@ -309,6 +383,7 @@ export function TrendAreaChart({
       <ChartTextEquivalent
         delta={delta}
         label={label}
+        movement={movement}
         trend={trend}
         value={value}
       />
@@ -374,6 +449,7 @@ export interface TrendLineChartProps {
   label: string;
   value: string;
   delta?: string;
+  movement?: ChartMovement;
   width?: number;
   height?: number;
   onScrubIndexChange?: (index: number, point?: { label: string; value: number }) => void;
@@ -386,6 +462,7 @@ export function TrendLineChart({
   label,
   value,
   delta,
+  movement,
   width = 280,
   height = 120,
   onScrubIndexChange,
@@ -478,6 +555,7 @@ export function TrendLineChart({
       <ChartTextEquivalent
         delta={delta}
         label={label}
+        movement={movement}
         trend={trend}
         value={value}
       />
@@ -553,6 +631,7 @@ export interface TrendBarsChartProps {
   label: string;
   value: string;
   delta?: string;
+  movement?: ChartMovement;
   width?: number;
   height?: number;
   onScrubIndexChange?: (index: number, point?: { label: string; value: number }) => void;
@@ -564,6 +643,7 @@ export function TrendBarsChart({
   label,
   value,
   delta,
+  movement,
   width = 280,
   height = 120,
   onScrubIndexChange,
@@ -623,6 +703,7 @@ export function TrendBarsChart({
       <ChartTextEquivalent
         delta={delta}
         label={label}
+        movement={movement}
         trend={trend}
         value={value}
       />
@@ -688,6 +769,7 @@ export interface BandedLineChartProps {
   bounds: { min: number; max: number };
   withinTolerance: boolean;
   delta?: string;
+  movement?: ChartMovement;
   width?: number;
   height?: number;
 }
@@ -700,6 +782,7 @@ export function BandedLineChart({
   bounds,
   withinTolerance,
   delta,
+  movement,
   width = 280,
   height = 120,
 }: BandedLineChartProps) {
@@ -797,9 +880,12 @@ export function BandedLineChart({
 
   return (
     <figure className="juli-chart-banded">
+      {/* The tolerance-aware value string stays intact; the movement phrase
+          is appended after it and owns direction (#887). */}
       <ChartTextEquivalent
         delta={delta}
         label={label}
+        movement={movement}
         value={`${value} — Mục tiêu: ${target.toFixed(1)} — ${toleranceText}`}
         trend="neutral"
       />
@@ -873,6 +959,7 @@ export interface ChartExpandableTileProps {
   value: string;
   delta?: string;
   trend?: ChartTrend;
+  movement?: ChartMovement;
   expanded?: boolean;
   onToggle?: () => void;
   children: ReactNode;
@@ -897,6 +984,7 @@ export function ChartExpandableTile({
   value,
   delta,
   trend,
+  movement,
   expanded = false,
   onToggle,
   children,
@@ -917,6 +1005,7 @@ export function ChartExpandableTile({
       <ChartTextEquivalent
         delta={delta}
         label={label}
+        movement={movement}
         trend={trend}
         value={value}
       />
