@@ -17,8 +17,12 @@ UPTIME = REPO_ROOT / ".github" / "workflows" / "uptime.yml"
 
 def test_main_domain_upstream_is_landing() -> None:
     conf = VHOST.read_text(encoding="utf-8")
-    assert "server 127.0.0.1:3007;" in conf, "app-juli.com must proxy to juli-landing"
+    # #843 moved the upstream into a deployment-owned include; the seed names :3007.
+    assert "include /etc/nginx/juli/landing-upstream.conf;" in conf
+    assert "proxy_pass http://juli_landing;" in conf
     assert "127.0.0.1:3000" not in conf, "the retired dashboard must not be routed"
+    seed = (REPO_ROOT / "infra" / "nginx" / "landing-upstream.conf").read_text(encoding="utf-8")
+    assert "server 127.0.0.1:3007;" in seed
 
 
 def test_no_new_tls_or_server_names_were_needed() -> None:

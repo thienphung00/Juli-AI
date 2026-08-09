@@ -49,7 +49,10 @@ def test_unit_serves_the_port_the_app_already_encodes() -> None:
     and prod cannot disagree about where Landing lives."""
     unit = UNIT.read_text(encoding="utf-8")
     package = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))
-    assert f"--port {LANDING_PORT}" in unit
+    # #843 parameterized the port for the paired-slot lane; the baked default is
+    # still the package.json port, and the deploy's runtime env overrides it.
+    assert f"Environment=LANDING_LIVE_PORT={LANDING_PORT}" in unit
+    assert "--port ${LANDING_LIVE_PORT}" in unit
     assert LANDING_PORT in package["scripts"]["start"], (
         "apps/landing package.json and the systemd unit name different ports"
     )
@@ -60,7 +63,7 @@ def test_landing_port_is_unique_across_every_infra_surface() -> None:
     claims: list[str] = []
     # app-juli.com.conf PROXIES to 3007 — that is #842's main-domain repoint, the
     # intended consumer of the port, not a competing bind.
-    allowed = {"app-juli.com.conf"}
+    allowed = {"app-juli.com.conf", "deploy.sh"}
     for path in sorted((REPO_ROOT / "infra").rglob("*")):
         if not path.is_file() or "landing" in path.name or path.name in allowed:
             continue

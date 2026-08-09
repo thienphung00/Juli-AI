@@ -30,18 +30,23 @@ fi
 
 # --- Deployment-owned upstream definitions, before the vhosts that include them. ---
 mkdir -p "${UPSTREAM_DIR}"
-seed="${NGINX_SRC}/demo-upstream.conf"
-if [ ! -f "${seed}" ]; then
-    echo "Missing seed upstream definition: ${seed}" >&2
-    exit 1
-fi
-if [ -f "${DEMO_UPSTREAM_CONF}" ]; then
-    echo "Kept ${DEMO_UPSTREAM_CONF} (already provisioned; it is what is serving now):"
-    awk '/server[[:space:]]+127\.0\.0\.1:/ {print "  " $0}' "${DEMO_UPSTREAM_CONF}"
-else
-    install -m 0644 "${seed}" "${DEMO_UPSTREAM_CONF}"
-    echo "Seeded ${DEMO_UPSTREAM_CONF} from ${seed}"
-fi
+# Every deployable's upstream is a deployment-owned include, seeded ONCE and never
+# overwritten afterwards: the installed copy is what is serving right now (#839/#843).
+for lane in demo api landing; do
+    seed="${NGINX_SRC}/${lane}-upstream.conf"
+    target="${UPSTREAM_DIR}/${lane}-upstream.conf"
+    if [ ! -f "${seed}" ]; then
+        echo "Missing seed upstream definition: ${seed}" >&2
+        exit 1
+    fi
+    if [ -f "${target}" ]; then
+        echo "Kept ${target} (already provisioned; it is what is serving now):"
+        awk '/server[[:space:]]+127\.0\.0\.1:/ {print "  " $0}' "${target}"
+    else
+        install -m 0644 "${seed}" "${target}"
+        echo "Seeded ${target} from ${seed}"
+    fi
+done
 
 for conf in app-juli.com.conf api.app-juli.com.conf demo.app-juli.com.conf; do
     src="${NGINX_SRC}/${conf}"

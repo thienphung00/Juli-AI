@@ -651,8 +651,10 @@ def test_provisioning_installs_the_owned_definition_before_the_vhosts() -> None:
 def test_provisioning_never_overwrites_a_live_upstream_definition() -> None:
     """Re-provisioning must not silently repoint the site at the seed port."""
     body = non_comment_source(PROVISION_SCRIPT)
-    seed_at = first_index(body, "demo-upstream.conf")
-    window = body[max(0, seed_at - 400) : seed_at + 400]
+    # #843 generalized the seeding into one loop over demo/api/landing; the
+    # never-overwrite guard now protects every lane's live definition at once.
+    seed_at = first_index(body, "-upstream.conf")
+    window = body[max(0, seed_at - 400) : seed_at + 700]
     assert "-f" in window and "already" in window.lower(), (
         "provisioning must skip an existing live definition, not clobber it: " + window
     )

@@ -76,12 +76,15 @@ def test_nginx_configs_route_frontend_and_api_separately():
     app_conf = _read(NGINX_APP_PATH)
     api_conf = _read(NGINX_API_PATH)
     assert "app-juli.com" in app_conf
-    # #842: the main domain serves the Landing page (juli-landing on :3007); the
-    # dashboard (:3000) is retired from production and must no longer be routed.
-    assert "127.0.0.1:3007" in app_conf
+    # #842 repointed the main domain to Landing; #843 moved both upstreams into
+    # deployment-owned includes whose seeds name the ports.
+    assert "include /etc/nginx/juli/landing-upstream.conf;" in app_conf
     assert f"127.0.0.1:{FRONTEND_PORT}" not in app_conf
     assert "api.app-juli.com" in api_conf
-    assert f"127.0.0.1:{BACKEND_PORT}" in api_conf
+    assert "include /etc/nginx/juli/api-upstream.conf;" in api_conf
+    nginx_dir = NGINX_APP_PATH.parent
+    assert "127.0.0.1:3007" in (nginx_dir / "landing-upstream.conf").read_text()
+    assert f"127.0.0.1:{BACKEND_PORT}" in (nginx_dir / "api-upstream.conf").read_text()
 
 
 def test_nginx_api_config_exposes_health_and_oauth_callback():
