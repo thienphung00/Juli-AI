@@ -30,7 +30,6 @@ HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
 source "${CANONICAL_ROOT}/infra/scripts/lib/prune-releases.sh"
 
 API_ENV_FILE="/etc/juli/api.env"
-WEB_ENV_FILE="/etc/juli/web.env"
 
 sha="${1:-}"
 if [ -z "${sha}" ]; then
@@ -46,10 +45,11 @@ mkdir -p "${RELEASES_ROOT}"
 if [ -x "${CANONICAL_ROOT}/infra/scripts/fetch-secrets.sh" ]; then
     "${CANONICAL_ROOT}/infra/scripts/fetch-secrets.sh"
 else
-    echo "WARN: fetch-secrets.sh missing or not executable — reusing existing ${API_ENV_FILE}/${WEB_ENV_FILE}" >&2
+    echo "WARN: fetch-secrets.sh missing or not executable — reusing existing ${API_ENV_FILE}" >&2
 fi
 
-for f in "${API_ENV_FILE}" "${WEB_ENV_FILE}"; do
+# web.env is no longer required: the dashboard is retired from production (#842).
+for f in "${API_ENV_FILE}"; do
     if [ ! -f "${f}" ]; then
         echo "FAIL: ${f} does not exist. Run fetch-secrets.sh (or seed it manually) before first deploy." >&2
         exit 1
@@ -82,21 +82,18 @@ set +a
 RELEASE_DIR="${release_dir}" API_ENV_FILE="${API_ENV_FILE}" \
     "${CANONICAL_ROOT}/infra/scripts/safe-alembic-upgrade.sh"
 
-# --- 4. Frontend: build with the App Review env baked in ---
-echo "-- frontend --"
-cp "${WEB_ENV_FILE}" "${release_dir}/apps/dashboard/.env.production"
-# Infra scripts live in the canonical checkout (hotfix-friendly); the release
-# worktree at f7494a8 may lag behind on script-only fixes until the next SHA.
-REPO_ROOT="${release_dir}" "${CANONICAL_ROOT}/infra/scripts/build-frontend-review.sh"
+# --- 4. (retired) The dashboard frontend is no longer built or deployed (#842). ---
+# apps/dashboard is a development-only surface: built and tested in CI, never
+# deployed. The main domain serves the Landing page via juli-landing (#841/#842),
+# which has its own deploy lane (deploy-landing-release.sh).
 
 # --- 5. Cut over: atomically flip the `current` symlink ---
 echo "-- cutover --"
 ln -sfn "${release_dir}" "${RELEASES_ROOT}/current.tmp"
 mv -Tf "${RELEASES_ROOT}/current.tmp" "${RELEASES_ROOT}/current"
 
-# --- 6. Restart both services on the new release ---
+# --- 6. Restart the API on the new release (juli-web retired by #842) ---
 systemctl restart juli-api
-systemctl restart juli-web
 
 # --- 6b. Restart Celery units if installed (introduced in #720) ---
 # Guard with unit-existence checks to tolerate hosts without Celery units
@@ -114,24 +111,21 @@ done
 echo "-- health check (timeout ${HEALTH_TIMEOUT_SECS}s) --"
 deadline=$((SECONDS + HEALTH_TIMEOUT_SECS))
 api_ok=false
-web_ok=false
 while [ "${SECONDS}" -lt "${deadline}" ]; do
     api_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health || true)"
-    web_code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || true)"
     [[ "${api_code}" =~ ^2 ]] && api_ok=true
-    [[ "${web_code}" =~ ^2 ]] && web_ok=true
-    if [ "${api_ok}" = true ] && [ "${web_ok}" = true ]; then
+    if [ "${api_ok}" = true ]; then
         break
     fi
     sleep 3
 done
 
-if [ "${api_ok}" != true ] || [ "${web_ok}" != true ]; then
-    echo "FAIL: health check did not pass within ${HEALTH_TIMEOUT_SECS}s (api_ok=${api_ok} web_ok=${web_ok})." >&2
+if [ "${api_ok}" != true ]; then
+    echo "FAIL: health check did not pass within ${HEALTH_TIMEOUT_SECS}s (api_ok=${api_ok})." >&2
     echo "The new release is live at ~/releases/current — run rollback.yml if this is a regression." >&2
     exit 1
 fi
-echo "PASS: juli-api and juli-web are healthy on the new release."
+echo "PASS: juli-api is healthy on the new release."
 
 # --- 8. Record + prune history ---
 mkdir -p "${RELEASES_ROOT}"
