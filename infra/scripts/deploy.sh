@@ -320,7 +320,7 @@ deploy_lane_api() {
         --property=WorkingDirectory="${release_dir}" \
         --property=EnvironmentFile="${API_ENV_FILE}" \
         --property=Restart=no \
-        "${release_dir}/.venv/bin/uvicorn" backend.api.api.main:app \
+        "${release_dir}/.venv/bin/uvicorn" juli_backend.api.main:app \
         --host 127.0.0.1 --port "${peer_port}" --workers 1 >&2
     if ! code="$(wait_2xx "http://127.0.0.1:${peer_port}/health")"; then
         record_step api candidate "failed" "never ready (HTTP ${code})"
