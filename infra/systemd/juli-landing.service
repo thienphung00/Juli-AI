@@ -1,0 +1,38 @@
+# Landing page service — Next.js (apps/landing) on 127.0.0.1:3007 (#841)
+#
+# The landing page's first production home. It has no backend dependency of any
+# kind, so this unit is fully independent of juli-api, juli-web, and juli-demo:
+# deploying or restarting it never touches them, and vice versa.
+#
+# WHICH PORT. 3007 is the port apps/landing/package.json already encodes for
+# `next start`, adopted as the one landing port so dev and production agree.
+# It is unique across the host: 8000 api, 3000 web, 3001/3021 demo blue-green
+# lane, 6379 redis. 3027 is RESERVED as the landing candidate peer for the
+# paired-slot lane (#843) — do not assign it to anything else.
+#
+# Loopback only, on purpose: #841 gives Landing a port, not a domain. The main
+# domain repoint is #842 and needs no change here — nginx will proxy to this
+# same port.
+#
+# Start the local Next binary directly (not `corepack pnpm run start`) so systemd
+# does not depend on corepack preparing pnpm in a minimal service environment.
+#
+# VPS layout (see deploy-landing-release.sh):
+#   ~/releases/landing-current -> ~/releases/<sha>   flipped on every Landing deploy
+# Install to /etc/systemd/system/juli-landing.service on the review VPS.
+[Unit]
+Description=Juli Landing page (apps/landing)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/releases/landing-current/apps/landing
+# Production Next.js server bound to the loopback port nginx will later proxy to (#842).
+ExecStart=/root/releases/landing-current/apps/landing/node_modules/.bin/next start --port 3007 --hostname 127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
