@@ -4,6 +4,14 @@
 **Date:** 2026-07-27  
 **Deciders:** grill-with-docs (Architect)
 
+**Refined by (read before treating the pipeline below as current):**
+[ADR-041](041-vps-redis-ephemeral-cache-and-celery.md) (Redis operational shape),
+[ADR-046](046-cdp-medallion-physical-model.md) (names the bronze/silver/gold/ops schema layers),
+[ADR-047](047-cdp-lambda-layers-prd-split.md) (Speed/Batch/Serving freshness split),
+[ADR-048](048-cdp-webhook-first-spine-dual-credential.md) (webhook-first spine, dual credential),
+[ADR-049](049-demo-analytics-main-kpi-override.md) (Demo Main KPI catalog),
+[ADR-050](050-cdp-slice-3-5-c-two-gated-exits.md) (3.5-C gated exits).
+
 **Builds on:** [ADR-013](013-operations-pipeline-spine.md), [ADR-021](021-manual-refresh-pipeline-and-action-card-persistence.md),
 [ADR-029](029-phase-2.9-analytics-historical-backfill.md), [ADR-037](037-phase-2.10-demo-real-data-no-auth.md).  
 **Amends:** ADR-021’s “Redis optional” stance **for Phase 2.10+ product reads**;

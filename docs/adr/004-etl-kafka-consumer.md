@@ -7,6 +7,13 @@
 > all Kafka/broker references were removed. Kafka/streams are Phase 3+ (see
 > [`EXECUTION.md`](../../EXECUTION.md) → Explicitly out).
 
+> **Path note ([ADR-019](019-src-shim-removal.md)):** the `src/` tree named in the Decision
+> section below was removed. The consumer now lives at
+> [`backend/src/juli_backend/services/etl/`](../../backend/src/juli_backend/services/etl/)
+> and the handoff at
+> [`services/ingestion/handoff.py`](../../backend/src/juli_backend/services/ingestion/handoff.py)
+> (`make_etl_handoff`). Original paths are left in place as the historical record.
+
 ## Context
 
 Webhook and polling services must persist TikTok payloads with idempotency

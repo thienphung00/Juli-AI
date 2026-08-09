@@ -1,5 +1,10 @@
 # Import boundaries (MMU-2)
 
+> **Tier 1 — module import contract.** Read [`EXECUTION.md`](../../EXECUTION.md) first.  
+> **Owns:** the allowed-edge matrix and deep-import policy for `juli_backend`.  
+> **Does not own:** module goals/features ([`MODULES.md`](MODULES.md)), as-built paths
+> ([`map.md`](map.md)), or rationale ([`../adr/`](../adr/README.md)).
+
 Machine-enforced modular monolith import contract for `juli_backend`. The
 allowed-edge matrix and deep-import policy live in [`.importlinter.toml`](../../.importlinter.toml)
 at the repo root. CI runs the AST checker via

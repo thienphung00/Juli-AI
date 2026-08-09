@@ -58,4 +58,6 @@ modules, shared). Do not introduce a parallel Node.js backend for MVP.
 
 - [`docs/architecture/map.md`](../architecture/map.md) — module list and dependency graph
 - [`EXECUTION.md`](../../EXECUTION.md) — phased execution plan (single source of truth)
-- [`src/modules/catalog/domain/integrations/tiktok/MODULE.md`](../../src/modules/catalog/domain/integrations/tiktok/MODULE.md)
+- `src/modules/catalog/domain/integrations/tiktok/MODULE.md` — path retired by
+  [ADR-019](019-src-shim-removal.md); this code now lives under
+  [`backend/src/juli_backend/integrations/tiktok/`](../../backend/src/juli_backend/integrations/tiktok/)

@@ -1,21 +1,31 @@
 # System Design
 
-> **Tier 1 — subsystem envelopes.** Read [`EXECUTION.md`](../EXECUTION.md) first for slices and routing.  
+> **Tier 1 — subsystem envelopes.** Read [`EXECUTION.md`](../../EXECUTION.md) first for slices and routing.  
 > **Owns:** pipeline stage shapes, subsystem phase matrix, ML promotion thresholds, JSON envelopes.  
 > **Does not own:** module goals/features (`MODULES.md`), module paths (`map.md`), data-source phase gates (`data-sources.md`), MVP diagram/schedule (`phase-2-mvp.md`), ADR rationale (`../adr/`).
 
 **Authority:** `EXECUTION.md` > this file > `map.md`.
 
+> **⚠ Known-stale sections (2026-08-09).** Where this file disagrees with `EXECUTION.md`,
+> `EXECUTION.md` wins per the authority line above. Specifically:
+> - **Haiku / LLM copy is Phase 4, not Phase 2.** The capability matrix and the "Haiku copy
+>   layer (Phase 2 MVP)" section below are stale; `EXECUTION.md` ("Cloud LLM (Haiku) is deferred
+>   until Phase 4"), `data-sources.md`, and `MODULES.md` all agree copy is rules-only in Phase 2.
+> - **Trained ML (T1–T8) begins in Phase 4.** Phase 2 is rules-based only — no trained models,
+>   no 08:00 UTC production inference, no artifact promotion.
+> - **Celery is shipped, not out of scope** — see `MODULES.md` §8 Workers & Async.
+> - Slice IDs `P2-B12`–`P2-B15` predate the current numbering, which ends at `P2-B10`.
+
 ## Scope pointer
 
-Product summary and documentation routing: [`EXECUTION.md`](../EXECUTION.md).  
+Product summary and documentation routing: [`EXECUTION.md`](../../EXECUTION.md).  
 UI / IA detail: ADR-014 · Design tokens: ADR-015 · Pipeline constraints: ADR-013 · Layer model: ADR-011.
 
 ---
 
 ## Phase capability matrix
 
-Pre-MVP work is summarized in [`phase-1-completed.md`](phases/phase-1-completed.md).
+Pre-MVP work is summarized in [`phase-1-completed.md`](../product/phases/phase-1-completed.md).
 
 | Subsystem | Completed (pre-MVP) | Phase 2 MVP Milestone A | Phase 2 MVP Milestone B | Phase 3 |
 |-----------|---------------------|-------------------------|-------------------------|---------|
@@ -57,7 +67,7 @@ Outcome Tracking (workflow_outcome_metrics)
 ### Shop profiles & workflow taxonomy
 
 `shop_profile ∈ {NEW_SHOP, MID_LARGE_SHOP}`. The **T8 router** selects the rule set per
-profile; the workflow taxonomy itself is owned by [`execution_layer.md`](execution_layer.md)
+profile; the workflow taxonomy itself is owned by [`execution_layer.md`](../product/execution_layer.md)
 (domain-organized; each action owned by exactly one workflow). The closed "exactly six /
 Copilot surface" framing is **retired** ([ADR-011](../adr/011-display-grade-analytics-layer.md)
 Decision #6). New display-grade techniques/workflows may be added when they map to a
@@ -195,7 +205,7 @@ Collect **only** data required by the six workflows. Output:
 | Returns & refunds | refund count/rate, top reasons, return authorization status | Refund Spike |
 
 > SPS is Seller Center UI today — mock in P1.8; P2 uses `health_data_source`
-> contract ([`integration-audit-2026-06.md`](tiktok_api/integration-audit-2026-06.md) §7).
+> contract ([`integration-audit-2026-06.md`](../integrations/tiktok_api/integration-audit-2026-06.md) §7).
 
 ### UI & design (ADR-owned — not duplicated here)
 
@@ -228,12 +238,12 @@ Routes a seller to the right workflow and the right next action.
 
 | Phase | Source | Mechanism |
 |-------|--------|-----------|
-| **Phase 1** | Mock JSON | Fixtures generated from [`data-models/canonical-entities.md`](data-models/canonical-entities.md) via [`mock-data-generator.md`](data-models/mock-data-generator.md). No network. |
-| **Phase 2 MVP Milestone A** | Backtest data (parquet) | Canonical entity parquet + labeled returns; synthetic when historical data unavailable. Feature build uses [`feature-store-schema.md`](data-models/feature-store-schema.md). |
-| **Phase 2 MVP** | TikTok API polling | Raw responses ingested per [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md); ETL normalizes to canonical entities → Postgres; daily feature build → inference. |
+| **Phase 1** | Mock JSON | Fixtures generated from [`data-models/canonical-entities.md`](../api/data-models/canonical-entities.md) via [`mock-data-generator.md`](../api/data-models/mock-data-generator.md). No network. |
+| **Phase 2 MVP Milestone A** | Backtest data (parquet) | Canonical entity parquet + labeled returns; synthetic when historical data unavailable. Feature build uses [`feature-store-schema.md`](../api/data-models/feature-store-schema.md). |
+| **Phase 2 MVP** | TikTok API polling | Raw responses ingested per [`tiktok_api/endpoints.md`](../integrations/tiktok_api/endpoints.md); ETL normalizes to canonical entities → Postgres; daily feature build → inference. |
 
-**Schema authority:** [`docs/api/data-models/`](data-models/README.md) defines platform-agnostic
-entities and ML features. [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md) is the
+**Schema authority:** [`docs/api/data-models/`](../api/data-models/README.md) defines platform-agnostic
+entities and ML features. [`tiktok_api/endpoints.md`](../integrations/tiktok_api/endpoints.md) is the
 **ingestion layer** only — vendor field maps, not ML schema source of truth
 ([ADR-009](../adr/009-entity-centric-data-model.md)).
 
@@ -260,7 +270,7 @@ Phase 2 MVP uses a simple daily scheduler (cron / APScheduler). Celery / Kafka a
 
 ### 3. ML models
 
-> **Authority:** [`ml_layer.md`](ml_layer.md) technique catalog + per-KPI mapping;
+> **Authority:** [`ml_layer.md`](../ml/ml_layer.md) technique catalog + per-KPI mapping;
 > [ADR-011](../adr/011-display-grade-analytics-layer.md) display-grade vs
 > decision-grade split.
 
@@ -282,7 +292,7 @@ targets below apply to those **decision-grade** recycled techniques.
 
 #### Technique catalog (T1–T8)
 
-See [`ml_layer.md`](ml_layer.md) for the full per-KPI mapping, locked MVP algorithms,
+See [`ml_layer.md`](../ml/ml_layer.md) for the full per-KPI mapping, locked MVP algorithms,
 and rejection table. Shared building blocks:
 
 | ID | Technique | Implementation (Phase 2 MVP Milestone A) | Serve (Phase 2 MVP) |
@@ -327,7 +337,7 @@ hash, metrics snapshot.
 
 **Inference signatures:** input schema, output schema, and model version pointer
 for each recycled technique are documented in
-[`data-models/feature-store-schema.md`](data-models/feature-store-schema.md)
+[`data-models/feature-store-schema.md`](../api/data-models/feature-store-schema.md)
 § Inference signatures. Phase 2 MVP batch inference (08:00 UTC) loads artifacts from
 `models/{suite}/{version}/` and validates `feature_schema_hash` at load time.
 
@@ -342,8 +352,8 @@ models/
 
 Cross-phase field alignment index for **Return**, **Order**, and **OrderItem**.
 Full entity JSON schemas, lineage, and refresh rules live in
-[`data-models/canonical-entities.md`](data-models/canonical-entities.md).
-Ingestion field maps remain in [`tiktok_api/endpoints.md`](tiktok_api/endpoints.md)
+[`data-models/canonical-entities.md`](../api/data-models/canonical-entities.md).
+Ingestion field maps remain in [`tiktok_api/endpoints.md`](../integrations/tiktok_api/endpoints.md)
 § Orders. Affiliate data is **out of scope** for the anomaly model
 (ADR-008).
 
@@ -374,14 +384,14 @@ Ingestion field maps remain in [`tiktok_api/endpoints.md`](tiktok_api/endpoints.
 
 **Buyer aggregate features (anomaly model inputs):**
 
-Defined in [`data-models/feature-store-schema.md`](data-models/feature-store-schema.md)
+Defined in [`data-models/feature-store-schema.md`](../api/data-models/feature-store-schema.md)
 § Group A — `buyer_return_count_30d`, `buyer_item_swap_count_30d`,
 `buyer_empty_return_count_30d`, `buyer_repeat_anomaly_flag`, `return_rate_30d`,
 `seller_fault_cancel_rate_30d`.
 
 **P2.0 parquet layout (minimum):**
 
-See [`data-models/mock-data-generator.md`](data-models/mock-data-generator.md) § Dataset 2
+See [`data-models/mock-data-generator.md`](../api/data-models/mock-data-generator.md) § Dataset 2
 (Revenue Leakage Detection) and § Saving to parquet. Minimum files:
 
 ```
@@ -394,7 +404,7 @@ backtest/revenue_leakage/
 
 Synthetic generator must produce labeled `item_swap` and `empty_return` rows when
 historical TikTok data is unavailable. P2.0-5 documents feature specs in
-[`feature-store-schema.md`](data-models/feature-store-schema.md) (no drift at P2.5).
+[`feature-store-schema.md`](../api/data-models/feature-store-schema.md) (no drift at P2.5).
 
 **Platform-policy signals (not ML):** VP/AHR milestones, balance withholding,
 commission dispute holds, and SNAD enforcement remain deterministic rules in
@@ -437,12 +447,12 @@ generic text. Missing Haiku must not block API writes or task execution.
 ### 5. Platform policy signals (Phase 2 MVP)
 
 Deterministic rules derived from TikTok Shop seller/creator policy — not ML.
-Sourced from [`tiktok_platform/seller/implementation-hooks.md`](tiktok_platform/seller/implementation-hooks.md)
-and [`tiktok_platform/creator/implementation-hooks.md`](tiktok_platform/creator/implementation-hooks.md).
+Sourced from [`tiktok_platform/seller/implementation-hooks.md`](../integrations/tiktok_platform/seller/implementation-hooks.md)
+and [`tiktok_platform/creator/implementation-hooks.md`](../integrations/tiktok_platform/creator/implementation-hooks.md).
 
 **Data availability contract (Phase 2 MVP):** Policy thresholds (VP/AHR/withholding/appeal windows) are
 authoritative in platform docs, but **API exposure is not assumed**. Phase 2 MVP must track
-`health_data_source: api | proxy | unavailable` (per [`architecture/data-sources.md`](architecture/data-sources.md))
+`health_data_source: api | proxy | unavailable` (per [`architecture/data-sources.md`](data-sources.md))
 and degrade explicitly — no Seller Center scraping.
 
 | Signal | Threshold | Consumer | Action |
@@ -459,7 +469,7 @@ and degrade explicitly — no Seller Center scraping.
 
 **Affiliate enrollment gate (seller):** Suppress affiliate recruitment for the NEW_SHOP
 rule set when VP ≥ 12 (or AHR unhealthy post-July 2026). Commission priority: Targeted
-Collaboration overrides Open Collaboration rate ([`cross-cutting.md`](tiktok_platform/cross-cutting.md)).
+Collaboration overrides Open Collaboration rate ([`cross-cutting.md`](../integrations/tiktok_platform/cross-cutting.md)).
 
 **VP → AHR transition:** If VP/AHR fields are exposed via official APIs, dual-read both systems
 May–July 2026; feature-flag switch to AHR-only after July 2026
@@ -591,4 +601,4 @@ env only (`ANTHROPIC_API_KEY`); rules fallback when unavailable or budget exceed
 Celery / multi-node workers, Kafka streams, creator↔shop matching, vendor scrapers,
 Seller Center scraping, buyer PII, realtime unofficial streams, `src/` folder
 reshaping. The Phase 2 MVP target architecture (real APIs + inference pipeline) is
-detailed in [`phases/phase-2-mvp.md`](phases/phase-2-mvp.md), **published at the end of Phase 2 MVP Milestone A**.
+detailed in [`phases/phase-2-mvp.md`](../product/phases/phase-2-mvp.md), **published at the end of Phase 2 MVP Milestone A**.

@@ -1,7 +1,11 @@
 # ADR 024: Phase 2.6/2.7 frontend resequencing, Demo mock/sign-in toggle, and app boundaries
 
 ## Status
-Accepted
+Accepted — **Phase 3 timing amended** by [ADR-037](037-phase-2.10-demo-real-data-no-auth.md)
+
+**Amended by:** [ADR-037](037-phase-2.10-demo-real-data-no-auth.md) — Phase 2.10 is inserted
+before full Phase 3, moving Sign-in / OAuth timing. The four-destination IA and the app
+boundaries below are unaffected.
 
 **Builds on:** [ADR-023](023-four-destination-analytics-ownership.md) (four-destination IA).
 **Amends:** [`phase-3-landing-demo.md`](../product/phases/phase-3-landing-demo.md) scope;

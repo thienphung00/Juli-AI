@@ -53,9 +53,9 @@ The policy is implemented as:
 - A root [`done.md`](../../done.md) checklist consumed by `check_done_md.py`.
 
 The full implementation reference lives in
-[`docs/deployment/implementation-guide.md`](../ci/implementation-guide.md), with the
-operational cheat sheet in [`docs/deployment/quick-reference.md`](../ci/quick-reference.md)
-and failure recovery in [`docs/deployment/troubleshooting.md`](../ci/troubleshooting.md).
+[`docs/deployment/implementation-guide.md`](../deployment/implementation-guide.md), with the
+operational cheat sheet in [`docs/deployment/quick-reference.md`](../deployment/quick-reference.md)
+and failure recovery in [`docs/deployment/troubleshooting.md`](../deployment/troubleshooting.md).
 
 ## Rationale
 
@@ -70,7 +70,7 @@ and failure recovery in [`docs/deployment/troubleshooting.md`](../ci/troubleshoo
 ## Artifact Schemas
 
 The three JSON artifact schemas are defined in
-[`docs/deployment/implementation-guide.md`](../ci/implementation-guide.md). Summary:
+[`docs/deployment/implementation-guide.md`](../deployment/implementation-guide.md). Summary:
 
 | Artifact | Producer | Consumer | Path |
 |----------|----------|----------|------|

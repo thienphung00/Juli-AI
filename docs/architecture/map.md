@@ -135,12 +135,12 @@ Modular monolith upgrade.
 | [`packages/utils`](../../packages/utils/MODULE.md) | 1 | Vietnamese money, number, date, and date-time formatters | `formatVND`, `formatNumber`, `formatDate`, `formatDateTime` | Frontend |
 | [`packages/contracts`](../../packages/contracts/MODULE.md) | 1 | Shared TS contracts for execution lifecycle and review stages | `ExecutionRecord`, `ReviewStage`, `ExecutionTimelineStep`, workflow input descriptors | Frontend |
 | [`ios`](../../ios/MODULE.md) | 2 | Native SwiftUI iOS app: demo auth, JWT Keychain storage, shop selection | `AuthService`, `KeychainService`, `APIClient` | Frontend |
-| [`backend/ai/dataset`](../../backend/ai/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | Intelligence |
-| [`backend/ai/features`](../../backend/ai/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | Intelligence |
-| [`backend/ai/seller_stage`](../../backend/ai/seller_stage/MODULE.md) | 2 | Phase 1.5 seller lifecycle classifier: rules baseline, train, rules-vs-ML compare | `classify_seller_stage`, `train_seller_stage`, `predict_seller_stage`, `compare_to_rules_baseline` | Intelligence |
-| [`backend/ai/anomaly`](../../backend/ai/anomaly/MODULE.md) | 2 | Phase 1.5 buyer-behavior anomaly detector: item_swap / empty_return training + inference | `train_anomaly`, `predict_anomaly`, `build_anomaly_training_frame` | Intelligence |
-| [`backend/ai/ad_performance`](../../backend/ai/ad_performance/MODULE.md) | 2 | Phase 1.5 ad performance analyzer: ROAS prediction + scale/cut/hold ranking | `train_ad_performance`, `predict_ad_action`, `build_ad_training_frame` | Intelligence |
-| [`backend/ai/artifacts`](../../backend/ai/artifacts/MODULE.md) | 2 | Phase 1.5 model artifact publisher: joblib serialization, metadata, promotion gate, smoke tests | `publish_model`, `load_model`, `run_smoke_test`, `evaluate_promotion_status` | Intelligence |
+| [`backend/ai/dataset`](../../backend/src/juli_backend/ai/dataset/MODULE.md) | 2 | Phase 1.5 backtest parquet assembly: synthetic data, schema validation, manifest | `assemble_backtest_dataset`, `validate_backtest_dataset`, `DatasetValidationError` | Intelligence |
+| [`backend/ai/features`](../../backend/src/juli_backend/ai/features/MODULE.md) | 2 | Phase 1.5 feature engineering: parquet → per-model feature matrices | `build_seller_stage_features`, `build_anomaly_features`, `build_ad_features`, `FeatureMatrix` | Intelligence |
+| [`backend/ai/seller_stage`](../../backend/src/juli_backend/ai/seller_stage/MODULE.md) | 2 | Phase 1.5 seller lifecycle classifier: rules baseline, train, rules-vs-ML compare | `classify_seller_stage`, `train_seller_stage`, `predict_seller_stage`, `compare_to_rules_baseline` | Intelligence |
+| [`backend/ai/anomaly`](../../backend/src/juli_backend/ai/anomaly/MODULE.md) | 2 | Phase 1.5 buyer-behavior anomaly detector: item_swap / empty_return training + inference | `train_anomaly`, `predict_anomaly`, `build_anomaly_training_frame` | Intelligence |
+| [`backend/ai/ad_performance`](../../backend/src/juli_backend/ai/ad_performance/MODULE.md) | 2 | Phase 1.5 ad performance analyzer: ROAS prediction + scale/cut/hold ranking | `train_ad_performance`, `predict_ad_action`, `build_ad_training_frame` | Intelligence |
+| [`backend/ai/artifacts`](../../backend/src/juli_backend/ai/artifacts/MODULE.md) | 2 | Phase 1.5 model artifact publisher: joblib serialization, metadata, promotion gate, smoke tests | `publish_model`, `load_model`, `run_smoke_test`, `evaluate_promotion_status` | Intelligence |
 
 ## Phase 1.6 modules (deployed — listing workflow)
 
@@ -198,9 +198,9 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
   [`data-sources.md`](data-sources.md).
 - **Data model:** Canonical entity schemas and ML features live in
   [`docs/api/data-models/`](../api/data-models/README.md). TikTok API docs (`tiktok_api/endpoints.md`)
-  are the ingestion layer only ([ADR-012](../adr/012-entity-centric-data-model.md)).
+  are the ingestion layer only ([ADR-009](../adr/009-entity-centric-data-model.md)).
 - **Platform policy:** Seller/creator feature guides and policy center rules live in
-  [`docs/integrations/tiktok_platform/`](../tiktok_platform/README.md). Implementation hooks
+  [`docs/integrations/tiktok_platform/`](../integrations/tiktok_platform/README.md). Implementation hooks
   (`seller/implementation-hooks.md`, `creator/implementation-hooks.md`) define alerts,
   gates, and ETL behavior for Phase 2 workflows.
 - **Runtime evolution:** simple daily scheduler in Phase 2; Celery for execution in Phase 2
@@ -211,12 +211,12 @@ slices P1.7-1…P1.7-5, P1.8-1…P1.8-7, P2-7…P2-15. Add rows here when code l
   ([#550](https://github.com/thienphung00/Juli-AI/issues/550)); post-MMU-1..8 facades
   documented in [`MODULES.md`](MODULES.md).
 
-> **Platform policy (Phase 2):** [ADR-008](../adr/008-alert-vp-ahr-milestones.md)
-> (milestone alerts), [ADR-009](../adr/009-dual-read-vp-ahr-transition.md)
-> (VP→AHR dual-read), [ADR-010](../adr/010-vn-regional-platform-config.md)
+> **Platform policy (Phase 2):** [ADR-005](../adr/005-alert-vp-ahr-milestones.md)
+> (milestone alerts), [ADR-006](../adr/006-dual-read-vp-ahr-transition.md)
+> (VP→AHR dual-read), [ADR-007](../adr/007-vn-regional-platform-config.md)
 > (VN regional thresholds).
 >
-> **Anomaly ML scope (Phase 1.5):** [ADR-011](../adr/011-buyer-behavior-anomaly-scope.md)
+> **Anomaly ML scope (Phase 1.5):** [ADR-008](../adr/008-buyer-behavior-anomaly-scope.md)
 > — buyer return anomalies (`item_swap`, `empty_return`) only; schema in
 > [`data-models/canonical-entities.md`](../api/data-models/canonical-entities.md) § Return, § OrderItem.
 >

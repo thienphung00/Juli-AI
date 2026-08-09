@@ -1,7 +1,10 @@
 # ADR-037: Phase 2.10 — Demo real-data KPI wire without auth
 
-**Status:** Accepted  
+**Status:** Accepted — **phase shape superseded in part** by [ADR-038](038-phase-2.10-dual-layer-pipeline.md)  
 **Date:** 2026-07-27  
+**Superseded by (in part):** [ADR-038](038-phase-2.10-dual-layer-pipeline.md) — the 2.10-A /
+2.10-B phase shape and the Redis stance for product reads. The **no-auth boundary** (public,
+unauthenticated Demo; no visitor OAuth) is **retained** and remains this ADR's live decision.  
 **Deciders:** grill-with-docs (Architect)
 
 **Amends:** [ADR-024](024-phase-2.6-2.7-frontend-resequencing.md) Phase 3 timing for

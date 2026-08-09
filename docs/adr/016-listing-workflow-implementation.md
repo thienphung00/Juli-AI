@@ -6,7 +6,7 @@ Accepted
 ## Context
 
 The Create Hero Product workflow (formerly named "Create New Product Listing" — renamed
-in the execution-layer restructure, see [`execution_layer.md`](../execution_layer.md))
+in the execution-layer restructure, see [`execution_layer.md`](../product/execution_layer.md))
 is the primary executable workflow for `NEW_SHOP` profile shops. It was validated on
 mock fixtures during the completed pre-MVP phase and ships in Phase 2 MVP with live
 Products API publish.

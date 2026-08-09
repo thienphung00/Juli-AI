@@ -1,4 +1,4 @@
-# ADR 006: Entity-centric canonical data model
+# ADR 009: Entity-centric canonical data model
 
 ## Status
 Accepted
