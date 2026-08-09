@@ -56,6 +56,87 @@ interface DotProps {
   stroke?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Endpoint label fit (issue #886)
+//
+// The endpoint label is placed by *measuring first*: estimate the formatted
+// value's rendered width, then decide where the text goes. The 80px right
+// margin (#862) is kept as-is — it is not widened, because widening it shrinks
+// the plot, which is exactly what removing the y-axis reclaimed.
+//
+// - If the estimated text fits between the endpoint marker and the chart's
+//   right edge, it keeps its rightward `start`-anchored placement.
+// - If it would clip (e.g. GMV's "420.000.000 ₫"), the label flips to an
+//   `end` anchor pinned at the chart's right edge and grows *leftward* into
+//   the plot, lifted above the marker so it does not sit on the series
+//   stroke (or dropped below when the endpoint is near the top edge). This
+//   generalises: an arbitrarily long value still ends at the right edge and
+//   extends left over the plot instead of clipping.
+// ---------------------------------------------------------------------------
+
+const ENDPOINT_LABEL_FONT_SIZE = 12;
+// Average glyph advance for the 12px/600 label. Digits are ~0.6em in the UI
+// font; thousands separators and spaces are narrower, "₫" wider. 0.62em/char
+// slightly over-estimates real width (~10%), erring toward flipping the label
+// inward early rather than ever clipping it.
+const ENDPOINT_LABEL_CHAR_WIDTH = ENDPOINT_LABEL_FONT_SIZE * 0.62;
+// Gap between the marker center and a start-anchored label (marker ring is 7px).
+const ENDPOINT_LABEL_GAP = 12;
+// Breathing room kept between the label and the chart's right edge.
+const ENDPOINT_LABEL_EDGE_PADDING = 4;
+
+/** Deterministic character-count estimate of the endpoint label's width. */
+export function estimateEndpointLabelWidth(value: string): number {
+  return Math.ceil(value.length * ENDPOINT_LABEL_CHAR_WIDTH);
+}
+
+export interface EndpointLabelLayout {
+  x: number;
+  y: number;
+  textAnchor: "start" | "end";
+  /** Estimated rendered width, also authored onto the label element. */
+  estimatedWidth: number;
+}
+
+/**
+ * Decide the endpoint label's position so its rendered *extent* — not just
+ * its origin — stays inside the chart width.
+ */
+export function getEndpointLabelLayout(
+  cx: number,
+  cy: number,
+  value: string,
+  chartWidth: number,
+): EndpointLabelLayout {
+  const estimatedWidth = estimateEndpointLabelWidth(value);
+  const rightRoom =
+    chartWidth - ENDPOINT_LABEL_EDGE_PADDING - (cx + ENDPOINT_LABEL_GAP);
+
+  if (estimatedWidth <= rightRoom) {
+    // Fits in the reserved right margin — keep #862's rightward placement.
+    return {
+      x: cx + ENDPOINT_LABEL_GAP,
+      y: cy + 4,
+      textAnchor: "start",
+      estimatedWidth,
+    };
+  }
+
+  // Too wide for the margin: pin to the right edge and grow leftward, above
+  // the marker. If the endpoint sits near the top of the chart (its glyphs
+  // would poke past y=0), drop below the marker instead.
+  const aboveBaseline = cy - ENDPOINT_LABEL_GAP;
+  return {
+    x: chartWidth - ENDPOINT_LABEL_EDGE_PADDING,
+    y:
+      aboveBaseline >= ENDPOINT_LABEL_FONT_SIZE
+        ? aboveBaseline
+        : cy + ENDPOINT_LABEL_GAP + ENDPOINT_LABEL_FONT_SIZE - 4,
+    textAnchor: "end",
+    estimatedWidth,
+  };
+}
+
 /**
  * useScrubState manages the selected point index during chart scrubbing.
  * Returns the current selected index or -1 if no scrub is active.
@@ -280,20 +361,26 @@ export function TrendAreaChart({
           stroke="none"
           data-chart-marker-endpoint={isEndpoint || undefined}
         />
-        {/* Value label only for endpoint */}
-        {isEndpoint ? (
-          <text
-            x={cx + 12}
-            y={cy + 4}
-            fill="var(--juli-foreground)"
-            fontSize="12"
-            fontWeight="600"
-            textAnchor="start"
-            data-chart-endpoint-label="true"
-          >
-            {value}
-          </text>
-        ) : null}
+        {/* Value label only for endpoint — placed by measured fit (#886) */}
+        {isEndpoint
+          ? (() => {
+              const labelLayout = getEndpointLabelLayout(cx, cy, value, width);
+              return (
+                <text
+                  x={labelLayout.x}
+                  y={labelLayout.y}
+                  fill="var(--juli-foreground)"
+                  fontSize={ENDPOINT_LABEL_FONT_SIZE}
+                  fontWeight="600"
+                  textAnchor={labelLayout.textAnchor}
+                  data-chart-endpoint-label="true"
+                  data-chart-endpoint-label-width={labelLayout.estimatedWidth}
+                >
+                  {value}
+                </text>
+              );
+            })()
+          : null}
       </g>
     );
   };
@@ -449,20 +536,26 @@ export function TrendLineChart({
           stroke="none"
           data-chart-marker-endpoint={isEndpoint || undefined}
         />
-        {/* Value label only for endpoint */}
-        {isEndpoint ? (
-          <text
-            x={cx + 12}
-            y={cy + 4}
-            fill="var(--juli-foreground)"
-            fontSize="12"
-            fontWeight="600"
-            textAnchor="start"
-            data-chart-endpoint-label="true"
-          >
-            {value}
-          </text>
-        ) : null}
+        {/* Value label only for endpoint — placed by measured fit (#886) */}
+        {isEndpoint
+          ? (() => {
+              const labelLayout = getEndpointLabelLayout(cx, cy, value, width);
+              return (
+                <text
+                  x={labelLayout.x}
+                  y={labelLayout.y}
+                  fill="var(--juli-foreground)"
+                  fontSize={ENDPOINT_LABEL_FONT_SIZE}
+                  fontWeight="600"
+                  textAnchor={labelLayout.textAnchor}
+                  data-chart-endpoint-label="true"
+                  data-chart-endpoint-label-width={labelLayout.estimatedWidth}
+                >
+                  {value}
+                </text>
+              );
+            })()
+          : null}
       </g>
     );
   };
@@ -743,18 +836,24 @@ export function BandedLineChart({
           stroke="none"
           data-chart-marker-endpoint="true"
         />
-        {/* Value label */}
-        <text
-          x={cx + 12}
-          y={cy + 4}
-          fill="var(--juli-foreground)"
-          fontSize="12"
-          fontWeight="600"
-          textAnchor="start"
-          data-chart-endpoint-label="true"
-        >
-          {value}
-        </text>
+        {/* Value label — placed by measured fit (#886) */}
+        {(() => {
+          const labelLayout = getEndpointLabelLayout(cx, cy, value, width);
+          return (
+            <text
+              x={labelLayout.x}
+              y={labelLayout.y}
+              fill="var(--juli-foreground)"
+              fontSize={ENDPOINT_LABEL_FONT_SIZE}
+              fontWeight="600"
+              textAnchor={labelLayout.textAnchor}
+              data-chart-endpoint-label="true"
+              data-chart-endpoint-label-width={labelLayout.estimatedWidth}
+            >
+              {value}
+            </text>
+          );
+        })()}
       </g>
     );
   };
