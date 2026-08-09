@@ -60,6 +60,17 @@ if [ -e "${SITES_ENABLED}/default" ]; then
     echo "Removed default site"
 fi
 
+# Drop pre-provision hand-made vhosts (extensionless names from the initial VPS setup).
+# They duplicate the .conf set installed above, and nginx resolves the conflict by
+# server-name+include order — on 2026-08-09 the stale Jun-25 files were silently
+# serving api/app while the provisioned .conf files were ignored.
+for legacy in app-juli.com api.app-juli.com demo.app-juli.com; do
+    if [ -e "${SITES_ENABLED}/${legacy}" ]; then
+        rm -f "${SITES_ENABLED}/${legacy}"
+        echo "Removed legacy duplicate site ${legacy} (superseded by ${legacy}.conf)"
+    fi
+done
+
 mkdir -p /var/www/certbot
 nginx -t
 systemctl reload nginx
