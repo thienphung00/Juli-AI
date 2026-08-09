@@ -224,16 +224,23 @@ esac
         )
 
 
-def test_juli_api_and_juli_web_restarts_still_present(script_text: str):
-    """Original juli-api and juli-web restarts must remain unchanged."""
-    assert "systemctl restart juli-api" in script_text, "juli-api restart is missing"
-    assert "systemctl restart juli-web" in script_text, "juli-web restart is missing"
+def test_juli_api_restart_present_and_juli_web_retired(script_text: str):
+    """The API restart remains; juli-web is retired from production by #842.
 
-    # Count occurrences: should have at least one each (they may appear in comments too)
-    api_count = script_text.count("systemctl restart juli-api")
-    web_count = script_text.count("systemctl restart juli-web")
-    assert api_count >= 1, f"Expected at least 1 'systemctl restart juli-api', found {api_count}"
-    assert web_count >= 1, f"Expected at least 1 'systemctl restart juli-web', found {web_count}"
+    The dashboard is a development-only surface — built and tested in CI, never
+    deployed — so the deploy script must not restart it, build it, or gate the
+    release on its health. The main domain serves Landing via its own lane.
+    """
+    assert "systemctl restart juli-api" in script_text, "juli-api restart is missing"
+    assert "systemctl restart juli-web" not in script_text, (
+        "juli-web must not be restarted: the dashboard is retired from production (#842)"
+    )
+    assert "build-frontend-review.sh" not in script_text, (
+        "the dashboard must not be built on the server (#842)"
+    )
+    assert "127.0.0.1:3000" not in script_text, (
+        "the release must not be gated on the retired dashboard's health (#842)"
+    )
 
 
 def test_runbook_documents_celery_units_in_deploy_steps(runbook_text: str):

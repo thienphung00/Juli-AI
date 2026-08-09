@@ -58,8 +58,11 @@ def test_unit_serves_the_port_the_app_already_encodes() -> None:
 def test_landing_port_is_unique_across_every_infra_surface() -> None:
     """No other unit, vhost, or deploy script may claim 3007 (or reserved 3027)."""
     claims: list[str] = []
+    # app-juli.com.conf PROXIES to 3007 — that is #842's main-domain repoint, the
+    # intended consumer of the port, not a competing bind.
+    allowed = {"app-juli.com.conf"}
     for path in sorted((REPO_ROOT / "infra").rglob("*")):
-        if not path.is_file() or "landing" in path.name:
+        if not path.is_file() or "landing" in path.name or path.name in allowed:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         for port in (LANDING_PORT, RESERVED_CANDIDATE_PORT):

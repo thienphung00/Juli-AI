@@ -103,7 +103,9 @@ def test_app_and_api_nginx_configs_unchanged_for_demo_independence():
     app_conf = _read(NGINX_APP_PATH)
     api_conf = _read(NGINX_API_PATH)
     assert "app-juli.com" in app_conf
-    assert f"127.0.0.1:{FRONTEND_PORT}" in app_conf
+    # #842 repointed the main domain to Landing (:3007); the invariant this test
+    # protects — the Demo domain leaking into other vhosts — is unchanged below.
+    assert "127.0.0.1:3007" in app_conf
     assert "api.app-juli.com" in api_conf
     assert f"127.0.0.1:{BACKEND_PORT}" in api_conf
     assert DEMO_DOMAIN not in app_conf
