@@ -1,0 +1,76 @@
+{
+  "planId": "cloudflare-origin-lockdown-2026-08-05",
+  "affectedPublicSurfaces": [
+    "app-juli.com",
+    "api.app-juli.com",
+    "demo.app-juli.com"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Firewall rules staged on the origin and verified from a second authenticated SSH session before the applying session is closed",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": false,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "origin-lockdown-verification",
+        "entryUrl": "https://api.app-juli.com/health",
+        "assertions": [
+          "requests through Cloudflare return 200 for app-juli.com, demo.app-juli.com and api.app-juli.com",
+          "a direct request to the origin IP bypassing DNS is refused at the network layer",
+          "port 22 remains reachable from a second SSH session before the applying session is closed",
+          "certbot renew --dry-run succeeds for every hostname after the rules are applied",
+          "the Cloudflare IP range list refreshes automatically and a stale list cannot silently reject proxied traffic",
+          "uptime.yml continues to pass against the public hostnames"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "https://app-juli.com/",
+      "https://demo.app-juli.com/",
+      "https://api.app-juli.com/health"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "html",
+      "json"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No database change. This is a host firewall change plus a runbook correction; the alembic revision graph is untouched."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not apply the rules. The origin remains reachable directly, which is the current (exposed) state — no regression, the vulnerability simply stays open.",
+    "postCutoverFailureBehavior": "Flush the added rules to restore reachability. If SSH is lost, recover through the Hetzner web console, which is the sole out-of-band path — root password authentication is disabled, so SSH keys are the only remote access. A second authenticated session MUST be held open while applying, and rollback must be rehearsed before the applying session is closed.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit -q -k 'cloudflare or origin_lockdown or firewall'",
+    "bash -n infra/scripts/cloudflare-origin-lockdown.sh"
+  ],
+  "doNotInfer": [
+    "an agent can apply this — no agent has SSH access to the origin; application is manual and operator-driven",
+    "certbot HTTP-01 renewal is unaffected in all cases — it survives because Let's Encrypt reaches the origin through Cloudflare, but any grey-clouded or newly added unproxied hostname breaks renewal silently and surfaces ~60 days later as an expired certificate",
+    "this hardens anything beyond inbound 80/443 — SSH, DNS-01 migration, mTLS and Cloudflare dashboard configuration are all explicitly out of scope",
+    "the runbook already documents the Cloudflare topology — it documents direct-to-origin A records and is corrected by this issue"
+  ]
+}
