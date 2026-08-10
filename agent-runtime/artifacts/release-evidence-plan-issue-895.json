@@ -1,0 +1,74 @@
+{
+  "planId": "rep-895-environment-discriminator",
+  "affectedPublicSurfaces": [
+    "no public surface change in this slice; introduces a config accessor consumed later"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "loopback candidate; assert accessor values and startup rejection of an unknown value",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "behaviour-neutral-under-load",
+        "entryUrl": "loopback candidate: GET /health and one authenticated /v1 route",
+        "assertions": [
+          "responses byte-identical to stable",
+          "no new headers",
+          "no new log noise"
+        ]
+      },
+      {
+        "name": "unknown-value-refused",
+        "entryUrl": "loopback candidate started with ENVIRONMENT set to an unrecognised value",
+        "assertions": [
+          "process exits non-zero",
+          "message lists the permitted values"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change with no HTML route or static asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Config-only, and deliberately behaviour-neutral."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy prior stable revision; no data or contract implications",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/ -k environment",
+    "python -c \"from juli_backend.core.config import runtime; print(runtime.__name__)\""
+  ],
+  "doNotInfer": [
+    "Do not add consumers of the discriminator in this slice \u2014 docs gating and debug closure are #903 and must not be pulled forward",
+    "Do not default to production when the variable is unset; the safe default is non-production"
+  ]
+}

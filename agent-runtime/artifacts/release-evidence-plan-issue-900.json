@@ -1,0 +1,73 @@
+{
+  "planId": "rep-900-route-auth-invariant",
+  "affectedPublicSurfaces": [
+    "no runtime change; adds a build-time assertion over the registered route table"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "CI only; no candidate deploy required",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "invariant-holds-today",
+        "entryUrl": "CI: run the route-auth test against the current route table",
+        "assertions": [
+          "passes",
+          "allowlist contains only demo read, webhook receiver, health"
+        ]
+      },
+      {
+        "name": "invariant-detects-a-gap",
+        "entryUrl": "CI: temporarily register an unprotected product route",
+        "assertions": [
+          "test fails",
+          "failure names the offending route"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change with no HTML route or static asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Test-only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert the test; no runtime impact",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/ -k route_auth"
+  ],
+  "doNotInfer": [
+    "Do not widen the allowlist to a pattern that could match future routes",
+    "Do not parse source text; inspect the live route table",
+    "Do not change any route's actual auth wiring in this slice \u2014 it is an assertion, not a fix"
+  ]
+}

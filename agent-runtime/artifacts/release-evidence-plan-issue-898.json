@@ -1,0 +1,91 @@
+{
+  "planId": "rep-898-edge-rate-limit-zones",
+  "affectedPublicSurfaces": [
+    "every public HTTP route behind Nginx: webhook receiver, public Demo read, OAuth callbacks, and the authenticated API"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "candidate Nginx config validated with a config-parse check and exercised against the loopback candidate; confirm normal traffic is unthrottled and floods are rejected",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "normal-traffic-unaffected",
+        "entryUrl": "candidate edge: ordinary interactive request rates to /v1/demo/analytics",
+        "assertions": [
+          "no 429 at realistic interactive rates",
+          "latency unchanged"
+        ]
+      },
+      {
+        "name": "flood-is-rejected",
+        "entryUrl": "candidate edge: burst well above the configured rate",
+        "assertions": [
+          "excess requests receive 429",
+          "the app process stays responsive",
+          "health endpoint still answers"
+        ]
+      },
+      {
+        "name": "webhook-delivery-survives",
+        "entryUrl": "candidate edge: TikTok-shaped webhook delivery burst",
+        "assertions": [
+          "normal delivery bursts are not throttled",
+          "signature verification still runs for accepted requests"
+        ]
+      },
+      {
+        "name": "health-exempt",
+        "entryUrl": "candidate edge: repeated GET /health at uptime-poll frequency",
+        "assertions": [
+          "never throttled"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change with no HTML route or static asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Edge configuration only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore the prior Nginx config and reload; no data implications",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "nginx -t -c <candidate config>",
+    "python agent-runtime/scripts/ci/check_nginx_rate_limits.py"
+  ],
+  "doNotInfer": [
+    "Do not add an application-level limiter in this slice; ADR-061 places throttling at the edge",
+    "Do not throttle /health \u2014 uptime polling must never be rejected",
+    "Do not pick thresholds without recording the rationale beside them",
+    "Do not apply the config on the live host as part of this slice; artifact only"
+  ]
+}

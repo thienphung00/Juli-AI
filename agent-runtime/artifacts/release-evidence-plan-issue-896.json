@@ -1,0 +1,76 @@
+{
+  "planId": "rep-896-oauth-credentials-out-of-url",
+  "affectedPublicSurfaces": [
+    "outbound TikTok Shop token exchange and refresh (vendor contract, not a Juli HTTP surface)",
+    "stored seller OAuth credentials, indirectly \u2014 a failed refresh must not lose the token"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "loopback candidate with sandbox TikTok credentials; force transport and non-2xx failures against a stubbed endpoint and capture emitted log records",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "token-refresh-succeeds-unchanged",
+        "entryUrl": "loopback candidate: trigger a refresh against the sandbox app",
+        "assertions": [
+          "same parsed token payload as stable",
+          "credentials appear in the request body, not the URL"
+        ]
+      },
+      {
+        "name": "failure-leaks-nothing",
+        "entryUrl": "loopback candidate: stubbed transport raising a connection error",
+        "assertions": [
+          "no app_secret substring in any captured log record",
+          "no refresh_token substring in any captured log record",
+          "the raised error type is unchanged for callers"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change with no HTML route or static asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Vendor request shape changes from query parameters to a request body; the sibling Business clients already use this shape, so the pattern is proven against TikTok in production."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy prior stable revision; stored credentials are unaffected by this change, but any OAuth secret that appeared in a log during the stable period should be treated as exposed",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/ -k 'tiktok and (auth or token)'",
+    "grep -n 'params=' backend/src/juli_backend/integrations/tiktok/auth.py"
+  ],
+  "doNotInfer": [
+    "Do not enable structured logging as part of this slice \u2014 #902 is deliberately sequenced after",
+    "Do not change token persistence, encryption, or refresh scheduling while in this file",
+    "Do not silence the failure log; the goal is a safe record, not no record"
+  ]
+}

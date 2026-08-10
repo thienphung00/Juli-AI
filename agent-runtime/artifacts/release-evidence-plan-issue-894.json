@@ -1,0 +1,87 @@
+{
+  "planId": "rep-894-jwt-fail-closed",
+  "affectedPublicSurfaces": [
+    "every authenticated /v1/* endpoint (session verification path)",
+    "juli-api process startup (new hard dependency on SUPABASE_JWT_SECRET)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "loopback candidate on the existing VPS with SUPABASE_JWT_SECRET present; exercise a valid token, an empty-key-signed token, and a boot with the variable removed",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "valid-session-still-works",
+        "entryUrl": "loopback candidate: GET /v1/shops with a correctly signed token",
+        "assertions": [
+          "returns 200",
+          "response body shape unchanged from stable"
+        ]
+      },
+      {
+        "name": "empty-key-forgery-rejected",
+        "entryUrl": "loopback candidate: GET /v1/shops with a token signed using an empty-string key",
+        "assertions": [
+          "returns 401",
+          "no user record is resolved",
+          "rejection is logged"
+        ]
+      },
+      {
+        "name": "boot-fails-without-secret",
+        "entryUrl": "loopback candidate started with SUPABASE_JWT_SECRET unset",
+        "assertions": [
+          "process exits non-zero",
+          "message names the missing variable",
+          "message contains no secret value",
+          "stable slot keeps serving"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change with no HTML route or static asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. This alters process startup requirements only: the candidate will refuse to boot if the secret is absent from the fetched env, which is the intended behaviour and must be verified before cutover, not after."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy prior stable revision; note that a rollback does NOT restore the fail-open behaviour as a mitigation \u2014 if the secret is genuinely missing, fix the secret, not the code",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_get_current_user.py",
+    "python -c \"import juli_backend.core.security.dependencies\"",
+    "grep -rn 'SUPABASE_JWT_SECRET' backend/src/juli_backend | grep -v require_env"
+  ],
+  "doNotInfer": [
+    "Do not assume SUPABASE_JWT_SECRET is present in any environment \u2014 verify it is in the fetched env file before cutover, because this change converts absence into an outage",
+    "Do not weaken the assertion to a warning to keep a broken environment booting",
+    "Do not change any token's audience or algorithm while touching this path"
+  ]
+}

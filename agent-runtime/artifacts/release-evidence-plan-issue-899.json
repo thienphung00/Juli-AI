@@ -1,0 +1,90 @@
+{
+  "planId": "rep-899-refresh-per-shop-cooldown",
+  "affectedPublicSurfaces": [
+    "POST /v1/action-cards/refresh",
+    "downstream TikTok Partner API quota and Celery worker time"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "loopback candidate with a synthetic shop; exercise repeat calls within and beyond the window",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "second-call-throttled",
+        "entryUrl": "loopback candidate: two rapid POSTs to /v1/action-cards/refresh for one shop",
+        "assertions": [
+          "first enqueues exactly one job",
+          "second returns a rate-limit status",
+          "second enqueues nothing",
+          "response hints at retry timing"
+        ]
+      },
+      {
+        "name": "other-shops-unaffected",
+        "entryUrl": "loopback candidate: rapid POSTs for two different shops",
+        "assertions": [
+          "both enqueue",
+          "neither is throttled by the other"
+        ]
+      },
+      {
+        "name": "recovers-after-window",
+        "entryUrl": "loopback candidate: repeat after the cooldown elapses",
+        "assertions": [
+          "accepted and enqueued normally"
+        ]
+      },
+      {
+        "name": "fails-closed-without-store",
+        "entryUrl": "loopback candidate with the cooldown backing store unavailable",
+        "assertions": [
+          "does not degrade into unlimited enqueuing"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change with no HTML route or static asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Adds a cooldown keyed on shop identity."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy prior stable revision; in-flight jobs are unaffected",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/ -k 'action_card and refresh'"
+  ],
+  "doNotInfer": [
+    "Do not let an unavailable backing store silently disable the limit \u2014 this codebase already has two controls that failed open that way",
+    "Do not move this limit to Nginx; the edge cannot see shop identity",
+    "Do not change the scoring pipeline or the dispatch payload while in this path"
+  ]
+}

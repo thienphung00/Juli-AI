@@ -1,0 +1,88 @@
+{
+  "planId": "rep-897-default-deny-public-schema",
+  "affectedPublicSurfaces": [
+    "Supabase PostgREST exposure of every table in the public schema",
+    "unauthenticated public Demo read path (must remain working)",
+    "all authenticated /v1 reads and writes (must remain working)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "candidate database in CI plus a loopback candidate app; assert privilege state via system catalogs and confirm every product read path still succeeds",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "public-demo-still-reads",
+        "entryUrl": "loopback candidate: GET /v1/demo/analytics",
+        "assertions": [
+          "returns 200",
+          "envelope shape unchanged",
+          "masked identity still applied"
+        ]
+      },
+      {
+        "name": "authenticated-paths-unaffected",
+        "entryUrl": "loopback candidate: authenticated GET /v1/shops and /v1/action-cards",
+        "assertions": [
+          "return 200",
+          "row counts identical to stable"
+        ]
+      },
+      {
+        "name": "boundary-actually-closed",
+        "entryUrl": "candidate database: connect as anon and as authenticated",
+        "assertions": [
+          "no table outside the gold allowlist is selectable",
+          "a newly created table in public is not selectable without explicit grant",
+          "service-role/backend connection is unaffected"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change with no HTML route or static asset"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": true,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "Grants and default privileges only \u2014 no table, column, or data changes. Stable and candidate share one database, so the privilege change applies to both at once: it must therefore be verified to be a no-op for the backend's own connection BEFORE cutover. Reversible via the migration's downgrade."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "run the migration downgrade to restore prior grants; note this re-opens the boundary, so it is an availability remedy only and must be followed by a fix-forward",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "alembic upgrade head && alembic downgrade -1 && alembic upgrade head",
+    "pytest -q tests/integration/test_migrations.py -m migration_heavy",
+    "pytest -q tests/unit/ -k demo_analytics"
+  ],
+  "doNotInfer": [
+    "Do not add or repair per-table RLS policies in this slice \u2014 ADR-061 defers that to 3.5-C",
+    "Do not grant USAGE on gold to anon as a convenience; the allowlist is explicit and narrow",
+    "Do not assume the anon/authenticated roles exist in every environment \u2014 reuse the existing role-existence guard from migration 021",
+    "Do not treat a passing CI assertion as proof the hosted project's Data API is off"
+  ]
+}

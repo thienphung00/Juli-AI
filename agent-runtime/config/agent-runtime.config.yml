@@ -323,6 +323,16 @@ workflow_prompt_cache:
   # Known epics — ensure_workflow_cache uses these when Parent/#slice missing from CLI.
   # parentScopeBlock uses \n escapes (simple YAML loader; no literal | blocks).
   epicRegistry:
+    889:
+      defaultSliceId: SEC-1
+      handoffPath: docs/adr/061-first-user-security-baseline.md
+      parentScopeBlock: "# Parent #889 — First-user security baseline (constant)\n## Product boundary\n- Security controls only; no product features, no UI/UX work, no CDP/analytics changes\n- Public Demo stays unauthenticated (ADR-037) — never add auth to /v1/demo/*\n- Deploy topology stays single VPS (ADR-057) — no new compute infra\n## Architect locks\n- Default-deny data boundary via ALTER DEFAULT PRIVILEGES, extending migration 021's existing role-guarded helper to `public` — NOT per-table RLS\n- The ten current_setting('app.current_user_id') policies are NON-FUNCTIONAL (the backend never sets that GUC); do not cite them as isolation and do not extend the pattern\n- Inbound rate limiting lives at Nginx; the ONLY app-level limit is the per-shop action-card refresh cooldown (#899), because the edge cannot see shop identity\n- Controls visible in code become CI invariants; controls living in deployed config (Secrets Manager, systemd env, Supabase console) become startup assertions — CI cannot see those\n- Every slice ships its fix TOGETHER with the check that prevents its regression\n- Reuse existing patterns: require_env for fail-fast config, migration 021's _revoke_client_access helper, the migration-check CI job for DB assertions\n## Binding order\n- #896 (OAuth credentials out of the URL) MUST merge before #902 (structured logging). Turning logging on first would begin writing live OAuth secrets to disk.\n## Epic deferrals\n- Working RLS on gold keyed to auth.uid() — deferred to 3.5-C when client-direct reads ship\n- Tenant column + backfill for webhook_raw_events\n- OpenObserve/PostHog DOCP (ADR-039, Phase 2.11) — this epic ships only the vendor-free floor\n- HA / multi-host topology — governed by ADR-057 re-entry triggers\n"
+      doNotLoad:
+        - apps/demo/src/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     720:
       defaultSliceId: INFRA-1
       handoffPath: docs/runbooks/app-review-runbook.md
