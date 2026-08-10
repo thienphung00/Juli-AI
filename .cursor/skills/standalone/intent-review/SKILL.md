@@ -147,6 +147,15 @@ Path: `agent-runtime/artifacts/intent-reviews/intent-review-issue-<n>.json`
 
 Commit on the feature branch with the code under review.
 
+## Visual review (ui-ux issues)
+
+When the diff touches `apps/demo`, `apps/dashboard`, or `packages/ui`: view the screenshots
+referenced in the implementation artifact (capture them yourself if missing —
+`pnpm --filter @juli/demo dev`, then `npx playwright screenshot`). Judge the rendered
+output against the `docs/product/design/` root authorities, not just the diff text. A UI
+change that passes text-level spec fidelity but reads flat or unpolished is a Spec-axis
+finding, not a pass.
+
 ## Authority (structure)
 
 From BOUNDARY.md — verbatim:

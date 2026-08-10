@@ -56,7 +56,7 @@ When the parent would otherwise serialize multiple **independent** edits or expl
 | Explore or shell batches on separate trees | `meta_prepare_executor` + Executor start |
 | Mechanical cleanup / archive / formatting slices | Shared-core or auth/PII changes |
 
-One clear prompt per subagent; disjoint write paths; do not spawn Composer for a single tiny edit.
+One clear prompt per subagent; disjoint write paths; do not spawn Composer for a single tiny edit. UI/visual work in `apps/demo`, `apps/dashboard`, or `packages/ui` never goes to Composer — visual judgment stays with the parent or the `ui-ux` executor.
 
 ## Skills governance
 
