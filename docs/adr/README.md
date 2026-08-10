@@ -67,3 +67,4 @@
 | [059](059-dpr-wave-artifact-waiver.md) | Scoped artifact waiver for `wave-dpr-demo` — evidence unrecoverable, diffs reviewed in its place; not precedent | Accepted |
 | [060](060-chart-form-follows-kpi-measurement-type.md) | Chart form follows KPI measurement type — measurement type selects the mark, goal direction selects the tone (apps/demo Analytics) | Proposed |
 | [061](061-first-user-security-baseline.md) | First-user security baseline — default-deny data boundary + enforced invariants | Accepted |
+| [062](062-security-baseline-wave-artifact-waiver.md) | Scoped artifact waiver for `wave-security-baseline` (six original slices only) | Accepted |
