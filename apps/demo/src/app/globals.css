@@ -1298,7 +1298,10 @@ a {
   inset: auto 0 0 0;
   /* #885: 0.35 crushed the 1.5px neutral stroke into a hairline on a white
      card. 0.55 keeps the preview subordinate to the hero (whose marks render
-     at full opacity) while letting the mark read as a chart at 96×32. */
+     at full opacity) while letting the mark read as a chart. Width here is
+     already fluid (inset: auto 0 0 0 spans the card edge to edge); #924
+     made the <svg> inside actually fill it instead of rendering a fixed
+     96px-wide mark inside this full-width box. */
   opacity: 0.55;
   pointer-events: none;
 }
