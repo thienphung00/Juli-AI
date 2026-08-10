@@ -1,0 +1,22 @@
+DPR-FIVESTAGE-RETIRE:
+  executorDomain: ui-ux
+  requiredDocs:
+    - EXECUTION.md
+    - "{handoffPath}"
+    - docs/adr/055-decision-plan-review.md
+  requiredModules:
+    - apps/demo/MODULE.md
+    - apps/demo/src/components/recommendation-review.tsx
+    - apps/demo/src/lib/plan-reviews.ts
+    - packages/ui/src/file-upload-field.tsx
+  loadWhenNeeded: []
+  doNotLoad:
+    - docs/handoffs/archive/
+    - docs/product/features/
+    - ios/
+    - apps/dashboard/
+    - apps/landing/
+    - web/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
