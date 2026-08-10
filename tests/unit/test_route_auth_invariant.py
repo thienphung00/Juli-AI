@@ -32,11 +32,33 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi.routing import APIRoute
-
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.api.main import app
 from juli_backend.core.security.dependencies import get_current_user
+
+try:
+    # FastAPI's own OpenAPI generator (fastapi/openapi/utils.py) walks routes
+    # through this exact function to resolve the *effective* (fully-prefixed,
+    # fully-dependency-merged) route table — the same problem this test has.
+    # Newer FastAPI (the `_IncludedRouter` route-registration redesign) stops
+    # flattening `app.include_router(...)` targets into `app.routes` eagerly;
+    # a route added that way is wrapped opaquely and only resolves to its real
+    # path/methods/dependant lazily, on demand, through `iter_route_contexts`.
+    # Reading `app.routes` directly under that FastAPI silently sees only the
+    # handful of routes registered directly on `app` (e.g. `/health`) and
+    # nothing added via `include_router` — this is what actually broke this
+    # test in CI (fastapi 0.141.1 / starlette 1.6.0) while passing locally
+    # against an older, eagerly-flattening FastAPI (0.128.0 / starlette
+    # 0.50.0): every route added via `include_router` (all of `/v1/*`, the
+    # webhook receiver, and the debug route) vanished from the walk, both
+    # tests below silently degraded to iterating zero/near-zero routes, and
+    # the "no matching registered route" failure was a symptom of an empty
+    # route table, not allowlist staleness. Older FastAPI has no such
+    # function; the `except ImportError` branch below covers it by reading
+    # `app.routes` directly, which is already flat there.
+    from fastapi.routing import iter_route_contexts as _iter_route_contexts
+except ImportError:  # pragma: no cover - exercised by whichever FastAPI is installed
+    _iter_route_contexts = None
 
 # Exact (HTTP method, path) pairs only — no prefixes, no regexes, no
 # wildcards. Adding an entry here is the reviewable action; anything not
@@ -95,16 +117,53 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
 
 _SESSION_DEPENDENCIES = frozenset({get_current_user, get_active_shop})
 
+# Sanity floor for the live route walk. The app currently exposes 25 APIRoutes
+# (verified locally against both fastapi 0.128.0/starlette 0.50.0 and, via a
+# throwaway repro venv, fastapi 0.141.1/starlette 1.6.0 — both give 25 through
+# the walk below). This exists so a broken walk fails LOUDLY with its actual
+# count instead of silently passing vacuously (zero/near-zero routes to check
+# means zero offenders, by construction) — which is exactly how the CI-only
+# fastapi/starlette upgrade above broke this invariant the first time: one
+# test passed vacuously while the other reported every allowlist entry
+# "stale" because the registered set it was walking was nearly empty.
+_MINIMUM_EXPECTED_PRODUCT_ROUTES = 20
 
-def _product_api_routes() -> list[APIRoute]:
-    """Live route table on the deployed app — APIRoute only.
 
-    Filters out the plain ``starlette.routing.Route`` objects FastAPI wires
-    up itself for /docs, /redoc, /openapi.json, and the Swagger OAuth2
-    redirect: those are framework-internal, not product routes, and (unlike
-    APIRoute) carry no ``.dependant`` to inspect.
+def _product_api_routes() -> list[Any]:
+    """Live route table on the deployed app, flattened and version-robust.
+
+    Returns one entry per registered endpoint, each exposing ``.path``,
+    ``.methods``, and ``.dependant`` (either a bare ``APIRoute`` on older
+    FastAPI, where ``app.routes`` is already flat, or a ``RouteContext`` on
+    newer FastAPI, resolved via ``iter_route_contexts`` — see the import
+    comment above for why a flat read of ``app.routes`` alone is not
+    version-robust). Filtered by duck-typing (has ``.dependant``, ``.path``,
+    and ``.methods``) rather than ``isinstance(route, APIRoute)`` against the
+    *container* object, since on newer FastAPI the container is a
+    ``RouteContext`` wrapper, not an ``APIRoute`` itself — only its
+    ``.original_route`` is. This is what excludes the framework-internal
+    ``starlette.routing.Route`` objects for /docs, /redoc, /openapi.json, and
+    the Swagger OAuth2 redirect, which carry no ``.dependant``.
     """
-    return [route for route in app.routes if isinstance(route, APIRoute)]
+    candidates: Any = _iter_route_contexts(app.routes) if _iter_route_contexts else app.routes
+    return [
+        candidate
+        for candidate in candidates
+        if hasattr(candidate, "dependant")
+        and hasattr(candidate, "path")
+        and hasattr(candidate, "methods")
+    ]
+
+
+def _registered_route_summary(routes: list[Any]) -> list[str]:
+    """`METHOD path` for every route the walk actually found — for diagnostic
+    dumps on failure, so a CI-only discrepancy is readable from the log
+    without needing local reproduction."""
+    summary: list[str] = []
+    for route in routes:
+        for method in sorted(route.methods or ()):
+            summary.append(f"{method} {route.path}")
+    return sorted(summary)
 
 
 def _dependency_calls(dependant: Any) -> set[Any]:
@@ -128,12 +187,30 @@ def _dependency_calls(dependant: Any) -> set[Any]:
     return calls
 
 
+def test_route_walk_finds_a_plausible_number_of_routes() -> None:
+    """Non-vacuousness guard: both other tests in this file only prove anything
+    if the walk actually found the app's routes. An empty (or near-empty)
+    result makes "every route is protected" and "no allowlist entry is stale"
+    trivially, silently true — which is precisely how this invariant broke in
+    CI the first time (see the ``_iter_route_contexts`` import comment)."""
+    routes = _product_api_routes()
+    assert len(routes) >= _MINIMUM_EXPECTED_PRODUCT_ROUTES, (
+        f"Route walk found only {len(routes)} route(s), expected at least "
+        f"{_MINIMUM_EXPECTED_PRODUCT_ROUTES}. This almost certainly means the walk itself "
+        "is broken (e.g. a FastAPI/Starlette upgrade changed how app.include_router() "
+        "targets are exposed on app.routes) rather than that routes were actually removed "
+        f"— treat this as a self-diagnosing signal, not a route-count regression. Routes "
+        f"actually found: {_registered_route_summary(routes)}"
+    )
+
+
 def test_every_product_route_resolves_a_session_dependency() -> None:
     """Every registered route either resolves get_current_user/get_active_shop
     or is named, with a reason, in ALLOWLISTED_PRODUCT_ROUTES."""
+    routes = _product_api_routes()
     offenders: list[str] = []
 
-    for route in _product_api_routes():
+    for route in routes:
         methods = sorted(route.methods or ())
         for method in methods:
             allowlist_reason = ALLOWLISTED_PRODUCT_ROUTES.get((method, route.path))
@@ -149,19 +226,23 @@ def test_every_product_route_resolves_a_session_dependency() -> None:
         "get_active_shop) and are not in the explicit ALLOWLISTED_PRODUCT_ROUTES: "
         f"{offenders}. If this route is genuinely public, add it to the allowlist "
         "in tests/unit/test_route_auth_invariant.py with an inline justification; "
-        "otherwise wire get_current_user or get_active_shop into it."
+        "otherwise wire get_current_user or get_active_shop into it. Routes actually "
+        f"registered ({len(routes)}): {_registered_route_summary(routes)}"
     )
 
 
 def test_allowlist_entries_all_correspond_to_currently_registered_routes() -> None:
     """Guards against a stale allowlist entry masking a route that moved/was removed —
     every allowlisted (method, path) must match a route actually on the live app."""
+    routes = _product_api_routes()
     registered: set[tuple[str, str]] = set()
-    for route in _product_api_routes():
+    for route in routes:
         for method in route.methods or ():
             registered.add((method, route.path))
 
     stale = sorted(set(ALLOWLISTED_PRODUCT_ROUTES) - registered)
     assert not stale, (
-        f"Allowlist entries with no matching registered route (stale — remove them): {stale}"
+        f"Allowlist entries with no matching registered route (stale — remove them): "
+        f"{stale}. Routes actually registered ({len(routes)}): "
+        f"{_registered_route_summary(routes)}"
     )
