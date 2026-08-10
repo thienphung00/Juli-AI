@@ -30,7 +30,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "029_bronze_ctor_live_hours"
+LATEST_REVISION = "030_product_revenue_units_sold"
 
 
 def _validate_destructive_db_url(url: str) -> None:
@@ -126,6 +126,7 @@ REVISION_021_TABLE = "ml_feature_snapshots"
 REVISION_022_SCHEMA = "ops"
 REVISION_023_BRONZE_TABLES = ("order_raw_payloads", "return_raw_payloads")
 REVISION_029_BRONZE_TABLES = ("ctor_performance_raw_payloads", "live_hours_raw_payloads")
+REVISION_030_COLUMNS = ("revenue", "units_sold")
 MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
 CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
 POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
@@ -893,6 +894,41 @@ def test_bronze_to_silver_promotion_integration(postgres_at_head: Engine):
 
 
 @requires_postgres
+def test_products_full_entity_select_succeeds_after_030_migration(postgres_at_head: Engine):
+    """Regression for #943: ORM SELECT of a full Product entity must not 500.
+
+    Reproduces ``ProductsRepo(session).list(shop_id, ...)`` from the rules-scoring
+    pipeline (``services/scoring/pipeline.py``) against the real, migration-built
+    schema — not the ORM-model-driven SQLite fixture unit tests use, which would
+    never have caught a migration that was simply never written.
+    """
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from juli_backend.core.config.runtime import async_database_url
+    from juli_backend.repositories.repos import ProductsRepo
+
+    ids = _seed_representative_rows(postgres_at_head)
+    shop_id = ids["shop_id"]
+
+    async def _run() -> list:
+        url = _database_url()
+        engine = create_async_engine(async_database_url(url))
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            products = await ProductsRepo(session).list(shop_id, limit=10_000)
+        await engine.dispose()
+        return products
+
+    products = asyncio.run(_run())
+
+    assert len(products) == 1
+    assert products[0].revenue == Decimal("0.00")
+    assert products[0].units_sold == 0
+
+
+@requires_postgres
 def test_downgrade_to_024_drops_revision_025_silver(postgres_at_head: Engine):
     """Downgrading to 024 removes silver orders/returns; gold tables remain.
 
@@ -963,6 +999,37 @@ def test_latest_downgrade_drops_only_revision_029_bronze_ctor_live_hours(
     command.upgrade(cfg, "head")
     for table in REVISION_029_BRONZE_TABLES:
         assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_030_columns(postgres_at_head: Engine):
+    """Downgrading past 030 removes products.revenue/units_sold; 029 bronze tables remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for column in REVISION_030_COLUMNS:
+        assert _table_has_column(postgres_at_head, "products", column)
+
+    command.downgrade(cfg, "029_bronze_ctor_live_hours")
+
+    for column in REVISION_030_COLUMNS:
+        assert not _table_has_column(postgres_at_head, "products", column)
+    for table in REVISION_029_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+
+    with postgres_at_head.connect() as conn:
+        product_count = conn.execute(text("SELECT COUNT(*) FROM products")).scalar_one()
+    assert product_count == 1
+
+    command.upgrade(cfg, "head")
+    for column in REVISION_030_COLUMNS:
+        assert _table_has_column(postgres_at_head, "products", column)
+    with postgres_at_head.connect() as conn:
+        revenue, units_sold = conn.execute(
+            text("SELECT revenue, units_sold FROM products LIMIT 1")
+        ).one()
+    assert revenue == Decimal("0.00")
+    assert units_sold == 0
 
 
 @requires_postgres
