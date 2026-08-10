@@ -10,6 +10,8 @@ fan-out, which is out of scope for Phase 2.9 exit.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import time
 import uuid
 from dataclasses import dataclass
@@ -72,11 +74,23 @@ async def backfill_product_partition(
     budget: CallBudgetGovernor,
     synced_at: int | None = None,
     page_size: int = _DEFAULT_PAGE_SIZE,
+    session_lock: asyncio.Lock | None = None,
 ) -> ProductPartitionResult:
-    """Backfill one calendar-day product funnel partition via paginated A-34."""
+    """Backfill one calendar-day product funnel partition via paginated A-34.
+
+    Args:
+        session_lock: Shared lock guarding every ``partitions_repo``/
+            ``perf_repo`` touch when multiple partitions run concurrently
+            against the same AsyncSession (issue #795). Pagination fetches
+            (``resource.list_product_performance``) run via
+            ``asyncio.to_thread`` OUTSIDE this lock so they can overlap with
+            other concurrent partitions' fetches.
+    """
+    lock = session_lock or contextlib.nullcontext()
     partitions_repo = AnalyticsBackfillPartitionsRepo(session)
-    if await partitions_repo.is_complete(shop_id, PRODUCT_BUCKET, partition_date):
-        return ProductPartitionResult(skipped=True, complete=True)
+    async with lock:
+        if await partitions_repo.is_complete(shop_id, PRODUCT_BUCKET, partition_date):
+            return ProductPartitionResult(skipped=True, complete=True)
 
     start_date_ge, end_date_lt = _partition_date_window(partition_date)
     resolved_synced_at = synced_at if synced_at is not None else int(time.time())
@@ -97,7 +111,8 @@ async def backfill_product_partition(
             )
 
         try:
-            data = resource.list_product_performance(
+            data = await asyncio.to_thread(
+                resource.list_product_performance,
                 start_date_ge=start_date_ge,
                 end_date_lt=end_date_lt,
                 page_size=page_size,
@@ -106,12 +121,13 @@ async def backfill_product_partition(
             budget.record_success()
         except TikTokAPIError as exc:
             budget.record_failure()
-            await partitions_repo.mark_failed(
-                shop_id,
-                PRODUCT_BUCKET,
-                partition_date,
-                str(exc),
-            )
+            async with lock:
+                await partitions_repo.mark_failed(
+                    shop_id,
+                    PRODUCT_BUCKET,
+                    partition_date,
+                    str(exc),
+                )
             return ProductPartitionResult(
                 products_upserted=products_upserted,
                 pages_fetched=pages_fetched,
@@ -133,7 +149,8 @@ async def backfill_product_partition(
                 if row is None:
                     continue
                 _, kwargs = transform_for_channel(_ANALYTICS_PRODUCT_CHANNEL, row)
-                await perf_repo.upsert(shop_id=shop_id, **kwargs)
+                async with lock:
+                    await perf_repo.upsert(shop_id=shop_id, **kwargs)
                 products_upserted += 1
 
         next_token: str | None = None
@@ -146,7 +163,8 @@ async def backfill_product_partition(
             break
         page_token = next_token
 
-    await partitions_repo.mark_complete(shop_id, PRODUCT_BUCKET, partition_date)
+    async with lock:
+        await partitions_repo.mark_complete(shop_id, PRODUCT_BUCKET, partition_date)
     return ProductPartitionResult(
         complete=True,
         products_upserted=products_upserted,
