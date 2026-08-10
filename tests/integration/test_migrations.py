@@ -39,6 +39,10 @@ from check_public_schema_privileges import (  # noqa: E402
     find_privilege_violations,
     find_reachable_tables,
 )
+from ensure_postgrest_client_roles import (  # noqa: E402
+    ensure_roles,
+    seed_supabase_bootstrap_grants,
+)
 
 
 def _validate_destructive_db_url(url: str) -> None:
@@ -181,8 +185,21 @@ def _sync_engine() -> Engine:
 
 
 def _reset_to_head() -> None:
+    """Downgrade to base, then upgrade to head against a CI-representative substrate.
+
+    #929: roles + the Supabase-equivalent bootstrap grant are seeded HERE — after
+    reaching base, before any migration in the upgrade path runs — mirroring the
+    real migration-check job's ordering (`ensure_postgrest_client_roles.py` runs
+    before `alembic upgrade`). Without this, a fresh Postgres 16 substrate never
+    auto-grants table privileges to non-owner roles, so migration 029's
+    `ALTER DEFAULT PRIVILEGES ... REVOKE ALL` clause has nothing to counteract and
+    every "born closed" assertion below would pass whether or not that clause ran.
+    """
     cfg = _alembic_config()
     command.downgrade(cfg, "base")
+    database_url = _database_url()
+    ensure_roles(database_url)
+    seed_supabase_bootstrap_grants(database_url)
     command.upgrade(cfg, "head")
 
 
