@@ -59,6 +59,23 @@ def bind_celery_dispatchers_for_unit_tests():
     set_workflow_outcome_recorder(None)
 
 
+@pytest.fixture(autouse=True)
+def reset_action_card_refresh_cooldown_gate_for_unit_tests():
+    """Leave the #899 per-shop refresh cooldown gate unbound by default.
+
+    Deliberately does NOT auto-bind a gate: production fails closed when
+    nothing is bound (see refresh_cooldown.get_refresh_cooldown_gate), and
+    tests that exercise POST /v1/action-cards/refresh must opt in to a gate
+    explicitly, the same way they opt in to a mock Celery dispatcher.
+    """
+    yield
+    from juli_backend.services.action_cards.refresh_cooldown import (
+        set_refresh_cooldown_gate,
+    )
+
+    set_refresh_cooldown_gate(None)
+
+
 @pytest_asyncio.fixture
 async def engine():
     eng = create_async_engine(
