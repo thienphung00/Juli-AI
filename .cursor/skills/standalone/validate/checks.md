@@ -219,6 +219,37 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 
 **Skipped when:** no ML modules touched.
 
+## 14. `unpushed_issue_work`
+
+**Script:** [`agent-runtime/scripts/validate/check_unpushed_issue_work.py`](../../../agent-runtime/scripts/validate/check_unpushed_issue_work.py)
+
+**Repo-wide, not issue-scoped** — unlike the other gates, this one ignores the
+issue under review and scans every local branch and `.worktrees/` entry. It
+exists to catch the #736 pattern: real work (commits, a worktree, even a test
+suite) that never got pushed or never got a PR, so nothing else in the pipeline
+ever saw it.
+
+**Reads:** `git for-each-ref`, `git ls-remote --heads origin`, `git worktree list`,
+and (best-effort, degrades to skipped if unavailable) `gh pr list` / `gh issue list`.
+
+**Fails if:**
+- A local branch has commits not on `origin/main`, no matching branch on
+  `origin`, and its newest commit is older than `--max-age-hours` (default 24).
+- A local branch is pushed to `origin` but has no open or merged PR, and its
+  newest commit is older than `--max-age-hours`.
+- (Optional, `gh`-only) An open issue labelled `in-progress` has no branch, no
+  PR, and no commit anywhere in local history referencing it — the #795 pattern.
+
+**Passes if:** none of the above, including when a branch exists but its newest
+commit is younger than the age threshold — fresh work-in-progress is not stale
+and is never reported, only counted.
+
+**Never fails merely because `gh` is unavailable or unauthenticated** — the
+optional in-progress-issue check is skipped, not treated as a failure.
+
+**Flags:** `--max-age-hours` (default `24`), `--json`, `--no-gh` (skip `gh`-backed
+checks), `--repo-root`.
+
 ## Merge gating summary
 
 | Review status | Blocks merge? |
