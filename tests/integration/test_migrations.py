@@ -30,7 +30,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "030_product_revenue_units_sold"
+LATEST_REVISION = "031_inventory_items_velocity"
 
 
 def _validate_destructive_db_url(url: str) -> None:
@@ -127,6 +127,7 @@ REVISION_022_SCHEMA = "ops"
 REVISION_023_BRONZE_TABLES = ("order_raw_payloads", "return_raw_payloads")
 REVISION_029_BRONZE_TABLES = ("ctor_performance_raw_payloads", "live_hours_raw_payloads")
 REVISION_030_COLUMNS = ("revenue", "units_sold")
+REVISION_031_COLUMN = "velocity"
 MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
 CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
 POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
@@ -1030,6 +1031,63 @@ def test_latest_downgrade_drops_only_revision_030_columns(postgres_at_head: Engi
         ).one()
     assert revenue == Decimal("0.00")
     assert units_sold == 0
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_031_column(postgres_at_head: Engine):
+    """Downgrading past 031 removes inventory_items.velocity; 030 columns remain.
+
+    Targets revision 030 explicitly rather than ``-1``: a ``-1``-based test broke
+    once before when 029 moved head, so every per-revision downgrade test in this
+    suite names its target revision.
+    """
+    ids = _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert _table_has_column(postgres_at_head, "inventory_items", REVISION_031_COLUMN)
+
+    inventory_id = uuid.uuid4()
+    now = datetime.now(UTC).replace(tzinfo=None)
+    with postgres_at_head.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO inventory_items (
+                    id, shop_id, tiktok_product_id, tiktok_sku_id, quantity, update_time
+                )
+                VALUES (
+                    :id, :shop_id, :tiktok_product_id, :tiktok_sku_id, :quantity, :update_time
+                )
+                """
+            ),
+            {
+                "id": inventory_id,
+                "shop_id": ids["shop_id"],
+                "tiktok_product_id": "migration_product_365",
+                "tiktok_sku_id": "migration_sku_365",
+                "quantity": 5,
+                "update_time": now,
+            },
+        )
+
+    command.downgrade(cfg, "030_product_revenue_units_sold")
+
+    assert not _table_has_column(postgres_at_head, "inventory_items", REVISION_031_COLUMN)
+    for column in REVISION_030_COLUMNS:
+        assert _table_has_column(postgres_at_head, "products", column)
+
+    with postgres_at_head.connect() as conn:
+        inventory_count = conn.execute(text("SELECT COUNT(*) FROM inventory_items")).scalar_one()
+    assert inventory_count == 1
+
+    command.upgrade(cfg, "head")
+    assert _table_has_column(postgres_at_head, "inventory_items", REVISION_031_COLUMN)
+    with postgres_at_head.connect() as conn:
+        velocity = conn.execute(
+            text("SELECT velocity FROM inventory_items WHERE id = :id"),
+            {"id": inventory_id},
+        ).scalar_one()
+    assert velocity == "low"
 
 
 @requires_postgres
