@@ -29,9 +29,13 @@ jobs:
   # Skipped on tag pushes (tags cut a GitHub Release from what's already live;
   # only a push to main triggers a new deploy). See infra/scripts/deploy-release.sh
   # for the release-worktree/symlink/health-check mechanics run on the VPS.
+  # Must wait on app-release-artifact: deploy.sh's demo/landing lanes pull the built
+  # artifact with `gh run download` for this commit. As siblings on `needs: build`
+  # alone, deploy raced ahead and failed with "no valid artifacts found" while the
+  # matrix was still running Playwright (#820).
   deploy:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, app-release-artifact]
     if: github.ref == 'refs/heads/main'
     environment: production
     steps:
