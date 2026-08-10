@@ -209,6 +209,15 @@ else
     log "DRY-RUN MODE: rules that would be applied"
 fi
 
+# Step 2.5: accept loopback first.
+# The INPUT jump is inserted at position 1, ahead of ufw's `-A ufw-before-input -i lo
+# -j ACCEPT`, so INPUT reaches this chain before that exemption. Without these rules a
+# local request to 80/443 would be REJECTed with tcp-reset. Cheap guard against any
+# on-box health check or certbot self-test that talks to the origin over 80/443.
+log "generating loopback ACCEPT rules"
+emit_or_apply iptables -t filter -A "${CHAIN_NAME}" -i lo -j ACCEPT
+emit_or_apply ip6tables -t filter -A "${CHAIN_NAME}" -i lo -j ACCEPT
+
 # Step 3: IPv4 ACCEPT rules (one per Cloudflare CIDR, two per CIDR × port)
 log "generating IPv4 ACCEPT rules"
 while IFS= read -r cidr; do
