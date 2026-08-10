@@ -20,6 +20,15 @@ logger = logging.getLogger(__name__)
 ANALYTICS_KIND = "analytics"
 CACHE_KEY_PREFIX = "analytics:kpi_envelope:"
 
+# Explicit socket timeouts (#927): redis.asyncio.from_url() sets none by
+# default, so an unreachable/hung Redis would otherwise block a call for the
+# OS-level TCP timeout instead of raising RedisError into the fail-open (this
+# cache) or fail-closed (action_cards.refresh_cooldown, which shares this
+# client) path quickly. Async I/O means a slow Redis no longer stalls the
+# single uvicorn worker's event loop either way — this bounds the wait.
+_SOCKET_CONNECT_TIMEOUT_SECONDS = 2.0
+_SOCKET_TIMEOUT_SECONDS = 2.0
+
 _shared_client: Any | None = None
 _shared_client_url: str | None = None
 
@@ -47,7 +56,12 @@ def get_shared_redis_client(redis_url: str | None = None) -> Any | None:
 
     # URL changed without close — drop the old handle; caller should prefer
     # close_shared_redis_client() on shutdown. We cannot await aclose here.
-    _shared_client = redis.from_url(url, decode_responses=True)
+    _shared_client = redis.from_url(
+        url,
+        decode_responses=True,
+        socket_timeout=_SOCKET_TIMEOUT_SECONDS,
+        socket_connect_timeout=_SOCKET_CONNECT_TIMEOUT_SECONDS,
+    )
     _shared_client_url = url
     return _shared_client
 

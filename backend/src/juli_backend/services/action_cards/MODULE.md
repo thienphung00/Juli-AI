@@ -65,7 +65,10 @@ slice — see "Out of scope".
   `juli_backend.workers.dispatch_binding` (bound at API/worker startup; #554)
 - `refresh_cooldown` — Redis app cache DB /0 (ADR-041) for the per-shop cooldown
   key only; production adapter bound at API startup via
-  `bind_action_card_refresh_cooldown_gate()` (`api/main.py` lifespan)
+  `bind_action_card_refresh_cooldown_gate()` (`api/main.py` lifespan). Reuses
+  the `services.analytics_kpi_cache` process-lifetime `redis.asyncio` client
+  (#927) rather than opening a second connection — see "Per-shop refresh
+  cooldown" below
 
 ## Key behaviors
 
@@ -273,12 +276,33 @@ one application-level rate limit in the epic, keyed on shop identity.
 - `refresh_cooldown_seconds()` — the cooldown window, in seconds; overridable
   via `ACTION_CARD_REFRESH_COOLDOWN_SECONDS` (default 300s), never a literal
   in the route handler.
-- `RefreshCooldownGate` (protocol) / `RedisRefreshCooldownGate` (production,
-  Redis `SET NX EX` per shop on app cache DB /0, ADR-041) /
-  `UnavailableRefreshCooldownGate` / `InMemoryRefreshCooldownGate` (test double).
+- `RefreshCooldownGate` (protocol, `async def try_acquire`) /
+  `RedisRefreshCooldownGate` (production, Redis `SET NX EX` per shop on app
+  cache DB /0, ADR-041) / `UnavailableRefreshCooldownGate` /
+  `InMemoryRefreshCooldownGate` (test double).
 - `get_refresh_cooldown_gate()` raises `RuntimeError` until
   `bind_action_card_refresh_cooldown_gate()` runs — called from `api/main.py`
   lifespan, mirroring `bind_celery_dispatchers()`.
+
+**Async by construction (#927).** `infra/systemd/juli-api.service` runs
+uvicorn with `--workers 1` — one event loop serves every shop. Every concrete
+gate's `try_acquire` is `async def` and the route `await`s it
+(`api/routes/action_cards.py`); `RedisRefreshCooldownGate` takes an async
+(`redis.asyncio`) client — specifically the same process-lifetime client
+`services.analytics_kpi_cache.get_shared_redis_client()` already warms and
+closes on lifespan shutdown (ADR-041), reused via
+`bind_action_card_refresh_cooldown_gate()` rather than opening a second
+connection. That module also sets explicit `socket_timeout` /
+`socket_connect_timeout` on the shared client, so an unreachable Redis fails
+fast into the 429 path instead of blocking for the OS TCP timeout. The
+original #899 slice used the *synchronous* `redis` client called without
+`await`/`asyncio.to_thread`, which blocked that sole event loop on a slow or
+hung connection — stalling every request for every shop, the exact
+availability failure ADR-061 §2b exists to prevent, reintroduced inside the
+control meant to prevent it. `tests/unit/test_action_card_refresh_cooldown.py::test_slow_backing_store_does_not_stall_the_event_loop`
+is the regression test: a real (not instantly-erroring) slow TCP listener
+stands in for Redis, and a concurrent request to an unrelated route must
+still complete quickly.
 
 **Fails closed, deliberately.** `bind_action_card_refresh_cooldown_gate()`
 binds `UnavailableRefreshCooldownGate` — which denies every request — when
