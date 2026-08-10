@@ -33,6 +33,13 @@ async def lifespan(app: FastAPI):
     # is unset — unlike the cache warm below, it must not go fail-open.
     bind_action_card_refresh_cooldown_gate()
 
+    # ADR-061 "Startup assertions (fail to boot)" / issue #926: a missing
+    # SUPABASE_JWT_SECRET must fail the process at boot rather than let it
+    # serve /health 200 and 500 on the first authenticated request. The
+    # per-request check in core/security/dependencies.py:get_current_user
+    # stays in place as defence in depth.
+    require_env("SUPABASE_JWT_SECRET")
+
     database_url = async_database_url(require_env("DATABASE_URL"))
     engine = create_engine(database_url)
     init_session_factory(create_session_factory(engine))
