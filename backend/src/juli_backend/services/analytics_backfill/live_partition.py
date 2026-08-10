@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -262,10 +264,21 @@ async def run_live_partition(
     partitions_repo: AnalyticsBackfillPartitionsRepo,
     performance_repo: AnalyticsPerformanceRepo,
     synced_at: int,
+    session_lock: asyncio.Lock | None = None,
 ) -> LivePartitionResult:
-    """Fetch A-29 + A-28 for one calendar day and upsert LIVE rollup rows."""
-    if await partitions_repo.is_complete(shop_id, LIVE_BUCKET, partition_date):
-        return LivePartitionResult(status="skipped")
+    """Fetch A-29 + A-28 for one calendar day and upsert LIVE rollup rows.
+
+    Args:
+        session_lock: Shared lock guarding every ``partitions_repo``/
+            ``performance_repo`` touch when multiple partitions run
+            concurrently against the same AsyncSession (issue #795). The
+            Partner fetch calls run via ``asyncio.to_thread`` OUTSIDE this
+            lock so they can overlap with other concurrent partitions.
+    """
+    lock = session_lock or contextlib.nullcontext()
+    async with lock:
+        if await partitions_repo.is_complete(shop_id, LIVE_BUCKET, partition_date):
+            return LivePartitionResult(status="skipped")
 
     start_date_ge, end_date_lt = _date_window(partition_date)
     called_paths: list[str] = []
@@ -275,7 +288,8 @@ async def run_live_partition(
             return LivePartitionResult(status="paused", called_paths=tuple(called_paths))
 
         _record_partner_get(budget, ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH, called_paths)
-        overview_response = analytics.get_live_overview_performance(
+        overview_response = await asyncio.to_thread(
+            analytics.get_live_overview_performance,
             start_date_ge=start_date_ge,
             end_date_lt=end_date_lt,
         )
@@ -285,7 +299,8 @@ async def run_live_partition(
             return LivePartitionResult(status="paused", called_paths=tuple(called_paths))
 
         _record_partner_get(budget, ANALYTICS_LIVE_PERFORMANCE_LIST_PATH, called_paths)
-        sessions = analytics.list_live_performance_all(
+        sessions = await asyncio.to_thread(
+            analytics.list_live_performance_all,
             start_date_ge=start_date_ge,
             end_date_lt=end_date_lt,
         )
@@ -297,31 +312,34 @@ async def run_live_partition(
             overview_response=overview_response,
             synced_at=synced_at,
         )
-        await performance_repo.upsert(shop_id=shop_id, **rollup_kwargs)
 
-        for session in sessions:
-            session_row = expand_analytics_live_session(
-                session,
-                start_date=start_date_ge,
-                end_date=end_date_lt,
-                synced_at=synced_at,
-            )
-            if session_row is None:
-                continue
-            session_kwargs = _session_row_to_upsert_kwargs(session_row, synced_at)
-            await performance_repo.upsert(shop_id=shop_id, **session_kwargs)
+        async with lock:
+            await performance_repo.upsert(shop_id=shop_id, **rollup_kwargs)
 
-        await partitions_repo.mark_complete(shop_id, LIVE_BUCKET, partition_date)
+            for live_session in sessions:
+                session_row = expand_analytics_live_session(
+                    live_session,
+                    start_date=start_date_ge,
+                    end_date=end_date_lt,
+                    synced_at=synced_at,
+                )
+                if session_row is None:
+                    continue
+                session_kwargs = _session_row_to_upsert_kwargs(session_row, synced_at)
+                await performance_repo.upsert(shop_id=shop_id, **session_kwargs)
+
+            await partitions_repo.mark_complete(shop_id, LIVE_BUCKET, partition_date)
         return LivePartitionResult(status="complete", called_paths=tuple(called_paths))
     except BudgetExhaustedError:
         return LivePartitionResult(status="paused", called_paths=tuple(called_paths))
     except Exception:
-        await partitions_repo.mark_failed(
-            shop_id,
-            LIVE_BUCKET,
-            partition_date,
-            "LIVE partition failed",
-        )
+        async with lock:
+            await partitions_repo.mark_failed(
+                shop_id,
+                LIVE_BUCKET,
+                partition_date,
+                "LIVE partition failed",
+            )
         raise
 
 

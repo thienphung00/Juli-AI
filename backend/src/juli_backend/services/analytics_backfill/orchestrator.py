@@ -62,7 +62,41 @@ ALLOWED_BUCKETS = frozenset(DEFAULT_BUCKET_ORDER)
 # Buckets/endpoints excluded from Phase 2.9 backfill (Ads, A-26, A-27, A-33).
 FORBIDDEN_BUCKETS = frozenset({"ads", "advertising", "a26", "a27", "a33"})
 
+# Conservative default for the production scheduled top-up caller (issue #795).
+# The actual Partner call RATE is governed by the Redis-backed token-bucket
+# RateLimiter (integrations/tiktok/rate_limiter.py) per shop+endpoint, not by
+# this value — this only bounds how many partitions may be *in flight*
+# fetching at once. ADR-029's hard_limit=499 total attempts per run is also
+# unaffected: more in-flight tasks make the same capped set of calls finish
+# sooner, not more calls happen. Kept small because each in-flight partition
+# holds a thread-pool worker (asyncio.to_thread) for the duration of its
+# blocking Partner HTTP call.
+DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT = 4
+_CONCURRENCY_LIMIT_ENV_VAR = "ANALYTICS_BACKFILL_CONCURRENCY_LIMIT"
+
 PartitionRunner = Callable[[str, date], Awaitable[None]]
+
+
+def _resolve_concurrency_limit() -> int:
+    """Read the production concurrency limit from config, with a safe fallback."""
+    raw = os.getenv(_CONCURRENCY_LIMIT_ENV_VAR, "").strip()
+    if not raw:
+        return DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning(
+            "analytics_backfill_invalid_concurrency_limit",
+            extra={"raw_value": raw, "fallback": DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT},
+        )
+        return DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT
+    if value < 1:
+        logger.warning(
+            "analytics_backfill_invalid_concurrency_limit",
+            extra={"raw_value": raw, "fallback": DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT},
+        )
+        return DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT
+    return value
 
 
 @dataclass(frozen=True)
@@ -155,15 +189,25 @@ async def backfill_analytics_history(
     Skips completed partitions via bulk-load (not N queries per partition).
 
     Args:
-        concurrency_limit: Maximum concurrent partitions. Default 1 until partition
-            runners are refactored to separate Partner fetch from persistence — see
-            follow-up issue #791. Callers with concurrency-safe run_partition can
-            increase this parameter.
+        concurrency_limit: Maximum concurrent partitions. Default 1 (safe for
+            any injected ``run_partition`` — this function cannot know
+            whether an arbitrary caller's closure is safe to run
+            concurrently, e.g. whether it shares one AsyncSession). Real
+            partition runners now offload their blocking Partner fetch
+            calls via ``asyncio.to_thread`` and accept a ``session_lock`` to
+            serialize their DB touches (issue #795), which is what makes
+            raising this above 1 actually produce overlap instead of the
+            inert #791 scaffolding. See ``backfill_analytics_history_auto_topup``
+            for the production wiring that raises this via config.
 
     Optimizations (issue #791):
     - Bulk-load completed partitions once per bucket
     - Run partitions concurrently under a bounded limit
+
+    Optimizations (issue #795):
+    - Real concurrency: partition fetch calls genuinely overlap in wall time
     - Respect ADR-029 hard_limit (499) even under concurrency via budget_lock
+    - No AsyncSession is ever touched by two concurrent partition tasks
     """
     resolved_buckets = _ordered_buckets(buckets)
     governor = budget or begin_run()
@@ -379,6 +423,7 @@ async def backfill_analytics_history_auto_topup(
     shop_id: uuid.UUID,
     start_date: date = BACKFILL_WINDOW_START,
     end_date: date,
+    concurrency_limit: int | None = None,
 ) -> OrchestratorResult:
     """Automatically top up analytics history for a shop (service-layer wrapper).
 
@@ -391,6 +436,12 @@ async def backfill_analytics_history_auto_topup(
         shop_id: Shop to backfill
         start_date: Inclusive start date
         end_date: Inclusive end date
+        concurrency_limit: Maximum partitions fetching concurrently. Defaults
+            to config (``ANALYTICS_BACKFILL_CONCURRENCY_LIMIT`` env var, else
+            ``DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT``). All four real partition
+            runners accept a shared ``session_lock`` (created below) so their
+            DB touches stay serialized on this single AsyncSession even
+            though their Partner fetch calls genuinely overlap (issue #795).
 
     Returns:
         OrchestratorResult with skipped/completed partition counts
@@ -443,6 +494,14 @@ async def backfill_analytics_history_auto_topup(
 
     synced_at = int(time.time())
 
+    # Guards every DB touch made by concurrently-running partition tasks below
+    # (issue #795). All four real partition runners share this ONE lock because
+    # they all share this ONE AsyncSession — the session itself is never safe
+    # for concurrent use, so serializing access to it (not to the network
+    # fetches, which run via asyncio.to_thread) is what makes concurrency_limit
+    # > 1 safe here.
+    session_lock = asyncio.Lock()
+
     # Dispatch by bucket to real partition runners
     async def partition_runner(bucket: str, partition_date: date) -> None:
         """Dispatch to bucket-specific runner that owns its own persistence."""
@@ -455,6 +514,7 @@ async def backfill_analytics_history_auto_topup(
                 performance_repo=performance_repo,
                 budget=budget,
                 synced_at=synced_at,
+                session_lock=session_lock,
             )
         elif bucket == "live":
             await run_live_partition(
@@ -465,6 +525,7 @@ async def backfill_analytics_history_auto_topup(
                 partitions_repo=partitions_repo,
                 performance_repo=performance_repo,
                 synced_at=synced_at,
+                session_lock=session_lock,
             )
         elif bucket == "product":
             await backfill_product_partition(
@@ -474,6 +535,7 @@ async def backfill_analytics_history_auto_topup(
                 resource=analytics_resource,
                 budget=budget,
                 synced_at=synced_at,
+                session_lock=session_lock,
             )
         elif bucket == "catalog":
             await run_catalog_partition(
@@ -482,10 +544,15 @@ async def backfill_analytics_history_auto_topup(
                 partition_date=partition_date,
                 products=products_resource,
                 budget=budget,
+                session_lock=session_lock,
             )
         else:
             msg = f"Unknown bucket: {bucket}"
             raise ValueError(msg)
+
+    resolved_concurrency_limit = (
+        concurrency_limit if concurrency_limit is not None else _resolve_concurrency_limit()
+    )
 
     return await backfill_analytics_history(
         session,
@@ -493,5 +560,6 @@ async def backfill_analytics_history_auto_topup(
         start_date=start_date,
         end_date=end_date,
         budget=budget,
+        concurrency_limit=resolved_concurrency_limit,
         run_partition=partition_runner,
     )
