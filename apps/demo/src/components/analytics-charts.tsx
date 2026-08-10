@@ -192,11 +192,9 @@ export function AnalyticsPreviewChart({
             data={sparkline}
             delta={delta}
             form={form}
-            height={32}
             label={label}
             movement={movement}
             value={value}
-            width={96}
           />
         </div>
       );
@@ -214,11 +212,9 @@ export function AnalyticsPreviewChart({
               data={sparkline}
               delta={delta}
               form="bounded-ratio"
-              height={32}
               label={label}
               movement={movement}
               value={value}
-              width={96}
             />
           </div>
         );

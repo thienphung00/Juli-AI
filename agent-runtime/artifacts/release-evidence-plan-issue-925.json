@@ -1,0 +1,79 @@
+{
+  "planId": "rep-925-upload-button-visual-system",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/decisions"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; presentation-only change",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "decisions-upload-button-reads-as-the-form",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "upload_button_reads_as_part_of_the_form_system_not_a_ua_default",
+          "keyboard_focus_and_focus_visible_ring_no_worse_than_today",
+          "screen_reader_labelling_no_worse_than_today",
+          "touch_target_preserved",
+          "selected_file_name_feedback_still_renders",
+          "image_only_accept_unchanged_on_both_fields"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/analytics",
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. Stylesheet and, if chosen, markup of the packages/ui upload control."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "trading native-input accessibility for a custom widget without stating why",
+    "widening the image-only accept list",
+    "describing the control as a security gate"
+  ]
+}

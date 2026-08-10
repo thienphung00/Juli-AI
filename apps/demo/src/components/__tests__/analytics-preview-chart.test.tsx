@@ -139,7 +139,8 @@ describe("AnalyticsPreviewChart (#885: preview form follows measurement type)", 
       .map((pair) => Number(pair.split(",")[1]));
 
     expect(new Set(points).size).toBeGreaterThan(1);
-    expect(Math.max(...points) - Math.min(...points)).toBeCloseTo(26, 5);
+    // Amplitude band span at the default 40px preview height (#924): 40 − 2·3.
+    expect(Math.max(...points) - Math.min(...points)).toBeCloseTo(34, 5);
   });
 
   it("keeps the neutral identity hue; no status color without a genuine breach", () => {
@@ -187,6 +188,25 @@ describe("AnalyticsPreviewChart (#885: preview form follows measurement type)", 
     expect(textEquivalent).toHaveTextContent(
       `${MAIN_KPI_DEFINITIONS["gmv-tiktok"].name} — 123 — ▲ 8%`,
     );
+  });
+
+  it("does not hardcode a fixed pixel width/height at the call site (#924)", () => {
+    // Regression guard for the defect: literal width={96} height={32} passed
+    // at both AnalyticsPreviewChart branches produced a 96×32 mark inside a
+    // fluid, full-width card container (341px at 375px viewport). Neither
+    // call site should thread a fixed width/height anymore — the preview's
+    // own default (fluid width, 40px height) should carry through.
+    for (const metricKey of ["gmv-tiktok", "cancellation-rate"] as const) {
+      const { container, unmount } = renderPreview(metricKey, {
+        sparkline: [2.5, 2.8, 2.2, 1.8],
+        boundedRatio: metricKey === "cancellation-rate" ? withinToleranceRatio : undefined,
+      });
+
+      const svg = container.querySelector('[data-testid="metric-sparkline-preview"]');
+      expect(svg).toHaveAttribute("width", "100%");
+      expect(svg).toHaveAttribute("height", "40");
+      unmount();
+    }
   });
 
   it("previews carry no tooltip, comparison overlay, endpoint marker, or focus stop", () => {

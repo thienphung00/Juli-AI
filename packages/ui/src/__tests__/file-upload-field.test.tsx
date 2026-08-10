@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -440,5 +443,77 @@ describe("FileUploadField", () => {
     const styles = window.getComputedStyle(input!);
     // The component should use atau-touch-target or equivalent
     expect(input).toHaveClass("juli-form__file-input");
+  });
+
+  // --- New coverage for the ::file-selector-button fix (issue #925) ---
+  // jsdom's getBoundingClientRect() is always a zeroed rect, so none of the
+  // assertions below rely on it. Keyboard behaviour is asserted via
+  // focus()/toHaveFocus(), and the visual/button styling is asserted by
+  // inspecting the authored stylesheet directly (jsdom does not compute
+  // styles for ::file-selector-button, a UA shadow part).
+
+  it("keeps native keyboard focus on the file input (the ::file-selector-button fix does not hide it)", () => {
+    const { container } = render(
+      <FileUploadField label="Ảnh sản phẩm" onChange={() => {}} required />,
+    );
+
+    const input = container.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+
+    expect(input).not.toHaveAttribute("type", "hidden");
+    expect(input.style.display).not.toBe("none");
+
+    input.focus();
+    expect(input).toHaveFocus();
+  });
+
+  it("keeps the visible label wired to the real input via htmlFor, not a styled label standing in for it", () => {
+    render(
+      <FileUploadField label="Ảnh sản phẩm" onChange={() => {}} required />,
+    );
+
+    const input = screen.getByLabelText("Ảnh sản phẩm *", {
+      exact: false,
+    }) as HTMLInputElement;
+    expect(input).toHaveAttribute("type", "file");
+  });
+
+  it("styles the native file-selector-button via ::file-selector-button instead of a hidden-input + label pattern", () => {
+    const css = readFileSync(join(process.cwd(), "styles.css"), "utf8");
+
+    // The button drawn inside a file input is only reachable via this
+    // pseudo-element. Its presence is the chosen fix (see file-upload-field
+    // design decision): keep the native <input type="file">, don't hide it
+    // behind a styled <label>.
+    expect(css).toMatch(
+      /\.juli-form__file-input::file-selector-button\s*\{/,
+    );
+    expect(css).toMatch(
+      /\.juli-form__file-input::file-selector-button:hover\s*\{/,
+    );
+  });
+
+  it("does not declare accent-color anywhere in the stylesheet (dead on file inputs, and nothing else in the sheet uses it)", () => {
+    const css = readFileSync(join(process.cwd(), "styles.css"), "utf8");
+
+    expect(css).not.toMatch(/accent-color/);
+  });
+
+  it("still applies the shared touch-target and focus-visible tokens to the file input itself", () => {
+    const css = readFileSync(join(process.cwd(), "styles.css"), "utf8");
+    const fileInputRuleMatch = css.match(
+      /\.juli-form__file-input\s*\{([^}]*)\}/,
+    );
+    const focusRuleMatch = css.match(
+      /\.juli-form__file-input:focus-visible\s*\{([^}]*)\}/,
+    );
+
+    expect(fileInputRuleMatch?.[1]).toMatch(
+      /min-height:\s*var\(--juli-touch-target\)/,
+    );
+    expect(focusRuleMatch?.[1]).toMatch(
+      /outline:\s*var\(--juli-focus-width\)\s+solid\s+var\(--juli-focus-ring\)/,
+    );
   });
 });
