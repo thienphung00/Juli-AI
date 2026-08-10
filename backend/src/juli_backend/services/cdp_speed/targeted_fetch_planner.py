@@ -109,6 +109,20 @@ _MATERIAL_FETCH_MATRIX: dict[int, tuple[str, ...]] = {
 }
 
 
+def static_fetch_resource(name: str) -> FetchResource:
+    """Return a canonical named ``FetchResource`` definition (#880).
+
+    Public accessor onto the planner's private static resource table, for
+    callers that build a fetch plan outside the material webhook matrix (e.g.
+    ``workers/tasks/mock_analytics_reconcile.py``'s hourly gap plan) and must
+    not duplicate endpoint-path literals inline — that duplication is exactly
+    how the hourly plan and the material matrix previously drifted apart.
+    Does not resolve ``"promotion_activity"`` (payload-hint dependent; only
+    meaningful inside a material trigger) — use ``plan_targeted_fetch`` for that.
+    """
+    return _STATIC_RESOURCES[name]
+
+
 def _resolve_promotion_activity(payload_hints: Mapping[str, Any] | None) -> FetchResource:
     activity_id = None
     if payload_hints:

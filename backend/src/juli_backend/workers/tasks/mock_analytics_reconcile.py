@@ -26,6 +26,7 @@ from juli_backend.services.cdp_speed import (
     decision_rules_scoring_stage,
     is_quota_guarded,
     run_shared_compute_job,
+    static_fetch_resource,
 )
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
@@ -74,16 +75,30 @@ def _lookup_tiktok_shop_key(shop_id: uuid.UUID) -> str | None:
 def _make_hourly_gap_fetch_plan(shop_key: str) -> TargetedFetchPlan:
     """Create a bounded gap-targeted fetch plan for hourly reconciliation.
 
-    Not the material matrix — just orders and analytics_shop for hourly reconciliation,
-    with quota guards applied (#632).
+    Not the material matrix — orders, analytics_shop, ctor (A-34), and
+    live_hours (A-28) for hourly reconciliation, with quota guards applied
+    (#632, extended #880). The Fujiwa Mock reference shop is driven entirely
+    by this hourly reconcile (no webhook material trigger reaches it), so
+    ctor/live_hours freshness depends on this plan requesting them — the
+    material webhook matrix (catalog id 5 -> ``ctor``) does not cover it.
+
+    Resources reference the planner's canonical static definitions
+    (``static_fetch_resource``) rather than duplicating endpoint-path
+    literals inline, so this plan cannot drift from the material matrix's
+    definitions of the same named resources.
     """
-    # Bounded resources: orders and analytics_shop for hourly reconciliation
     base_resources: list[FetchResource] = [
-        FetchResource("orders", "/orders/202309/list", "orders"),
-        FetchResource("analytics_shop", "/analytics/202309/shop", "analytics"),
+        static_fetch_resource("orders"),
+        static_fetch_resource("analytics_shop"),
+        static_fetch_resource("ctor"),
+        static_fetch_resource("live_hours"),
     ]
 
-    # Filter out any quota-guarded resources (A-38/A-39/A-31/A-33)
+    # Filter out any quota-guarded resources (A-38/A-39/A-31/A-33) — ctor and
+    # live_hours are not in QUOTA_GUARDED_RESOURCE_NAMES (see
+    # tests/unit/test_mock_analytics_hourly_reconcile.py
+    # ::TestHourlyGapPlanIncludesCtorAndLiveHours) so this filter is a
+    # defensive no-op for them today, not how they get included.
     filtered_resources = tuple(r for r in base_resources if not is_quota_guarded(r.name))
 
     return TargetedFetchPlan(
