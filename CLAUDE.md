@@ -55,7 +55,7 @@ Focus — do not auto-enter review, validate, or ship pipelines unless asked.
 |-------|-------|-------|----------|
 | Planning | `architect` | Opus | `focus` → `grill-with-docs` → `to-prd` → `to-issues` |
 | Implementation routing | `meta` | Sonnet | `focus` → `meta_prepare_executor.py` → assign one executor domain |
-| Implementation | `executor-<domain>` | Haiku | domain skill + built-in TDD (red → green → refactor) |
+| Implementation | `executor-<domain>` | Haiku (`ui-ux`: Sonnet) | domain skill + built-in TDD (red → green → refactor) |
 | Review + testing | `review` | Haiku | `intent-review` → `guardrails` → `validate` → ship-ready |
 | Harness optimization | `meta` | Sonnet | consumes implementation/review/validation artifacts |
 
