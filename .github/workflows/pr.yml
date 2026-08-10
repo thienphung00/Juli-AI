@@ -473,7 +473,18 @@ jobs:
       # 021_medallion_schemas' + 029_close_public_schema_defaults' role-guarded
       # REVOKE/ALTER DEFAULT PRIVILEGES statements actually execute in CI instead of
       # silently skipping their `IF EXISTS (SELECT 1 FROM pg_roles ...)` guard.
-      - name: Create PostgREST client roles (anon, authenticated)
+      #
+      # #929: this step ALSO seeds Supabase-equivalent bootstrap grants on `public`
+      # (GRANT ALL ... TO anon, authenticated + matching ALTER DEFAULT PRIVILEGES)
+      # BEFORE any migration runs. This simulates Supabase's own project-bootstrap
+      # grant — vanilla postgres:16 never auto-grants table privileges to non-owner
+      # roles, so without this seed there is nothing for migration 029's
+      # `ALTER DEFAULT PRIVILEGES ... REVOKE ALL` clause to counteract, and a table
+      # created after `upgrade head` is unreachable regardless of whether that
+      # clause ran. Do NOT delete this as redundant setup — it is what makes the
+      # "must PASS for a table created AFTER head" step below a real test of
+      # ADR-061 decision 1 instead of a substrate artifact.
+      - name: Create PostgREST client roles + seed Supabase bootstrap grants
         run: python agent-runtime/scripts/ci/ensure_postgrest_client_roles.py
       - name: Alembic upgrade to pre-#897 revision
         run: alembic upgrade 028_demo_execution_records
@@ -499,6 +510,18 @@ jobs:
       - name: Alembic re-upgrade head
         run: alembic upgrade head
       - name: Public-schema boundary check must PASS after downgrade/re-upgrade
+        run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
+      # #929 decisive proof: create a table AFTER `alembic upgrade head`, with no
+      # explicit GRANT of any kind. Its reachability depends entirely on which
+      # default privileges were in force at CREATE TABLE time — the Supabase
+      # bootstrap grant seeded above if migration 029's `ALTER DEFAULT PRIVILEGES`
+      # clause did nothing, or the closed default that clause installs if it did.
+      # This is the property the "born closed" pytest test in
+      # tests/integration/test_migrations.py also exercises; this step proves it
+      # in CI's real fresh-cluster, straight-to-head substrate.
+      - name: Create a new public table after upgrade head (#929)
+        run: python agent-runtime/scripts/ci/create_post_head_scratch_table.py
+      - name: Public-schema boundary check must PASS for a table created AFTER head
         run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
 
   frontend:
