@@ -21,6 +21,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
+    BronzeCtorPerformanceRawPayload,
+    BronzeLiveHoursRawPayload,
     BronzeOrderRawPayload,
     BronzeReturnRawPayload,
     Order,
@@ -33,6 +35,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_executor import (
     execute_targeted_fetch_to_bronze,
 )
 from juli_backend.services.cdp_speed.targeted_fetch_planner import TargetedFetchPlan
+from juli_backend.services.etl.silver_promotion import SilverAnalyticsPromoter
 from juli_backend.services.etl.transform import (
     bronze_order_to_upsert_kwargs,
     bronze_return_to_upsert_kwargs,
@@ -171,6 +174,37 @@ async def _batch_promote_silver_rows(
 
     # Flush all changes at once
     await session.flush()
+    return promoted
+
+
+async def _promote_analytics_bronze_rows(
+    session: AsyncSession,
+    bronze_rows: Sequence[Any],
+    promote_fn: Callable[[Any], Awaitable[Any]],
+) -> int:
+    """Promote ctor/live_hours bronze rows via ``SilverAnalyticsPromoter`` (#880).
+
+    Deliberately NOT routed through ``_batch_promote_silver_rows``: that helper's
+    shape is keyed on a single business-key column per model (``tiktok_order_id`` /
+    ``tiktok_return_id``) with one batched existing-rows query, then raw
+    ``model_class(id=..., shop_id=..., **kwargs)`` construction + ``setattr``.
+    Analytics rows key on ``snapshot_key`` and — critically — the stale-write
+    guard for them already lives one layer down, in
+    ``ShopScopedRepo.upsert`` (``repositories/repos.py``, the same
+    "skip if incoming update_time <= existing.update_time" comparison the batch
+    helper implements inline). Forcing analytics through the order/return-shaped
+    helper would either duplicate that guard or require gutting the helper's
+    single-business-key assumption; instead each row is promoted through the
+    already-guarded, already-idempotent repo path — one bronze row at a time is
+    the actual cost, but continuous-refresh bronze batches are small (one
+    material trigger's worth), not a full-day backfill page.
+    """
+    promoted = 0
+    for bronze_row in bronze_rows:
+        if not isinstance(bronze_row.payload, dict):
+            continue
+        await promote_fn(bronze_row)
+        promoted += 1
     return promoted
 
 
@@ -339,6 +373,10 @@ class SharedComputeOrchestrator:
 
         Uses the shared _batch_promote_silver_rows helper for both orders and
         returns to prevent logic drift and ensure the stale-write guard survives.
+        ctor / live_hours (#880) dispatch on their own tracker fields through
+        _promote_analytics_bronze_rows -> SilverAnalyticsPromoter, whose
+        stale-write guard lives in ShopScopedRepo.upsert instead (see that
+        helper's docstring for why it isn't forced through the batch helper).
         """
         if bronze_tracker.appended_count <= 0:
             return 0
@@ -448,6 +486,44 @@ class SharedComputeOrchestrator:
                 lookup_dict=existing_returns_by_id,
                 transform_fn=bronze_return_to_upsert_kwargs,
                 related_lookup_dict=existing_orders_by_tiktok_id,
+            )
+
+        # ctor (A-34) promotion — #880
+        if bronze_tracker.ctor_row_ids:
+            ctor_rows = (
+                (
+                    await session.execute(
+                        select(BronzeCtorPerformanceRawPayload).where(
+                            BronzeCtorPerformanceRawPayload.shop_id == shop_id,
+                            BronzeCtorPerformanceRawPayload.id.in_(bronze_tracker.ctor_row_ids),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            promoter = SilverAnalyticsPromoter(session)
+            promoted += await _promote_analytics_bronze_rows(
+                session, ctor_rows, promoter.promote_ctor
+            )
+
+        # live_hours (A-28) promotion — #880
+        if bronze_tracker.live_hours_row_ids:
+            live_hours_rows = (
+                (
+                    await session.execute(
+                        select(BronzeLiveHoursRawPayload).where(
+                            BronzeLiveHoursRawPayload.shop_id == shop_id,
+                            BronzeLiveHoursRawPayload.id.in_(bronze_tracker.live_hours_row_ids),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            promoter = SilverAnalyticsPromoter(session)
+            promoted += await _promote_analytics_bronze_rows(
+                session, live_hours_rows, promoter.promote_live_hours
             )
 
         return promoted
