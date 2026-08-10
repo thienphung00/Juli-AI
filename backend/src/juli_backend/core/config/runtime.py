@@ -22,6 +22,40 @@ def require_env(name: str) -> str:
     return value
 
 
+_ENVIRONMENT_ENV_VAR = "ENVIRONMENT"
+_ENVIRONMENT_DEVELOPMENT = "development"
+_ENVIRONMENT_PRODUCTION = "production"
+_ALLOWED_ENVIRONMENTS = (_ENVIRONMENT_DEVELOPMENT, _ENVIRONMENT_PRODUCTION)
+
+
+def _environment() -> str:
+    """Read the ``ENVIRONMENT`` discriminator, validated against a closed set.
+
+    Unset defaults to ``"development"`` — the non-production value — so local
+    dev and tests need no configuration and a forgotten variable can never
+    silently mean production. An unrecognised value fails fast with a message
+    naming the variable and the permitted values, rather than being coerced
+    or ignored.
+    """
+    raw = os.environ.get(_ENVIRONMENT_ENV_VAR, "").strip()
+    if not raw:
+        return _ENVIRONMENT_DEVELOPMENT
+    if raw not in _ALLOWED_ENVIRONMENTS:
+        allowed = ", ".join(_ALLOWED_ENVIRONMENTS)
+        raise RuntimeError(f"Invalid {_ENVIRONMENT_ENV_VAR}={raw!r}; must be one of: {allowed}")
+    return raw
+
+
+def is_production() -> bool:
+    """Whether the process is running in the production environment.
+
+    The single accessor the rest of the application should branch on instead
+    of reading ``ENVIRONMENT`` (or any other ad-hoc flag) directly. See
+    ``_environment`` for the default and validation behaviour.
+    """
+    return _environment() == _ENVIRONMENT_PRODUCTION
+
+
 def _append_query_params(url: str, params: dict[str, str]) -> str:
     parsed = urlparse(url)
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
