@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UNIT = REPO_ROOT / "infra" / "systemd" / "juli-landing.service"
-DEPLOY_SCRIPT = REPO_ROOT / "infra" / "scripts" / "deploy-landing-release.sh"
+DEPLOY_SCRIPT = REPO_ROOT / "infra" / "scripts" / "deploy.sh"
 PACKAGE_JSON = REPO_ROOT / "apps" / "landing" / "package.json"
 
 LANDING_PORT = "3007"
@@ -24,10 +24,8 @@ RESERVED_CANDIDATE_PORT = "3027"
 
 
 def run_sourced(body: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    snippet = (
-        f'set -uo pipefail\nexport LANDING_DEPLOY_SOURCE_ONLY=1\nsource "{DEPLOY_SCRIPT}"\n{body}\n'
-    )
-    full_env = {**os.environ, "LANDING_DEPLOY_SOURCE_ONLY": "1"}
+    snippet = f'set -uo pipefail\nexport DEPLOY_SOURCE_ONLY=1\nsource "{DEPLOY_SCRIPT}"\n{body}\n'
+    full_env = {**os.environ, "DEPLOY_SOURCE_ONLY": "1"}
     if env:
         full_env.update(env)
     return subprocess.run(
@@ -99,16 +97,18 @@ def _non_comment_source() -> str:
 
 
 def test_deploy_never_touches_another_service() -> None:
-    """AC: deploys without touching the API or Demo. The only unit this script may
-    act on is its own — the host port map in the header may NAME the others, but no
-    executable line may reference them."""
-    source = _non_comment_source()
+    """#841 AC, post-#844: the LANDING LANE of the unified deploy must not act on
+    any other service's unit; other lanes own their own."""
+    source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+    lane = source[source.index("deploy_lane_landing() {") : source.index("\nmain()")]
     for foreign in ("juli-api", "juli-demo", "juli-web", "juli-celery"):
-        assert foreign not in source, f"landing deploy must not reference {foreign}"
+        assert foreign not in lane, f"landing lane must not reference {foreign}"
 
 
 def test_deploy_functions_exist_in_library_mode() -> None:
-    result = run_sourced("declare -F fetch_landing_artifact place_landing_artifact verify_landing")
+    result = run_sourced(
+        "declare -F fetch_landing_artifact place_landing_artifact deploy_lane_landing"
+    )
     assert result.returncode == 0, result.stderr
 
 
@@ -163,15 +163,16 @@ def test_placement_rejects_an_artifact_without_a_runnable_build(tmp_path: Path) 
 def test_main_flow_verifies_before_declaring_success() -> None:
     """Wiring pin: the #833 harness must run in the deploy path, after the restart."""
     source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
-    assert 'verify_landing "http://127.0.0.1:${LANDING_PORT}"' in source
-    restart_at = source.index('systemctl restart "${LANDING_UNIT}"')
-    verify_at = source.index('verify_landing "http://127.0.0.1:${LANDING_PORT}"')
-    assert restart_at < verify_at, "verification must run against the restarted instance"
+    # #843: the landing lane verifies the CANDIDATE before any traffic moves.
+    candidate_at = source.index("juli-landing-candidate-${peer_port}")
+    verify_at = source.index('--base-url "http://127.0.0.1:${peer_port}" --route /')
+    switch_at = source.index("switch_upstream landing")
+    assert candidate_at < verify_at < switch_at
 
 
 def test_prune_runs_only_after_a_recorded_success() -> None:
     """The shared release pool's prior corruption came from pruning too eagerly."""
     source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
-    record_at = source.index('>> "${HISTORY_LOG}"')
-    prune_at = source.index("prune_release_worktrees")
+    record_at = source.index("deploy-history.log")
+    prune_at = source.index("prune_release_worktrees" + " ")
     assert record_at < prune_at

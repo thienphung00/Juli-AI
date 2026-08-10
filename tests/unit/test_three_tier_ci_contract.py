@@ -218,9 +218,9 @@ def test_pr_workflow_never_deploys() -> None:
     release = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
     assert "appleboy/ssh-action" not in workflow
-    assert "deploy-release.sh" not in workflow
+    assert "deploy-release.sh" not in workflow  # retired (#844)
     assert "appleboy/ssh-action" in release
-    assert "deploy-release.sh" in release
+    assert "deploy.sh" in release
 
 
 def test_release_evidence_plan_is_complete() -> None:

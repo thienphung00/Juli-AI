@@ -10,7 +10,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VHOST = REPO_ROOT / "infra" / "nginx" / "app-juli.com.conf"
-DEPLOY = REPO_ROOT / "infra" / "scripts" / "deploy-release.sh"
+DEPLOY = REPO_ROOT / "infra" / "scripts" / "deploy.sh"
 PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr.yml"
 UPTIME = REPO_ROOT / ".github" / "workflows" / "uptime.yml"
 

@@ -242,7 +242,7 @@ def test_phase_doc_records_2_5_d_deploy_slice():
 
 # Scope guard: review deploy must not require deferred production services.
 def test_deploy_release_uses_safe_alembic_upgrade():
-    deploy_script = _read(SCRIPTS_DIR / "deploy-release.sh")
+    deploy_script = _read(SCRIPTS_DIR / "deploy.sh")
     assert "safe-alembic-upgrade.sh" in deploy_script
     assert '.venv/bin/alembic" upgrade head' not in deploy_script
 
