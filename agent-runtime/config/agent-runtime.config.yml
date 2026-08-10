@@ -405,6 +405,8 @@ workflow_prompt_cache:
         865: P2-CHART-HUE
         866: P2-CHART-SCRUB
         867: P2-CHART-RETIRE
+        909: DPR-UPLOAD-PLAN
+        910: DPR-FIVESTAGE-RETIRE
         885: P2-CHART-PREVIEW
         886: P2-CHART-LABELFIT
         887: P2-CHART-A11YTREND

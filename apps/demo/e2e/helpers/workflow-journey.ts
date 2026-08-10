@@ -43,6 +43,35 @@ export async function advanceReviewToApproveStage(page: Page) {
   ).toBeVisible();
 }
 
+/**
+ * A 1×1 PNG that genuinely decodes — `FileUploadField` verifies the file
+ * signature and then decodes the image, so a stub buffer is rejected.
+ */
+const VALID_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+/**
+ * Satisfy any required upload before Approve is reachable.
+ *
+ * ADR-055 item 12: `create_hero_product_1` cannot be a one-tap approval —
+ * Juli does not propose imagery, so Approve stays disabled until the seller
+ * supplies `main_images` (#909). Every other workflow has no required upload
+ * and this is a no-op, so the journey helper stays generic.
+ */
+export async function satisfyRequiredUploads(page: Page) {
+  const required = page.locator('input[type="file"][required]');
+
+  for (let index = 0; index < (await required.count()); index += 1) {
+    await required.nth(index).setInputFiles({
+      name: "hero-product.png",
+      mimeType: "image/png",
+      buffer: VALID_PNG,
+    });
+  }
+}
+
 /** Open Approve-stage ConfirmDialog and confirm (DVR-A5 gate). */
 export async function confirmApproveThroughGate(page: Page) {
   await reviewActionsFooter(page)
@@ -71,6 +100,7 @@ export async function approveFromRecommendations(
     card.getByRole("button", { name: "Phê duyệt" }).click(),
   ]);
   await advanceReviewToApproveStage(page);
+  await satisfyRequiredUploads(page);
   await confirmApproveThroughGate(page);
   await expect(page).toHaveURL(/\/decisions\/in-progress\//);
 }

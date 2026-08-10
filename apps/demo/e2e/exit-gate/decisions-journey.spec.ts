@@ -12,6 +12,7 @@ import {
   advanceReviewToApproveStage,
   approveFromRecommendations,
   confirmApproveThroughGate,
+  satisfyRequiredUploads,
 } from "../helpers/workflow-journey";
 
 test.describe("Phase 2.6 exit gate — Decisions journey", () => {
@@ -113,6 +114,7 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
         card.getByRole("button", { name: "Phê duyệt" }).click(),
       ]);
       await advanceReviewToApproveStage(page);
+      await satisfyRequiredUploads(page);
       await confirmApproveThroughGate(page);
       await expect(page).toHaveURL(/\/decisions\/in-progress\//);
       await expect(

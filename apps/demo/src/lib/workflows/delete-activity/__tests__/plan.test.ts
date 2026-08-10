@@ -114,16 +114,18 @@ describe("getDeleteActivityPlanReview", () => {
 });
 
 describe("getWorkflowPlanReview routing", () => {
-  it("returns the plan for delete_activity_7b and keeps unmigrated workflows off the spine", () => {
+  it("returns the plan for delete_activity_7b and keeps unsupported keys off the spine", () => {
     expect(getWorkflowPlanReview(DELETE_ACTIVITY_WORKFLOW_KEY)).not.toBeNull();
 
     // Migrated by later rollout slices, so no longer expected to be null:
     // optimize_product_2 (#765), replenish_inventory_3 / clear_excess_4 (#766),
     // create_activity_7a / update_activity_7c (#768), process_order_5 (#767),
-    // and the Returns trio prevent_cancellation_8a / prevent_return_8b /
-    // prevent_refund_8c (#769). Only create_hero_product_1 is left unmigrated.
-    for (const otherKey of ["create_hero_product_1"]) {
-      expect(getWorkflowPlanReview(otherKey)).toBeNull();
+    // the Returns trio prevent_cancellation_8a / prevent_return_8b /
+    // prevent_refund_8c (#769), and finally create_hero_product_1 (#909).
+    // All eleven are on the spine; only unsupported keys stay off it.
+    expect(getWorkflowPlanReview("create_hero_product_1")).not.toBeNull();
+    for (const unsupportedKey of ["prevent_return_8b_fbt", "unknown_key"]) {
+      expect(getWorkflowPlanReview(unsupportedKey)).toBeNull();
     }
   });
 });
