@@ -90,6 +90,7 @@ jobs:
       demo: ${{ steps.set-outputs.outputs.demo }}
       landing: ${{ steps.set-outputs.outputs.landing }}
       agent: ${{ steps.set-outputs.outputs.agent }}
+      infra: ${{ steps.set-outputs.outputs.infra }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -159,6 +160,14 @@ jobs:
             agent:
               - 'agent-runtime/**'
               - '.cursor/**'
+            # Nginx edge config (#898/ADR-061 §2b). Scoped to the nginx tree and its
+            # own CI scripts, not all of infra/**, so unrelated infra changes (deploy
+            # scripts, systemd units) don't pay for a package install + nginx -t.
+            infra:
+              - 'infra/nginx/**'
+              - 'infra/scripts/provision-nginx.sh'
+              - 'agent-runtime/scripts/ci/check_nginx_rate_limits.py'
+              - 'agent-runtime/scripts/ci/check_nginx_config_parses.sh'
       # Wave-tier push: diff the landed commit range (before->after) with
       # the same domain filter definitions used at issue tier, instead of
       # forcing every domain true. Skipped when the before SHA can't be
@@ -182,12 +191,12 @@ jobs:
             if [[ "$TIER" == "main" ]]; then
               # Wave->main remains the full, path-aware checkpoint (#658):
               # every domain runs regardless of what the wave push touched.
-              for key in backend migrations dashboard demo landing agent; do
+              for key in backend migrations dashboard demo landing agent infra; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" && "$WAVE_FALLBACK" == "true" ]]; then
               # Documented bounded fallback: unresolvable before SHA.
-              for key in backend migrations dashboard demo landing agent; do
+              for key in backend migrations dashboard demo landing agent infra; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" ]]; then
@@ -197,6 +206,7 @@ jobs:
               echo "demo=${{ steps.filter-wave.outputs.demo }}"
               echo "landing=${{ steps.filter-wave.outputs.landing }}"
               echo "agent=${{ steps.filter-wave.outputs.agent }}"
+              echo "infra=${{ steps.filter-wave.outputs.infra }}"
             else
               echo "backend=${{ steps.filter.outputs.backend }}"
               echo "migrations=${{ steps.filter.outputs.migrations }}"
@@ -204,6 +214,7 @@ jobs:
               echo "demo=${{ steps.filter.outputs.demo }}"
               echo "landing=${{ steps.filter.outputs.landing }}"
               echo "agent=${{ steps.filter.outputs.agent }}"
+              echo "infra=${{ steps.filter.outputs.infra }}"
             fi
           } >> "$GITHUB_OUTPUT"
 
@@ -321,6 +332,39 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Issue #898 / ADR-061 §2b exit gate, split in two like the ADR's own CI-invariant
+  # split: a fast static lint that runs with no external dependency, and a slower
+  # config-parse check pinned to the nginx version the review VPS actually runs
+  # (precedent: #882 "nginx configs must parse on the nginx we actually run").
+  nginx-rate-limit-lint:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.infra == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: limit_req present on webhook + demo locations, absent on /health
+        run: python agent-runtime/scripts/ci/check_nginx_rate_limits.py
+
+  nginx-config-parses:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.infra == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install nginx (same package/version family as the review VPS, ADR-057)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx-core openssl
+      - name: nginx -t against the assembled candidate config
+        run: sudo bash agent-runtime/scripts/ci/check_nginx_config_parses.sh
 
   test:
     runs-on: ubuntu-latest
@@ -893,6 +937,8 @@ jobs:
       - typecheck
       - architecture-gates
       - bandit
+      - nginx-rate-limit-lint
+      - nginx-config-parses
       - gitleaks
       - test
       - test-live-sandbox
@@ -920,6 +966,8 @@ jobs:
           typecheck="${{ needs.typecheck.result }}"
           arch="${{ needs.architecture-gates.result }}"
           bandit="${{ needs.bandit.result }}"
+          nginx_lint="${{ needs.nginx-rate-limit-lint.result }}"
+          nginx_parse="${{ needs.nginx-config-parses.result }}"
           gitleaks="${{ needs.gitleaks.result }}"
           test="${{ needs.test.result }}"
           live_sandbox="${{ needs.test-live-sandbox.result }}"
@@ -979,6 +1027,8 @@ jobs:
             require "typecheck" "$typecheck" "true"
             require "architecture-gates" "$arch" "false"
             require "bandit" "$bandit" "false"
+            require "nginx-rate-limit-lint" "$nginx_lint" "false"
+            require "nginx-config-parses" "$nginx_parse" "false"
             require "full-regression" "$regression" "false"
             require "migration-check" "$mig" "false"
             require "frontend" "$fe" "true"
