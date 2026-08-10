@@ -29,6 +29,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_planner import (
     FetchResource,
     TargetedFetchPlan,
     plan_targeted_fetch,
+    static_fetch_resource,
 )
 
 __all__ = [
@@ -51,5 +52,6 @@ __all__ = [
     "quota_guard_reason",
     "run_shared_compute_job",
     "scoring_stage_enabled",
+    "static_fetch_resource",
     "webhook_catalog_enqueue_reason",
 ]

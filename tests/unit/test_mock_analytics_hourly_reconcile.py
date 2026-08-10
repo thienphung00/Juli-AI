@@ -752,3 +752,84 @@ async def test_hourly_reconcile_exception_rolls_back_uncommitted_writes(
         )
 
     await engine.dispose()
+
+
+class TestHourlyGapPlanIncludesCtorAndLiveHours:
+    """#880 follow-up: the hourly gap plan hardcoded exactly orders + analytics_shop,
+    so the continuous (non-webhook) path never requested ctor (A-34) or live_hours
+    (A-28) — bronze stayed empty and analytics_performance_intervals never advanced,
+    even though the executor/planner registration for those two domains was correct.
+    """
+
+    def test_hourly_gap_fetch_plan_includes_ctor_and_live_hours(self):
+        from juli_backend.workers.tasks.mock_analytics_reconcile import (
+            _make_hourly_gap_fetch_plan,
+        )
+
+        plan = _make_hourly_gap_fetch_plan("shop_key_880")
+        resource_attrs = {r.resource_attr for r in plan.resources}
+
+        assert "ctor" in resource_attrs, "hourly gap plan is missing the ctor (A-34) resource"
+        assert "live_hours" in resource_attrs, (
+            "hourly gap plan is missing the live_hours (A-28) resource"
+        )
+        # Original two resources must still be present — additive, not a replacement.
+        assert "orders" in resource_attrs
+        assert "analytics" in resource_attrs  # analytics_shop's resource_attr
+
+    def test_hourly_gap_fetch_plan_ctor_and_live_hours_survive_quota_guard(self):
+        """Confirm in a test rather than assume: neither name is in
+        QUOTA_GUARDED_RESOURCE_NAMES, so the quota-guard filter in
+        _make_hourly_gap_fetch_plan does not silently drop either resource."""
+        from juli_backend.services.cdp_speed import (
+            QUOTA_GUARDED_RESOURCE_NAMES,
+            is_quota_guarded,
+        )
+        from juli_backend.workers.tasks.mock_analytics_reconcile import (
+            _make_hourly_gap_fetch_plan,
+        )
+
+        assert "ctor" not in QUOTA_GUARDED_RESOURCE_NAMES
+        assert "live_hours" not in QUOTA_GUARDED_RESOURCE_NAMES
+
+        plan = _make_hourly_gap_fetch_plan("shop_key_880")
+        names = {r.name for r in plan.resources}
+        assert "ctor" in names
+        assert "live_hours" in names
+        for resource in plan.resources:
+            assert not is_quota_guarded(resource.name), (
+                f"{resource.name} was quota-guarded and silently dropped from the hourly plan"
+            )
+
+    def test_hourly_gap_fetch_plan_live_hours_never_reaches_quota_guarded_a29_overview(self):
+        """live_hours must derive from A-28 session data only — the A-29 overview
+        endpoint (analytics_live_overview) IS quota-guarded and must never appear
+        in the hourly plan."""
+        from juli_backend.integrations.tiktok import ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH
+        from juli_backend.workers.tasks.mock_analytics_reconcile import (
+            _make_hourly_gap_fetch_plan,
+        )
+
+        plan = _make_hourly_gap_fetch_plan("shop_key_880")
+        names = {r.name for r in plan.resources}
+        endpoint_paths = {r.endpoint_path for r in plan.resources}
+
+        assert "analytics_live_overview" not in names
+        assert ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH not in endpoint_paths
+
+    def test_hourly_gap_fetch_plan_ctor_and_live_hours_match_planner_canonical_definitions(self):
+        """Resources must reference the planner's canonical static definitions
+        rather than duplicating endpoint-path literals inline — that duplication
+        is exactly how the hourly plan and the material matrix drifted apart."""
+        from juli_backend.services.cdp_speed.targeted_fetch_planner import (
+            static_fetch_resource,
+        )
+        from juli_backend.workers.tasks.mock_analytics_reconcile import (
+            _make_hourly_gap_fetch_plan,
+        )
+
+        plan = _make_hourly_gap_fetch_plan("shop_key_880")
+        by_attr = {r.resource_attr: r for r in plan.resources}
+
+        assert by_attr["ctor"] == static_fetch_resource("ctor")
+        assert by_attr["live_hours"] == static_fetch_resource("live_hours")

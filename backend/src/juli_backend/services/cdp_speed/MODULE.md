@@ -30,6 +30,9 @@ from juli_backend.services.cdp_speed import (
 - ``TargetedFetchPlan`` — ``catalog_id``, ``shop_id``, ``resources``; ``is_empty`` when
   no fetch is required.
 - ``FetchResource`` — ``name``, ``endpoint_path``, ``resource_attr``.
+- ``static_fetch_resource(name)`` → ``FetchResource`` — canonical named resource
+  definition, for callers outside the material matrix (e.g. the hourly gap plan)
+  that must not duplicate endpoint-path literals inline (#880).
 - ``FUJIWA_POLL_RESOURCE_NAMES`` — frozenset of domain poll attrs
   (``orders``, ``products``, ``returns``, ``inventory``) for negative tests vs
   ``_FUJIWA_POLL_STEPS``.
@@ -118,12 +121,18 @@ Locked material ids from ``webhook_catalog.MATERIAL_CATALOG_IDS`` (#532 / ADR-03
 **Analytics scope:** material plans may list shop/list analytics resources for future
 bronze tables, but the Shared Compute executor **defers** fetch for domains without
 bronze persistence (``analytics``, ``products``, ``inventory``, ``promotion``) and logs
-``targeted_fetch_bronze_deferred``. Only ``orders`` and ``returns`` sync through
-``targeted_fetch_sync`` into bronze today.
+``targeted_fetch_bronze_deferred``. ``orders``, ``returns``, ``ctor`` (A-34), and
+``live_hours`` (A-28) sync through ``targeted_fetch_sync`` into bronze today (#880);
+the remaining resource_attrs above stay deferred.
 
 **Forbidden on material path:** ``_FUJIWA_POLL_STEPS`` (all four domain polls),
 ``run_fujiwa_poll_cycle``, unbounded ``sync_analytics`` A-31–A-39 fan-out. Hourly
-Mock reconcile may use a separate gap plan — not this matrix.
+Mock reconcile uses a separate gap plan (``workers/tasks/mock_analytics_reconcile.py``
+'s ``_make_hourly_gap_fetch_plan`` — orders, analytics_shop, ctor, live_hours via
+``static_fetch_resource``) — not this matrix. The Fujiwa Mock reference shop is driven
+entirely by that hourly reconcile (no material webhook reaches it), so ctor/live_hours
+freshness for that shop depends on the gap plan requesting them, not on catalog id 5's
+material-matrix ``ctor`` entry below.
 
 ## Extending the matrix
 
