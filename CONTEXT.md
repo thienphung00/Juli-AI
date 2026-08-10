@@ -92,8 +92,23 @@ The lightweight ML layer powering the visual layer — reusable techniques (T1�
 _Avoid_: per-KPI models (implies ~19 separate trained models)
 
 **Main KPI**:
-The representative KPI marked `(main)` for each visual-layer category. Analytics shows six Main KPIs — SPS, Net Revenue, ROAS, Inventory Turnover, Fulfillment Accuracy Rate, and CSAT — as one hero plus five selector cards.
-_Avoid_: primary KPI, featured metric, headline metric (when referring to this canonical six-KPI set)
+The representative KPI marked `(main)` for each visual-layer category. `apps/demo` Analytics ships the **Demo Main KPI set (Option B′)** — **exactly five**: GMV (TikTok), AOV, CTOR (click→đơn), LIVE hours, Cancellation rate — as one hero plus four selector cards ([ADR-049](docs/adr/049-demo-analytics-main-kpi-override.md)). SPS, ROAS, CSAT, inventory turnover, fulfillment accuracy, and Bestselling are removed from the Demo selector until envelope-backed; the fuller visual-layer catalog may still live in backend/docs. Adding a sixth requires an explicit ADR/catalog change.
+_Avoid_: primary KPI, featured metric, headline metric; the superseded six-KPI list (SPS / Net Revenue / ROAS / Inventory Turnover / Fulfillment Accuracy / CSAT); showing removed KPIs as empty placeholders
+
+**KPI measurement type**:
+What a KPI *measures mathematically*, declared per KPI and the **sole driver of its chart form** — `flow` (sum-able quantity), `average`, `rate`, `bounded-ratio`, `count`. Form follows deterministically: `flow` → filled line; `average`/`rate` → unfilled line; `count` → bars; `bounded-ratio` → threshold band against a target. Distinct from the KPI's **business category** (`Doanh thu`, `LIVE Shopping`), which groups KPIs for navigation and never selects a mark — two revenue KPIs can need different marks, which is exactly how GMV (a total) and AOV (an average) came to render identically.
+The `ChartKind` union it replaces is retired: `health-bar` was declared by no KPI, and `gauge` was permanently starved because the envelope mapper hardcoded its value to `undefined`, so Cancellation rate rendered no chart at all on live data. The `HealthBar` component in `packages/ui` survives the rename — it is a **meter** primitive (segmented fill + target tick, severity-toned), distinct from a chart form.
+_Avoid_: choosing a chart per KPI by hand, category-driven chart form, area fill on a non-cumulative measure (an area under a rate reads as a total), `health-bar`/`gauge` as chart kinds, confusing the retired `health-bar` kind with the live `HealthBar` meter component, using the `HealthBar` meter for a KPI whose question is "is this getting worse" (a meter shows state, not trajectory)
+
+**KPI goal direction**:
+Whether a KPI is `higher-is-better` (GMV, AOV, CTOR, LIVE hours) or `lower-is-better` (Cancellation rate), declared per KPI alongside [KPI measurement type]. **Semantic tone is a function of delta sign *and* goal direction** — never the sign alone. Deriving tone from the sign alone painted a rising Cancellation rate green and labelled it `positive`, i.e. more cancelled orders read as good news.
+
+**Chart colour policy**: a KPI's trend mark wears a **stable hue tied to the metric**, not to how it happened to move — identity must not flicker between periods or ranges. Direction is carried by the delta chip, which pairs tone with an arrow and a number so status never travels by colour alone. The **status palette is reserved** for genuine goal breaches, principally the `bounded-ratio` tolerance band.
+_Avoid_: tone from delta sign alone, trend-coloured trend lines, repainting a metric when the range filter changes, spending success/destructive colours on ordinary movement
+
+**Chart scrub readout**:
+Touch equivalent of a desktop hover layer on Analytics charts: dragging along the plot moves a scrub line, and the scrubbed point's value and date replace the **hero value and freshness line above the chart**, reverting on release. The readout never floats over the plot — at phone width a tooltip occludes the data it explains. Below roughly ten points (the 7-day range) per-point dots suffice and no scrub is needed.
+_Avoid_: hover-only affordances on a mobile-web surface, tooltips overlaying the plot, tap-a-point targets on a dense series (30 points at phone width give ~17px per point)
 
 **Decision-grade ML**:
 Trained techniques (T2, T6, T8) that must pass backtest promotion gates before Phase 2.5 artifact load. All Home outputs remain **display-grade** (advisory only); gates vet accuracy, not execute authority. Former "3 vetted suites" logic is **recycled** into T2/T6/T8 per ADR-011.
