@@ -23,6 +23,8 @@ from juli_backend.models.models import (
     AnalyticsBackfillPartition,
     AnalyticsKpiEnvelope,
     AnalyticsPerformanceInterval,
+    BronzeCtorPerformanceRawPayload,
+    BronzeLiveHoursRawPayload,
     BronzeOrderRawPayload,
     BronzeReturnRawPayload,
     Campaign,
@@ -1019,6 +1021,62 @@ class BronzeReturnRawPayloadsRepo:
                 received_at=record.get("received_at") or datetime.now(UTC),
                 tiktok_return_id=record.get("tiktok_return_id"),
                 tiktok_order_id=record.get("tiktok_order_id"),
+                source_event_id=record.get("source_event_id"),
+            )
+            for record in records
+        ]
+        self._session.add_all(rows)
+        await self._session.flush()
+        return rows
+
+
+class BronzeCtorPerformanceRawPayloadsRepo:
+    """Batched append writer for bronze.ctor_performance_raw_payloads (#880)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def append_batch(
+        self,
+        records: list[dict[str, Any]],
+    ) -> list[BronzeCtorPerformanceRawPayload]:
+        if not records:
+            return []
+        rows = [
+            BronzeCtorPerformanceRawPayload(
+                shop_id=record["shop_id"],
+                ingest_source=record["ingest_source"],
+                payload=record["payload"],
+                received_at=record.get("received_at") or datetime.now(UTC),
+                tiktok_product_id=record.get("tiktok_product_id"),
+                source_event_id=record.get("source_event_id"),
+            )
+            for record in records
+        ]
+        self._session.add_all(rows)
+        await self._session.flush()
+        return rows
+
+
+class BronzeLiveHoursRawPayloadsRepo:
+    """Batched append writer for bronze.live_hours_raw_payloads (#880)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def append_batch(
+        self,
+        records: list[dict[str, Any]],
+    ) -> list[BronzeLiveHoursRawPayload]:
+        if not records:
+            return []
+        rows = [
+            BronzeLiveHoursRawPayload(
+                shop_id=record["shop_id"],
+                ingest_source=record["ingest_source"],
+                payload=record["payload"],
+                received_at=record.get("received_at") or datetime.now(UTC),
+                tiktok_live_id=record.get("tiktok_live_id"),
                 source_event_id=record.get("source_event_id"),
             )
             for record in records

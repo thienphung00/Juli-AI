@@ -13,6 +13,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.etl import (
+    append_targeted_ctor_payload,
+    append_targeted_live_hours_payload,
     append_targeted_order_payload,
     append_targeted_return_payload,
 )
@@ -27,10 +29,17 @@ class BronzeAppendTracker:
 
     order_row_ids: list[uuid.UUID] = field(default_factory=list)
     return_row_ids: list[uuid.UUID] = field(default_factory=list)
+    ctor_row_ids: list[uuid.UUID] = field(default_factory=list)
+    live_hours_row_ids: list[uuid.UUID] = field(default_factory=list)
 
     @property
     def appended_count(self) -> int:
-        return len(self.order_row_ids) + len(self.return_row_ids)
+        return (
+            len(self.order_row_ids)
+            + len(self.return_row_ids)
+            + len(self.ctor_row_ids)
+            + len(self.live_hours_row_ids)
+        )
 
 
 def _order_source_event_id(job_token: str, payload: dict[str, Any]) -> str:
@@ -43,6 +52,18 @@ def _return_source_event_id(job_token: str, payload: dict[str, Any]) -> str:
     return_id = str(payload.get("return_id") or payload.get("tiktok_return_id") or "")
     update_time = str(payload.get("update_time") or "")
     return f"{job_token}:returns:{return_id}:{update_time}"
+
+
+def _ctor_source_event_id(job_token: str, payload: dict[str, Any]) -> str:
+    product_id = str(payload.get("product_id") or "")
+    snapshot_key = str(payload.get("snapshot_key") or "")
+    return f"{job_token}:ctor:{product_id}:{snapshot_key}"
+
+
+def _live_hours_source_event_id(job_token: str, payload: dict[str, Any]) -> str:
+    live_id = str(payload.get("live_id") or "shop")
+    snapshot_key = str(payload.get("snapshot_key") or "")
+    return f"{job_token}:live_hours:{live_id}:{snapshot_key}"
 
 
 def make_targeted_fetch_bronze_handoff(
@@ -92,5 +113,29 @@ def make_targeted_fetch_bronze_handoff(
             )
             if row_id is not None:
                 tracker.return_row_ids.append(row_id)
+            return
+
+        if channel == "tiktok.analytics.product.raw":
+            row_id = await append_targeted_ctor_payload(
+                session,
+                shop_id=shop_id,
+                payload=data,
+                received_at=received_at,
+                source_event_id=_ctor_source_event_id(job_token, data),
+            )
+            if row_id is not None:
+                tracker.ctor_row_ids.append(row_id)
+            return
+
+        if channel == "tiktok.analytics.live.raw":
+            row_id = await append_targeted_live_hours_payload(
+                session,
+                shop_id=shop_id,
+                payload=data,
+                received_at=received_at,
+                source_event_id=_live_hours_source_event_id(job_token, data),
+            )
+            if row_id is not None:
+                tracker.live_hours_row_ids.append(row_id)
 
     return handoff

@@ -952,6 +952,56 @@ class BronzeReturnRawPayload(Base):
     source_event_id: Mapped[str | None] = mapped_column(String(255))
 
 
+class BronzeCtorPerformanceRawPayload(Base):
+    """Append-only raw A-34 product performance rows (ctor domain, #880)."""
+
+    __tablename__ = "ctor_performance_raw_payloads"
+    __table_args__ = (
+        Index(
+            "ix_bronze_ctor_performance_raw_payloads_shop_received",
+            "shop_id",
+            "received_at",
+        ),
+        {"schema": "bronze"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    ingest_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    tiktok_product_id: Mapped[str | None] = mapped_column(String(100))
+    source_event_id: Mapped[str | None] = mapped_column(String(255))
+
+
+class BronzeLiveHoursRawPayload(Base):
+    """Append-only raw A-28 LIVE performance rows (live_hours domain, #880)."""
+
+    __tablename__ = "live_hours_raw_payloads"
+    __table_args__ = (
+        Index(
+            "ix_bronze_live_hours_raw_payloads_shop_received",
+            "shop_id",
+            "received_at",
+        ),
+        {"schema": "bronze"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    ingest_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    tiktok_live_id: Mapped[str | None] = mapped_column(String(100))
+    source_event_id: Mapped[str | None] = mapped_column(String(255))
+
+
 from juli_backend.services.etl.persistence.ingest import (  # noqa: E402, F401
     ProcessedEvent,
 )

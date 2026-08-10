@@ -30,7 +30,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "028_demo_execution_records"
+LATEST_REVISION = "029_bronze_ctor_live_hours"
 
 
 def _validate_destructive_db_url(url: str) -> None:
@@ -125,6 +125,7 @@ REVISION_020_TABLE = "analytics_kpi_envelopes"
 REVISION_021_TABLE = "ml_feature_snapshots"
 REVISION_022_SCHEMA = "ops"
 REVISION_023_BRONZE_TABLES = ("order_raw_payloads", "return_raw_payloads")
+REVISION_029_BRONZE_TABLES = ("ctor_performance_raw_payloads", "live_hours_raw_payloads")
 MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
 CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
 POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
@@ -924,7 +925,8 @@ def test_latest_downgrade_drops_only_revision_028_demo_execution(postgres_at_hea
 
     assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
 
-    command.downgrade(cfg, "-1")
+    # Head may be past 028 (e.g. 029); target 027 so 028's downgrade runs explicitly.
+    command.downgrade(cfg, "027_decision_emission_budget")
 
     assert not _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
     for table in REVISION_025_SILVER_TABLES:
@@ -933,6 +935,34 @@ def test_latest_downgrade_drops_only_revision_028_demo_execution(postgres_at_hea
 
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_029_bronze_ctor_live_hours(
+    postgres_at_head: Engine,
+):
+    """Downgrading past 029 removes its bronze tables; 023's bronze tables remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for table in REVISION_029_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+
+    # Head may move past 029; target 028 so 029's downgrade runs explicitly.
+    command.downgrade(cfg, "028_demo_execution_records")
+
+    for table in REVISION_029_BRONZE_TABLES:
+        assert not _table_exists_in_schema(postgres_at_head, "bronze", table)
+    # 023's bronze tables and the medallion schemas must survive 029's downgrade.
+    for table in REVISION_023_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+    assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
+
+    command.upgrade(cfg, "head")
+    for table in REVISION_029_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
 
 
 @requires_postgres
