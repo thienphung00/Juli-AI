@@ -19,7 +19,7 @@ Mode is persisted (`juli_workspace_mode` in `localStorage`) and toggles `dark` o
 | `seller` | **Light** (`#FEF5F6`/white canvas) | TikTok Shop seller workflows |
 | `affiliate` | **Dark** | Out-of-scope shell in Phase 1 |
 
-> **Theme swap ([ADR-027](../../../../docs/adr/027-design-system-token-foundation.md)):** Seller→light, Affiliate→dark. Theme mapping is implemented in `globals.css` (dashboard) and `@juli/theme` tokens (demo).
+> **Theme swap ([ADR-015](../../../../docs/adr/015-design-system-token-foundation.md)):** Seller→light, Affiliate→dark. Theme mapping is implemented in `globals.css` (dashboard) and `@juli/theme` tokens (demo).
 
 **Rule:** Use semantic tokens (`var(--background)`, `var(--foreground)`, `var(--muted-foreground)`, `var(--border)`, `var(--primary)`) so both modes work without duplicate components.
 
@@ -114,7 +114,7 @@ packages/ui/src/        # shared primitives (Button, Card, PageHeader, …)
 - Currency: `formatVND(n)` — never hand-format ₫
 - Dates: `formatDate` / `formatDateTime` (ICT)
 
-## Type scale, color, elevation, motion ([ADR-027](../../../../docs/adr/027-design-system-token-foundation.md))
+## Type scale, color, elevation, motion ([ADR-015](../../../../docs/adr/015-design-system-token-foundation.md))
 
 - **Type:** one typeface (Inter), single **≤6-size** scale; hierarchy from size + weight only. No serif/display or monospace fonts.
 - **Color (60/30/10):** neutral (60%) → Growth `#16A34A` / Loss `#E5484D` (30%) → pink `#F86BA5` (5–10%); Warning `#F59E0B`, New/Info `#2563EB`. Each semantic ships a low-opacity background tint (badges/cards). Never color-only — pair with text/icon.
@@ -178,7 +178,7 @@ Add testids for: primary actions, empty states, modals, form fields under test.
 
 ## Aesthetic directions (within brand)
 
-Juli is **clean light-commerce** (seller) and **refined dark-marketplace** (affiliate) — see ADR-027 theme swap. When expanding UI, pick an emphasis — don't drift to generic SaaS:
+Juli is **clean light-commerce** (seller) and **refined dark-marketplace** (affiliate) — see ADR-015 theme swap. When expanding UI, pick an emphasis — don't drift to generic SaaS:
 
 | Emphasis | How (on-brand) |
 |----------|----------------|

@@ -24,8 +24,8 @@ hooks:
             {"ok": true}. Code was written: verify (only what applies) —
             Vietnamese copy with diacritics; CSS vars from globals.css (not
             hardcoded theme colors); interactive states; semantic HTML; visible
-            focus; form labels; data-testid on key elements; seller (dark) and
-            affiliate (light) if theme-sensitive; empty/loading/error states.
+            focus; form labels; data-testid on key elements; seller (light) and
+            affiliate (dark) if theme-sensitive; empty/loading/error states.
             Respond {"ok": true} or {"ok": false, "reason": "specific gap"}.
 ---
 
@@ -62,7 +62,7 @@ Load plugin skills when Focus selects them: `frontend-design` for aesthetic/crea
 Juli has an established identity — **extend it, don't replace it**:
 
 - Pink accent (`--primary` / `#F86BA5`), background `#FEF5F6`, Inter, glass + gradient wordmark
-- **Theme ([ADR-027](../../../../docs/adr/027-design-system-token-foundation.md), P1.8-8 target): Seller = light; Affiliate = dark** — inverts the prior mapping; use semantic tokens so both modes work
+- **Theme ([ADR-015](../../../../docs/adr/015-design-system-token-foundation.md)): Seller = light; Affiliate = dark** — use semantic tokens so both modes work
 - One typeface (Inter), single **≤6-size** type scale (hierarchy from size + weight)
 - Semantic palette: Growth `#16A34A`, Loss `#E5484D`, Warning `#F59E0B`, New/Info `#2563EB` (+ background tints); 60/30/10 distribution
 - 3-step elevation (`sm`/`md`/`lg`); motion gated by `prefers-reduced-motion`
@@ -95,6 +95,20 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 - [ ] data-testid on key elements
 - [ ] Responsive at mobile width (375px)
 ```
+
+### 5. Visual check
+
+The Verify checklist catches token drift, not flat design. After it passes, render and look:
+
+1. Run the app (`pnpm --filter @juli/demo dev` → http://localhost:3000; Playwright E2E uses
+   port 3100) and capture each changed screen with
+   `npx playwright screenshot --viewport-size=390,844 <url> <out.png>` (repeat at `960,900`).
+2. View the screenshots and judge against [`docs/product/design/design.md`](../../../../docs/product/design/design.md)
+   and `ux_principles.md`: hierarchy obvious? spacing rhythm consistent? motion where the
+   design system mandates it? Would it pass "does this actually look good?"
+3. Iterate. Strengthening hierarchy, spacing rhythm, and micro-interactions within brand
+   tokens is expected judgment, not scope creep.
+4. Pass the screenshot paths forward (implementation artifact notes) so Review can view them.
 
 ## Anti-patterns
 
