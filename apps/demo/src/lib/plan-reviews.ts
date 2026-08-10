@@ -9,6 +9,10 @@ import {
   getCreateActivityPlanReview,
 } from "./workflows/create-activity";
 import {
+  CREATE_HERO_PRODUCT_WORKFLOW_KEY,
+  getCreateHeroProductPlanReview,
+} from "./workflows/create-hero-product";
+import {
   DELETE_ACTIVITY_WORKFLOW_KEY,
   getDeleteActivityPlanReview,
 } from "./workflows/delete-activity";
@@ -176,6 +180,44 @@ export interface PlanDetailsContent {
   detailLines: string[];
 }
 
+export interface PlanNeedsYouUploadField {
+  /** The field key on the workflow's review input descriptors. */
+  key: string;
+  /** Seller-language field label — reused verbatim from the field data. */
+  label: string;
+  /** True when approval must wait for this upload. */
+  required: boolean;
+}
+
+/**
+ * The "needs you" section (ADR-055 item 12) — the stated exception to
+ * pre-committing every field. Where no proposal can exist (file uploads),
+ * the plan presents a plain upload in a visible section and says why,
+ * instead of implying one-tap approval. It is never a silent blank: the
+ * explanation names why Juli cannot propose here and what happens next
+ * (`docs/product/design/Components/empty-states.md`), and the card refuses
+ * to fire approval while a required upload is missing
+ * (`docs/product/design/Components/forms.md` — one primary submit action,
+ * disabled until valid).
+ */
+export interface PlanNeedsYouContent {
+  /** Section label, seller language. Rendered as emphasis, never a heading. */
+  title: string;
+  /**
+   * Why Juli cannot propose here and what happens next — one to two
+   * pre-authored seller sentences. Required so the section never reads as a
+   * bare empty form.
+   */
+  explanation: string;
+  /** The upload descriptors, sourced from the workflow's field data. */
+  uploadFields: PlanNeedsYouUploadField[];
+  /**
+   * Shown while a required upload is missing, adjacent to the disabled
+   * primary action — names exactly what unblocks approval.
+   */
+  approvalBlockedText: string;
+}
+
 export interface PlanReviewContent {
   workflowKey: string;
   title: string;
@@ -192,6 +234,14 @@ export interface PlanReviewContent {
    * the section then renders as nothing, never as an empty stub.
    */
   details?: PlanDetailsContent;
+  /**
+   * Absent (undefined) for every workflow whose fields are all proposable —
+   * the section then renders as nothing. Present only where ADR-055 item 12
+   * applies (`create_hero_product_1`'s uploads): the card renders the
+   * uploads unfolded between the Decision section and the primary action,
+   * and blocks approval until every required upload is supplied.
+   */
+  needsYou?: PlanNeedsYouContent;
 }
 
 export function getWorkflowPlanReview(
@@ -200,6 +250,10 @@ export function getWorkflowPlanReview(
   switch (workflowKey) {
     case CREATE_ACTIVITY_WORKFLOW_KEY:
       return getCreateActivityPlanReview();
+    case CREATE_HERO_PRODUCT_WORKFLOW_KEY:
+      // The one plan carrying the "needs you" upload exception (ADR-055
+      // item 12) — not one-tap approvable, and the plan says so.
+      return getCreateHeroProductPlanReview();
     case DELETE_ACTIVITY_WORKFLOW_KEY:
       return getDeleteActivityPlanReview();
     case OPTIMIZE_PRODUCT_WORKFLOW_KEY:
