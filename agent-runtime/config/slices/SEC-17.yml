@@ -1,0 +1,20 @@
+SEC-17:
+  executorDomain: data-platform
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/046-cdp-medallion-physical-model.md
+    - backend/src/juli_backend/database/MODULE.md
+  requiredModules:
+    - agent-runtime/scripts/ci/ensure_postgrest_client_roles.py
+    - agent-runtime/scripts/ci/check_public_schema_privileges.py
+    - tests/integration/test_migrations.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/database/migrations/versions/029_close_public_schema_defaults.py
+    - .github/workflows/pr.yml
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

@@ -1,0 +1,20 @@
+SEC-15:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/041-vps-redis-ephemeral-cache-and-celery.md
+    - backend/src/juli_backend/services/action_cards/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/services/action_cards/refresh_cooldown.py
+    - backend/src/juli_backend/api/routes/action_cards.py
+    - tests/unit/test_action_card_refresh_cooldown.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/services/analytics_kpi_cache/cache.py
+    - backend/src/juli_backend/core/security/tiktok_oauth.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

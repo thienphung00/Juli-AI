@@ -1,0 +1,20 @@
+SEC-14:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - backend/src/juli_backend/api/MODULE.md
+    - backend/src/juli_backend/core/security/MODULE.md
+  requiredModules:
+    - backend/src/juli_backend/api/main.py
+    - backend/src/juli_backend/core/security/dependencies.py
+    - tests/unit/test_get_current_user.py
+  loadWhenNeeded:
+    - backend/src/juli_backend/core/config/runtime.py
+    - docs/runbooks/backend-deploy-runbook.md
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

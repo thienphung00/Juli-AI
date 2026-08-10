@@ -1,0 +1,18 @@
+SEC-16:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/integrations/tiktok_api/webhooks.md
+  requiredModules:
+    - infra/nginx/rate-limits.conf
+    - agent-runtime/scripts/ci/check_nginx_rate_limits.py
+  loadWhenNeeded:
+    - infra/nginx/api.app-juli.com.conf
+    - backend/src/juli_backend/services/tiktok/webhook.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches

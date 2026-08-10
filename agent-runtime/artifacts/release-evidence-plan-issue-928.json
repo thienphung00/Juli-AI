@@ -1,0 +1,81 @@
+{
+  "planId": "rep-928-webhook-ceiling-and-burst-lint",
+  "affectedPublicSurfaces": [
+    "/webhooks/tiktok ingestion ceiling for the ENTIRE tenant base, not per shop"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "config artifact only; nginx -t in CI. Not applied to the host in this slice.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "burst-is-machine-enforced",
+        "entryUrl": "CI: strip burst= from the webhook location",
+        "assertions": [
+          "check_nginx_rate_limits.py FAILS",
+          "it passes again once restored"
+        ]
+      },
+      {
+        "name": "config-still-parses",
+        "entryUrl": "CI: nginx -t on the assembled candidate config",
+        "assertions": [
+          "parses on the packaged nginx matching the review VPS"
+        ]
+      },
+      {
+        "name": "nodelay-retained",
+        "entryUrl": "review of the webhook location",
+        "assertions": [
+          "nodelay is still present",
+          "the ACK-budget rationale is recorded beside it"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Edge configuration and a CI lint only."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore the prior nginx config and reload; no data implications",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python agent-runtime/scripts/ci/check_nginx_rate_limits.py",
+    "pytest -q tests/unit/test_phase_2_5_deploy_config.py"
+  ],
+  "doNotInfer": [
+    "Do not remove nodelay \u2014 queuing eats the 3-second ACK budget and trades a visible 429 for an invisible timeout",
+    "Do not cite TikTok retry/egress behaviour that is not documented in docs/integrations/tiktok_api/",
+    "Do not apply the config to the live host in this slice"
+  ]
+}
