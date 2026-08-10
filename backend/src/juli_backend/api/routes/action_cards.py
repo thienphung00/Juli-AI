@@ -97,7 +97,7 @@ async def refresh_action_cards(
     app-level rate limit in the epic — it is keyed on shop identity, which
     Nginx (network-origin only, issue #898) cannot express.
     """
-    decision = get_refresh_cooldown_gate().try_acquire(str(shop.id))
+    decision = await get_refresh_cooldown_gate().try_acquire(str(shop.id))
     if not decision.allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

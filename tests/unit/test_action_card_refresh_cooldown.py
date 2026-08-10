@@ -15,8 +15,13 @@ AC4 → an unavailable backing store does not degrade into unlimited enqueuing
 
 from __future__ import annotations
 
+import asyncio
+import socket
+import threading
+import time
 import uuid
-from unittest.mock import MagicMock
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -222,7 +227,7 @@ async def test_redis_store_unreachable_fails_closed_not_unlimited(
     app, client, shop_a, mock_refresh_dispatcher
 ):
     """A live but failing Redis client denies rather than silently allowing."""
-    broken_redis = MagicMock()
+    broken_redis = AsyncMock()
     broken_redis.set.side_effect = RedisConnectionError("connection refused")
     set_refresh_cooldown_gate(RedisRefreshCooldownGate(broken_redis, cooldown_seconds=60))
     _act_as(app, shop_a)
@@ -251,6 +256,108 @@ async def test_unbound_cooldown_gate_does_not_enqueue(app, client, shop_a, mock_
     assert mock_refresh_dispatcher.enqueue.call_count == 0
 
 
+# --- Exit gate (#927): a SLOW backing store must not stall the event loop --
+#
+# The #899 tests above only ever simulate failure with a mock that raises
+# instantly (`side_effect=RedisConnectionError(...)`), which proves the
+# fail-closed path but can never reveal a *stall* — the failure mode that
+# matters when the production gate uses a synchronous Redis client with no
+# `await`/`asyncio.to_thread` on an async route, on a single-worker uvicorn
+# process (infra/systemd/juli-api.service `--workers 1`). This test stands
+# up a real TCP listener that accepts the connection and holds it open —
+# never replying — so the "Redis" call is genuinely slow, not instantly
+# erroring, and drives the gate through the *real* startup binding path
+# (`bind_action_card_refresh_cooldown_gate()`), not an injected fake gate.
+
+
+@contextmanager
+def _slow_backing_store(hold_seconds: float):
+    """A raw TCP listener standing in for a hung Redis (#927 exit gate).
+
+    Accepts exactly one connection and holds it open — sending nothing back —
+    for ``hold_seconds`` real wall-clock seconds on a dedicated OS thread
+    (independent of whatever asyncio loop the caller is on, including one
+    that is itself blocked), then closes the socket so the client's blocked
+    read finally unblocks with a connection-closed error.
+    """
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    port = server.getsockname()[1]
+
+    def _accept_and_hold() -> None:
+        server.settimeout(hold_seconds + 10)
+        try:
+            conn, _ = server.accept()
+        except OSError:
+            return
+        try:
+            time.sleep(hold_seconds)
+        finally:
+            conn.close()
+
+    thread = threading.Thread(target=_accept_and_hold, daemon=True)
+    thread.start()
+    try:
+        yield f"redis://127.0.0.1:{port}/0"
+    finally:
+        server.close()
+        thread.join(timeout=hold_seconds + 10)
+
+
+@pytest.mark.asyncio
+async def test_slow_backing_store_does_not_stall_the_event_loop(
+    app, client, shop_a, mock_refresh_dispatcher, monkeypatch
+):
+    """A hung Redis must not block the sole uvicorn worker's event loop.
+
+    Exit gate (release-evidence-plan-issue-927.json,
+    "slow-redis-does-not-stall-the-worker"): while a refresh call is stuck
+    waiting on a slow backing store, a concurrent request to an unrelated
+    endpoint (``/health``) must still complete quickly.
+    """
+    hold_seconds = 1.0
+
+    # api/main.py mounts /health outside create_app(); this test exercises
+    # create_app() directly (like every other test in this module), so a
+    # trivial unrelated route stands in for it here.
+    app.add_api_route("/health", lambda: {"status": "ok"}, methods=["GET"])
+
+    with _slow_backing_store(hold_seconds) as redis_url:
+        monkeypatch.setenv("REDIS_URL", redis_url)
+        bind_action_card_refresh_cooldown_gate()  # real startup binding, not a fake
+        _act_as(app, shop_a)
+
+        # Timer wraps kickoff-through-response so a stall anywhere in between
+        # is captured, not just the health coroutine's own latency.
+        started = time.monotonic()
+        refresh_task = asyncio.ensure_future(client.post("/v1/action-cards/refresh"))
+        # In-process ASGI test calls resolve without ever truly suspending
+        # back to the loop's scheduler unless something forces a handoff —
+        # without this, /health can run to completion having never given the
+        # refresh task a turn at all, which would prove nothing. One bare
+        # yield hands control to whichever coroutine was scheduled first
+        # (the refresh task), so if it blocks the thread synchronously, that
+        # blocking is what the health request below runs into.
+        await asyncio.sleep(0)
+        health_response = await asyncio.wait_for(client.get("/health"), timeout=hold_seconds * 0.6)
+        elapsed = time.monotonic() - started
+
+        assert health_response.status_code == 200
+        assert elapsed < hold_seconds * 0.5, (
+            f"/health took {elapsed:.3f}s while a slow backing-store call was "
+            "in flight for an unrelated shop — the sole worker's event loop "
+            "was stalled"
+        )
+
+        # Let the stalled refresh call resolve (it must fail closed, never
+        # enqueue) before the fixture tears the socket down.
+        refresh_response = await asyncio.wait_for(refresh_task, timeout=hold_seconds + 10)
+        assert refresh_response.status_code == 429
+        assert mock_refresh_dispatcher.enqueue.call_count == 0
+
+
 # --- Unit coverage on the gate module itself --------------------------------
 
 
@@ -269,18 +376,42 @@ def test_refresh_cooldown_seconds_ignores_garbage_value(monkeypatch):
     assert refresh_cooldown_seconds() > 0
 
 
-def test_bind_with_no_redis_url_yields_unavailable_gate():
+@pytest.mark.asyncio
+async def test_bind_with_no_redis_url_yields_unavailable_gate():
     bind_action_card_refresh_cooldown_gate(redis_url="")
     gate = get_refresh_cooldown_gate()
     assert isinstance(gate, UnavailableRefreshCooldownGate)
-    decision = gate.try_acquire("shop-899")
+    decision = await gate.try_acquire("shop-899")
     assert decision.allowed is False
 
 
 def test_bind_with_redis_url_yields_redis_backed_gate():
-    bind_action_card_refresh_cooldown_gate(redis_url="redis://127.0.0.1:6379/0")
-    gate = get_refresh_cooldown_gate()
-    assert isinstance(gate, RedisRefreshCooldownGate)
+    from juli_backend.services.analytics_kpi_cache import reset_shared_redis_client_for_tests
+
+    reset_shared_redis_client_for_tests()
+    try:
+        bind_action_card_refresh_cooldown_gate(redis_url="redis://127.0.0.1:6379/0")
+        gate = get_refresh_cooldown_gate()
+        assert isinstance(gate, RedisRefreshCooldownGate)
+    finally:
+        reset_shared_redis_client_for_tests()
+
+
+def test_bind_reuses_the_analytics_kpi_cache_shared_client():
+    """#927: one shared async client, not a second bespoke connection."""
+    from juli_backend.services.analytics_kpi_cache import (
+        get_shared_redis_client,
+        reset_shared_redis_client_for_tests,
+    )
+
+    reset_shared_redis_client_for_tests()
+    try:
+        bind_action_card_refresh_cooldown_gate(redis_url="redis://127.0.0.1:6379/0")
+        gate = get_refresh_cooldown_gate()
+        assert isinstance(gate, RedisRefreshCooldownGate)
+        assert gate._redis is get_shared_redis_client("redis://127.0.0.1:6379/0")
+    finally:
+        reset_shared_redis_client_for_tests()
 
 
 def test_get_refresh_cooldown_gate_raises_when_unbound():
@@ -289,33 +420,35 @@ def test_get_refresh_cooldown_gate_raises_when_unbound():
         get_refresh_cooldown_gate()
 
 
-def test_redis_gate_denies_on_redis_error_and_reports_window_as_retry_hint():
-    broken_redis = MagicMock()
+@pytest.mark.asyncio
+async def test_redis_gate_denies_on_redis_error_and_reports_window_as_retry_hint():
+    broken_redis = AsyncMock()
     broken_redis.set.side_effect = RedisConnectionError("boom")
     gate = RedisRefreshCooldownGate(broken_redis, cooldown_seconds=45)
 
-    decision = gate.try_acquire("shop-899")
+    decision = await gate.try_acquire("shop-899")
 
     assert decision.allowed is False
     assert decision.retry_after_seconds == 45
 
 
-def test_redis_gate_allows_first_call_then_denies_second():
+@pytest.mark.asyncio
+async def test_redis_gate_allows_first_call_then_denies_second():
     store: dict[str, str] = {}
 
-    def _set(key, value, nx=False, ex=None):
+    async def _set(key, value, nx=False, ex=None):
         if nx and key in store:
             return False
         store[key] = value
         return True
 
-    redis_client = MagicMock()
+    redis_client = AsyncMock()
     redis_client.set.side_effect = _set
     redis_client.ttl.return_value = 60
     gate = RedisRefreshCooldownGate(redis_client, cooldown_seconds=60)
 
-    first = gate.try_acquire("shop-899")
-    second = gate.try_acquire("shop-899")
+    first = await gate.try_acquire("shop-899")
+    second = await gate.try_acquire("shop-899")
 
     assert first.allowed is True
     assert second.allowed is False

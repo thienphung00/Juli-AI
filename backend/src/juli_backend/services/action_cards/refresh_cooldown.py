@@ -15,6 +15,20 @@ controls that quietly went unlimited when a dependency was unset
 (``SUPABASE_JWT_SECRET`` defaulting to ``""``, ``REDIS_URL`` warming
 "fail-open if unset" in ``api/main.py``); this module is deliberately not a
 third (ADR-061).
+
+Async by construction (#927). ``infra/systemd/juli-api.service`` runs uvicorn
+with ``--workers 1``, so the API has exactly one event loop serving every
+shop's traffic. The original #899 slice used the *synchronous* ``redis``
+client and called ``try_acquire`` from an async route with no ``await`` and
+no ``asyncio.to_thread`` — a slow or hung Redis connection therefore blocked
+that one event loop, stalling every request for every shop, which is
+precisely the availability failure ADR-061 §2b exists to prevent. Every
+concrete gate here is ``async def try_acquire``, and
+:class:`RedisRefreshCooldownGate` takes the same process-lifetime
+``redis.asyncio`` client the Analytics KPI cache already warms and closes
+(``services/analytics_kpi_cache/cache.py``, ADR-041) — one shared client,
+correct shutdown, and (via that module) explicit socket timeouts, all for
+free instead of a second bespoke connection.
 """
 
 from __future__ import annotations
@@ -60,7 +74,7 @@ class CooldownDecision:
 
 
 class RefreshCooldownGate(Protocol):
-    def try_acquire(self, shop_id: str) -> CooldownDecision: ...
+    async def try_acquire(self, shop_id: str) -> CooldownDecision: ...
 
 
 class UnavailableRefreshCooldownGate:
@@ -71,7 +85,7 @@ class UnavailableRefreshCooldownGate:
     exactly like a live Redis connection failure.
     """
 
-    def try_acquire(self, shop_id: str) -> CooldownDecision:
+    async def try_acquire(self, shop_id: str) -> CooldownDecision:
         window = refresh_cooldown_seconds()
         logger.warning(
             "action_card_refresh_cooldown_store_unconfigured",
@@ -84,7 +98,10 @@ class RedisRefreshCooldownGate:
     """Production gate: Redis ``SET NX EX`` per shop (app cache DB /0, ADR-041).
 
     Fails closed on any Redis error — a broken connection denies the request
-    rather than allowing it through unlimited.
+    rather than allowing it through unlimited. ``redis_client`` must be an
+    **async** (``redis.asyncio``) client (#927) — a synchronous client called
+    from this coroutine would block the single uvicorn worker's event loop
+    for every shop, not just the one being throttled.
     """
 
     def __init__(
@@ -105,13 +122,13 @@ class RedisRefreshCooldownGate:
     def _key(shop_id: str) -> str:
         return f"{_REDIS_KEY_PREFIX}{shop_id}"
 
-    def try_acquire(self, shop_id: str) -> CooldownDecision:
+    async def try_acquire(self, shop_id: str) -> CooldownDecision:
         from redis.exceptions import RedisError
 
         window = self._window()
         key = self._key(shop_id)
         try:
-            acquired = self._redis.set(key, "1", nx=True, ex=window)
+            acquired = await self._redis.set(key, "1", nx=True, ex=window)
         except RedisError as exc:
             logger.warning(
                 "action_card_refresh_cooldown_store_unavailable",
@@ -123,7 +140,7 @@ class RedisRefreshCooldownGate:
             return CooldownDecision(allowed=True, retry_after_seconds=0)
 
         try:
-            ttl_raw = self._redis.ttl(key)
+            ttl_raw = await self._redis.ttl(key)
         except RedisError:
             ttl_raw = None
         ttl = int(ttl_raw) if isinstance(ttl_raw, int) and ttl_raw > 0 else window
@@ -148,7 +165,7 @@ class InMemoryRefreshCooldownGate:
             return self._cooldown_seconds_override
         return refresh_cooldown_seconds()
 
-    def try_acquire(self, shop_id: str) -> CooldownDecision:
+    async def try_acquire(self, shop_id: str) -> CooldownDecision:
         now = self._clock()
         window = self._window()
         expiry = self._expires_at.get(shop_id)
@@ -184,12 +201,27 @@ def bind_action_card_refresh_cooldown_gate(*, redis_url: str | None = None) -> N
 
     An unset ``REDIS_URL`` binds :class:`UnavailableRefreshCooldownGate` —
     every refresh request is denied — rather than skipping the check.
+
+    Reuses the process-lifetime ``redis.asyncio`` client from
+    ``services.analytics_kpi_cache`` (ADR-041's "one shared async Redis
+    client") instead of opening a second, bespoke connection (#927). That
+    gives this gate async, non-blocking behaviour, the explicit socket
+    timeouts configured on the shared client, and correct lifespan shutdown
+    via ``close_shared_redis_client()`` — all without this module owning any
+    connection lifecycle of its own. ``get_shared_redis_client`` only
+    returns ``None`` when ``url`` is empty, which is already handled above,
+    but the fallback below keeps this gate fail-closed even if that
+    ever changes.
     """
     url = redis_url if redis_url is not None else os.getenv("REDIS_URL", "").strip()
     if not url:
         set_refresh_cooldown_gate(UnavailableRefreshCooldownGate())
         return
 
-    import redis
+    from juli_backend.services.analytics_kpi_cache import get_shared_redis_client
 
-    set_refresh_cooldown_gate(RedisRefreshCooldownGate(redis.from_url(url)))
+    client = get_shared_redis_client(url)
+    if client is None:
+        set_refresh_cooldown_gate(UnavailableRefreshCooldownGate())
+        return
+    set_refresh_cooldown_gate(RedisRefreshCooldownGate(client))
