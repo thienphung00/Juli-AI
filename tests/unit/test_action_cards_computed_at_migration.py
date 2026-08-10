@@ -61,10 +61,13 @@ def test_migration_satisfies_additive_gate():
 def test_action_cards_still_has_exactly_one_alembic_head():
     """Alembic revision chain has one head — this migration does not branch it.
 
-    The literal head id advances as later slices stack on top of 026 (e.g.
+    Asserts the actual invariant the name promises (single-headedness), not a
+    pinned literal head id: later slices stack on top of 026 (e.g.
     027_decision_emission_budget, #716 B-4; 028_demo_execution_records, #717
-    B-5) — what this test actually guards is the single-head invariant, not
-    this specific revision string.
+    B-5; 029_close_public_schema_defaults, #897), so a literal-equality
+    assertion here breaks on every subsequent migration for a reason unrelated
+    to this file. Instead confirm 026 is still an ancestor of whatever head is
+    current — the property this migration actually cares about not breaking.
     """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
@@ -73,4 +76,6 @@ def test_action_cards_still_has_exactly_one_alembic_head():
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
     assert len(heads) == 1
-    assert heads == ["028_demo_execution_records"]
+
+    ancestry = {rev.revision for rev in script.walk_revisions(base="base", head="head")}
+    assert "026_action_cards_computed_at" in ancestry

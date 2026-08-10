@@ -469,12 +469,37 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -e "./backend[dev]"
+      # #897 exit gate: create the PostgREST client roles BEFORE migrations run so
+      # 021_medallion_schemas' + 029_close_public_schema_defaults' role-guarded
+      # REVOKE/ALTER DEFAULT PRIVILEGES statements actually execute in CI instead of
+      # silently skipping their `IF EXISTS (SELECT 1 FROM pg_roles ...)` guard.
+      - name: Create PostgREST client roles (anon, authenticated)
+        run: python agent-runtime/scripts/ci/ensure_postgrest_client_roles.py
+      - name: Alembic upgrade to pre-#897 revision
+        run: alembic upgrade 028_demo_execution_records
+      # Demonstrates the exit-gate assertion actually detects the open boundary:
+      # the public schema is still fully open to anon/authenticated at this
+      # revision, so the check below MUST fail; invert its exit code and fail the
+      # job if it doesn't.
+      - name: Public-schema boundary check must FAIL before #897
+        run: |
+          if python agent-runtime/scripts/ci/check_public_schema_privileges.py; then
+            echo "::error::privilege check unexpectedly PASSED against the pre-#897 schema state — it is not detecting the open public schema"
+            exit 1
+          fi
+          echo "confirmed: privilege check correctly fails against the pre-#897 schema state"
       - name: Alembic upgrade head
         run: alembic upgrade head
+      # #897 exit gate: live pg_catalog query, fails the build if any table outside
+      # the explicit gold allowlist is reachable by anon/authenticated.
+      - name: Public-schema boundary check must PASS at head
+        run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
       - name: Alembic downgrade one
         run: alembic downgrade -1
       - name: Alembic re-upgrade head
         run: alembic upgrade head
+      - name: Public-schema boundary check must PASS after downgrade/re-upgrade
+        run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
 
   frontend:
     runs-on: ubuntu-latest
