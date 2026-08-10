@@ -100,8 +100,8 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 
 The Verify checklist catches token drift, not flat design. After it passes, render and look:
 
-1. Run the app (`pnpm --filter @juli/demo dev` → http://localhost:3000; Playwright E2E uses
-   port 3100) and capture each changed screen with
+1. Run the app (`pnpm --filter @juli/demo dev` → http://localhost:3100; dashboard dev
+   holds 3000) and capture each changed screen with
    `npx playwright screenshot --viewport-size=390,844 <url> <out.png>` (repeat at `960,900`).
 2. View the screenshots and judge against [`docs/product/design/design.md`](../../../../docs/product/design/design.md)
    and `ux_principles.md`: hierarchy obvious? spacing rhythm consistent? motion where the

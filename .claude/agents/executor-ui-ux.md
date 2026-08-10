@@ -74,10 +74,10 @@ proceed with your own judgment inside brand tokens.
 
 UI work is not done until you have seen it rendered. After tests are green:
 
-1. Start the app — `pnpm --filter @juli/demo dev` (serves on http://localhost:3000 by
-   default; the Playwright E2E config uses port 3100) — or reuse a running server.
+1. Start the app — `pnpm --filter @juli/demo dev` → http://localhost:3100 (dashboard dev
+   holds 3000) — or reuse a running server.
 2. Capture each changed screen at mobile and desktop widths, e.g.
-   `npx playwright screenshot --viewport-size=390,844 http://localhost:3000/<route> /tmp/ui-mobile.png`
+   `npx playwright screenshot --viewport-size=390,844 http://localhost:3100/<route> /tmp/ui-mobile.png`
    (repeat at `960,900` for desktop).
 3. Read the screenshots and judge them against `docs/product/design/design.md` and
    `ux_principles.md`: hierarchy obvious, spacing rhythm consistent, motion present where
