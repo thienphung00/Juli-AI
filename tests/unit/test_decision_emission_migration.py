@@ -51,7 +51,8 @@ def test_migration_satisfies_additive_gate():
 
 def test_action_cards_still_has_exactly_one_alembic_head_at_027():
     """Guards the single-head invariant; the literal head id advances as later
-    slices stack on top of 027 (e.g. 028_demo_execution_records, #717 B-5)."""
+    slices stack on top of 027 (e.g. 028_demo_execution_records, #717 B-5;
+    029_bronze_ctor_live_hours, #880)."""
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
@@ -59,4 +60,4 @@ def test_action_cards_still_has_exactly_one_alembic_head_at_027():
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
     assert len(heads) == 1
-    assert heads == ["028_demo_execution_records"]
+    assert heads == ["029_bronze_ctor_live_hours"]

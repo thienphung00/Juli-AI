@@ -30,7 +30,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "028_demo_execution_records"
+LATEST_REVISION = "029_bronze_ctor_live_hours"
 
 
 def _validate_destructive_db_url(url: str) -> None:

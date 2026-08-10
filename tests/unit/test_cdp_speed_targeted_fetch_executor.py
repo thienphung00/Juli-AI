@@ -170,8 +170,62 @@ def test_executor_module_does_not_import_workers():
     assert "core.security.tiktok_oauth" not in source
 
 
-def test_bronze_supported_resources_are_orders_and_returns_only():
-    assert BRONZE_SUPPORTED_RESOURCE_ATTRS == frozenset({"orders", "returns"})
+def test_bronze_supported_resources_include_ctor_and_live_hours():
+    """#880 — A-34 (ctor) and A-28 (live_hours) join orders/returns on bronze."""
+    assert BRONZE_SUPPORTED_RESOURCE_ATTRS == frozenset({"orders", "returns", "ctor", "live_hours"})
+
+
+@pytest.mark.asyncio
+async def test_ctor_and_live_hours_resources_are_not_bronze_deferred(caplog):
+    """#880's stated AC: a plan naming ctor/live_hours must not hit the
+    ``targeted_fetch_bronze_deferred`` / ``bronze_table_not_available`` path
+    that every non-orders/returns resource used to hit unconditionally."""
+    import logging
+
+    from juli_backend.services.cdp_speed.targeted_fetch_executor import _run_plan_resource
+    from juli_backend.services.cdp_speed.targeted_fetch_planner import FetchResource
+
+    class _StubAnalyticsResource:
+        pass
+
+    class _StubResources:
+        analytics = _StubAnalyticsResource()
+
+    sync_calls: list[str] = []
+
+    async def _stub_sync(**kwargs):
+        del kwargs
+        sync_calls.append("called")
+
+    import juli_backend.services.cdp_speed.targeted_fetch_executor as executor_module
+
+    original_sync_map = dict(executor_module._SYNC_BY_RESOURCE_ATTR)
+    executor_module._SYNC_BY_RESOURCE_ATTR["ctor"] = _stub_sync
+    executor_module._SYNC_BY_RESOURCE_ATTR["live_hours"] = _stub_sync
+    try:
+        with caplog.at_level(logging.INFO):
+            for resource_attr in ("ctor", "live_hours"):
+                sync_calls.clear()
+                caplog.clear()
+                endpoint_path = f"/analytics/202309/{resource_attr}"
+                await _run_plan_resource(
+                    FetchResource(resource_attr, endpoint_path, resource_attr),
+                    resources=_StubResources(),
+                    rate_limiter=MagicMock(),
+                    handoff_fn=AsyncMock(),
+                    app_id="app",
+                    shop_key="shop_880",
+                    sync_state={},
+                    correlation_id="corr-880",
+                )
+                deferred_records = [
+                    r for r in caplog.records if r.message == "targeted_fetch_bronze_deferred"
+                ]
+                assert not deferred_records, f"{resource_attr} was bronze-deferred"
+                assert sync_calls == ["called"], f"{resource_attr} sync fn was not invoked"
+    finally:
+        executor_module._SYNC_BY_RESOURCE_ATTR.clear()
+        executor_module._SYNC_BY_RESOURCE_ATTR.update(original_sync_map)
 
 
 def test_executor_module_does_not_instantiate_quota_guarded_resources_in_plan():

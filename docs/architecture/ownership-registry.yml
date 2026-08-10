@@ -127,6 +127,19 @@ databaseTables:
     owner: Data Pipeline
     access: write
     notes: Append-only bronze return/cancellation payloads (webhook landing).
+  ctor_performance_raw_payloads:
+    owner: Data Pipeline
+    access: write
+    notes: >
+      Append-only bronze A-34 product performance rows (ctor Demo Main KPI domain,
+      targeted-fetch landing, #880).
+  live_hours_raw_payloads:
+    owner: Data Pipeline
+    access: write
+    notes: >
+      Append-only bronze A-28 LIVE performance rows — per-session plus the derived
+      shop-grain daily rollup (live_hours Demo Main KPI domain, targeted-fetch
+      landing, #880).
   kpi_envelopes:
     owner: Intelligence
     access: write

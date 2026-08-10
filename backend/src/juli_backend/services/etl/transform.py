@@ -381,6 +381,10 @@ def _transform_analytics(body: dict[str, Any]) -> dict[str, Any]:
         "customers": _optional_int,
         "visitors": _optional_int,
         "impressions": _optional_int,
+        # Shop-grain LIVE rollup fields (#880, A-28 live_hours) — absent from
+        # per-product/per-session rows, present only on the derived shop rollup.
+        "live_hours": _optional_decimal,
+        "live_sessions": _optional_int,
     }
     for field, parser in metric_fields.items():
         if field not in body:
