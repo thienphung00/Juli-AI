@@ -81,9 +81,7 @@ async def auth_client(app, authenticated_user, shop):
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -175,6 +173,22 @@ def mock_refresh_dispatcher(monkeypatch):
     return dispatcher
 
 
+@pytest.fixture
+def allow_refresh_cooldown():
+    """Bind a permissive cooldown gate (#899) so this test file's AC2 refresh
+    check exercises only the pre-existing enqueue contract, not the cooldown
+    rejection path — that path has its own dedicated coverage in
+    tests/unit/test_action_card_refresh_cooldown.py."""
+    from juli_backend.services.action_cards.refresh_cooldown import (
+        InMemoryRefreshCooldownGate,
+        set_refresh_cooldown_gate,
+    )
+
+    set_refresh_cooldown_gate(InMemoryRefreshCooldownGate(cooldown_seconds=3600))
+    yield
+    set_refresh_cooldown_gate(None)
+
+
 @pytest.mark.asyncio
 async def test_action_cards_repo_upsert_inserts_new_card(session, shop):
     """AC1: first upsert inserts a row keyed by (shop_id, workflow_key)."""
@@ -243,6 +257,7 @@ async def test_action_cards_repo_second_upsert_updates_not_duplicates(session, s
 async def test_ac2_post_refresh_returns_202_and_enqueues_without_inline_run(
     auth_client,
     mock_refresh_dispatcher,
+    allow_refresh_cooldown,
     monkeypatch,
 ):
     """AC2: HTTP handler returns 202 after enqueue; refresh worker not called inline."""
@@ -418,9 +433,7 @@ async def test_issue429_analytics_ctr_refresh_persists_ads_workflow_keys(
     """#429 AC2: CTR-ranked Ads workflows appear in persisted action cards."""
     from juli_backend.services.action_cards.refresh import run_action_card_refresh
 
-    cards = await run_action_card_refresh(
-        session, mid_large_shop_with_analytics_ctr.id, poll=False
-    )
+    cards = await run_action_card_refresh(session, mid_large_shop_with_analytics_ctr.id, poll=False)
     await session.flush()
 
     workflow_keys = {card.workflow_key for card in cards}
@@ -457,9 +470,7 @@ async def test_issue429_analytics_refresh_then_get_lists_persisted_cards(
     await run_action_card_refresh(session, shop.id, poll=False)
     await session.commit()
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/v1/action-cards")
 
     assert response.status_code == 200
@@ -483,9 +494,7 @@ async def test_issue429_analytics_ctr_second_refresh_idempotent(
     from juli_backend.repositories.repos import ActionCardsRepo
     from juli_backend.services.action_cards.refresh import run_action_card_refresh
 
-    first = await run_action_card_refresh(
-        session, mid_large_shop_with_analytics_ctr.id, poll=False
-    )
+    first = await run_action_card_refresh(session, mid_large_shop_with_analytics_ctr.id, poll=False)
     await session.flush()
     repo = ActionCardsRepo(session)
     after_first = await repo.list_active(mid_large_shop_with_analytics_ctr.id)
