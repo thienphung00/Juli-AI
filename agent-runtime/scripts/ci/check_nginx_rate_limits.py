@@ -13,6 +13,11 @@ on the webhook receiver and the public Demo read locations, so deleting either o
 fails the build. This also checks the OAuth callback and authenticated catch-all
 locations (all four are ADR-061 §2b requirements) and asserts `/health` carries NO
 `limit_req` (ADR-061 doNotInfer: uptime polling must never be throttled).
+
+Issue #928: `limit_req zone=... burst=...` on the webhook and demo locations must
+also carry a `burst=` value — checking only `limit_req zone=` let `burst=20` be
+silently stripped from either location without failing CI, unenforcing AC2's "burst
+allowance so ordinary use and normal delivery are not thrown 429s".
 """
 
 from __future__ import annotations
@@ -31,6 +36,7 @@ LOCATION_HEADER_RE = re.compile(
     r"location\s+(?P<modifier>=|~\*|~|\^~)?\s*(?P<path>\S+)\s*\{",
 )
 LIMIT_REQ_RE = re.compile(r"^\s*limit_req\s+zone=", re.MULTILINE)
+LIMIT_REQ_BURST_RE = re.compile(r"^\s*limit_req\s+zone=\S+\s+burst=\d+", re.MULTILINE)
 LIMIT_REQ_ZONE_DEF_RE = re.compile(r"^\s*limit_req_zone\s+\S+\s+zone=(\S+?):", re.MULTILINE)
 
 
@@ -111,6 +117,10 @@ def has_limit_req(block: LocationBlock) -> bool:
     return bool(LIMIT_REQ_RE.search(block.body))
 
 
+def has_burst(block: LocationBlock) -> bool:
+    return bool(LIMIT_REQ_BURST_RE.search(block.body))
+
+
 def referenced_zones(conf_text: str) -> set[str]:
     return set(re.findall(r"limit_req\s+zone=(\S+?)[\s;]", conf_text))
 
@@ -142,12 +152,22 @@ def run_check() -> tuple[bool, str, list[str]]:
         errors.append("no `location = /webhooks/tiktok` block found in api.app-juli.com.conf")
     elif not has_limit_req(webhook):
         errors.append("`location = /webhooks/tiktok` has no `limit_req zone=...` directive")
+    elif not has_burst(webhook):
+        errors.append(
+            "`location = /webhooks/tiktok` has `limit_req` but no `burst=...` value — "
+            "stripping burst leaves ordinary redelivery bursts unabsorbed (issue #928 AC2)"
+        )
 
     demo = find_location_prefix(blocks, "/v1/demo/")
     if demo is None:
         errors.append("no `location /v1/demo/` block found in api.app-juli.com.conf")
     elif not has_limit_req(demo):
         errors.append("`location /v1/demo/` has no `limit_req zone=...` directive")
+    elif not has_burst(demo):
+        errors.append(
+            "`location /v1/demo/` has `limit_req` but no `burst=...` value — "
+            "stripping burst leaves a page load's XHR fan-out unabsorbed (issue #928 AC2)"
+        )
 
     # ADR-061 §2b also requires the OAuth callback surface and authenticated
     # catch-all to carry a limit_req zone (strict / generous respectively).
