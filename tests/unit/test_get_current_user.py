@@ -170,11 +170,16 @@ class TestJwtSecretFailsClosed:
     """Issue #894 — no defaulting lookup of SUPABASE_JWT_SECRET may ever be used
     to verify a token; the dependency must fail fast instead."""
 
-    async def test_dependency_raises_when_secret_env_absent(
+    async def test_get_current_user_raises_when_secret_env_absent_defense_in_depth(
         self, session: AsyncSession, user_id, monkeypatch
     ):
-        """Exit gate: the dependency raises on construction when the variable
-        is absent — it must NOT silently fall back to an empty-string key."""
+        """Defence in depth only: calls the get_current_user dependency
+        directly (not via a booted app) and asserts it raises when the
+        variable is absent — it must NOT silently fall back to an
+        empty-string key. This does NOT exercise app startup; the primary,
+        startup-level assertion (ADR-061 / issue #926) is covered by
+        tests/unit/test_api_main.py::TestLifespanAssertsJwtSecretAtStartup,
+        which boots api/main.py's actual lifespan."""
         monkeypatch.delenv("SUPABASE_JWT_SECRET", raising=False)
         token = _make_token(user_id)
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
