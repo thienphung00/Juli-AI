@@ -63,8 +63,9 @@ def test_action_cards_still_has_exactly_one_alembic_head():
 
     The literal head id advances as later slices stack on top of 026 (e.g.
     027_decision_emission_budget, #716 B-4; 028_demo_execution_records, #717
-    B-5; 029_bronze_ctor_live_hours, #880) — what this test actually guards
-    is the single-head invariant, not this specific revision string.
+    B-5; 029_bronze_ctor_live_hours, #880; 030_product_revenue_units_sold,
+    #943) — what this test actually guards is the single-head invariant, not
+    this specific revision string.
     """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
@@ -73,4 +74,4 @@ def test_action_cards_still_has_exactly_one_alembic_head():
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
     assert len(heads) == 1
-    assert heads == ["029_bronze_ctor_live_hours"]
+    assert heads == ["030_product_revenue_units_sold"]
