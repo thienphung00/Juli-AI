@@ -248,19 +248,24 @@ def test_deploy_release_uses_safe_alembic_upgrade():
 
 
 def test_deploy_config_excludes_out_of_scope_services():
-    """App Review config must not wire deferred background services.
+    """App Review config must not wire deferred background services or deploy targets.
 
-    Guards against Redis, Celery/queue workers, cron units, and webhook services
-    being enabled in the review deploy. Uses word-boundary patterns so legitimate
-    tokens (e.g. uvicorn ``--workers 1``) are not flagged.
+    Guards against Redis, Celery/queue workers, cron units, and a *separate webhook
+    systemd service/target* being enabled in the review deploy — the runbook is explicit
+    that webhook ingress must not become an additional deploy target. Uses word-boundary /
+    service-shaped patterns so legitimate tokens are not flagged: uvicorn ``--workers 1``,
+    and (since #381/#898) the ``location = /webhooks/tiktok`` nginx block, which is a
+    route on the existing ``juli-api`` process, not a new service. ``webhook_tiktok.py``'s
+    module docstring documents this: no separate webhook systemd service is deployed.
     """
-    # Match service references, not incidental flags like `--workers 1`.
+    # Match service references, not incidental flags like `--workers 1` or the
+    # `/webhooks/tiktok` nginx location (a route on the existing juli-api process).
     forbidden = {
         "redis": r"\bredis\b",
         "celery": r"\bcelery\b",
         "worker service": r"\bworker(s)?\.(service|target)\b|\bworker_service\b",
         "cron": r"\bcron(tab|\.service|\.timer)?\b",
-        "webhook": r"\bwebhook\b",
+        "webhook service": r"\bwebhook[-_.]?\w*\.(service|target)\b",
     }
     problems: list[str] = []
     for path in (

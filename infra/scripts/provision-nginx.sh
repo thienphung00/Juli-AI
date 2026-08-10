@@ -59,6 +59,20 @@ for conf in app-juli.com.conf api.app-juli.com.conf demo.app-juli.com.conf; do
     echo "Installed ${conf}"
 done
 
+# Inbound rate-limit zones (#898/ADR-061 §2b). `limit_req_zone` must live in the http
+# context, so this is a conf.d snippet, not a vhost — Ubuntu's stock nginx.conf already
+# `include`s /etc/nginx/conf.d/*.conf inside `http {}`, before sites-enabled/*. Unlike
+# the upstream includes above, this is not deployment-owned/cutover state, so it is
+# reinstalled (overwritten) on every provisioning run like the vhosts themselves.
+RATE_LIMITS_SRC="${NGINX_SRC}/rate-limits.conf"
+if [ ! -f "${RATE_LIMITS_SRC}" ]; then
+    echo "Missing nginx config: ${RATE_LIMITS_SRC}" >&2
+    exit 1
+fi
+mkdir -p /etc/nginx/conf.d
+install -m 0644 "${RATE_LIMITS_SRC}" /etc/nginx/conf.d/rate-limits.conf
+echo "Installed rate-limits.conf"
+
 # Drop default site if present — avoids server_name conflicts on port 80.
 if [ -e "${SITES_ENABLED}/default" ]; then
     rm -f "${SITES_ENABLED}/default"
