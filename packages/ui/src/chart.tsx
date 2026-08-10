@@ -360,10 +360,31 @@ export function MetricSparkline({
 // ---------------------------------------------------------------------------
 // Selector-card preview marks (#885, ADR-060)
 //
-// A KPI selector card shows a 96×32 preview that is a simplified, low-contrast
-// member of the same graph family as its hero (Components/charts.md). Treatment
-// decisions, made once here so every preview stays subordinate to the hero:
+// A KPI selector card shows a fluid-width preview that is a simplified,
+// low-contrast member of the same graph family as its hero
+// (Components/charts.md). Treatment decisions, made once here so every
+// preview stays subordinate to the hero:
 //
+// - Sizing (#924, DEMO-PREVIEW-SCALE): the KPI card grid is responsive
+//   (`repeat(auto-fit, minmax(min(100%, 14rem), 1fr))`), so a preview locked
+//   to a literal pixel width is only ever correct at one breakpoint — the
+//   defect #924 fixed. The <svg> renders at `width="100%"` of its container
+//   with `preserveAspectRatio="none"` against a fixed internal viewBox, so it
+//   always fills whatever width the card grid gives it. The `width` prop
+//   below is that internal coordinate space, not the rendered pixel width —
+//   it only tunes the mark's proportions (point spacing, bar pitch, floor
+//   sizes), which is why it stays small (96) even though real cards render
+//   far wider: a small reference width keeps the render-time scale factor
+//   comfortably above 1× at every card width the grid produces, so the floor
+//   constants below never get crushed under 1px. Height stays a literal
+//   pixel value (40, up from the pre-regression 48 but taller than the 32
+//   the chart wave shipped): tall enough for the padded amplitude band to
+//   read as a shape at 375px, short enough (a third of the hero's 120px
+//   default) that the preview never competes with the hero for visual
+//   weight. `PREVIEW_STROKE_WIDTH` and dash patterns carry
+//   `vector-effect="non-scaling-stroke"` so that scale factor changes bar
+//   pitch and amplitude but never the stroke's literal 1.5px weight — a
+//   visual-weight constant, not scale-dependent geometry (see below).
 // - Amplitude normalization: line series are min–max scaled into a 26px band
 //   (3px padding) so real variation always fills the mark. This — not extra
 //   ink — is what separates a preview from a hairline rule at thumbnail size.
@@ -402,7 +423,22 @@ interface MetricSparklinePreviewBaseProps {
   label: string;
   value: string;
   delta?: string;
+  /**
+   * Internal viewBox coordinate width used only for the mark's geometry
+   * (point spacing, bar pitch, floor sizes) — NOT the rendered pixel width.
+   * The <svg> always renders at `width="100%"` of its container (#924): the
+   * KPI card grid is responsive, so a preview sized to a literal pixel width
+   * is correct at exactly one breakpoint and wrong at every other one. Leave
+   * this alone unless the mark's proportions need retuning.
+   */
   width?: number;
+  /**
+   * Rendered pixel height — literal, not a percentage, since the card has no
+   * height to fill the way it has a width to fill. Defaults to 40: taller
+   * than the crushed 32px the chart wave shipped (legible amplitude band at
+   * 375px) but well short of the hero's 120px default, so the preview stays
+   * visibly subordinate to the hero chart.
+   */
   height?: number;
   /**
    * Real movement for the text equivalent (#887). The preview's mark is always
@@ -497,6 +533,7 @@ function PreviewLineMark({
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={PREVIEW_STROKE_WIDTH}
+        vectorEffect="non-scaling-stroke"
       />
     </g>
   );
@@ -573,6 +610,7 @@ function PreviewBoundedRatioMark({
         stroke={targetStroke}
         strokeDasharray="3 3"
         strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
         x1={0}
         x2={width}
         y1={yFor(target)}
@@ -586,6 +624,7 @@ function PreviewBoundedRatioMark({
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={PREVIEW_STROKE_WIDTH}
+        vectorEffect="non-scaling-stroke"
       />
     </g>
   );
@@ -624,7 +663,7 @@ function renderPreviewMark(
 }
 
 export function MetricSparklinePreview(props: MetricSparklinePreviewProps) {
-  const { label, value, delta, movement, width = 96, height = 32 } = props;
+  const { label, value, delta, movement, width = 96, height = 40 } = props;
 
   return (
     <figure className="juli-chart-sparkline-preview">
@@ -641,8 +680,15 @@ export function MetricSparklinePreview(props: MetricSparklinePreviewProps) {
         data-testid="metric-sparkline-preview"
         focusable="false"
         height={height}
+        // Fluid width (#924): the <svg> fills its container at 100% against
+        // a fixed internal `width`×`height` viewBox. preserveAspectRatio=
+        // "none" is required — with the default "meet" the ~2.4:1 viewBox
+        // would letterbox inside the container's much wider aspect instead
+        // of stretching to fill it, reproducing the original defect.
+        preserveAspectRatio="none"
+        style={{ display: "block" }}
         viewBox={`0 0 ${width} ${height}`}
-        width={width}
+        width="100%"
       >
         {renderPreviewMark(props, width, height)}
       </svg>
