@@ -51,6 +51,13 @@ def test_migration_satisfies_additive_gate():
 
 
 def test_demo_execution_records_is_exactly_one_alembic_head_at_028():
+    """Guards the single-head invariant (no branching), not a pinned head id.
+
+    The literal head advances as later slices stack on top of 028 (e.g.
+    029_close_public_schema_defaults, #897), so this asserts 028 remains an
+    ancestor of whatever head is current rather than asserting equality with
+    a literal that must be bumped on every unrelated migration.
+    """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
@@ -58,4 +65,6 @@ def test_demo_execution_records_is_exactly_one_alembic_head_at_028():
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
     assert len(heads) == 1
-    assert heads == ["028_demo_execution_records"]
+
+    ancestry = {rev.revision for rev in script.walk_revisions(base="base", head="head")}
+    assert "028_demo_execution_records" in ancestry
