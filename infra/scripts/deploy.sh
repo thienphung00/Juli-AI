@@ -350,7 +350,11 @@ deploy_lane_api() {
     record_step api public_check "passed"
     # Celery workers follow the API release (they import the same tree).
     for unit in juli-celery-worker juli-celery-beat; do
-        systemctl cat "${unit}" >/dev/null 2>&1 && systemctl restart "${unit}"
+        if systemctl cat "${unit}" >/dev/null 2>&1; then
+            systemctl restart "${unit}"
+        else
+            echo "SKIP: ${unit} not installed on this host"
+        fi
     done
     record_step api celery "restarted"
 }
@@ -366,15 +370,93 @@ deploy_lane_demo() {
     fi
 }
 
+# #841's artifact helpers, inlined when the per-app script retired (#844).
+fetch_landing_artifact() {
+    local sha="$1" short7="$2" dest_dir="$3"
+    local name="juli-landing-${short7}" run_id="" tarball=""
+    if [ -n "${LANDING_ARTIFACT_TARBALL:-}" ]; then
+        echo "Using the operator-supplied artifact ${LANDING_ARTIFACT_TARBALL}" >&2
+        printf '%s\n' "${LANDING_ARTIFACT_TARBALL}"
+        return 0
+    fi
+    command -v gh >/dev/null 2>&1 || {
+        echo "FAIL: gh is not installed; supply LANDING_ARTIFACT_TARBALL instead." >&2
+        return 1
+    }
+    mkdir -p "${dest_dir}"
+    echo "Locating the release.yml run for ${sha}" >&2
+    run_id="$(gh run list --commit "${sha}" --workflow release.yml --limit 20 \
+        --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
+    [ -n "${run_id}" ] || {
+        echo "FAIL: no release.yml run found for ${sha}; CI has not published ${name}." >&2
+        return 1
+    }
+    echo "Downloading artifact ${name} from run ${run_id}" >&2
+    gh run download "${run_id}" --name "${name}" --dir "${dest_dir}" >&2 || {
+        echo "FAIL: artifact ${name} is not attached to run ${run_id}." >&2
+        echo "      Deploy a commit whose release.yml run is green, or supply" >&2
+        echo "      LANDING_ARTIFACT_TARBALL=/path/to/${name}.tar.gz" >&2
+        return 1
+    }
+    tarball="$(find "${dest_dir}" -maxdepth 2 -name '*.tar.gz' -type f 2>/dev/null | head -n 1)"
+    [ -n "${tarball}" ] || {
+        echo "FAIL: downloaded ${name} but found no tarball under ${dest_dir}." >&2
+        return 1
+    }
+    printf '%s\n' "${tarball}"
+}
+
+place_landing_artifact() {
+    local tarball="$1" release_dir="$2" expected_sha="$3"
+    local stage_root stage recorded dest
+    [ -f "${tarball}" ] || {
+        echo "FAIL: release artifact tarball not found: ${tarball}" >&2
+        return 1
+    }
+    stage_root="$(mktemp -d)" || return 1
+    tar -xzf "${tarball}" -C "${stage_root}" || {
+        echo "FAIL: could not extract ${tarball}" >&2
+        rm -rf "${stage_root}"
+        return 1
+    }
+    stage="$(find "${stage_root}" -maxdepth 1 -mindepth 1 -type d | head -n 1)"
+    [ -n "${stage}" ] && [ -d "${stage}" ] || {
+        echo "FAIL: ${tarball} contained no artifact directory" >&2
+        rm -rf "${stage_root}"
+        return 1
+    }
+    [ -f "${stage}/release-artifact.json" ] || {
+        echo "FAIL: ${tarball} carries no release-artifact.json — not an ADR-058 artifact" >&2
+        rm -rf "${stage_root}"
+        return 1
+    }
+    recorded="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["commit"])' \
+        "${stage}/release-artifact.json" 2>/dev/null || true)"
+    if [ "${recorded}" != "${expected_sha}" ]; then
+        echo "FAIL: artifact records commit ${recorded}, not ${expected_sha} being deployed." >&2
+        rm -rf "${stage_root}"
+        return 1
+    fi
+    dest="${release_dir}/apps/landing"
+    rm -rf "${dest:?}"
+    mkdir -p "$(dirname "${dest}")"
+    mv "${stage}" "${dest}" || {
+        rm -rf "${stage_root}"
+        return 1
+    }
+    rm -rf "${stage_root}"
+    [ -x "${dest}/node_modules/.bin/next" ] || {
+        echo "FAIL: placed artifact has no runnable next binary at ${dest}" >&2
+        return 1
+    }
+}
+
 deploy_lane_landing() {
     local sha="$1" release_dir="$2" live_port peer_port code short7="${sha:0:7}"
     live_port="$(live_port_of landing)" || return 1
     peer_port="$(peer_port_of landing "${live_port}")" || return 1
     log "landing lane: live :${live_port}, candidate :${peer_port}"
 
-    # Artifact fetch/place delegates to the #841 helpers (library mode).
-    # shellcheck disable=SC1090
-    LANDING_DEPLOY_SOURCE_ONLY=1 source "${CANONICAL_ROOT}/infra/scripts/deploy-landing-release.sh"
     local artifact_dir="${HOME}/.cache/juli-release-artifacts/landing-${short7}" tarball
     rm -rf "${artifact_dir:?}"
     tarball="$(fetch_landing_artifact "${sha}" "${short7}" "${artifact_dir}")" || {

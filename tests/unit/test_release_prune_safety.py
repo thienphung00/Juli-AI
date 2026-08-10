@@ -27,7 +27,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LIB_PATH = REPO_ROOT / "infra/scripts/lib/prune-releases.sh"
-DEPLOY_SCRIPT = REPO_ROOT / "infra/scripts/deploy-release.sh"
+DEPLOY_SCRIPT = REPO_ROOT / "infra/scripts/deploy.sh"
 DEMO_DEPLOY_SCRIPT = REPO_ROOT / "infra/scripts/deploy-demo-release.sh"
 
 # Deliberately chosen so lexicographic order disagrees with deploy order:

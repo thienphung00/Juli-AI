@@ -132,7 +132,7 @@ flowchart LR
 | [`restore-drill.sh`](scripts/restore-drill.sh) | Restore latest pg_dump into scratch DB, verify, drop |
 | [`fetch-secrets.sh`](fetch-secrets.sh) | Pull secrets → `/etc/juli/*.env` |
 | [`refresh-secrets.sh`](refresh-secrets.sh) | Compare-and-restart secret sync |
-| [`deploy-release.sh`](deploy-release.sh) | CD entrypoint (worktree, migrate, build, cutover) |
+| [`deploy.sh`](deploy.sh) | CD entrypoint (worktree, migrate, build, cutover) |
 | [`rollback-release.sh`](rollback-release.sh) | Re-point `current` symlink + restart |
 | [`aws/iam-policy-secrets-reader.json`](aws/iam-policy-secrets-reader.json) | Least-privilege IAM policy template |
 | [`env/api.env.example`](env/api.env.example) | Backend env key reference (placeholders only) |
@@ -446,7 +446,7 @@ sudo systemctl start juli-secrets-refresh.service
 If `NEXT_PUBLIC_*` values changed, you **must** redeploy the frontend:
 
 ```bash
-cd ~/Juli-AI-v2 && ./infra/scripts/deploy-release.sh
+cd ~/Juli-AI-v2 && ./infra/scripts/deploy.sh
 ```
 
 ### Verify secrets (admin workstation)
@@ -521,7 +521,7 @@ git fetch origin main && git checkout main && git pull --ff-only
 sudo ./infra/scripts/fetch-secrets.sh
 
 # 2. Run the CD script (creates release worktree, migrates, builds, cuts over)
-./infra/scripts/deploy-release.sh
+./infra/scripts/deploy.sh
 
 # 3. Enable and start services
 sudo systemctl enable --now juli-api juli-web
@@ -536,7 +536,7 @@ sudo systemctl enable --now juli-restore-drill.timer
 ./infra/scripts/smoke-test.sh
 ```
 
-### How `deploy-release.sh` works
+### How `deploy.sh` works
 
 Each deploy:
 
@@ -603,7 +603,7 @@ sudo systemctl status juli-web --no-pager
 cd ~/Juli-AI-v2
 git pull
 sudo ./infra/scripts/fetch-secrets.sh
-./infra/scripts/deploy-release.sh
+./infra/scripts/deploy.sh
 ```
 
 ---
@@ -651,7 +651,7 @@ Automatic **rotation is disabled** for `TIKTOK_TOKEN_ENCRYPTION_KEY` — see abo
 
 ### Automated deploy (`release.yml`)
 
-Merges to `main` trigger `.github/workflows/release.yml`, which SSHes to the VPS and runs `deploy-release.sh`. GitHub Actions holds **only** the SSH deploy key — no AWS credentials in CI.
+Merges to `main` trigger `.github/workflows/release.yml`, which SSHes to the VPS and runs `deploy.sh`. GitHub Actions holds **only** the SSH deploy key — no AWS credentials in CI.
 
 Required GitHub Actions secrets: `VPS_SSH_HOST`, `VPS_SSH_USER`, `VPS_SSH_KEY`, optionally `VPS_SSH_PORT`.
 
@@ -660,8 +660,8 @@ Required GitHub Actions secrets: `VPS_SSH_HOST`, `VPS_SSH_USER`, `VPS_SSH_KEY`, 
 ```bash
 ssh <user>@<vps-host>
 cd ~/Juli-AI-v2 && git fetch origin main && git checkout main && git pull --ff-only
-./infra/scripts/deploy-release.sh            # latest main
-./infra/scripts/deploy-release.sh <sha>      # specific commit
+./infra/scripts/deploy.sh            # latest main
+./infra/scripts/deploy.sh <sha>      # specific commit
 ```
 
 ### Rollback
@@ -871,7 +871,7 @@ or scratch DB cleanup).
 3. Restore `/etc/aws/config` (or recreate from ARNs).
 4. Follow [Provision](#provision-a-new-production-vps) through [Deploy](#deploy-the-application).
 5. DNS should already point at the new IP (update A records if IP changed).
-6. Run `deploy-release.sh` and smoke tests.
+6. Run `deploy.sh` and smoke tests.
 
 ### CA or client key compromised
 
@@ -1029,7 +1029,7 @@ journalctl -u juli-api -n 50 --no-pager
 Stale Next.js build. Rebuild and redeploy:
 
 ```bash
-cd ~/Juli-AI-v2 && ./infra/scripts/deploy-release.sh
+cd ~/Juli-AI-v2 && ./infra/scripts/deploy.sh
 ```
 
 #### Health check fails after deploy

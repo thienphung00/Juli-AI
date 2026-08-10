@@ -52,7 +52,7 @@ jobs:
             git fetch origin main
             git checkout main
             git pull --ff-only origin main
-            ./infra/scripts/deploy-release.sh "${{ github.sha }}"
+            ./infra/scripts/deploy.sh "${{ github.sha }}"
 
   # Application release artifacts (#837, slice P0-DEL-ARTIFACT of PRD #820).
   #

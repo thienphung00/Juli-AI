@@ -1,4 +1,4 @@
-"""Contract tests for deploy-release.sh Celery unit restarts (#751)."""
+"""Contract tests for deploy.sh Celery unit restarts (#751)."""
 
 from __future__ import annotations
 
@@ -11,25 +11,23 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_PATH = REPO_ROOT / "infra/scripts/deploy-release.sh"
+SCRIPT_PATH = REPO_ROOT / "infra/scripts/deploy.sh"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/app-review-runbook.md"
 
 
 def _extract_celery_restart_block(script_text: str) -> str:
-    """Extract the actual Celery restart loop from deploy-release.sh.
+    """Extract the actual Celery restart loop from deploy.sh.
 
     Returns the executable block with 'set -euo pipefail' prepended.
     Asserts if the expected loop structure is not found.
     """
     # Match the for loop that iterates over the Celery units
     match = re.search(
-        r"^for unit in juli-celery-worker juli-celery-beat; do$.*?^done$",
+        r"^\s*for unit in juli-celery-worker juli-celery-beat; do$.*?^\s*done$",
         script_text,
         re.MULTILINE | re.DOTALL,
     )
-    assert match, (
-        "Celery restart loop (for unit in juli-celery-worker...) not found in deploy-release.sh"
-    )
+    assert match, "Celery restart loop (for unit in juli-celery-worker...) not found in deploy.sh"
     return "set -euo pipefail\n" + match.group(0) + "\n"
 
 
@@ -59,14 +57,14 @@ def test_deploy_release_script_has_valid_bash_syntax(script_text: str):
 def test_celery_worker_restart_is_present(script_text: str):
     """Script must restart juli-celery-worker."""
     assert "juli-celery-worker" in script_text and "systemctl restart" in script_text, (
-        "juli-celery-worker restart not found in deploy-release.sh"
+        "juli-celery-worker restart not found in deploy.sh"
     )
 
 
 def test_celery_beat_restart_is_present(script_text: str):
     """Script must restart juli-celery-beat."""
     assert "juli-celery-beat" in script_text and "systemctl restart" in script_text, (
-        "juli-celery-beat restart not found in deploy-release.sh"
+        "juli-celery-beat restart not found in deploy.sh"
     )
 
 
@@ -102,7 +100,7 @@ def test_celery_guard_uses_systemctl_cat(script_text: str):
 
 def test_celery_missing_unit_does_not_fail_deploy_behavior(script_text: str):
     """Missing Celery units must not abort the deploy (behavioral test with stubs)."""
-    # Execute the ACTUAL restart block from deploy-release.sh with stubbed systemctl.
+    # Execute the ACTUAL restart block from deploy.sh with stubbed systemctl.
     # Create a stub systemctl that exits non-zero for both units (simulating "units not found").
     # The block should exit 0 and print SKIP for each unit.
 
@@ -231,7 +229,11 @@ def test_juli_api_restart_present_and_juli_web_retired(script_text: str):
     deployed — so the deploy script must not restart it, build it, or gate the
     release on its health. The main domain serves Landing via its own lane.
     """
-    assert "systemctl restart juli-api" in script_text, "juli-api restart is missing"
+    # #843/#844: the API moved to paired slots — cutover is an upstream switch, not a
+    # restart. The unit is only (re)installed for reboot durability.
+    assert "deploy_lane_api" in script_text
+    assert "switch_upstream api" in script_text
+    assert "systemctl restart juli-api" not in script_text
     assert "systemctl restart juli-web" not in script_text, (
         "juli-web must not be restarted: the dashboard is retired from production (#842)"
     )
@@ -244,15 +246,15 @@ def test_juli_api_restart_present_and_juli_web_retired(script_text: str):
 
 
 def test_runbook_documents_celery_units_in_deploy_steps(runbook_text: str):
-    """Runbook's 'How deploy-release.sh works' section must mention Celery units."""
+    """Runbook's 'How deploy.sh works' section must mention Celery units."""
     # The runbook should document that Celery units are restarted as part of deploy
     assert "juli-celery-worker" in runbook_text, "juli-celery-worker not mentioned in runbook"
     assert "juli-celery-beat" in runbook_text, "juli-celery-beat not mentioned in runbook"
 
     # Specifically in the deploy section (not just config files reference)
-    # Look for the "How deploy-release.sh works" section
-    deploy_section_start = runbook_text.find("### How `deploy-release.sh` works")
-    assert deploy_section_start != -1, "Deploy section 'How deploy-release.sh works' not found"
+    # Look for the "How deploy.sh works" section
+    deploy_section_start = runbook_text.find("### How `deploy.sh` works")
+    assert deploy_section_start != -1, "Deploy section 'How deploy.sh works' not found"
 
     # Check if Celery is mentioned after that section
     deploy_section = runbook_text[deploy_section_start:]
@@ -268,5 +270,5 @@ def test_runbook_documents_celery_units_in_deploy_steps(runbook_text: str):
         "restart" in deploy_section.lower() or "service" in deploy_section.lower()
     )
     assert celery_mentioned_in_deploy, (
-        "Celery units not mentioned in the deploy-release.sh section of runbook"
+        "Celery units not mentioned in the deploy.sh section of runbook"
     )
