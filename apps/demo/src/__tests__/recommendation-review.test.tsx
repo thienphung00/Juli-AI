@@ -4,7 +4,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecommendationReview } from "../components/recommendation-review";
+import {
+  FiveStageReview,
+  RecommendationReview,
+} from "../components/recommendation-review";
 import {
   buildReviewInputDefaults,
   buildReviewInputDefaultsForWorkflow,
@@ -96,8 +99,14 @@ vi.mock("../components/demo-state", () => ({
   },
 }));
 
+// Renders FiveStageReview directly, bypassing the plan-review routing.
+// Since #909 registered create_hero_product_1's plan, every reviewable
+// workflow routes to the plan-review spine, so the five-stage review is
+// unreachable through `RecommendationReview` (except the not-found state).
+// These tests keep covering the component itself until #910 removes it —
+// they exercise shipped but unroutable code, deliberately.
 function renderReview(workflowKey = CREATE_HERO_PRODUCT_WORKFLOW_KEY) {
-  return render(<RecommendationReview workflowKey={workflowKey} />);
+  return render(<FiveStageReview workflowKey={workflowKey} />);
 }
 
 async function advanceToStage(
@@ -123,7 +132,7 @@ async function advanceToStage(
   );
 }
 
-describe("RecommendationReview", () => {
+describe("FiveStageReview (superseded — unreachable via routing since #909, removal tracked by #910)", () => {
   beforeEach(() => {
     workflowReviewDrafts = {};
     mockStateListeners.clear();
@@ -294,7 +303,9 @@ describe("RecommendationReview", () => {
   });
 
   it("renders a recoverable not-found state for unsupported workflow keys", () => {
-    renderReview("prevent_return_8b_fbt");
+    // Through the public router: unsupported keys have no plan and no
+    // stages, so this is the one path that still reaches FiveStageReview.
+    render(<RecommendationReview workflowKey="prevent_return_8b_fbt" />);
 
     expect(
       screen.getByRole("status", { name: "Không tìm thấy quy trình" }),
@@ -515,7 +526,9 @@ describe("RecommendationReview routing between spine and five-stage review", () 
       "prevent_return_8b",
       "prevent_refund_8c",
     ]) {
-      const { unmount } = renderReview(workflowKey);
+      const { unmount } = render(
+        <RecommendationReview workflowKey={workflowKey} />,
+      );
 
       expect(screen.getByTestId("plan-review-card")).toBeInTheDocument();
       expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
@@ -527,17 +540,18 @@ describe("RecommendationReview routing between spine and five-stage review", () 
     }
   });
 
-  it("keeps every other workflow on the five-stage review", () => {
-    // Ten of the eleven workflows have moved onto the spine across #765–#769.
-    // create_hero_product_1 is the only one still on the five-stage review.
-    for (const workflowKey of [CREATE_HERO_PRODUCT_WORKFLOW_KEY]) {
-      const { unmount } = renderReview(workflowKey);
+  it("routes create_hero_product_1 to the plan-review spine with its uploads reachable (#909)", () => {
+    // The eleventh and last migration. Its review route must reach the
+    // upload controls — this is the reachability gap that let the original
+    // defect ship (uploads green in isolation, count 0 from every route).
+    const { container, unmount } = render(
+      <RecommendationReview workflowKey={CREATE_HERO_PRODUCT_WORKFLOW_KEY} />,
+    );
 
-      expect(screen.queryByTestId("plan-review-card")).not.toBeInTheDocument();
-      expect(screen.getByRole("tablist")).toBeInTheDocument();
-      expect(getWorkflowReviewStages(workflowKey)).toHaveLength(5);
+    expect(screen.getByTestId("plan-review-card")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(container.querySelectorAll('input[type="file"]')).toHaveLength(2);
 
-      unmount();
-    }
+    unmount();
   });
 });

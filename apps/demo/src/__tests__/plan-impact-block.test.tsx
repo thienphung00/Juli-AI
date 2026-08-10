@@ -38,7 +38,13 @@ import { PREVENT_RETURN_WORKFLOW_KEY } from "../lib/workflows/prevent-return";
 import { getPreventReturnPlanReview } from "../lib/workflows/prevent-return/plan";
 import { PREVENT_REFUND_WORKFLOW_KEY } from "../lib/workflows/prevent-refund";
 import { getPreventRefundPlanReview } from "../lib/workflows/prevent-refund/plan";
-import { confirmApproveThroughGate } from "./review-test-helpers";
+import { CREATE_HERO_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/create-hero-product";
+import { getCreateHeroProductPlanReview } from "../lib/workflows/create-hero-product/plan";
+import {
+  confirmApproveThroughGate,
+  makeValidPngFile,
+  selectUploadFile,
+} from "./review-test-helpers";
 
 /**
  * Impact block — the tied Main KPI's real value, trend and directional goal
@@ -51,6 +57,12 @@ import { confirmApproveThroughGate } from "./review-test-helpers";
 interface ImpactTableEntry {
   workflowKey: string;
   getPlan: () => ReturnType<typeof getDeleteActivityPlanReview>;
+  /**
+   * ADR-055 item 12 — the upload exception: Phê duyệt rests disabled until
+   * the required upload is supplied, so approval-path assertions must
+   * unblock it first. The impact block itself is unaffected.
+   */
+  sellerUploadGate?: true;
 }
 
 const IMPACT_WORKFLOWS: ImpactTableEntry[] = [
@@ -93,6 +105,11 @@ const IMPACT_WORKFLOWS: ImpactTableEntry[] = [
   {
     workflowKey: PREVENT_REFUND_WORKFLOW_KEY,
     getPlan: getPreventRefundPlanReview,
+  },
+  {
+    workflowKey: CREATE_HERO_PRODUCT_WORKFLOW_KEY,
+    getPlan: getCreateHeroProductPlanReview,
+    sellerUploadGate: true,
   },
 ];
 
@@ -171,7 +188,7 @@ function stubAnalyticsFetch(
 
 describe.each(IMPACT_WORKFLOWS)(
   "Impact block — $workflowKey",
-  ({ workflowKey, getPlan }) => {
+  ({ workflowKey, getPlan, sellerUploadGate }) => {
     const plan = getPlan();
     const metricKey = plan.impact.metricKey;
     const definition = getMainKpiDefinition(metricKey);
@@ -287,6 +304,21 @@ describe.each(IMPACT_WORKFLOWS)(
       const impact = screen.getByTestId("plan-impact");
       await within(impact).findByText(expected.formattedValue);
       const restingHtml = impact.outerHTML;
+
+      if (sellerUploadGate) {
+        // The upload exception (ADR-055 item 12): supply the required upload
+        // to unblock Phê duyệt. The impact block must not change for this
+        // either — it has exactly one state.
+        selectUploadFile(
+          screen.getByLabelText(/Ảnh sản phẩm/),
+          makeValidPngFile(),
+        );
+        await waitFor(() => {
+          expect(
+            screen.getByRole("button", { name: "Phê duyệt" }),
+          ).toBeEnabled();
+        });
+      }
 
       await confirmApproveThroughGate(user);
       expect(mockStartExecution).toHaveBeenCalledTimes(1);

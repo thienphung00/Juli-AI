@@ -48,8 +48,10 @@ function renderBodyParagraphs(body: string) {
 
 export function RecommendationReview({ workflowKey }: RecommendationReviewProps) {
   // Route by workflow key (ADR-055 item 8): workflows with a plan review
-  // render the Situation → Decision → Details spine; every other workflow
-  // keeps the five-stage review while the spine rolls out.
+  // render the Situation → Decision → Details spine. All eleven reviewable
+  // workflows now carry a plan (#909 landed the last one), so the five-stage
+  // fallback below is reachable only for keys without review stages, where it
+  // renders the recoverable not-found state.
   const plan = getWorkflowPlanReview(workflowKey);
 
   if (plan) {
@@ -59,7 +61,14 @@ export function RecommendationReview({ workflowKey }: RecommendationReviewProps)
   return <FiveStageReview workflowKey={workflowKey} />;
 }
 
-function FiveStageReview({ workflowKey }: RecommendationReviewProps) {
+/**
+ * The superseded five-stage review (ADR-055 item 1). Since #909 registered
+ * `create_hero_product_1`'s plan, no workflow routes here through
+ * `RecommendationReview` — only the not-found state for unsupported keys
+ * still renders through this component. Exported so its tests can keep
+ * covering it directly until #910 removes it; do not route new work here.
+ */
+export function FiveStageReview({ workflowKey }: RecommendationReviewProps) {
   const router = useRouter();
   const { mutableState, startExecution, updateMutableState } = useDemoState();
   const [currentIndex, setCurrentIndex] = useState(0);

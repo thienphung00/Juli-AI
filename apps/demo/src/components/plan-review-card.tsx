@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  FileUploadField,
 } from "@juli/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -48,20 +49,57 @@ interface PlanReviewCardProps {
  * - Caveats are typed by class (ADR-055 item 10). Classes A and B render
  *   nowhere; class C answers inside the reasoning expansion; class D rests in
  *   the Decision section as a trust line, never under a limitations heading.
- * - A seller who agrees approves in one tap, without expanding anything.
+ * - A seller who agrees approves in one tap, without expanding anything —
+ *   with one stated exception: a plan carrying a "needs you" section (ADR-055
+ *   item 12) renders its uploads unfolded between the Decision section and
+ *   the primary action, and keeps Phê duyệt disabled until every required
+ *   upload is supplied. The section explains why Juli cannot propose there
+ *   and what unblocks approval; it is never a silent blank.
  */
 export function PlanReviewCard({ plan }: PlanReviewCardProps) {
   const router = useRouter();
-  const { startExecution } = useDemoState();
+  const { startExecution, updateMutableState } = useDemoState();
   const [situationOpen, setSituationOpen] = useState(false);
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [approveGateOpen, setApproveGateOpen] = useState(false);
+  // Files accepted this session, by field key. Gating reads this local state:
+  // only a file that passed the upload control's checks unblocks approval.
+  const [acceptedUploads, setAcceptedUploads] = useState<
+    Record<string, File | null>
+  >({});
   const titleId = useId();
   const situationDetailId = useId();
   const reasoningDetailId = useId();
   const decisionOptionsId = useId();
+  const approveBlockedId = useId();
   const recommendedOptions = plan.decision.recommendedOptions;
+  const needsYou = plan.needsYou;
+  // Approval is blocked while any required upload is missing (ADR-055 item
+  // 12): the primary action is disabled until the plan is complete, per the
+  // forms rule — never an enabled button that refuses to work.
+  const approveBlocked = Boolean(
+    needsYou?.uploadFields.some(
+      (field) => field.required && !acceptedUploads[field.key],
+    ),
+  );
+
+  const handleUploadChange = (fieldKey: string, file: File | null) => {
+    setAcceptedUploads((current) => ({ ...current, [fieldKey]: file }));
+    // Carry the accepted file's name into the review draft so the execution
+    // record's approved inputs reflect it. The Demo sends no drafts to the
+    // backend; this is display state only.
+    updateMutableState((current) => ({
+      ...current,
+      workflowReviewDrafts: {
+        ...current.workflowReviewDrafts,
+        [plan.workflowKey]: {
+          ...(current.workflowReviewDrafts[plan.workflowKey] ?? {}),
+          [fieldKey]: file ? file.name : "",
+        },
+      },
+    }));
+  };
   // Typed caveat classes (ADR-055 item 10). The rule comes from the class, so
   // the card never inspects the text: classes A and B are selected by nobody
   // and therefore render nowhere.
@@ -226,8 +264,41 @@ export function PlanReviewCard({ plan }: PlanReviewCardProps) {
             ))}
           </CardBody>
         ) : null}
+        {needsYou ? (
+          <CardBody
+            className="demo-plan__needs-you"
+            data-testid="plan-needs-you"
+          >
+            <p className="demo-plan__needs-you-title">{needsYou.title}</p>
+            <p className="demo-plan__needs-you-explanation">
+              {needsYou.explanation}
+            </p>
+            {needsYou.uploadFields.map((field) => (
+              <FileUploadField
+                key={field.key}
+                label={field.label}
+                onChange={(file) => handleUploadChange(field.key, file)}
+                required={field.required}
+              />
+            ))}
+            {approveBlocked ? (
+              <p
+                className="demo-plan__needs-you-blocked"
+                data-testid="plan-approve-blocked"
+                id={approveBlockedId}
+              >
+                {needsYou.approvalBlockedText}
+              </p>
+            ) : null}
+          </CardBody>
+        ) : null}
         <CardFooter className="demo-plan__actions">
-          <Button onClick={() => setApproveGateOpen(true)} type="button">
+          <Button
+            aria-describedby={approveBlocked ? approveBlockedId : undefined}
+            disabled={approveBlocked}
+            onClick={() => setApproveGateOpen(true)}
+            type="button"
+          >
             Phê duyệt
           </Button>
         </CardFooter>

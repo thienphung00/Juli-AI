@@ -554,6 +554,35 @@ a {
   color: var(--juli-primary-text);
 }
 
+/* The "needs you" section (ADR-055 item 12) — the one part of a plan Juli
+   cannot pre-commit. It rests unfolded between the Decision section and the
+   primary action: real work for the seller never hides behind a disclosure,
+   and it reads as the thing standing between the seller and approval. */
+.demo-plan__needs-you {
+  display: grid;
+  gap: var(--juli-space-3);
+  border-top: 1px solid var(--juli-border);
+}
+
+.demo-plan__needs-you-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.demo-plan__needs-you-explanation {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  line-height: 1.6;
+}
+
+/* Names what unblocks approval, directly above the disabled primary action. */
+.demo-plan__needs-you-blocked {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
 .demo-plan__actions {
   display: flex;
   justify-content: stretch;

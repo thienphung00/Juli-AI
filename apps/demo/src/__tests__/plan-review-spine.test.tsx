@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,8 @@ import {
 } from "../lib/review-seller-copy";
 import { getCreateActivityPlanReview } from "../lib/workflows/create-activity/plan";
 import { CREATE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/create-activity";
+import { getCreateHeroProductPlanReview } from "../lib/workflows/create-hero-product/plan";
+import { CREATE_HERO_PRODUCT_WORKFLOW_KEY } from "../lib/workflows/create-hero-product";
 import { getDeleteActivityPlanReview } from "../lib/workflows/delete-activity/plan";
 import { DELETE_ACTIVITY_WORKFLOW_KEY } from "../lib/workflows/delete-activity";
 import { getOptimizeProductPlanReview } from "../lib/workflows/optimize-product/plan";
@@ -39,7 +41,11 @@ import { getPreventReturnPlanReview } from "../lib/workflows/prevent-return/plan
 import { PREVENT_RETURN_WORKFLOW_KEY } from "../lib/workflows/prevent-return";
 import { getPreventRefundPlanReview } from "../lib/workflows/prevent-refund/plan";
 import { PREVENT_REFUND_WORKFLOW_KEY } from "../lib/workflows/prevent-refund";
-import { confirmApproveThroughGate } from "./review-test-helpers";
+import {
+  confirmApproveThroughGate,
+  makeValidPngFile,
+  selectUploadFile,
+} from "./review-test-helpers";
 
 /**
  * Shared Situation → Decision → Details spine assertions (ADR-055 items 1, 8,
@@ -50,6 +56,13 @@ import { confirmApproveThroughGate } from "./review-test-helpers";
 interface SpineTableEntry {
   workflowKey: string;
   getPlan: () => PlanReviewContent;
+  /**
+   * ADR-055 item 12 — the stated exception to one-tap approval. True only
+   * for a plan carrying a "needs you" upload section, whose required upload
+   * keeps Phê duyệt disabled until the seller supplies a file. Entries
+   * without this flag keep the unqualified one-tap contract.
+   */
+  sellerUploadGate?: true;
 }
 
 const SPINE_WORKFLOWS: SpineTableEntry[] = [
@@ -92,6 +105,11 @@ const SPINE_WORKFLOWS: SpineTableEntry[] = [
   {
     workflowKey: PREVENT_REFUND_WORKFLOW_KEY,
     getPlan: getPreventRefundPlanReview,
+  },
+  {
+    workflowKey: CREATE_HERO_PRODUCT_WORKFLOW_KEY,
+    getPlan: getCreateHeroProductPlanReview,
+    sellerUploadGate: true,
   },
 ];
 
@@ -177,7 +195,7 @@ vi.mock("../components/demo-state", () => ({
 
 describe.each(SPINE_WORKFLOWS)(
   "Plan review spine — $workflowKey",
-  ({ workflowKey, getPlan }) => {
+  ({ workflowKey, getPlan, sellerUploadGate }) => {
     const plan = getPlan();
     const fixture = recommendationFixtures.find(
       (entry) => entry.workflowKey === workflowKey,
@@ -397,6 +415,11 @@ describe.each(SPINE_WORKFLOWS)(
 
         const card = screen.getByTestId("plan-review-card");
         for (const button of within(card).getAllByRole("button")) {
+          if (sellerUploadGate && button.textContent === "Phê duyệt") {
+            // The upload gate deliberately rests the primary action disabled
+            // (ADR-055 item 12) — asserted in the gate-specific tests below.
+            continue;
+          }
           expect(button).not.toBeDisabled();
         }
       });
@@ -445,30 +468,96 @@ describe.each(SPINE_WORKFLOWS)(
       });
     }
 
-    it("approves in one tap without expanding anything and routes to In Progress", async () => {
-      const user = userEvent.setup();
+    if (!sellerUploadGate) {
+      it("approves in one tap without expanding anything and routes to In Progress", async () => {
+        const user = userEvent.setup();
 
-      renderSpine();
+        renderSpine();
 
-      await confirmApproveThroughGate(user);
+        await confirmApproveThroughGate(user);
 
-      expect(mockStartExecution).toHaveBeenCalledTimes(1);
-      expect(mockStartExecution).toHaveBeenCalledWith(workflowKey);
-      expect(push).toHaveBeenCalledWith(
-        `/decisions/in-progress/exec-${workflowKey}-1`,
-      );
-    });
+        expect(mockStartExecution).toHaveBeenCalledTimes(1);
+        expect(mockStartExecution).toHaveBeenCalledWith(workflowKey);
+        expect(push).toHaveBeenCalledWith(
+          `/decisions/in-progress/exec-${workflowKey}-1`,
+        );
+      });
 
-    it("opens the approval gate before starting execution", async () => {
-      const user = userEvent.setup();
+      it("opens the approval gate before starting execution", async () => {
+        const user = userEvent.setup();
 
-      renderSpine();
+        renderSpine();
 
-      await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+        await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
 
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(mockStartExecution).not.toHaveBeenCalled();
-    });
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+        expect(mockStartExecution).not.toHaveBeenCalled();
+      });
+    } else {
+      // ADR-055 item 12 — the stated exception to one-tap approval: the
+      // required upload keeps Phê duyệt disabled, so nothing can fire
+      // startExecution until the seller supplies a file.
+      it("blocks approval while the required upload is missing", async () => {
+        const user = userEvent.setup();
+
+        renderSpine();
+
+        const approveButton = screen.getByRole("button", {
+          name: "Phê duyệt",
+        });
+        expect(approveButton).toBeDisabled();
+
+        await user.click(approveButton);
+
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(mockStartExecution).not.toHaveBeenCalled();
+      });
+
+      it("opens the approval gate before starting execution once the required upload is supplied", async () => {
+        const user = userEvent.setup();
+
+        renderSpine();
+
+        selectUploadFile(
+          screen.getByLabelText(/Ảnh sản phẩm/),
+          makeValidPngFile(),
+        );
+        await waitFor(() => {
+          expect(
+            screen.getByRole("button", { name: "Phê duyệt" }),
+          ).toBeEnabled();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+        expect(mockStartExecution).not.toHaveBeenCalled();
+      });
+
+      it("approves and routes to In Progress after the required upload is supplied", async () => {
+        const user = userEvent.setup();
+
+        renderSpine();
+
+        selectUploadFile(
+          screen.getByLabelText(/Ảnh sản phẩm/),
+          makeValidPngFile(),
+        );
+        await waitFor(() => {
+          expect(
+            screen.getByRole("button", { name: "Phê duyệt" }),
+          ).toBeEnabled();
+        });
+
+        await confirmApproveThroughGate(user);
+
+        expect(mockStartExecution).toHaveBeenCalledTimes(1);
+        expect(mockStartExecution).toHaveBeenCalledWith(workflowKey);
+        expect(push).toHaveBeenCalledWith(
+          `/decisions/in-progress/exec-${workflowKey}-1`,
+        );
+      });
+    }
 
     it("never renders the risks copy, resting or fully expanded", async () => {
       const user = userEvent.setup();
