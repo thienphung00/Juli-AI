@@ -1159,12 +1159,45 @@
   width: 100%;
   min-height: var(--juli-touch-target);
   cursor: pointer;
-  accent-color: var(--juli-primary);
 }
 
 .juli-form__file-input:focus-visible {
   outline: var(--juli-focus-width) solid var(--juli-focus-ring);
   outline-offset: 3px;
+}
+
+/*
+ * The button the browser draws inside a file input is a UA shadow part —
+ * `::file-selector-button` — not reachable through the input's own box
+ * properties. Styling it here (rather than hiding the input and styling a
+ * <label> as a fake button) keeps the native control's keyboard activation,
+ * focus handling, and screen-reader semantics intact for free. Tone matches
+ * `.juli-btn--secondary` (styles.css ~L237) since choosing a file is a
+ * secondary, non-destructive step in the form, not the primary submit.
+ */
+.juli-form__file-input::file-selector-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--juli-touch-target);
+  margin-inline-end: var(--juli-space-3);
+  padding: 0 var(--juli-space-4);
+  border: 1px solid var(--juli-border);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--juli-foreground);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--juli-motion-fast) ease,
+    box-shadow var(--juli-motion-fast) ease;
+}
+
+.juli-form__file-input::file-selector-button:hover {
+  background: var(--juli-muted);
+  box-shadow: var(--juli-shadow-small);
 }
 
 .juli-form__file-selected {
