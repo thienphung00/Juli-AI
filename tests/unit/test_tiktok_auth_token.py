@@ -1,5 +1,14 @@
-"""Unit tests for TikTokAuth token exchange HTTP contract."""
+"""Unit tests for TikTokAuth token exchange HTTP contract.
 
+Issue #896: exchange_code / refresh_access_token must send credentials in a
+POST body (matching business_account_holder_auth.py and
+business_advertiser_auth.py), never as URL query parameters — because
+requests/urllib3 embed the full request URL, query string included, in
+ConnectionError/HTTPError messages, and a naive failure-path log would then
+write live OAuth credentials to disk once logging is configured.
+"""
+
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +25,12 @@ from juli_backend.integrations.tiktok.exceptions import (
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
 
+# Loopback port whose connection is refused immediately. Used to force a real
+# requests.exceptions.ConnectionError so the test exercises urllib3's actual
+# error-message construction (which embeds the full request URL, including
+# any query string) rather than a mocked stand-in that would hide the bug.
+UNREACHABLE_AUTH_BASE_URL = "https://127.0.0.1:1"
+
 
 @pytest.fixture
 def tiktok_auth():
@@ -23,7 +38,7 @@ def tiktok_auth():
 
 
 class TestTikTokAuthTokenRequest:
-    def test_exchange_code_uses_auth_base_url_get(self, tiktok_auth):
+    def test_exchange_code_posts_json_body(self, tiktok_auth):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             "code": 0,
@@ -36,13 +51,18 @@ class TestTikTokAuthTokenRequest:
         }
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("juli_backend.integrations.tiktok.auth.requests.get", return_value=mock_resp) as mock_get:
+        with patch(
+            "juli_backend.integrations.tiktok.auth.requests.post",
+            return_value=mock_resp,
+        ) as mock_post:
             result = tiktok_auth.exchange_code("auth_code_xyz")
 
-        mock_get.assert_called_once()
-        called_url, = mock_get.call_args[0]
+        mock_post.assert_called_once()
+        (called_url,) = mock_post.call_args[0]
         assert called_url == f"{DEFAULT_AUTH_BASE_URL}/api/v2/token/get"
-        assert mock_get.call_args.kwargs["params"] == {
+        assert "?" not in called_url
+        assert "params" not in mock_post.call_args.kwargs
+        assert mock_post.call_args.kwargs["json"] == {
             "app_key": APP_KEY,
             "app_secret": APP_SECRET,
             "auth_code": "auth_code_xyz",
@@ -50,9 +70,41 @@ class TestTikTokAuthTokenRequest:
         }
         assert result["open_id"] == "seller_1"
 
+    def test_refresh_access_token_posts_json_body(self, tiktok_auth):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "code": 0,
+            "data": {
+                "access_token": "at2",
+                "refresh_token": "rt2",
+                "access_token_expire_in": 604800,
+                "open_id": "seller_1",
+            },
+        }
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch(
+            "juli_backend.integrations.tiktok.auth.requests.post",
+            return_value=mock_resp,
+        ) as mock_post:
+            result = tiktok_auth.refresh_access_token("refresh_token_xyz")
+
+        mock_post.assert_called_once()
+        (called_url,) = mock_post.call_args[0]
+        assert called_url == f"{DEFAULT_AUTH_BASE_URL}/api/v2/token/refresh"
+        assert "?" not in called_url
+        assert "params" not in mock_post.call_args.kwargs
+        assert mock_post.call_args.kwargs["json"] == {
+            "app_key": APP_KEY,
+            "app_secret": APP_SECRET,
+            "refresh_token": "refresh_token_xyz",
+            "grant_type": "refresh_token",
+        }
+        assert result["access_token"] == "at2"
+
     def test_exchange_code_maps_http_error_to_authentication_error(self, tiktok_auth):
         with patch(
-            "juli_backend.integrations.tiktok.auth.requests.get",
+            "juli_backend.integrations.tiktok.auth.requests.post",
             side_effect=requests.HTTPError("404 Client Error"),
         ):
             with pytest.raises(AuthenticationError, match="TikTok token request failed"):
@@ -68,10 +120,74 @@ class TestTikTokAuthTokenRequest:
         mock_resp.raise_for_status = MagicMock()
 
         with patch(
-            "juli_backend.integrations.tiktok.auth.requests.get",
+            "juli_backend.integrations.tiktok.auth.requests.post",
             return_value=mock_resp,
         ):
             with pytest.raises(AuthenticationError) as exc_info:
                 tiktok_auth.exchange_code("expired_code")
 
         assert exc_info.value.code == 36004004
+
+
+class TestTikTokAuthNoCredentialLeakage:
+    """Exit gate: a transport failure must never write live OAuth credentials
+    into the log record — neither the app secret nor the refresh token."""
+
+    SECRET_MARKER = "SECRET_MARKER_app_secret_12345"
+    REFRESH_TOKEN_MARKER = "REFRESH_TOKEN_MARKER_67890"
+
+    def _leaking_auth(self):
+        return TikTokAuth(
+            app_key=APP_KEY,
+            app_secret=self.SECRET_MARKER,
+            auth_base_url=UNREACHABLE_AUTH_BASE_URL,
+        )
+
+    @staticmethod
+    def _all_captured_text(caplog) -> str:
+        """Every string a structured/JSON log formatter could plausibly
+        emit: the rendered message plus every `extra=` attribute recorded
+        on each LogRecord, regardless of what formatter is (or is not)
+        configured."""
+        chunks = []
+        for record in caplog.records:
+            chunks.append(record.getMessage())
+            chunks.append(str(record.__dict__))
+        return "\n".join(chunks)
+
+    def test_exchange_code_connection_failure_does_not_leak_app_secret(self, caplog):
+        auth = self._leaking_auth()
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(AuthenticationError):
+                auth.exchange_code("some_auth_code")
+
+        captured = self._all_captured_text(caplog)
+        assert self.SECRET_MARKER not in captured
+
+    def test_refresh_access_token_connection_failure_does_not_leak_credentials(self, caplog):
+        auth = self._leaking_auth()
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(AuthenticationError):
+                auth.refresh_access_token(self.REFRESH_TOKEN_MARKER)
+
+        captured = self._all_captured_text(caplog)
+        assert self.SECRET_MARKER not in captured
+        assert self.REFRESH_TOKEN_MARKER not in captured
+
+    def test_refresh_access_token_connection_failure_still_raises_authentication_error(
+        self, caplog
+    ):
+        auth = self._leaking_auth()
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(AuthenticationError, match="TikTok token request failed"):
+                auth.refresh_access_token(self.REFRESH_TOKEN_MARKER)
+
+    def test_connection_failure_still_emits_a_warning_record(self, caplog):
+        """The fix must produce a SAFE record, not silence — a log record
+        for the failure must still exist, just without the credentials."""
+        auth = self._leaking_auth()
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(AuthenticationError):
+                auth.exchange_code("some_auth_code")
+
+        assert any(record.levelno == logging.WARNING for record in caplog.records)
