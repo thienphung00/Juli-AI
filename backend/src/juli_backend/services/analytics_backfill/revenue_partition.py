@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
@@ -100,47 +102,69 @@ async def backfill_revenue_partition(
     performance_repo: AnalyticsPerformanceRepo,
     budget: CallBudgetGovernor,
     synced_at: int,
+    session_lock: asyncio.Lock | None = None,
 ) -> RevenuePartitionStatus:
-    """Backfill one revenue partition: A-36 daily GMV/orders + A-37 customers."""
-    if await partitions_repo.is_complete(shop_id, BUCKET, partition_date):
-        return "skipped"
+    """Backfill one revenue partition: A-36 daily GMV/orders + A-37 customers.
+
+    Args:
+        session_lock: When multiple partitions run concurrently against the
+            SAME AsyncSession (issue #795), the caller must pass a shared
+            lock so every touch of ``partitions_repo``/``performance_repo``
+            here is serialized. The Partner fetch calls below are offloaded
+            via ``asyncio.to_thread`` and run OUTSIDE this lock — that is
+            what makes concurrent partitions actually overlap in wall time.
+            Defaults to ``None`` (no locking) for single-partition callers
+            (tests, CLI single-shot invocations) where there is no
+            concurrent access to guard against.
+    """
+    lock = session_lock or contextlib.nullcontext()
+
+    async with lock:
+        if await partitions_repo.is_complete(shop_id, BUCKET, partition_date):
+            return "skipped"
 
     start_date_ge, end_date_lt = _partition_window(partition_date)
     date_str = partition_date.isoformat()
 
     try:
         budget.record_attempt()
-        shop_performance = analytics_resource.get_shop_performance(
+        shop_performance = await asyncio.to_thread(
+            analytics_resource.get_shop_performance,
             start_date_ge=start_date_ge,
             end_date_lt=end_date_lt,
         )
         budget.record_success()
 
         budget.record_attempt()
-        per_hour = analytics_resource.get_shop_performance_per_hour(date=date_str)
+        per_hour = await asyncio.to_thread(
+            analytics_resource.get_shop_performance_per_hour,
+            date=date_str,
+        )
         budget.record_success()
     except TikTokAPIError as exc:
         budget.record_failure()
-        await partitions_repo.mark_failed(
-            shop_id,
-            BUCKET,
-            partition_date,
-            str(exc),
-            retryable=True,
-        )
+        async with lock:
+            await partitions_repo.mark_failed(
+                shop_id,
+                BUCKET,
+                partition_date,
+                str(exc),
+                retryable=True,
+            )
         return "failed"
 
     rows = expand_analytics_shop_performance(shop_performance, synced_at=synced_at)
     daily_row = _select_daily_row(rows, partition_date)
     if daily_row is None:
         budget.record_failure()
-        await partitions_repo.mark_failed(
-            shop_id,
-            BUCKET,
-            partition_date,
-            f"No A-36 shop interval for {date_str}",
-            retryable=True,
-        )
+        async with lock:
+            await partitions_repo.mark_failed(
+                shop_id,
+                BUCKET,
+                partition_date,
+                f"No A-36 shop interval for {date_str}",
+                retryable=True,
+            )
         return "failed"
 
     customers = _extract_customers_from_per_hour(per_hour)
@@ -148,6 +172,7 @@ async def backfill_revenue_partition(
         daily_row["customers"] = customers
 
     _, upsert_kwargs = transform_for_channel("tiktok.analytics.shop.raw", daily_row)
-    await performance_repo.upsert(shop_id=shop_id, **upsert_kwargs)
-    await partitions_repo.mark_complete(shop_id, BUCKET, partition_date)
+    async with lock:
+        await performance_repo.upsert(shop_id=shop_id, **upsert_kwargs)
+        await partitions_repo.mark_complete(shop_id, BUCKET, partition_date)
     return "complete"

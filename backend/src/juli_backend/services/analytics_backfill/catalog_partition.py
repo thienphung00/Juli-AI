@@ -9,6 +9,8 @@ fallback: point-in-time Active plus New-since-``BACKFILL_WINDOW_START``.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -142,14 +144,22 @@ def _catalog_snapshot_key(partition_date: date, *, strategy: CatalogCountStrateg
     )
 
 
-def _fetch_products_via_a2(
+async def _fetch_products_via_a2(
     products: ProductsSearch,
     budget: CallBudgetGovernor | None,
 ) -> list[dict]:
+    """Fetch the current A-2 catalog snapshot, offloaded off the event loop.
+
+    ``ProductsSearch.search_all`` is a blocking synchronous vendor client
+    call (see integrations/tiktok/client.py). Routing it through
+    ``asyncio.to_thread`` is what lets concurrent partitions (issue #795)
+    genuinely overlap this fetch instead of serializing on the event-loop
+    thread.
+    """
     if budget is not None:
         budget.record_attempt()
     try:
-        rows = products.search_all(page_size=50)
+        rows = await asyncio.to_thread(products.search_all, page_size=50)
     except Exception:
         if budget is not None:
             budget.record_failure()
@@ -168,32 +178,42 @@ async def run_catalog_partition(
     strategy: CatalogCountStrategy = CatalogCountStrategy.DAILY,
     budget: CallBudgetGovernor | None = None,
     skip_if_complete: bool = True,
+    session_lock: asyncio.Lock | None = None,
 ) -> CatalogPartitionResult:
-    """Fetch catalog via A-2, persist counts, and advance partition progress."""
+    """Fetch catalog via A-2, persist counts, and advance partition progress.
+
+    Args:
+        session_lock: Shared lock guarding every ``partitions``/``perf_repo``
+            touch when multiple partitions run concurrently against the same
+            AsyncSession (issue #795).
+    """
+    lock = session_lock or contextlib.nullcontext()
     partitions = AnalyticsBackfillPartitionsRepo(session)
-    if skip_if_complete and await partitions.is_complete(
-        shop_id, CATALOG_BUCKET, partition_date
-    ):
-        return CatalogPartitionResult(
-            status="skipped",
-            partition_date=partition_date,
-            strategy=strategy,
-        )
+    if skip_if_complete:
+        async with lock:
+            already_complete = await partitions.is_complete(shop_id, CATALOG_BUCKET, partition_date)
+        if already_complete:
+            return CatalogPartitionResult(
+                status="skipped",
+                partition_date=partition_date,
+                strategy=strategy,
+            )
 
     try:
-        product_rows = _fetch_products_via_a2(products, budget)
+        product_rows = await _fetch_products_via_a2(products, budget)
         counts = compute_catalog_counts(
             product_rows,
             partition_date=partition_date,
             strategy=strategy,
         )
     except Exception as exc:
-        await partitions.mark_failed(
-            shop_id,
-            CATALOG_BUCKET,
-            partition_date,
-            str(exc),
-        )
+        async with lock:
+            await partitions.mark_failed(
+                shop_id,
+                CATALOG_BUCKET,
+                partition_date,
+                str(exc),
+            )
         return CatalogPartitionResult(
             status="failed",
             partition_date=partition_date,
@@ -203,17 +223,18 @@ async def run_catalog_partition(
 
     synced_at = int(datetime.now(tz=UTC).timestamp())
     perf_repo = AnalyticsPerformanceRepo(session)
-    await perf_repo.upsert(
-        shop_id=shop_id,
-        snapshot_key=_catalog_snapshot_key(partition_date, strategy=strategy),
-        grain=_catalog_grain(strategy),
-        start_date=partition_date,
-        end_date=partition_date,
-        active_products=counts.active_products,
-        new_products=counts.new_products,
-        update_time=datetime.fromtimestamp(synced_at, tz=UTC),
-    )
-    await partitions.mark_complete(shop_id, CATALOG_BUCKET, partition_date)
+    async with lock:
+        await perf_repo.upsert(
+            shop_id=shop_id,
+            snapshot_key=_catalog_snapshot_key(partition_date, strategy=strategy),
+            grain=_catalog_grain(strategy),
+            start_date=partition_date,
+            end_date=partition_date,
+            active_products=counts.active_products,
+            new_products=counts.new_products,
+            update_time=datetime.fromtimestamp(synced_at, tz=UTC),
+        )
+        await partitions.mark_complete(shop_id, CATALOG_BUCKET, partition_date)
 
     return CatalogPartitionResult(
         status="completed",
