@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-security-baseline",
+  "branch": "feature/security-baseline-wave",
+  "issues": [894, 895, 896, 897, 898, 899, 900]
+}
