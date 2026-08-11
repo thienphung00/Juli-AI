@@ -200,3 +200,26 @@ def test_lockdown_emits_the_nginx_real_ip_config():
         "and strips inbound copies, whereas X-Forwarded-For is caller-appendable"
     )
     assert "nginx -t" in script, "a broken include takes the site down on reload"
+
+
+def test_lockdown_does_not_reload_nginx_through_systemd():
+    """Regression guard for a real deadlock (observed 2026-08-11).
+
+    This unit declares Before=nginx.service so the lockdown is applied before nginx
+    serves (#941). Calling `systemctl reload nginx` from inside it makes systemd queue
+    the nginx job behind this unit completing, while this unit blocks waiting for that
+    job — the unit was killed at TimeoutStartSec with the config already written.
+
+    The cost was worse than a red unit: with Before=nginx.service, a unit that hangs for
+    120s delays nginx by 120s on every boot. A direct SIGHUP touches no job queue.
+    """
+    script = LOCKDOWN.read_text(encoding="utf-8")
+    for line in script.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        assert "systemctl reload nginx" not in stripped, (
+            "deadlocks against Before=nginx.service — use `nginx -s reload` instead. "
+            f"Offending line: {line!r}"
+        )
+    assert "nginx -s reload" in script

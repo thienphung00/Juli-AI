@@ -325,9 +325,24 @@ else
 
     # Validate before swapping: a broken include takes the whole site down on reload.
     if mv -f "${real_ip_tmp}" "${NGINX_REAL_IP_CONF}" && nginx -t >/dev/null 2>&1; then
-        systemctl reload nginx >/dev/null 2>&1 \
-            && log "nginx reloaded with ${IPV4_COUNT} IPv4 + ${IPV6_COUNT} IPv6 real_ip sources" \
-            || log "WARNING: nginx reload failed — config written but not live"
+        # `nginx -s reload` (direct SIGHUP via the pid file), NOT `systemctl reload nginx`.
+        #
+        # This unit declares Before=nginx.service (#941, so the lockdown is applied before
+        # nginx serves). Asking systemd to reload nginx from inside this unit therefore
+        # deadlocks: systemd queues the nginx job behind this unit completing, while this
+        # unit blocks waiting for that job to return. Observed 2026-08-11 — the config was
+        # written at 06:16:08 and the unit was killed at 06:18:07, exactly TimeoutStartSec.
+        #
+        # The cost was not just a red unit: with Before=nginx.service, a unit that hangs
+        # for 120s delays nginx by 120s on every boot. A direct signal touches no systemd
+        # job queue and cannot deadlock.
+        if [ ! -s /run/nginx.pid ]; then
+            log "nginx not running — real_ip config written, will apply on next start"
+        elif nginx -s reload >/dev/null 2>&1; then
+            log "nginx reloaded with ${IPV4_COUNT} IPv4 + ${IPV6_COUNT} IPv6 real_ip sources"
+        else
+            log "WARNING: nginx reload failed — config written but not live"
+        fi
     else
         rm -f "${real_ip_tmp}"
         log "WARNING: nginx -t rejected the generated real_ip config — left unchanged"
