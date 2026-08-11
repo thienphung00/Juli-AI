@@ -39,6 +39,14 @@ _correlation_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "juli_correlation_id", default=None
 )
 
+# The caller's address, bound per request alongside the correlation id (#905). Carried
+# the same way and for the same reason: a security event is worthless if it cannot be
+# attributed to a source, and plumbing an address parameter down through the webhook
+# service, verifier and dispatcher would touch every signature on the path.
+_client_address: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "juli_client_address", default=None
+)
+
 # Everything the stdlib puts on a LogRecord. Anything else came from `extra=` and is the
 # structured context we exist to preserve. Derived from logging.LogRecord.__init__ plus
 # the attributes Formatter adds; kept explicit so a new stdlib attribute shows up as an
@@ -84,6 +92,18 @@ def get_correlation_id() -> str | None:
     return _correlation_id.get()
 
 
+def set_client_address(value: str | None) -> contextvars.Token[str | None]:
+    return _client_address.set(value)
+
+
+def reset_client_address(token: contextvars.Token[str | None]) -> None:
+    _client_address.reset(token)
+
+
+def get_client_address() -> str | None:
+    return _client_address.get()
+
+
 def new_correlation_id() -> str:
     return str(uuid.uuid4())
 
@@ -123,10 +143,14 @@ class JsonFormatter(logging.Formatter):
         if correlation_id:
             payload["correlation_id"] = correlation_id
 
+        client_address = getattr(record, "client_address", None) or get_client_address()
+        if client_address:
+            payload["client_address"] = client_address
+
         for key, value in record.__dict__.items():
             if key in _STANDARD_RECORD_ATTRS or key.startswith("_"):
                 continue
-            if key == "correlation_id":
+            if key in ("correlation_id", "client_address"):
                 continue
             payload[key] = value if _json_safe(value) else repr(value)
 
@@ -145,7 +169,7 @@ def _json_safe(value: Any) -> bool:
 
 
 class _CorrelationFilter(logging.Filter):
-    """Stamp the current correlation id onto every record.
+    """Stamp the current correlation id and client address onto every record.
 
     A filter rather than formatter-only lookup so the id is attached at emit time, which
     keeps it correct even if a handler formats later or a different formatter is swapped
@@ -157,6 +181,10 @@ class _CorrelationFilter(logging.Filter):
             correlation_id = get_correlation_id()
             if correlation_id:
                 record.correlation_id = correlation_id
+        if not hasattr(record, "client_address"):
+            client_address = get_client_address()
+            if client_address:
+                record.client_address = client_address
         return True
 
 
