@@ -10,13 +10,13 @@ describe("landing sections (PRD 2.7)", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: /mất doanh thu vì nhập hàng chậm/i,
+        name: /shop của bạn đang mất tiền ở đâu/i,
       }),
     ).toBeInTheDocument();
     // Hero badge + footer both carry the partner line.
     expect(screen.getAllByText(/TikTok Shop Partner/).length).toBeGreaterThanOrEqual(1);
     expect(
-      screen.getByText(/miễn phí trải nghiệm · dễ sử dụng/i),
+      screen.getByText(/miễn phí trải nghiệm · dành cho điện thoại/i),
     ).toBeInTheDocument();
   });
 
