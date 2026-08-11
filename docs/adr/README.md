@@ -74,3 +74,4 @@
 | [066](066-t9-fee-adjusted-price-rule.md) | T9 fee-adjusted price rule — Optimize Product `price_update` gated by a real, shop-level fee floor from corrected `Settlement` data | Accepted |
 | [067](067-livestream-script-recommendation.md) | Livestream script recommendation — rule-based 6-stage classification + LLM-personalized script catalog (pre/post-stream) | Accepted |
 | [068](068-agent-workflow-execution-boundary.md) | Agent workflow execution — playbook-guided bounded authority, prod-read/sandbox-write boundary, AUTO/CONFIRM/NEVER tool policy, WorkflowRunStatus lifecycle | Proposed |
+| [069](069-agent-tool-registry-and-write-path.md) | Agent tool registry — decision-point granularity (6 Optimize Product tools), in-run write path + ToolExecution audit, services/agent/tools ToolSpec module | Proposed |

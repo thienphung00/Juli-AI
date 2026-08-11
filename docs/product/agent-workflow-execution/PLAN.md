@@ -16,7 +16,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | # | Phase (draft-checklist numbering kept) | Status | Gate passed |
 |---|---|---|---|
 | 1 | P0 — Execution model & lifecycle (0.1 + 0.2) | 🟨 grilled 2026-08-11 — [ADR-068](../../adr/068-agent-workflow-execution-boundary.md) drafted (Proposed) | ⬜ gate = ADR landed on main |
-| 2 | P3+P4 — Tool registry + tool schemas (minimal) | ⬜ not started | ⬜ |
+| 2 | P3+P4 — Tool registry + tool schemas (minimal) | 🟨 design grilled 2026-08-11 — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md) drafted; implementation pending | ⬜ |
 | 3 | P5 — TikTok sanitization (product surface only) | ⬜ | ⬜ |
 | 4 | P11 — Model abstraction (minimal LLM service) | ⬜ | ⬜ |
 | 5 | P12 — Prompt architecture (system + Optimize Product) | ⬜ | ⬜ |
@@ -41,12 +41,14 @@ Minimal specs:
 
 Gate: ADR merged; enum + mapping reviewed; every later phase can name its states without inventing new ones.
 
-### 2. P3+P4 — Tool registry + schemas (minimal)
-Minimal specs:
-- `ToolSpec` (name, description, input/output schema, read|write, AUTO/CONFIRM/NEVER policy, timeout) wrapping the existing `services/execution/runner.py` registry — **only for the tools `optimize_product_2` needs** (get product info, get SEO words/suggestions, update listing via the `listing.optimize_product` chain).
-- Import-time cross-validation registry ↔ `WORKFLOW_TOOL_CATALOG` (flag, don't yet fix, the 4 unregistered tools: `fulfillment.process_order`, `returns.prevent_*`).
+### 2. P3+P4 — Tool registry + schemas (minimal) — *design settled in [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md)*
+Minimal specs (per ADR-069):
+- New `services/agent/tools/` module: `ToolSpec` dataclass (name, description, Pydantic input/output models → `model_json_schema()`, read|write, auto|confirm, timeout), explicit registration, domain-grouped handlers. Legacy `runner.py` untouched.
+- **Decision-point granularity** — 6 Optimize Product tools: `get_product_information`, `get_seo_keywords` (steps 2+3 bundled), `upload_product_image`, `update_product_listing` (CONFIRM), `update_product_price` (CONFIRM), `check_product_status` (webhook #5 closes post-run via `WorkflowOutcomeRecord`).
+- Writes execute in-run with a `ToolExecution` row per write (shared persistence helper with the legacy dispatcher); outbound `RateLimiter` attaches at the tool executor. Revisit trigger documented for nested-enqueue upgrade at heavier write volume.
+- Allowlists live in playbooks; import-time contract tests cross-validate playbook↔registry both directions. Also flag (don't yet fix) the 4 unregistered legacy tools (`fulfillment.process_order`, `returns.prevent_*`).
 
-Gate: LLM-consumable JSON schemas render for the Optimize Product toolset; contract test green.
+Gate: LLM-consumable JSON schemas render for the 6-tool Optimize Product set; playbook↔registry contract test green.
 
 ### 3. P5 — Sanitization (product surface only)
 Minimal specs:

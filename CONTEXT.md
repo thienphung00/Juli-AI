@@ -330,6 +330,14 @@ _Avoid_: "LLM never decides" (over-broad after ADR-068 — it never decides *wha
 The per-workflow ordered step specification the agent must follow during execution — compiled from the workflow's documented TikTok Partner API sequence in `execution_layer.md` into the workflow prompt/config, naming each step's intent and its permitted tools/endpoints. Bounded structure with in-step reasoning freedom.
 _Avoid_: script (implies no reasoning), DAG engine (playbooks are linear specs, not a generic engine)
 
+**Agent tool**:
+An LLM-callable operation registered as a `ToolSpec` in `services/agent/tools/` (ADR-069 pending): business-semantic English snake_case name (never a vendor endpoint name), Pydantic input/output models (the LLM-facing JSON schema derives via `model_json_schema()`), read|write classification, auto|confirm policy, timeout. Distinct from the legacy Celery tool registry (`services/execution/runner.py`), which stays untouched; both share the guarded TikTok resource layer. Writes execute in-run and are audited as `ToolExecution` rows.
+_Avoid_: vendor endpoint names as tool names, registering NEVER-class operations, extending runner.py with agent metadata
+
+**Decision-point granularity**:
+The rule for agent tool boundaries (ADR-069 pending): split where a decision point, a policy-class boundary, or a confirmation sits between calls; bundle only no-decision, same-class adjacent calls (Optimize Product steps 2+3 → `get_seo_keywords` is the only bundle). Bundled tools emit sub-step events so narration stays 1:1 with documented playbook steps.
+_Avoid_: strict 1:1 tool-per-step (pays a reasoning-free LLM turn), read+write bundles (breaks per-write CONFIRM)
+
 **WorkflowRunStatus**:
 The 8-state lifecycle of an agent workflow run (ADR-068 pending): `created → queued → running ⇄ waiting_approval → completed | failed | cancelled | timed_out`. Stored state answers "what can happen next"; phase narration ("Đang phân tích…") travels as SSE `workflow.status` events, never as states. Maps onto — without rewriting — `ExecutionStatus` (per spawned write-tool execution), `ActionCard.status` (card side: `approved` at run creation, `executing` while live), and the frontend lifecycle, which gains a real terminal `failed` (deliberate supersession of ADR-055's no-terminal-failure note for agent runs).
 _Avoid_: encoding narration phases (GATHERING_CONTEXT, ANALYZING) as stored states, extending `ExecutionStatus` with run semantics, reusing `DemoExecutionState` on the agent path
