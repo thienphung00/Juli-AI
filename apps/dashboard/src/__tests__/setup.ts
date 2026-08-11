@@ -24,6 +24,9 @@ jest.mock("next/navigation", () => ({
   usePathname: () => "/",
   useSearchParams: () => new URLSearchParams(),
   useParams: () => ({}),
+  notFound: jest.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
 }));
 
 beforeEach(() => {
