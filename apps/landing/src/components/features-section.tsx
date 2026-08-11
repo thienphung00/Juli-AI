@@ -31,7 +31,7 @@ const FEATURES: Feature[] = [
     icon: "💡",
     title: "Gợi ý",
     description:
-      "Đưa ra đề xuất các hành động phù hợp — bạn có thể xem, sửa đổi, đặt câu hỏi và tiến đến bước thực hiện ngay.",
+      "Đưa ra đề xuất các hành động phù hợp. Bạn có thể xem, sửa đổi, đặt câu hỏi và tiến đến bước thực hiện ngay.",
     mockup: <SuggestionsMockup />,
   },
   {
@@ -60,7 +60,7 @@ export function FeaturesSection() {
       id={SECTION_IDS.features}
     >
       <h2 className="lp-features__heading" id="features-heading">
-        Vận hành TMĐT mọi lúc, mọi nơi — chỉ cần một cú chạm
+        Vận hành TMĐT mọi lúc, mọi nơi, chỉ cần một cú chạm
       </h2>
       <p className="lp-features__subheading">
         Quản lý cửa hàng, theo dõi hiệu suất và tối ưu chiến dịch chỉ với vài

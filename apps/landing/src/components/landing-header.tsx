@@ -14,7 +14,7 @@ const NAV_LINKS = [
 export function LandingHeader() {
   return (
     <header className="lp-header">
-      <Link aria-label="Juli AI — trang chủ" className="lp-header__brand" href="/">
+      <Link aria-label="Juli AI, trang chủ" className="lp-header__brand" href="/">
         <JuliLogo size={30} />
       </Link>
       <nav aria-label="Điều hướng chính" className="lp-header__nav">

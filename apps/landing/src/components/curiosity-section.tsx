@@ -13,7 +13,7 @@ export function CuriositySection() {
         Shop của bạn đang vận hành thế nào?
       </h2>
       <p className="lp-curiosity__body">
-        Xem Juli phân tích một cửa hàng thật trên dữ liệu mẫu — không cần đăng
+        Xem Juli phân tích một cửa hàng thật trên dữ liệu mẫu, không cần đăng
         ký, không cần kết nối cửa hàng.
       </p>
       <CtaLink data-testid="curiosity-demo-cta" href={DEMO_URL} size="large">
