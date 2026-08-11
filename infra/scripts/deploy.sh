@@ -302,8 +302,12 @@ deploy_lane_api() {
     # Build the venv in the release dir (API artifacts stay server-built for now).
     python3 -m venv "${release_dir}/.venv"
     "${release_dir}/.venv/bin/pip" install -q --upgrade pip
-    "${release_dir}/.venv/bin/pip" install -q -r "${release_dir}/requirements.txt"
-    "${release_dir}/.venv/bin/pip" install -q -e "${release_dir}/backend"
+    # -c pins to the exact versions CI tested (#921) — release_dir is a git
+    # worktree checkout of this commit's sha, so backend/constraints.txt is
+    # already present here; no separate artifact download needed for the API
+    # lane (unlike demo/landing's prebuilt tarballs).
+    "${release_dir}/.venv/bin/pip" install -q -r "${release_dir}/requirements.txt" -c "${release_dir}/backend/constraints.txt"
+    "${release_dir}/.venv/bin/pip" install -q -e "${release_dir}/backend" -c "${release_dir}/backend/constraints.txt"
     record_step api build "completed"
 
     # Migrations: additive-gate + apply BEFORE the candidate starts. Never reverted.
