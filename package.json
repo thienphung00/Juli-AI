@@ -22,7 +22,12 @@
     "test:landing": "turbo run test --filter=@juli/landing",
     "check:landing": "pnpm lint:landing && pnpm type-check:landing && pnpm test:landing && pnpm build:landing",
     "screenshots": "node scripts/capture-ui-screenshots.mjs",
-    "screenshots:install": "playwright install chromium"
+    "screenshots:install": "playwright install chromium",
+    "dev": "pnpm dev:dashboard & pnpm dev:demo & pnpm dev:landing & wait",
+    "dev:dashboard": "npm --prefix apps/dashboard run dev",
+    "dev:demo": "pnpm --filter @juli/demo exec next dev -p 3100",
+    "dev:landing": "pnpm --filter @juli/landing exec next dev -p 3007",
+    "setup": "pnpm install && npm --prefix apps/dashboard ci"
   },
   "devDependencies": {
     "playwright": "^1.52.0",
