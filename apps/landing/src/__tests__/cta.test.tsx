@@ -2,10 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import LandingPage from "../app/page";
-import { DEMO_URL } from "../lib/site";
+import { DEMO_URL, LOGIN_URL } from "../lib/site";
 
 describe("Demo CTA wiring (PRD 2.7 + CONTEXT.md apps/landing)", () => {
-  it("points every primary CTA at the Demo Mock-mode entry", () => {
+  it("points every Demo CTA at the Demo Mock-mode entry", () => {
     render(<LandingPage />);
 
     for (const testId of [
@@ -19,6 +19,24 @@ describe("Demo CTA wiring (PRD 2.7 + CONTEXT.md apps/landing)", () => {
     }
   });
 
+  it("offers Login/Signup beside the hero Demo CTA, pointing at the shared auth entry", () => {
+    render(<LandingPage />);
+
+    const login = screen.getByTestId("hero-login-cta");
+    expect(login).toHaveTextContent("Đăng nhập / Đăng ký");
+    // One shared destination for the landing page and the Demo's own entry,
+    // so the two can never drift apart.
+    expect(login).toHaveAttribute("href", LOGIN_URL);
+  });
+
+  it("drives signup with the concrete three-improvements promise", () => {
+    render(<LandingPage />);
+
+    expect(
+      screen.getByText(/3 điều shop bạn cần cải thiện/i),
+    ).toBeInTheDocument();
+  });
+
   it("has the curiosity CTA phrased as a shop-performance question → Demo", () => {
     render(<LandingPage />);
 
@@ -27,11 +45,14 @@ describe("Demo CTA wiring (PRD 2.7 + CONTEXT.md apps/landing)", () => {
     expect(cta).toHaveAttribute("href", DEMO_URL);
   });
 
-  it('never renders "Đăng ký" as a call to action (Demo is the primary CTA)', () => {
+  it('renders "Đăng ký" only as the paired Login/Signup CTA, never standalone', () => {
     render(<LandingPage />);
 
-    // Body copy may mention "không cần đăng ký"; no link or button may be one.
-    expect(screen.queryByRole("link", { name: /đăng ký/i })).not.toBeInTheDocument();
+    // Signup is now a deliberate hero CTA, but it stays paired with Đăng nhập
+    // and must not multiply across the page: Demo remains the low-friction path.
+    const signupLinks = screen.getAllByRole("link", { name: /đăng ký/i });
+    expect(signupLinks).toHaveLength(1);
+    expect(signupLinks[0]).toHaveTextContent("Đăng nhập / Đăng ký");
     expect(screen.queryByRole("button", { name: /đăng ký/i })).not.toBeInTheDocument();
   });
 
