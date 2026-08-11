@@ -263,6 +263,8 @@ jobs:
           pip install -e "./backend[dev]"
       - name: Ruff
         run: ruff check backend/src/juli_backend tests scripts
+      - name: Credentials-in-URL guard (#904)
+        run: python agent-runtime/scripts/ci/check_credentials_in_url.py backend/src/juli_backend tests scripts
 
   typecheck:
     runs-on: ubuntu-latest
