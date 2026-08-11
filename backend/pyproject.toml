@@ -8,6 +8,15 @@ version = "0.1.0"
 description = "Juli AI Python backend (FastAPI modular monolith)"
 readme = "README.md"
 requires-python = ">=3.12"
+# AUTHORITATIVE floor/ceiling ranges for the backend (#921). requirements.txt at
+# the repo root mirrors these exact ranges — it exists only so Dependabot's
+# `pip` ecosystem entry (directory "/", .github/dependabot.yml) has something to
+# scan, since Dependabot does not read PEP 621 `[project.optional-dependencies]`
+# extras the way this project uses them; it is NOT used by any install command
+# and must never declare a different floor/ceiling than this file. The exact
+# versions actually installed by every `pip install -e "./backend[dev]"` in CI
+# and local dev are pinned (not just range-constrained) in backend/constraints.txt
+# — see that file's header for what it pins and how to regenerate it.
 dependencies = [
     "requests>=2.31.0,<3.0.0",
     "fastapi>=0.115.0,<1.0.0",

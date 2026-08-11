@@ -445,6 +445,9 @@ class TikTokClient:
             "timestamp": str(int(time.time())),
         }
         if not uses_header_auth(path):
+            # creds-url-guard: allow -- TikTok Shop's non-header-auth endpoints
+            # require access_token as a signed query parameter (open-api spec);
+            # header-auth endpoints use _auth_headers() instead and never hit this.
             params["access_token"] = self._access_token
         if self._shop_cipher:
             params["shop_cipher"] = self._shop_cipher

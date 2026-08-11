@@ -20,7 +20,8 @@ jobs:
           python-version: "3.12"
       - name: Install and verify
         run: |
-          pip install -e "./backend[dev]"
+          pip install -e "./backend[dev]" -c backend/constraints.txt
+          pip freeze | sort
           ruff check backend/src/juli_backend tests scripts
           mypy backend/src/juli_backend --ignore-missing-imports --disable-error-code=valid-type
           pytest tests/ -q
