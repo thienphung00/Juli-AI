@@ -145,6 +145,15 @@ a {
   line-height: 1.6;
 }
 
+.lp-hero__hook {
+  margin: var(--juli-space-4) 0 0;
+  max-width: 34rem;
+  color: var(--juli-primary-strong);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .lp-hero__flow {
   margin: var(--juli-space-4) 0 0;
   max-width: 34rem;
