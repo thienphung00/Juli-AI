@@ -267,6 +267,70 @@ def test_runbook_documents_reboot_gap():
     ), "Runbook must document iptables rules persistence across reboot"
 
 
+# --------------------------------------------------------------------------------------
+# Reboot persistence (#941).
+#
+# The lockdown chain lives only in the running kernel, while ufw persists
+# `80/tcp ALLOW IN Anywhere` and `443/tcp ALLOW IN Anywhere`. A reboot therefore restored a
+# permissive ruleset and left the origin exposed until the hourly timer next fired — up to
+# ~65 minutes. The service unit already declared WantedBy=multi-user.target but was never
+# enabled, so it only ever ran from the timer. These tests pin the fix so the gap cannot
+# silently reopen.
+# --------------------------------------------------------------------------------------
+
+BOOT_DROPIN_PATH = SYSTEMD_DIR / "juli-cloudflare-ip-refresh.service.d" / "10-boot-persistence.conf"
+
+
+def test_boot_persistence_dropin_exists_and_is_ordered_correctly():
+    assert BOOT_DROPIN_PATH.is_file(), (
+        f"Boot-persistence drop-in missing: {BOOT_DROPIN_PATH}. Without it the lockdown "
+        "does not re-apply at boot and the origin is exposed after every reboot (#941)."
+    )
+    text = BOOT_DROPIN_PATH.read_text(encoding="utf-8")
+
+    assert "After=ufw.service" in text, (
+        "Drop-in must order the unit After=ufw.service. ufw restores its own permissive "
+        "80/443 rules at boot; running before it means they clobber the lockdown."
+    )
+    assert "Before=nginx.service" in text, (
+        "Drop-in must order the unit Before=nginx.service so nginx does not begin serving "
+        "80/443 before the lockdown is applied."
+    )
+    assert "TimeoutStartSec=" in text, (
+        "Drop-in must bound the unit's start time — the script fetches Cloudflare ranges "
+        "over the network and a hung fetch must never block boot."
+    )
+
+
+def test_timer_has_a_boot_trigger_as_the_second_net():
+    timer_text = (SYSTEMD_DIR / "juli-cloudflare-ip-refresh.timer").read_text(encoding="utf-8")
+    assert "OnBootSec=" in timer_text, (
+        "Timer must declare OnBootSec. With only OnCalendar=hourly and RandomizedDelaySec=5m, "
+        "a reboot leaves the origin exposed for up to ~65 minutes if the service does not run."
+    )
+
+
+def test_runbook_tells_operators_to_enable_the_service_not_only_the_timer():
+    """Enabling only the timer was the #941 defect; the runbook must not still teach it."""
+    runbook_text = RUNBOOK_PATH.read_text(encoding="utf-8")
+    assert "systemctl enable juli-cloudflare-ip-refresh.service" in runbook_text, (
+        "Runbook must instruct enabling the SERVICE (not only the timer) — that is what "
+        "provides reboot persistence."
+    )
+
+
+def test_runbook_does_not_recommend_iptables_persistent():
+    """ufw owns the filter table here; a netfilter-persistent restore would be clobbered."""
+    runbook_text = RUNBOOK_PATH.read_text(encoding="utf-8")
+    for line in runbook_text.splitlines():
+        if "iptables-persistent" not in line:
+            continue
+        assert "Do not use" in line or "not use" in line.lower(), (
+            "Runbook still recommends iptables-persistent. ufw performs its own boot-time "
+            f"restore and would clobber the replayed ruleset. Offending line: {line!r}"
+        )
+
+
 def test_dry_run_output_all_rules_complete_and_well_formed():
     """Dry-run output must contain only complete, well-formed iptables invocations.
 

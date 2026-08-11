@@ -130,41 +130,53 @@ proxy on port 80, so renewal continues to succeed. If a hostname is ever grey-cl
 (unproxied) or a new DNS record is added without Cloudflare proxy, renewal will silently
 fail — monitor `certbot renew --dry-run` output in your deploy logs.
 
-On the VPS, install and enable the automatic refresh:
+On the VPS, install the units and enable **both** the timer and the service:
 
 ```bash
-sudo systemctl enable --now juli-cloudflare-ip-refresh.timer
+sudo systemctl enable --now juli-cloudflare-ip-refresh.timer    # hourly range refresh
+sudo systemctl enable juli-cloudflare-ip-refresh.service        # runs at every boot
 ```
 
-The timer runs hourly to refresh firewall rules from Cloudflare's current IP ranges. Check
-that the service is enabled and has run successfully:
+Enabling the **service** is what gives reboot persistence — see below. Enabling only the
+timer was the #941 defect. Verify both:
 
 ```bash
-sudo systemctl status juli-cloudflare-ip-refresh.timer
-sudo journalctl -u juli-cloudflare-ip-refresh.service --no-pager
+sudo systemctl is-enabled juli-cloudflare-ip-refresh.timer      # -> enabled
+sudo systemctl is-enabled juli-cloudflare-ip-refresh.service    # -> enabled
+sudo journalctl -u juli-cloudflare-ip-refresh.service --no-pager | tail
 # Look for "cloudflare-origin-lockdown complete" in the logs.
 ```
 
-**Reboot persistence — important:** iptables rules do NOT survive a reboot. Between boot and
-the first timer firing (~1 hour), the origin is exposed without protection. Choose one approach:
+**Reboot persistence (#941).** iptables rules live only in the running kernel, while ufw
+persists `80/tcp ALLOW IN Anywhere` and `443/tcp ALLOW IN Anywhere` across reboots. A reboot
+therefore did not merely drop the lockdown — it restored a permissive ruleset and left the
+origin fully exposed until the hourly timer next fired, a window of up to ~65 minutes
+(`OnCalendar=hourly` + `RandomizedDelaySec=5m`, no `OnBootSec`).
 
-1. **Boot-time activation** — add a second systemd service for immediate protection on boot:
-   ```bash
-   sudo systemctl enable --now juli-cloudflare-ip-refresh.service  # run once at boot
-   # Create /etc/systemd/system/juli-cloudflare-ip-refresh-boot.service with
-   # Before=multi-user.target to activate before multi-user services start
-   ```
+The fix re-runs the lockdown at boot rather than persisting its output. Install the drop-in:
 
-2. **Persist rules** — install `iptables-persistent` to restore rules after reboot:
-   ```bash
-   sudo apt-get install -y iptables-persistent
-   # After this script runs successfully, persist the rules:
-   sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null
-   sudo ip6tables-save | sudo tee /etc/iptables/rules.v6 > /dev/null
-   ```
+```bash
+sudo mkdir -p /etc/systemd/system/juli-cloudflare-ip-refresh.service.d
+sudo cp infra/systemd/juli-cloudflare-ip-refresh.service.d/10-boot-persistence.conf \
+        /etc/systemd/system/juli-cloudflare-ip-refresh.service.d/
+sudo systemctl daemon-reload
+sudo systemctl enable juli-cloudflare-ip-refresh.service
+```
 
-This implementation documents the gap explicitly rather than hiding it. The systemd timer is
-configured with `Persistent=true`, but acknowledge the reboot window in your runbook and ops docs.
+It orders the unit `After=ufw.service` (so ufw's permissive restore cannot clobber it) and
+`Before=nginx.service` (so nginx does not begin serving 80/443 until the lockdown is applied).
+`OnBootSec=2min` on the timer is the second net, bounding any residual window at ~2 minutes.
+
+**Do not use `iptables-persistent` on this host.** ufw owns the filter table and performs its
+own boot-time restore, which would clobber a ruleset replayed by `netfilter-persistent`.
+Re-running the lockdown after ufw is the ordering-correct fix and needs no extra package.
+
+Verify after any reboot:
+
+```bash
+sudo iptables -S CLOUDFLARE_INGRESS | wc -l      # non-zero
+curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' http://<origin-ip>/   # expect failure
+```
 
 **Failed rule application behavior — availability over lockout:** If the script fails while
 applying rules (e.g., Cloudflare ranges unreachable, iptables permission issue), it rolls back
@@ -270,6 +282,8 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 - [x] HTTPS certificates issued for both domains via certbot HTTP-01
 - [x] `certbot renew --dry-run` succeeds (automatic renewal enabled)
 - [x] Origin lockdown firewall rules installed and enabled (`juli-cloudflare-ip-refresh.timer` running)
+- [x] Reboot persistence: `juli-cloudflare-ip-refresh.service` **enabled** with the
+      `10-boot-persistence.conf` drop-in (`After=ufw.service`, `Before=nginx.service`) (#941)
 - [x] SSH (port 22) remains fully accessible from any source (untouched by lockdown)
 - [x] Frontend accessible over HTTPS through Cloudflare proxy
 - [x] Backend `/health` accessible over HTTPS through Cloudflare proxy
