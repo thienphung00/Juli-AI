@@ -18,6 +18,10 @@ ENV_EXAMPLE="${REPO_ROOT}/infra/scripts/env/api.env.example"
 ENV_FILE="${REPO_ROOT}/.env"
 VENV="${REPO_ROOT}/.venv"
 REQUIREMENTS="${REPO_ROOT}/requirements.txt"
+# Exact-pinned lock (#921) — same file CI installs against, so a production
+# install resolves the identical dependency graph a green CI run tested.
+# Regenerate via the one-liner documented at the top of backend/constraints.txt.
+CONSTRAINTS="${REPO_ROOT}/backend/constraints.txt"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Run as root: sudo $0" >&2
@@ -52,9 +56,14 @@ if [ ! -f "${REQUIREMENTS}" ]; then
     exit 1
 fi
 
+if [ ! -f "${CONSTRAINTS}" ]; then
+    echo "Missing constraints: ${CONSTRAINTS}" >&2
+    exit 1
+fi
+
 echo "Installing Python dependencies..."
-"${VENV}/bin/pip" install -r "${REQUIREMENTS}"
-"${VENV}/bin/pip" install -e "${REPO_ROOT}/backend"
+"${VENV}/bin/pip" install -r "${REQUIREMENTS}" -c "${CONSTRAINTS}"
+"${VENV}/bin/pip" install -e "${REPO_ROOT}/backend" -c "${CONSTRAINTS}"
 
 install -m 0644 "${SYSTEMD_SRC}" /etc/systemd/system/juli-api.service
 systemctl daemon-reload
