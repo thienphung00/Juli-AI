@@ -23,9 +23,10 @@ below, keyed by the *exact* ``(method, path)`` pair — never a prefix or
 pattern — so a new route can never accidentally inherit an allowlist entry;
 widening the allowlist is always a visible, reviewable line-level diff. Each
 entry carries an inline comment stating why it is public. See the PR body
-for #900 for the full reasoning, including the deliberate choice to
-allowlist ``/debug/tiktok/verify-connection`` (tracked separately as #903)
-rather than fail this build.
+for #900 for the full reasoning. The one deliberate allowlist exception it
+carried — ``/debug/tiktok/verify-connection`` — has since been closed by #903:
+that route now depends on ``get_active_shop`` and is not mounted in production
+at all, so it needs no exception and the entry is gone.
 """
 
 from __future__ import annotations
@@ -104,14 +105,6 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
     ("GET", "/v1/auth/tiktok/business/account-holder/callback"): (
         "TikTok Business account-holder OAuth callback — same signed-state-token pattern, "
         "verified via HMAC in `_verify_state()`; persists no tokens (infra-only)."
-    ),
-    ("GET", "/debug/tiktok/verify-connection"): (
-        "TODO(#903): has NO auth today beyond the ENABLE_TIKTOK_DEBUG env flag — a known "
-        "cross-tenant IDOR (client-supplied shop_id, no ownership check), documented in "
-        "ADR-061 decision 2 step 7 as #903's job to close. Allowlisted here deliberately: "
-        "#900 is an assertion over the current route set, not a fix, and the exit gate "
-        "requires this test to pass against that current (imperfect) state. Remove this "
-        "entry when #903 adds real auth to the route, not before."
     ),
 }
 

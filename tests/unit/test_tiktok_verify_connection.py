@@ -1,4 +1,10 @@
-"""Tests for temporary TikTok debug verify-connection endpoint."""
+"""Tests for the TikTok debug verify-connection endpoint.
+
+Since #903 the route is gated three ways: not mounted in production at all, requires an
+authenticated session that owns the shop (``get_active_shop``), and still honours
+``ENABLE_TIKTOK_DEBUG`` within non-production. It no longer accepts a client-supplied
+``shop_id`` or ``merchant_authorization_id`` — those made it a cross-tenant probe.
+"""
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,11 +13,11 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from juli_backend.models.models import Shop, User
-from juli_backend.repositories.repos import TikTokCredentialRepo
 from juli_backend.integrations.tiktok.merchant import (
     TikTokCapability,
 )
+from juli_backend.models.models import Shop, User
+from juli_backend.repositories.repos import TikTokCredentialRepo
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
@@ -47,9 +53,10 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def client(engine, monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
     from juli_backend.api.app import create_app
     from juli_backend.database import get_session
-    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     application = create_app()
@@ -60,9 +67,7 @@ async def client(engine, monkeypatch):
 
     application.dependency_overrides[get_session] = _test_session
 
-    async with AsyncClient(
-        transport=ASGITransport(app=application), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as c:
         yield c
 
 
@@ -93,6 +98,35 @@ async def stored_credential(session, user_id):
     return credential, shop
 
 
+@pytest_asyncio.fixture
+async def authed_client(engine, stored_credential):
+    """Client whose caller owns the shop that holds the stored credential.
+
+    Overrides ``get_active_shop`` rather than minting a JWT: the ownership logic itself
+    is covered by the dependency's own tests, and what matters here is that the route
+    *depends* on it and operates only on the shop it returns.
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from juli_backend.api.app import create_app
+    from juli_backend.api.dependencies import get_active_shop
+    from juli_backend.database import get_session
+
+    _, shop = stored_credential
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    application = create_app()
+
+    async def _test_session():
+        async with factory() as sess:
+            yield sess
+
+    application.dependency_overrides[get_session] = _test_session
+    application.dependency_overrides[get_active_shop] = lambda: shop
+
+    async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as c:
+        yield c
+
+
 class TestVerifyConnectionRoute:
     @pytest.mark.asyncio
     async def test_verify_connection_hidden_when_debug_disabled(
@@ -103,10 +137,7 @@ class TestVerifyConnectionRoute:
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_verify_connection_returns_shop_metadata(
-        self, client, stored_credential
-    ):
-        _, shop = stored_credential
+    async def test_verify_connection_returns_shop_metadata(self, authed_client, stored_credential):
         with patch(
             "juli_backend.services.tiktok.verify_connection.TikTokVerifyConnectionService.verify",
             new=AsyncMock(
@@ -118,7 +149,8 @@ class TestVerifyConnectionRoute:
                 }
             ),
         ):
-            resp = await client.get(VERIFY_PATH, params={"shop_id": str(shop.id)})
+            # No shop_id parameter exists any more — the route reads the active shop.
+            resp = await authed_client.get(VERIFY_PATH)
 
         assert resp.status_code == 200
         body = resp.json()
@@ -132,17 +164,66 @@ class TestVerifyConnectionRoute:
         assert "ROW_secret_access" not in resp.text
 
     @pytest.mark.asyncio
-    async def test_verify_connection_without_credentials_returns_400(
-        self, client
-    ):
+    async def test_verify_connection_requires_an_owned_shop(self, client):
+        """Unauthenticated callers cannot reach it at all (#903).
+
+        Previously this returned 400 complaining about missing query parameters, which
+        told an anonymous caller the route existed and was usable. Now the ownership
+        dependency rejects them before any lookup happens.
+        """
         resp = await client.get(VERIFY_PATH)
-        assert resp.status_code == 400
-        assert "merchant_authorization_id" in resp.json()["detail"]
+        assert resp.status_code in (401, 403, 422), resp.text
+        assert "merchant_authorization_id" not in resp.text
+
+    @pytest.mark.asyncio
+    async def test_verify_connection_404s_when_the_owned_shop_has_no_credentials(
+        self, engine, session, user_id
+    ):
+        """An owned shop with nothing stored is a 404, not a leak about other shops."""
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from juli_backend.api.app import create_app
+        from juli_backend.api.dependencies import get_active_shop
+        from juli_backend.database import get_session
+
+        session.add(User(id=user_id, phone="+84901234567"))
+        await session.flush()
+        bare_shop = Shop(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            shop_name="No Creds Shop",
+            tiktok_shop_id="seller_nocreds",
+        )
+        session.add(bare_shop)
+        await session.commit()
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        application = create_app()
+
+        async def _test_session():
+            async with factory() as sess:
+                yield sess
+
+        application.dependency_overrides[get_session] = _test_session
+        application.dependency_overrides[get_active_shop] = lambda: bare_shop
+
+        async with AsyncClient(
+            transport=ASGITransport(app=application), base_url="http://test"
+        ) as c:
+            resp = await c.get(VERIFY_PATH)
+        assert resp.status_code == 404
 
     @pytest.mark.asyncio
     async def test_oauth_callback_persists_credentials_for_verify(
-        self, client, session, mock_token_exchange
+        self, client, engine, session, mock_token_exchange
     ):
+        """End-to-end: OAuth callback stores a credential, verify reads it back.
+
+        Deliberately does not use the ``authed_client`` fixture — that fixture depends on
+        ``stored_credential``, which pre-claims the shop, so the callback under test
+        would fail with ``tiktok_shop_already_claimed``. Instead the shop the callback
+        itself creates becomes the active shop.
+        """
         resp = await client.get(
             CALLBACK_PATH,
             params={
@@ -164,13 +245,30 @@ class TestVerifyConnectionRoute:
                 }
             ),
         ):
-            verify = await client.get(
-                VERIFY_PATH,
-                params={
-                    "merchant_authorization_id": "seller_123",
-                    "capability": TikTokCapability.SELLER_CONNECT.value,
-                },
-            )
+            from sqlalchemy import select
+            from sqlalchemy.ext.asyncio import async_sessionmaker
+
+            from juli_backend.api.app import create_app
+            from juli_backend.api.dependencies import get_active_shop
+            from juli_backend.database import get_session
+
+            created_shop = (await session.execute(select(Shop))).scalars().first()
+            assert created_shop is not None, "callback did not create a shop"
+
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            application = create_app()
+
+            async def _test_session():
+                async with factory() as sess:
+                    yield sess
+
+            application.dependency_overrides[get_session] = _test_session
+            application.dependency_overrides[get_active_shop] = lambda: created_shop
+
+            async with AsyncClient(
+                transport=ASGITransport(app=application), base_url="http://test"
+            ) as authed:
+                verify = await authed.get(VERIFY_PATH)
 
         assert verify.status_code == 200
         assert verify.json()["connected"] is True

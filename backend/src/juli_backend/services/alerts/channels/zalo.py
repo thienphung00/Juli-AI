@@ -25,8 +25,8 @@ ZALO_OA_MESSAGE_URL = "https://openapi.zalo.me/v3.0/oa/message/cs"
 class ZaloOaAdapter:
     """Delivers seller alerts via Zalo OA messaging API.
 
-    ``device_token`` is the recipient Zalo user id (OA follower id), matching
-  the ``ChannelAdapter`` parameter name used by ``deliver_alert``.
+      ``device_token`` is the recipient Zalo user id (OA follower id), matching
+    the ``ChannelAdapter`` parameter name used by ``deliver_alert``.
     """
 
     channel: str = "zalo"
@@ -99,6 +99,8 @@ class ZaloOaAdapter:
         try:
             response = await client.post(
                 ZALO_OA_MESSAGE_URL,
+                # creds-url-guard: allow -- Zalo OA's send-message API requires
+                # access_token as a query param (not header/body); see Zalo OA docs.
                 params={"access_token": token},
                 json=payload,
             )
