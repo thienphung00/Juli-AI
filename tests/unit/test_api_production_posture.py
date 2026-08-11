@@ -22,6 +22,20 @@ from fastapi.testclient import TestClient
 
 from juli_backend.api.app import create_app
 
+try:
+    # Newer FastAPI (0.141.1 / starlette 1.6.0, which is what CI resolves) stopped
+    # eagerly flattening `include_router` targets into `app.routes`; each is wrapped in
+    # an opaque `_IncludedRouter` and only resolves lazily through this function. Reading
+    # `app.routes` directly there sees ONLY the routes registered on the app itself —
+    # which for this app means the docs routes and nothing else.
+    #
+    # This is not hypothetical: the first CI run of this file failed exactly that way
+    # while passing locally on fastapi 0.128.0, which is #921's drift in miniature. Older
+    # FastAPI has no such function and `app.routes` is already flat, hence the fallback.
+    from fastapi.routing import iter_route_contexts as _iter_route_contexts
+except ImportError:  # pragma: no cover - depends on the installed FastAPI
+    _iter_route_contexts = None
+
 DOC_PATHS = ("/docs", "/redoc", "/openapi.json")
 DIAGNOSTIC_PATH = "/debug/tiktok/verify-connection"
 
@@ -37,7 +51,26 @@ def development(monkeypatch):
 
 
 def _paths(app) -> set[str]:
+    """Paths registered directly on the app — docs, redoc, schema.
+
+    Safe to read flat: FastAPI registers these on the app itself, so they appear in
+    ``app.routes`` under every version. Included routers do not — use `_api_routes`.
+    """
     return {getattr(r, "path", None) for r in app.routes}
+
+
+def _api_routes(app) -> list:
+    """Every endpoint including those added via include_router, version-robustly."""
+    candidates = _iter_route_contexts(app.routes) if _iter_route_contexts else app.routes
+    return [
+        c
+        for c in candidates
+        if hasattr(c, "dependant") and hasattr(c, "path") and hasattr(c, "methods")
+    ]
+
+
+def _api_paths(app) -> set[str]:
+    return {r.path for r in _api_routes(app)}
 
 
 @pytest.mark.parametrize("path", DOC_PATHS)
@@ -64,13 +97,13 @@ def test_diagnostic_route_is_not_mounted_in_production(production, monkeypatch):
     """
     monkeypatch.setenv("ENABLE_TIKTOK_DEBUG", "1")
     app = create_app()
-    assert DIAGNOSTIC_PATH not in _paths(app)
+    assert DIAGNOSTIC_PATH not in _api_paths(app)
     assert TestClient(app).get(DIAGNOSTIC_PATH).status_code == 404
 
 
 def test_diagnostic_route_is_mounted_outside_production(development, monkeypatch):
     monkeypatch.setenv("ENABLE_TIKTOK_DEBUG", "1")
-    assert DIAGNOSTIC_PATH in _paths(create_app())
+    assert DIAGNOSTIC_PATH in _api_paths(create_app())
 
 
 def test_diagnostic_route_resolves_an_ownership_dependency(development, monkeypatch):
@@ -84,7 +117,7 @@ def test_diagnostic_route_resolves_an_ownership_dependency(development, monkeypa
     from juli_backend.api.dependencies import get_active_shop
 
     app = create_app()
-    route = next(r for r in app.routes if getattr(r, "path", None) == DIAGNOSTIC_PATH)
+    route = next(r for r in _api_routes(app) if r.path == DIAGNOSTIC_PATH)
     calls = {d.call for d in route.dependant.dependencies}
     assert get_active_shop in calls, (
         "diagnostic route no longer depends on get_active_shop — it was a cross-tenant "
@@ -96,10 +129,24 @@ def test_diagnostic_route_accepts_no_client_supplied_shop_identifier(development
     """The parameters that made it a cross-tenant probe must stay gone."""
     monkeypatch.setenv("ENABLE_TIKTOK_DEBUG", "1")
     app = create_app()
-    route = next(r for r in app.routes if getattr(r, "path", None) == DIAGNOSTIC_PATH)
+    route = next(r for r in _api_routes(app) if r.path == DIAGNOSTIC_PATH)
     query_names = {p.name for p in route.dependant.query_params}
     for banned in ("shop_id", "merchant_authorization_id", "capability"):
         assert banned not in query_names, (
             f"{banned!r} is back as a query parameter; the caller must not be able to "
             "name a shop other than the one they own."
         )
+
+
+def test_the_route_walk_is_not_vacuous(development):
+    """A walk that finds nothing would make every assertion above pass silently.
+
+    This is the failure mode that actually bit: on newer FastAPI a flat read of
+    app.routes returned only the docs routes, so "the diagnostic route is absent"
+    was trivially true for the wrong reason.
+    """
+    routes = _api_routes(create_app())
+    assert len(routes) >= 20, (
+        f"route walk found only {len(routes)} endpoints — it is not resolving "
+        "include_router targets, so the assertions in this file prove nothing"
+    )
