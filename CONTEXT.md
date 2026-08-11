@@ -322,6 +322,22 @@ _Avoid_: CSAT score (when meaning the Phase 3 model), customer satisfaction (gen
 
 ## Execution
 
+**Playbook-guided agent authority**:
+The decision-authority split for LLM agent workflow execution (Phase: agent execution, ADR-068 pending): Juli's deterministic scoring pipeline owns *what* is recommended; the seller owns approval (of the workflow, and again for confirmation-class writes); the LLM owns *how* an approved workflow executes — but only inside that workflow's **playbook**, the specified end-to-end step sequence derived from `execution_layer.md`. Within a playbook step the agent reasons freely: selects allowlisted tool calls, proposes parameters, interprets sanitized results into seller language, emits structured output. It never selects workflows, never calls tools outside the allowlist, never invents thresholds.
+_Avoid_: "LLM never decides" (over-broad after ADR-068 — it never decides *what*, it does decide *how*), autonomous agent (implies workflow selection authority), free-form agent loop (ignores the playbook constraint)
+
+**Workflow playbook**:
+The per-workflow ordered step specification the agent must follow during execution — compiled from the workflow's documented TikTok Partner API sequence in `execution_layer.md` into the workflow prompt/config, naming each step's intent and its permitted tools/endpoints. Bounded structure with in-step reasoning freedom.
+_Avoid_: script (implies no reasoning), DAG engine (playbooks are linear specs, not a generic engine)
+
+**WorkflowRunStatus**:
+The 8-state lifecycle of an agent workflow run (ADR-068 pending): `created → queued → running ⇄ waiting_approval → completed | failed | cancelled | timed_out`. Stored state answers "what can happen next"; phase narration ("Đang phân tích…") travels as SSE `workflow.status` events, never as states. Maps onto — without rewriting — `ExecutionStatus` (per spawned write-tool execution), `ActionCard.status` (card side: `approved` at run creation, `executing` while live), and the frontend lifecycle, which gains a real terminal `failed` (deliberate supersession of ADR-055's no-terminal-failure note for agent runs).
+_Avoid_: encoding narration phases (GATHERING_CONTEXT, ANALYZING) as stored states, extending `ExecutionStatus` with run semantics, reusing `DemoExecutionState` on the agent path
+
+**Tool execution policy**:
+The per-tool execution class on a `ToolSpec` in agent workflow execution (ADR-068 pending): **AUTO** (READ + internal tools — run without pausing), **CONFIRM** (every WRITE tool this phase — the run pauses with `workflow.approval_required`, showing the agent-composed mutation as a diff, because LLM-authored content did not exist at plan-approval time), **NEVER** (operations absent from every playbook — not registered as tools at all, structural rather than runtime). Repeat consent (ADR-055 item 19) is the only CONFIRM→AUTO downgrade path, valid solely for the five repeat-consent-eligible workflow kinds; class-D shipped promises must be changed deliberately before widening.
+_Avoid_: requires_confirmation boolean (two-state — misses NEVER), auto-execute allowlist (policy lives on the ToolSpec, not a separate list)
+
 **Action executor**:
 The `System` column in an execution action table — must name a real integration surface (TikTok Partner API family, Third-Party connector, Juli AI LLM, or User input). Phantom labels forbidden. **Promotion API** vs **Marketing API** are not interchangeable.
 _Avoid_: Internal engine names with no implemented client; "Ads API" on Shop Partner host for campaign writes
