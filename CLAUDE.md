@@ -28,6 +28,15 @@ routing or touching git.
 
 ### Git (`.cursor/rules/git-baseline.mdc`)
 
+- **Preflight before you edit.** `python agent-runtime/scripts/git/checkout_preflight.py --fetch`
+  must not print `FAIL`. Blocking conditions: base ≥50 commits / ≥7 days behind `origin/main`;
+  the primary working directory off `main`; `main` held by a side worktree; a worktree outside
+  `.worktrees/`; a stray `.git` directory in the tree. Enforced by
+  `.claude/hooks/checkout_preflight_gate.py` on every write — override only with
+  `JULI_SKIP_CHECKOUT_PREFLIGHT=1` and a stated reason.
+- **The primary working directory stays on `main` and clean.** All task work happens in a
+  worktree: `git worktree add .worktrees/<task> -b feature/<desc> origin/main`. One writer per
+  tree. Sub-agents never `checkout`/`reset`/`stash` in the primary directory.
 - Short-lived `feature/<short-desc>` cut from `main`. Never push to `main` directly.
 - Conventional commits: `feat|fix|refactor|docs|test|chore|perf|ci: <description>`.
 - **Two lanes** (pick by what the diff touches): **Standard** — any code, or mixed code+docs: branch/worktree → PR → land on green → close. **Fast-track** — non-code only (`*.md`/`*.mdc`/`*.txt`, `docs/**`, `.cursor/rules|skills/**`; zero code edits): short branch → PR → immediate `gh pr merge --squash --delete-branch --admin`. Any code file in the diff ⇒ standard lane. Both lanes go via a PR.
@@ -71,6 +80,13 @@ python agent-runtime/scripts/meta_prepare_executor.py --issue <N>
 
 Executors and Review must never open TikTok corpora catalogs (ADR-051), route context,
 or ship. Meta must never implement features or bypass Review.
+
+**Parallel orchestration.** One task, one worktree, one writer; disjoint write paths across
+concurrent sub-agents; read-only agents get an explicit prohibition on `worktree remove`,
+`branch -d`, `clean`, `commit`, `push`, `checkout` — the tool list alone does not convey it.
+The parent runs the preflight before delegating and closes every worktree it opens
+(`worktree_gc.py --close <task>`). Pin `PYTHONPATH` when running pytest in a worktree or the
+green is fake. Full contract: [`.cursor/rules/core-orchestration.mdc`](.cursor/rules/core-orchestration.mdc).
 
 ---
 
