@@ -15,7 +15,7 @@
 # - Does NOT eval() any fetched content (direct iptables binary invocation only)
 # - Does NOT touch port 22 (SSH) — explicit guards prevent any rule that references it
 # - On rule failure, immediately rolls back the chain and removes the INPUT jump
-# - Does NOT survive reboot (see REBOOT PERSISTENCE section)
+# - Survives reboot via the boot-enabled refresh unit (see REBOOT PERSISTENCE section)
 #
 # Intended for deploy via systemd timer (juli-cloudflare-ip-refresh.timer) to keep ranges fresh.
 #
@@ -30,14 +30,20 @@
 #   MIN_IPV4_RANGES            — minimum IPv4 ranges before abort (default: 5)
 #   MIN_IPV6_RANGES            — minimum IPv6 ranges before abort (default: 3)
 #
-# REBOOT PERSISTENCE:
-# iptables rules do not survive a reboot. The origin is exposed between boot and the next
-# timer firing. To restore protection immediately on boot, either:
-# 1. Use a boot-time systemd service that calls this script (add Before=multi-user.target)
-# 2. Install iptables-persistent and run `iptables-save > /etc/iptables/rules.v4`
-#    after this script succeeds to persist rules across reboots
-# This minimal implementation documents the gap and relies on the systemd timer
-# (configured with Persistent=true) to restore rules after boot.
+# REBOOT PERSISTENCE (closed by #941):
+# iptables rules do not survive a reboot, and ufw persists `80/tcp ALLOW IN Anywhere` and
+# `443/tcp ALLOW IN Anywhere`. A reboot therefore did not merely drop this lockdown — it
+# restored a permissive ruleset and left the origin exposed until the timer next fired,
+# a window of up to ~65 minutes (OnCalendar=hourly + RandomizedDelaySec=5m, no OnBootSec).
+#
+# Fixed by running this script at boot rather than persisting its output:
+#   infra/systemd/juli-cloudflare-ip-refresh.service.d/10-boot-persistence.conf
+#   (After=ufw.service, Before=nginx.service) plus `systemctl enable` on the SERVICE —
+#   the unit already declared WantedBy=multi-user.target but was never enabled, so it
+#   only ever ran from the timer. OnBootSec=2min on the timer is the second net.
+#
+# iptables-persistent is deliberately NOT used: ufw owns the filter table and its own
+# boot-time restore would clobber a replayed ruleset.
 #
 # Safety guarantees:
 # - Port 22 (SSH): never modified; explicit check that generated rules do not reference it

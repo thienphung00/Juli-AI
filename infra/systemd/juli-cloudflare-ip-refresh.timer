@@ -4,6 +4,9 @@
 Description=Hourly Cloudflare IP range refresh for origin lockdown
 
 [Timer]
+# Second net behind the boot-enabled service (#941). If the service somehow does not
+# run at boot, this bounds the exposure window at ~2 minutes instead of ~65.
+OnBootSec=2min
 OnCalendar=hourly
 Persistent=true
 RandomizedDelaySec=5m
