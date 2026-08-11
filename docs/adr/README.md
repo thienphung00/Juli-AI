@@ -76,3 +76,4 @@
 | [068](068-agent-workflow-execution-boundary.md) | Agent workflow execution — playbook-guided bounded authority, prod-read/sandbox-write boundary, AUTO/CONFIRM/NEVER tool policy, WorkflowRunStatus lifecycle | Proposed |
 | [069](069-agent-tool-registry-and-write-path.md) | Agent tool registry — decision-point granularity (6 Optimize Product tools), in-run write path + ToolExecution audit, services/agent/tools ToolSpec module | Proposed |
 | [070](070-agent-safe-sanitization-contract.md) | Agent-safe sanitization contract — context-bound IDs, source-role provenance, hard caps, error translation, dual-language banned-pattern guard | Proposed |
+| [071](071-llm-service-openai-adapter.md) | LLM service — neutral block interface, stateless OpenAI Responses adapter (GPT-5.4 nano), turn-level blocks, fail-closed key assertion | Proposed |
