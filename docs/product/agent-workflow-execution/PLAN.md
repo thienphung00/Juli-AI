@@ -15,10 +15,10 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 
 | # | Phase (draft-checklist numbering kept) | Status | Gate passed |
 |---|---|---|---|
-| 1 | P0 — Execution model & lifecycle (0.1 + 0.2) | 🟨 grilled 2026-08-11 — [ADR-068](../../adr/068-agent-workflow-execution-boundary.md) drafted (Proposed) | ⬜ gate = ADR landed on main |
+| 1 | P0 — Execution model & lifecycle (0.1 + 0.2) | ✅ complete — [ADR-068](../../adr/068-agent-workflow-execution-boundary.md) merged (#962) | ✅ 2026-08-11 |
 | 2 | P3+P4 — Tool registry + tool schemas (minimal) | 🟨 design grilled 2026-08-11 — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md) drafted; implementation pending | ⬜ |
 | 3 | P5 — TikTok sanitization (product surface only) | 🟨 design grilled 2026-08-11 — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md) drafted; implementation pending | ⬜ |
-| 4 | P11 — Model abstraction (minimal LLM service) | ⬜ | ⬜ |
+| 4 | P11 — Model abstraction (minimal LLM service) | 🟨 design grilled 2026-08-11 — [ADR-071](../../adr/071-llm-service-openai-adapter.md) drafted; implementation pending | ⬜ |
 | 5 | P12 — Prompt architecture (system + Optimize Product) | ⬜ | ⬜ |
 | 6 | P1 — Agent execution loop (blocks + runner) | ⬜ | ⬜ |
 | 7 | P-CS — Conversation & state storage (NEW) | ⬜ | ⬜ |
