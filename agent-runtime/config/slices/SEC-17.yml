@@ -10,7 +10,7 @@ SEC-17:
     - agent-runtime/scripts/ci/check_public_schema_privileges.py
     - tests/integration/test_migrations.py
   loadWhenNeeded:
-    - backend/src/juli_backend/database/migrations/versions/029_close_public_schema_defaults.py
+    - backend/src/juli_backend/database/migrations/versions/032_close_public_schema_defaults.py
     - .github/workflows/pr.yml
   doNotLoad:
     - apps/

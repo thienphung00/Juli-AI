@@ -54,7 +54,9 @@ def test_demo_execution_records_is_exactly_one_alembic_head_at_028():
     """Guards the single-head invariant (no branching), not a pinned head id.
 
     The literal head advances as later slices stack on top of 028 (e.g.
-    029_close_public_schema_defaults, #897), so this asserts 028 remains an
+    029_bronze_ctor_live_hours, #880; 030_product_revenue_units_sold, #943;
+    031_inventory_items_velocity, #943 follow-on;
+    032_close_public_schema_defaults, #897), so this asserts 028 remains an
     ancestor of whatever head is current rather than asserting equality with
     a literal that must be bumped on every unrelated migration.
     """

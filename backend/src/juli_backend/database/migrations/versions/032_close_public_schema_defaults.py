@@ -1,7 +1,7 @@
 """close public schema to PostgREST client roles by default (#897)
 
-Revision ID: 029_close_public_schema_defaults
-Revises: 028_demo_execution_records
+Revision ID: 032_close_public_schema_defaults
+Revises: 031_inventory_items_velocity
 Create Date: 2026-08-10
 
 ADR-061 decision 1 — thirteen `public` tables (including `action_cards` and
@@ -38,8 +38,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "029_close_public_schema_defaults"
-down_revision: str | None = "028_demo_execution_records"
+revision: str = "032_close_public_schema_defaults"
+down_revision: str | None = "031_inventory_items_velocity"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

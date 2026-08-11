@@ -1,0 +1,78 @@
+{
+  "planId": "rep-909-create-hero-product-plan-with-needs-you-upload",
+  "affectedPublicSurfaces": [
+    "demo.app-juli.com",
+    "demo.app-juli.com/decisions"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "local/candidate Demo build — zero public canary traffic; Demo is mock-mode and sends no drafts to the backend",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "decisions-create-hero-product-plan-review",
+        "entryUrl": "/decisions",
+        "assertions": [
+          "html_200",
+          "create_hero_product_1_routes_to_the_plan_review",
+          "both_upload_fields_render_in_a_visible_needs_you_section",
+          "no_proposed_or_placeholder_imagery_is_generated",
+          "plan_states_approval_is_blocked_pending_seller_input",
+          "uploads_accept_images_only_on_both_fields",
+          "upload_is_reachable_from_the_review_route_not_only_in_isolation"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": true,
+    "htmlRoutes": [
+      "/",
+      "/decisions"
+    ],
+    "discoverFromHtml": true,
+    "assetTypes": [
+      "css",
+      "js"
+    ],
+    "failOnMissing": true,
+    "failOnNon200": true
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No DB schema change. apps/demo plan-review content only; the Demo sends no drafts to the backend and the authoritative screening already exists server-side (#792)."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "restore_stable_listener",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/demo test -- --run",
+    "pnpm --filter @juli/demo exec tsc --noEmit",
+    "pnpm --filter @juli/ui test -- --run"
+  ],
+  "doNotInfer": [
+    "release evidence fields",
+    "smoke asset lists",
+    "rollback behavior",
+    "re-implementing file screening in the Demo — item 20 puts the gate server-side",
+    "widening the image-only allowlist",
+    "describing the control as antivirus"
+  ]
+}

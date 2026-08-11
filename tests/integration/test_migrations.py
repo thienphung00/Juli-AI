@@ -31,7 +31,7 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "029_close_public_schema_defaults"
+LATEST_REVISION = "032_close_public_schema_defaults"
 
 sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
 from check_public_schema_privileges import (  # noqa: E402
@@ -137,6 +137,9 @@ REVISION_020_TABLE = "analytics_kpi_envelopes"
 REVISION_021_TABLE = "ml_feature_snapshots"
 REVISION_022_SCHEMA = "ops"
 REVISION_023_BRONZE_TABLES = ("order_raw_payloads", "return_raw_payloads")
+REVISION_029_BRONZE_TABLES = ("ctor_performance_raw_payloads", "live_hours_raw_payloads")
+REVISION_030_COLUMNS = ("revenue", "units_sold")
+REVISION_031_COLUMN = "velocity"
 MEDALLION_SCHEMAS = ("bronze", "silver", "gold", "ops")
 CLIENT_ISOLATED_SCHEMAS = ("bronze", "silver", "ops")
 POSTGREST_CLIENT_ROLES = ("anon", "authenticated")
@@ -1014,6 +1017,41 @@ def test_bronze_to_silver_promotion_integration(postgres_at_head: Engine):
 
 
 @requires_postgres
+def test_products_full_entity_select_succeeds_after_030_migration(postgres_at_head: Engine):
+    """Regression for #943: ORM SELECT of a full Product entity must not 500.
+
+    Reproduces ``ProductsRepo(session).list(shop_id, ...)`` from the rules-scoring
+    pipeline (``services/scoring/pipeline.py``) against the real, migration-built
+    schema — not the ORM-model-driven SQLite fixture unit tests use, which would
+    never have caught a migration that was simply never written.
+    """
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from juli_backend.core.config.runtime import async_database_url
+    from juli_backend.repositories.repos import ProductsRepo
+
+    ids = _seed_representative_rows(postgres_at_head)
+    shop_id = ids["shop_id"]
+
+    async def _run() -> list:
+        url = _database_url()
+        engine = create_async_engine(async_database_url(url))
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            products = await ProductsRepo(session).list(shop_id, limit=10_000)
+        await engine.dispose()
+        return products
+
+    products = asyncio.run(_run())
+
+    assert len(products) == 1
+    assert products[0].revenue == Decimal("0.00")
+    assert products[0].units_sold == 0
+
+
+@requires_postgres
 def test_downgrade_to_024_drops_revision_025_silver(postgres_at_head: Engine):
     """Downgrading to 024 removes silver orders/returns; gold tables remain.
 
@@ -1043,7 +1081,7 @@ def test_latest_downgrade_drops_only_revision_028_demo_execution(postgres_at_hea
     """Downgrading to 027 removes 028's table; 025/024 objects remain.
 
     Targets revision 027 explicitly rather than ``-1``: since #897 added
-    029_close_public_schema_defaults, head is no longer 028, so ``-1`` would only
+    032_close_public_schema_defaults, head is no longer 028, so ``-1`` would only
     undo 029's privilege revoke rather than 028's table. The invariant under test
     (028's downgrade drops only its own table) is unchanged.
     """
@@ -1052,6 +1090,7 @@ def test_latest_downgrade_drops_only_revision_028_demo_execution(postgres_at_hea
 
     assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
 
+    # Head is well past 028 (029-032); target 027 so 028's downgrade runs explicitly.
     command.downgrade(cfg, "027_decision_emission_budget")
 
     assert not _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
@@ -1061,6 +1100,122 @@ def test_latest_downgrade_drops_only_revision_028_demo_execution(postgres_at_hea
 
     command.upgrade(cfg, "head")
     assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_029_bronze_ctor_live_hours(
+    postgres_at_head: Engine,
+):
+    """Downgrading past 029 removes its bronze tables; 023's bronze tables remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for table in REVISION_029_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+
+    # Head may move past 029; target 028 so 029's downgrade runs explicitly.
+    command.downgrade(cfg, "028_demo_execution_records")
+
+    for table in REVISION_029_BRONZE_TABLES:
+        assert not _table_exists_in_schema(postgres_at_head, "bronze", table)
+    # 023's bronze tables and the medallion schemas must survive 029's downgrade.
+    for table in REVISION_023_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+    for schema in MEDALLION_SCHEMAS:
+        assert _schema_exists(postgres_at_head, schema)
+    assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
+
+    command.upgrade(cfg, "head")
+    for table in REVISION_029_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_030_columns(postgres_at_head: Engine):
+    """Downgrading past 030 removes products.revenue/units_sold; 029 bronze tables remain."""
+    _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    for column in REVISION_030_COLUMNS:
+        assert _table_has_column(postgres_at_head, "products", column)
+
+    command.downgrade(cfg, "029_bronze_ctor_live_hours")
+
+    for column in REVISION_030_COLUMNS:
+        assert not _table_has_column(postgres_at_head, "products", column)
+    for table in REVISION_029_BRONZE_TABLES:
+        assert _table_exists_in_schema(postgres_at_head, "bronze", table)
+
+    with postgres_at_head.connect() as conn:
+        product_count = conn.execute(text("SELECT COUNT(*) FROM products")).scalar_one()
+    assert product_count == 1
+
+    command.upgrade(cfg, "head")
+    for column in REVISION_030_COLUMNS:
+        assert _table_has_column(postgres_at_head, "products", column)
+    with postgres_at_head.connect() as conn:
+        revenue, units_sold = conn.execute(
+            text("SELECT revenue, units_sold FROM products LIMIT 1")
+        ).one()
+    assert revenue == Decimal("0.00")
+    assert units_sold == 0
+
+
+@requires_postgres
+def test_latest_downgrade_drops_only_revision_031_column(postgres_at_head: Engine):
+    """Downgrading past 031 removes inventory_items.velocity; 030 columns remain.
+
+    Targets revision 030 explicitly rather than ``-1``: a ``-1``-based test broke
+    once before when 029 moved head, so every per-revision downgrade test in this
+    suite names its target revision.
+    """
+    ids = _seed_representative_rows(postgres_at_head)
+    cfg = _alembic_config()
+
+    assert _table_has_column(postgres_at_head, "inventory_items", REVISION_031_COLUMN)
+
+    inventory_id = uuid.uuid4()
+    now = datetime.now(UTC).replace(tzinfo=None)
+    with postgres_at_head.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO inventory_items (
+                    id, shop_id, tiktok_product_id, tiktok_sku_id, quantity, update_time
+                )
+                VALUES (
+                    :id, :shop_id, :tiktok_product_id, :tiktok_sku_id, :quantity, :update_time
+                )
+                """
+            ),
+            {
+                "id": inventory_id,
+                "shop_id": ids["shop_id"],
+                "tiktok_product_id": "migration_product_365",
+                "tiktok_sku_id": "migration_sku_365",
+                "quantity": 5,
+                "update_time": now,
+            },
+        )
+
+    command.downgrade(cfg, "030_product_revenue_units_sold")
+
+    assert not _table_has_column(postgres_at_head, "inventory_items", REVISION_031_COLUMN)
+    for column in REVISION_030_COLUMNS:
+        assert _table_has_column(postgres_at_head, "products", column)
+
+    with postgres_at_head.connect() as conn:
+        inventory_count = conn.execute(text("SELECT COUNT(*) FROM inventory_items")).scalar_one()
+    assert inventory_count == 1
+
+    command.upgrade(cfg, "head")
+    assert _table_has_column(postgres_at_head, "inventory_items", REVISION_031_COLUMN)
+    with postgres_at_head.connect() as conn:
+        velocity = conn.execute(
+            text("SELECT velocity FROM inventory_items WHERE id = :id"),
+            {"id": inventory_id},
+        ).scalar_one()
+    assert velocity == "low"
 
 
 @requires_postgres

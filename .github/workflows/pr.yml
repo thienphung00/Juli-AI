@@ -418,6 +418,12 @@ jobs:
         # ADR-040: issue tier excludes live, deploy contracts, and heavy suites.
         # Floor set 5 points below the measured juli_backend baseline (85%, 2026-07-09).
         # timeout=30 comes from pytest.ini (pytest-timeout).
+        # #943/#948: tests/integration/test_schema_parity.py intentionally still
+        # runs here — it carries its own `schema_parity` marker (not
+        # `migration_heavy`) so this deselect does not skip it. It needs only
+        # this job's existing postgres service + DATABASE_URL, and closes the
+        # model/migration drift gap that shipped products.revenue/units_sold
+        # (#943) and inventory_items.velocity (#948) past a fully green CI.
         run: |
           python -X faulthandler -m pytest tests/ -v --tb=short \
             -m "not live and not demo_contract and not migration_heavy and not phase_scaffold" \
@@ -470,7 +476,7 @@ jobs:
       - name: Install dependencies
         run: pip install -e "./backend[dev]"
       # #897 exit gate: create the PostgREST client roles BEFORE migrations run so
-      # 021_medallion_schemas' + 029_close_public_schema_defaults' role-guarded
+      # 021_medallion_schemas' + 032_close_public_schema_defaults' role-guarded
       # REVOKE/ALTER DEFAULT PRIVILEGES statements actually execute in CI instead of
       # silently skipping their `IF EXISTS (SELECT 1 FROM pg_roles ...)` guard.
       #

@@ -64,9 +64,11 @@ def test_action_cards_still_has_exactly_one_alembic_head():
     Asserts the actual invariant the name promises (single-headedness), not a
     pinned literal head id: later slices stack on top of 026 (e.g.
     027_decision_emission_budget, #716 B-4; 028_demo_execution_records, #717
-    B-5; 029_close_public_schema_defaults, #897), so a literal-equality
-    assertion here breaks on every subsequent migration for a reason unrelated
-    to this file. Instead confirm 026 is still an ancestor of whatever head is
+    B-5; 029_bronze_ctor_live_hours, #880; 030_product_revenue_units_sold,
+    #943; 031_inventory_items_velocity, #943 follow-on;
+    032_close_public_schema_defaults, #897), so a literal-equality assertion
+    here breaks on every subsequent migration for a reason unrelated to this
+    file. Instead confirm 026 is still an ancestor of whatever head is
     current — the property this migration actually cares about not breaking.
     """
     from alembic.config import Config

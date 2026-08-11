@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from juli_backend.integrations.tiktok import (
+    ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     INVENTORY_SEARCH_PATH,
@@ -78,19 +79,48 @@ _STATIC_RESOURCES: dict[str, FetchResource] = {
         ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
         "analytics",
     ),
+    # A-34 Get Shop Product Performance List — bronze-supported ctor domain
+    # (#880). Same Partner endpoint as "analytics_products_list" above; that
+    # entry stays defined (still resource_attr "analytics") for callers that
+    # reference it by name, but the material matrix below now points product
+    # triggers at "ctor" since it is no longer bronze-deferred.
+    "ctor": FetchResource("ctor", ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH, "ctor"),
+    # A-28 Get Shop LIVE Performance List — bronze-supported live_hours domain
+    # (#880). Not wired into the material fetch matrix below: no webhook
+    # catalog id maps to the LIVE domain, so live_hours refresh is driven by
+    # the reconcile/scheduled trigger, not per-webhook fan-out.
+    "live_hours": FetchResource(
+        "live_hours",
+        ANALYTICS_LIVE_PERFORMANCE_LIST_PATH,
+        "live_hours",
+    ),
 }
 
 # Material catalog id → named resource keys (see MODULE.md for rationale).
 _MATERIAL_FETCH_MATRIX: dict[int, tuple[str, ...]] = {
     1: ("orders", "analytics_shop"),
     2: ("returns", "orders", "analytics_shop"),
-    5: ("products", "analytics_shop", "analytics_products_list"),
+    5: ("products", "analytics_shop", "ctor"),
     12: ("returns", "analytics_shop"),
     27: ("inventory", "products", "analytics_shop"),
     39: ("promotion_activity", "analytics_shop"),
     67: ("returns", "orders", "analytics_shop"),
     68: ("inventory", "analytics_shop"),
 }
+
+
+def static_fetch_resource(name: str) -> FetchResource:
+    """Return a canonical named ``FetchResource`` definition (#880).
+
+    Public accessor onto the planner's private static resource table, for
+    callers that build a fetch plan outside the material webhook matrix (e.g.
+    ``workers/tasks/mock_analytics_reconcile.py``'s hourly gap plan) and must
+    not duplicate endpoint-path literals inline — that duplication is exactly
+    how the hourly plan and the material matrix previously drifted apart.
+    Does not resolve ``"promotion_activity"`` (payload-hint dependent; only
+    meaningful inside a material trigger) — use ``plan_targeted_fetch`` for that.
+    """
+    return _STATIC_RESOURCES[name]
 
 
 def _resolve_promotion_activity(payload_hints: Mapping[str, Any] | None) -> FetchResource:

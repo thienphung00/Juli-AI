@@ -213,6 +213,14 @@ class EtlConsumer:
             raise TransformError(f"unknown entity kind {entity_kind}")
         await repo.upsert(shop_id=shop_id, **kwargs)
 
+        if entity_kind == "order_item" and kwargs.get("tiktok_product_id"):
+            # #943: keep products.revenue/units_sold in sync with the
+            # order_items that actually carry real TikTok sales data — the
+            # product webhook payload itself never includes revenue figures.
+            await self._products.recompute_revenue_from_order_items(
+                shop_id, kwargs["tiktok_product_id"]
+            )
+
     async def _lookup_order_id(self, shop_id: Any, tiktok_order_id: str) -> Any | None:
         stmt = select(Order.id).where(
             Order.shop_id == shop_id,

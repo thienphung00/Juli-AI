@@ -31,13 +31,19 @@ from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
     make_targeted_fetch_bronze_handoff,
 )
 from juli_backend.services.cdp_speed.targeted_fetch_planner import FetchResource, TargetedFetchPlan
-from juli_backend.services.cdp_speed.targeted_fetch_sync import sync_orders, sync_returns
+from juli_backend.services.cdp_speed.targeted_fetch_sync import (
+    sync_ctor_performance,
+    sync_live_hours,
+    sync_orders,
+    sync_returns,
+)
 from juli_backend.services.ingestion.handoff import HandoffFn
 
 logger = logging.getLogger(__name__)
 
-# Medallion bronze foundation (#627) — other plan resources are fetch-deferred.
-BRONZE_SUPPORTED_RESOURCE_ATTRS = frozenset({"orders", "returns"})
+# Medallion bronze foundation (#627, extended #880 for A-34 ctor / A-28
+# live_hours) — other plan resources are fetch-deferred.
+BRONZE_SUPPORTED_RESOURCE_ATTRS = frozenset({"orders", "returns", "ctor", "live_hours"})
 
 SyncResourceFn = Callable[..., Awaitable[None]]
 
@@ -57,7 +63,23 @@ class TargetedFetchExecutor(Protocol):
 _SYNC_BY_RESOURCE_ATTR: dict[str, SyncResourceFn] = {
     "orders": sync_orders,
     "returns": sync_returns,
+    "ctor": sync_ctor_performance,
+    "live_hours": sync_live_hours,
 }
+
+# ctor/live_hours both read the shared ``ProductionReadResources.analytics``
+# client (there is no per-domain analytics attribute) — this maps their
+# resource_attr to the actual dataclass field name. Resource attrs absent
+# here (orders/returns) resolve to themselves, unchanged from #627.
+_RESOURCE_ATTR_ACCESSOR: dict[str, str] = {
+    "ctor": "analytics",
+    "live_hours": "analytics",
+}
+
+
+def _resources_field_name(resource_attr: str) -> str:
+    return _RESOURCE_ATTR_ACCESSOR.get(resource_attr, resource_attr)
+
 
 ResolveJobCredentialFn = Callable[[AsyncSession, uuid.UUID], Awaitable[TikTokCredential | None]]
 
@@ -156,7 +178,7 @@ async def _run_plan_resource(
         return
 
     await sync_fn(
-        resource=getattr(resources, resource.resource_attr),
+        resource=getattr(resources, _resources_field_name(resource.resource_attr)),
         rate_limiter=rate_limiter,
         handoff_fn=handoff_fn,
         app_id=app_id,

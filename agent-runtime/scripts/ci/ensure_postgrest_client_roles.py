@@ -2,7 +2,7 @@
 """Idempotently create the Supabase PostgREST client roles in CI Postgres and seed
 Supabase's project-bootstrap grant (#897, #929).
 
-021_medallion_schemas and 029_close_public_schema_defaults both gate their
+021_medallion_schemas and 032_close_public_schema_defaults both gate their
 REVOKE/ALTER DEFAULT PRIVILEGES statements behind
 ``IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '<role>')`` so the migrations
 stay reversible on plain Postgres, where ``anon``/``authenticated`` never exist.
@@ -56,7 +56,7 @@ END
 $ensure_role$;
 """  # nosec B608 — role is a fixed module constant, never interpolated user input
 
-# Mirrors 029_close_public_schema_defaults._restore_bootstrap_grants byte-for-byte
+# Mirrors 032_close_public_schema_defaults._restore_bootstrap_grants byte-for-byte
 # (that function documents itself as reproducing "the way Supabase's own bootstrap
 # SQL leaves it") — this is the same shape, run BEFORE any migration, to simulate
 # Supabase's project-bootstrap grant rather than a migration's downgrade remedy.

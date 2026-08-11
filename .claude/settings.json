@@ -32,7 +32,12 @@
       "Bash(pnpm -w turbo run build:*)",
       "Bash(pnpm --filter:*)",
       "Bash(alembic history:*)",
-      "Bash(alembic current:*)"
+      "Bash(alembic current:*)",
+      "Bash(python agent-runtime/scripts/git/checkout_preflight.py:*)",
+      "Bash(python3 agent-runtime/scripts/git/checkout_preflight.py:*)",
+      "Bash(python agent-runtime/scripts/git/worktree_gc.py --report:*)",
+      "Bash(git worktree list:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [
       "Read(./.env)",
@@ -46,6 +51,10 @@
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkout_preflight_gate.py\""
+          },
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/executor_cache_gate.py\""

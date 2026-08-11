@@ -56,7 +56,45 @@ When the parent would otherwise serialize multiple **independent** edits or expl
 | Explore or shell batches on separate trees | `meta_prepare_executor` + Executor start |
 | Mechanical cleanup / archive / formatting slices | Shared-core or auth/PII changes |
 
-One clear prompt per subagent; disjoint write paths; do not spawn Composer for a single tiny edit.
+One clear prompt per subagent; disjoint write paths; do not spawn Composer for a single tiny edit. UI/visual work in `apps/demo`, `apps/dashboard`, or `packages/ui` never goes to Composer — visual judgment stays with the parent or the `ui-ux` executor.
+
+## Parallel orchestration — tree discipline (always on)
+
+Applies to every sub-agent in either harness (Cursor Task/Composer, Claude Code Agent).
+Parallel orchestration is how this repo accumulated 73 worktrees, 61 unmerged branches and
+26 GB of abandoned checkouts, so these are hard constraints, not preferences.
+
+**One task, one tree, one owner.**
+
+- Every sub-agent that writes gets its **own worktree**, created from current `origin/main`:
+  `git worktree add .worktrees/<task> -b feature/<desc> origin/main`. Never two writers in
+  one tree; never a writer in the primary working directory.
+- Worktrees live **only** in `.worktrees/` or `.claude/worktrees/`. A worktree anywhere else
+  — especially the repo root — is read as project source by every tree walk. Enforced by
+  `WORKTREE_LOCATION` in the checkout preflight.
+- The **primary working directory stays on `main` and stays clean.** It is the tree a fresh
+  agent reads by default; a feature branch parked there becomes everyone's stale answer.
+  Sub-agents must never `checkout`, `reset`, or `stash` in it.
+- **Disjoint write paths.** Give each concurrent sub-agent a non-overlapping set of files.
+  Overlapping writers produce merge conflicts the parent then has to referee blind.
+- **Read-only means read-only.** Audit and classification sub-agents get an explicit
+  prohibition on `worktree remove`, `branch -d`, `clean`, `commit`, `push`, and `checkout`.
+  State it in the prompt; the tool list alone does not.
+- **Close what you open.** On PR merge:
+  `python agent-runtime/scripts/git/worktree_gc.py --close <task>`. A parent that spawns N
+  worktrees owns closing N worktrees.
+
+**Verify before you believe.** Two failure modes recur and both look like success:
+
+- *pytest in a worktree imports `juli_backend` from the MAIN checkout* via an editable
+  `.pth`. Pin `PYTHONPATH=$PWD/backend/src` and assert `juli_backend.__file__` resolves
+  inside the worktree, or the green is fake.
+- *A sub-agent narrating `PASS` is not evidence.* Require the gate script's own output, and
+  check the artifact's timestamp — a task can log success while a stage inside it threw.
+
+**Before assigning work**, the parent runs `checkout_preflight.py` (see
+[`git-baseline.mdc`](git-baseline.mdc)) and does not delegate out of a `FAIL` tree. A stale
+parent hands every child the same stale base.
 
 ## Skills governance
 

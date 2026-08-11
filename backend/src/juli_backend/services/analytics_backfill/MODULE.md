@@ -106,6 +106,31 @@ ETL transform, and repos.
 - Respects ``AnalyticsBackfillPartitionsRepo`` for bucket ``catalog`` (skip complete,
   ``mark_complete`` on success)
 
+## Concurrency (#795)
+
+``backfill_analytics_history(..., concurrency_limit=N)`` runs up to N partitions'
+**fetch** phase truly in parallel via ``asyncio.to_thread`` — the four partition
+runners (``backfill_revenue_partition``, ``backfill_product_partition``,
+``run_live_partition``, ``run_catalog_partition``) all offload their blocking
+vendor-client calls off the event-loop thread. DB touches (``is_complete``,
+``upsert``, ``mark_complete``/``mark_failed``) stay serialized: every runner
+accepts an optional ``session_lock: asyncio.Lock | None`` and every caller
+sharing ONE ``AsyncSession`` across concurrent partitions **must** pass the
+same lock instance, or two tasks can corrupt that session (SQLAlchemy does not
+support concurrent use of one ``AsyncSession``).
+
+``backfill_analytics_history_auto_topup`` (the scheduled Celery Beat caller) is
+the reference wiring: it builds one ``session_lock`` and threads it through all
+four partition-runner calls, and resolves ``concurrency_limit`` from the
+``ANALYTICS_BACKFILL_CONCURRENCY_LIMIT`` env var (default
+``DEFAULT_AUTO_TOPUP_CONCURRENCY_LIMIT = 4``). Raising this does not increase
+Partner load or risk ADR-029's ``hard_limit=499`` — the Redis-backed
+``RateLimiter`` governs actual call rate, and ``budget_lock`` inside
+``backfill_analytics_history`` keeps the hard limit race-free under
+concurrency; more in-flight tasks just finish the same capped call budget
+sooner. Callers with a per-partition session (or no shared session at all) may
+omit ``session_lock`` — it defaults to no locking.
+
 ## Out of scope
 
 - HITL operator tooling (#472)

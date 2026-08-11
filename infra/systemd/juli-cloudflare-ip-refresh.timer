@@ -1,0 +1,16 @@
+# Run cloudflare-origin-lockdown.sh hourly during low-traffic windows.
+# Install to /etc/systemd/system/juli-cloudflare-ip-refresh.timer on the review VPS.
+[Unit]
+Description=Hourly Cloudflare IP range refresh for origin lockdown
+
+[Timer]
+# Second net behind the boot-enabled service (#941). If the service somehow does not
+# run at boot, this bounds the exposure window at ~2 minutes instead of ~65.
+OnBootSec=2min
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+Unit=juli-cloudflare-ip-refresh.service
+
+[Install]
+WantedBy=timers.target

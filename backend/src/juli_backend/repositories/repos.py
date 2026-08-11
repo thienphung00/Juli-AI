@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
@@ -23,6 +23,8 @@ from juli_backend.models.models import (
     AnalyticsBackfillPartition,
     AnalyticsKpiEnvelope,
     AnalyticsPerformanceInterval,
+    BronzeCtorPerformanceRawPayload,
+    BronzeLiveHoursRawPayload,
     BronzeOrderRawPayload,
     BronzeReturnRawPayload,
     Campaign,
@@ -538,6 +540,37 @@ class ProductsRepo(ShopScopedRepo[Product]):
     _model = Product
     _lookup_attr = "tiktok_product_id"
 
+    async def recompute_revenue_from_order_items(
+        self, shop_id: uuid.UUID, tiktok_product_id: str
+    ) -> None:
+        """Recompute ``revenue``/``units_sold`` from synced ``order_items`` (#943).
+
+        Full recompute (SUM over all matching order_items), not an increment —
+        an incremental add would double-count on a redelivered or corrected
+        webhook, since ``OrderItemsRepo.upsert`` overwrites the line on update
+        rather than diffing it. No-ops (0 rows updated) when the product hasn't
+        synced yet; the next order_item recompute for that product id will
+        pick it up once it has.
+        """
+        totals_stmt = select(
+            func.coalesce(func.sum(OrderItem.line_total), 0),
+            func.coalesce(func.sum(OrderItem.quantity), 0),
+        ).where(
+            OrderItem.shop_id == shop_id,
+            OrderItem.tiktok_product_id == tiktok_product_id,
+        )
+        revenue, units_sold = (await self._session.execute(totals_stmt)).one()
+
+        await self._session.execute(
+            update(Product)
+            .where(
+                Product.shop_id == shop_id,
+                Product.tiktok_product_id == tiktok_product_id,
+            )
+            .values(revenue=revenue, units_sold=units_sold)
+        )
+        await self._session.flush()
+
     async def list_by_revenue(
         self,
         shop_id: uuid.UUID,
@@ -1019,6 +1052,62 @@ class BronzeReturnRawPayloadsRepo:
                 received_at=record.get("received_at") or datetime.now(UTC),
                 tiktok_return_id=record.get("tiktok_return_id"),
                 tiktok_order_id=record.get("tiktok_order_id"),
+                source_event_id=record.get("source_event_id"),
+            )
+            for record in records
+        ]
+        self._session.add_all(rows)
+        await self._session.flush()
+        return rows
+
+
+class BronzeCtorPerformanceRawPayloadsRepo:
+    """Batched append writer for bronze.ctor_performance_raw_payloads (#880)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def append_batch(
+        self,
+        records: list[dict[str, Any]],
+    ) -> list[BronzeCtorPerformanceRawPayload]:
+        if not records:
+            return []
+        rows = [
+            BronzeCtorPerformanceRawPayload(
+                shop_id=record["shop_id"],
+                ingest_source=record["ingest_source"],
+                payload=record["payload"],
+                received_at=record.get("received_at") or datetime.now(UTC),
+                tiktok_product_id=record.get("tiktok_product_id"),
+                source_event_id=record.get("source_event_id"),
+            )
+            for record in records
+        ]
+        self._session.add_all(rows)
+        await self._session.flush()
+        return rows
+
+
+class BronzeLiveHoursRawPayloadsRepo:
+    """Batched append writer for bronze.live_hours_raw_payloads (#880)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def append_batch(
+        self,
+        records: list[dict[str, Any]],
+    ) -> list[BronzeLiveHoursRawPayload]:
+        if not records:
+            return []
+        rows = [
+            BronzeLiveHoursRawPayload(
+                shop_id=record["shop_id"],
+                ingest_source=record["ingest_source"],
+                payload=record["payload"],
+                received_at=record.get("received_at") or datetime.now(UTC),
+                tiktok_live_id=record.get("tiktok_live_id"),
                 source_event_id=record.get("source_event_id"),
             )
             for record in records

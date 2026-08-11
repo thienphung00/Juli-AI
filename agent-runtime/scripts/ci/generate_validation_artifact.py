@@ -45,6 +45,7 @@ CHECKS: list[tuple[str, str]] = [
     ("phase_run_correlation", "check_phase_run_correlation.py"),
     ("release_evidence_plan_continuity", "check_release_evidence_plan_continuity.py"),
     ("release_metadata_honesty", "check_release_metadata_honesty.py"),
+    ("unpushed_issue_work", "check_unpushed_issue_work.py"),
 ]
 
 

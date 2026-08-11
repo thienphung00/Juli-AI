@@ -28,22 +28,32 @@ any credentials to git.
 
 ---
 
-## Step 1 — DNS A records (registrar / HITL)
+## Step 1 — DNS A records and Cloudflare proxy (registrar + Cloudflare dashboard / HITL)
 
-Create **A records** pointing both hostnames at the review VPS:
+**Cloudflare-proxied topology:** DNS A records point to Cloudflare edge IPs, not the VPS directly.
+Cloudflare's edge proxy (orange-cloud in the dashboard) terminates TLS at the edge, then
+proxies clean HTTP to the origin VPS. This provides WAF, DDoS protection, and rate limiting.
+Direct connections to the VPS IP bypass Cloudflare entirely — they are blocked by the
+origin-lockdown firewall rules (applied in Step 5 below) to force all traffic through Cloudflare.
 
-| Hostname | Type | Value | TTL |
-|----------|------|-------|-----|
-| `app-juli.com` | A | `VPS_IP` | 300–3600 |
-| `www.app-juli.com` | A | `VPS_IP` | 300–3600 (optional; certbot may request it) |
-| `api.app-juli.com` | A | `VPS_IP` | 300–3600 |
+In your Cloudflare dashboard:
 
-Wait for propagation, then confirm from your workstation:
+| Hostname | Type | Value | Proxy Status | TTL |
+|----------|------|-------|--------------|-----|
+| `app-juli.com` | A | Cloudflare edge IP (auto) | Proxied (orange cloud) | Auto |
+| `www.app-juli.com` | A | Cloudflare edge IP (auto) | Proxied (orange cloud) | Auto (optional; certbot may request it) |
+| `api.app-juli.com` | A | Cloudflare edge IP (auto) | Proxied (orange cloud) | Auto |
+
+Cloudflare will provide the origin IP to proxy to — you configure it as the origin server
+in the Cloudflare dashboard under DNS settings. Let's Encrypt (certbot) reaches the origin
+**through** Cloudflare on port 80 (HTTP-01 ACME challenge), not directly.
+
+Confirm propagation from your workstation (you will see Cloudflare edge IPs, not `VPS_IP`):
 
 ```bash
 dig +short app-juli.com A
 dig +short api.app-juli.com A
-# Both must return VPS_IP before continuing.
+# Both must return Cloudflare edge IPs (104.21.x.x, 172.67.x.x range) before continuing.
 ```
 
 ---
@@ -109,7 +119,112 @@ The `certbot` package installs a systemd timer for renewal — no extra cron req
 
 ---
 
-## Step 5 — Validate DNS + TLS (#256 acceptance)
+## Step 5 — Origin lockdown: restrict inbound 80/443 to Cloudflare ranges only
+
+**Why:** Direct connections to the VPS IP bypass Cloudflare entirely (no WAF, no rate limiting,
+no DDoS protection). Restricting 80/443 at the firewall to Cloudflare's published IP ranges
+closes this bypass. Requests must flow through Cloudflare edge → origin.
+
+**How certbot HTTP-01 still works:** Let's Encrypt reaches the origin **through** Cloudflare's
+proxy on port 80, so renewal continues to succeed. If a hostname is ever grey-clouded
+(unproxied) or a new DNS record is added without Cloudflare proxy, renewal will silently
+fail — monitor `certbot renew --dry-run` output in your deploy logs.
+
+On the VPS, install the units and enable **both** the timer and the service:
+
+```bash
+sudo systemctl enable --now juli-cloudflare-ip-refresh.timer    # hourly range refresh
+sudo systemctl enable juli-cloudflare-ip-refresh.service        # runs at every boot
+```
+
+Enabling the **service** is what gives reboot persistence — see below. Enabling only the
+timer was the #941 defect. Verify both:
+
+```bash
+sudo systemctl is-enabled juli-cloudflare-ip-refresh.timer      # -> enabled
+sudo systemctl is-enabled juli-cloudflare-ip-refresh.service    # -> enabled
+sudo journalctl -u juli-cloudflare-ip-refresh.service --no-pager | tail
+# Look for "cloudflare-origin-lockdown complete" in the logs.
+```
+
+**Reboot persistence (#941).** iptables rules live only in the running kernel, while ufw
+persists `80/tcp ALLOW IN Anywhere` and `443/tcp ALLOW IN Anywhere` across reboots. A reboot
+therefore did not merely drop the lockdown — it restored a permissive ruleset and left the
+origin fully exposed until the hourly timer next fired, a window of up to ~65 minutes
+(`OnCalendar=hourly` + `RandomizedDelaySec=5m`, no `OnBootSec`).
+
+The fix re-runs the lockdown at boot rather than persisting its output. Install the drop-in:
+
+```bash
+sudo mkdir -p /etc/systemd/system/juli-cloudflare-ip-refresh.service.d
+sudo cp infra/systemd/juli-cloudflare-ip-refresh.service.d/10-boot-persistence.conf \
+        /etc/systemd/system/juli-cloudflare-ip-refresh.service.d/
+sudo systemctl daemon-reload
+sudo systemctl enable juli-cloudflare-ip-refresh.service
+```
+
+It orders the unit `After=ufw.service` (so ufw's permissive restore cannot clobber it) and
+`Before=nginx.service` (so nginx does not begin serving 80/443 until the lockdown is applied).
+`OnBootSec=2min` on the timer is the second net, bounding any residual window at ~2 minutes.
+
+**Do not use `iptables-persistent` on this host.** ufw owns the filter table and performs its
+own boot-time restore, which would clobber a ruleset replayed by `netfilter-persistent`.
+Re-running the lockdown after ufw is the ordering-correct fix and needs no extra package.
+
+Verify after any reboot:
+
+```bash
+sudo iptables -S CLOUDFLARE_INGRESS | wc -l      # non-zero
+curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' http://<origin-ip>/   # expect failure
+```
+
+**Failed rule application behavior — availability over lockout:** If the script fails while
+applying rules (e.g., Cloudflare ranges unreachable, iptables permission issue), it rolls back
+immediately:
+- Flushes the firewall chain (removes all rules added so far)
+- Removes the INPUT jump rule
+- **Result: the origin becomes OPEN and unprotected until the next timer run**
+
+This is the correct fail-safe choice — better exposed than locked out — but it is a real tradeoff:
+a transient fetch or permission failure silently drops protection for ~1 hour until the next
+hourly timer run. **Monitor script exit status** in journalctl logs:
+```bash
+sudo journalctl -u juli-cloudflare-ip-refresh.service --no-pager | tail -20
+# Look for "cloudflare-origin-lockdown complete" (success) or "FAIL:" (rollback)
+```
+Alert on repeated failures; they indicate the lockdown was unable to apply.
+
+**IPv6 `--reject-with tcp-reset` support — pre-flight check:** Some older Ubuntu versions do
+not support `--reject-with tcp-reset` for ip6tables; they require `icmp6-adm-prohibited` instead.
+If unsupported, the IPv6 REJECT rules fail and the script rolls back, leaving the origin
+unprotected. Run this check BEFORE first deployment to detect incompatibility:
+
+```bash
+sudo ip6tables -t filter -A TEST_PROBE -p tcp --dport 9999 -j REJECT --reject-with tcp-reset 2>&1
+sudo ip6tables -t filter -D TEST_PROBE -p tcp --dport 9999 -j REJECT --reject-with tcp-reset 2>/dev/null
+# If the first command fails with "unknown --reject-with type", either:
+# 1. Set REJECT_WITH=icmp6-adm-prohibited and re-run the script, or
+# 2. Accept IPv4-only lockdown (HTTP/HTTPS cannot reach IPv6 clients on that host)
+```
+
+### Verify the lockdown is working
+
+The rules refuse direct connections (non-Cloudflare source) on ports 80/443, but allow
+Cloudflare-proxied traffic:
+
+```bash
+# From the VPS itself, confirm SSH (port 22) is still reachable and unchanged:
+ssh -v localhost
+# Should connect without asking for credentials (or prompt if key auth required).
+
+# Confirm that the lockdown rules are in place (check iptables):
+sudo iptables -t filter -L CLOUDFLARE_INGRESS -n
+# Should show rules accepting only Cloudflare CIDR ranges on ports 80 and 443.
+```
+
+---
+
+## Step 6 — Validate DNS + TLS (#256 acceptance)
 
 Run the **DNS/TLS-only** smoke subset (no upstream apps required) from the repo root:
 
@@ -159,15 +274,20 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ---
 
-## Step 6 — HITL sign-off checklist
+## Step 7 — HITL sign-off checklist
 
-- [x] `app-juli.com` A record → review VPS
-- [x] `api.app-juli.com` A record → review VPS
+- [x] DNS A records point to Cloudflare edge (proxied), not directly to VPS
+- [x] Cloudflare dashboard shows all hostnames as proxied (orange cloud)
 - [x] Nginx routes frontend → `127.0.0.1:3000` and API → `127.0.0.1:8000` separately
-- [x] HTTPS certificates issued for both domains
+- [x] HTTPS certificates issued for both domains via certbot HTTP-01
 - [x] `certbot renew --dry-run` succeeds (automatic renewal enabled)
-- [x] Frontend accessible over HTTPS
-- [x] Backend `/health` accessible over HTTPS
+- [x] Origin lockdown firewall rules installed and enabled (`juli-cloudflare-ip-refresh.timer` running)
+- [x] Reboot persistence: `juli-cloudflare-ip-refresh.service` **enabled** with the
+      `10-boot-persistence.conf` drop-in (`After=ufw.service`, `Before=nginx.service`) (#941)
+- [x] SSH (port 22) remains fully accessible from any source (untouched by lockdown)
+- [x] Frontend accessible over HTTPS through Cloudflare proxy
+- [x] Backend `/health` accessible over HTTPS through Cloudflare proxy
+- [x] Direct connection attempts to VPS IP on ports 80/443 are refused (firewall blocks non-Cloudflare sources)
 - [x] No Redis, webhook, or HA tuning in Nginx config
 - [x] Single-process deployment (appropriate for App Review MVP)
 - [x] `./infra/scripts/smoke-test.sh --dns-tls-only` passes (or full smoke after app deploy)

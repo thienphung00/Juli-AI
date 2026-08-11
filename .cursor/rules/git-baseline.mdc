@@ -20,6 +20,40 @@ Choose the lane by **what the diff touches** — full commands in [`docs/handoff
 
 Both lanes: **never push to `main` directly**; every change lands via a PR (§ Pull requests).
 
+### Checkout preflight — open the tree before you trust it (always on)
+
+`worktree_gc.py` governs the **close** half of the lifecycle. This governs the **open**
+half. Before the first edit in any session, and before starting any task in a checkout you
+did not just create, run:
+
+```bash
+python agent-runtime/scripts/git/checkout_preflight.py --fetch
+```
+
+`FAIL` means the checkout will give you wrong answers — fix it before editing, do not work
+around it. The five blocking conditions:
+
+| Check | Fails when | Why it matters |
+|-------|-----------|----------------|
+| `STALE_BASE` | ≥50 commits or ≥7 days behind `origin/main` | You are reading source that has since changed. Rediscovering a fix that already landed is the most expensive failure this catches. |
+| `PRIMARY_TREE` | the primary working directory is not on `main` | It is the default tree every fresh agent reads. Task work belongs in `.worktrees/`. |
+| `MAIN_LOCATION` | `main` is checked out in a side worktree | Git then refuses to check out `main` in the primary tree, stranding it on a feature branch indefinitely. |
+| `WORKTREE_LOCATION` | a worktree lives outside `.worktrees/` or `.claude/worktrees/` | A worktree at the repo root is read as project source by every `find`, `grep`, and test-collection walk, at whatever commit it was abandoned on. |
+| `NESTED_CLONE` | a stray `.git` **directory** exists below the repo root | A separate repository with its own history, invisible to `git status`. |
+
+`WARN` (dirty tree, worktree count over the soft limit, stale `origin` ref) is drift
+telemetry — schedule a sweep, keep working.
+
+**This is enforced, not advised.** `.claude/hooks/checkout_preflight_gate.py` runs on every
+`Edit`/`Write`/`MultiEdit`/`NotebookEdit` and blocks the write on any blocking `FAIL`.
+Override with `JULI_SKIP_CHECKOUT_PREFLIGHT=1` only with a stated reason — it is visible in
+the transcript. The gate fails **open** on internal error and never blocks on `WARN`.
+
+Why a gate and not a rule: the correct lifecycle has been written here since #666, and on
+2026-08-11 the primary directory was still found 90 commits and 8.5 days behind `main`,
+with 46 dirty files, two worktrees abandoned at the repo root, 73 registered worktrees and
+61 unmerged branches. Prompt discipline had already been tried.
+
 ### Cleanup autonomy & safety (always on)
 
 - The agent may auto-run prune/close for worktrees/branches **it created** that are **merged AND clean**. It must **surface and confirm** before deleting anything human-created, anything with uncommitted or unpushed work, or a branch whose PR is closed-not-merged. Never delete `agent/runtime`, `scratch/debug`, `local/adhoc`, or `main`. Force flags (`-D`, `--force`, `push -f`) always need explicit human sign-off.

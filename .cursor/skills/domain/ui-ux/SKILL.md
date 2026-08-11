@@ -34,7 +34,7 @@ Shared: `packages/ui`, `packages/theme`, `packages/contracts`. iOS: `ios/`.
 ## Required context
 
 - `apps/<app>/MODULE.md` or `ios/MODULE.md`; issue acceptance criteria
-- `dictionary.md` + `docs/product/design/` when copy/UI language changes
+- `dictionary.md` + `docs/product/design/` for any visually-facing change (not just copy)
 - [`REFERENCE.md`](REFERENCE.md) on demand
 
 ## Juli recipes
@@ -75,5 +75,7 @@ Schema: [`implementation-artifact.schema.json`](../../../agent-runtime/docs/sche
 ## Validation & must not
 
 Dashboard: `npm run lint`, `type-check`, `test` in `apps/dashboard/`. Demo: same in
-`apps/demo/`. Map AC → named test. No vendor clients, backend `/v1` routes, schema/ETL
+`apps/demo/`. Map AC → named test. For visually-facing changes, capture rendered
+screenshots per `ui-ux-design` § Visual check and reference their paths in the
+implementation artifact. No vendor clients, backend `/v1` routes, schema/ETL
 changes, or ship/validate — hand off to Review Agent.
