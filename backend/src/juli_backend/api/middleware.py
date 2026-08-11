@@ -27,7 +27,9 @@ from starlette.responses import Response
 from juli_backend.core.observability import (
     CORRELATION_ID_HEADER,
     coerce_correlation_id,
+    reset_client_address,
     reset_correlation_id,
+    set_client_address,
     set_correlation_id,
 )
 
@@ -46,6 +48,11 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         correlation_id = coerce_correlation_id(request.headers.get(CORRELATION_ID_HEADER))
         token = set_correlation_id(correlation_id)
+        # request.client.host is the real caller only because uvicorn runs with
+        # --proxy-headers and --forwarded-allow-ips scoped to nginx (see
+        # infra/systemd/juli-api.service). Without that it is nginx's own loopback
+        # address, and every security event below would be attributed to 127.0.0.1.
+        address_token = set_client_address(request.client.host if request.client else None)
         # Handlers that need it (the error boundary below) read it from request.state
         # rather than the contextvar, because Starlette runs exception handlers outside
         # the middleware's context in some paths.
@@ -53,6 +60,7 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         finally:
+            reset_client_address(address_token)
             reset_correlation_id(token)
         response.headers[CORRELATION_ID_HEADER] = correlation_id
         return response

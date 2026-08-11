@@ -16,6 +16,11 @@ from juli_backend.services.tiktok.webhook_raw_log import RawWebhookEventRecorder
 
 logger = logging.getLogger(__name__)
 
+# Recorded on rejection records so the stream is greppable without joining against the
+# correlation id. Kept as a constant rather than importing WEBHOOK_PATH from
+# services.webhook, which would be a circular import (that module builds this service).
+WEBHOOK_LOG_PATH = "/webhooks/tiktok"
+
 EVENT_CATEGORY_ROUTES: dict[str, str] = {
     "LIVESTREAM": "livestream-events",
     "CREATOR": "creator-events",
@@ -102,6 +107,14 @@ class TikTokWebhookService:
         headers: Mapping[str, str] | None = None,
     ) -> WebhookProcessResult:
         if not signature:
+            # Until #905 a rejected delivery produced no log line at all, so a signature
+            # brute-force against this public endpoint was invisible. The address comes
+            # from the request-scoped contextvar; nothing about the signature itself is
+            # recorded — see _signature_shape below for why.
+            logger.warning(
+                "webhook_signature_rejected",
+                extra={"reason": "missing_signature", "path": WEBHOOK_LOG_PATH},
+            )
             result = WebhookProcessResult(401, {"error": "Missing signature"})
             await self._safe_record(
                 body=body,
@@ -113,7 +126,25 @@ class TikTokWebhookService:
             )
             return result
 
-        if not self._verifier.verify(body, signature):
+        try:
+            signature_ok = self._verifier.verify(body, signature)
+        except UnicodeDecodeError:
+            # A non-UTF-8 body reached the verifier before the malformed-JSON handler
+            # below and raised straight out of a public, unauthenticated endpoint. It
+            # cannot carry a valid signature either way, so it is rejected as one —
+            # deliberately the same response as any other bad signature, so the shape of
+            # the body is not something a caller can probe for.
+            logger.warning(
+                "webhook_signature_rejected",
+                extra={"reason": "undecodable_body", "path": WEBHOOK_LOG_PATH},
+            )
+            signature_ok = False
+
+        if not signature_ok:
+            logger.warning(
+                "webhook_signature_rejected",
+                extra={"reason": "invalid_signature", "path": WEBHOOK_LOG_PATH},
+            )
             result = WebhookProcessResult(401, {"error": "Invalid signature"})
             await self._safe_record(
                 body=body,
