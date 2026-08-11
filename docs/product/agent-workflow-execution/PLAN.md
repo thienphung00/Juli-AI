@@ -19,7 +19,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 2 | P3+P4 — Tool registry + tool schemas (minimal) | 🟨 design grilled 2026-08-11 — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md) drafted; implementation pending | ⬜ |
 | 3 | P5 — TikTok sanitization (product surface only) | 🟨 design grilled 2026-08-11 — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md) drafted; implementation pending | ⬜ |
 | 4 | P11 — Model abstraction (minimal LLM service) | 🟨 design grilled 2026-08-11 — [ADR-071](../../adr/071-llm-service-openai-adapter.md) drafted; implementation pending | ⬜ |
-| 5 | P12 — Prompt architecture (system + Optimize Product) | ⬜ | ⬜ |
+| 5 | P12 — Prompt architecture (system + Optimize Product) | 🟨 design grilled 2026-08-11 — [ADR-072](../../adr/072-agent-prompt-architecture.md) drafted; implementation pending | ⬜ |
 | 6 | P1 — Agent execution loop (blocks + runner) | ⬜ | ⬜ |
 | 7 | P-CS — Conversation & state storage (NEW) | ⬜ | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | ⬜ | ⬜ |
@@ -69,11 +69,16 @@ Minimal specs:
 
 Gate: one real tool-calling round-trip against the provider passes an integration test (recorded-replay for CI).
 
-### 5. P12 — Prompt architecture (minimal)
-Minimal specs:
-- `services/agent/prompts/`: versioned system prompt + Optimize Product workflow prompt; language/tone from `dictionary.md`; prohibited-behavior + output-contract sections; untrusted-content wrapping convention for product data.
+### 5. P12 — Prompt architecture (minimal) — *design grilled 2026-08-11, [ADR-072](../../adr/072-agent-prompt-architecture.md)*
+Settled specs (Optimize Product only; eval-pipeline-ready by design):
+- **Monolithic workflow prompt** `services/agent/prompts/optimize_product/v1.md` — eight sections: role, mandate & limits, source-role rules, input-signals guidance (summarize from the `juli` context payload, never invent metrics), playbook slot, recommend-within-scope (HOW-level only), output guidance + one worked example, prohibited behaviors. Run data arrives as the `juli`-source context message, never spliced into prompt text. Extraction trigger recorded: shared sections extracted when workflow #2's prompt lands.
+- **Typed `Playbook` artifact** `services/agent/playbooks/optimize_product.py` (frozen dataclass: steps → intent, tools, policy) feeding ADR-069 cross-validation, the run allowlist, and the prompt's single `{playbook}` slot via deterministic `compose(workflow_key, version)` — later the eval-harness entry point. Playbook = safety surface (never eval-mutated); prose file = entire tuning surface.
+- **Language:** English instructions; Vietnamese seller-facing output ("bạn" form) with an embedded mini-glossary of canonical `dictionary.md` terms (`_Avoid_` aliases forbidden); worked example in dictionary-compliant Vietnamese mirroring `copy_layer.py`'s register.
+- **Versioning:** immutable released versions (edits → `vN+1`); runs record `prompt_version` + `prompt_sha256` (P-CS columns); production pin is a code constant. Output-contract section tightens to P7's schema via an explicit v2 bump.
+- **Safety sections:** 3 source-role rules + 7 prohibitions (behavioral; ADR-070 guards remain load-bearing).
+- **Budget:** composed prompt ≤ 3,000 tokens (tiktoken-asserted); `juli` payload targets ≤ 1,000.
 
-Gate: prompt review against seller-copy rules; snapshot test pins version 1.
+Gate: four import-time tests green (snapshot, budget, playbook consistency, mechanical banned-pattern/`_Avoid_` check) + human voice review against `dictionary.md`/design-context + P-CS fields specified.
 
 ### 6. P1 — Agent execution loop (minimal)
 Minimal specs:

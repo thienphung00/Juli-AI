@@ -77,3 +77,4 @@
 | [069](069-agent-tool-registry-and-write-path.md) | Agent tool registry — decision-point granularity (6 Optimize Product tools), in-run write path + ToolExecution audit, services/agent/tools ToolSpec module | Proposed |
 | [070](070-agent-safe-sanitization-contract.md) | Agent-safe sanitization contract — context-bound IDs, source-role provenance, hard caps, error translation, dual-language banned-pattern guard | Proposed |
 | [071](071-llm-service-openai-adapter.md) | LLM service — neutral block interface, stateless OpenAI Responses adapter (GPT-5.4 nano), turn-level blocks, fail-closed key assertion | Proposed |
+| [072](072-agent-prompt-architecture.md) | Agent prompt architecture — monolithic versioned workflow prompts, typed Playbook artifact, EN instructions/VI exemplars, immutable versions + composed hash | Proposed |
