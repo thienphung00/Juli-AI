@@ -16,7 +16,7 @@ Decisions approval flow, and Juli AI chat.
 - `LeakageWorkflowPanel`, `EvidenceDrawer`, `resolveEvidence` — leakage workflow modal + masked evidence drill-down (`components/workflows/leakage/`, `lib/workflows/leakage/`)
 - `useTaskExecutor`, `filterActiveTasks`, `TaskDismissModal`, `TaskExecutorModals` — client-only task queue state + skip-with-reason (`lib/task-executor/`, `components/tasks/`)
 - `trackTaskClicked`, `trackTaskApproved`, `trackTaskDismissed`, `getUxSessionId` — Phase 1 UX instrumentation sink (`lib/ux-analytics/`)
-- `/login` — Demo login screen (one-click entry)
+- `/login` — Demo login screen (one-click entry); server-gated by `isDemoLoginEnabled` (`lib/ui-only.ts`) and 404s (`notFound()`) in a genuine production build — reachable in dev/test and in the App Review build (`NEXT_PUBLIC_UI_ONLY=1`) (#901)
 - `/mode-select` — Post-login workspace gate (Seller vs Affiliate); skipped when mode is persisted
 - `/` — **Chart-first Home** (shop info + Báo cáo hôm nay + Shop Health); canonical seller entry (#118, #123, #215 RRAA loop)
 - `toDecision`, `takeTopDecisions`, `applyDecisionLifecycle` — Decision view-model mapping `workflow_recommendations` → seller-facing Decision envelopes (`lib/decisions/`, #192)
