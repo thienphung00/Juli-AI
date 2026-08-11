@@ -20,10 +20,10 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 3 | P5 — TikTok sanitization (product surface only) | 🟨 design grilled 2026-08-11 — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md) drafted; implementation pending | ⬜ |
 | 4 | P11 — Model abstraction (minimal LLM service) | 🟨 design grilled 2026-08-11 — [ADR-071](../../adr/071-llm-service-openai-adapter.md) drafted; implementation pending | ⬜ |
 | 5 | P12 — Prompt architecture (system + Optimize Product) | 🟨 design grilled 2026-08-11 — [ADR-072](../../adr/072-agent-prompt-architecture.md) drafted; implementation pending | ⬜ |
-| 6 | P1 — Agent execution loop (blocks + runner) | ⬜ | ⬜ |
-| 7 | P-CS — Conversation & state storage (NEW) | ⬜ | ⬜ |
+| 6 | P1 — Agent execution loop (blocks + runner) | 🟨 design grilled 2026-08-11 — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md) drafted; implementation pending | ⬜ |
+| 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | ⬜ | ⬜ |
-| 9 | P7 — Structured output contract | ⬜ | ⬜ |
+| 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | ⬜ | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | ⬜ | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
@@ -80,29 +80,38 @@ Settled specs (Optimize Product only; eval-pipeline-ready by design):
 
 Gate: four import-time tests green (snapshot, budget, playbook consistency, mechanical banned-pattern/`_Avoid_` check) + human voice review against `dictionary.md`/design-context + P-CS fields specified.
 
-### 6. P1 — Agent execution loop (minimal)
-Minimal specs:
-- Block types (TextBlock/ToolCallBlock/ToolCallResult/FinalResponse); loop: context → LLM → validate tool vs `ToolSpec` → execute via `run_tool_async` → sanitize → inject → repeat; iteration cap + wall-clock timeout + cancellation flag; `EventSink` interface (in-process sink only at this phase).
+### 6. P1 — Agent execution loop (minimal) — *design grilled 2026-08-11, [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md)*
+Settled specs (includes the 2026-08-11 write-path hardening fixes — idempotency, concurrency, termination policy — as production-write-unlock prerequisites):
+- **`WorkflowRunner`** class (`services/agent/runner.py`) owning status transitions, conversation append, block dispatch, and termination-policy evaluation; injected protocols: `LLMService`, `ToolExecutor`, `EventSink`, `ConversationStore`. Run state serialized to a `workflow_runs.state` JSONB blob per iteration and on pause — CONFIRM resume works across worker processes. Celery task (P8) is a thin shell.
+- **`TerminationPolicy` on the `Playbook`** (Optimize Product v1: `max_iterations=6`, `max_extensions=1` (+2 → hard cap 8, model-proposed `continue` auto-granted with a visible event), `wall_clock_timeout_s=300` running-time-only (clock pauses during `waiting_approval`), `approval_timeout_h=4` → `cancelled`/`confirmation_expired`, `required_steps`). Every exit records one **`stop_reason`** with a total, test-asserted mapping to `WorkflowRunStatus`. Cancellation is checkpoint-based, never interrupting an in-flight write.
+- **Idempotency (fix 4):** `ToolExecution` promoted to mutation ledger — unique `(workflow_run_id, tool_call_id, operation)`, claim-then-execute, stored sanitized result replayed on retry, verify-then-decide crash-window reconciliation; non-verifiable ops fail closed.
+- **Concurrency (fix 5):** basis snapshot (SHA of mutable fields at read time) + compare-before-write (fail-closed, pre-signing) + one bounded revalidation (conflict fed back to the LLM with fresh values; second conflict → `concurrency_conflict`) + partial unique index: one active run per `(shop_id, product_id)`.
+- **Deferral seams:** P-CS → run-state blob behind `ConversationStore`; P7 → prose output now, machine schema attaches at `FinalResponse` + prompt v2 bump.
 
-Gate: unit suite with fake `LLMService` covers happy path, iteration cap, timeout, unauthorized tool, malformed tool params; real-provider smoke run completes for Optimize Product with read-only tools.
+Gate: fake-`LLMService` scenario per `stop_reason` + total-mapping test + idempotency/race tests + pause/resume round-trip + self-correction all green; two `live` smokes complete — (a) read-only run reaching `final_response`, (b) full write-path run (CONFIRM, ledger, compare-before-write) against the sandbox shop; `stop_reason` + `state` columns on `workflow_runs`.
 
-### 7. P-CS — Conversation & state storage
-Minimal specs:
+### 7. P-CS — Conversation & state storage — *⏸ deferred (user, 2026-08-11)*
+Deferred until real users exist: chat storage (conversations/messages tables, Redis hot window) is only needed when there are users whose history must persist. **Deferral principle:** the loop must function without P-CS and wire to it cleanly later. Stand-in (owned by P1, ADR-073 d.5): a `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol — written per iteration and on pause, reloaded on resume; P-CS later swaps the store implementation (Redis hot + Postgres permanent as originally specced below), not the runner.
+
+Original minimal specs (unchanged, for when the phase is picked up):
 - **Redis (hot)**: recent conversation window (messages, tool calls) + current workflow run state, keyed by run/conversation ID, with TTL; the loop reads/writes this — process-restart-safe.
 - **Supabase/Postgres (permanent)**: migrations for `conversations`, `messages`, `tool_calls`, `workflow_runs`; append-on-event writes from the loop; JSON/JSONB payloads.
 - Clear write path: Redis is the working set, Postgres is the durable record (write-through on each loop step).
 
-Gate: kill-and-resume test — restart mid-run, state reconstructed from Redis; full history queryable from Postgres after completion.
+Gate: kill-and-resume test — restart mid-run, state reconstructed from Redis; full history queryable from Postgres after completion. (P1's pause/resume round-trip test covers the blob stand-in.)
 
 ### 8. P8 — Streaming (minimal)
-Minimal specs:
+Minimal specs (event schema fixed by user directive, 2026-08-11 — fix 2):
+- **Canonical event record** — every event persisted to `workflow_run_events` as `{workflow_run_id, sequence_number, event_type, timestamp, payload}`, sequence-numbered per run. **Postgres is the replay authority; Redis pub/sub is best-effort delivery only** — a lost Redis message is never a lost event. Reconnect contract: client sends `Last-Event-ID: <sequence_number>` ("give me events after sequence 47"); the SSE endpoint replays from Postgres, then re-attaches to live pub/sub.
 - Typed SSE event protocol with event IDs/ordering, shared via `packages/contracts`.
-- Celery task `run_agent_workflow` (dedicated queue; real Redis broker — currently `memory://` in `workers/celery_app.py`); Redis pub/sub `EventSink`; SSE endpoint with Last-Event-ID replay from P-CS storage + heartbeats; cancel endpoint.
+- Celery task `run_agent_workflow` (dedicated queue; real Redis broker — currently `memory://` in `workers/celery_app.py`); Redis pub/sub `EventSink`; SSE endpoint with Last-Event-ID replay + heartbeats; cancel endpoint (sets `cancel_requested`, honored at ADR-073 checkpoints).
 
-Gate: browser sees live events for a real run; reconnect mid-run replays without gaps/duplicates; cancellation stops the loop.
+Gate: browser sees live events for a real run; kill Redis mid-run — reconnect replays from Postgres without gaps/duplicates; cancellation stops the loop.
 
-### 9. P7 — Structured output contract
-Minimal specs:
+### 9. P7 — Structured output contract — *⏸ deferred (user, 2026-08-11)*
+Deferred under the same principle: the workflow functions without it and wires to it later. Stand-in: ADR-072's prose output guidance (final response = Vietnamese seller summary + actions list, shaped by the worked example). Wiring seam (ADR-073 d.5): the machine schema attaches at the `FinalResponse` block, the prompt's output section tightens via an explicit v2 bump (ADR-072 d.5), and `stop_reason: output_validation_failed` is already reserved in the enum.
+
+Original minimal specs (unchanged, for when the phase is picked up):
 - Optimize Product output schema (summary/findings/recommendations/actions/requires_confirmation) in `packages/contracts` + Pydantic; validate final LLM output; one repair retry; rules-template fallback (extend `CopySource` literal at `services/scoring/types.py:132`).
 
 Gate: malformed-output test falls back cleanly; frontend can type against the schema.
@@ -124,9 +133,17 @@ Gate: a user can run Optimize Product end-to-end in the Demo page against the re
 
 ### 12. P10 — Observability baseline
 Minimal specs:
-- dictConfig JSON logging + request-ID middleware; per-run rollup (tokens, cost, latency, tool calls) from P-CS tables; log redaction (no tokens/PII).
+- dictConfig JSON logging + request-ID middleware; per-run rollup (tokens, cost, latency, tool calls); log redaction (no tokens/PII). (Re-verify baseline: request-ID middleware + dictConfig partially landed on main via #963+.)
+- **Outcome chain (user directive 2026-08-11 — fix 3):** every run's post-hoc record follows Recommendation → Action → TikTok state change → Observed outcome → Incremental impact. Links: ActionCard (recommendation) → `ToolExecution` rows (actions) → webhook #5 / read-back state (`WorkflowOutcomeRecord`, TikTok state change) → KPI window after the change (observed outcome) → before/after delta on the recommendation's target metric (incremental impact).
+- **Four unconflated metrics (user directive 2026-08-11 — fix 7)**, each with its own source and denominator, never blended into one score:
+  | Metric | Question | Source |
+  |---|---|---|
+  | Recommendation quality | Was Juli right? | Scoring signals vs subsequent observed outcomes |
+  | Approval rate | Did sellers agree with Juli? | ActionCard approve/reject/expire counts |
+  | Execution quality | Did Juli successfully perform the task? | `stop_reason` distribution + `required_steps` completion |
+  | Business impact | Did the action actually improve the metric? | Outcome-chain incremental impact |
 
-Gate: one run produces a complete, queryable run tree; logs actually emit.
+Gate: one run produces a complete, queryable run tree with all five outcome-chain links populated; the four metrics computable from separate sources; logs actually emit.
 
 ### 13. P15 — E2E prototype complete
 Minimal specs: hardening pass over the full Optimize Product path (frontend + backend); extract reusable per-workflow config template (prompt + allowlist + output schema).
@@ -203,6 +220,103 @@ Four lanes; the LLM never touches TikTok or internal services — every tool cal
 Boundary rules:
 - `LLM → ToolCallBlock → Juli Server → validate → execute → sanitize → ToolCallResult → LLM` — the LLM only ever sees business semantics; TikTok endpoints, credentials, and raw responses stay server-side.
 - Approval gate sits before the loop; CONFIRM-class write tools pause the loop with `workflow.approval_required` inside it.
+
+## End-to-end data flow and triggers (2026-08-11)
+
+Three planes; the LLM enters late and narrow — steps ①–⑥ are entirely deterministic,
+and the agent loop is never a trigger source (it only runs inside a run a human
+approval created). Triggers are of three kinds: time (① ③), vendor push (② ⑪), and
+human intent (⑥ and mid-run CONFIRM).
+
+```
+════════════════════════════════════════════════════════════════════════
+ DATA PLANE — how the server gets data (no agent, no LLM involved)
+════════════════════════════════════════════════════════════════════════
+
+   TikTok Shop Partner API  (production merchant, READ-ONLY guard)
+        │
+        │  ① scheduled sync (Celery)      ② webhooks (orders, product status)
+        ▼
+   Ingestion → bronze / silver tables (Postgres)
+        │        raw vendor payloads → normalized DTOs (mapping.py)
+        │
+        │  ③ trigger: sync completion / scoring batch
+        ▼
+   Analytics & scoring layer                     ◄── owns WHAT
+        KPI computation → AdvisorySignals → WorkflowRecommendation
+        │
+        │  ④ recommendation materialized
+        ▼
+   ActionCard  (shop_id, workflow_key, product binding, rules copy)
+        status: active — sits waiting for the seller
+
+════════════════════════════════════════════════════════════════════════
+ DECISION PLANE — the seller in the Demo page
+════════════════════════════════════════════════════════════════════════
+
+   Client (apps/demo, Decisions page)
+        │  ⑤ GET /v1/demo/decisions          seller opens the page
+        ▼
+   renders ActionCard (Đề xuất: why / expected impact / next steps)
+        │
+        │  ⑥ seller clicks Approve (Phê duyệt)
+        ▼
+   POST /v1/demo/decisions/{id}/approve  ───►  Juli Server
+
+════════════════════════════════════════════════════════════════════════
+ EXECUTION PLANE — Juli Server orchestrates; the LLM never touches
+                   TikTok, the DB, or credentials
+════════════════════════════════════════════════════════════════════════
+
+   Juli Server (FastAPI)
+        ⑦ approval gate: ActionCard really approved? tenant scope ok?
+           one-active-run-per-product index checked (ADR-073)
+        ⑧ create workflow_run  (created → queued)
+             records prompt_version + prompt_sha256
+        ⑨ enqueue Celery task
+        ▼
+   Worker builds the run context — the ONLY things the LLM ever sees:
+        • composed prompt  compose(optimize_product, v1)   ≤3k tokens
+        • juli-source signals payload (from ActionCard/scoring)  ≤1k
+        • tool schemas + allowlist derived from the Playbook artifact
+        ▼
+   ┌────────────── WorkflowRunner agent loop (running) ─────────────┐
+   │                                                                │
+   │   LLMService.complete(...)  ───►  OpenAI GPT-5.4 nano          │
+   │        ◄───  TextBlock / ToolCallBlock      ◄── owns HOW only  │
+   │                     │                                          │
+   │        validate vs allowlist + AUTO/CONFIRM policy             │
+   │          ├─ AUTO read   → TikTok PRODUCTION (read guard)       │
+   │          │      basis snapshot captured on product reads       │
+   │          ├─ CONFIRM write → pause: waiting_approval            │
+   │          │      seller confirms diff in client → resume        │
+   │          │    → idempotency ledger claim → compare-before-write│
+   │          │    → TikTok write (sandbox now; production when     │
+   │          │      the mutation capability unlocks — ADR-068 amd) │
+   │          └─ raw result → sanitize (ADR-070: caps, source       │
+   │                          roles, banned-pattern guard)          │
+   │                     │                                          │
+   │        sanitized ToolCallResult appended → next LLM call       │
+   │        (stateless: window rebuilt from run-state blob)         │
+   │                                                                │
+   └── until stop_reason: final_response │ caps │ timeout │ cancel ─┘
+        ▼
+   ⑩ every step emits events → workflow_run_events (Postgres,
+        {run_id, sequence_number, event_type, timestamp, payload})
+        + Redis pub/sub (best-effort delivery; Postgres replays)
+        ▼
+   SSE endpoint  ═══►  Client renders live; reconnect sends
+        Last-Event-ID: <sequence_number> → replay from Postgres
+
+════════════════════════════════════════════════════════════════════════
+ POST-RUN
+════════════════════════════════════════════════════════════════════════
+   ⑪ TikTok webhook (#5 product-status) → WorkflowOutcomeRecord
+   Outcome chain: Recommendation → Action → TikTok state change
+                  → Observed outcome → Incremental impact
+   Storage:  workflow_runs.state JSONB = run working set (P-CS deferred)
+             Postgres = durable record (runs, tool executions, events)
+```
 
 ## Codebase verification findings (2026-08-11 baseline)
 

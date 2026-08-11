@@ -358,6 +358,22 @@ _Avoid_: splicing run data into the prompt text, editing a released version in p
 The immutable identity of a released workflow prompt (ADR-072 pending): `<workflow>.vN` plus the `prompt_sha256` of the composed system prompt, both recorded on each `workflow_runs` row. A released `vN.md` is never edited — changes become `vN+1.md`; eval experiment variants are sibling files. The production pin is a code constant, not an env var, so what runs is always what was reviewed. Snapshot tests pin the composed bytes per released version.
 _Avoid_: mutable prompt files versioned only by git, DB prompt registry (premature), env-selected prompt versions in v1
 
+**Stop reason**:
+The fine-grained record of how an agent loop exited (ADR-073 pending), stored on `workflow_runs.stop_reason`: `final_response`, `confirmation_declined`, `paused_for_confirmation`, `cancelled_by_seller`, `confirmation_expired`, `iteration_cap_exceeded`, `wall_clock_timeout`, `tool_error_unrecoverable`, `llm_error`, `concurrency_conflict`, `output_validation_failed` (reserved for P7). Every loop exit names exactly one — no silent exits — and a total mapping derives the coarse `WorkflowRunStatus`. Records *how* the run ended; whether it *did the job* is an outcome fact feeding the execution-quality metric, never conflated.
+_Avoid_: overloading WorkflowRunStatus with exit detail, treating final_response-without-mutation as a synthetic failure
+
+**Termination policy**:
+The declarative per-workflow loop budget on the `Playbook` (ADR-073 pending): `max_iterations` (soft cap; Optimize Product v1: 6), `max_extensions` (model-proposed `continue` grants, +2 iterations each, auto-granted with a visible event; hard cap = soft + extensions), `wall_clock_timeout_s` (300; running time only — the clock pauses during `waiting_approval`), `approval_timeout_h` (4; unanswered CONFIRM → `cancelled`/`confirmation_expired`), `required_steps` (defines "did the job"). Cancellation is checkpoint-based (top of iteration + before each tool execution) and never interrupts an in-flight mutation.
+_Avoid_: hard-coding caps in the runner, counting seller thinking time against the wall clock, preemptive cancellation
+
+**Basis snapshot**:
+The server-held capture of a product's mutable fields (title, description, price, images) + their SHA taken when the agent reads the product (ADR-073 pending) — the product's effective "version" given TikTok exposes none. Before any write the executor re-reads and recompares the hash over the fields being mutated: mismatch rejects the write pre-signing (fail-closed) and feeds the conflict back to the LLM once with fresh values; a second conflict stops the run (`concurrency_conflict`). Held in run state, invisible to the LLM. Paired with the one-active-run-per-product partial unique index for Juli-vs-Juli exclusion.
+_Avoid_: last-write-wins, trusting the LLM to carry version state, unbounded revalidation loops
+
+**Outcome chain**:
+The five-link causal record judging an agent workflow after it runs (user directive 2026-08-11): Recommendation → Action → TikTok state change → Observed outcome → Incremental impact. Feeds four deliberately separate metrics — recommendation quality (was Juli right?), approval rate (did sellers agree?), execution quality (did Juli perform the task?), business impact (did the metric improve?) — each with its own source and denominator, never conflated into one score.
+_Avoid_: a single "success rate" blending approval/execution/impact, judging recommendation quality by execution results
+
 **WorkflowRunStatus**:
 The 8-state lifecycle of an agent workflow run (ADR-068 pending): `created → queued → running ⇄ waiting_approval → completed | failed | cancelled | timed_out`. Stored state answers "what can happen next"; phase narration ("Đang phân tích…") travels as SSE `workflow.status` events, never as states. Maps onto — without rewriting — `ExecutionStatus` (per spawned write-tool execution), `ActionCard.status` (card side: `approved` at run creation, `executing` while live), and the frontend lifecycle, which gains a real terminal `failed` (deliberate supersession of ADR-055's no-terminal-failure note for agent runs).
 _Avoid_: encoding narration phases (GATHERING_CONTEXT, ANALYZING) as stored states, extending `ExecutionStatus` with run semantics, reusing `DemoExecutionState` on the agent path

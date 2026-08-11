@@ -78,3 +78,4 @@
 | [070](070-agent-safe-sanitization-contract.md) | Agent-safe sanitization contract — context-bound IDs, source-role provenance, hard caps, error translation, dual-language banned-pattern guard | Proposed |
 | [071](071-llm-service-openai-adapter.md) | LLM service — neutral block interface, stateless OpenAI Responses adapter (GPT-5.4 nano), turn-level blocks, fail-closed key assertion | Proposed |
 | [072](072-agent-prompt-architecture.md) | Agent prompt architecture — monolithic versioned workflow prompts, typed Playbook artifact, EN instructions/VI exemplars, immutable versions + composed hash | Proposed |
+| [073](073-agent-execution-loop-and-write-path-hardening.md) | Agent execution loop — WorkflowRunner + protocols, stop_reason termination policy, idempotency ledger, basis-hash concurrency control, P-CS/P7 deferral seams | Proposed |

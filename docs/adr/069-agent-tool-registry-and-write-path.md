@@ -61,6 +61,13 @@ path, and the registry module design.
    write-worker pool matter, adopt the nested-`enqueue_approved_tool` shape. The tool
    executor is the single seam where enqueue-and-wait slots in; nothing else changes.
 
+   **Amendment (2026-08-11, [ADR-073](073-agent-execution-loop-and-write-path-hardening.md)):**
+   `ToolExecution` is promoted from audit row to **idempotency ledger** — unique key
+   `(workflow_run_id, tool_call_id, operation)`, `in_flight → succeeded | failed`
+   states, stored sanitized result for retry replay, and verify-then-decide
+   reconciliation for the crash window. Claim-then-execute: the row is inserted
+   before the TikTok call, so a worker retry can never double-write.
+
 3. **Registry module: `services/agent/tools/`.** `registry.py` defines a `ToolSpec`
    dataclass — `name`, `description` (English, model-facing), `input_model` /
    `output_model` (Pydantic; the LLM-facing JSON schema is derived via

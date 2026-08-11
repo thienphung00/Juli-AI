@@ -110,3 +110,23 @@ lifecycle is, and what happens to the no-LLM tests.
 - Downstream phases (tool registry, LLM service, loop, storage, streaming, UI) design
   against this ADR; the plan tracker lives in
   `docs/product/agent-workflow-execution/PLAN.md`.
+
+## Amendment — production writes are the target state (2026-08-11, with user)
+
+Decision 3's framing is sharpened: when a seller approves a real action, the system
+must **eventually write to production, not sandbox**. The capability model's target
+state is therefore three-lane:
+
+- **READ** — production API via read-only credentials (unchanged, live today).
+- **WRITE** — production API via an **explicit mutation capability** granted per
+  deployment, exercised only behind seller confirmation (CONFIRM policy). Unlock
+  prerequisites, now designed in [ADR-073](073-agent-execution-loop-and-write-path-hardening.md):
+  the idempotent mutation ledger and compare-before-write concurrency control. The
+  unlock itself remains a guard-configuration/capability-grant change, not an
+  architecture change.
+- **Agent testing** — TikTok **sandbox** merchant: CI, recorded replay, development,
+  and the demo's live write smoke. Sandbox is a testing surface, not the write path's
+  destiny.
+
+Until the prerequisites ship and the capability is granted, agent WRITE tools continue
+to target the sandbox shop exactly as decision 3 specifies.
