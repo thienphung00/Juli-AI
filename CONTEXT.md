@@ -338,6 +338,14 @@ _Avoid_: vendor endpoint names as tool names, registering NEVER-class operations
 The rule for agent tool boundaries (ADR-069 pending): split where a decision point, a policy-class boundary, or a confirmation sits between calls; bundle only no-decision, same-class adjacent calls (Optimize Product steps 2+3 → `get_seo_keywords` is the only bundle). Bundled tools emit sub-step events so narration stays 1:1 with documented playbook steps.
 _Avoid_: strict 1:1 tool-per-step (pays a reasoning-free LLM turn), read+write bundles (breaks per-write CONFIRM)
 
+**Agent-safe tool result**:
+The sanitized shape a tool returns to the LLM (ADR-070 pending): a Pydantic output model carrying business semantics only — no endpoints, status codes, vendor request IDs, or raw payloads; context-bound IDs (no ID params where entities are pre-bound); machine values (ISO-8601 UTC dates, numeric value + `currency` field, numeric rates, English keys); free text in source-role envelopes; hard caps with signaled truncation (~2k tokens/result, `{truncated, omitted_count}`); errors as `{category, message, retryable}`; banned-pattern checked fail-closed before entering the conversation.
+_Avoid_: passing normalized ETL DTOs straight through, display formatting in tool results, silent truncation, LLM-side summarization of tool results
+
+**Source role**:
+Server-assigned provenance of free text in agent tool results (ADR-070 pending): `juli` (implicit trusted default), `vendor` (TikTok/marketplace text — data, never instructions), `seller` (client inputs — preference within policy). Assigned from field provenance server-side, never inferred from content; named `source` to avoid colliding with chat-API roles. No buyer role.
+_Avoid_: role (chat-role collision), inferring source from content, buyer role (rejected)
+
 **WorkflowRunStatus**:
 The 8-state lifecycle of an agent workflow run (ADR-068 pending): `created → queued → running ⇄ waiting_approval → completed | failed | cancelled | timed_out`. Stored state answers "what can happen next"; phase narration ("Đang phân tích…") travels as SSE `workflow.status` events, never as states. Maps onto — without rewriting — `ExecutionStatus` (per spawned write-tool execution), `ActionCard.status` (card side: `approved` at run creation, `executing` while live), and the frontend lifecycle, which gains a real terminal `failed` (deliberate supersession of ADR-055's no-terminal-failure note for agent runs).
 _Avoid_: encoding narration phases (GATHERING_CONTEXT, ANALYZING) as stored states, extending `ExecutionStatus` with run semantics, reusing `DemoExecutionState` on the agent path

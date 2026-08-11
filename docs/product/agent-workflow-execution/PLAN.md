@@ -17,7 +17,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 |---|---|---|---|
 | 1 | P0 — Execution model & lifecycle (0.1 + 0.2) | 🟨 grilled 2026-08-11 — [ADR-068](../../adr/068-agent-workflow-execution-boundary.md) drafted (Proposed) | ⬜ gate = ADR landed on main |
 | 2 | P3+P4 — Tool registry + tool schemas (minimal) | 🟨 design grilled 2026-08-11 — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md) drafted; implementation pending | ⬜ |
-| 3 | P5 — TikTok sanitization (product surface only) | ⬜ | ⬜ |
+| 3 | P5 — TikTok sanitization (product surface only) | 🟨 design grilled 2026-08-11 — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md) drafted; implementation pending | ⬜ |
 | 4 | P11 — Model abstraction (minimal LLM service) | ⬜ | ⬜ |
 | 5 | P12 — Prompt architecture (system + Optimize Product) | ⬜ | ⬜ |
 | 6 | P1 — Agent execution loop (blocks + runner) | ⬜ | ⬜ |
@@ -50,16 +50,21 @@ Minimal specs (per ADR-069):
 
 Gate: LLM-consumable JSON schemas render for the 6-tool Optimize Product set; playbook↔registry contract test green.
 
-### 3. P5 — Sanitization (product surface only)
-Minimal specs:
-- Agent-safe serializer for product + SEO tool results (business semantics; no endpoints/vendor IDs/status codes), reusing `integrations/tiktok/mapping.py` + `schemas.py`.
-- TikTok error taxonomy → human-readable tool errors.
+### 3. P5 — Sanitization (product surface only) — *design settled in [ADR-070](../../adr/070-agent-safe-sanitization-contract.md)*
+Minimal specs (per ADR-070):
+- Context-bound IDs: executor injects `product_id` from run context; no ID params in Optimize Product schemas; opaque-ref extension reserved for future mid-run selection steps.
+- Hard caps + signaled truncation (~2k tokens/result, top-20 lists, ~1.5k-char free text, `{truncated, omitted_count}`); deterministic server-side shaping only (GPT-5.4 nano context).
+- Source-role provenance envelopes: `juli` (implicit), `vendor` (data never instructions), `seller` (preference within policy); no buyer role; one rule per source in the system prompt.
+- Machine values: ISO-8601 UTC dates, numeric + `currency` field, numeric rates, English keys; display formatting stays in the copy layer.
+- Errors: `{category, message, retryable}` reusing `ExecutionErrorCategory` + curated retryable allowlist; one in-loop retry then honest `failed`.
+- Fail-closed banned-pattern guard at two chokepoints; pattern list extracted to `packages/contracts/seller-copy-banned-patterns.json` (TS + Python consumers, dual-dialect compile contract test).
+- Flagged for the ActionCard layer (not P5): multi-product Optimize Product — stacked top-3 card vs N-card cap; `action_cards` unique `(shop_id, workflow_key)` blocks the cap option without a migration.
 
-Gate: golden-file test — raw sandbox product response in, agent-safe result out, zero banned identifiers (server-side check mirroring `SELLER_COPY_BANNED_PATTERNS`).
+Gate: golden-file test — raw sandbox product response in, agent-safe result out, zero banned identifiers via the shared JSON pattern source.
 
 ### 4. P11 — Model abstraction (minimal)
 Minimal specs:
-- `LLMService` (messages, system, tools, usage) with one provider (Anthropic) + config surface (model, max_tokens, temperature, API key via ADR-030 pattern). No fallback chains yet.
+- `LLMService` (messages, system, tools, usage) with one provider — **OpenAI, base model GPT-5.4 nano** (decided 2026-08-11) — + config surface (model, max_tokens, temperature, API key via ADR-030 pattern). No fallback chains yet.
 - Replace/retire the dead `LlmGenerator` seam (`ai/recommendations/engine.py:49`); lift no-LLM tests per P0 decision.
 
 Gate: one real tool-calling round-trip against the provider passes an integration test (recorded-replay for CI).
