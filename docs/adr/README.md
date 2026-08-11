@@ -75,3 +75,4 @@
 | [067](067-livestream-script-recommendation.md) | Livestream script recommendation — rule-based 6-stage classification + LLM-personalized script catalog (pre/post-stream) | Accepted |
 | [068](068-agent-workflow-execution-boundary.md) | Agent workflow execution — playbook-guided bounded authority, prod-read/sandbox-write boundary, AUTO/CONFIRM/NEVER tool policy, WorkflowRunStatus lifecycle | Proposed |
 | [069](069-agent-tool-registry-and-write-path.md) | Agent tool registry — decision-point granularity (6 Optimize Product tools), in-run write path + ToolExecution audit, services/agent/tools ToolSpec module | Proposed |
+| [070](070-agent-safe-sanitization-contract.md) | Agent-safe sanitization contract — context-bound IDs, source-role provenance, hard caps, error translation, dual-language banned-pattern guard | Proposed |
