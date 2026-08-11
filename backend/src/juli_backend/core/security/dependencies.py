@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import Depends, HTTPException, status
@@ -9,6 +10,8 @@ from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.jwt import verify_supabase_jwt
 from juli_backend.database import NotFound, User, UsersRepo
 from juli_backend.database.database import get_session
+
+logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -28,17 +31,23 @@ async def get_current_user(
     try:
         payload = verify_supabase_jwt(credentials.credentials, secret)
     except Unauthorized as exc:
+        # The reason goes to the log, not to the caller. `str(exc)` here echoed the JWT
+        # library's own parser text ("Signature has expired", "Invalid crypto padding",
+        # ...), which tells an attacker precisely which part of a forged token to fix
+        # next. #902 / ADR-061.
+        logger.warning("jwt_rejected", extra={"reason": str(exc)})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
+            detail="Invalid or expired credentials",
         )
 
     try:
         user_id = uuid.UUID(payload["sub"])
     except (KeyError, ValueError) as exc:
+        logger.warning("jwt_payload_invalid", extra={"reason": str(exc)})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid JWT payload: {exc}",
+            detail="Invalid or expired credentials",
         )
 
     try:

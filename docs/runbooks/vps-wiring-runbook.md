@@ -274,7 +274,106 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ---
 
-## Step 7 — HITL sign-off checklist
+## Step 7 — Log retention: journald + Nginx (#906, parent #889 / ADR-061)
+
+**Why this exists.** Neither retention policy was ever recorded anywhere: journald has no
+`SystemMaxUse`/`MaxRetentionSec`/`SystemKeepFree` set (pure distro defaults), and
+`/etc/logrotate.d/nginx` is the distro-shipped file (`daily`/`rotate 14`, no size bound),
+not tracked in this repo. Both are now version-controlled so a distro upgrade cannot
+silently revert them, and so the retention window is a deliberate choice instead of
+whatever the OS happened to ship.
+
+**Retention chosen: 90 days, bounded absolutely by size as well as age.**
+The security-events logging floor (#905/ADR-061 §2c — rejected webhook signatures,
+credential-stuffing/auth failures, `shop_access_denied`, limiter 429s) exists specifically
+for *retrospective* investigation of activity that is deliberately paced to avoid tripping
+a live alert. This is a single-founder operation with no on-call rotation and no
+observability platform yet (Phase 2.11/DOCP is still at proposal stage), so the realistic
+trigger to go look is a lagging symptom — a customer report, a billing anomaly — not a
+dashboard page. 90 days is the same floor PCI DSS sets for security-relevant log
+retention, and it is chosen to comfortably outlast that lag; a week or two (the prior
+distro default) is not. Both streams are kept to the **same** 90-day window on purpose —
+journald has "what happened and to whom", the Nginx access log has "from where and how
+often" for the public surfaces (webhook, demo, OAuth callback) that sit in front of the
+app, and a shorter window on either one caps what can actually be reconstructed.
+
+**Disk and volume (measured on the box, 2026-08-11):**
+
+| | |
+|---|---|
+| Journal span | `2026-06-24` → `2026-08-11` = **48 days** |
+| Journal size | **3.6 GB** = ~77 MB/day |
+| Nginx logs | 2.1 MB |
+| Disk | 75 GB total, 47 GB free |
+
+90 days at ~77 MB/day needs ~6.8 GB, so journald is capped at **`SystemMaxUse=8G`** —
+headroom for growth, and about 11% of the disk.
+
+An earlier revision of this policy set `SystemMaxUse=1G` from an unmeasured estimate.
+That would have bound long before `MaxRetentionSec` did (roughly **13 days**, not 90),
+making the stated policy silently untrue — and because journald vacuums on restart,
+applying it would have *deleted* 2.6 GB of the 48 days already on the box. Journald
+prunes on whichever limit is hit first, so a size cap must be sized against the real
+write rate or the age bound is decoration. Re-check with `journalctl --disk-usage` and
+`journalctl --output=short-iso | head -1` if traffic grows.
+
+| Stream | Where it lives | Retention | Read it during an incident |
+|--------|----------------|-----------|------------------------------|
+| Application logs (structured JSON: security events, requests, `request_id`) | systemd journal, unit `juli-api` | 90 days, hard-capped at 8G disk (`SystemMaxUse`), 2G always kept free (`SystemKeepFree`) | `sudo journalctl -u juli-api --since "7 days ago" \| grep webhook_signature_rejected` (swap the unit/grep for `juli-web`, `shop_access_denied`, auth failures, etc.) |
+| Nginx access log (real client address for the webhook, demo, and OAuth-callback surfaces) | `/var/log/nginx/access.log` (+ rotated `.1` … `.90.gz`) | 90 days, hard-capped by `maxsize 50M` per generation × 90 rotations | `sudo zgrep "POST /webhooks/tiktok" /var/log/nginx/access.log*` (recent, uncompressed `.log`/`.1`; `.2.gz`+ need `zgrep`) |
+| Nginx error log | `/var/log/nginx/error.log` (+ rotated) | Same policy as access log (one `logrotate` stanza covers both) | `sudo tail -n 200 /var/log/nginx/error.log` or `sudo zgrep <pattern> /var/log/nginx/error.log*` |
+
+### Install (VPS, HITL)
+
+Tracked source files: [`infra/systemd/journald.conf.d/10-retention.conf`](../../infra/systemd/journald.conf.d/10-retention.conf)
+and [`infra/logrotate/nginx`](../../infra/logrotate/nginx) — both carry the full reasoning
+in their headers.
+
+```bash
+cd ~/Juli-AI-v2
+
+# journald retention drop-in — a drop-in (not editing journald.conf directly) so a
+# distro upgrade cannot silently revert it.
+sudo mkdir -p /etc/systemd/journald.conf.d
+sudo cp infra/systemd/journald.conf.d/10-retention.conf \
+        /etc/systemd/journald.conf.d/10-retention.conf
+sudo systemctl restart systemd-journald
+
+# Nginx log rotation policy — replaces the untracked distro-shipped file.
+sudo cp infra/logrotate/nginx /etc/logrotate.d/nginx
+```
+
+### Verify (VPS, HITL) — all read-only / dry-run, safe to run any time
+
+```bash
+# journald: confirm the drop-in is actually merged into the effective config.
+sudo systemd-analyze cat-config systemd/journald.conf
+# Expect to see SystemMaxUse=8G / SystemKeepFree=2G / MaxRetentionSec=90day sourced
+# from .../journald.conf.d/10-retention.conf in the merged output.
+
+# journald: confirm current usage is tracked and bounded.
+sudo journalctl --disk-usage
+# Expect a size at or below the 8G SystemMaxUse cap; ~3.6G was normal at 48 days.
+
+# Nginx: DRY RUN only — `-d` prints what logrotate WOULD do and changes nothing on
+# disk. Do not run logrotate without `-d`/`-v` outside of its normal cron/systemd timer
+# invocation; a real run rotates files immediately and is not what you want just to
+# check the config.
+sudo logrotate -d /etc/logrotate.d/nginx
+# Expect: "reading config file /etc/logrotate.d/nginx", the parsed pattern line showing
+# "after 1 days ... log files >= 52428800 are rotated earlier, (90 rotations)", and no
+# "error:" lines. A log "does not need rotating" result is expected and fine — it means
+# the dry run parsed cleanly and nothing is currently due.
+```
+
+If `systemd-analyze cat-config` or `journalctl --disk-usage` are unavailable (older
+systemd), `cat /etc/systemd/journald.conf.d/10-retention.conf` plus
+`du -sh /var/log/journal` are an acceptable substitute — confirms the file is installed
+and gives a rough usage figure, just not the merged/effective view.
+
+---
+
+## Step 8 — HITL sign-off checklist
 
 - [x] DNS A records point to Cloudflare edge (proxied), not directly to VPS
 - [x] Cloudflare dashboard shows all hostnames as proxied (orange cloud)
@@ -292,6 +391,10 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 - [x] Single-process deployment (appropriate for App Review MVP)
 - [x] `./infra/scripts/smoke-test.sh --dns-tls-only` passes (or full smoke after app deploy)
 - [x] Reviewers use UI-only demo login (`NEXT_PUBLIC_UI_ONLY=1`)
+- [ ] Journal retention drop-in installed (`journald.conf.d/10-retention.conf`) and
+      `systemd-analyze cat-config systemd/journald.conf` shows it merged (#906)
+- [ ] Nginx logrotate policy installed (`/etc/logrotate.d/nginx`) and `logrotate -d`
+      dry run parses with no `error:` lines (#906)
 
 Document provider-specific DNS steps and any non-git secrets in your ops notes — **not**
 in this repository.

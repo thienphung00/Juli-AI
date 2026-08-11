@@ -1,0 +1,61 @@
+# Tracked Nginx log rotation policy for the production VPS (#906, parent #889 —
+# first-user security baseline / ADR-061).
+#
+# Install to:
+#   /etc/logrotate.d/nginx
+# (replaces the distro-shipped file installed by `apt install nginx`, which ships
+# `daily` / `rotate 14` with no size bound and is not tracked anywhere in this repo —
+# it could be edited or lost on a package upgrade without anyone noticing).
+#
+# Why this stream matters
+# ------------------------
+# infra/nginx/*.conf sets no explicit access_log/error_log path, so both use nginx's
+# stock defaults: /var/log/nginx/access.log and /var/log/nginx/error.log. Per #906/ADR-061,
+# the Nginx access log is the one place a real client address reliably lands for the
+# public, unauthenticated surfaces (the TikTok webhook receiver, the demo endpoints, and
+# the OAuth callback/connect surface all sit in front of the app — see
+# infra/nginx/api.app-juli.com.conf and infra/nginx/rate-limits.conf). It is the
+# request-level companion to the structured security events in journald (#905): journald
+# has "what happened and to whom", the access log has "from where and how often".
+#
+# Retention: 90 days, same reasoning as infra/systemd/journald.conf.d/10-retention.conf
+# --------------------------------------------------------------------------------------
+# Kept identical to the journald window on purpose — a security investigation needs both
+# streams to cover the same period, or the shorter one silently caps what can actually be
+# reconstructed. See that file's header for the full "why 90 days" reasoning (single-
+# founder operation, no dedicated on-call, no observability platform yet, PCI DSS's own
+# 90-day floor for security-relevant logs). The distro default of `rotate 14` (14 days)
+# is far short of a realistic "we noticed something looked odd, let's go check" lag for a
+# deliberately slow-paced attack.
+#
+# Absolute bound, not merely time-based
+# --------------------------------------
+# `daily` + `rotate 90` alone is still only a time bound: a single day's log has no upper
+# size, so a flood (or an attack, which is exactly when this matters) could grow one
+# rotation's file without limit until the next scheduled rotation. `maxsize 50M` forces an
+# out-of-cycle rotation the moment any one log file crosses 50MB, independent of the daily
+# schedule, giving a real ceiling on any single generation.
+#
+# Worst-case disk math (stated, not measured — see the disk assumption in
+# infra/systemd/journald.conf.d/10-retention.conf): current file + `.1` (delaycompress
+# keeps the most recent rotation uncompressed for immediate grep) can each reach 50MB
+# uncompressed, and up to 88 further compressed generations. Text access logs commonly
+# compress 85-95%+, but assuming a pessimistic 10% compression ratio (45MB retained per
+# generation) still bounds the two streams (access.log + error.log) at roughly
+# 2 * (50MB + 50MB + 88 * 45MB) ~= 8.1GB worst case — comfortably inside the disk
+# assumption stated in the journald drop-in. Realistic usage (normal traffic, logs that
+# actually compress well) is expected to be well under 1GB combined.
+/var/log/nginx/*.log {
+    daily
+    rotate 90
+    maxsize 50M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 www-data adm
+    sharedscripts
+    postrotate
+        [ -f /run/nginx.pid ] && kill -USR1 "$(cat /run/nginx.pid)"
+    endscript
+}
