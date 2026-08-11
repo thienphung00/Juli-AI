@@ -95,3 +95,14 @@ apps/demo/blob-report/
 
 # Python wheels downloaded ad hoc (never source control)
 *.whl
+
+# Next.js 16 writes AGENTS.md (and a CLAUDE.md that imports it) into each app on every
+# `next dev`, via node_modules/next/dist/server/lib/generate-agent-files.js. Ignored
+# rather than committed for two reasons: they are regenerated artifacts that would churn
+# on every Next upgrade, and a nested apps/*/CLAUDE.md silently injects Next's generic
+# agent guidance into this repo's governed instruction hierarchy (see root CLAUDE.md —
+# authority chain EXECUTION.md > agent-runtime.md > rules). Instruction files here are
+# deliberate, not generated. Delete them locally if they get in your way; `next dev`
+# will put them back.
+apps/*/AGENTS.md
+apps/*/CLAUDE.md
