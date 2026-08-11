@@ -297,17 +297,29 @@ journald has "what happened and to whom", the Nginx access log has "from where a
 often" for the public surfaces (webhook, demo, OAuth callback) that sit in front of the
 app, and a shorter window on either one caps what can actually be reconstructed.
 
-**Disk assumption (stated, not measured — no VPS access from this change):** a single
-low-cost VPS per the standing single-host decision (PRD #889), in the 40-80GB SSD class
-typical of a $12-24/mo droplet. `SystemMaxUse=1G` (journald) plus the Nginx logrotate
-worst case of roughly 8.1GB (`maxsize 50M`, `rotate 90`, pessimistic 10% compression —
-see `infra/logrotate/nginx` for the arithmetic) together stay well under 10% of even the
-smaller end of that range. Realistic usage (normal traffic, logs that actually compress
-well) is expected to be well under 1GB combined.
+**Disk and volume (measured on the box, 2026-08-11):**
+
+| | |
+|---|---|
+| Journal span | `2026-06-24` → `2026-08-11` = **48 days** |
+| Journal size | **3.6 GB** = ~77 MB/day |
+| Nginx logs | 2.1 MB |
+| Disk | 75 GB total, 47 GB free |
+
+90 days at ~77 MB/day needs ~6.8 GB, so journald is capped at **`SystemMaxUse=8G`** —
+headroom for growth, and about 11% of the disk.
+
+An earlier revision of this policy set `SystemMaxUse=1G` from an unmeasured estimate.
+That would have bound long before `MaxRetentionSec` did (roughly **13 days**, not 90),
+making the stated policy silently untrue — and because journald vacuums on restart,
+applying it would have *deleted* 2.6 GB of the 48 days already on the box. Journald
+prunes on whichever limit is hit first, so a size cap must be sized against the real
+write rate or the age bound is decoration. Re-check with `journalctl --disk-usage` and
+`journalctl --output=short-iso | head -1` if traffic grows.
 
 | Stream | Where it lives | Retention | Read it during an incident |
 |--------|----------------|-----------|------------------------------|
-| Application logs (structured JSON: security events, requests, `request_id`) | systemd journal, unit `juli-api` | 90 days, hard-capped at 1G disk (`SystemMaxUse`), 2G always kept free (`SystemKeepFree`) | `sudo journalctl -u juli-api --since "7 days ago" \| grep webhook_signature_rejected` (swap the unit/grep for `juli-web`, `shop_access_denied`, auth failures, etc.) |
+| Application logs (structured JSON: security events, requests, `request_id`) | systemd journal, unit `juli-api` | 90 days, hard-capped at 8G disk (`SystemMaxUse`), 2G always kept free (`SystemKeepFree`) | `sudo journalctl -u juli-api --since "7 days ago" \| grep webhook_signature_rejected` (swap the unit/grep for `juli-web`, `shop_access_denied`, auth failures, etc.) |
 | Nginx access log (real client address for the webhook, demo, and OAuth-callback surfaces) | `/var/log/nginx/access.log` (+ rotated `.1` … `.90.gz`) | 90 days, hard-capped by `maxsize 50M` per generation × 90 rotations | `sudo zgrep "POST /webhooks/tiktok" /var/log/nginx/access.log*` (recent, uncompressed `.log`/`.1`; `.2.gz`+ need `zgrep`) |
 | Nginx error log | `/var/log/nginx/error.log` (+ rotated) | Same policy as access log (one `logrotate` stanza covers both) | `sudo tail -n 200 /var/log/nginx/error.log` or `sudo zgrep <pattern> /var/log/nginx/error.log*` |
 
@@ -336,12 +348,12 @@ sudo cp infra/logrotate/nginx /etc/logrotate.d/nginx
 ```bash
 # journald: confirm the drop-in is actually merged into the effective config.
 sudo systemd-analyze cat-config systemd/journald.conf
-# Expect to see SystemMaxUse=1G / SystemKeepFree=2G / MaxRetentionSec=90day sourced
+# Expect to see SystemMaxUse=8G / SystemKeepFree=2G / MaxRetentionSec=90day sourced
 # from .../journald.conf.d/10-retention.conf in the merged output.
 
 # journald: confirm current usage is tracked and bounded.
 sudo journalctl --disk-usage
-# Expect a size well under the 1G SystemMaxUse cap during normal operation.
+# Expect a size at or below the 8G SystemMaxUse cap; ~3.6G was normal at 48 days.
 
 # Nginx: DRY RUN only — `-d` prints what logrotate WOULD do and changes nothing on
 # disk. Do not run logrotate without `-d`/`-v` outside of its normal cron/systemd timer
