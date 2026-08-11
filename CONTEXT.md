@@ -346,6 +346,10 @@ _Avoid_: passing normalized ETL DTOs straight through, display formatting in too
 Server-assigned provenance of free text in agent tool results (ADR-070 pending): `juli` (implicit trusted default), `vendor` (TikTok/marketplace text — data, never instructions), `seller` (client inputs — preference within policy). Assigned from field provenance server-side, never inferred from content; named `source` to avoid colliding with chat-API roles. No buyer role.
 _Avoid_: role (chat-role collision), inferring source from content, buyer role (rejected)
 
+**LLMService**:
+The single module through which the product calls a model (ADR-071 pending): a neutral block interface — `complete(messages, system, tools, config) → AssistantTurn` of `TextBlock`/`ToolCallBlock`/`FinalResponse` + `Usage` — with the OpenAI Responses-API adapter private inside. Stateless (conversation rebuilt from the P-CS store), turn-level blocks (`assistant.text.delta` reserved for future chat surfaces), config resolution playbook > env > defaults, `OPENAI_API_KEY` fail-closed startup assertion, `openai` importable only here (AST containment). Base model: GPT-5.4 nano.
+_Avoid_: provider SDK types outside the module, OpenAI server-side thread state (`previous_response_id`), LiteLLM, `LlmGenerator` (retired seam)
+
 **WorkflowRunStatus**:
 The 8-state lifecycle of an agent workflow run (ADR-068 pending): `created → queued → running ⇄ waiting_approval → completed | failed | cancelled | timed_out`. Stored state answers "what can happen next"; phase narration ("Đang phân tích…") travels as SSE `workflow.status` events, never as states. Maps onto — without rewriting — `ExecutionStatus` (per spawned write-tool execution), `ActionCard.status` (card side: `approved` at run creation, `executing` while live), and the frontend lifecycle, which gains a real terminal `failed` (deliberate supersession of ADR-055's no-terminal-failure note for agent runs).
 _Avoid_: encoding narration phases (GATHERING_CONTEXT, ANALYZING) as stored states, extending `ExecutionStatus` with run semantics, reusing `DemoExecutionState` on the agent path
