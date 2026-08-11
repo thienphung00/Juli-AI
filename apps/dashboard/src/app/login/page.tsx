@@ -1,18 +1,16 @@
-"use client";
+import { notFound } from "next/navigation";
+import { isDemoLoginEnabled } from "@/lib/ui-only";
+import { LoginRoute } from "@/components/LoginRoute";
 
-import { useAuthGuard } from "@/lib/use-auth-guard";
-import { LoginForm } from "@/components/LoginForm";
-
+/**
+ * Server Component gate: makes `/login` genuinely absent (404) in a
+ * production build rather than merely hiding the client UI (#901). See
+ * `isDemoLoginEnabled` for the environment logic.
+ */
 export default function LoginPage() {
-  const { loading } = useAuthGuard("require-guest");
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
-      </div>
-    );
+  if (!isDemoLoginEnabled()) {
+    notFound();
   }
 
-  return <LoginForm />;
+  return <LoginRoute />;
 }
