@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI
 
+from juli_backend.api.middleware import CorrelationIdMiddleware, install_error_boundary
 from juli_backend.api.routes.action_cards import router as action_cards_router
 from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
 from juli_backend.api.routes.auth_tiktok_business_account_holder import (
@@ -69,5 +70,10 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # Not under /v1 — TikTok Partner Center calls the literal path it was
     # registered with (see juli_backend.services.webhook.app.WEBHOOK_PATH).
     app.include_router(webhook_tiktok_router)
+
+    # Correlation must wrap everything, so it is added last (Starlette applies middleware
+    # outermost-last) and therefore sees the request before any route or handler runs.
+    app.add_middleware(CorrelationIdMiddleware)
+    install_error_boundary(app)
 
     return app

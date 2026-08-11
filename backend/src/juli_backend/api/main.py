@@ -10,11 +10,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from juli_backend.api.app import create_app
 from juli_backend.core.config.runtime import async_database_url, cors_allow_origins, require_env
+from juli_backend.core.observability import configure_logging
 from juli_backend.database.database import (
     create_engine,
     create_session_factory,
     init_session_factory,
 )
+
+# Before anything else can emit. Until #902 the root logger had no handler, so Python's
+# last-resort handler took over at WARNING-and-above with a message-only format — every
+# logger.info audit call site in this codebase was discarded, and every extra={...}
+# payload on the warnings that did print was built and thrown away.
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
