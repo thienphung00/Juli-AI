@@ -2,21 +2,53 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "landing",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@juli/landing",
+        "exec",
+        "next",
+        "dev",
+        "-p",
+        "3007"
+      ],
+      "port": 3007,
+      "autoPort": false
+    },
+    {
       "name": "demo",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@juli/demo", "exec", "next", "dev", "-p", "3100"],
-      "port": 3100
+      "runtimeArgs": [
+        "--filter",
+        "@juli/demo",
+        "exec",
+        "next",
+        "dev",
+        "-p",
+        "3100"
+      ],
+      "port": 3100,
+      "autoPort": false
     },
     {
       "name": "dashboard",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "juli-web", "exec", "next", "dev", "-p", "3000"],
-      "port": 3000
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "apps/dashboard",
+        "run",
+        "dev"
+      ],
+      "port": 3000,
+      "autoPort": false
     },
     {
       "name": "backend",
-      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeExecutable": "python3",
       "runtimeArgs": [
+        "-m",
+        "uvicorn",
         "juli_backend.api.main:app",
         "--reload",
         "--host",
