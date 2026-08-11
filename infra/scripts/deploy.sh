@@ -319,13 +319,24 @@ deploy_lane_api() {
 
     systemctl stop "juli-api-candidate-${peer_port}" >/dev/null 2>&1 || true
     systemctl reset-failed "juli-api-candidate-${peer_port}" >/dev/null 2>&1 || true
+    # These flags MUST match infra/systemd/juli-api.service's ExecStart. The candidate is
+    # a transient systemd-run unit, not juli-api.service, so the unit file's ExecStart is
+    # only used at boot — every deploy replaces the serving process with this command line.
+    #
+    # #905 added --proxy-headers to the unit file only, and the divergence went unnoticed
+    # because uvicorn 0.52's proxy_headers already defaults to True with
+    # forwarded_allow_ips=127.0.0.1 — the behaviour happened to be correct anyway. That is
+    # luck, not design: the flags are here to state a security-relevant setting explicitly
+    # rather than inherit it from a library default that a version bump can change.
+    # tests/unit/test_deploy_uvicorn_flag_parity.py fails if the two lists drift again.
     systemd-run --unit="juli-api-candidate-${peer_port}" --collect \
         --property=Type=simple \
         --property=WorkingDirectory="${release_dir}" \
         --property=EnvironmentFile="${API_ENV_FILE}" \
         --property=Restart=no \
         "${release_dir}/.venv/bin/uvicorn" juli_backend.api.main:app \
-        --host 127.0.0.1 --port "${peer_port}" --workers 1 >&2
+        --host 127.0.0.1 --port "${peer_port}" --workers 1 \
+        --proxy-headers --forwarded-allow-ips=127.0.0.1 >&2
     if ! code="$(wait_2xx "http://127.0.0.1:${peer_port}/health")"; then
         record_step api candidate "failed" "never ready (HTTP ${code})"
         systemctl stop "juli-api-candidate-${peer_port}" >/dev/null 2>&1 || true
