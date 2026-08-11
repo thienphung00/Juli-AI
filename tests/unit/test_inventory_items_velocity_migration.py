@@ -52,14 +52,22 @@ def test_inventory_items_velocity_migration_passes_additive_gate():
     assert result.accepted, [f.render() for f in result.findings]
 
 
-def test_inventory_items_velocity_is_exactly_one_alembic_head_at_031():
-    """Guards the single-head invariant; the literal head id advances as
-    later slices stack on top of 031."""
+def test_inventory_items_velocity_keeps_a_single_alembic_head():
+    """Guards the single-head invariant, without pinning the head id.
+
+    The previous version's own docstring said "the literal head id advances as later
+    slices stack on top of 031" and then asserted that literal anyway, so it failed
+    the moment 032_close_public_schema_defaults landed — for a reason unrelated to
+    this migration. Assert what the test is actually for: one head, and this
+    revision still reachable from it.
+    """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     cfg = Config(str(REPO_ROOT / "alembic.ini"))
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
-    assert len(heads) == 1
-    assert heads == ["031_inventory_items_velocity"]
+    assert len(heads) == 1, f"migration graph has branched: {sorted(heads)}"
+
+    ancestry = {r.revision for r in script.walk_revisions(base="base", head="head")}
+    assert "031_inventory_items_velocity" in ancestry

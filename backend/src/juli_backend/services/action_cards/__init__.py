@@ -13,13 +13,21 @@ from juli_backend.services.action_cards.refresh import (
     maybe_poll_tiktok_data,
     run_action_card_refresh,
 )
+from juli_backend.services.action_cards.refresh_cooldown import (
+    bind_action_card_refresh_cooldown_gate,
+    get_refresh_cooldown_gate,
+    set_refresh_cooldown_gate,
+)
 
 __all__ = [
+    "bind_action_card_refresh_cooldown_gate",
     "enqueue_action_card_refresh",
+    "get_refresh_cooldown_gate",
     "get_refresh_dispatcher",
     "maybe_poll_tiktok_data",
     "persist_legacy_recommendations",
     "persist_scoring_result",
     "run_action_card_refresh",
+    "set_refresh_cooldown_gate",
     "set_refresh_dispatcher",
 ]

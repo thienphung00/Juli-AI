@@ -1,0 +1,248 @@
+"""CI invariant (#900, ADR-061 decision 2): every product route must resolve a
+session/ownership dependency.
+
+This test inspects the *live* route table on the deployed ASGI app object
+(``juli_backend.api.main:app`` — the same app uvicorn serves, including the
+``/health`` route only registered there) rather than parsing route source
+text, so it cannot be fooled by formatting or by a docstring that merely
+*claims* a route is protected.
+
+Only two dependencies count as "session/ownership resolved":
+
+- ``get_current_user`` (core/security/dependencies.py) — verifies the
+  Supabase JWT and returns the authenticated ``User``.
+- ``get_active_shop`` (api/dependencies.py) — additionally resolves the
+  ``X-Shop-Id`` header to a ``Shop`` the authenticated user actually owns.
+
+Every other product route must depend on one of these, directly or
+transitively (``get_active_shop`` itself depends on ``get_current_user``, so
+routes using either are covered).
+
+Intentionally public surfaces are listed in ``ALLOWLISTED_PRODUCT_ROUTES``
+below, keyed by the *exact* ``(method, path)`` pair — never a prefix or
+pattern — so a new route can never accidentally inherit an allowlist entry;
+widening the allowlist is always a visible, reviewable line-level diff. Each
+entry carries an inline comment stating why it is public. See the PR body
+for #900 for the full reasoning, including the deliberate choice to
+allowlist ``/debug/tiktok/verify-connection`` (tracked separately as #903)
+rather than fail this build.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.main import app
+from juli_backend.core.security.dependencies import get_current_user
+
+try:
+    # FastAPI's own OpenAPI generator (fastapi/openapi/utils.py) walks routes
+    # through this exact function to resolve the *effective* (fully-prefixed,
+    # fully-dependency-merged) route table — the same problem this test has.
+    # Newer FastAPI (the `_IncludedRouter` route-registration redesign) stops
+    # flattening `app.include_router(...)` targets into `app.routes` eagerly;
+    # a route added that way is wrapped opaquely and only resolves to its real
+    # path/methods/dependant lazily, on demand, through `iter_route_contexts`.
+    # Reading `app.routes` directly under that FastAPI silently sees only the
+    # handful of routes registered directly on `app` (e.g. `/health`) and
+    # nothing added via `include_router` — this is what actually broke this
+    # test in CI (fastapi 0.141.1 / starlette 1.6.0) while passing locally
+    # against an older, eagerly-flattening FastAPI (0.128.0 / starlette
+    # 0.50.0): every route added via `include_router` (all of `/v1/*`, the
+    # webhook receiver, and the debug route) vanished from the walk, both
+    # tests below silently degraded to iterating zero/near-zero routes, and
+    # the "no matching registered route" failure was a symptom of an empty
+    # route table, not allowlist staleness. Older FastAPI has no such
+    # function; the `except ImportError` branch below covers it by reading
+    # `app.routes` directly, which is already flat there.
+    from fastapi.routing import iter_route_contexts as _iter_route_contexts
+except ImportError:  # pragma: no cover - exercised by whichever FastAPI is installed
+    _iter_route_contexts = None
+
+# Exact (HTTP method, path) pairs only — no prefixes, no regexes, no
+# wildcards. Adding an entry here is the reviewable action; anything not
+# listed here must resolve get_current_user or get_active_shop or this test
+# fails and names it.
+ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
+    ("GET", "/health"): (
+        "Infra liveness/readiness probe (api/main.py) — no product data, no auth concept."
+    ),
+    ("POST", "/webhooks/tiktok"): (
+        "TikTok webhook receiver (services/webhook) — HMAC-signature authenticated via "
+        "hmac.compare_digest against the TikTok app secret, not session-authenticated. "
+        "The caller is TikTok's Partner Center, which cannot hold a Juli session."
+    ),
+    ("GET", "/v1/demo/analytics"): (
+        "Public Demo Analytics read (#531, ADR-037) — unauthenticated by design. Serves a "
+        "server-bound DEMO_REFERENCE_SHOP_ID; no client-controllable shop_id anywhere "
+        "(rejected as a query param, never read as a header)."
+    ),
+    ("GET", "/v1/demo/decisions"): (
+        "Public Demo Decisions list (#718, B-6) — same ADR-037 unauthenticated-by-design "
+        "pattern as GET /v1/demo/analytics; server-bound reference shop only."
+    ),
+    ("GET", "/v1/demo/decisions/{action_card_id}"): (
+        "Public Demo Decisions detail (#718, B-6) — same ADR-037 pattern as the list route; "
+        "a suppressed/foreign-shop card is indistinguishable from a nonexistent id (404)."
+    ),
+    ("POST", "/v1/demo/decisions/{action_card_id}/approve"): (
+        "Public Demo approve->execute (#717, B-5) — same ADR-037 pattern. Writes only a "
+        "local dry-run execution record against the server-bound reference shop; no real "
+        "shop, TikTok credential, or user data is ever touched."
+    ),
+    ("GET", "/v1/auth/tiktok/callback"): (
+        "TikTok Shop OAuth redirect callback — authenticated by a signed OAuth `state` "
+        "token (TikTokOAuthInfrastructureService.verify_state), which binds the callback "
+        "to a user_id. This route *establishes* the session by exchanging the code, so it "
+        "cannot itself require one — the state token is the credential."
+    ),
+    ("GET", "/v1/auth/tiktok/business/callback"): (
+        "TikTok Business Advertiser OAuth callback — same signed-state-token pattern as "
+        "GET /v1/auth/tiktok/callback (TikTokBusinessAdvertiserOAuthService.handle_callback)."
+    ),
+    ("GET", "/v1/auth/tiktok/business/account-holder/callback"): (
+        "TikTok Business account-holder OAuth callback — same signed-state-token pattern, "
+        "verified via HMAC in `_verify_state()`; persists no tokens (infra-only)."
+    ),
+    ("GET", "/debug/tiktok/verify-connection"): (
+        "TODO(#903): has NO auth today beyond the ENABLE_TIKTOK_DEBUG env flag — a known "
+        "cross-tenant IDOR (client-supplied shop_id, no ownership check), documented in "
+        "ADR-061 decision 2 step 7 as #903's job to close. Allowlisted here deliberately: "
+        "#900 is an assertion over the current route set, not a fix, and the exit gate "
+        "requires this test to pass against that current (imperfect) state. Remove this "
+        "entry when #903 adds real auth to the route, not before."
+    ),
+}
+
+_SESSION_DEPENDENCIES = frozenset({get_current_user, get_active_shop})
+
+# Sanity floor for the live route walk. The app currently exposes 25 APIRoutes
+# (verified locally against both fastapi 0.128.0/starlette 0.50.0 and, via a
+# throwaway repro venv, fastapi 0.141.1/starlette 1.6.0 — both give 25 through
+# the walk below). This exists so a broken walk fails LOUDLY with its actual
+# count instead of silently passing vacuously (zero/near-zero routes to check
+# means zero offenders, by construction) — which is exactly how the CI-only
+# fastapi/starlette upgrade above broke this invariant the first time: one
+# test passed vacuously while the other reported every allowlist entry
+# "stale" because the registered set it was walking was nearly empty.
+_MINIMUM_EXPECTED_PRODUCT_ROUTES = 20
+
+
+def _product_api_routes() -> list[Any]:
+    """Live route table on the deployed app, flattened and version-robust.
+
+    Returns one entry per registered endpoint, each exposing ``.path``,
+    ``.methods``, and ``.dependant`` (either a bare ``APIRoute`` on older
+    FastAPI, where ``app.routes`` is already flat, or a ``RouteContext`` on
+    newer FastAPI, resolved via ``iter_route_contexts`` — see the import
+    comment above for why a flat read of ``app.routes`` alone is not
+    version-robust). Filtered by duck-typing (has ``.dependant``, ``.path``,
+    and ``.methods``) rather than ``isinstance(route, APIRoute)`` against the
+    *container* object, since on newer FastAPI the container is a
+    ``RouteContext`` wrapper, not an ``APIRoute`` itself — only its
+    ``.original_route`` is. This is what excludes the framework-internal
+    ``starlette.routing.Route`` objects for /docs, /redoc, /openapi.json, and
+    the Swagger OAuth2 redirect, which carry no ``.dependant``.
+    """
+    candidates: Any = _iter_route_contexts(app.routes) if _iter_route_contexts else app.routes
+    return [
+        candidate
+        for candidate in candidates
+        if hasattr(candidate, "dependant")
+        and hasattr(candidate, "path")
+        and hasattr(candidate, "methods")
+    ]
+
+
+def _registered_route_summary(routes: list[Any]) -> list[str]:
+    """`METHOD path` for every route the walk actually found — for diagnostic
+    dumps on failure, so a CI-only discrepancy is readable from the log
+    without needing local reproduction."""
+    summary: list[str] = []
+    for route in routes:
+        for method in sorted(route.methods or ()):
+            summary.append(f"{method} {route.path}")
+    return sorted(summary)
+
+
+def _dependency_calls(dependant: Any) -> set[Any]:
+    """Flatten a FastAPI Dependant tree into the set of underlying callables.
+
+    Walks sub-dependencies recursively so a route depending on
+    ``get_active_shop`` (which itself depends on ``get_current_user``) is
+    correctly credited for both.
+    """
+    calls: set[Any] = set()
+    stack = [dependant]
+    seen_ids: set[int] = set()
+    while stack:
+        node = stack.pop()
+        if id(node) in seen_ids:
+            continue
+        seen_ids.add(id(node))
+        if node.call is not None:
+            calls.add(node.call)
+        stack.extend(node.dependencies)
+    return calls
+
+
+def test_route_walk_finds_a_plausible_number_of_routes() -> None:
+    """Non-vacuousness guard: both other tests in this file only prove anything
+    if the walk actually found the app's routes. An empty (or near-empty)
+    result makes "every route is protected" and "no allowlist entry is stale"
+    trivially, silently true — which is precisely how this invariant broke in
+    CI the first time (see the ``_iter_route_contexts`` import comment)."""
+    routes = _product_api_routes()
+    assert len(routes) >= _MINIMUM_EXPECTED_PRODUCT_ROUTES, (
+        f"Route walk found only {len(routes)} route(s), expected at least "
+        f"{_MINIMUM_EXPECTED_PRODUCT_ROUTES}. This almost certainly means the walk itself "
+        "is broken (e.g. a FastAPI/Starlette upgrade changed how app.include_router() "
+        "targets are exposed on app.routes) rather than that routes were actually removed "
+        f"— treat this as a self-diagnosing signal, not a route-count regression. Routes "
+        f"actually found: {_registered_route_summary(routes)}"
+    )
+
+
+def test_every_product_route_resolves_a_session_dependency() -> None:
+    """Every registered route either resolves get_current_user/get_active_shop
+    or is named, with a reason, in ALLOWLISTED_PRODUCT_ROUTES."""
+    routes = _product_api_routes()
+    offenders: list[str] = []
+
+    for route in routes:
+        methods = sorted(route.methods or ())
+        for method in methods:
+            allowlist_reason = ALLOWLISTED_PRODUCT_ROUTES.get((method, route.path))
+            if allowlist_reason is not None:
+                continue
+
+            calls = _dependency_calls(route.dependant)
+            if not calls & _SESSION_DEPENDENCIES:
+                offenders.append(f"{method} {route.path} (endpoint={route.name})")
+
+    assert not offenders, (
+        "Route(s) resolve no session/ownership dependency (get_current_user / "
+        "get_active_shop) and are not in the explicit ALLOWLISTED_PRODUCT_ROUTES: "
+        f"{offenders}. If this route is genuinely public, add it to the allowlist "
+        "in tests/unit/test_route_auth_invariant.py with an inline justification; "
+        "otherwise wire get_current_user or get_active_shop into it. Routes actually "
+        f"registered ({len(routes)}): {_registered_route_summary(routes)}"
+    )
+
+
+def test_allowlist_entries_all_correspond_to_currently_registered_routes() -> None:
+    """Guards against a stale allowlist entry masking a route that moved/was removed —
+    every allowlisted (method, path) must match a route actually on the live app."""
+    routes = _product_api_routes()
+    registered: set[tuple[str, str]] = set()
+    for route in routes:
+        for method in route.methods or ():
+            registered.add((method, route.path))
+
+    stale = sorted(set(ALLOWLISTED_PRODUCT_ROUTES) - registered)
+    assert not stale, (
+        f"Allowlist entries with no matching registered route (stale — remove them): "
+        f"{stale}. Routes actually registered ({len(routes)}): "
+        f"{_registered_route_summary(routes)}"
+    )

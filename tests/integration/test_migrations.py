@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -30,7 +31,18 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "031_inventory_items_velocity"
+LATEST_REVISION = "032_close_public_schema_defaults"
+
+sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
+from check_public_schema_privileges import (  # noqa: E402
+    GOLD_ALLOWLIST,
+    find_privilege_violations,
+    find_reachable_tables,
+)
+from ensure_postgrest_client_roles import (  # noqa: E402
+    ensure_roles,
+    seed_supabase_bootstrap_grants,
+)
 
 
 def _validate_destructive_db_url(url: str) -> None:
@@ -176,8 +188,21 @@ def _sync_engine() -> Engine:
 
 
 def _reset_to_head() -> None:
+    """Downgrade to base, then upgrade to head against a CI-representative substrate.
+
+    #929: roles + the Supabase-equivalent bootstrap grant are seeded HERE — after
+    reaching base, before any migration in the upgrade path runs — mirroring the
+    real migration-check job's ordering (`ensure_postgrest_client_roles.py` runs
+    before `alembic upgrade`). Without this, a fresh Postgres 16 substrate never
+    auto-grants table privileges to non-owner roles, so migration 029's
+    `ALTER DEFAULT PRIVILEGES ... REVOKE ALL` clause has nothing to counteract and
+    every "born closed" assertion below would pass whether or not that clause ran.
+    """
     cfg = _alembic_config()
     command.downgrade(cfg, "base")
+    database_url = _database_url()
+    ensure_roles(database_url)
+    seed_supabase_bootstrap_grants(database_url)
     command.upgrade(cfg, "head")
 
 
@@ -639,6 +664,103 @@ $role$;
                 assert has_usage is False, f"{role} must not have USAGE on {schema}"
 
 
+def _ensure_client_roles(engine: Engine) -> None:
+    with engine.begin() as conn:
+        for role in POSTGREST_CLIENT_ROLES:
+            conn.execute(
+                text(
+                    f"""
+DO $role$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    CREATE ROLE {role} NOLOGIN;
+  END IF;
+END
+$role$;
+"""
+                )
+            )
+
+
+@requires_postgres
+def test_public_schema_open_before_029(postgres_at_head: Engine):
+    """Exit-gate assertion detects the problem: public is open at revision 028 (#897).
+
+    Demonstrates the CI exit gate actually catches the pre-#897 state rather than
+    trivially passing — the same property .github/workflows/pr.yml's migration-check
+    job proves live by inverting this check's exit code against revision 028.
+    """
+    _ensure_client_roles(postgres_at_head)
+    cfg = _alembic_config()
+    command.downgrade(cfg, "028_demo_execution_records")
+
+    violations = find_privilege_violations(_database_url())
+
+    command.upgrade(cfg, "head")
+
+    assert violations, (
+        "expected at least one reachable table outside the gold allowlist at "
+        "revision 028 (public never had ALTER DEFAULT PRIVILEGES applied)"
+    )
+    # public.analytics_kpi_envelopes_compat (024_gold_kpi_envelopes) is reachable
+    # via public's default USAGE grant to PUBLIC plus its own explicit SELECT grant.
+    all_offending = {pair for pairs in violations.values() for pair in pairs}
+    assert ("public", "analytics_kpi_envelopes_compat") in all_offending
+
+
+@requires_postgres
+def test_public_schema_closed_at_head(postgres_at_head: Engine):
+    """Exit-gate assertion passes after #897: nothing outside the gold allowlist
+    is reachable, and the backend's own (non-anon/authenticated) access is untouched."""
+    _ensure_client_roles(postgres_at_head)
+
+    violations = find_privilege_violations(_database_url())
+
+    assert violations == {}
+
+
+@requires_postgres
+def test_new_public_table_born_closed_then_flagged_if_granted(postgres_at_head: Engine):
+    """ALTER DEFAULT PRIVILEGES closes future public tables automatically (#897 AC1);
+    explicitly granting one back open makes the exit-gate assertion fail again (#897
+    exit-gate AC3 — "adding a new unprotected table... makes the assertion fail")."""
+    _ensure_client_roles(postgres_at_head)
+    scratch_table = "scratch_897_unprotected_table"
+
+    with postgres_at_head.begin() as conn:
+        conn.execute(text(f"CREATE TABLE {scratch_table} (id uuid PRIMARY KEY)"))
+
+    try:
+        # Born closed: no explicit GRANT was issued, so default privileges apply.
+        reachable_after_create = {
+            table
+            for role in POSTGREST_CLIENT_ROLES
+            for table in find_reachable_tables(postgres_at_head, role)
+        }
+        assert ("public", scratch_table) not in reachable_after_create
+
+        # Simulate the exact drift this migration exists to prevent: a future
+        # table lands with an explicit (or bootstrap-inherited) client grant.
+        with postgres_at_head.begin() as conn:
+            conn.execute(text(f"GRANT SELECT ON {scratch_table} TO anon"))
+
+        violations = find_privilege_violations(_database_url())
+        assert ("public", scratch_table) in violations.get("anon", [])
+    finally:
+        with postgres_at_head.begin() as conn:
+            conn.execute(text(f"DROP TABLE IF EXISTS {scratch_table}"))
+
+
+@requires_postgres
+def test_gold_allowlist_is_the_single_client_reachable_entry(postgres_at_head: Engine):
+    """The gold serving surface stays the one allowlist entry (#897 AC5) — not a
+    convenience USAGE grant on the whole gold schema (ADR-061 doNotInfer)."""
+    assert GOLD_ALLOWLIST == frozenset({("gold", "kpi_envelopes")})
+    _ensure_client_roles(postgres_at_head)
+    for role in POSTGREST_CLIENT_ROLES:
+        assert ("gold", "ml_feature_snapshots") not in find_reachable_tables(postgres_at_head, role)
+
+
 @requires_postgres
 def test_gold_kpi_envelopes_table_exists_at_head(postgres_at_head: Engine):
     """Revision 024 adds gold.kpi_envelopes serving contract (#606)."""
@@ -956,13 +1078,19 @@ def test_downgrade_to_024_drops_revision_025_silver(postgres_at_head: Engine):
 
 @requires_postgres
 def test_latest_downgrade_drops_only_revision_028_demo_execution(postgres_at_head: Engine):
-    """Downgrading head one step removes only 028's table; 025/024 objects remain."""
+    """Downgrading to 027 removes 028's table; 025/024 objects remain.
+
+    Targets revision 027 explicitly rather than ``-1``: since #897 added
+    032_close_public_schema_defaults, head is no longer 028, so ``-1`` would only
+    undo 029's privilege revoke rather than 028's table. The invariant under test
+    (028's downgrade drops only its own table) is unchanged.
+    """
     _seed_representative_rows(postgres_at_head)
     cfg = _alembic_config()
 
     assert _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)
 
-    # Head may be past 028 (e.g. 029); target 027 so 028's downgrade runs explicitly.
+    # Head is well past 028 (029-032); target 027 so 028's downgrade runs explicitly.
     command.downgrade(cfg, "027_decision_emission_budget")
 
     assert not _table_exists(postgres_at_head, REVISION_028_DEMO_EXECUTION_TABLE)

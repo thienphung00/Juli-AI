@@ -90,6 +90,7 @@ jobs:
       demo: ${{ steps.set-outputs.outputs.demo }}
       landing: ${{ steps.set-outputs.outputs.landing }}
       agent: ${{ steps.set-outputs.outputs.agent }}
+      infra: ${{ steps.set-outputs.outputs.infra }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -159,6 +160,14 @@ jobs:
             agent:
               - 'agent-runtime/**'
               - '.cursor/**'
+            # Nginx edge config (#898/ADR-061 §2b). Scoped to the nginx tree and its
+            # own CI scripts, not all of infra/**, so unrelated infra changes (deploy
+            # scripts, systemd units) don't pay for a package install + nginx -t.
+            infra:
+              - 'infra/nginx/**'
+              - 'infra/scripts/provision-nginx.sh'
+              - 'agent-runtime/scripts/ci/check_nginx_rate_limits.py'
+              - 'agent-runtime/scripts/ci/check_nginx_config_parses.sh'
       # Wave-tier push: diff the landed commit range (before->after) with
       # the same domain filter definitions used at issue tier, instead of
       # forcing every domain true. Skipped when the before SHA can't be
@@ -182,12 +191,12 @@ jobs:
             if [[ "$TIER" == "main" ]]; then
               # Wave->main remains the full, path-aware checkpoint (#658):
               # every domain runs regardless of what the wave push touched.
-              for key in backend migrations dashboard demo landing agent; do
+              for key in backend migrations dashboard demo landing agent infra; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" && "$WAVE_FALLBACK" == "true" ]]; then
               # Documented bounded fallback: unresolvable before SHA.
-              for key in backend migrations dashboard demo landing agent; do
+              for key in backend migrations dashboard demo landing agent infra; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" ]]; then
@@ -197,6 +206,7 @@ jobs:
               echo "demo=${{ steps.filter-wave.outputs.demo }}"
               echo "landing=${{ steps.filter-wave.outputs.landing }}"
               echo "agent=${{ steps.filter-wave.outputs.agent }}"
+              echo "infra=${{ steps.filter-wave.outputs.infra }}"
             else
               echo "backend=${{ steps.filter.outputs.backend }}"
               echo "migrations=${{ steps.filter.outputs.migrations }}"
@@ -204,6 +214,7 @@ jobs:
               echo "demo=${{ steps.filter.outputs.demo }}"
               echo "landing=${{ steps.filter.outputs.landing }}"
               echo "agent=${{ steps.filter.outputs.agent }}"
+              echo "infra=${{ steps.filter.outputs.infra }}"
             fi
           } >> "$GITHUB_OUTPUT"
 
@@ -322,6 +333,39 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Issue #898 / ADR-061 §2b exit gate, split in two like the ADR's own CI-invariant
+  # split: a fast static lint that runs with no external dependency, and a slower
+  # config-parse check pinned to the nginx version the review VPS actually runs
+  # (precedent: #882 "nginx configs must parse on the nginx we actually run").
+  nginx-rate-limit-lint:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.infra == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: limit_req present on webhook + demo locations, absent on /health
+        run: python agent-runtime/scripts/ci/check_nginx_rate_limits.py
+
+  nginx-config-parses:
+    runs-on: ubuntu-latest
+    needs: [classify-tier, changes]
+    if: >-
+      needs.classify-tier.outputs.tier == 'main'
+      && needs.changes.outputs.infra == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install nginx (same package/version family as the review VPS, ADR-057)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx-core openssl
+      - name: nginx -t against the assembled candidate config
+        run: sudo bash agent-runtime/scripts/ci/check_nginx_config_parses.sh
+
   test:
     runs-on: ubuntu-latest
     needs: [classify-tier, changes]
@@ -431,12 +475,60 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -e "./backend[dev]"
+      # #897 exit gate: create the PostgREST client roles BEFORE migrations run so
+      # 021_medallion_schemas' + 032_close_public_schema_defaults' role-guarded
+      # REVOKE/ALTER DEFAULT PRIVILEGES statements actually execute in CI instead of
+      # silently skipping their `IF EXISTS (SELECT 1 FROM pg_roles ...)` guard.
+      #
+      # #929: this step ALSO seeds Supabase-equivalent bootstrap grants on `public`
+      # (GRANT ALL ... TO anon, authenticated + matching ALTER DEFAULT PRIVILEGES)
+      # BEFORE any migration runs. This simulates Supabase's own project-bootstrap
+      # grant — vanilla postgres:16 never auto-grants table privileges to non-owner
+      # roles, so without this seed there is nothing for migration 029's
+      # `ALTER DEFAULT PRIVILEGES ... REVOKE ALL` clause to counteract, and a table
+      # created after `upgrade head` is unreachable regardless of whether that
+      # clause ran. Do NOT delete this as redundant setup — it is what makes the
+      # "must PASS for a table created AFTER head" step below a real test of
+      # ADR-061 decision 1 instead of a substrate artifact.
+      - name: Create PostgREST client roles + seed Supabase bootstrap grants
+        run: python agent-runtime/scripts/ci/ensure_postgrest_client_roles.py
+      - name: Alembic upgrade to pre-#897 revision
+        run: alembic upgrade 028_demo_execution_records
+      # Demonstrates the exit-gate assertion actually detects the open boundary:
+      # the public schema is still fully open to anon/authenticated at this
+      # revision, so the check below MUST fail; invert its exit code and fail the
+      # job if it doesn't.
+      - name: Public-schema boundary check must FAIL before #897
+        run: |
+          if python agent-runtime/scripts/ci/check_public_schema_privileges.py; then
+            echo "::error::privilege check unexpectedly PASSED against the pre-#897 schema state — it is not detecting the open public schema"
+            exit 1
+          fi
+          echo "confirmed: privilege check correctly fails against the pre-#897 schema state"
       - name: Alembic upgrade head
         run: alembic upgrade head
+      # #897 exit gate: live pg_catalog query, fails the build if any table outside
+      # the explicit gold allowlist is reachable by anon/authenticated.
+      - name: Public-schema boundary check must PASS at head
+        run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
       - name: Alembic downgrade one
         run: alembic downgrade -1
       - name: Alembic re-upgrade head
         run: alembic upgrade head
+      - name: Public-schema boundary check must PASS after downgrade/re-upgrade
+        run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
+      # #929 decisive proof: create a table AFTER `alembic upgrade head`, with no
+      # explicit GRANT of any kind. Its reachability depends entirely on which
+      # default privileges were in force at CREATE TABLE time — the Supabase
+      # bootstrap grant seeded above if migration 029's `ALTER DEFAULT PRIVILEGES`
+      # clause did nothing, or the closed default that clause installs if it did.
+      # This is the property the "born closed" pytest test in
+      # tests/integration/test_migrations.py also exercises; this step proves it
+      # in CI's real fresh-cluster, straight-to-head substrate.
+      - name: Create a new public table after upgrade head (#929)
+        run: python agent-runtime/scripts/ci/create_post_head_scratch_table.py
+      - name: Public-schema boundary check must PASS for a table created AFTER head
+        run: python agent-runtime/scripts/ci/check_public_schema_privileges.py
 
   frontend:
     runs-on: ubuntu-latest
@@ -899,6 +991,8 @@ jobs:
       - typecheck
       - architecture-gates
       - bandit
+      - nginx-rate-limit-lint
+      - nginx-config-parses
       - gitleaks
       - test
       - test-live-sandbox
@@ -926,6 +1020,8 @@ jobs:
           typecheck="${{ needs.typecheck.result }}"
           arch="${{ needs.architecture-gates.result }}"
           bandit="${{ needs.bandit.result }}"
+          nginx_lint="${{ needs.nginx-rate-limit-lint.result }}"
+          nginx_parse="${{ needs.nginx-config-parses.result }}"
           gitleaks="${{ needs.gitleaks.result }}"
           test="${{ needs.test.result }}"
           live_sandbox="${{ needs.test-live-sandbox.result }}"
@@ -985,6 +1081,8 @@ jobs:
             require "typecheck" "$typecheck" "true"
             require "architecture-gates" "$arch" "false"
             require "bandit" "$bandit" "false"
+            require "nginx-rate-limit-lint" "$nginx_lint" "false"
+            require "nginx-config-parses" "$nginx_parse" "false"
             require "full-regression" "$regression" "false"
             require "migration-check" "$mig" "false"
             require "frontend" "$fe" "true"

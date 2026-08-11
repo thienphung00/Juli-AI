@@ -67,6 +67,7 @@
 | [059](059-dpr-wave-artifact-waiver.md) | Scoped artifact waiver for `wave-dpr-demo` — evidence unrecoverable, diffs reviewed in its place; not precedent | Accepted |
 | [060](060-chart-form-follows-kpi-measurement-type.md) | Chart form follows KPI measurement type — measurement type selects the mark, goal direction selects the tone (apps/demo Analytics) | Proposed |
 | [061](061-first-user-security-baseline.md) | First-user security baseline — default-deny data boundary + enforced invariants | Accepted |
+| [062](062-security-baseline-wave-artifact-waiver.md) | Scoped artifact waiver for `wave-security-baseline` (six original slices only) | Accepted |
 | [063](063-t10-inventory-reorder-engine.md) | T10 Inventory Reorder Engine — promote `ai/forecasting`'s velocity/depletion math into a lazy, per-SKU pre-execution advisory | Accepted |
 | [064](064-product-performance-classifier.md) | Product Performance Classifier — real per-product GMV/conversion trend classification (Scale/Fix/Explore) for Optimize/Create Hero Product | Accepted |
 | [065](065-finance-statement-fee-mapping-fix.md) | Finance Statement mapping fix — capture real `fee_amount`/`shipping_cost_amount`; drop phantom platform/affiliate commission split | Accepted |

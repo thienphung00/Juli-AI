@@ -45,10 +45,15 @@ slice — see "Out of scope".
 - `core.config.decision_emission_config()` / `DecisionEmissionConfig` —
   tunables consumed by both `persist_scoring_result` (cooldown-expiry
   supersede) and `apply_emission_budget` (cap / cooldown / novelty)
+- `refresh_cooldown.get_refresh_cooldown_gate()` / `RefreshCooldownGate` (#899,
+  ADR-061 §2b) — per-shop cooldown gate on `POST /v1/action-cards/refresh`;
+  see "Per-shop refresh cooldown" below
 
 ## HTTP (via `api/routes/action_cards.py`)
 
-- `POST /v1/action-cards/refresh` — 202 Accepted, enqueues Celery task
+- `POST /v1/action-cards/refresh` — 202 Accepted, enqueues Celery task; 429
+  Too Many Requests (with `Retry-After`) when the shop is inside its refresh
+  cooldown (#899)
 - `GET /v1/action-cards` — persisted active cards only (no regeneration)
 
 ## Dependencies
@@ -58,12 +63,20 @@ slice — see "Out of scope".
 - `juli_backend.workers.services.polling` — optional Fujiwa poll before scoring
 - Celery enqueue via injectable `RefreshDispatcher` — production adapter in
   `juli_backend.workers.dispatch_binding` (bound at API/worker startup; #554)
+- `refresh_cooldown` — Redis app cache DB /0 (ADR-041) for the per-shop cooldown
+  key only; production adapter bound at API startup via
+  `bind_action_card_refresh_cooldown_gate()` (`api/main.py` lifespan). Reuses
+  the `services.analytics_kpi_cache` process-lifetime `redis.asyncio` client
+  (#927) rather than opening a second connection — see "Per-shop refresh
+  cooldown" below
 
 ## Key behaviors
 
 - Unique constraint on `(shop_id, workflow_key)` — re-refresh updates rows in place
 - Sole write owner for `action_cards` and retained legacy `recommendations` tables
-- No Redis; Postgres is the sole store (ADR-021)
+- Card persistence itself has no Redis; Postgres is the sole store for
+  `ActionCard` rows (ADR-021) — the `refresh_cooldown` module below is a
+  separate, narrowly-scoped Redis key that never touches card content
 - HTTP handlers never run scoring inline — same pattern as `execution/dispatch.py`
 - `DAILY_SCORING_CRON_UTC` remains unused (manual refresh only)
 - Analytics-backed CTR (#428) ranks mid/large Ads workflows (`create_activity_7a`,
@@ -252,11 +265,63 @@ that week into within-quota vs. novelty-overflow (#716 B-4 cycle 2 —
 fill-to-cap; see "Soft novelty quota = fill to cap" above) — it no longer
 gates them outright as long as room remains under `max_active`.
 
+## Per-shop refresh cooldown (`refresh_cooldown.py`, #899, ADR-061 §2b)
+
+`POST /v1/action-cards/refresh` is authenticated and shop-scoped, so Nginx
+(network-origin throttling, issue #898) cannot express a useful limit — every
+caller for a shop shares an address and a session, and the handler enqueues a
+real TikTok-poll + full-scoring-pipeline Celery job on every call. This is the
+one application-level rate limit in the epic, keyed on shop identity.
+
+- `refresh_cooldown_seconds()` — the cooldown window, in seconds; overridable
+  via `ACTION_CARD_REFRESH_COOLDOWN_SECONDS` (default 300s), never a literal
+  in the route handler.
+- `RefreshCooldownGate` (protocol, `async def try_acquire`) /
+  `RedisRefreshCooldownGate` (production, Redis `SET NX EX` per shop on app
+  cache DB /0, ADR-041) / `UnavailableRefreshCooldownGate` /
+  `InMemoryRefreshCooldownGate` (test double).
+- `get_refresh_cooldown_gate()` raises `RuntimeError` until
+  `bind_action_card_refresh_cooldown_gate()` runs — called from `api/main.py`
+  lifespan, mirroring `bind_celery_dispatchers()`.
+
+**Async by construction (#927).** `infra/systemd/juli-api.service` runs
+uvicorn with `--workers 1` — one event loop serves every shop. Every concrete
+gate's `try_acquire` is `async def` and the route `await`s it
+(`api/routes/action_cards.py`); `RedisRefreshCooldownGate` takes an async
+(`redis.asyncio`) client — specifically the same process-lifetime client
+`services.analytics_kpi_cache.get_shared_redis_client()` already warms and
+closes on lifespan shutdown (ADR-041), reused via
+`bind_action_card_refresh_cooldown_gate()` rather than opening a second
+connection. That module also sets explicit `socket_timeout` /
+`socket_connect_timeout` on the shared client, so an unreachable Redis fails
+fast into the 429 path instead of blocking for the OS TCP timeout. The
+original #899 slice used the *synchronous* `redis` client called without
+`await`/`asyncio.to_thread`, which blocked that sole event loop on a slow or
+hung connection — stalling every request for every shop, the exact
+availability failure ADR-061 §2b exists to prevent, reintroduced inside the
+control meant to prevent it. `tests/unit/test_action_card_refresh_cooldown.py::test_slow_backing_store_does_not_stall_the_event_loop`
+is the regression test: a real (not instantly-erroring) slow TCP listener
+stands in for Redis, and a concurrent request to an unrelated route must
+still complete quickly.
+
+**Fails closed, deliberately.** `bind_action_card_refresh_cooldown_gate()`
+binds `UnavailableRefreshCooldownGate` — which denies every request — when
+`REDIS_URL` is unset, and `RedisRefreshCooldownGate.try_acquire` denies (does
+not raise, does not allow) on any `redis.exceptions.RedisError`. An unset or
+unreachable backing store must not silently become "no limit" — this
+codebase already has two controls that took that shape
+(`SUPABASE_JWT_SECRET` defaulting to `""`; `REDIS_URL` warming "fail-open if
+unset" for the unrelated analytics cache in `api/main.py`). This is the
+deliberate third case that does not repeat it. See
+`tests/unit/test_action_card_refresh_cooldown.py`.
+
 ## Out of scope
 
 - Celery beat / scheduled scoring
-- Redis read-through cache (emission-budget state included — Postgres is SoT
-  per ADR-038; `test_no_redis_dependency_in_emission_budget_module` guards this)
+- Redis read-through cache for card content (emission-budget state included —
+  Postgres is SoT per ADR-038; `test_no_redis_dependency_in_emission_budget_module`
+  guards `emission_budget.py` specifically). `refresh_cooldown.py` is a narrow,
+  intentional exception scoped to the single cooldown key (#899).
 - Seller-facing "Decision" UI (`web/`)
 - Wiring `apply_emission_budget` onto a scheduled/webhook trigger was
   originally out of scope for this slice (mirroring how B-3 shipped

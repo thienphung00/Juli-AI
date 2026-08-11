@@ -1,10 +1,10 @@
-import os
 import uuid
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.config.runtime import require_env
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.jwt import verify_supabase_jwt
 from juli_backend.database import NotFound, User, UsersRepo
@@ -24,7 +24,7 @@ async def get_current_user(
             detail="Missing authorization header",
         )
 
-    secret = os.environ.get("SUPABASE_JWT_SECRET", "")
+    secret = require_env("SUPABASE_JWT_SECRET")
     try:
         payload = verify_supabase_jwt(credentials.credentials, secret)
     except Unauthorized as exc:

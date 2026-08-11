@@ -54,15 +54,20 @@ def test_product_revenue_units_sold_migration_passes_additive_gate():
     assert result.accepted, [f.render() for f in result.findings]
 
 
-def test_product_revenue_units_sold_is_exactly_one_alembic_head_at_030():
-    """Guards the single-head invariant; the literal head id advances as
-    later slices stack on top of 030 (e.g. 031_inventory_items_velocity,
-    #943 follow-on)."""
+def test_product_revenue_units_sold_keeps_a_single_alembic_head():
+    """Guards the single-head invariant, without pinning the head id.
+
+    Same fix as test_inventory_items_velocity_migration: the old assertion pinned
+    031_inventory_items_velocity and broke when 032_close_public_schema_defaults
+    landed, despite the docstring acknowledging the head advances.
+    """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     cfg = Config(str(REPO_ROOT / "alembic.ini"))
     script = ScriptDirectory.from_config(cfg)
     heads = script.get_heads()
-    assert len(heads) == 1
-    assert heads == ["031_inventory_items_velocity"]
+    assert len(heads) == 1, f"migration graph has branched: {sorted(heads)}"
+
+    ancestry = {r.revision for r in script.walk_revisions(base="base", head="head")}
+    assert "030_product_revenue_units_sold" in ancestry

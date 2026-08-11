@@ -1,0 +1,73 @@
+{
+  "planId": "rep-929-ci-substrate-supabase-bootstrap",
+  "affectedPublicSurfaces": [
+    "the CI migration-check substrate; no runtime surface changes"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "CI only; no candidate deploy required",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "default-privileges-clause-is-proven",
+        "entryUrl": "CI: create a table AFTER upgrade head",
+        "assertions": [
+          "anon/authenticated cannot reach it",
+          "the same test FAILS when 029's ALTER DEFAULT PRIVILEGES lines are removed"
+        ]
+      },
+      {
+        "name": "existing-assertion-still-holds",
+        "entryUrl": "CI: the current public-schema boundary check",
+        "assertions": [
+          "still fails at 028 and passes at head"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No production schema change. Seeds Supabase-equivalent bootstrap grants into the CI database so the default-privileges half of migration 029 is actually exercised."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "revert the CI seeding step; no runtime impact",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python agent-runtime/scripts/ci/check_public_schema_privileges.py",
+    "pytest -q tests/integration/test_migrations.py -m migration_heavy"
+  ],
+  "doNotInfer": [
+    "Do not change migration 029 itself \u2014 it is correct; this slice changes the test substrate",
+    "Do not delete the seeding as redundant setup \u2014 document that it simulates Supabase project bootstrap",
+    "Do not claim the hosted project's Data API state from a CI result"
+  ]
+}

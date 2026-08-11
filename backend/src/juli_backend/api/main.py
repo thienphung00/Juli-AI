@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from juli_backend.services.action_cards import bind_action_card_refresh_cooldown_gate
     from juli_backend.services.analytics_kpi_cache import (
         close_shared_redis_client,
         get_shared_redis_client,
@@ -28,6 +29,16 @@ async def lifespan(app: FastAPI):
     from juli_backend.workers.dispatch_binding import bind_celery_dispatchers
 
     bind_celery_dispatchers()
+    # ADR-061 §2b: the per-shop refresh cooldown fails closed when REDIS_URL
+    # is unset — unlike the cache warm below, it must not go fail-open.
+    bind_action_card_refresh_cooldown_gate()
+
+    # ADR-061 "Startup assertions (fail to boot)" / issue #926: a missing
+    # SUPABASE_JWT_SECRET must fail the process at boot rather than let it
+    # serve /health 200 and 500 on the first authenticated request. The
+    # per-request check in core/security/dependencies.py:get_current_user
+    # stays in place as defence in depth.
+    require_env("SUPABASE_JWT_SECRET")
 
     database_url = async_database_url(require_env("DATABASE_URL"))
     engine = create_engine(database_url)

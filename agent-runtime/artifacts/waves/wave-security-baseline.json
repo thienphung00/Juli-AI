@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-security-baseline",
+  "branch": "feature/security-baseline-wave",
+  "issues": [
+    894,
+    896,
+    897,
+    898,
+    899,
+    900,
+    926,
+    927,
+    928,
+    929
+  ],
+  "artifactWaiver": {
+    "adr": "docs/adr/062-security-baseline-wave-artifact-waiver.md",
+    "reason": "Implementation artifacts were never emitted for the six original ADR-061 slices \u2014 the Executor briefs omitted the ADR-003 requirement, an orchestration error. The telemetry they carry (phaseRunId, executionDurationMs, toolInvocationCount, TDD red\u2192green evidence) is unrecoverable; producing PASS records would fabricate the evidence this gate verifies, and all six Review agents independently refused to do so. All six received a full intent-review \u2192 guardrails \u2192 validate pass instead, verifying by execution rather than reading, which found three real defects now fixed on this same wave (#927 blocking Redis on the sole worker, #928 platform-wide webhook ceiling, #929 unprovable default-privileges clause). The four fix slices #926-#929 emitted proper artifacts and are NOT waived.",
+    "approvedBy": "Repository owner (thienphung00)",
+    "grantedAt": "2026-08-10T05:30:00Z",
+    "issues": [
+      894,
+      896,
+      897,
+      898,
+      899,
+      900
+    ]
+  }
+}

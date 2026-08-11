@@ -1,0 +1,80 @@
+{
+  "planId": "rep-926-jwt-startup-assertion",
+  "affectedPublicSurfaces": [
+    "juli-api process startup \u2014 becomes a hard dependency on SUPABASE_JWT_SECRET",
+    "every authenticated /v1/* endpoint (unchanged behaviour when the secret is present)"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "loopback candidate; boot with the secret present, then boot with it removed",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "boot-fails-without-secret",
+        "entryUrl": "loopback candidate started with SUPABASE_JWT_SECRET unset",
+        "assertions": [
+          "process exits non-zero at startup",
+          "message names the variable",
+          "message contains no secret value",
+          "/health does NOT answer 200",
+          "stable slot keeps serving"
+        ]
+      },
+      {
+        "name": "normal-boot-unchanged",
+        "entryUrl": "loopback candidate with the secret present",
+        "assertions": [
+          "boots normally",
+          "/health 200",
+          "valid token accepted",
+          "empty-key-signed token still 401"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Converts a per-request failure into a startup failure. The secret is already SET in juli/api/production (verified 2026-08-10), so this will not block the next deploy."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy prior stable revision; a rollback does NOT restore a working auth path if the secret is genuinely absent \u2014 fix the secret, not the code",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit/test_get_current_user.py",
+    "pytest -q tests/unit -k 'main or lifespan or startup'"
+  ],
+  "doNotInfer": [
+    "Do not remove the per-request require_env \u2014 keep it as defence in depth",
+    "Do not weaken the assertion to a warning to keep a broken environment booting",
+    "Do not assume the exit-gate test covers startup unless it actually boots the app"
+  ]
+}

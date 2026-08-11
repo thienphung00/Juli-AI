@@ -17,7 +17,10 @@ from juli_backend.ai.forecasting import compute_reorder_quantity, get_low_stock_
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
 from juli_backend.repositories.repos import ActionCardsRepo
-from juli_backend.services.action_cards.dispatch import enqueue_action_card_refresh
+from juli_backend.services.action_cards import (
+    enqueue_action_card_refresh,
+    get_refresh_cooldown_gate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +90,24 @@ async def refresh_action_cards(
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ActionCardRefreshResponse:
-    """Enqueue manual refresh — never runs the pipeline inline."""
+    """Enqueue manual refresh — never runs the pipeline inline.
+
+    Per-shop cooldown (#899, ADR-061 §2b): a second refresh for the same shop
+    inside the cooldown window is rejected before enqueueing. This is the one
+    app-level rate limit in the epic — it is keyed on shop identity, which
+    Nginx (network-origin only, issue #898) cannot express.
+    """
+    decision = await get_refresh_cooldown_gate().try_acquire(str(shop.id))
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Action card refresh is on cooldown for this shop; "
+                f"retry in {decision.retry_after_seconds}s"
+            ),
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+
     try:
         celery_task_id = await enqueue_action_card_refresh(session, shop_id=shop.id)
     except Exception:

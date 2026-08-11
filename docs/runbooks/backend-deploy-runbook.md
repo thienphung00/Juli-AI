@@ -45,7 +45,7 @@ VPS only — never commit real values.
 | `CORS_ALLOW_ORIGINS` | Yes | `https://app-juli.com` |
 | `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | OAuth (#259) | Partner Center review app |
 | `TIKTOK_TOKEN_ENCRYPTION_KEY` | OAuth persistence (#259) | Dedicated secret for encrypted token storage |
-| `SUPABASE_JWT_SECRET` | Protected routes | Optional when frontend uses UI-only demo login |
+| `SUPABASE_JWT_SECRET` | Yes | Required at startup — the API refuses to boot-serve authenticated routes without it; there is no UI-only demo login fallback |
 
 See [`env/api.env.example`](env/api.env.example). App Review **does not** require
 `REDIS_URL`, cron, workers, ML batch jobs, polling, or a *separate* webhook

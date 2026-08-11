@@ -1,0 +1,84 @@
+{
+  "planId": "rep-927-cooldown-async-redis",
+  "affectedPublicSurfaces": [
+    "POST /v1/action-cards/refresh",
+    "the single uvicorn worker's event loop"
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "loopback candidate with a synthetic shop; exercise a SLOW backing store, not only one that raises",
+    "syntheticShopRequired": true,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": true,
+    "journeys": [
+      {
+        "name": "slow-redis-does-not-stall-the-worker",
+        "entryUrl": "loopback candidate with a deliberately slow Redis",
+        "assertions": [
+          "a concurrent request to an unrelated endpoint still completes",
+          "the worker stays responsive"
+        ]
+      },
+      {
+        "name": "fail-closed-preserved",
+        "entryUrl": "loopback candidate: gate unbound / REDIS_URL unset / RedisError raised",
+        "assertions": [
+          "all three deny",
+          "none degrade into unlimited enqueuing"
+        ]
+      },
+      {
+        "name": "cooldown-behaviour-unchanged",
+        "entryUrl": "loopback candidate: two rapid refreshes for one shop, then two shops",
+        "assertions": [
+          "one enqueue + one 429 with Retry-After",
+          "different shops unaffected",
+          "accepted again after the window"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "not-applicable: backend/config change, no HTML route"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "not-applicable"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No schema change. Swaps a blocking client for a non-blocking one and adds socket timeouts."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "discard_candidate_keep_stable",
+    "postCutoverFailureBehavior": "redeploy prior stable revision; in-flight Celery jobs unaffected",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pytest -q tests/unit -k 'action_card and (refresh or cooldown)'",
+    "python agent-runtime/scripts/ci/check_import_boundaries.py --strict"
+  ],
+  "doNotInfer": [
+    "Do not reintroduce a synchronous Redis call on the request path",
+    "Do not test a stall with a mock that raises instantly \u2014 that is what missed this defect",
+    "Do not relax any of the three fail-closed paths while changing the client"
+  ]
+}

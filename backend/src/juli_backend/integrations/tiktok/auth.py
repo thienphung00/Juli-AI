@@ -39,11 +39,13 @@ class TikTokAuth:
 
     def generate_auth_url(self, redirect_uri: str, state: str) -> str:
         """Build the URL a seller is redirected to for OAuth consent."""
-        params = urlencode({
-            "app_key": self._app_key,
-            "redirect_uri": redirect_uri,
-            "state": state,
-        })
+        params = urlencode(
+            {
+                "app_key": self._app_key,
+                "redirect_uri": redirect_uri,
+                "state": state,
+            }
+        )
         return f"{PARTNER_AUTH_URL}?{params}"
 
     def exchange_code(self, auth_code: str) -> dict:
@@ -75,16 +77,24 @@ class TikTokAuth:
     def _token_request(self, path: str, payload: dict) -> dict:
         url = f"{self._auth_base_url}{path}"
         try:
-            resp = requests.get(url, params=payload, timeout=10)
+            resp = requests.post(url, json=payload, timeout=10)
             resp.raise_for_status()
         except requests.RequestException as exc:
+            # Do not interpolate str(exc): requests/urllib3 embed the full
+            # request URL (query string included) in ConnectionError and
+            # HTTPError messages. Credentials travel in the JSON body, not
+            # the URL, but we still avoid raw exception text here as
+            # defense in depth. Record only a safe classification.
+            status_code = getattr(exc.response, "status_code", None)
             logger.warning(
                 "tiktok_token_request_failed",
-                extra={"path": path, "error": str(exc)},
+                extra={
+                    "path": path,
+                    "error_type": type(exc).__name__,
+                    "status_code": status_code,
+                },
             )
-            raise AuthenticationError(
-                code=0, message="TikTok token request failed"
-            ) from exc
+            raise AuthenticationError(code=0, message="TikTok token request failed") from exc
 
         data = resp.json()
         err = error_from_response(data)
