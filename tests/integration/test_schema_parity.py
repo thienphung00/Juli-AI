@@ -56,7 +56,14 @@ from tests.integration.test_migrations import postgres_at_head, requires_postgre
 
 __all__ = ["postgres_at_head", "requires_postgres"]
 
-pytestmark = pytest.mark.migration_heavy
+# Deliberately its OWN marker, distinct from `migration_heavy` (#943/#948).
+# `migration_heavy` covers the expensive seeded round-trip/restore-drill suite
+# that only runs on merge_group or migration-path PRs. This guard is a single
+# Alembic-chain replay + a metadata diff — cheap enough to run on every PR —
+# so it must NOT be deselected by `-m "not migration_heavy"` in the issue-tier
+# `test` job (.github/workflows/pr.yml). `@requires_postgres` (per test, below)
+# still makes it skip cleanly wherever no DATABASE_URL/Postgres is reachable.
+pytestmark = pytest.mark.schema_parity
 
 
 MIN_EXPECTED_MODEL_TABLES = 20
