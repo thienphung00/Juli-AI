@@ -29,6 +29,7 @@ from juli_backend.services.agent.llm.fake import (
     RecordedCall,
     ScriptExhaustedError,
 )
+from juli_backend.services.agent.llm.service import LLMService, Message, ToolDefinition
 
 __all__ = [
     "DEFAULT_MAX_OUTPUT_TOKENS",
