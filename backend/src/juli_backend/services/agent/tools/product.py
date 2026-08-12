@@ -43,8 +43,8 @@ tagging, or banned-pattern guard is implemented in this slice.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -66,9 +66,36 @@ class ProductToolContext:
     decision 1) — never constructed from model input. See module docstring
     for why this is a slice-local placeholder rather than an import of a
     shared `RunContext` type.
+
+    **Extended for WRITE capabilities (#982, ADR-070 decision 1's reserved
+    per-step extension).** `product_id` stays the only field READ handlers
+    use. The three fields below exist solely so WRITE handlers
+    (`product_write.py`) never take a raw vendor SKU ID, a raw vendor asset
+    URI, or raw image bytes from the LLM — those values live here,
+    server-side, instead:
+
+    - `sku_refs` — a closed per-run map from an agent-supplied opaque
+      `sku_ref` (e.g. `"S1"`) to the real vendor SKU id. Populating this map
+      from real run state is the not-yet-built run executor's job (ADR-073 /
+      W3-A), exactly as `product_id` itself isn't populated by anything in
+      this repo yet (see above) — tests construct it directly.
+    - `staged_image_uri` — the vendor asset URI produced by a prior
+      `upload_product_image` call, threaded forward so
+      `update_product_listing` can attach it without ever exposing the URI
+      to the model (ADR-070 decision 2: "images surface as `{count,
+      dimensions}` with server-held references").
+    - `pending_image_bytes` — the seller-supplied raw image bytes
+      `upload_product_image` screens and uploads. Never LLM-supplied: the
+      model cannot emit image content as output tokens (ADR-070 decision 1).
+
+    All three default empty/`None` so #981's `ProductToolContext(product_id=...)`
+    construction is unaffected.
     """
 
     product_id: str
+    sku_refs: Mapping[str, str] = field(default_factory=dict)
+    staged_image_uri: str | None = None
+    pending_image_bytes: bytes | None = None
 
 
 # --- get_product_information -------------------------------------------------

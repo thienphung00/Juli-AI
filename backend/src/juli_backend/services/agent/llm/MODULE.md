@@ -147,6 +147,7 @@ decision 6).
 - `httpx` (already a backend dependency) — the OpenAI adapter's HTTP client
 - Standard library only otherwise (`fake.py` uses no third-party import at all)
 
+
 ## Invariants
 
 - No `openai`/`anthropic`/`litellm`/`ollama`/`langchain` import anywhere under
