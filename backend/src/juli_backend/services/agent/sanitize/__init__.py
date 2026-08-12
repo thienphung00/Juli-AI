@@ -19,9 +19,14 @@
   allowlist (`{100005, 100006, 36009003}`) plus transport-level failures — an uncatalogued
   vendor code is not retryable. Raw vendor codes, request ids, and endpoint paths go to
   server-side logs only, never into the envelope (#993).
+- `chokepoints` (decision 6) — the two fail-closed banned-pattern seams that bracket the
+  agent: `guard_inbound_tool_result` replaces a hit with an internal tool error (the
+  `errors` envelope shape) before it reaches the conversation; `guard_outbound_agent_output`
+  raises `BannedPatternGuardFailure` before agent-authored output streams or persists. Both
+  fail closed on a scanning-machinery failure, not just a pattern hit (#994).
 
-See `docs/adr/070-agent-safe-sanitization-contract.md`. The remaining fail-closed
-chokepoint that consumes the banned-pattern guard is a separate issue (#994-#995).
+See `docs/adr/070-agent-safe-sanitization-contract.md`. The remaining golden-file gate is a
+separate issue (#995).
 """
 
 from juli_backend.services.agent.sanitize.banned_patterns import (
@@ -44,6 +49,14 @@ from juli_backend.services.agent.sanitize.caps import (
     estimate_result_tokens,
     estimate_tokens,
     sanitize_images,
+)
+from juli_backend.services.agent.sanitize.chokepoints import (
+    BannedPatternGuardFailure,
+    BannedPatternHit,
+    BannedPatternScanError,
+    find_banned_pattern_hits,
+    guard_inbound_tool_result,
+    guard_outbound_agent_output,
 )
 from juli_backend.services.agent.sanitize.errors import (
     RETRYABLE_VENDOR_CODES,
@@ -77,6 +90,9 @@ __all__ = [
     "PROVENANCE_SOURCES",
     "RETRYABLE_VENDOR_CODES",
     "BannedPatternEntry",
+    "BannedPatternGuardFailure",
+    "BannedPatternHit",
+    "BannedPatternScanError",
     "CappedImages",
     "CappedList",
     "CappedText",
@@ -93,7 +109,10 @@ __all__ = [
     "cap_text",
     "estimate_result_tokens",
     "estimate_tokens",
+    "find_banned_pattern_hits",
     "from_source",
+    "guard_inbound_tool_result",
+    "guard_outbound_agent_output",
     "iso_utc_timestamp",
     "load_banned_pattern_entries",
     "load_banned_patterns",
