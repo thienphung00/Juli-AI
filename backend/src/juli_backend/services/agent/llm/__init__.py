@@ -24,6 +24,11 @@ from juli_backend.services.agent.llm.config import (
     LLMConfigOverride,
     resolve_llm_config,
 )
+from juli_backend.services.agent.llm.fake import (
+    FakeLLMService,
+    RecordedCall,
+    ScriptExhaustedError,
+)
 from juli_backend.services.agent.llm.service import LLMService, Message, ToolDefinition
 
 __all__ = [
@@ -33,11 +38,14 @@ __all__ = [
     "DEFAULT_TEMPERATURE",
     "AssistantTurn",
     "Block",
+    "FakeLLMService",
     "FinalResponse",
     "LLMConfig",
     "LLMConfigOverride",
     "LLMService",
     "Message",
+    "RecordedCall",
+    "ScriptExhaustedError",
     "TextBlock",
     "ToolCallBlock",
     "ToolDefinition",

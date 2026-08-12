@@ -3,17 +3,20 @@
 ## Responsibility
 
 Juli's own model vocabulary and the service contract over it (#985, ADR-071
-decisions 1 and 4), plus the stateless OpenAI Responses adapter that
-implements that contract (#986, ADR-071 decisions 2, 3, 5). Blocks the agent
-can produce, a usage record, an assistant turn, the `LLMService` protocol,
-fail-closed `LLMConfig` resolution, and one concrete provider adapter. **No
-`openai` PyPI package import anywhere in this module** — the `openai`
-package is not declared in `backend/pyproject.toml` / `backend/
-constraints.txt`, so `openai_adapter.py` is built directly on `httpx`
-(already declared) and speaks the Responses API's HTTP contract without the
-vendor SDK. This is the seam (the `integrations/tiktok` wrapping pattern)
-that keeps a future provider swap to one file; provider-specific
-request/response knowledge lives only in `openai_adapter.py`.
+decisions 1 and 4), the stateless OpenAI Responses adapter that implements
+that contract (#986, ADR-071 decisions 2, 3, 5), and the scripted fake
+implementing the same contract for loop tests (#987, ADR-071 decision 6).
+Blocks the agent can produce, a usage record, an assistant turn, the
+`LLMService` protocol, fail-closed `LLMConfig` resolution, one concrete
+provider adapter, and one concrete test double. **No `openai` PyPI package
+import anywhere in this module** — the `openai` package is not declared in
+`backend/pyproject.toml` / `backend/constraints.txt`, so `openai_adapter.py`
+is built directly on `httpx` (already declared) and speaks the Responses
+API's HTTP contract without the vendor SDK; `fake.py` imports no
+provider/network library at all. This is the seam (the `integrations/tiktok`
+wrapping pattern) that keeps a future provider swap to one file;
+provider-specific request/response knowledge lives only in
+`openai_adapter.py`.
 decisions 1 and 4). Blocks the agent can produce, a usage record, an
 assistant turn, the `LLMService` protocol, and fail-closed `LLMConfig`
 resolution. **No provider code lands in this module** — no `openai` import,
@@ -32,6 +35,7 @@ from juli_backend.services.agent.llm import (
     LLMConfig, LLMConfigOverride, resolve_llm_config,
     DEFAULT_MODEL, DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_TEMPERATURE, DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    FakeLLMService, RecordedCall, ScriptExhaustedError,
 )
 ```
 
@@ -112,11 +116,37 @@ decision 6).
 - `Usage` on the returned `AssistantTurn` is read from the response body's
   `usage.input_tokens` / `usage.output_tokens`.
 
+### Fake (`fake.py`, #987)
+
+- `FakeLLMService(script)` — `LLMService` implementation that plays back a
+  scripted `Sequence[AssistantTurn]`, in order, across successive
+  `complete()` calls. The **standard double for loop tests** (ADR-071
+  decision 6) — downstream suites (the WorkflowRunner in W3-A above all)
+  construct it directly instead of stubbing HTTP. Each instance owns its own
+  script and cursor; two instances never share state.
+  - Script a plain text turn, a tool-call turn, or a final response by
+    constructing the corresponding `AssistantTurn` — no fake-only scripting
+    language, the same block vocabulary every `LLMService` returns.
+  - `recorded_calls` — a tuple of `RecordedCall(messages, system, tools,
+    config)` snapshots, one per `complete()` call received, in call order
+    (including the call that triggers exhaustion), for asserting what a
+    caller sent.
+  - Calling `complete()` past the end of the script raises
+    `ScriptExhaustedError` rather than returning something arbitrary.
+- `RecordedCall(messages, system, tools, config)` — frozen dataclass; one
+  recorded `complete()` call.
+- `ScriptExhaustedError(RuntimeError)` — raised on a `complete()` call past
+  the end of the script.
+- Zero provider dependency: imports only `agent/llm`'s own block/config/
+  service types and the standard library — no `httpx`, no network library
+  of any kind, unlike `openai_adapter.py`.
+
 ## Dependencies
 
 - `juli_backend.core.config.require_env` — fail-closed env read (ADR-061)
 - `httpx` (already a backend dependency) — the OpenAI adapter's HTTP client
-- Standard library only otherwise
+- Standard library only otherwise (`fake.py` uses no third-party import at all)
+
 
 ## Invariants
 
@@ -129,6 +159,10 @@ decision 6).
 - Blocks and `AssistantTurn` are frozen — a turn, once returned, does not mutate.
 - `OpenAIResponsesAdapter` never sends `previous_response_id` and always
   sets `"store": False` / `"stream": False` on the outbound request.
+- `fake.py` imports no provider/network library (asserted by
+  `tests/unit/test_agent_llm_fake.py`) — the fake never makes a network call.
+- `FakeLLMService` returns scripted turns strictly in order and never
+  returns past the end of its script (raises `ScriptExhaustedError` instead).
   this package (asserted by `tests/unit/test_agent_llm_contract.py`).
 - `resolve_llm_config` never defaults `OPENAI_API_KEY` to an empty string.
 - Blocks and `AssistantTurn` are frozen — a turn, once returned, does not mutate.
