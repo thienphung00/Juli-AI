@@ -1,0 +1,31 @@
+{
+  "title": {
+    "source": "vendor",
+    "text": "[Quà Tặng] Chai Xịt Thơm Miệng Fujisalt 14mL"
+  },
+  "status": "ACTIVATE",
+  "update_time": "2026-07-01T07:52:10+00:00",
+  "description": {
+    "source": "vendor",
+    "text": "[TRUNCATED — HTML product description]"
+  },
+  "sku_count": 1,
+  "total_inventory_quantity": 43,
+  "sku_prices": {
+    "items": [
+      {
+        "amount": 72000,
+        "currency": "VND"
+      }
+    ]
+  },
+  "images": {
+    "count": 1,
+    "dimensions": [
+      {
+        "width": 1200,
+        "height": 1200
+      }
+    ]
+  }
+}
