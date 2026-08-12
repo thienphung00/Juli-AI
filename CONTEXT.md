@@ -382,6 +382,14 @@ _Avoid_: treating Redis as the event source of truth, client-side deduplication,
 The 5-minute beat task that gives every abandoned agent run an owner (ADR-074 pending): stale `running`/`queued` runs (no event for the wall-clock budget + slack, no live task) are closed with `stop_reason: worker_lost`; `waiting_approval` runs past the 4h approval timeout are closed with `confirmation_expired`. Both closures emit through the normal `PersistingEventSink`, so connected clients watch the run die honestly instead of hanging on heartbeats.
 _Avoid_: runs stuck in `running` forever, reusing tool_error_unrecoverable for infrastructure deaths, expiry that only fires when someone looks
 
+**Approval gate**:
+The rule that an agent run can only come to exist as one atomic server-side transaction on the approve endpoint (ADR-075 pending): verify ActionCard `active` + tenant → flip to `approved` → insert `workflow_run` + approval audit row → check one-run-per-product → enqueue. No `approval_id` parameter exists on the agent path — there is nothing to forge because there is no claim to make. Double-approve 409s with exactly one run existing.
+_Avoid_: caller-supplied approval_id as authority, separate create-run endpoints, approval tokens
+
+**Decision request**:
+The generalized CONFIRM pause (ADR-075 pending, user directive): at a mutation point the agent presents 1..N reasoned HOW-level options (e.g. three price moves, each with rationale) instead of a single approve/decline diff — plan-mode style. Recorded as a single-use `run_confirmations` row storing each option's `proposed_change` verbatim + `params_sha`; the seller approves one option or declines all; on resume only the selected option's hash-matched params may execute. Decline is a conversation, not a kill: the model wraps up honestly → `completed`/`confirmation_declined`. Binary confirm is the N=1 case. Free-form mid-run seller Q&A is deferred with P-CS.
+_Avoid_: approve/decline-only confirmation framing, decline-kills-run, executing anything not shown to the seller, model-invocable request_approval tools
+
 **WorkflowRunStatus**:
 The 8-state lifecycle of an agent workflow run (ADR-068 pending): `created → queued → running ⇄ waiting_approval → completed | failed | cancelled | timed_out`. Stored state answers "what can happen next"; phase narration ("Đang phân tích…") travels as SSE `workflow.status` events, never as states. Maps onto — without rewriting — `ExecutionStatus` (per spawned write-tool execution), `ActionCard.status` (card side: `approved` at run creation, `executing` while live), and the frontend lifecycle, which gains a real terminal `failed` (deliberate supersession of ADR-055's no-terminal-failure note for agent runs).
 _Avoid_: encoding narration phases (GATHERING_CONTEXT, ANALYZING) as stored states, extending `ExecutionStatus` with run semantics, reusing `DemoExecutionState` on the agent path
