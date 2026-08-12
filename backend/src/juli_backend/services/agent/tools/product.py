@@ -49,7 +49,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from juli_backend.integrations.tiktok.factories import ProductionReadResources
+from juli_backend.integrations.tiktok import ProductionReadResources
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
     ToolPolicy,
