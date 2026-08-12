@@ -9,6 +9,7 @@ always-signalled truncation (#992, decision 2) — the two fail-closed
 chokepoints that consume the banned-pattern guard and error translation are
 separate issues (#993-#995).
 
+
 ## Subpackages
 
 - `sanitize` — loads `packages/contracts/seller-copy-banned-patterns.json`, the
