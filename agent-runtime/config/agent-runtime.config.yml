@@ -323,6 +323,36 @@ workflow_prompt_cache:
   # Known epics — ensure_workflow_cache uses these when Parent/#slice missing from CLI.
   # parentScopeBlock uses \n escapes (simple YAML loader; no literal | blocks).
   epicRegistry:
+    977:
+      defaultSliceId: AGT-W1A
+      handoffPath: docs/adr/069-agent-tool-registry-and-write-path.md
+      parentScopeBlock: "# Parent #977 - Agent tool registry, Optimize Product (constant)\n## Product boundary\n- Only optimize_product_2; the other 10 workflows arrive in P13\n- New module services/agent/tools/ only - the legacy services/execution/runner.py registry and its coarse chains stay registered and UNTOUCHED\n- No UI, no API routes, no migrations in this block\n## Architect locks\n- ADR-069's 6-tool granularity table is EXACT: get_product_information, get_seo_keywords (bundles seo_words+suggestions), upload_product_image, update_product_listing, update_product_price, check_product_status - never collapse to a mega-tool nor explode to per-endpoint tools\n- Tool input schemas carry NO identifier parameters; the executor injects the bound product identity from run context (ADR-070 d.1)\n- The model-facing JSON schema is DERIVED from the declared input model, never hand-written\n- Marketplace access only via the guarded factories (ProductionReadResources / SandboxWriteResources) - never a direct client (ADR-068 d.6b)\n- Capability names are business-semantic English snake_case, never vendor endpoint names\n- Tests live flat in tests/unit/ per repo convention - do not introduce tests/unit/agent/ subdirectories\n## Epic deferrals\n- ToolExecution idempotency ledger, claim-then-execute, crash reconciliation - ADR-073 / W3-A\n- Playbook allowlists and the playbook direction of cross-validation - ADR-072 / W2-A\n- The sanitization transform itself - ADR-070 / W1-C\n- The 4 unregistered legacy tools (fulfillment.process_order, returns.prevent_*) are FLAGGED, never fixed here\n"
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    978:
+      defaultSliceId: AGT-W1B
+      handoffPath: docs/adr/071-llm-service-openai-adapter.md
+      parentScopeBlock: "# Parent #978 - LLM service, neutral blocks over OpenAI adapter (constant)\n## Product boundary\n- New module services/agent/llm/ only; no prompts, no playbooks, no loop\n- No UI, no API routes, no migrations in this block\n## Architect locks\n- Base model is OpenAI GPT-5.4 nano via the Responses API - not Anthropic, superseding older plan drafts\n- Provider wire types NEVER leave the adapter module; the agent depends on the protocol, never the adapter\n- Stateless: never previous_response_id, never provider-side stored threads - the window is rebuilt every call\n- Non-streamed complete turns; token deltas are deliberately NOT implemented (assistant.text.delta is reserved only)\n- Config precedence is playbook override > environment > defaults; OPENAI_API_KEY via require_env, fail-closed, never an empty-string default\n- CORRECTION to the implementation handoff, flagged to the Architect: the handoff says the 3 no-LLM contract tests were lifted. ADR-068 decision 6 says the OPPOSITE - they are kept UNCHANGED and 3 new boundary tests are added alongside. ADR-068 wins. Do not modify test_rules_copy_layer_contract.py, TestRuleBasedNoLlmDependency, or the dashboard listing-rules test.\n- Tests live flat in tests/unit/ per repo convention\n## Epic deferrals\n- Fallback chains, multi-provider registry, failover\n- Budget enforcement and per-shop daily caps (P9); per-run iteration caps (W3-A)\n- Structured output validation and repair - user-deferred\n"
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    979:
+      defaultSliceId: AGT-W1C
+      handoffPath: docs/adr/070-agent-safe-sanitization-contract.md
+      parentScopeBlock: "# Parent #979 - Agent-safe sanitization contract (constant)\n## Product boundary\n- New module services/agent/sanitize/ plus the shared banned-pattern source in packages/contracts\n- Optimize Product tool surface only; no UI, no API routes, no migrations\n- The existing TypeScript guard is rewired to the shared source with ZERO behavior change; apps/demo re-exports and needs no edit\n## Architect locks\n- Provenance (source: juli | vendor | seller) is assigned SERVER-SIDE from field origin - text can never relabel itself. No buyer role. Field is named source, not role.\n- Every truncation is signalled with {truncated, omitted_count} - silent shortening is structurally forbidden\n- Compaction is DETERMINISTIC server code; no model-side summarization, so goldens stay reproducible\n- Machine values only: ISO-8601 UTC, numeric money beside a currency field, numeric rates; display formatting stays in the copy layer\n- retryable derives from the curated allowlist {100005, 100006, 36009003} plus transport errors; uncatalogued failures are NOT retryable (fail-closed)\n- Both chokepoints fail closed; new banned patterns must compile in BOTH the JS and Python regex dialects\n- Tests live flat in tests/unit/ per repo convention\n## Epic deferrals\n- Repair retry and rules-template fallback - user-deferred with structured output (P7); build the seam only\n- Opaque per-run reference ids for mid-run entity selection - reserved by ADR-070, not needed by Optimize Product\n- Invisible-Unicode and bidi stripping, adversarial fixture suite - ADR-075 / W4-A\n- Multi-product Optimize Product card shape - flagged open question at the ActionCard layer\n"
+      doNotLoad:
+        - apps/dashboard/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     889:
       defaultSliceId: SEC-1
       handoffPath: docs/adr/061-first-user-security-baseline.md
