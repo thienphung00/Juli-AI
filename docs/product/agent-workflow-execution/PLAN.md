@@ -24,7 +24,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | 🟨 design grilled 2026-08-12 — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md) drafted; implementation pending | ⬜ |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
-| 10 | P9+P14 — Approval, safety & security prerequisites | ⬜ | ⬜ |
+| 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | ⬜ | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
@@ -118,20 +118,25 @@ Original minimal specs (unchanged, for when the phase is picked up):
 
 Gate: malformed-output test falls back cleanly; frontend can type against the schema.
 
-### 10. P9+P14 — Approval, safety & security prerequisites
-Minimal specs:
-- Server-side approval gate: run created only from an `ActionCard` the user approved (closes the unverified `approval_id` gap in `api/routes/executions.py`); CONFIRM-class write tools pause with `workflow.approval_required` + resume endpoint.
-- Fail-closed JWT startup assertion (empty `SUPABASE_JWT_SECRET` must crash, not bypass — `core/security/dependencies.py:27`) — **required before real user data flows**.
-- Prompt-injection posture: product content tagged untrusted; server-side output guard on.
+### 10. P9+P14 — Approval, safety & security prerequisites — *design grilled 2026-08-12, [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md)*
+Settled specs (baseline re-verified: JWT already fail-closed via `require_env` #902; `/docs` production-gated — both now verification tests):
+- **Approval gate:** approve *is* run creation — one atomic transaction (verify card `active` + tenant → flip → insert run + audit row → one-run-per-product check → enqueue); no `approval_id` parameter on the agent path; raced double-approve yields exactly one run. Legacy `/v1/executions` hardened separately with server-side verification.
+- **Decision requests (user directive):** CONFIRM generalized to 1..N reasoned options (e.g. three price moves with rationale) — plan-mode style; additive `options[]` on `workflow.approval_required`; endpoint takes `{decision: approve, option_id}` or `decline`; per-option `params_sha` consent binding (only the shown, selected option may execute); single-use row; decline → model wraps up honestly → `completed`/`confirmation_declined`. `run_confirmations` is the consent audit + approval-rate metric source. Free-form mid-run Q&A deferred with P-CS.
+- **Authenticated demo (user choice):** all agent run routes require Supabase JWT (`get_current_user` + `get_active_shop`); the demo is a real account whose active shop is the reference shop — one router, one resolution. **P-UI inherits a Supabase sign-in requirement + option-picker confirmation UI.**
+- **Boot assertion** `assert_agent_runtime_config()`: OPENAI_API_KEY; real broker; banned-patterns compiles; sandbox guard config per WRITE tool; SUPABASE_JWT_SECRET (unconditional); production-write capability ⇒ zero unauthenticated route groups.
+- **Inbound limits** (Redis token bucket inward, per shop, config-driven, 429 + security event): runs 5/hr burst 2; confirmations 30/hr; 10 concurrent SSE streams; **cancel never throttled**.
+- **Injection posture:** six layers assembled (structural / provenance / content shape / output / consent / blast radius) + invisible-Unicode & bidi stripping in the sanitizer + an adversarial fixture suite as the permanent regression net. **RLS deferred** as a hard precondition on the production-write-unlock list (no multi-tenant production with real seller data before functional RLS).
 
-Gate: unauthorized/unapproved run attempts rejected in tests; write tool blocked without confirmation; auth assertion verified.
+Gate: approval-gate suite (incl. raced double-approve + atomicity fault injection), full confirmation ladder + hash-mismatch hard-fail, 401s on every route incl. SSE, six-check boot matrix, 429 + security events with cancel unthrottled, adversarial fixtures green; manual red-team pass — "run without approval" and "unshown mutation" both demonstrably impossible.
 
 ### 11. P-UI — Demo UI polish + wiring, Optimize Product only
 Minimal specs:
 - Fix `fetchRecommendations()` path bug (`/v1/demo/recommendations` → `/v1/demo/decisions` in `apps/demo/src/lib/recommendations.ts`); surface failures instead of silent fixture fallback.
-- Approve → create run → `EventSource` consumption; execution view rendered from the event protocol (agent text, tool progress, approval pause, final structured output); replace localStorage `startExecution` (`apps/demo/src/lib/executions.ts:163-196`) for this workflow; polish per `ui-ux-design` skill; update `apps/demo/MODULE.md` invariant.
+- Approve → run created by the approval gate (ADR-075) → **fetch-streaming SSE** consumption (ADR-074 — not native `EventSource`); execution view rendered from the event protocol (agent text, tool progress, decision-request pause, final output); replace localStorage `startExecution` (`apps/demo/src/lib/executions.ts:163-196`) for this workflow; polish per `ui-ux-design` skill; update `apps/demo/MODULE.md` invariant.
+- **Supabase sign-in** (ADR-075: the demo is a real authenticated account on the reference shop) — login screen or pre-provisioned demo session.
+- **Option-picker confirmation UI** (ADR-075 decision requests): render 1..N agent-proposed options with rationale (e.g. three price moves) as a selection + decline-all, not a bare approve/decline pair.
 
-Gate: a user can run Optimize Product end-to-end in the Demo page against the real backend and watch it stream.
+Gate: a signed-in user can run Optimize Product end-to-end in the Demo page against the real backend, watch it stream, and pick among agent-proposed options at the confirmation pause.
 
 ### 12. P10 — Observability baseline
 Minimal specs:
