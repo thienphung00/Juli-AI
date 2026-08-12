@@ -1,0 +1,674 @@
+{
+  "_meta": {
+    "captured_at": null,
+    "region": "VN",
+    "merchant": "synthetic",
+    "endpoint": "GET /product/202309/products/{product_id}",
+    "api_version": "202309",
+    "contract_section": "synthetic-large-#995",
+    "contract_collection": "docs/integrations/tiktok_api/contract-collection.md",
+    "shop_cipher_redacted": true,
+    "provenance": "SYNTHETIC — NOT a recorded marketplace response. Built by tests/unit/test_agent_sanitize_golden.py::_build_synthetic_large_raw_input to exercise cap_list/sanitize_images/cap_text truncation at a scale the real recorded fixture (single SKU, single image) never reaches. See issue #995."
+  },
+  "response": {
+    "code": 0,
+    "data": {
+      "audit": {
+        "status": "APPROVED"
+      },
+      "description": "Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng.",
+      "id": "0000000000000000000",
+      "main_images": [
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/000/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/001/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/002/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/003/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/004/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/005/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/006/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/007/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/008/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/009/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/010/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/011/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/012/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/013/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/014/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/015/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/016/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/017/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/018/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/019/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/020/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/021/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/022/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 1200
+        },
+        {
+          "height": 1200,
+          "uri": "synthetic-tos/023/{image_uri}",
+          "urls": [
+            "{signed_image_url}"
+          ],
+          "width": 800
+        }
+      ],
+      "skus": [
+        {
+          "id": "synthetic-sku-000",
+          "inventory": [
+            {
+              "quantity": 40,
+              "warehouse_id": "synthetic-warehouse-000"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "70000",
+            "tax_exclusive_price": "70000"
+          },
+          "seller_sku": "XTM-SYN-000",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-001",
+          "inventory": [
+            {
+              "quantity": 41,
+              "warehouse_id": "synthetic-warehouse-001"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "70500",
+            "tax_exclusive_price": "70500"
+          },
+          "seller_sku": "XTM-SYN-001",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-002",
+          "inventory": [
+            {
+              "quantity": 42,
+              "warehouse_id": "synthetic-warehouse-002"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "71000",
+            "tax_exclusive_price": "71000"
+          },
+          "seller_sku": "XTM-SYN-002",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-003",
+          "inventory": [
+            {
+              "quantity": 43,
+              "warehouse_id": "synthetic-warehouse-003"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "71500",
+            "tax_exclusive_price": "71500"
+          },
+          "seller_sku": "XTM-SYN-003",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-004",
+          "inventory": [
+            {
+              "quantity": 44,
+              "warehouse_id": "synthetic-warehouse-004"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "72000",
+            "tax_exclusive_price": "72000"
+          },
+          "seller_sku": "XTM-SYN-004",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-005",
+          "inventory": [
+            {
+              "quantity": 45,
+              "warehouse_id": "synthetic-warehouse-005"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "72500",
+            "tax_exclusive_price": "72500"
+          },
+          "seller_sku": "XTM-SYN-005",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-006",
+          "inventory": [
+            {
+              "quantity": 46,
+              "warehouse_id": "synthetic-warehouse-006"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "73000",
+            "tax_exclusive_price": "73000"
+          },
+          "seller_sku": "XTM-SYN-006",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-007",
+          "inventory": [
+            {
+              "quantity": 47,
+              "warehouse_id": "synthetic-warehouse-007"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "73500",
+            "tax_exclusive_price": "73500"
+          },
+          "seller_sku": "XTM-SYN-007",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-008",
+          "inventory": [
+            {
+              "quantity": 48,
+              "warehouse_id": "synthetic-warehouse-008"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "74000",
+            "tax_exclusive_price": "74000"
+          },
+          "seller_sku": "XTM-SYN-008",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-009",
+          "inventory": [
+            {
+              "quantity": 49,
+              "warehouse_id": "synthetic-warehouse-009"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "74500",
+            "tax_exclusive_price": "74500"
+          },
+          "seller_sku": "XTM-SYN-009",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-010",
+          "inventory": [
+            {
+              "quantity": 50,
+              "warehouse_id": "synthetic-warehouse-010"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "75000",
+            "tax_exclusive_price": "75000"
+          },
+          "seller_sku": "XTM-SYN-010",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-011",
+          "inventory": [
+            {
+              "quantity": 51,
+              "warehouse_id": "synthetic-warehouse-011"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "75500",
+            "tax_exclusive_price": "75500"
+          },
+          "seller_sku": "XTM-SYN-011",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-012",
+          "inventory": [
+            {
+              "quantity": 52,
+              "warehouse_id": "synthetic-warehouse-012"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "76000",
+            "tax_exclusive_price": "76000"
+          },
+          "seller_sku": "XTM-SYN-012",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-013",
+          "inventory": [
+            {
+              "quantity": 53,
+              "warehouse_id": "synthetic-warehouse-013"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "76500",
+            "tax_exclusive_price": "76500"
+          },
+          "seller_sku": "XTM-SYN-013",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-014",
+          "inventory": [
+            {
+              "quantity": 54,
+              "warehouse_id": "synthetic-warehouse-014"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "77000",
+            "tax_exclusive_price": "77000"
+          },
+          "seller_sku": "XTM-SYN-014",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-015",
+          "inventory": [
+            {
+              "quantity": 55,
+              "warehouse_id": "synthetic-warehouse-015"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "77500",
+            "tax_exclusive_price": "77500"
+          },
+          "seller_sku": "XTM-SYN-015",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-016",
+          "inventory": [
+            {
+              "quantity": 56,
+              "warehouse_id": "synthetic-warehouse-016"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "78000",
+            "tax_exclusive_price": "78000"
+          },
+          "seller_sku": "XTM-SYN-016",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-017",
+          "inventory": [
+            {
+              "quantity": 57,
+              "warehouse_id": "synthetic-warehouse-017"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "78500",
+            "tax_exclusive_price": "78500"
+          },
+          "seller_sku": "XTM-SYN-017",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-018",
+          "inventory": [
+            {
+              "quantity": 58,
+              "warehouse_id": "synthetic-warehouse-018"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "79000",
+            "tax_exclusive_price": "79000"
+          },
+          "seller_sku": "XTM-SYN-018",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-019",
+          "inventory": [
+            {
+              "quantity": 59,
+              "warehouse_id": "synthetic-warehouse-019"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "79500",
+            "tax_exclusive_price": "79500"
+          },
+          "seller_sku": "XTM-SYN-019",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-020",
+          "inventory": [
+            {
+              "quantity": 60,
+              "warehouse_id": "synthetic-warehouse-020"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "80000",
+            "tax_exclusive_price": "80000"
+          },
+          "seller_sku": "XTM-SYN-020",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-021",
+          "inventory": [
+            {
+              "quantity": 61,
+              "warehouse_id": "synthetic-warehouse-021"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "80500",
+            "tax_exclusive_price": "80500"
+          },
+          "seller_sku": "XTM-SYN-021",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-022",
+          "inventory": [
+            {
+              "quantity": 62,
+              "warehouse_id": "synthetic-warehouse-022"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "81000",
+            "tax_exclusive_price": "81000"
+          },
+          "seller_sku": "XTM-SYN-022",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-023",
+          "inventory": [
+            {
+              "quantity": 63,
+              "warehouse_id": "synthetic-warehouse-023"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "81500",
+            "tax_exclusive_price": "81500"
+          },
+          "seller_sku": "XTM-SYN-023",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        },
+        {
+          "id": "synthetic-sku-024",
+          "inventory": [
+            {
+              "quantity": 64,
+              "warehouse_id": "synthetic-warehouse-024"
+            }
+          ],
+          "price": {
+            "currency": "VND",
+            "sale_price": "82000",
+            "tax_exclusive_price": "82000"
+          },
+          "seller_sku": "XTM-SYN-024",
+          "status_info": {
+            "status": "NORMAL"
+          }
+        }
+      ],
+      "status": "ACTIVATE",
+      "title": "[Synthetic] Large Product Fixture For Golden-File Cap Truncation (#995)",
+      "update_time": 1782892330
+    },
+    "message": "Success",
+    "request_id": "{synthetic_request_id}"
+  }
+}
