@@ -29,6 +29,7 @@ and was not always re-annotated when an ADR settled the question differently.
 | `ToolExecution` is an audit row; writes execute in-run | ADR-069 d.2 | **ADR-073** (amendment, quoted inside ADR-069 itself) | `ToolExecution` is promoted to an **idempotency ledger** — unique `(workflow_run_id, tool_call_id, operation)`, claim-then-execute, verify-then-decide crash reconciliation. **This belongs to W3-A, not W1-A.** |
 | `stop_reason` enum as originally listed | ADR-073 | **ADR-074** (additive) | `worker_lost` is an additive member, set by the 5-minute reaper. |
 | Demo design-language files for the Optimize Product surfaces | older `docs/product/design` material | **ADR-076 + PUI-DESIGN.md** | PUI-DESIGN.md **deliberately overrides** them for these surfaces. Do not "reconcile" back. |
+| "the OpenAI SDK rides httpx like the TikTok client" — implying the SDK is used | ADR-071 d.6 | **Architect decision 2026-08-12 (Option A)** | The adapter is built directly on `httpx`; the `openai` SDK is **not** used. ADR-071's rationale (contain wire types, stay swappable, mirror the hand-rolled `integrations/tiktok` client) is satisfied without it. ADR-068 d.6(a)'s containment test still applies as a guard against future SDK creep. Revisit if we adopt streaming or structured outputs. |
 | Platform/rollback shape | ADR-035 | **ADR-057** (platform, in part) | Single-VPS pre-user delivery. Relevant when the public-release evidence gate fires. |
 
 ## Deferred — build to the seam, do not implement
