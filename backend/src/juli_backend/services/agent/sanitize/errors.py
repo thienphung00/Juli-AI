@@ -10,7 +10,14 @@ the agent loop can act on::
 - ``category`` reuses the existing `ExecutionErrorCategory` taxonomy
   (``validation`` | ``tiktok_api`` | ``transient`` | ``unknown``, from
   `juli_backend.services.execution.types`) — no parallel taxonomy is
-  introduced.
+  introduced. Critically, ``category`` and ``retryable`` are derived from the
+  **same fact** (the curated code allowlist below), not from independent
+  logic that could disagree: any code in `RETRYABLE_VENDOR_CODES` is
+  ``transient`` regardless of which exception *class* happens to carry it,
+  so a ``retryable: true`` decision can never pair with the ``tiktok_api``
+  category's "will not succeed unmodified" message. See `_category_for`'s
+  docstring for the specific defect this closes (36009003 arriving as a bare
+  `TikTokAPIError`, not a dedicated subclass).
 - ``message`` is a curated, business-language English sentence written for a
   nano-class model. It is never built from ``str(exc)`` or
   `TikTokAPIError.message`: the vendor's own error text is not written for an
@@ -103,19 +110,32 @@ def _category_for(exc: BaseException) -> ExecutionErrorCategory:
     """Coarse category for a marketplace failure.
 
     Mirrors `juli_backend.services.execution.errors.classify_execution_error`
-    for the branches this translator handles: a `TransportGuardError` is a
+    for the branches this translator handles, with one deliberate widening:
+    category is derived from the **same fact** `_is_retryable` uses — the
+    curated code allowlist — rather than from which exception *class*
+    happened to carry the code. `RateLimitError`/`TikTokSystemError` cover
+    100005/100006, but 36009003 (the third allowlisted code, live-captured on
+    an `orders/search` 500) has no dedicated subclass in
+    `integrations/tiktok/exceptions.py._CODE_MAP` and arrives as a bare
+    `TikTokAPIError`. Classifying it by subclass alone would leave a
+    ``retryable: true`` decision paired with a ``tiktok_api`` category whose
+    curated message ("will not succeed unmodified") flatly contradicts the
+    decision — a defect a nano-class model reading only `message` cannot see
+    through. So: any code in `RETRYABLE_VENDOR_CODES` is ``transient``
+    (an allowlisted-retryable failure *is* transient by definition, whether
+    or not a subclass exists for it); a `TransportGuardError` is a
     deterministic policy rejection (``validation``, same as the execution
-    layer); rate-limit/system-error codes are ``transient``; every other
-    vendor-coded failure is ``tiktok_api``; a bare transport failure (no
-    vendor code exists at all) is also ``transient`` — it is, by definition,
-    not a deterministic application-level rejection. Anything else this
-    translator doesn't recognize is ``unknown``.
+    layer); every other vendor-coded failure is ``tiktok_api``; a bare
+    transport failure (no vendor code exists at all) is also ``transient``.
+    Anything else this translator doesn't recognize is ``unknown``.
     """
     if isinstance(exc, TransportGuardError):
         return ExecutionErrorCategory.VALIDATION
-    if isinstance(exc, (RateLimitError, TikTokSystemError)):
-        return ExecutionErrorCategory.TRANSIENT
     if isinstance(exc, TikTokAPIError):
+        if isinstance(exc, (RateLimitError, TikTokSystemError)):
+            return ExecutionErrorCategory.TRANSIENT
+        if exc.code in RETRYABLE_VENDOR_CODES:
+            return ExecutionErrorCategory.TRANSIENT
         return ExecutionErrorCategory.TIKTOK_API
     if isinstance(exc, _TRANSPORT_ERROR_TYPES):
         return ExecutionErrorCategory.TRANSIENT

@@ -29,6 +29,8 @@ from juli_backend.integrations.tiktok import (
     TransportGuardError,
 )
 from juli_backend.services.agent.sanitize.errors import (
+    _TIKTOK_API_MESSAGE,
+    _TRANSIENT_VENDOR_MESSAGE,
     RETRYABLE_VENDOR_CODES,
     TranslatedError,
     to_error_envelope,
@@ -84,7 +86,7 @@ def test_retryable_codes_match_adr_070_decision_5():
         (TikTokSystemError(100006, "Internal error"), ExecutionErrorCategory.TRANSIENT),
         (
             TikTokAPIError(36009003, "Internal error. Please try again."),
-            ExecutionErrorCategory.TIKTOK_API,
+            ExecutionErrorCategory.TRANSIENT,
         ),
     ],
     ids=["100005_rate_limit", "100006_system_error", "36009003_vendor_internal"],
@@ -95,6 +97,38 @@ def test_curated_retryable_vendor_codes_map_to_retryable_true(exc, expected_cate
     assert isinstance(result, TranslatedError)
     assert result.retryable is True
     assert result.category == expected_category
+
+
+# ---------------------------------------------------------------------------
+# Regression: message must never contradict retryable. Every curated code
+# raised as a *bare* TikTokAPIError (not just the subclassed ones) must
+# still produce a retryable-consistent message — this is the exact live
+# production shape for 36009003, which has no dedicated subclass in
+# integrations/tiktok/exceptions.py._CODE_MAP.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("code", sorted(RETRYABLE_VENDOR_CODES))
+def test_bare_tiktok_api_error_for_every_curated_code_has_consistent_message(code):
+    exc = TikTokAPIError(code, "boom", "req-123")
+
+    result = translate_marketplace_error(exc)
+
+    assert result.retryable is True
+    assert result.category == ExecutionErrorCategory.TRANSIENT
+    assert result.message == _TRANSIENT_VENDOR_MESSAGE
+    assert "will not succeed" not in result.message
+
+
+def test_bare_tiktok_api_error_for_an_uncatalogued_code_has_consistent_message():
+    exc = TikTokAPIError(999999, "boom", "req-123")
+
+    result = translate_marketplace_error(exc)
+
+    assert result.retryable is False
+    assert result.category == ExecutionErrorCategory.TIKTOK_API
+    assert result.message == _TIKTOK_API_MESSAGE
+    assert "will not succeed" in result.message
 
 
 # ---------------------------------------------------------------------------
