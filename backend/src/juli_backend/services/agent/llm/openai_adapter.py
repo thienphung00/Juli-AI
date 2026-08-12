@@ -79,21 +79,24 @@ class LLMProviderError(RuntimeError):
 class OpenAIResponsesAdapter:
     """`LLMService` implementation over the OpenAI Responses API.
 
-    ``transport`` is an injectable `httpx.BaseTransport` -- production code
-    leaves it unset (real network); tests inject `httpx.MockTransport` over
-    a recorded-shaped response body, mirroring the stubbed-transport pattern
-    used for `tiktok_recorded_replay.py`, adapted to `httpx` because the
-    OpenAI wire protocol (and the vendor SDK, when present) rides `httpx`
-    rather than `requests`.
+    ``transport`` is an injectable `httpx.AsyncBaseTransport` -- production
+    code leaves it unset (real network); tests inject `httpx.MockTransport`
+    over a recorded-shaped response body, mirroring the stubbed-transport
+    pattern used for `tiktok_recorded_replay.py`, adapted to `httpx` because
+    the OpenAI wire protocol (and the vendor SDK, when present) rides
+    `httpx` rather than `requests`. The seam is typed as
+    `AsyncBaseTransport` (not `BaseTransport`) because this adapter builds
+    an `httpx.AsyncClient`, whose `transport` parameter only accepts the
+    async transport base class.
     """
 
     def __init__(
         self,
         *,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
         base_url: str = DEFAULT_BASE_URL,
     ) -> None:
-        self._transport = transport
+        self._transport: httpx.AsyncBaseTransport | None = transport
         self._base_url = base_url
 
     async def complete(
