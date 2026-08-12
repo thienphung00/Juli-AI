@@ -132,3 +132,11 @@ worker retries, and concurrent edits to the same product. Six decisions were gri
   need high-frequency state writes, the P-CS store absorbs them (documented seam).
 - One active run per product means a seller cannot queue a second optimization while
   one waits for approval — accepted; expiry (4h) bounds the blocking window.
+
+## Amendment — `worker_lost` and reaper enforcement (2026-08-12, [ADR-074](074-agent-event-streaming-and-relay.md))
+
+One additive `stop_reason` member: **`worker_lost`** (→ `failed`) — assigned by
+ADR-074's reaper to runs whose worker died twice (crash + failed redelivery), keeping
+the execution-quality metric honest about infrastructure deaths vs task failures. The
+reaper is also where `approval_timeout_h` physically runs: `waiting_approval` past 4h
+→ `confirmation_expired` → `cancelled`. The total-mapping test covers both.
