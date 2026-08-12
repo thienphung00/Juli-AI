@@ -16,10 +16,17 @@ remains in app-level libs until a later migration.
 - `ReviewInputFieldDescriptor` — editable Inputs-stage field metadata.
 - `DemoAnalyticsEnvelope` / `AnalyticsKpiEntry` — masked public Analytics KPI envelope (#525/#531); `gmv_tiktok` label law, no `net_revenue` alias.
 - `deriveLifecycleFromTimeline(timeline)` — maps step states to lifecycle status.
+- `SELLER_COPY_BANNED_PATTERNS` — compiled `RegExp[]` built from
+  `seller-copy-banned-patterns.json` (ADR-070 decision 6, #990), the single
+  language-neutral banned-pattern source also loaded by the Python agent guard
+  (`backend/src/juli_backend/services/agent/sanitize`). Extraction only — this
+  package must never add, remove, or alter a pattern without updating the JSON
+  and re-verifying `tests/unit/test_agent_banned_patterns_contract.py`.
 
 ## Dependencies
 
-- None (pure TypeScript types and helpers).
+- None (pure TypeScript types and helpers) besides `resolveJsonModule` (tsconfig
+  flag, not a package) to read `seller-copy-banned-patterns.json`.
 
 ## Invariants
 
