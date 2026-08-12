@@ -1,0 +1,58 @@
+{
+  "model": "gpt-5.4-nano",
+  "provenance": "hand-authored placeholder pending the live GPT-5.4 nano run",
+  "recorded_at": null,
+  "request": {
+    "input": [
+      {
+        "content": [
+          {
+            "text": "Start optimizing this listing. Look up the product information first.",
+            "type": "input_text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "instructions": "You are Juli, optimizing a TikTok Shop listing. The product is already bound to this run - tools take no identifier arguments.",
+    "max_output_tokens": 1024,
+    "model": "gpt-5.4-nano",
+    "store": false,
+    "stream": false,
+    "temperature": 0.2,
+    "tools": [
+      {
+        "description": "Read the current listing details for the product bound to this run.",
+        "name": "get_product_information",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {},
+          "title": "GetProductInformationInput",
+          "type": "object"
+        },
+        "type": "function"
+      }
+    ]
+  },
+  "response": {
+    "id": "resp_placeholder_989",
+    "model": "gpt-5.4-nano",
+    "object": "response",
+    "output": [
+      {
+        "arguments": "{}",
+        "call_id": "call_placeholder_989",
+        "id": "fc_placeholder_989",
+        "name": "get_product_information",
+        "status": "completed",
+        "type": "function_call"
+      }
+    ],
+    "status": "completed",
+    "usage": {
+      "input_tokens": 214,
+      "output_tokens": 17,
+      "total_tokens": 231
+    }
+  }
+}
