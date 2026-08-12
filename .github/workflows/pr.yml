@@ -131,6 +131,7 @@ jobs:
               - 'tests/**'
               - 'scripts/**'
               - 'pyproject.toml'
+              - 'pytest.ini'
               - 'alembic.ini'
               - 'alembic/**'
               - 'packages/contracts/**'
