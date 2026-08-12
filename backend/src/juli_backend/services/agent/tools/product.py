@@ -45,7 +45,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, Field
