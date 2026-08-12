@@ -13,6 +13,7 @@ import os
 from dataclasses import dataclass
 
 from juli_backend.core.config import require_env
+from juli_backend.services.agent.llm.blocks import Usage
 
 DEFAULT_MODEL = "gpt-5.4-nano"
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
@@ -101,3 +102,37 @@ def _resolve_float(override_value: float | None, env_var: str, default: float) -
         return override_value
     raw = os.environ.get(env_var, "").strip()
     return float(raw) if raw else default
+
+
+@dataclass(frozen=True)
+class ModelPrice:
+    """USD price per 1M tokens for one model (ADR-071 decision 5)."""
+
+    input_usd_per_million_tokens: float
+    output_usd_per_million_tokens: float
+
+
+# Static price table (ADR-071 decision 5): a maintained artifact, not a live
+# feed. Stale or missing entries skew the derived cost estimate but never
+# raise or block a run -- these are estimates, not billing (ADR-071
+# consequences). Update alongside DEFAULT_MODEL / pricing changes.
+PRICE_TABLE_USD_PER_MILLION_TOKENS: dict[str, ModelPrice] = {
+    "gpt-5.4-nano": ModelPrice(
+        input_usd_per_million_tokens=0.05,
+        output_usd_per_million_tokens=0.40,
+    ),
+}
+
+
+def estimate_cost_usd(model: str, usage: Usage) -> float:
+    """Derive a USD cost estimate for one call from the static price table.
+
+    Returns ``0.0`` for a model absent from the table rather than raising --
+    an unpriced model must never block usage rollup (ADR-071 decision 5).
+    """
+    price = PRICE_TABLE_USD_PER_MILLION_TOKENS.get(model)
+    if price is None:
+        return 0.0
+    input_cost = (usage.input_tokens / 1_000_000) * price.input_usd_per_million_tokens
+    output_cost = (usage.output_tokens / 1_000_000) * price.output_usd_per_million_tokens
+    return input_cost + output_cost
