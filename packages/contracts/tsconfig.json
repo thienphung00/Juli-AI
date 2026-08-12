@@ -5,6 +5,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "outDir": "dist",
+    "resolveJsonModule": true,
     "strict": true,
     "target": "ES2022"
   },
