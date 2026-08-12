@@ -153,3 +153,8 @@ Common to every block: worktree `git worktree add .worktrees/<wt> -b <branch> or
 
 - `docs/product/agent-workflow-execution/PLAN.md` — P-IM flagged-gaps block (#975, merged).
 - `docs/handoffs/2026-08-12-agent-execution-implementation-handoff.md` — this file.
+
+### Developer Message:
+
+- When creating PRD and Issues. Include HITL in the title for these components: when you need openai api keys, Supabase Log-in setup (https://supabase.com/docs/guides/auth/social-login/auth-google) reference this file and return a step-by-step guide, along with any VPS commands.
+- PRD and Issues must be name consistently for example: P3-1 -> P3-N. 
