@@ -13,10 +13,15 @@
   (verbatim below the cap), images reduced to `{count, dimensions}` with no raw nested
   vendor payload. Every cut emits `{"truncated": true, "omitted_count": n}`; a result
   needing no cut emits no marker at all (#992).
+- `errors` (decision 5) — every marketplace failure (`TikTokAPIError`, `TransportGuardError`,
+  or a bare transport failure) maps to `{"error": {"category", "message", "retryable"}}`.
+  `category` reuses `ExecutionErrorCategory`; `retryable` derives from a curated vendor-code
+  allowlist (`{100005, 100006, 36009003}`) plus transport-level failures — an uncatalogued
+  vendor code is not retryable. Raw vendor codes, request ids, and endpoint paths go to
+  server-side logs only, never into the envelope (#993).
 
-See `docs/adr/070-agent-safe-sanitization-contract.md`. The two fail-closed chokepoints
-that consume the banned-pattern guard and error translation are separate issues
-(#993-#995).
+See `docs/adr/070-agent-safe-sanitization-contract.md`. The remaining fail-closed
+chokepoint that consumes the banned-pattern guard is a separate issue (#994-#995).
 """
 
 from juli_backend.services.agent.sanitize.banned_patterns import (
@@ -39,6 +44,12 @@ from juli_backend.services.agent.sanitize.caps import (
     estimate_result_tokens,
     estimate_tokens,
     sanitize_images,
+)
+from juli_backend.services.agent.sanitize.errors import (
+    RETRYABLE_VENDOR_CODES,
+    TranslatedError,
+    to_error_envelope,
+    translate_marketplace_error,
 )
 from juli_backend.services.agent.sanitize.machine_values import (
     Money,
@@ -64,6 +75,7 @@ __all__ = [
     "PER_RESULT_TOKEN_CEILING",
     "PER_RESULT_TOKEN_TARGET",
     "PROVENANCE_SOURCES",
+    "RETRYABLE_VENDOR_CODES",
     "BannedPatternEntry",
     "CappedImages",
     "CappedList",
@@ -75,6 +87,7 @@ __all__ = [
     "ProvenanceEnvelope",
     "ProvenanceSource",
     "SellerText",
+    "TranslatedError",
     "VendorText",
     "cap_list",
     "cap_text",
@@ -86,5 +99,7 @@ __all__ = [
     "load_banned_patterns",
     "numeric_value",
     "sanitize_images",
+    "to_error_envelope",
     "to_json_safe",
+    "translate_marketplace_error",
 ]
