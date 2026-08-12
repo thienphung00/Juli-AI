@@ -22,7 +22,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 5 | P12 — Prompt architecture (system + Optimize Product) | 🟨 design grilled 2026-08-11 — [ADR-072](../../adr/072-agent-prompt-architecture.md) drafted; implementation pending | ⬜ |
 | 6 | P1 — Agent execution loop (blocks + runner) | 🟨 design grilled 2026-08-11 — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md) drafted; implementation pending | ⬜ |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
-| 8 | P8 — Streaming (SSE + Celery relay) | ⬜ | ⬜ |
+| 8 | P8 — Streaming (SSE + Celery relay) | 🟨 design grilled 2026-08-12 — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md) drafted; implementation pending | ⬜ |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | ⬜ | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | ⬜ | ⬜ |
@@ -100,13 +100,15 @@ Original minimal specs (unchanged, for when the phase is picked up):
 
 Gate: kill-and-resume test — restart mid-run, state reconstructed from Redis; full history queryable from Postgres after completion. (P1's pause/resume round-trip test covers the blob stand-in.)
 
-### 8. P8 — Streaming (minimal)
-Minimal specs (event schema fixed by user directive, 2026-08-11 — fix 2):
-- **Canonical event record** — every event persisted to `workflow_run_events` as `{workflow_run_id, sequence_number, event_type, timestamp, payload}`, sequence-numbered per run. **Postgres is the replay authority; Redis pub/sub is best-effort delivery only** — a lost Redis message is never a lost event. Reconnect contract: client sends `Last-Event-ID: <sequence_number>` ("give me events after sequence 47"); the SSE endpoint replays from Postgres, then re-attaches to live pub/sub.
-- Typed SSE event protocol with event IDs/ordering, shared via `packages/contracts`.
-- Celery task `run_agent_workflow` (dedicated queue; real Redis broker — currently `memory://` in `workers/celery_app.py`); Redis pub/sub `EventSink`; SSE endpoint with Last-Event-ID replay + heartbeats; cancel endpoint (sets `cancel_requested`, honored at ADR-073 checkpoints).
+### 8. P8 — Streaming (minimal) — *design grilled 2026-08-12, [ADR-074](../../adr/074-agent-event-streaming-and-relay.md)*
+Settled specs (event record per user fix 2, 2026-08-11):
+- **Canonical event record** `{workflow_run_id, sequence_number, event_type, timestamp, payload, v: 1}` in `workflow_run_events`; **Postgres = replay authority, Redis pub/sub = best-effort delivery**. Sequence numbers minted by the `WorkflowRunner` (counter in the run-state blob; single writer per run); unique `(run_id, seq)` index makes crash-replays no-ops.
+- **8-event union** (D2 names; `workflow.failed` covers `failed`/`cancelled`/`timed_out` with `stop_reason` precision; `assistant.text.delta` reserved) — Pydantic source + mirrored TS discriminated union in `packages/contracts`, kept honest by golden fixtures tested in both languages.
+- **`PersistingEventSink`**: INSERT + commit, then publish to `run_events:{run_id}` (publish failure logged + swallowed). **SSE endpoint**: subscribe-before-replay, server-side seq dedupe (clients never dedupe), 15s heartbeats, terminal-close, late-joiner replay, 2s Postgres-polling fallback if Redis is down.
+- **Celery**: real Redis broker in agent deployments (fail-closed boot assertion; `memory://` stays the test default); dedicated `agent_runs` queue; `run_agent_workflow` + `resume_agent_workflow` tasks with `acks_late` + one blob-resume retry; **5-min reaper** closes stale runs (`worker_lost`, additive ADR-073 member) and expired approvals (`confirmation_expired`, enforcing the 4h policy).
+- **Endpoints**: `GET /v1/demo/runs/{id}/events`, `POST /v1/demo/runs/{id}/cancel` (202, idempotent), reserved `POST …/confirmations/{tool_call_id}` for P9; tenant scoping via `get_active_shop`, cross-tenant 404. Client consumes SSE via **fetch + ReadableStream** (bearer auth in headers, owned reconnect, inspectable errors) — provider-agnostic by construction (the stream is Juli's protocol, not the LLM's).
 
-Gate: browser sees live events for a real run; kill Redis mid-run — reconnect replays from Postgres without gaps/duplicates; cancellation stops the loop.
+Gate: sink-ordering + reaper units, dual-language fixtures, exact-replay / handoff-overlap / Redis-loss / lifecycle / crash-resume integration tests all green; one observed browser E2E (live run + offline-toggle reconnect); boot assertion verified.
 
 ### 9. P7 — Structured output contract — *⏸ deferred (user, 2026-08-11)*
 Deferred under the same principle: the workflow functions without it and wires to it later. Stand-in: ADR-072's prose output guidance (final response = Vietnamese seller summary + actions list, shaped by the worked example). Wiring seam (ADR-073 d.5): the machine schema attaches at the `FinalResponse` block, the prompt's output section tightens via an explicit v2 bump (ADR-072 d.5), and `stop_reason: output_validation_failed` is already reserved in the enum.

@@ -79,3 +79,4 @@
 | [071](071-llm-service-openai-adapter.md) | LLM service — neutral block interface, stateless OpenAI Responses adapter (GPT-5.4 nano), turn-level blocks, fail-closed key assertion | Proposed |
 | [072](072-agent-prompt-architecture.md) | Agent prompt architecture — monolithic versioned workflow prompts, typed Playbook artifact, EN instructions/VI exemplars, immutable versions + composed hash | Proposed |
 | [073](073-agent-execution-loop-and-write-path-hardening.md) | Agent execution loop — WorkflowRunner + protocols, stop_reason termination policy, idempotency ledger, basis-hash concurrency control, P-CS/P7 deferral seams | Proposed |
+| [074](074-agent-event-streaming-and-relay.md) | Agent event streaming — runner-owned sequences, Postgres-authoritative log + Redis relay, 8-event dual-language union, agent_runs queue + reaper, fetch-streaming SSE | Proposed |
