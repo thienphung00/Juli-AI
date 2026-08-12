@@ -15,8 +15,13 @@ config.set_main_option(
     sync_database_url(os.environ.get("DATABASE_URL", "postgresql://localhost/juli")),
 )
 
+# disable_existing_loggers=False: fileConfig() defaults to True, which sets
+# logger.disabled = True on every already-created logger not named in alembic.ini.
+# When the migration chain runs in-process (e.g. a test fixture), that permanently
+# kills every juli_backend.* logger for the rest of the process — see #1019. Do not
+# remove this kwarg "for cleanliness"; that reintroduces the bug.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
@@ -42,9 +47,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
