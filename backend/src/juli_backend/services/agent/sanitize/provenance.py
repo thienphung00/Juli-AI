@@ -31,7 +31,7 @@ Because exactly three dataclasses exist, and each is pinned to one literal
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
 ProvenanceSource = Literal["juli", "vendor", "seller"]
 
@@ -98,11 +98,11 @@ def from_source(source: str, text: str) -> ProvenanceEnvelope:
     the three representable origins — a typo or a drifted caller fails
     loudly instead of silently mislabeling trust.
     """
-    envelope_cls = _BY_SOURCE.get(source)  # type: ignore[arg-type]
-    if envelope_cls is None:
+    if source not in PROVENANCE_SOURCES:
         raise ValueError(
             f"unknown provenance source {source!r}; must be one of {PROVENANCE_SOURCES}"
         )
+    envelope_cls = _BY_SOURCE[cast(ProvenanceSource, source)]
     return envelope_cls(text=text)
 
 
