@@ -25,7 +25,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 8 | P8 — Streaming (SSE + Celery relay) | 🟨 design grilled 2026-08-12 — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md) drafted; implementation pending | ⬜ |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
-| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | ⬜ | ⬜ |
+| 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |
@@ -129,14 +129,16 @@ Settled specs (baseline re-verified: JWT already fail-closed via `require_env` #
 
 Gate: approval-gate suite (incl. raced double-approve + atomicity fault injection), full confirmation ladder + hash-mismatch hard-fail, 401s on every route incl. SSE, six-check boot matrix, 429 + security events with cancel unthrottled, adversarial fixtures green; manual red-team pass — "run without approval" and "unshown mutation" both demonstrably impossible.
 
-### 11. P-UI — Demo UI polish + wiring, Optimize Product only
-Minimal specs:
-- Fix `fetchRecommendations()` path bug (`/v1/demo/recommendations` → `/v1/demo/decisions` in `apps/demo/src/lib/recommendations.ts`); surface failures instead of silent fixture fallback.
-- Approve → run created by the approval gate (ADR-075) → **fetch-streaming SSE** consumption (ADR-074 — not native `EventSource`); execution view rendered from the event protocol (agent text, tool progress, decision-request pause, final output); replace localStorage `startExecution` (`apps/demo/src/lib/executions.ts:163-196`) for this workflow; polish per `ui-ux-design` skill; update `apps/demo/MODULE.md` invariant.
-- **Supabase sign-in** (ADR-075: the demo is a real authenticated account on the reference shop) — login screen or pre-provisioned demo session.
-- **Option-picker confirmation UI** (ADR-075 decision requests): render 1..N agent-proposed options with rationale (e.g. three price moves) as a selection + decline-all, not a bare approve/decline pair.
+### 11. P-UI — Demo UI polish + wiring, Optimize Product only — *design grilled 2026-08-12, [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md)*
+Settled specs (redesign mandate: structure + theme tokens lifted for these surfaces; motion first-class; dictionary copy, other workflows, a11y binding):
+- **Dual entry:** "Dùng thử Demo" → Supabase anonymous session (real JWT — ADR-075 intact; per-session rate buckets; shop pinned to reference shop) vs "Đăng nhập với Google" → Supabase Auth → TikTok OAuth connect-shop screen (live merchant exchange = flagged follow-up).
+- **Recorded-replay demo + live flag:** golden scenarios (real sandbox runs, one continuation per decision option) replayed through the identical SSE endpoint — recorded-delta pacing, rebased timestamps, typewriter, interactive decision request; live mode behind config.
+- **Staged run view:** dedicated page, six playbook-derived stages, top stepper + full canvas, back-to-frozen / forward-to-live-edge / future-locked; finished runs reopen frozen (replay-powered history).
+- **Consent-grade option picker** (Đề xuất stage): side-by-side cards with before→after diffs on real listing elements, two-step select-then-confirm, quiet first-class decline, 4h expiry, staggered arrival motion.
+- **In-Progress = run ledger:** Đang chờ bạn (pinned, countdown) / Đang chạy (breathing cards) / Hoàn tất (honest distinct terminal states); no retry-in-place.
+- **Client:** `useRunStream` + pure event→stage reducer on golden fixtures (replay ≡ live by construction); localStorage mock deleted, `fetchRecommendations` path bug fixed, silent fallback removed; stream-error ≠ run-error reconnect UX.
 
-Gate: a signed-in user can run Optimize Product end-to-end in the Demo page against the real backend, watch it stream, and pick among agent-proposed options at the confirmation pause.
+Gate: replay-based Playwright E2E green in CI (Try Demo → approve → stages → pick option → completion) + one observed live-mode run end-to-end + `dictionary.md` entries landed + `apps/demo/MODULE.md` invariant updated + PUI-DESIGN.md published + zero regressions on the other 10 workflows.
 
 ### 12. P10 — Observability baseline
 Minimal specs:
