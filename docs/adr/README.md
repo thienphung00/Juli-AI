@@ -81,3 +81,4 @@
 | [073](073-agent-execution-loop-and-write-path-hardening.md) | Agent execution loop — WorkflowRunner + protocols, stop_reason termination policy, idempotency ledger, basis-hash concurrency control, P-CS/P7 deferral seams | Proposed |
 | [074](074-agent-event-streaming-and-relay.md) | Agent event streaming — runner-owned sequences, Postgres-authoritative log + Redis relay, 8-event dual-language union, agent_runs queue + reaper, fetch-streaming SSE | Proposed |
 | [075](075-agent-approval-gate-and-security-prerequisites.md) | Agent approval gate — approve-is-run-creation, multi-option decision requests with params-hash consent binding, authenticated demo, boot assertions, inbound limits, injection posture | Proposed |
+| [076](076-agent-demo-execution-experience.md) | Demo execution experience — dual-entry auth (anonymous demo / Google→TikTok OAuth), recorded-replay demo + live flag, staged run view, consent-grade option picker | Proposed |
