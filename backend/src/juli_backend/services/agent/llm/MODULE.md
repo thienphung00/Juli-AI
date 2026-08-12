@@ -3,11 +3,17 @@
 ## Responsibility
 
 Juli's own model vocabulary and the service contract over it (#985, ADR-071
-decisions 1 and 4). Blocks the agent can produce, a usage record, an
-assistant turn, the `LLMService` protocol, and fail-closed `LLMConfig`
-resolution. **No provider code lands in this module** — no `openai` import,
-no wire types. This is the seam (the `integrations/tiktok` wrapping pattern)
-that keeps a future provider swap to one file.
+decisions 1 and 4), plus the stateless OpenAI Responses adapter that
+implements that contract (#986, ADR-071 decisions 2, 3, 5). Blocks the agent
+can produce, a usage record, an assistant turn, the `LLMService` protocol,
+fail-closed `LLMConfig` resolution, and one concrete provider adapter. **No
+`openai` PyPI package import anywhere in this module** — the `openai`
+package is not declared in `backend/pyproject.toml` / `backend/
+constraints.txt`, so `openai_adapter.py` is built directly on `httpx`
+(already declared) and speaks the Responses API's HTTP contract without the
+vendor SDK. This is the seam (the `integrations/tiktok` wrapping pattern)
+that keeps a future provider swap to one file; provider-specific
+request/response knowledge lives only in `openai_adapter.py`.
 
 ## Public Interface
 
@@ -64,25 +70,69 @@ decision 6).
   `DEFAULT_TEMPERATURE = 0.2`, `DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0`
 - Environment variables: `OPENAI_API_KEY` (required), `LLM_MODEL`,
   `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE`, `LLM_REQUEST_TIMEOUT_SECONDS`
+- `ModelPrice(input_usd_per_million_tokens, output_usd_per_million_tokens)` —
+  one model's static price row
+- `PRICE_TABLE_USD_PER_MILLION_TOKENS` — the static price table (ADR-071
+  decision 5); a maintained artifact, not a live feed
+- `estimate_cost_usd(model, usage) -> float` — derives a USD estimate from
+  the table; `0.0` for an unpriced model rather than raising
+
+### OpenAI adapter (`openai_adapter.py`, #986)
+
+- `OpenAIResponsesAdapter(transport=None, base_url=DEFAULT_BASE_URL)` —
+  `LLMService` implementation over the OpenAI Responses API's HTTP surface.
+  `transport` is an injectable `httpx.BaseTransport`; tests pass
+  `httpx.MockTransport` over a recorded-shaped response body, production
+  leaves it unset (real network).
+- `LLMProviderError(RuntimeError)` — the one error type this module raises
+  for any provider failure (bad status, transport failure, malformed body,
+  malformed tool-call arguments). Callers never see a raw `httpx` exception.
+- Stateless (ADR-071 decision 2): every request body sets `"store": False`
+  and never includes `"previous_response_id"`; the full message window is
+  rebuilt from the caller's `messages` on every call.
+- Non-streamed (ADR-071 decision 3): every request body sets
+  `"stream": False`; one HTTP call produces one complete `AssistantTurn`.
+- Message shape consumed: `{"role": "user"|"assistant", "content": str}` or
+  `{"role": "tool", "call_id": str, "content": str}` (a prior tool result,
+  translated to a `function_call_output` item). Reconstructing a prior
+  turn's own tool-call proposal as an input item is out of scope for this
+  slice.
+- Tool shape consumed: `{"name": str, "description": str, "parameters":
+  dict}` (a Pydantic `model_json_schema()` render, per ADR-069 decision 3),
+  translated to a Responses API `{"type": "function", ...}` tool entry.
+- Response translation: a `function_call` output item becomes a
+  `ToolCallBlock`; `output_text` message content becomes a `TextBlock` when
+  the turn also proposes a tool call (interim narration), or a
+  `FinalResponse` when it does not (the turn's closing answer).
+- `Usage` on the returned `AssistantTurn` is read from the response body's
+  `usage.input_tokens` / `usage.output_tokens`.
 
 ## Dependencies
 
 - `juli_backend.core.config.require_env` — fail-closed env read (ADR-061)
+- `httpx` (already a backend dependency) — the OpenAI adapter's HTTP client
 - Standard library only otherwise
 
 ## Invariants
 
 - No `openai`/`anthropic`/`litellm`/`ollama`/`langchain` import anywhere under
-  this package (asserted by `tests/unit/test_agent_llm_contract.py`).
+  this package's top-level files (asserted by
+  `tests/unit/test_agent_llm_contract.py`) — trivially true for
+  `openai_adapter.py` too, since it never imports the `openai` package at
+  all (undeclared dependency; see module docstring).
 - `resolve_llm_config` never defaults `OPENAI_API_KEY` to an empty string.
 - Blocks and `AssistantTurn` are frozen — a turn, once returned, does not mutate.
+- `OpenAIResponsesAdapter` never sends `previous_response_id` and always
+  sets `"store": False` / `"stream": False` on the outbound request.
 
 ## Related modules
 
 - ADR-071 — design authority for this module
 - ADR-068 — block vocabulary and containment origin (decision 6)
-- A future OpenAI Responses adapter (not this slice) implements `LLMService`
-  privately behind this same package, per ADR-071 decision 2.
+- ADR-069 — tool registry / `ToolSpec` schema shape consumed by the adapter
+- A second provider or fallback chain later means a second adapter behind
+  the same `LLMService` interface; nothing upstream changes (ADR-071
+  consequences).
 
 ## Owners
 
