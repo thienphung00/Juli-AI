@@ -192,12 +192,26 @@ _DEFAULT_LEVEL = "INFO"
 _configured = False
 
 
+class _JuliManagedStreamHandler(logging.StreamHandler):
+    """Marks a handler as installed by ``configure_logging``, so re-configuration
+    clears only our own handlers and never a foreign one (e.g. pytest's
+    ``LogCaptureHandler``, which backs ``caplog``) — see #1013.
+    """
+
+
 def configure_logging(*, level: str | None = None, force: bool = False) -> None:
     """Configure the root logger once, idempotently.
 
     Idempotent because uvicorn ``--reload``, the Celery workers and the test suite all
     import the app repeatedly; re-running this would stack duplicate handlers and print
     every line N times.
+
+    The clearing loop below only removes handlers *this module* previously installed
+    (identified by the ``_JuliManagedStreamHandler`` marker type). It must never touch
+    foreign handlers — notably pytest's ``LogCaptureHandler``, which backs the ``caplog``
+    fixture. Wiping every root handler unconditionally used to strip that handler off
+    mid-suite whenever a forced re-configuration happened after collection started
+    (#1013).
     """
     global _configured
     if _configured and not force:
@@ -205,13 +219,14 @@ def configure_logging(*, level: str | None = None, force: bool = False) -> None:
 
     resolved = (level or os.environ.get("LOG_LEVEL") or _DEFAULT_LEVEL).upper()
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = _JuliManagedStreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
     handler.addFilter(_CorrelationFilter())
 
     root = logging.getLogger()
     for existing in list(root.handlers):
-        root.removeHandler(existing)
+        if isinstance(existing, _JuliManagedStreamHandler):
+            root.removeHandler(existing)
     root.addHandler(handler)
     root.setLevel(resolved)
 

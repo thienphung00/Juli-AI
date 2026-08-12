@@ -34,6 +34,7 @@ from juli_backend.core.observability import (
     configure_logging,
     get_correlation_id,
 )
+from juli_backend.core.observability.logging import _JuliManagedStreamHandler
 
 SECRET_MARKER = "SECRET_INTERNAL_DETAIL_ThatMustNeverReachAClient"
 
@@ -180,6 +181,46 @@ def test_configure_logging_is_idempotent():
     configure_logging()
     configure_logging()
     assert len(logging.getLogger().handlers) == before
+
+
+def test_configure_logging_does_not_stack_juli_handlers():
+    """Repeated forced re-configuration must leave exactly one Juli-managed handler."""
+    configure_logging(force=True)
+    configure_logging(force=True)
+    configure_logging(force=True)
+    juli_handlers = [
+        h for h in logging.getLogger().handlers if isinstance(h, _JuliManagedStreamHandler)
+    ]
+    assert len(juli_handlers) == 1
+
+
+def test_configure_logging_preserves_foreign_root_handlers_without_stacking_juli_handlers():
+    """configure_logging must only ever clear handlers it installed itself.
+
+    This is the regression covered by #1013: pytest's ``LogCaptureHandler`` (which backs
+    the ``caplog`` fixture) is a foreign root handler. Before the fix, ``configure_logging``
+    blindly removed *every* root handler on each forced call, silently breaking log capture
+    for any test that happened to trigger a re-configuration after collection started.
+
+    Both directions matter here: the foreign handler must survive repeated forced
+    re-configuration (the #1013 bug), and the narrowing that makes that possible must not
+    break the anti-duplicate-stacking guarantee the clearing loop exists for in the first
+    place — so this also asserts exactly one Juli-managed handler remains.
+    """
+    root = logging.getLogger()
+    foreign = logging.Handler()
+    root.addHandler(foreign)
+    try:
+        configure_logging(force=True)
+        configure_logging(force=True)
+        configure_logging(force=True)
+
+        assert foreign in root.handlers
+
+        juli_handlers = [h for h in root.handlers if isinstance(h, _JuliManagedStreamHandler)]
+        assert len(juli_handlers) == 1
+    finally:
+        root.removeHandler(foreign)
 
 
 def test_correlation_context_does_not_leak_between_requests(app):
