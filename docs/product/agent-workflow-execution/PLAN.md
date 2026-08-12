@@ -26,6 +26,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
+| 11b | P-IM — Incremental impact measurement (NEW) | 🟨 design grilled 2026-08-12 — [ADR-077](../../adr/077-incremental-impact-measurement.md) drafted (research-grounded); implementation pending | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |
@@ -139,6 +140,17 @@ Settled specs (redesign mandate: structure + theme tokens lifted for these surfa
 - **Client:** `useRunStream` + pure event→stage reducer on golden fixtures (replay ≡ live by construction); localStorage mock deleted, `fetchRecommendations` path bug fixed, silent fallback removed; stream-error ≠ run-error reconnect UX.
 
 Gate: replay-based Playwright E2E green in CI (Try Demo → approve → stages → pick option → completion) + one observed live-mode run end-to-end + `dictionary.md` entries landed + `apps/demo/MODULE.md` invariant updated + PUI-DESIGN.md published + zero regressions on the other 10 workflows.
+
+### 11b. P-IM — Incremental impact measurement (NEW) — *design grilled 2026-08-12, [ADR-077](../../adr/077-incremental-impact-measurement.md)*
+Settled specs (adopted from research — DiD/CausalImpact-lite lineage, no invented statistics):
+- **Funnel-first metric mapping:** SEO/title→`impressions`+`ctr`, description→`conversion_rate`, image→`ctr`, price→`gmv`/orders; per-mutation readings + run-level rollup on `expected_impact.metric` (SEO and description separately quantifiable).
+- **Formula:** ratio-form DiD — `expected = pre(14d) × control_growth`; `incremental = post − expected`; preliminary reading at T+7, final at T+14; day T excluded; `confounded` marking for second runs in-window; zero-guards.
+- **Controls:** top-5 correlation-ranked sibling products (equal weights, min 3, mean r ≥ 0.2), Juli-touched products disqualified; fallback plain pre/post capped Thấp; control provenance stored per reading.
+- **Confidence:** per-metric volume floors with a designed suppressed state; Cao/Trung bình/Thấp from volume + pre-period noise band (labeled heuristic; `tfcausalimpact` = upgrade path); "ước tính" hedging, negative impact shown honestly.
+- **Compute/storage:** daily impact-reader beat task (post-backfill) → `impact_readings` table (queryable source of truth, idempotent) → fills the legacy outcome envelope (preliminary→weekly, final→monthly); `WORKFLOW_OUTCOME_SUCCESS_CRITERIA` gains `optimize_product_2`; UI shows "Đang theo dõi" → reading + tier.
+- **A/B seam (user requirement):** future LLM-output experiments reuse `prompt_sha256` as treatment label + `impact_readings` grouped by version as the dependent variable + `run_confirmations` selections as early quality signal; new work = randomized assignment at `compose()` + proper two-sample inference.
+
+Gate: synthetic-uplift recovery + shock-cancellation + placebo battery + suppression matrix + reader idempotency green on real-shaped fixtures; one real end-to-end reading (backdated sandbox run); criteria entry present; reading visible in the demo UI; business-impact metric computable from `impact_readings`.
 
 ### 12. P10 — Observability baseline
 Minimal specs:
