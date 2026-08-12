@@ -4,10 +4,11 @@
 
 Agent-workflow services (ADR-068/069/070). This slice adds the shared
 banned-pattern source loader (#990, decision 6), provenance envelopes and
-machine-shaped values (#991, decisions 3/4), and hard size caps with
-always-signalled truncation (#992, decision 2) — the two fail-closed
-chokepoints that consume the banned-pattern guard and error translation are
-separate issues (#993-#995).
+machine-shaped values (#991, decisions 3/4), hard size caps with
+always-signalled truncation (#992, decision 2), marketplace error
+translation (#993, decision 5), and the two fail-closed banned-pattern
+chokepoints that bracket the agent loop (#994, decision 6). The golden-file
+gate that exercises all of it together is a separate issue (#995).
 
 
 ## Subpackages
@@ -17,8 +18,11 @@ separate issues (#993-#995).
   the TypeScript guard (`packages/contracts/src/seller-copy.ts`). See
   `sanitize/banned_patterns.py`. Also provides `sanitize/provenance.py`
   (source-tagged text envelopes), `sanitize/machine_values.py` (ISO-8601
-  timestamps, `Money`, bare-number rates), and `sanitize/caps.py` (list/text/image
-  size caps with signalled truncation).
+  timestamps, `Money`, bare-number rates), `sanitize/caps.py` (list/text/image
+  size caps with signalled truncation), `sanitize/errors.py` (marketplace
+  error -> `{"error": {"category", "message", "retryable"}}` translation),
+  and `sanitize/chokepoints.py` (the two fail-closed banned-pattern seams:
+  `guard_inbound_tool_result` and `guard_outbound_agent_output`).
 
 ## Public Interface
 
@@ -42,6 +46,18 @@ from juli_backend.services.agent.sanitize import (
     estimate_result_tokens,
     estimate_tokens,
     sanitize_images,
+    # errors (#993, ADR-070 decision 5)
+    RETRYABLE_VENDOR_CODES,
+    TranslatedError,
+    to_error_envelope,
+    translate_marketplace_error,
+    # chokepoints (#994, ADR-070 decision 6 / ADR-068 decision 6(c))
+    BannedPatternGuardFailure,
+    BannedPatternHit,
+    BannedPatternScanError,
+    find_banned_pattern_hits,
+    guard_inbound_tool_result,
+    guard_outbound_agent_output,
 )
 ```
 
@@ -62,11 +78,34 @@ from juli_backend.services.agent.sanitize import (
   stdlib-only, deterministic (rounds up) `chars/4` token estimate against
   `PER_RESULT_TOKEN_CEILING` (2000) / `PER_RESULT_TOKEN_TARGET` (800). Not a
   real tokenizer — no tokenizer dependency is declared anywhere in this repo.
+- `translate_marketplace_error(exc) -> TranslatedError` /
+  `to_error_envelope(error) -> dict` — every marketplace failure maps to
+  `{"error": {"category", "message", "retryable"}}`; `category` reuses
+  `ExecutionErrorCategory`, `retryable` derives from `RETRYABLE_VENDOR_CODES`
+  (`{100005, 100006, 36009003}`) plus transport-level failures.
+- `guard_inbound_tool_result(result, *, tool_name) -> Mapping` — scans a tool
+  result for a banned-pattern hit before it enters the conversation. On a hit,
+  or on any failure inside the scanning machinery itself, discards `result`
+  and returns the same `to_error_envelope` shape
+  (`category="validation"`, `retryable=False`) — the model never sees the
+  leaked value. The hit is logged server-side (`logger.warning`) with pattern
+  id, structural path, and matched text.
+- `guard_outbound_agent_output(output) -> None` — scans agent-authored output
+  before it streams or persists. Raises `BannedPatternGuardFailure` on a hit,
+  or on a scanning-machinery failure. Seam only — no repair-retry or
+  rules-template fallback (that recovery behavior is deferred to the
+  user-deferred structured-output phase, #994).
+- `find_banned_pattern_hits(value) -> tuple[BannedPatternHit, ...]` — the
+  shared whole-structure scan both guards use; raises
+  `BannedPatternScanError` if the shared pattern source fails to load/compile.
 
 ## Dependencies
 
 - stdlib only (`json`, `re`, `pathlib`, `dataclasses`, `functools`, `math`,
-  `inspect`/`ast` in tests only).
+  `logging`, `inspect`/`ast` in tests only) plus `requests` (transport-error
+  detection in `errors.py`) and `juli_backend.integrations.tiktok` /
+  `juli_backend.services.execution.types` (existing in-repo modules, not new
+  dependencies).
 - Reads `packages/contracts/seller-copy-banned-patterns.json` via a
   monorepo-relative path (six parents up from `sanitize/banned_patterns.py`, same
   convention as `juli_backend.core.config.runtime._repo_root`).
@@ -86,3 +125,13 @@ from juli_backend.services.agent.sanitize import (
   `tests/unit/test_agent_sanitize_caps.py`. A `CappedList`/`CappedText`/
   `CappedImages` cannot be constructed with an inconsistent `truncated`/
   `omitted_count` pair — `__post_init__` raises `ValueError`.
+- `errors.py`: raw vendor codes, request ids, and endpoint paths are emitted to
+  server-side logs only and never appear in a `TranslatedError`/error envelope
+  — enforced by `tests/unit/test_agent_sanitize_errors.py`.
+- `chokepoints.py`: both `guard_inbound_tool_result` and
+  `guard_outbound_agent_output` fail closed — a failure inside their own
+  scanning machinery (e.g. the pattern source fails to load) blocks the
+  content exactly as a real hit would, never passing it through — enforced by
+  `tests/unit/test_agent_sanitize_chokepoints.py`. Both consume the shared
+  #990 pattern source only; no second copy of the banned-pattern list exists
+  in `chokepoints.py`.
