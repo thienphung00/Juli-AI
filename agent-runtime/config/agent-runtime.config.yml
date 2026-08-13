@@ -353,6 +353,26 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    1057:
+      defaultSliceId: AGT-W2A
+      handoffPath: docs/adr/072-agent-prompt-architecture.md
+      parentScopeBlock: "# Parent #1057 - Agent prompt architecture, Optimize Product (constant)\n## Product boundary\n- New modules services/agent/prompts/ and services/agent/playbooks/ only\n- No UI, no API routes, no migrations, no changes to services/agent/tools/ or sanitize/\n## Architect locks\n- The Playbook is SAFETY SURFACE: data only, so a future prompt optimizer can never mutate behaviour through it. The prose file is the entire tuning surface.\n- workflow_key is the system-wide key optimize_product_2 (matches WORKFLOW_TOOL_CATALOG and the outcome vocabulary). The prompt DIRECTORY is optimize_product - a different namespace. compose() maps key to directory explicitly and raises on an unknown key.\n- Run data is NEVER spliced into prompt text; it arrives as the opening source: juli context message (ADR-070). {playbook} is the only template slot.\n- Released vN.md is immutable: changes become vN+1.md, never an in-place edit. prompt_sha256 attribution depends on it.\n- v1's output contract is prose guidance plus the worked example ONLY. When P7 lands its machine schema the section tightens via an explicit bump to v2 - P7 must not edit v1.\n- Instructions in English, seller-facing output Vietnamese with the ban address form; banned patterns and _Avoid_ aliases checked against the SHARED sources, never a hand-copied list.\n- Tests live flat in tests/unit/ per repo convention\n## Epic deferrals\n- The agent loop that consumes compose() - ADR-073 / W3-A\n- prompt_version / prompt_sha256 COLUMNS on workflow_runs - P-CS is deferred; this epic specifies the fields, it does not add schema\n- Structured output schema and repair - user-deferred (P7)\n## Known divergence\n- ADR-072 d.6 says the token budget is tiktoken-measured; tiktoken is an undeclared dependency, so the gate uses the stdlib estimate_tokens proxy (rounds up, fails safe). Recorded for the Architect.\n"
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    1058:
+      defaultSliceId: AGT-W2B
+      handoffPath: docs/adr/077-incremental-impact-measurement.md
+      parentScopeBlock: "# Parent #1058 - Incremental impact measurement (constant)\n## Product boundary\n- New module services/impact/ plus workers/impact_reader/ and one table; outcome_tracking touch-ups only\n- No UI, no agent-loop changes; reads analytics_performance_intervals and the ToolExecution schema\n## Architect locks\n- Ratio-form DiD against K=5 nearest-CORRELATED siblings (min 3), equal-weighted. Correlation beats category because it measures shared shock exposure, which is what DiD needs.\n- Day T is excluded from every window. A second Juli run inside either window marks the reading confounded.\n- Below the per-metric volume floor is a DESIGNED state (Chua du du lieu de uoc tinh), not an error. Conversion's floor reads the real visitors column - never impressions as a proxy.\n- A fallback-path reading can never be awarded Cao.\n- Declared plainly a heuristic z-analogue; tfcausalimpact is the graduation path. Never imply statistical rigour the method lacks.\n- Copy: every number hedged uoc tinh, never causal language, inline method disclaimer, negative impact rendered as honestly as positive.\n- Stdlib only - no numpy/scipy/pandas/statsmodels for means or correlations.\n- Fixtures never mix datetime.now() with hardcoded calendar dates; derive every date from one injected reference point.\n## Epic deferrals\n- The one real end-to-end reading for a sandbox run with backdated T - W3-A, no workflow_runs table or runner exists yet\n- impact_readings.run_id foreign key - deferred until W3-A creates workflow_runs\n- Demo UI surfacing and the business-impact aggregation row - P-UI / P10\n"
+      doNotLoad:
+        - apps/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     889:
       defaultSliceId: SEC-1
       handoffPath: docs/adr/061-first-user-security-baseline.md
