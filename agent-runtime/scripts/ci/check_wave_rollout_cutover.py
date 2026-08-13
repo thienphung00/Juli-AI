@@ -41,7 +41,14 @@ def _run(cmd: list[str], *, cwd: Path | None = None) -> tuple[int, str, str]:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            timeout=30,
+            # Must stay comfortably below pytest.ini's global `timeout = 30`:
+            # this function is called several times per build_report() (git
+            # fetch, git branch -r, gh pr list, and per-branch git ls-tree /
+            # git show), so if this inner value ever reached or exceeded the
+            # outer pytest-timeout budget, a single slow subprocess could let
+            # pytest-timeout kill the test before this except clause got a
+            # chance to turn a hang into a handled, non-zero return.
+            timeout=10,
         )
         return proc.returncode, proc.stdout, proc.stderr
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
