@@ -1,0 +1,190 @@
+{
+  "title": {
+    "source": "vendor",
+    "text": "[Synthetic] Large Product Fixture For Golden-File Cap Truncation (#995)"
+  },
+  "description": {
+    "source": "vendor",
+    "text": "Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi giao đến khách hàng. Sản phẩm chính hãng, đóng gói cẩn thận, được kiểm định kỹ lưỡng trước khi g",
+    "truncated": true,
+    "omitted_count": 874
+  },
+  "status": "ACTIVATE",
+  "create_time": null,
+  "update_time": "2026-07-01T07:52:10+00:00",
+  "sku_count": 25,
+  "total_inventory_quantity": 1300,
+  "sku_prices": {
+    "items": [
+      {
+        "amount": 70000,
+        "currency": "VND"
+      },
+      {
+        "amount": 70500,
+        "currency": "VND"
+      },
+      {
+        "amount": 71000,
+        "currency": "VND"
+      },
+      {
+        "amount": 71500,
+        "currency": "VND"
+      },
+      {
+        "amount": 72000,
+        "currency": "VND"
+      },
+      {
+        "amount": 72500,
+        "currency": "VND"
+      },
+      {
+        "amount": 73000,
+        "currency": "VND"
+      },
+      {
+        "amount": 73500,
+        "currency": "VND"
+      },
+      {
+        "amount": 74000,
+        "currency": "VND"
+      },
+      {
+        "amount": 74500,
+        "currency": "VND"
+      },
+      {
+        "amount": 75000,
+        "currency": "VND"
+      },
+      {
+        "amount": 75500,
+        "currency": "VND"
+      },
+      {
+        "amount": 76000,
+        "currency": "VND"
+      },
+      {
+        "amount": 76500,
+        "currency": "VND"
+      },
+      {
+        "amount": 77000,
+        "currency": "VND"
+      },
+      {
+        "amount": 77500,
+        "currency": "VND"
+      },
+      {
+        "amount": 78000,
+        "currency": "VND"
+      },
+      {
+        "amount": 78500,
+        "currency": "VND"
+      },
+      {
+        "amount": 79000,
+        "currency": "VND"
+      },
+      {
+        "amount": 79500,
+        "currency": "VND"
+      }
+    ],
+    "truncated": true,
+    "omitted_count": 5
+  },
+  "images": {
+    "count": 24,
+    "dimensions": [
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      },
+      {
+        "width": 1200,
+        "height": 1200
+      },
+      {
+        "width": 800,
+        "height": 1200
+      }
+    ],
+    "truncated": true,
+    "omitted_count": 4
+  }
+}

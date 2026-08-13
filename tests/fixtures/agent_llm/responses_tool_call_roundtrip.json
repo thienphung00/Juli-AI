@@ -1,0 +1,404 @@
+{
+  "model": "gpt-5.4-nano",
+  "provenance": "recorded from a live OpenAI Responses API call (issue #989)",
+  "recorded_at": "2026-08-12T15:49:43.171048+00:00",
+  "request": {
+    "input": [
+      {
+        "content": [
+          {
+            "text": "Start optimizing this listing. Look up the product information first. Call a tool; do not answer in prose.",
+            "type": "input_text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "instructions": "You are Juli, optimizing a TikTok Shop listing. The product is already bound to this run - tools take no identifier arguments. Use the tools.",
+    "max_output_tokens": 1024,
+    "model": "gpt-5.4-nano",
+    "store": false,
+    "stream": false,
+    "temperature": 0.2,
+    "tools": [
+      {
+        "description": "Get an in-run snapshot of the bound product's current status. Not the authoritative confirmation of a status change \u2014 that arrives later via the product-status webhook.",
+        "name": "check_product_status",
+        "parameters": {
+          "description": "No fields. The bound product identity comes from `ProductToolContext`,\nnever from model input (ADR-070 decision 1).",
+          "properties": {},
+          "title": "CheckProductStatusInput",
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Get the current title and listing status for the bound product.",
+        "name": "get_product_information",
+        "parameters": {
+          "description": "No fields. The bound product identity comes from `ProductToolContext`,\nnever from model input (ADR-070 decision 1).",
+          "properties": {},
+          "title": "GetProductInformationInput",
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Get SEO keyword suggestions and title/description suggestions for the bound product, combined into one result.",
+        "name": "get_seo_keywords",
+        "parameters": {
+          "description": "No fields. The bound product identity comes from `ProductToolContext`,\nnever from model input (ADR-070 decision 1).",
+          "properties": {},
+          "title": "GetSeoKeywordsInput",
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Apply agent-authored title/description (and, if attach_staged_image is true, the run's staged image) to the bound product's listing.",
+        "name": "update_product_listing",
+        "parameters": {
+          "description": "Agent-authored listing content for the bound product. No identifier\nfield, and no raw asset URI \u2014 the bound product identity comes from\n`ProductToolContext.product_id`, and a staged image is referenced only by\nthe boolean `attach_staged_image` (ADR-070 decisions 1 and 2).",
+          "properties": {
+            "attach_staged_image": {
+              "default": false,
+              "title": "Attach Staged Image",
+              "type": "boolean"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Title"
+            }
+          },
+          "title": "UpdateProductListingInput",
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Apply new SKU prices (by opaque sku_ref) to the bound product. Independently rejectable from update_product_listing.",
+        "name": "update_product_price",
+        "parameters": {
+          "$defs": {
+            "ProductSkuPrice": {
+              "description": "A single SKU's proposed price. `sku_ref` is a server-minted opaque\ntoken (ADR-070 decision 1's reserved extension, e.g. `\"S1\"`) resolved\nagainst `context.sku_refs` \u2014 never the raw vendor SKU id, and not a\nsecond product identifier either way.",
+              "properties": {
+                "amount": {
+                  "title": "Amount",
+                  "type": "string"
+                },
+                "currency": {
+                  "default": "VND",
+                  "title": "Currency",
+                  "type": "string"
+                },
+                "sku_ref": {
+                  "title": "Sku Ref",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sku_ref",
+                "amount"
+              ],
+              "title": "ProductSkuPrice",
+              "type": "object"
+            }
+          },
+          "description": "No product identifier field, and no raw vendor SKU id \u2014 the bound\nproduct identity comes from `ProductToolContext.product_id`, and each\nSKU is targeted by opaque `sku_ref` only (ADR-070 decision 1).\nIndependently rejectable from `update_product_listing` \u2014 a separate\nCONFIRM capability, not a bundled step.",
+          "properties": {
+            "skus": {
+              "items": {
+                "$ref": "#/$defs/ProductSkuPrice"
+              },
+              "title": "Skus",
+              "type": "array"
+            }
+          },
+          "title": "UpdateProductPriceInput",
+          "type": "object"
+        },
+        "type": "function"
+      },
+      {
+        "description": "Screen and upload the seller-supplied candidate listing image staged for this run. The image is not applied to the listing until update_product_listing is called with attach_staged_image=True.",
+        "name": "upload_product_image",
+        "parameters": {
+          "description": "No fields. The seller-supplied image bytes come from\n`context.pending_image_bytes`, never from model output (ADR-070 decision\n1) \u2014 a model cannot be asked to emit raw image bytes as output tokens.",
+          "properties": {},
+          "title": "UploadProductImageInput",
+          "type": "object"
+        },
+        "type": "function"
+      }
+    ]
+  },
+  "response": {
+    "background": false,
+    "billing": {
+      "payer": "developer"
+    },
+    "completed_at": 1786549783,
+    "created_at": 1786549781,
+    "error": null,
+    "frequency_penalty": 0.0,
+    "id": "resp_0312ee875a548df5016a7c9615dc90819aa385b00cdbbc9c72",
+    "incomplete_details": null,
+    "instructions": "You are Juli, optimizing a TikTok Shop listing. The product is already bound to this run - tools take no identifier arguments. Use the tools.",
+    "max_output_tokens": 1024,
+    "max_tool_calls": null,
+    "metadata": {},
+    "model": "gpt-5.4-nano-2026-03-17",
+    "moderation": null,
+    "object": "response",
+    "output": [
+      {
+        "arguments": "{}",
+        "call_id": "call_DkERrGBXHsyTTUd2F1IITiM7",
+        "id": "fc_0312ee875a548df5016a7c9616ec70819aa9972a810a37bd63",
+        "name": "get_product_information",
+        "status": "completed",
+        "type": "function_call"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "presence_penalty": 0.0,
+    "previous_response_id": null,
+    "prompt_cache_key": null,
+    "prompt_cache_retention": "24h",
+    "reasoning": {
+      "context": "current_turn",
+      "effort": "none",
+      "mode": "standard",
+      "summary": null
+    },
+    "safety_identifier": null,
+    "service_tier": "default",
+    "status": "completed",
+    "store": false,
+    "temperature": 0.2,
+    "text": {
+      "format": {
+        "type": "text"
+      },
+      "verbosity": "medium"
+    },
+    "tool_choice": "auto",
+    "tool_usage": {
+      "image_gen": {
+        "input_tokens": 0,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 0
+        },
+        "output_tokens": 0,
+        "output_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 0
+        },
+        "total_tokens": 0
+      },
+      "web_search": {
+        "num_requests": 0
+      }
+    },
+    "tools": [
+      {
+        "description": "Get an in-run snapshot of the bound product's current status. Not the authoritative confirmation of a status change \u2014 that arrives later via the product-status webhook.",
+        "name": "check_product_status",
+        "output_schema": null,
+        "parameters": {
+          "additionalProperties": false,
+          "description": "No fields. The bound product identity comes from `ProductToolContext`,\nnever from model input (ADR-070 decision 1).",
+          "properties": {},
+          "required": [],
+          "title": "CheckProductStatusInput",
+          "type": "object"
+        },
+        "strict": true,
+        "type": "function"
+      },
+      {
+        "description": "Get the current title and listing status for the bound product.",
+        "name": "get_product_information",
+        "output_schema": null,
+        "parameters": {
+          "additionalProperties": false,
+          "description": "No fields. The bound product identity comes from `ProductToolContext`,\nnever from model input (ADR-070 decision 1).",
+          "properties": {},
+          "required": [],
+          "title": "GetProductInformationInput",
+          "type": "object"
+        },
+        "strict": true,
+        "type": "function"
+      },
+      {
+        "description": "Get SEO keyword suggestions and title/description suggestions for the bound product, combined into one result.",
+        "name": "get_seo_keywords",
+        "output_schema": null,
+        "parameters": {
+          "additionalProperties": false,
+          "description": "No fields. The bound product identity comes from `ProductToolContext`,\nnever from model input (ADR-070 decision 1).",
+          "properties": {},
+          "required": [],
+          "title": "GetSeoKeywordsInput",
+          "type": "object"
+        },
+        "strict": true,
+        "type": "function"
+      },
+      {
+        "description": "Apply agent-authored title/description (and, if attach_staged_image is true, the run's staged image) to the bound product's listing.",
+        "name": "update_product_listing",
+        "output_schema": null,
+        "parameters": {
+          "additionalProperties": false,
+          "description": "Agent-authored listing content for the bound product. No identifier\nfield, and no raw asset URI \u2014 the bound product identity comes from\n`ProductToolContext.product_id`, and a staged image is referenced only by\nthe boolean `attach_staged_image` (ADR-070 decisions 1 and 2).",
+          "properties": {
+            "attach_staged_image": {
+              "default": false,
+              "title": "Attach Staged Image",
+              "type": "boolean"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Title"
+            }
+          },
+          "required": [
+            "title",
+            "description",
+            "attach_staged_image"
+          ],
+          "title": "UpdateProductListingInput",
+          "type": "object"
+        },
+        "strict": true,
+        "type": "function"
+      },
+      {
+        "description": "Apply new SKU prices (by opaque sku_ref) to the bound product. Independently rejectable from update_product_listing.",
+        "name": "update_product_price",
+        "output_schema": null,
+        "parameters": {
+          "$defs": {
+            "ProductSkuPrice": {
+              "additionalProperties": false,
+              "description": "A single SKU's proposed price. `sku_ref` is a server-minted opaque\ntoken (ADR-070 decision 1's reserved extension, e.g. `\"S1\"`) resolved\nagainst `context.sku_refs` \u2014 never the raw vendor SKU id, and not a\nsecond product identifier either way.",
+              "properties": {
+                "amount": {
+                  "title": "Amount",
+                  "type": "string"
+                },
+                "currency": {
+                  "default": "VND",
+                  "title": "Currency",
+                  "type": "string"
+                },
+                "sku_ref": {
+                  "title": "Sku Ref",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sku_ref",
+                "amount",
+                "currency"
+              ],
+              "title": "ProductSkuPrice",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "description": "No product identifier field, and no raw vendor SKU id \u2014 the bound\nproduct identity comes from `ProductToolContext.product_id`, and each\nSKU is targeted by opaque `sku_ref` only (ADR-070 decision 1).\nIndependently rejectable from `update_product_listing` \u2014 a separate\nCONFIRM capability, not a bundled step.",
+          "properties": {
+            "skus": {
+              "items": {
+                "$ref": "#/$defs/ProductSkuPrice"
+              },
+              "title": "Skus",
+              "type": "array"
+            }
+          },
+          "required": [
+            "skus"
+          ],
+          "title": "UpdateProductPriceInput",
+          "type": "object"
+        },
+        "strict": true,
+        "type": "function"
+      },
+      {
+        "description": "Screen and upload the seller-supplied candidate listing image staged for this run. The image is not applied to the listing until update_product_listing is called with attach_staged_image=True.",
+        "name": "upload_product_image",
+        "output_schema": null,
+        "parameters": {
+          "additionalProperties": false,
+          "description": "No fields. The seller-supplied image bytes come from\n`context.pending_image_bytes`, never from model output (ADR-070 decision\n1) \u2014 a model cannot be asked to emit raw image bytes as output tokens.",
+          "properties": {},
+          "required": [],
+          "title": "UploadProductImageInput",
+          "type": "object"
+        },
+        "strict": true,
+        "type": "function"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 0.98,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 593,
+      "input_tokens_details": {
+        "cache_write_tokens": 0,
+        "cached_tokens": 0
+      },
+      "output_tokens": 15,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 608
+    },
+    "user": null
+  }
+}
