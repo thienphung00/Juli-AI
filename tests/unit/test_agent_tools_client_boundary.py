@@ -64,6 +64,21 @@ FORBIDDEN_CLIENT_CONSTRUCTION_SYMBOLS: frozenset[str] = frozenset(
     }
 )
 
+#: Whole-module imports that must never appear in an agent tool module.
+#:
+#: A symbol-name scan alone is bypassable: ``import
+#: juli_backend.integrations.tiktok.factories as f`` followed by
+#: ``f.ProductionReadClientFactory()`` constructs a guarded factory without
+#: ever naming a forbidden symbol, so a name-based check sees nothing. That
+#: is a bypass of the very property ADR-068 decision 6(b) requires, so the
+#: whole-module form is forbidden outright.
+#:
+#: `ast.ImportFrom` against this package stays legal — handlers legitimately
+#: do ``from juli_backend.integrations.tiktok import ProductionReadResources``
+#: (the resource types the guarded factories hand them). Only binding a
+#: *module* object, from which any attribute can be reached, is refused.
+FORBIDDEN_WHOLE_MODULE_IMPORT_PREFIX = "juli_backend.integrations.tiktok"
+
 
 def discover_agent_tool_modules(tools_dir: Path = AGENT_TOOLS_DIR) -> list[Path]:
     """Walk `tools_dir` for every `.py` module.
@@ -85,15 +100,24 @@ def find_forbidden_client_construction_imports(source: str) -> set[str]:
     intersected with `FORBIDDEN_CLIENT_CONSTRUCTION_SYMBOLS`.
     """
     tree = ast.parse(source)
-    imported_names: set[str] = set()
+    violations: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                imported_names.add(alias.name)
+                if alias.name in FORBIDDEN_CLIENT_CONSTRUCTION_SYMBOLS:
+                    violations.add(alias.name)
+                # Whole-module import binds a module object, so every symbol
+                # inside it is reachable by attribute access without ever
+                # being named here. Refuse the module itself.
+                if alias.name == FORBIDDEN_WHOLE_MODULE_IMPORT_PREFIX or alias.name.startswith(
+                    FORBIDDEN_WHOLE_MODULE_IMPORT_PREFIX + "."
+                ):
+                    violations.add(alias.name)
         elif isinstance(node, ast.ImportFrom):
             for alias in node.names:
-                imported_names.add(alias.name)
-    return imported_names & FORBIDDEN_CLIENT_CONSTRUCTION_SYMBOLS
+                if alias.name in FORBIDDEN_CLIENT_CONSTRUCTION_SYMBOLS:
+                    violations.add(alias.name)
+    return violations
 
 
 def check_module_has_no_client_construction_import(module_path: Path) -> None:
@@ -253,6 +277,66 @@ class TestCheckerFailsLoudlyOnASyntheticViolation:
         assert "factory_bypass_handler.py" in message
         assert "ProductionReadClientFactory" in message
         assert "SandboxWriteClientFactory" in message
+
+    def test_whole_module_import_with_attribute_access_is_detected(self, tmp_path):
+        """The bypass that a symbol-name scan alone cannot see.
+
+        ``import juli_backend.integrations.tiktok.factories as f`` followed by
+        ``f.ProductionReadClientFactory()`` constructs a guarded factory
+        without ever naming a forbidden symbol. Confirmed by execution during
+        the Wave 1 review pass: before this guard, a module in exactly this
+        shape passed the whole boundary suite. ADR-068 decision 6(b) requires
+        the boundary not be bypassable by a new code path, so the whole-module
+        form is refused outright.
+        """
+        module = tmp_path / "evasion_by_module_import.py"
+        module.write_text(
+            "import juli_backend.integrations.tiktok.factories as factories\n"
+            "\n"
+            "\n"
+            "def build():\n"
+            "    return factories.ProductionReadClientFactory()\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            check_module_has_no_client_construction_import(module)
+        assert "evasion_by_module_import.py" in str(exc_info.value)
+        assert "juli_backend.integrations.tiktok.factories" in str(exc_info.value)
+
+    def test_bare_package_import_is_also_detected(self, tmp_path):
+        """``import juli_backend.integrations.tiktok`` reaches everything too."""
+        module = tmp_path / "evasion_by_package_import.py"
+        module.write_text(
+            "import juli_backend.integrations.tiktok as tiktok\n"
+            "\n"
+            "\n"
+            "def build():\n"
+            "    return tiktok.TikTokClient()\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            check_module_has_no_client_construction_import(module)
+        assert "juli_backend.integrations.tiktok" in str(exc_info.value)
+
+    def test_from_import_of_guarded_resource_types_still_passes(self, tmp_path):
+        """The legal form must stay legal — this guard must not over-block.
+
+        Handlers receive already-built resources; refusing this shape would
+        break every real handler.
+        """
+        module = tmp_path / "legitimate_handler.py"
+        module.write_text(
+            "from juli_backend.integrations.tiktok import (\n"
+            "    ProductionReadResources,\n"
+            "    SandboxWriteResources,\n"
+            ")\n"
+            "\n"
+            "\n"
+            "def handle(resources: ProductionReadResources) -> None:\n"
+            "    del resources\n",
+            encoding="utf-8",
+        )
+        check_module_has_no_client_construction_import(module)
 
     def test_clean_synthetic_module_does_not_raise(self, tmp_path):
         clean_module = tmp_path / "clean_handler.py"
