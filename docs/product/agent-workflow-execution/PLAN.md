@@ -26,7 +26,7 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
-| 11b | P-IM — Incremental impact measurement (NEW) | 🟨 design grilled 2026-08-12 — [ADR-077](../../adr/077-incremental-impact-measurement.md) drafted (research-grounded); implementation pending | ⬜ |
+| 11b | P-IM — Incremental impact measurement (NEW) | 🔵 **in progress (W2-B)** — [ADR-077](../../adr/077-incremental-impact-measurement.md); slices #1040 table → #1041 DiD compute → #1042 control pool → #1043 tiers → #1044 beat task → #1045 gate suite; landing on `feature/agent-w2-pim-wave`. Real backdated reading deferred to W3-A (no `workflow_runs` yet) | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |

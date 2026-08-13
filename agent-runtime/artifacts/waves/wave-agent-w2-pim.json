@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "wave-manifest",
+  "waveId": "wave-agent-w2-pim",
+  "branch": "feature/agent-w2-pim-wave",
+  "issues": [1040, 1041, 1042, 1043, 1044, 1045]
+}
