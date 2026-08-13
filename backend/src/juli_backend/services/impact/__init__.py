@@ -115,6 +115,7 @@ from juli_backend.services.impact.confidence import (
     metric_family_of,
     pre_period_volume,
     volume_floor_for,
+    volume_indicator_for,
 )
 from juli_backend.services.impact.control_pool import (
     MIN_ACTIVE_DAYS,
@@ -234,6 +235,7 @@ __all__ = [
     "date_range",
     "mean_over_window",
     "metric_family_of",
+    "volume_indicator_for",
     "metric_label_vi",
     "post_window",
     "pre_period_volume",

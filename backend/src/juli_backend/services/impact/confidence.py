@@ -198,6 +198,17 @@ def metric_family_of(metric: MetricSpec) -> MetricFamily:
         raise KeyError(f"no volume-floor family configured for metric {metric.key!r}") from None
 
 
+def volume_indicator_for(metric: MetricSpec) -> Callable[[RawDailyRecord], Decimal | None]:
+    """The count series a metric's volume floor is calibrated against.
+
+    ADR-077 decision 4's floors are counts — orders, impressions, visitors —
+    so anything screening candidates on that floor must read this series, not
+    the metric itself. Exposed because `control_pool` needs it and cannot
+    import this module (it would cycle: this module imports ControlPoolResult).
+    """
+    return _VOLUME_INDICATOR[metric_family_of(metric)]
+
+
 def volume_floor_for(metric: MetricSpec) -> Decimal:
     """The single resolution path from a metric to its configured volume
     floor — never re-declare the numeric threshold at a call site."""

@@ -36,6 +36,7 @@ from juli_backend.services.impact import (
     resolve_metric,
     select_control_pool,
     volume_floor_for,
+    volume_indicator_for,
 )
 from juli_backend.workers.impact_reader.classify import classify_mutation_kinds, rollup_metric_for
 from juli_backend.workers.impact_reader.queries import (
@@ -161,7 +162,17 @@ async def _process_kind(
     for metric_key in _metrics_needed(mutations, rollup_metric_key):
         spec = resolve_metric(metric_key)
         result = select_control_pool(
-            spec, target_daily, candidates, t, kind, volume_floor_for(spec)
+            spec,
+            target_daily,
+            candidates,
+            t,
+            kind,
+            volume_floor_for(spec),
+            # The floor is calibrated in counts (orders / impressions / visitors),
+            # so candidates must be screened on the family's volume indicator, not
+            # on the metric itself. Passing the metric for a rate would disqualify
+            # every candidate — see _pre_window_volume in control_pool.py.
+            volume_of=volume_indicator_for(spec),
         )
         control_pool_by_metric[metric_key] = result
         control_daily_by_metric[metric_key] = result.control_daily

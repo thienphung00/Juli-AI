@@ -32,13 +32,23 @@ from decimal import Decimal
 
 import pytest
 
+from juli_backend.services.impact.confidence import (
+    volume_floor_for,
+    volume_indicator_for,
+)
 from juli_backend.services.impact.control_pool import (
     MIN_CANDIDATES,
     TOP_K,
     ControlCandidate,
     select_control_pool,
 )
-from juli_backend.services.impact.metric_map import GMV, GMV_PER_ORDER, RawDailyRecord
+from juli_backend.services.impact.metric_map import (
+    CONVERSION_RATE,
+    CTR,
+    GMV,
+    GMV_PER_ORDER,
+    RawDailyRecord,
+)
 from juli_backend.services.impact.reading import compute_metric_reading
 
 T = date(2026, 1, 15)
@@ -513,3 +523,122 @@ class TestPearsonExactValues:
         xs = [float(i) for i in range(1, 15)]
         ys = [2.0 * x + 5.0 for x in xs]
         assert statistics.correlation(xs, ys) == 1.0
+
+
+class TestVolumeFloorIsComparedAgainstTheVolumeIndicator:
+    """Regression: the floor is calibrated in counts, the metric may be a rate.
+
+    Found by the W2-B review pass. `select_control_pool` compared a candidate's
+    mean of the METRIC ITSELF against the floor. ADR-077 decision 4's floors are
+    counts (">= 50 impressions/day", ">= 20 visitors/day"), and CTR /
+    conversion_rate are fractions around 0.01-0.30 — so no candidate could ever
+    clear them. Every CTR and conversion reading fell back to plain pre/post,
+    permanently capped at Thap, for the Image and Description mutation families:
+    half of decision 1's metric map, silently disabled in production.
+
+    Nothing caught it because every test in the block — including all six files
+    of the #1045 phase gate — drove only the GMV/PRICE family, where the metric
+    happens to be a count and the comparison is coincidentally harmless.
+    """
+
+    @staticmethod
+    def _rate_case(metric, field: str, base: float):
+        t = date(2026, 4, 1)
+
+        def series(offset: float) -> dict[date, RawDailyRecord]:
+            return {
+                t - timedelta(days=d): RawDailyRecord(
+                    **{field: Decimal(str(round(base + offset + 0.001 * d, 6)))},
+                    impressions=Decimal("900"),
+                    visitors=Decimal("400"),
+                    sku_orders=Decimal("12"),
+                )
+                for d in range(1, 15)
+            }
+
+        candidates = [
+            ControlCandidate(
+                product_id=f"p{i}",
+                daily=series(0.001 * i),
+                touched=False,
+                first_active_date=t - timedelta(days=200),
+            )
+            for i in range(5)
+        ]
+        return t, series(0.0), candidates
+
+    def test_ctr_candidates_survive_the_impressions_floor(self):
+        t, target, candidates = self._rate_case(CTR, "ctr", 0.05)
+        result = select_control_pool(
+            CTR,
+            target,
+            candidates,
+            t,
+            "final",
+            volume_floor_for(CTR),
+            volume_of=volume_indicator_for(CTR),
+        )
+        assert result.used_fallback is False, (
+            "CTR candidates with 900 impressions/day must clear the >=50 floor; "
+            "comparing CTR's own ~0.05 values against 50 disqualifies everyone"
+        )
+        assert len(result.selected) == 5
+
+    def test_conversion_candidates_survive_the_visitors_floor(self):
+        t, target, candidates = self._rate_case(CONVERSION_RATE, "conversion_rate", 0.03)
+        result = select_control_pool(
+            CONVERSION_RATE,
+            target,
+            candidates,
+            t,
+            "final",
+            volume_floor_for(CONVERSION_RATE),
+            volume_of=volume_indicator_for(CONVERSION_RATE),
+        )
+        assert result.used_fallback is False
+        assert len(result.selected) == 5
+
+    def test_a_rate_metric_without_a_volume_indicator_raises_rather_than_silently_disqualifying(
+        self,
+    ):
+        """Fail loudly, never silently. Silent disqualification is what made the
+        original defect invisible for an entire wave."""
+        t, target, candidates = self._rate_case(CTR, "ctr", 0.05)
+        with pytest.raises(ValueError, match="is a rate"):
+            select_control_pool(CTR, target, candidates, t, "final", volume_floor_for(CTR))
+
+    def test_a_genuinely_low_volume_candidate_is_still_disqualified(self):
+        """The fix must not disable the floor — only measure it in the right unit."""
+        t = date(2026, 4, 1)
+
+        def series(impressions: str) -> dict[date, RawDailyRecord]:
+            return {
+                t - timedelta(days=d): RawDailyRecord(
+                    ctr=Decimal("0.05"),
+                    impressions=Decimal(impressions),
+                    visitors=Decimal("400"),
+                    sku_orders=Decimal("12"),
+                )
+                for d in range(1, 15)
+            }
+
+        candidates = [
+            ControlCandidate(
+                product_id=f"low{i}",
+                daily=series("9"),
+                touched=False,
+                first_active_date=t - timedelta(days=200),
+            )
+            for i in range(5)
+        ]
+        result = select_control_pool(
+            CTR,
+            series("900"),
+            candidates,
+            t,
+            "final",
+            volume_floor_for(CTR),
+            volume_of=volume_indicator_for(CTR),
+        )
+        assert result.used_fallback is True
+        assert result.fallback_reason == "insufficient_candidates"
