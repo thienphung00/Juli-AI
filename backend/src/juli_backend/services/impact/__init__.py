@@ -1,19 +1,23 @@
-"""Incremental impact measurement — funnel-first metric map + ratio-form DiD
-compute (ADR-077 decisions 1 and 2, #1041).
+"""Incremental impact measurement — funnel-first metric map, ratio-form DiD
+compute, and control-pool selection (ADR-077 decisions 1, 2 and 3; #1041,
+#1042).
 
-This package answers two questions, and only two: **which metric** does a
-mutation act on (``metric_map.py``), and **what is the control-adjusted
-incremental impact** for that metric given a target series, a control
-series, and the write's execution date T (``windows.py`` + ``compute.py`` +
-``reading.py``). Everything else ADR-077 describes is explicitly out of
-scope here and owned by later, stacked issues in the same package:
+This package answers three questions: **which metric** does a mutation act
+on (``metric_map.py``), **which sibling products form its control cohort**
+(``control_pool.py``), and **what is the control-adjusted incremental
+impact** for that metric given a target series, a control series, and the
+write's execution date T (``windows.py`` + ``compute.py`` + ``reading.py``).
+Everything else ADR-077 describes is explicitly out of scope here and owned
+by later, stacked issues in the same package:
 
-- Control-pool **selection** (K-nearest-correlated siblings, Pearson
-  correlation, the volume/correlation/duration disqualifiers, the plain
-  pre/post fallback) — ADR-077 decision 3, #1042. This package accepts an
-  already-resolved control daily series per metric; it does not query for
-  candidates or compute correlations.
-- **Confidence tiers**, per-metric volume floors, and the
+- Control-pool **candidate discovery I/O** — querying same-shop siblings,
+  detecting a Juli-run touch, and resolving a product's first-active date —
+  is not performed here; ``control_pool.select_control_pool`` receives an
+  already-fetched ``Sequence[ControlCandidate]`` and the volume-floor value
+  as plain arguments, mirroring how ``reading.py`` receives
+  ``confounded: bool``.
+- **Confidence tiers**, per-metric volume-floor *config* (the numeric
+  thresholds themselves), and the
   "Chưa đủ dữ liệu để ước tính" / seller-facing copy rules — ADR-077 decision
   4, #1043. ``MetricReading.status`` here only ever distinguishes ``"ok"``
   from ``"confounded"``; it is not a confidence tier.
@@ -75,6 +79,17 @@ from juli_backend.services.impact.compute import (
     compute_post,
     compute_pre,
 )
+from juli_backend.services.impact.control_pool import (
+    MIN_ACTIVE_DAYS,
+    MIN_CANDIDATES,
+    MIN_MEAN_CORRELATION,
+    TOP_K,
+    ControlCandidate,
+    ControlPoolResult,
+    FallbackReason,
+    SelectedControl,
+    select_control_pool,
+)
 from juli_backend.services.impact.metric_map import (
     ALL_METRICS,
     CONVERSION_RATE,
@@ -121,9 +136,16 @@ __all__ = [
     "IMPRESSIONS",
     "ITEMS_SOLD",
     "METRIC_MAP",
+    "MIN_ACTIVE_DAYS",
+    "MIN_CANDIDATES",
+    "MIN_MEAN_CORRELATION",
     "POST_WINDOW_DAYS",
     "PRE_WINDOW_DAYS",
     "SKU_ORDERS",
+    "TOP_K",
+    "ControlCandidate",
+    "ControlPoolResult",
+    "FallbackReason",
     "MetricReading",
     "MetricSpec",
     "MutationKind",
@@ -133,6 +155,7 @@ __all__ = [
     "RawDailyRecord",
     "ReadingStatus",
     "RunReadings",
+    "SelectedControl",
     "WindowKind",
     "Windows",
     "compute_expected",
@@ -150,4 +173,5 @@ __all__ = [
     "post_window",
     "pre_window",
     "resolve_metric",
+    "select_control_pool",
 ]
