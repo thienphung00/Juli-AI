@@ -373,6 +373,17 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    1066:
+      defaultSliceId: AGT-EVID
+      handoffPath: docs/adr/079-w2-artifact-disposition.md
+      parentScopeBlock: "# Parent #1066 - Evidence-chain hardening, artifact contract fails fast (constant)\n## Product boundary\n- CI workflow configuration and agent-runtime harness scripts only\n- No application code, no UI, no API routes, no migrations, no product behaviour\n## Architect locks\n- Artifact bodies are gitignored by policy (agent-runtime/artifacts/implementations/ and the four sibling directories). The guard checks CI ARTIFACT RETENTION, never the git tree, and must never git add -f an artifact directory.\n- FAIL-CLOSED without exception: a missing upload fails, and a lookup error fails. The check must never pass because it could not determine an answer - that failure mode is the one being fixed.\n- Any skip path (docs-only slice, revert PR) is explicit and LOGGED WITH ITS REASON. A silent skip reproduces the bug at a different layer.\n- The guard fires on the SLICE PR, not at the wave boundary. artifact-gate already reports late; a second late reporter is not a fix.\n- This epic lands on main directly - no wave branch. It is a prerequisite for the W2 re-run (#1036-#1045), not a follow-up to it.\n## Epic deferrals\n- Forcing Meta through meta_prepare_executor.py, and forcing an Executor brief to state the artifact requirement and the worktree-survival rule - file once #1064 shows how much the guard already covers\n"
+      doNotLoad:
+        - apps/
+        - ios/
+        - backend/src/juli_backend/services/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     889:
       defaultSliceId: SEC-1
       handoffPath: docs/adr/061-first-user-security-baseline.md
