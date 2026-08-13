@@ -1,14 +1,22 @@
 """Golden-file gate: real recorded marketplace response in, agent-safe result out.
 
-Issue #995 (W1-C) — the phase gate for ADR-070. A single deterministic transform
-(`sanitize_product_detail_response`, defined in this module — the READ handlers in
-`services/agent/tools/product.py` do not yet apply sanitization, per that module's own
-"Sanitization is out of scope here" note) runs the sanitize package's building blocks
-together against one real marketplace response: provenance envelopes (`VendorText` /
-`to_json_safe`), machine values (`Money`, `iso_utc_timestamp`), hard caps with signalled
-truncation (`cap_text`, `cap_list`, `sanitize_images`), and the inbound fail-closed
-banned-pattern chokepoint (`guard_inbound_tool_result`). This is the artifact later waves
-(product write tools, other domains) regress against.
+Issue #995 (W1-C) built the sanitize package; issue #996 (W1 close) re-points this gate
+at the **production path**. `sanitize_product_detail_response` below is no longer a
+test-local reimplementation of ADR-070 shaping — it is a thin wrapper around the real
+`get_product_information` READ handler (`services/agent/tools/product.py`, wired to the
+sanitize package by #996) plus the inbound fail-closed banned-pattern chokepoint
+(`guard_inbound_tool_result`), applied the same way a real dispatcher (a test-only one for
+this wave; `WorkflowRunner` in W3-A) would apply it to any handler's result before it enters
+the conversation. What ships is what this gate exercises — a regression in the real handler
+now fails this test, not just a unit test of the handler in isolation. This is the artifact
+later waves (product write tools, other domains) regress against.
+
+The output shape changed from #995's test-local transform now that it runs through the real
+handler: `get_product_information`'s output model additionally carries `create_time` (ISO-8601
+UTC, `None` when absent from the raw payload — this recorded fixture has no `create_time`
+field at all) alongside the fields #995 already produced (`title`, `description`, `status`,
+`update_time`, `sku_count`, `total_inventory_quantity`, `sku_prices`, `images`). The golden
+fixtures below were regenerated to reflect this — see the PR for #996.
 
 ## Provenance of the golden inputs — read before trusting the green check
 
@@ -63,22 +71,17 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from juli_backend.services.agent.sanitize import (
-    Money,
-    VendorText,
-    cap_list,
-    cap_text,
-    find_banned_pattern_hits,
-    guard_inbound_tool_result,
-    iso_utc_timestamp,
-    sanitize_images,
-    to_json_safe,
-)
+from juli_backend.integrations.tiktok.factories import ProductionReadResources
+from juli_backend.services.agent.sanitize import find_banned_pattern_hits, guard_inbound_tool_result
 from juli_backend.services.agent.sanitize.caps import FREE_TEXT_CHAR_CAP, LIST_ITEM_CAP
+from juli_backend.services.agent.tools.product import (
+    GetProductInformationInput,
+    ProductToolContext,
+    handle_get_product_information,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RECORDED_INPUT_PATH = (
@@ -99,94 +102,60 @@ TOOL_NAME = "get_product_information"
 
 
 # ---------------------------------------------------------------------------
-# The transform under test — composes the sanitize package's building blocks.
+# The transform under test — the real production path (#996 W1 close).
 # ---------------------------------------------------------------------------
 
 
-def _money_amount(raw: str) -> int | float:
-    """Vendor prices arrive as decimal strings (`"72000"`); `Money.amount` must be a
-    bare number (ADR-070 decision 4). VND has no minor subunit, so a whole-VND price
-    is emitted as `int`; anything with a fractional remainder as `float`.
-    """
-    value = float(raw)
-    as_int = int(value)
-    return as_int if as_int == value else value
+class _StubProductsResource:
+    """Stands in for `ProductsResource.get_details` only — this golden gate
+    exercises `get_product_information`, never `get_seo_keywords` or
+    `check_product_status`. Returns the raw `data` payload verbatim, exactly
+    as the real `ProductsResource.get_details` does (the marketplace client
+    unwraps the `response.data` envelope before a handler ever sees it)."""
+
+    def __init__(self, data: Mapping[str, Any]) -> None:
+        self._data = data
+
+    def get_details(self, product_id: str) -> dict[str, Any]:
+        del product_id
+        return dict(self._data)
 
 
-def _vendor_text_payload(capped_text: Any) -> dict[str, Any]:
-    """Combine provenance (`VendorText`/`to_json_safe`) with a `cap_text` result.
-
-    `cap_text` never re-tags provenance and `VendorText` never caps — this is the
-    seam that puts the two ADR-070 decisions (2 and 3) together for one free-text
-    field, exactly as a real product-tool handler would.
-    """
-    envelope = VendorText(text=capped_text.text)
-    payload = to_json_safe(envelope)
-    if capped_text.truncated:
-        payload["truncated"] = True
-        payload["omitted_count"] = capped_text.omitted_count
-    return payload
+def _resources_for(data: Mapping[str, Any]) -> ProductionReadResources:
+    return ProductionReadResources(
+        authorization=None,  # type: ignore[arg-type]
+        orders=None,  # type: ignore[arg-type]
+        products=_StubProductsResource(data),  # type: ignore[arg-type]
+        returns=None,  # type: ignore[arg-type]
+        inventory=None,  # type: ignore[arg-type]
+        analytics=None,  # type: ignore[arg-type]
+        promotion=None,  # type: ignore[arg-type]
+    )
 
 
 def sanitize_product_detail_response(envelope: Mapping[str, Any]) -> dict[str, Any]:
-    """Raw `GET /product/202309/products/{product_id}` envelope -> agent-safe result.
+    """Raw `GET /product/202309/products/{product_id}` envelope -> agent-safe result,
+    via the **real** `get_product_information` handler (#996 W1 close — no longer a
+    test-local reimplementation of ADR-070 shaping).
 
-    Reads only the fields a `get_product_information`-shaped tool result needs and
-    that ADR-070 permits surfacing: title/description (provenance + cap_text), status
-    (a plain status string, not an identifier), `update_time` (machine ISO-8601 UTC),
-    per-SKU price (`Money`, capped via `cap_list`) and inventory quantity (a bare
-    `int` total), and image dimensions (`sanitize_images`). Every vendor identifier on
-    the raw envelope — product id, SKU id, warehouse id, brand id, category id,
-    request id, image URI, the endpoint path itself — is read by nothing here, so none
-    of it can reach the returned mapping. `sku_count` and `total_inventory_quantity`
-    are computed from the *full* SKU list before capping (the same "count is always
-    the true total" convention `sanitize_images`/`CappedImages` already uses), not
-    from whatever survives the cap.
-
-    The result is run through `guard_inbound_tool_result` before it is returned —
-    the same fail-closed chokepoint a real tool executor would apply before this
-    content ever reaches the conversation (ADR-070 decision 6(a)). A clean result
-    passes through unchanged; this function does not special-case that, so a
-    regression that reintroduces a banned identifier would silently reroute the
-    golden output to the guard's error envelope, and the byte-for-byte comparison
-    against the committed golden file would fail loudly.
+    Builds a stub `ProductionReadResources` whose `products.get_details` returns the
+    envelope's `response.data` payload verbatim, calls the production
+    `handle_get_product_information` (`services/agent/tools/product.py`) exactly as a
+    real dispatcher would, then runs its serialized output through
+    `guard_inbound_tool_result` — the same fail-closed chokepoint a real tool executor
+    would apply before this content ever reaches the conversation (ADR-070 decision
+    6(a)), applied at the dispatch boundary rather than inside the handler itself (see
+    `product.py`'s module docstring). A clean result passes through unchanged; this
+    function does not special-case that, so a regression that reintroduces a banned
+    identifier would silently reroute the golden output to the guard's error envelope,
+    and the byte-for-byte comparison against the committed golden file would fail
+    loudly.
     """
     data = envelope["response"]["data"]
-
-    title_payload = _vendor_text_payload(cap_text(data["title"]))
-    description_payload = _vendor_text_payload(cap_text(data["description"]))
-
-    skus = data.get("skus") or []
-    sku_price_payloads: list[dict[str, Any]] = []
-    total_inventory_quantity = 0
-    for sku in skus:
-        price = sku.get("price") or {}
-        amount = _money_amount(price["tax_exclusive_price"])
-        sku_price_payloads.append(Money(amount=amount, currency=price["currency"]).to_dict())
-        for inventory_entry in sku.get("inventory") or []:
-            total_inventory_quantity += int(inventory_entry.get("quantity") or 0)
-    capped_sku_prices = cap_list(sku_price_payloads)
-
-    capped_images = sanitize_images(data.get("main_images") or [])
-
-    update_time_raw = data.get("update_time")
-    update_time_iso = (
-        iso_utc_timestamp(datetime.fromtimestamp(update_time_raw, tz=UTC))
-        if update_time_raw is not None
-        else None
-    )
-
-    result: dict[str, Any] = {
-        "title": title_payload,
-        "status": data.get("status"),
-        "update_time": update_time_iso,
-        "description": description_payload,
-        "sku_count": len(skus),
-        "total_inventory_quantity": total_inventory_quantity,
-        "sku_prices": capped_sku_prices.to_dict(),
-        "images": capped_images.to_dict(),
-    }
-    return dict(guard_inbound_tool_result(result, tool_name=TOOL_NAME))
+    resources = _resources_for(data)
+    context = ProductToolContext(product_id=str(data.get("id", "")))
+    output = handle_get_product_information(resources, context, GetProductInformationInput())
+    return dict(guard_inbound_tool_result(output.model_dump(mode="json"), tool_name=TOOL_NAME))
 
 
 # ---------------------------------------------------------------------------

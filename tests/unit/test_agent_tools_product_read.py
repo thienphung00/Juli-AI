@@ -20,6 +20,7 @@ only — no live calls, no direct `TikTokClient` construction.
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
 import pytest
@@ -193,10 +194,13 @@ class TestGetProductInformation:
 
         assert products.get_details_calls == [BOUND_PRODUCT_ID]
         assert isinstance(result, GetProductInformationOutput)
-        assert result.title == "Hero Running Shoe"
+        # ADR-070 decision 3: vendor free text is a provenance envelope, not a
+        # bare string.
+        assert result.title == {"source": "vendor", "text": "Hero Running Shoe"}
         assert result.status == "ACTIVATE"
-        assert result.create_time == 1_700_000_000
-        assert result.update_time == 1_700_100_000
+        # ADR-070 decision 4: absolute ISO-8601 UTC, never a raw epoch int.
+        assert result.create_time == "2023-11-14T22:13:20+00:00"
+        assert result.update_time == "2023-11-16T02:00:00+00:00"
 
     def test_handler_uses_context_id_not_any_id_embedded_in_details_payload(self, context):
         """Even if the raw vendor payload disagrees, the call is keyed off the
@@ -214,7 +218,21 @@ class TestGetProductInformation:
 
     def test_output_model_never_carries_the_raw_vendor_id(self, context):
         products = _FakeProductsResource(
-            details={"id": BOUND_PRODUCT_ID, "title": "T", "status": "ACTIVATE"},
+            details={
+                "id": BOUND_PRODUCT_ID,
+                "title": "T",
+                "status": "ACTIVATE",
+                "skus": [
+                    {
+                        "id": "sku-should-never-leak",
+                        "inventory": [
+                            {"quantity": 5, "warehouse_id": "warehouse-should-never-leak"}
+                        ],
+                        "price": {"currency": "VND", "tax_exclusive_price": "1000"},
+                    }
+                ],
+                "main_images": [{"width": 10, "height": 10, "uri": "uri-should-never-leak"}],
+            },
             seo_words={},
             suggestions={},
         )
@@ -224,6 +242,90 @@ class TestGetProductInformation:
 
         assert "id" not in type(result).model_fields
         assert "product_id" not in type(result).model_fields
+        # Stronger than the field-name check above (kept, not weakened): walk
+        # the fully serialized output and prove no raw vendor identifier —
+        # product id, SKU id, warehouse id, or image URI — is present in any
+        # nested value either.
+        serialized = json.dumps(result.model_dump(mode="json"))
+        assert BOUND_PRODUCT_ID not in serialized
+        assert "some-other-id" not in serialized
+        assert "sku-should-never-leak" not in serialized
+        assert "warehouse-should-never-leak" not in serialized
+        assert "uri-should-never-leak" not in serialized
+
+    def test_output_free_text_fields_are_provenance_envelopes(self, context):
+        products = _FakeProductsResource(
+            details={"id": BOUND_PRODUCT_ID, "title": "Hero Shoe", "description": "Great shoe."},
+            seo_words={},
+            suggestions={},
+        )
+        resources = make_resources(products)
+
+        result = handle_get_product_information(resources, context, GetProductInformationInput())
+
+        assert result.title == {"source": "vendor", "text": "Hero Shoe"}
+        assert result.description == {"source": "vendor", "text": "Great shoe."}
+
+    def test_output_sku_prices_are_money_shaped_not_formatted_strings(self, context):
+        products = _FakeProductsResource(
+            details={
+                "id": BOUND_PRODUCT_ID,
+                "skus": [
+                    {
+                        "id": "sku-1",
+                        "inventory": [{"quantity": 3, "warehouse_id": "w-1"}],
+                        "price": {"currency": "VND", "tax_exclusive_price": "72000"},
+                    }
+                ],
+            },
+            seo_words={},
+            suggestions={},
+        )
+        resources = make_resources(products)
+
+        result = handle_get_product_information(resources, context, GetProductInformationInput())
+
+        assert result.sku_count == 1
+        assert result.total_inventory_quantity == 3
+        assert result.sku_prices == {"items": [{"amount": 72000, "currency": "VND"}]}
+
+    def test_output_images_collapse_to_count_and_dimensions_only(self, context):
+        products = _FakeProductsResource(
+            details={
+                "id": BOUND_PRODUCT_ID,
+                "main_images": [{"width": 800, "height": 600, "uri": "tos/some-vendor-uri"}],
+            },
+            seo_words={},
+            suggestions={},
+        )
+        resources = make_resources(products)
+
+        result = handle_get_product_information(resources, context, GetProductInformationInput())
+
+        assert result.images == {"count": 1, "dimensions": [{"width": 800, "height": 600}]}
+
+    def test_output_list_fields_are_capped_with_signalled_truncation(self, context):
+        skus = [
+            {
+                "id": f"sku-{i}",
+                "inventory": [{"quantity": 1, "warehouse_id": f"w-{i}"}],
+                "price": {"currency": "VND", "tax_exclusive_price": "1000"},
+            }
+            for i in range(25)
+        ]
+        products = _FakeProductsResource(
+            details={"id": BOUND_PRODUCT_ID, "skus": skus},
+            seo_words={},
+            suggestions={},
+        )
+        resources = make_resources(products)
+
+        result = handle_get_product_information(resources, context, GetProductInformationInput())
+
+        assert result.sku_count == 25
+        assert result.sku_prices["truncated"] is True
+        assert result.sku_prices["omitted_count"] == 5
+        assert len(result.sku_prices["items"]) == 20
 
 
 class TestGetSeoKeywords:
@@ -288,9 +390,20 @@ class TestGetSeoKeywords:
         result = handle_get_seo_keywords(resources, context, GetSeoKeywordsInput())
 
         assert isinstance(result, GetSeoKeywordsOutput)
-        assert result.seo_words == ["running shoe", "trainer"]
-        assert result.suggested_titles == ["Hero Runner Pro"]
-        assert result.suggested_descriptions == ["Lightweight everyday trainer."]
+        # ADR-070 decision 3: each vendor-sourced suggestion string is its own
+        # provenance envelope; decision 2: the list itself is a capped envelope.
+        assert result.seo_words == {
+            "items": [
+                {"source": "vendor", "text": "running shoe"},
+                {"source": "vendor", "text": "trainer"},
+            ]
+        }
+        assert result.suggested_titles == {
+            "items": [{"source": "vendor", "text": "Hero Runner Pro"}]
+        }
+        assert result.suggested_descriptions == {
+            "items": [{"source": "vendor", "text": "Lightweight everyday trainer."}]
+        }
 
     def test_handler_tolerates_empty_upstream_payloads(self, context):
         products = _FakeProductsResource(details={}, seo_words={}, suggestions={})
@@ -299,8 +412,25 @@ class TestGetSeoKeywords:
         result = handle_get_seo_keywords(resources, context, GetSeoKeywordsInput())
 
         assert result == GetSeoKeywordsOutput(
-            seo_words=[], suggested_titles=[], suggested_descriptions=[]
+            seo_words={"items": []},
+            suggested_titles={"items": []},
+            suggested_descriptions={"items": []},
         )
+
+    def test_output_list_fields_are_capped_with_signalled_truncation(self, context):
+        words = [f"keyword-{i}" for i in range(25)]
+        products = _FakeProductsResource(
+            details={},
+            seo_words={"products": [{"id": BOUND_PRODUCT_ID, "seo_words": words}]},
+            suggestions={},
+        )
+        resources = make_resources(products)
+
+        result = handle_get_seo_keywords(resources, context, GetSeoKeywordsInput())
+
+        assert result.seo_words["truncated"] is True
+        assert result.seo_words["omitted_count"] == 5
+        assert len(result.seo_words["items"]) == 20
 
 
 class TestCheckProductStatus:

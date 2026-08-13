@@ -36,20 +36,47 @@ imports `TikTokClient`, `GuardedTikTokClient`, or the factory classes that
 construct a transport (`test_agent_tools_product_read.py
 ::TestNoDirectClientConstruction` enforces this via an AST check).
 
-**Sanitization is out of scope here (ADR-070, phase P5 / #990-995).** Output
-models declare business-semantic shapes only; no caps, truncation, source-role
-tagging, or banned-pattern guard is implemented in this slice.
+**Sanitization is wired in here (ADR-070, phase P5 / #990-995, integrated
+#996 W1 close).** Every field a handler in this module returns is shaped
+through `services/agent/sanitize`: vendor-sourced free text (title,
+description, SEO words/suggestions) is wrapped in a `VendorText` provenance
+envelope (decision 3) and cut with `cap_text`/`cap_list` (decision 2);
+timestamps are absolute ISO-8601 UTC via `iso_utc_timestamp` (decision 4);
+SKU prices are `Money` (amount + currency, decision 4); images collapse to
+`{count, dimensions}` via `sanitize_images` (decision 2). No raw vendor
+identifier (product id, SKU id, warehouse id, image URI, request id) is read
+by any handler in this module (decision 1) — enforced by
+`test_agent_tools_product_read.py::TestOutputModelNeverCarriesRawVendorId`.
+The inbound fail-closed banned-pattern chokepoint
+(`guard_inbound_tool_result`, decision 6(a)) is **not** called inside these
+handlers — it is a boundary seam applied once, by whatever dispatches a tool
+call against this handler (a test-only dispatcher for this wave;
+`WorkflowRunner` in W3-A), the same way it would bracket any tool's result
+regardless of how much shaping that tool's own handler already did.
+`check_product_status`'s single `status` field is a plain machine value
+(not free text, not a timestamp, not a list) and needs no shaping beyond
+that boundary guard.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from juli_backend.integrations.tiktok import ProductionReadResources
+from juli_backend.services.agent.sanitize import (
+    Money,
+    VendorText,
+    cap_list,
+    cap_text,
+    iso_utc_timestamp,
+    sanitize_images,
+    to_json_safe,
+)
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
     ToolPolicy,
@@ -98,6 +125,68 @@ class ProductToolContext:
     pending_image_bytes: bytes | None = None
 
 
+# --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------
+
+
+def _vendor_text_field(value: str | None) -> dict[str, Any] | None:
+    """Cap + provenance-wrap one vendor-sourced free-text field.
+
+    `None` (the field absent on the raw payload) passes through as `None` —
+    `cap_text` requires a string, and a genuinely absent field is not the
+    same thing as an empty one. Combines `cap_text` (decision 2) with
+    `VendorText`/`to_json_safe` (decision 3) exactly as the golden-file gate
+    (#995) established: capping never re-tags provenance, and provenance
+    never caps.
+    """
+    if value is None:
+        return None
+    capped = cap_text(value)
+    payload: dict[str, Any] = to_json_safe(VendorText(text=capped.text))
+    if capped.truncated:
+        payload["truncated"] = True
+        payload["omitted_count"] = capped.omitted_count
+    return payload
+
+
+def _vendor_text_list(items: list[str]) -> dict[str, Any]:
+    """Provenance-wrap each string in a vendor-sourced list, then cap the list.
+
+    Used for SEO words and title/description suggestions — each entry is its
+    own piece of vendor free text (decision 3); the list itself is capped to
+    `LIST_ITEM_CAP` in the caller's own order (decision 2).
+    """
+    payloads = [to_json_safe(VendorText(text=item)) for item in items]
+    return cap_list(payloads).to_dict()
+
+
+def _iso_from_epoch(value: int | None) -> str | None:
+    """Absolute ISO-8601 UTC timestamp from a vendor epoch-seconds int, or
+    `None` when the raw payload carries no value for this field (decision 4).
+    """
+    if value is None:
+        return None
+    return iso_utc_timestamp(datetime.fromtimestamp(value, tz=UTC))
+
+
+def _money_amount(raw: str) -> int | float:
+    """Vendor prices arrive as decimal strings (`"72000"`); `Money.amount`
+    must be a bare number (decision 4). VND has no minor subunit, so a
+    whole-VND price is emitted as `int`; anything with a fractional
+    remainder as `float`.
+    """
+    value = float(raw)
+    as_int = int(value)
+    return as_int if as_int == value else value
+
+
+def _sku_price(sku: Mapping[str, Any]) -> dict[str, Any]:
+    price = sku.get("price") or {}
+    raw_amount = price.get("tax_exclusive_price")
+    amount = _money_amount(raw_amount) if raw_amount is not None else 0
+    currency = price.get("currency") or "VND"
+    return Money(amount=amount, currency=currency).to_dict()
+
+
 # --- get_product_information -------------------------------------------------
 
 
@@ -107,10 +196,24 @@ class GetProductInformationInput(BaseModel):
 
 
 class GetProductInformationOutput(BaseModel):
-    title: str | None = None
+    """ADR-070-shaped: `title`/`description` are provenance envelopes
+    (`{"source": "vendor", "text": ..., ["truncated", "omitted_count"]}`);
+    `create_time`/`update_time` are absolute ISO-8601 UTC strings, or `None`
+    when the raw payload carries no value; `sku_prices`/`images` are capped
+    envelopes (`sku_prices` from `cap_list` over `Money` values, `images`
+    from `sanitize_images`); `sku_count`/`total_inventory_quantity` are
+    computed from the *full* SKU list before capping, mirroring the "count
+    is always the true total" convention `CappedImages` already uses."""
+
+    title: dict[str, Any] | None = None
+    description: dict[str, Any] | None = None
     status: str | None = None
-    create_time: int | None = None
-    update_time: int | None = None
+    create_time: str | None = None
+    update_time: str | None = None
+    sku_count: int = 0
+    total_inventory_quantity: int = 0
+    sku_prices: dict[str, Any] = Field(default_factory=dict)
+    images: dict[str, Any] = Field(default_factory=dict)
 
 
 def handle_get_product_information(
@@ -120,11 +223,25 @@ def handle_get_product_information(
 ) -> GetProductInformationOutput:
     del params  # No fields: nothing to consume.
     raw = resources.products.get_details(context.product_id)
+
+    skus = raw.get("skus") or []
+    total_inventory_quantity = 0
+    for sku in skus:
+        for inventory_entry in sku.get("inventory") or []:
+            total_inventory_quantity += int(inventory_entry.get("quantity") or 0)
+    capped_sku_prices = cap_list([_sku_price(sku) for sku in skus])
+    capped_images = sanitize_images(raw.get("main_images") or [])
+
     return GetProductInformationOutput(
-        title=raw.get("title"),
+        title=_vendor_text_field(raw.get("title")),
+        description=_vendor_text_field(raw.get("description")),
         status=raw.get("status"),
-        create_time=raw.get("create_time"),
-        update_time=raw.get("update_time"),
+        create_time=_iso_from_epoch(raw.get("create_time")),
+        update_time=_iso_from_epoch(raw.get("update_time")),
+        sku_count=len(skus),
+        total_inventory_quantity=total_inventory_quantity,
+        sku_prices=capped_sku_prices.to_dict(),
+        images=capped_images.to_dict(),
     )
 
 
@@ -148,9 +265,16 @@ class GetSeoKeywordsInput(BaseModel):
 
 
 class GetSeoKeywordsOutput(BaseModel):
-    seo_words: list[str] = Field(default_factory=list)
-    suggested_titles: list[str] = Field(default_factory=list)
-    suggested_descriptions: list[str] = Field(default_factory=list)
+    """ADR-070-shaped: each field is a capped, provenance-wrapped envelope
+    (`{"items": [{"source": "vendor", "text": ...}, ...], ["truncated",
+    "omitted_count"]}`) — every SEO word / suggested title / suggested
+    description is vendor-sourced free text (decision 3), and the list
+    itself is capped to `LIST_ITEM_CAP` in the vendor's own order
+    (decision 2)."""
+
+    seo_words: dict[str, Any] = Field(default_factory=dict)
+    suggested_titles: dict[str, Any] = Field(default_factory=dict)
+    suggested_descriptions: dict[str, Any] = Field(default_factory=dict)
 
 
 def _extract_seo_words(raw: dict[str, Any], *, product_id: str) -> list[str]:
@@ -190,12 +314,16 @@ def handle_get_seo_keywords(
     seo_words_raw = resources.products.get_seo_words(product_ids=[context.product_id])
     suggestions_raw = resources.products.get_suggestions(product_ids=[context.product_id])
     return GetSeoKeywordsOutput(
-        seo_words=_extract_seo_words(seo_words_raw, product_id=context.product_id),
-        suggested_titles=_extract_suggestion_texts(
-            suggestions_raw, product_id=context.product_id, field="TITLE"
+        seo_words=_vendor_text_list(
+            _extract_seo_words(seo_words_raw, product_id=context.product_id)
         ),
-        suggested_descriptions=_extract_suggestion_texts(
-            suggestions_raw, product_id=context.product_id, field="DESCRIPTION"
+        suggested_titles=_vendor_text_list(
+            _extract_suggestion_texts(suggestions_raw, product_id=context.product_id, field="TITLE")
+        ),
+        suggested_descriptions=_vendor_text_list(
+            _extract_suggestion_texts(
+                suggestions_raw, product_id=context.product_id, field="DESCRIPTION"
+            )
         ),
     )
 
