@@ -117,23 +117,87 @@ def test_cutover_checklist_script_exists() -> None:
     assert CUTOVER_SCRIPT.is_file()
 
 
-def test_cutover_checklist_script_is_importable_and_builds_a_report() -> None:
+def test_cutover_checklist_script_is_importable_and_builds_a_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A unit test must not touch the network. build_report() fans out through
+    # list_active_wave_branches() (a live `git fetch origin` + `git branch
+    # -r`), list_wave_targeted_prs() (a live `gh pr list`), and
+    # classify_wave_branch() per branch (`git ls-tree` / `git show` against
+    # origin/*). A degraded network can let one of those subprocess calls
+    # consume pytest-timeout's whole per-test budget before `_run`'s own
+    # inner timeout gets a chance to fire, which is exactly what made this
+    # test intermittently fail. Stub every subprocess-shelling entry point —
+    # following the same pattern the classification test below already uses
+    # for `_remote_ls_tree` / `_remote_file` — and assert the real report
+    # shape against the stubbed data.
     module = importlib.import_module("check_wave_rollout_cutover")
+
+    refined_pr_yml = "classify-tier:\nartifact-gate:\nfilter-wave\ngithub.event.before\n"
+
+    def fake_remote_ls_tree(branch: str) -> list[str]:
+        if branch == "feature/stub-refined-wave":
+            return ["agent-runtime/artifacts/waves/wave-stub.json"]
+        return []
+
+    def fake_remote_file(branch: str, path: str) -> str | None:
+        if path != ".github/workflows/pr.yml":
+            return None
+        return refined_pr_yml if branch == "feature/stub-refined-wave" else ""
+
+    monkeypatch.setattr(
+        module,
+        "list_active_wave_branches",
+        lambda: (["feature/stub-refined-wave", "feature/stub-legacy-wave"], True),
+    )
+    monkeypatch.setattr(
+        module,
+        "list_wave_targeted_prs",
+        lambda: (
+            [
+                {
+                    "number": 1,
+                    "title": "stub issue-to-wave PR",
+                    "baseRefName": "feature/stub-refined-wave",
+                    "headRefName": "issue-1-stub",
+                    "url": "https://example.invalid/pr/1",
+                    "updatedAt": "2026-01-01T00:00:00Z",
+                }
+            ],
+            True,
+        ),
+    )
+    monkeypatch.setattr(module, "_remote_ls_tree", fake_remote_ls_tree)
+    monkeypatch.setattr(module, "_remote_file", fake_remote_file)
+
     report = module.build_report()
 
     assert report["planId"] == "rep-662-ci-wave-4-docs-rollout-verification"
     assert "waveBranches" in report
     assert "waveTargetedPrs" in report
+    assert report["waveBranches"], "stubbed wave branches must appear in the report"
+    assert report["waveTargetedPrs"], "stubbed PRs must appear in the report"
     summary = report["summary"]
     for key in (
         "totalWaveBranches",
         "refinedWaveBranches",
         "legacyWaveBranches",
         "totalWaveTargetedPrs",
+        "refinedPrs",
+        "legacyOrUnknownPrs",
         "mixedCoverage",
         "anyLegacyCoverage",
     ):
         assert key in summary
+    # The stubbed data is deliberately mixed (one refined branch, one legacy
+    # branch, one PR targeting the refined branch) so the report exercises
+    # real classification logic, not just key presence.
+    assert summary["totalWaveBranches"] == 2
+    assert summary["refinedWaveBranches"] == 1
+    assert summary["legacyWaveBranches"] == 1
+    assert summary["totalWaveTargetedPrs"] == 1
+    assert summary["refinedPrs"] == 1
+    assert summary["mixedCoverage"] is True
 
 
 def test_cutover_checklist_classifies_a_branch_without_manifest_as_legacy(
@@ -164,7 +228,13 @@ def test_cutover_checklist_runs_as_a_script_and_reports_mixed_or_legacy_explicit
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=60,
+        # Must stay below pytest.ini's global `timeout = 30`: this was
+        # previously 60, which meant a slow script invocation was always
+        # killed by pytest-timeout's opaque SIGALRM well before this
+        # subprocess.run timeout could ever fire its own, more diagnostic
+        # subprocess.TimeoutExpired. 20s leaves headroom under the 30s outer
+        # budget (a clean --report run of the script takes ~2s locally).
+        timeout=20,
     )
     assert result.returncode == 0, result.stderr
     assert '"waveBranches"' in result.stdout
