@@ -98,6 +98,8 @@ async def mid_large_shop_with_analytics_ctr(session, user_id):
     )
     session.add_all([user, shop])
     now = datetime.now(UTC)
+    analytics_start = now.date() - timedelta(days=2)
+    analytics_end = now.date() - timedelta(days=1)
     session.add_all(
         [
             Product(
@@ -129,13 +131,21 @@ async def mid_large_shop_with_analytics_ctr(session, user_id):
                 status="COMPLETED",
                 update_time=now,
             ),
+            # Dates are relative to `now`, never hardcoded: the scoring path
+            # only considers analytics inside a recency window, so a frozen
+            # calendar date silently ages out of that window and the CTR-driven
+            # ads recommendations stop being emitted. That is exactly what
+            # happened to the previous "2026-07-13/14" literals — green on
+            # 2026-08-12, red everywhere on 2026-08-13, with no code change.
             AnalyticsPerformanceInterval(
                 id=uuid.uuid4(),
                 shop_id=shop.id,
-                snapshot_key="product:prod-1:2026-07-13:2026-07-14",
+                snapshot_key=(
+                    f"product:prod-1:{analytics_start.isoformat()}:{analytics_end.isoformat()}"
+                ),
                 grain="product",
-                start_date=datetime(2026, 7, 13).date(),
-                end_date=datetime(2026, 7, 14).date(),
+                start_date=analytics_start,
+                end_date=analytics_end,
                 tiktok_product_id="prod-1",
                 gmv=Decimal("500000.00"),
                 gmv_currency="VND",
