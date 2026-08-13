@@ -62,3 +62,28 @@ growing per issue) is reconciled as follows:
   the verbose bodies before they were `git rm`'d.
 - History purge (`git-filter-repo`) for the already-committed verbose bodies remains the separate
   maintenance cutover named in point 6 above — still deferred, still not gated inside this amendment.
+
+## Narrow issue-tier exception (2026-08, #1064)
+
+The "CI-artifact-retained on the issue-tier run" clause above (and the deferred-gate framing) was
+found not implementable as written: `pr.yml` has no `upload-artifact` step for the five gitignored
+body directories and cannot have one, since those bodies never reach the pushed branch (see #1064's
+"Design correction before implementation" comment). Point 6's deferred-gate intent otherwise stands
+unchanged; this note narrowly amends the *issue tier only*, not the mechanism described above.
+
+**What changed:** an issue-tier PR whose head branch resolves to issue `<N>` now also fails when
+`agent-runtime/artifacts/status/issue-<N>.json` is absent, or present but not `PASS` — job
+`artifact-retention-guard` in `pr.yml`, backed by
+`agent-runtime/scripts/ci/check_artifact_retention_guard.py`.
+
+**Why this is not the re-run this ADR deferred:** the new job is an **existence + status read of
+one already-committed JSON file** — the same read `wave_manifest.py`'s `--check-artifacts` performs
+at wave→main, just reused at the point where a slice with no status record can still be cheaply
+fixed. It does **not** re-run `meta_prepare_executor.py` or the `check_*.py` suite per issue push;
+that cost driver (reason 2 in this ADR's Context) is untouched. The wave→main `artifact-gate` job is
+unchanged and remains the authoritative merge-time gate.
+
+**Why now:** ADR-079 (Wave 2 artifact disposition) named the gap this closes: *"A gate failing an
+issue-tier PR whose branch matches `issue-<N>` when no implementation artifact was uploaded to CI
+retention would have caught every one of [four artifact waivers]."* #1064 implements that gate
+against the corrected, implementable target (the committed status record, not a nonexistent upload).
