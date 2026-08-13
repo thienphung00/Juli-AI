@@ -45,7 +45,14 @@ from juli_backend.services.agent.tools.product import register_product_read_tool
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import ToolPolicy, ToolRegistry
 
-WORKFLOW_KEY = "optimize_product"
+# System-wide workflow key (ADR-069's `WORKFLOW_TOOL_CATALOG` key, also what
+# ADR-077 decision 5's `WORKFLOW_OUTCOME_SUCCESS_CRITERIA` uses) -- distinct
+# from the *prompt directory* name `optimize_product` (ADR-072 decision 2:
+# `services/agent/prompts/optimize_product/v1.md`). The two namespaces look
+# alike but are not the same thing: `compose()` maps this workflow_key to
+# that prompt directory explicitly rather than deriving one from the other.
+# `TestWorkflowKeyMatchesCatalog` below pins this so it can't silently drift.
+WORKFLOW_KEY = "optimize_product_2"
 
 # ADR-073 decision 2: Optimize Product v1 termination values. "Did the job"
 # is defined by the two seller-confirmed writes — the listing content change

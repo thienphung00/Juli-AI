@@ -21,6 +21,7 @@ from juli_backend.services.agent.playbooks.optimize_product import (
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.registry import ToolPolicy, ToolRegistry
+from juli_backend.services.execution.tool_routing import WORKFLOW_TOOL_CATALOG
 
 # ADR-069 decision 1's documented order and policy column, reproduced
 # exactly for this test's own independent pin.
@@ -66,7 +67,7 @@ class TestPlaybookShape:
         assert isinstance(OPTIMIZE_PRODUCT_PLAYBOOK, Playbook)
 
     def test_workflow_key_and_version(self):
-        assert OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key == WORKFLOW_KEY == "optimize_product"
+        assert OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key == WORKFLOW_KEY == "optimize_product_2"
         assert OPTIMIZE_PRODUCT_PLAYBOOK.version == 1
 
     def test_six_steps_in_adr069_order_with_exact_policy_column(self):
@@ -93,6 +94,31 @@ class TestPlaybookShape:
             ]
         )
         assert len(all_tool_names) == len(set(all_tool_names))  # each tool exactly once
+
+
+class TestWorkflowKeyMatchesCatalog:
+    """The playbook's `workflow_key` is the system-wide key, not the prompt
+    directory name -- it must join against `WORKFLOW_TOOL_CATALOG` (#983's
+    cross-validation and ADR-077 decision 5's outcome vocabulary both key
+    off this same value), so a future edit that drifts it back to the
+    prompt-directory spelling ("optimize_product") fails here immediately
+    rather than surfacing later as a silent join miss downstream.
+
+    `WORKFLOW_TOOL_CATALOG` (`services/execution/tool_routing.py`) is
+    imported read-only here -- never modified, never used to construct or
+    dispatch anything."""
+
+    def test_workflow_key_is_a_real_catalog_key(self):
+        assert OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key in WORKFLOW_TOOL_CATALOG
+
+    def test_workflow_key_is_not_the_prompt_directory_name(self):
+        """Guards against the exact regression this test class exists to
+        catch: workflow_key silently reverting to the prompt-directory
+        spelling, which is a different namespace (ADR-072 decision 2's
+        prompt path stays `services/agent/prompts/optimize_product/v1.md`
+        regardless of this key)."""
+        assert OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key == "optimize_product_2"
+        assert OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key != "optimize_product"
 
 
 class TestPlaybookToolsResolveAgainstRealRegistry:
