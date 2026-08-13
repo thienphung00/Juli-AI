@@ -16,9 +16,9 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | # | Phase (draft-checklist numbering kept) | Status | Gate passed |
 |---|---|---|---|
 | 1 | P0 — Execution model & lifecycle (0.1 + 0.2) | ✅ complete — [ADR-068](../../adr/068-agent-workflow-execution-boundary.md) merged (#962) | ✅ 2026-08-11 |
-| 2 | P3+P4 — Tool registry + tool schemas (minimal) | 🟨 design grilled 2026-08-11 — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md) drafted; implementation pending | ⬜ |
-| 3 | P5 — TikTok sanitization (product surface only) | 🟨 design grilled 2026-08-11 — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md) drafted; implementation pending | ⬜ |
-| 4 | P11 — Model abstraction (minimal LLM service) | 🟨 design grilled 2026-08-11 — [ADR-071](../../adr/071-llm-service-openai-adapter.md) drafted; implementation pending | ⬜ |
+| 2 | P3+P4 — Tool registry + tool schemas (minimal) | ✅ implemented — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md); registry core + 6-tool Optimize Product set (#980–#984), registry×sanitizer integration (#996) | ✅ 2026-08-13 |
+| 3 | P5 — TikTok sanitization (product surface only) | ✅ implemented — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md); sanitize package (#990–#995), wired into the real READ handlers + golden re-pointed to the production path (#996) | ✅ 2026-08-13 |
+| 4 | P11 — Model abstraction (minimal LLM service) | ✅ implemented — [ADR-071](../../adr/071-llm-service-openai-adapter.md); `LLMService`/adapter/fake (#985–#989), `FakeLLMService` proven downstream against the real registry + sanitizer (#996) | ✅ 2026-08-13 |
 | 5 | P12 — Prompt architecture (system + Optimize Product) | 🟨 design grilled 2026-08-11 — [ADR-072](../../adr/072-agent-prompt-architecture.md) drafted; implementation pending | ⬜ |
 | 6 | P1 — Agent execution loop (blocks + runner) | 🟨 design grilled 2026-08-11 — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md) drafted; implementation pending | ⬜ |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
@@ -51,6 +51,20 @@ Minimal specs (per ADR-069):
 
 Gate: LLM-consumable JSON schemas render for the 6-tool Optimize Product set; playbook↔registry contract test green.
 
+**Implemented (#980–#984, W1-A; integration #996, W1 close).** `ToolSpec`/`ToolRegistry`
+(#980) and the 6 Optimize Product tools across `product.py` (READ, #981) and
+`product_write.py` (WRITE, #982) shipped exactly as specced — no collapsing, no
+splitting. Playbook↔registry cross-validation is **not yet implemented**: P12 (the
+playbook) is a later wave (W2-A) and does not exist yet, so there is nothing to
+cross-validate against yet — this is not a gap, it is sequencing (P12 depends on W1-A
+per the implementation handoff's parallel order). The 4 unregistered legacy tools
+(`fulfillment.process_order`, `returns.prevent_*`) remain flagged, not fixed, per
+ADR-069's explicit scope. #996 (W1 close) proved the registry composes with the
+sanitizer (I2×I3) and with `FakeLLMService` (I1×I2×I3) via two new integration test
+suites (`tests/integration/test_agent_registry_sanitizer_integration.py`,
+`tests/integration/test_agent_llm_registry_sanitizer_composition.py`), both dispatching
+against the real `ToolRegistry`/handlers, not fixtures.
+
 ### 3. P5 — Sanitization (product surface only) — *design settled in [ADR-070](../../adr/070-agent-safe-sanitization-contract.md)*
 Minimal specs (per ADR-070):
 - Context-bound IDs: executor injects `product_id` from run context; no ID params in Optimize Product schemas; opaque-ref extension reserved for future mid-run selection steps.
@@ -63,12 +77,77 @@ Minimal specs (per ADR-070):
 
 Gate: golden-file test — raw sandbox product response in, agent-safe result out, zero banned identifiers via the shared JSON pattern source.
 
+**Implemented (#990–#995, W1-C; wired into production + golden re-pointed, #996 W1
+close).** The sanitize package (provenance envelopes, machine values, caps, error
+translation, the two fail-closed banned-pattern chokepoints) shipped against recorded
+fixtures in W1-C, but as flagged by Meta during W1 verification (issue #996's comment
+thread — a genuine integration gap, not a design defect): `product.py`'s READ handlers
+still returned raw vendor-shaped output (epoch ints, bare strings) after W1-C landed,
+and the golden gate (#995) exercised a **test-local** transform rather than the shipped
+tool path. #996 closed that gap:
+- All three READ handlers (`get_product_information`, `get_seo_keywords`,
+  `check_product_status`) now build their `output_model`s through the sanitize
+  package — `VendorText`/`to_json_safe` for free text, `iso_utc_timestamp` for
+  `create_time`/`update_time`, `Money` for SKU prices, `cap_list`/`cap_text`/
+  `sanitize_images` for every list/text/image field. `get_product_information`'s
+  output model grew `description`, `sku_count`, `total_inventory_quantity`,
+  `sku_prices`, and `images` — the shape the golden gate always intended, now real.
+  `check_product_status`'s single `status` field needed no internal shaping (it is a
+  plain machine value, not free text/timestamp/list) — decided in-slice, not deferred.
+- **Design decision:** the inbound chokepoint (`guard_inbound_tool_result`, decision
+  6(a)) is applied at the **dispatch boundary**, not inside each handler — a handler
+  produces ADR-070-shaped `output_model`s (decisions 1–4); the chokepoint brackets
+  *any* tool's result once, regardless of how much shaping that tool's own handler
+  did, exactly as it will when `WorkflowRunner` (W3-A) becomes the real dispatcher.
+  `tests/integration/agent_tool_dispatch.py` is a test-only stand-in for that
+  boundary — not a preview of the runner's design.
+- `tests/unit/test_agent_sanitize_golden.py` now calls the real
+  `handle_get_product_information` handler (via a stub `ProductionReadResources`
+  standing in for the marketplace transport only) instead of its own
+  `sanitize_product_detail_response` reimplementation; both golden `.golden.json`
+  expectation files were regenerated — the only diff is field order (now the
+  `output_model`'s declared order) and the addition of `create_time` (which the
+  recorded fixture has no raw value for, so it serializes as `null`). Both fixture
+  provenance blocks (`recorded/`, `synthetic/`) are unchanged and unmoved.
+- `product_write.py` was reviewed and left unchanged: its outputs already satisfy
+  ADR-070 decision 1 structurally (no identifier field, no raw vendor SKU id/asset
+  URI — enforced since #982), and carry no vendor-sourced free text, timestamp, or
+  money value to shape (they echo agent-authored input, not marketplace data).
+  **Flagged, not silently worked around:** `ProductSkuPrice.amount: str` (shared by
+  `update_product_price`'s input *and* output) is a formatted-looking string, not
+  `Money`'s numeric-amount-plus-currency shape — decision 4 read literally would
+  reach this field too. Changing it touches the WRITE input schema the LLM populates
+  (a bigger, CONFIRM-write-adjacent design question), which is out of #996's
+  explicit acceptance criteria; reported here for the Architect rather than changed
+  in-slice.
+
+Gate now demonstrably met on the production path, not just the sanitize package in
+isolation: `tests/unit/test_agent_sanitize_golden.py` (recorded + synthetic, both
+re-pointed), `tests/integration/test_agent_registry_sanitizer_integration.py` (all
+three READ capabilities from the real registry), and
+`tests/integration/test_agent_llm_registry_sanitizer_composition.py` (I1×I2×I3) are
+all green.
+
 ### 4. P11 — Model abstraction (minimal)
 Minimal specs:
 - `LLMService` (messages, system, tools, usage) with one provider — **OpenAI, base model GPT-5.4 nano** (decided 2026-08-11) — + config surface (model, max_tokens, temperature, API key via ADR-030 pattern). No fallback chains yet.
 - Replace/retire the dead `LlmGenerator` seam (`ai/recommendations/engine.py:49`); lift no-LLM tests per P0 decision.
 
 Gate: one real tool-calling round-trip against the provider passes an integration test (recorded-replay for CI).
+
+**Implemented (#985–#989, W1-B; downstream composition proven, #996 W1 close).** The
+block vocabulary + `LLMService` protocol (#985), the stateless `OpenAIResponsesAdapter`
+over `httpx` — no `openai` package import anywhere, since it is not a declared
+dependency (#986) — `FakeLLMService` (#987), the AST containment test guarding no
+provider SDK import outside the adapter (#988), and the recorded-replay harness plus
+one real GPT-5.4 nano round-trip fixture (#989) all shipped as specced. The dead
+`LlmGenerator` seam retirement and the no-LLM test lift were superseded by ADR-068
+decision 6 (recorded in PLAN.md D1 above) before this phase started — not this phase's
+job. #996 (W1 close) added the acceptance-criterion-2 gate the implementation handoff
+§8 named: `FakeLLMService` scripted to propose a tool call, dispatched against the real
+ADR-069 registry, with the result run through the real ADR-070 sanitizer
+(`tests/integration/test_agent_llm_registry_sanitizer_composition.py`) — proving I1×I2×I3
+compose before `WorkflowRunner` (W3-A) depends on all three simultaneously.
 
 ### 5. P12 — Prompt architecture (minimal) — *design grilled 2026-08-11, [ADR-072](../../adr/072-agent-prompt-architecture.md)*
 Settled specs (Optimize Product only; eval-pipeline-ready by design):
