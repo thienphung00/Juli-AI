@@ -189,6 +189,15 @@ databaseTables:
     owner: Workers & Async
     access: write
     notes: Operations schema; execution invokes record API — cycle risk under MMU-6.
+  impact_readings:
+    owner: Intelligence
+    access: write
+    notes: >
+      Incremental impact measurement (P-IM, ADR-077 decision 5, #1040). Source of
+      truth for every impact reading; will be written by the daily impact-reader
+      beat task landing later in this wave (#1044). `tool_execution_id` FKs to
+      tool_executions; `run_id` is a deliberate nullable-no-FK column until W3-A
+      lands `workflow_runs` (ADR-073) — see migration 033 for the full rationale.
   alert_configs:
     owner: Cross-cutting
     access: write
