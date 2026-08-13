@@ -9,9 +9,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import ToolExecution
+from juli_backend.models.models import ImpactReading, ToolExecution
 from juli_backend.repositories.repos import WorkflowOutcomeRecordsRepo
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,11 @@ VALIDATED_WORKFLOW_IDS = frozenset(
         "product_scaling",
         "refund_spike_detection",
         "stockout_prevention",
+        # ADR-077 decision 5 / d.1 (#1044): closes the vocabulary gap — this
+        # is the system-wide agent workflow key (also what the Playbook uses,
+        # see services/execution/tool_routing.py and
+        # services/scoring/kpi_catalog.py), not "optimize_product".
+        "optimize_product_2",
     }
 )
 
@@ -39,6 +45,7 @@ WORKFLOW_DISPLAY_NAMES: dict[str, str] = {
     "product_scaling": "Mở rộng sản phẩm",
     "refund_spike_detection": "Phát hiện đỉnh hoàn tiền",
     "stockout_prevention": "Phòng tránh hết hàng",
+    "optimize_product_2": "Tối ưu sản phẩm",
 }
 
 WORKFLOW_OUTCOME_SUCCESS_CRITERIA: dict[str, dict[str, str]] = {
@@ -71,6 +78,16 @@ WORKFLOW_OUTCOME_SUCCESS_CRITERIA: dict[str, dict[str, str]] = {
         "metric": "Stockouts avoided",
         "period": "30d",
         "threshold": "0 unplanned stockouts",
+    },
+    # ADR-077 decision 5 / d.1 (#1044): the real success measure for this
+    # workflow is the control-adjusted incremental impact computed by the
+    # daily impact-reader beat task and stored in `impact_readings` — see
+    # `_fill_cadences_from_impact_readings` below, which fills the `weekly`/
+    # `monthly` cadence slots from that table once a reading lands.
+    "optimize_product_2": {
+        "metric": "Incremental impact (ADR-077 funnel metric(s) touched)",
+        "period": "7d preliminary / 14d final",
+        "threshold": "positive control-adjusted incremental vs. expected (see impact_readings)",
     },
 }
 
@@ -244,14 +261,88 @@ async def record_workflow_outcome(
     )
 
 
+#: ADR-077 decision 5: preliminary readings fill the legacy `weekly` cadence
+#: slot, final readings fill `monthly`. `realtime` keeps its existing
+#: execution-status meaning (never repurposed here) and `daily` is likewise
+#: untouched — neither participates in this fill.
+_IMPACT_KIND_TO_CADENCE: dict[str, str] = {"preliminary": "weekly", "final": "monthly"}
+
+
+def _format_impact_reading_value(reading: ImpactReading) -> str:
+    """Never fabricate a number: a suppressed/confounded reading (or one
+    with no computed incremental) renders as ``"n/a"``, not a placeholder
+    zero or the raw ``None``."""
+    if reading.confidence in ("suppressed", "confounded") or reading.incremental is None:
+        return "n/a"
+    return str(reading.incremental)
+
+
+async def _fill_cadences_from_impact_readings(
+    session: AsyncSession,
+    cadences: list[dict[str, Any]],
+    tool_execution_id: uuid.UUID,
+) -> list[dict[str, Any]]:
+    """ADR-077 decision 5: the legacy envelope stays display-compatible by
+    reading straight from ``impact_readings`` at serve time rather than
+    re-persisting derived values onto ``metrics_json`` — the table is the
+    single source of truth the daily impact-reader beat task (#1044) writes
+    to, so a cadence with no matching reading yet is left exactly as
+    ``build_workflow_outcome_metrics`` built it (the "pending" placeholder).
+    """
+    stmt = select(ImpactReading).where(ImpactReading.tool_execution_id == tool_execution_id)
+    result = await session.execute(stmt)
+    rows = result.scalars().all()
+    if not rows:
+        return cadences
+
+    by_kind: dict[str, list[ImpactReading]] = {}
+    for row in rows:
+        by_kind.setdefault(row.kind, []).append(row)
+
+    filled: list[dict[str, Any]] = []
+    for cadence in cadences:
+        cadence_id = cadence.get("cadence")
+        target_kind = next(
+            (kind for kind, cid in _IMPACT_KIND_TO_CADENCE.items() if cid == cadence_id),
+            None,
+        )
+        readings_for_kind = by_kind.get(target_kind) if target_kind is not None else None
+        if not readings_for_kind:
+            filled.append(cadence)
+            continue
+        filled.append(
+            {
+                **cadence,
+                "readings": [
+                    {
+                        "label": row.metric,
+                        "value": _format_impact_reading_value(row),
+                        "status": row.confidence,
+                    }
+                    for row in sorted(readings_for_kind, key=lambda r: r.metric)
+                ],
+            }
+        )
+    return filled
+
+
 async def load_workflow_outcome_metrics(
     session: AsyncSession,
     shop_id: uuid.UUID,
     approval_id: str,
 ) -> dict[str, Any]:
-    """Load persisted workflow_outcome_metrics envelope for internal validation."""
+    """Load persisted workflow_outcome_metrics envelope for internal validation.
+
+    ADR-077 decision 5: ``weekly``/``monthly`` cadences are filled from
+    ``impact_readings`` at read time (see ``_fill_cadences_from_impact_readings``);
+    ``realtime`` and ``daily`` are untouched.
+    """
     record = await WorkflowOutcomeRecordsRepo(session).get_by_approval_id(
         shop_id,
         approval_id,
     )
-    return json.loads(record.metrics_json)
+    metrics = json.loads(record.metrics_json)
+    metrics["cadences"] = await _fill_cadences_from_impact_readings(
+        session, metrics["cadences"], record.execution_id
+    )
+    return metrics

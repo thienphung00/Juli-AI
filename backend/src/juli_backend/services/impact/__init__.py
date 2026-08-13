@@ -1,4 +1,17 @@
 """Incremental impact measurement — funnel-first metric map, ratio-form DiD
+compute, control-pool selection, and confidence tiers / seller-facing copy
+(ADR-077 decisions 1-4; #1041, #1042, #1043).
+
+This package answers four questions: **which metric** does a mutation act
+on (``metric_map.py``), **which sibling products form its control cohort**
+(``control_pool.py``), **what is the control-adjusted incremental impact**
+for that metric given a target series, a control series, and the write's
+execution date T (``windows.py`` + ``compute.py`` + ``reading.py``), and
+**how confident is that number, and what does a seller actually read**
+(``confidence.py`` + ``copy.py``). Everything else ADR-077 describes is
+explicitly out of scope here and owned by later, stacked issues in the same
+package:
+
 compute, and control-pool selection (ADR-077 decisions 1, 2 and 3; #1041,
 #1042).
 
