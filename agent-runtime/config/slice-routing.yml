@@ -2884,6 +2884,63 @@ SEC-13:
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
 
+# AGT-W2A — #1057 agent prompt architecture (ADR-072), issues #1036-#1039
+AGT-W2A:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/069-agent-tool-registry-and-write-path.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/tools/registry.py
+    - backend/src/juli_backend/services/agent/tools/product.py
+    - backend/src/juli_backend/services/agent/tools/product_write.py
+    - backend/src/juli_backend/services/execution/tool_routing.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - dictionary.md
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+    - packages/contracts/seller-copy-banned-patterns.json
+    - backend/src/juli_backend/services/agent/sanitize/banned_patterns.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - docs/adr/074-agent-event-streaming-and-relay.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+    - docs/adr/076-agent-demo-execution-experience.md
+    - docs/adr/077-incremental-impact-measurement.md
+    - Sibling issue context caches
+
+# AGT-W2B — #1058 incremental impact measurement (ADR-077), issues #1040-#1045
+AGT-W2B:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/services/operations/outcome_tracking.py
+    - backend/src/juli_backend/workers/celery_app.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - dictionary.md
+    - backend/src/juli_backend/services/scoring/copy_layer.py
+    - backend/src/juli_backend/database/migrations/versions/
+    - tests/integration/test_schema_parity.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - docs/adr/072-agent-prompt-architecture.md
+    - docs/adr/074-agent-event-streaming-and-relay.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+    - docs/adr/076-agent-demo-execution-experience.md
+    - Sibling issue context caches
+
 # AGT-W1A — #977 agent tool registry (ADR-069), issues #980-#984
 AGT-W1A:
   executorDomain: backend
