@@ -177,6 +177,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@juli/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       lucide-react:
         specifier: ^1.26.0
         version: 1.26.0(react@19.2.8)
