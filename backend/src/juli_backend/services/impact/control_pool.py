@@ -70,7 +70,7 @@ package.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -280,6 +280,53 @@ def _fallback_result(
     )
 
 
+def _pre_window_volume(
+    daily: DailySeries,
+    metric: MetricSpec,
+    pre_dates: Sequence[date],
+    *,
+    volume_of: Callable[[RawDailyRecord], Decimal | None] | None,
+) -> Decimal | None:
+    """Mean of the candidate's VOLUME INDICATOR over the pre-window.
+
+    The volume floor is calibrated in counts — ADR-077 decision 4 reads
+    ">= 1 order/day", ">= 50 impressions/day", ">= 20 visitors/day". Comparing
+    it against the *metric being evaluated* is only meaningful when that metric
+    is itself a count. For a rate it is a category error: CTR and
+    conversion_rate are fractions (~0.01-0.30) that can never reach 50 or 20,
+    so every candidate is disqualified and K-nearest-correlated selection
+    silently dies for the Image and Description mutation families — half of
+    decision 1's metric map — leaving those readings permanently capped at
+    Thap no matter how good the real siblings are.
+
+    Callers therefore pass ``volume_of`` (the family's indicator: sku_orders,
+    impressions or visitors). When the metric is a count the metric's own
+    extractor is the indicator, so ``volume_of`` may be omitted; when it is a
+    rate, omitting it raises rather than silently disqualifying everything.
+    """
+    if volume_of is None:
+        if metric.is_rate:
+            raise ValueError(
+                f"metric {metric.key!r} is a rate, so its own values cannot be compared "
+                "against a count-calibrated volume floor; pass volume_of with the "
+                "family's volume indicator (sku_orders / impressions / visitors)"
+            )
+        volume_of = metric.extractor
+
+    values: list[Decimal] = []
+    for day in pre_dates:
+        record = daily.get(day)
+        if record is None:
+            return None
+        value = volume_of(record)
+        if value is None:
+            return None
+        values.append(value)
+    if not values:
+        return None
+    return sum(values, start=Decimal(0)) / Decimal(len(values))
+
+
 def select_control_pool(
     metric: MetricSpec,
     target_daily: DailySeries,
@@ -287,6 +334,7 @@ def select_control_pool(
     t: date,
     kind: WindowKind,
     volume_floor: Decimal,
+    volume_of: Callable[[RawDailyRecord], Decimal | None] | None = None,
 ) -> ControlPoolResult:
     """Select the control pool for one metric's reading at execution date
     ``t``.
@@ -318,8 +366,10 @@ def select_control_pool(
         if candidate_pre is None:
             continue  # incomplete pre-window series — excluded, not zero-filled
 
-        mean_value = sum(candidate_pre.values(), start=Decimal(0)) / Decimal(len(candidate_pre))
-        if mean_value < volume_floor:
+        candidate_volume = _pre_window_volume(
+            candidate.daily, metric, pre_dates, volume_of=volume_of
+        )
+        if candidate_volume is None or candidate_volume < volume_floor:
             continue
 
         paired_days = [day for day in pre_dates if day in target_pre]
