@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "wave-manifest",
+  "waveId": "wave-agent-w2-p12",
+  "branch": "feature/agent-w2-p12-wave",
+  "issues": [1036, 1037, 1038, 1039]
+}
