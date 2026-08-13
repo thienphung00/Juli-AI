@@ -41,6 +41,18 @@ celery_app.conf.update(
             "task": "juli_backend.analytics_backfill_topup",
             "schedule": crontab(hour=2, minute=0),
         },
+        # P-IM — Daily impact-reader beat task (ADR-077 decision 5, #1044).
+        # Scheduled strictly after analytics-backfill-topup (02:00) so it
+        # reads the day's freshest reference-shop partitions. Not shop-
+        # scoped itself (scans terminal runs across every shop); missing
+        # daily rows for a non-reference shop degrade to a suppressed
+        # reading, never a crash (see workers/impact_reader/pipeline.py).
+        # Idempotent via the impact_readings unique constraint (#1040) plus
+        # the task's own pre-write existence checks.
+        "daily-impact-reader": {
+            "task": "juli_backend.daily_impact_reader",
+            "schedule": crontab(hour=3, minute=0),
+        },
     },
 )
 
