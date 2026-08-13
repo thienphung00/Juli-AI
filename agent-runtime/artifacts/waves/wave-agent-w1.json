@@ -3,5 +3,48 @@
   "artifactType": "wave_manifest",
   "waveId": "wave-agent-w1",
   "branch": "feature/agent-w1-wave",
-  "issues": [980, 981, 982, 983, 984, 985, 986, 987, 988, 989, 990, 991, 992, 993, 994, 995, 996]
+  "issues": [
+    980,
+    981,
+    982,
+    983,
+    984,
+    985,
+    986,
+    987,
+    988,
+    989,
+    990,
+    991,
+    992,
+    993,
+    994,
+    995,
+    996
+  ],
+  "artifactWaiver": {
+    "adr": "docs/adr/078-agent-w1-wave-artifact-waiver.md",
+    "approvedBy": "repository owner",
+    "grantedAt": "2026-08-13T00:00:00Z",
+    "reason": "Implementation artifacts were never emitted for any of the seventeen Wave 1 slices \u2014 the Executor briefs omitted the ADR-003 requirement and the Review phase was bypassed, both orchestration errors. The telemetry those artifacts carry (phaseRunId, executionDurationMs, toolInvocationCount, TDD red\u2192green evidence) is unrecoverable; producing PASS records would fabricate the evidence this gate verifies, and every Review agent was instructed not to and did not. A full retrospective Review pass over all seventeen slices was run instead on the merged tip fdb16f9a, verifying by execution rather than reading: sixteen PASS, one PASS_WITH_WARNINGS (#984), whose finding was a live boundary bypass (whole-module import plus attribute access evading the client guard) now fixed with regression tests rather than waived.",
+    "issues": [
+      980,
+      981,
+      982,
+      983,
+      984,
+      985,
+      986,
+      987,
+      988,
+      989,
+      990,
+      991,
+      992,
+      993,
+      994,
+      995,
+      996
+    ]
+  }
 }

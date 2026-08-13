@@ -17,15 +17,14 @@ provider/network library at all. This is the seam (the `integrations/tiktok`
 wrapping pattern) that keeps a future provider swap to one file;
 provider-specific request/response knowledge lives only in
 `openai_adapter.py`.
-decisions 1 and 4). Blocks the agent can produce, a usage record, an
-assistant turn, the `LLMService` protocol, and fail-closed `LLMConfig`
-resolution. **No provider code lands in this module** — no `openai` import,
-no wire types. This is the seam (the `integrations/tiktok` wrapping pattern)
-that keeps a future provider swap to one file.
 
 ## Public Interface
 
-Import from the package root only:
+Import from the package root, which re-exports the neutral vocabulary and the
+test double. `OpenAIResponsesAdapter` and `LLMProviderError` are deliberately
+**not** re-exported: the provider-touching class is reached explicitly via
+`juli_backend.services.agent.llm.openai_adapter`, so nothing depends on a
+concrete adapter by accident. Callers depend on the `LLMService` protocol.
 
 ```python
 from juli_backend.services.agent.llm import (
@@ -163,9 +162,6 @@ decision 6).
   `tests/unit/test_agent_llm_fake.py`) — the fake never makes a network call.
 - `FakeLLMService` returns scripted turns strictly in order and never
   returns past the end of its script (raises `ScriptExhaustedError` instead).
-  this package (asserted by `tests/unit/test_agent_llm_contract.py`).
-- `resolve_llm_config` never defaults `OPENAI_API_KEY` to an empty string.
-- Blocks and `AssistantTurn` are frozen — a turn, once returned, does not mutate.
 
 ## Related modules
 

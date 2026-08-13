@@ -1,8 +1,13 @@
 """Juli-owned LLM service contract (ADR-071 decisions 1 and 4).
 
-No provider code lands in this slice — see `MODULE.md` for the seam this
-package keeps open for a stateless OpenAI Responses adapter (a later slice).
-Import from the package root only.
+Neutral block vocabulary, the `LLMService` protocol, fail-closed `LLMConfig`
+resolution, and the scripted `FakeLLMService` double — all re-exported here.
+
+The concrete provider adapter (`openai_adapter.OpenAIResponsesAdapter`) is
+**not** re-exported: callers depend on the `LLMService` protocol, and reaching
+a provider-touching class requires naming its module explicitly. It speaks the
+Responses API over `httpx` and imports no vendor SDK — the `openai` package is
+not a declared dependency. See `MODULE.md`.
 """
 
 from __future__ import annotations

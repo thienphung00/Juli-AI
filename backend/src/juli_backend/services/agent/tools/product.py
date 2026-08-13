@@ -247,7 +247,10 @@ def handle_get_product_information(
 
 GET_PRODUCT_INFORMATION_SPEC = ToolSpec(
     name="get_product_information",
-    description="Get the current title and listing status for the bound product.",
+    description=(
+        "Read the bound product's listing: title, description, status, "
+        "last-updated time, SKU count and prices, total inventory, and image sizes."
+    ),
     input_model=GetProductInformationInput,
     output_model=GetProductInformationOutput,
     classification=ToolClassification.READ,
