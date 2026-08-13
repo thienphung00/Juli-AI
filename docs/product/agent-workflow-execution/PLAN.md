@@ -19,18 +19,53 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 2 | P3+P4 — Tool registry + tool schemas (minimal) | ✅ implemented — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md); registry core + 6-tool Optimize Product set (#980–#984), registry×sanitizer integration (#996) | ✅ 2026-08-13 |
 | 3 | P5 — TikTok sanitization (product surface only) | ✅ implemented — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md); sanitize package (#990–#995), wired into the real READ handlers + golden re-pointed to the production path (#996) | ✅ 2026-08-13 |
 | 4 | P11 — Model abstraction (minimal LLM service) | ✅ implemented — [ADR-071](../../adr/071-llm-service-openai-adapter.md); `LLMService`/adapter/fake (#985–#989), `FakeLLMService` proven downstream against the real registry + sanitizer (#996) | ✅ 2026-08-13 |
-| 5 | P12 — Prompt architecture (system + Optimize Product) | 🟨 design grilled 2026-08-11 — [ADR-072](../../adr/072-agent-prompt-architecture.md) drafted; implementation pending | ⬜ |
+| 5 | P12 — Prompt architecture (system + Optimize Product) | 🟧 **implemented on `feature/agent-w2-p12-wave`, not on `main`** — [ADR-072](../../adr/072-agent-prompt-architecture.md); #1036–#1039 merged into the wave, green on every check except `artifact-gate`. Wave→main refused under [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B; must be re-run inside the harness contract | ⬜ |
 | 6 | P1 — Agent execution loop (blocks + runner) | 🟨 design grilled 2026-08-11 — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md) drafted; implementation pending | ⬜ |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | 🟨 design grilled 2026-08-12 — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md) drafted; implementation pending | ⬜ |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
-| 11b | P-IM — Incremental impact measurement (NEW) | 🟨 design grilled 2026-08-12 — [ADR-077](../../adr/077-incremental-impact-measurement.md) drafted (research-grounded); implementation pending | ⬜ |
+| 11b | P-IM — Incremental impact measurement (NEW) | 🟧 **implemented on `feature/agent-w2-pim-wave`, not on `main`** — [ADR-077](../../adr/077-incremental-impact-measurement.md); #1040–#1045 merged into the wave, green on every check except `artifact-gate`. Wave→main refused under [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B; must be re-run inside the harness contract | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |
 | 15 | P6 — Documentation retrieval tool (deferred, optional) | ⬜ | ⬜ |
+
+## Wave 2 status — code on wave branches, **not on `main`** (2026-08-13)
+
+Both W2 waves are complete and merged into their wave branches. **Neither reached `main`**, and
+this is deliberate, not in-flight work:
+
+| Wave | Branch | Issues | State |
+| --- | --- | --- | --- |
+| W2-A (P12) | `feature/agent-w2-p12-wave` | #1036–#1039 | merged into the wave; every check green except `artifact-gate` |
+| W2-B (P-IM) | `feature/agent-w2-pim-wave` | #1040–#1045 | merged into the wave; every check green except `artifact-gate` |
+
+`artifact-gate` cannot pass: `meta_prepare_executor.py` was never run for any W2 slice, and the
+executor worktrees were torn down before Review, destroying the implementation artifacts for
+#1036–#1043. Even the two surviving artifacts (#1044, #1045) cannot reach PASS —
+`phase_run_correlation` requires the workflow cache and the executor run to be contemporaneous.
+A fourth waiver was **refused** under [ADR-079](../../adr/079-w2-artifact-disposition.md),
+Option B, honouring [ADR-078](../../adr/078-agent-w1-wave-artifact-waiver.md) item 6. The
+wave→main PRs (#1060, #1061) are closed, not merged.
+
+**What this means for agents picking up work here:**
+
+- Do **not** treat P12 or P-IM as landed. `main` does not contain them; anything importing
+  `services/agent/playbooks/` or `services/impact/` must branch from the relevant wave branch or
+  wait for the re-run.
+- **W3-A is blocked** on W2-A reaching `main` (playbook↔registry cross-validation needs the
+  playbook). That cost was accepted knowingly.
+- The path to `main` is a **re-run inside the harness contract**, now unblocked: #1057/#1058 gave
+  the W2 issues real PRD parents and #1059 registered the epics and slice-routing rules, which
+  demonstrably moves #1044 from `readyForExecutor: false` to `true`. Meta must run
+  `meta_prepare_executor.py` per slice and halt unless it prints `readyForExecutor: true`, and
+  **worktrees must survive until Review has read their artifacts.** The CI guard that would have
+  caught all four occurrences of this failure is filed as **#1064** and should land first.
+- The W2 code is not suspect. A full retrospective Review pass verified both waves by execution
+  and found and fixed a HIGH-severity defect (#1062) plus three lesser ones. ADR-079 is about
+  evidence of process, not about whether the work is sound.
 
 ## Phases — minimal specs + gate to proceed
 
@@ -160,6 +195,16 @@ Settled specs (Optimize Product only; eval-pipeline-ready by design):
 
 Gate: four import-time tests green (snapshot, budget, playbook consistency, mechanical banned-pattern/`_Avoid_` check) + human voice review against `dictionary.md`/design-context + P-CS fields specified.
 
+
+**Implemented on `feature/agent-w2-p12-wave` (#1036–#1039, W2-A) — not on `main`.** The
+monolithic prompt, typed `Playbook`, deterministic `compose()`, token budget assertion and
+`optimize_product_2` criteria key all shipped as specced; the composed prompt measures 2,967
+tokens against the 3,000 ceiling. The wave→main PR (#1060) was closed unmerged because
+`artifact-gate` cannot pass — see **Wave 2 status** above and
+[ADR-079](../../adr/079-w2-artifact-disposition.md). Playbook↔registry cross-validation therefore
+still cannot run on `main`, and **W3-A remains blocked** until this wave is re-run inside the
+harness contract.
+
 ### 6. P1 — Agent execution loop (minimal) — *design grilled 2026-08-11, [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md)*
 Settled specs (includes the 2026-08-11 write-path hardening fixes — idempotency, concurrency, termination policy — as production-write-unlock prerequisites):
 - **`WorkflowRunner`** class (`services/agent/runner.py`) owning status transitions, conversation append, block dispatch, and termination-policy evaluation; injected protocols: `LLMService`, `ToolExecutor`, `EventSink`, `ConversationStore`. Run state serialized to a `workflow_runs.state` JSONB blob per iteration and on pause — CONFIRM resume works across worker processes. Celery task (P8) is a thin shell.
@@ -236,6 +281,18 @@ Flagged data-dependency gaps (verified against code + live DB, 2026-08-12 — ad
 - **Cold start: OAuth → signals never fires today.** The TikTok OAuth callback only provisions `shops` + `tiktok_credentials`; no sync is triggered, and both `run_fujiwa_poll_cycle` and the backfill auto-topup are capability-gated to the single Fujiwa `PRODUCTION_READ` credential (new self-serve shops get `SELLER_CONNECT` and are rejected/skipped). ADR-050 explicitly deferred this as the C2 cold-start engine.
 - **Adopted quick path — 7D bootstrap, not full-shop ETL (user directive 2026-08-12):** on connect, run (a) a 7-day `analytics_backfill` window — 4 buckets × 7 days = 28 partitions ≈ 42 Partner calls, avoiding `sync_analytics`' per-product/per-SKU N+1 fan-out (~106 calls/day); (b) entity polls bounded to `update_time_from = now−7d` (the resource layer already accepts it; `sync.py` just never passes it — unbounded cold pulls fetch all-time history); then (c) scoring, which is pure in-process Python over ≤10k-row queries (seconds). **Measured estimate** from the production backfill ledger (`ops.analytics_backfill_partitions`, July 2026 run: catalog ≈3.7s, live ≈11s, product ≈32s, revenue ≈0s per day-partition; ~12s mean): analytics ≈5–6 min + entities ≈1 min + scoring seconds ⇒ **OAuth → first signals/ActionCards in ≈6–8 minutes**, ~55 total calls, far inside ADR-029's 400-call soft budget and never binding the 10 req/min/endpoint bucket (≤7 calls per endpoint). Speed over completeness by design.
 - **Impact-eligibility corollary:** a 7D bootstrap yields signals fast but not ADR-077's 14-day pre-window; extend the backfill asynchronously (7d → 14d ≈ +5 min, → 30d progressive per ADR-050 C2) in the background so runs executed soon after connect still get counterfactuals.
+
+
+**Implemented on `feature/agent-w2-pim-wave` (#1040–#1045, W2-B) — not on `main`.** The DiD
+reader, control-pool selection, confidence tiering, `impact_readings` storage, daily beat task and
+gate suite all shipped as specced. A retrospective Review pass found and fixed a HIGH-severity
+defect: control-pool candidate screening compared a count-calibrated volume floor against the
+candidate's own metric, so rate metrics (`ctr`, `conversion_rate` — half of ADR-077 decision 1's
+map) could never clear it, silently disabling K-nearest-correlated-sibling selection (#1062). The
+wave→main PR (#1061) was closed unmerged because `artifact-gate` cannot pass — see **Wave 2
+status** above and [ADR-079](../../adr/079-w2-artifact-disposition.md). Known follow-ups carried
+into the re-run: the #1045 gate suite exercises GMV only (metric monoculture), and
+`ProductSkuPrice.amount` is still stored as a string.
 
 ### 12. P10 — Observability baseline
 Minimal specs:
