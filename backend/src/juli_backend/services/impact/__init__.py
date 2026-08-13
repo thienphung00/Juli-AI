@@ -18,25 +18,6 @@ package:
   already-fetched ``Sequence[ControlCandidate]`` and the volume-floor value
   as plain arguments, mirroring how ``reading.py`` receives
   ``confounded: bool``.
-"""Incremental impact measurement — funnel-first metric map + ratio-form DiD
-compute (ADR-077 decisions 1 and 2, #1041).
-
-This package answers two questions, and only two: **which metric** does a
-mutation act on (``metric_map.py``), and **what is the control-adjusted
-incremental impact** for that metric given a target series, a control
-series, and the write's execution date T (``windows.py`` + ``compute.py`` +
-``reading.py``). Everything else ADR-077 describes is explicitly out of
-scope here and owned by later, stacked issues in the same package:
-
-- Control-pool **selection** (K-nearest-correlated siblings, Pearson
-  correlation, the volume/correlation/duration disqualifiers, the plain
-  pre/post fallback) — ADR-077 decision 3, #1042. This package accepts an
-  already-resolved control daily series per metric; it does not query for
-  candidates or compute correlations.
-- **Confidence tiers**, per-metric volume floors, and the
-  "Chưa đủ dữ liệu để ước tính" / seller-facing copy rules — ADR-077 decision
-  4, #1043. ``MetricReading.status`` here only ever distinguishes ``"ok"``
-  from ``"confounded"``; it is not a confidence tier.
 - The **daily impact-reader beat task**, legacy-envelope compatibility, and
   ``WORKFLOW_OUTCOME_SUCCESS_CRITERIA`` wiring — ADR-077 decision 5, #1044.
   Detecting a confounding second run (a `tool_executions` query) and
@@ -178,8 +159,6 @@ __all__ = [
     "CONVERSION_RATE",
     "CTR",
     "FLOOR_MULTIPLIER_CAO",
-    "CONVERSION_RATE",
-    "CTR",
     "GMV",
     "GMV_PER_ORDER",
     "IMPRESSIONS",
@@ -200,10 +179,6 @@ __all__ = [
     "ControlPoolResult",
     "FallbackReason",
     "MetricFamily",
-    "METRIC_MAP",
-    "POST_WINDOW_DAYS",
-    "PRE_WINDOW_DAYS",
-    "SKU_ORDERS",
     "MetricReading",
     "MetricSpec",
     "MutationKind",
@@ -220,9 +195,6 @@ __all__ = [
     "Windows",
     "assign_confidence",
     "compute_confidence",
-    "RunReadings",
-    "WindowKind",
-    "Windows",
     "compute_expected",
     "compute_growth",
     "compute_impact_pct",
@@ -249,7 +221,4 @@ __all__ = [
     "resolve_metric",
     "select_control_pool",
     "volume_floor_for",
-    "post_window",
-    "pre_window",
-    "resolve_metric",
 ]
