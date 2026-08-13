@@ -1,7 +1,9 @@
 # ADR-079: Wave 2 artifact disposition — a decision, not a waiver request
 
-**Status:** Proposed — requires repository owner decision. **This ADR deliberately does not
-recommend granting a third waiver.**
+**Status:** Accepted — **Option B. The waiver is refused.** Decided by the repository owner on
+2026-08-13: *"Go with Option B — refuse the waiver. Land both waves on their branches, defer main
+until the loop is re-run correctly with #1059 in place. Nothing fabricated, nothing hidden, no
+work lost."*
 **Date:** 2026-08-13
 **Deciders:** Repository owner. Orchestration, implementation and review performed by Claude Code.
 
@@ -126,9 +128,9 @@ place, and the W2 slices reach `main` behind a properly evidenced wave.
 executor would emit telemetry describing a re-enactment, not the implementation that shipped.
 That is closer to fabrication in substance than a waiver is, while looking cleaner on paper.
 
-## Recommendation
+## Decision
 
-**Option B**, with a documented follow-up.
+**Option B, adopted — no fourth waiver**, with the documented follow-up below.
 
 ADR-078 named the condition under which a further waiver should be refused, and this is exactly
 that condition — with an aggravating factor: the artifacts existed and were destroyed. Granting
@@ -147,7 +149,8 @@ requirement mean something.
   requirement, nor force Meta through `meta_prepare_executor.py`. ADR-062 flagged this as *"worth
   its own issue"*; it remains unbuilt, and is now implicated in four waivers. **A gate failing an
   issue-tier PR whose branch matches `issue-<N>` when no implementation artifact was uploaded to
-  CI retention would have caught every one of them.**
+  CI retention would have caught every one of them.** Filed as **#1064** — it is a prerequisite for
+  the W2 re-run, not a follow-up to it.
 
 ## What is not in question
 
@@ -155,3 +158,34 @@ The Wave 2 code itself. Both waves are verified in main-tier shape (P12: 3,052 u
 P-IM: 3,158 unit + 42 integration), both phase gates are met with real measurements, and the
 Review pass that would substitute for artifacts under Option A has already been run and its
 findings fixed. This ADR is about evidence of process, not about whether the work is sound.
+
+## What was done to execute Option B (2026-08-13)
+
+1. The `artifactWaiver` block drafted against `wave-agent-w2-pim.json` was **reverted, never
+   committed**. Neither wave manifest carries a waiver.
+2. PRs **#1060** (W2-A→main) and **#1061** (W2-B→main) were **closed unmerged**, each with a
+   comment stating the cause and the path back. Both wave branches are intact on `origin` and
+   fully pushed; no commit exists only locally.
+3. `docs/product/agent-workflow-execution/PLAN.md` gained a **Wave 2 status** section and per-phase
+   notes on P12 and P-IM, so any agent reading the tracker learns that `main` does **not** contain
+   this code and that W3-A is blocked.
+4. The three surviving artifacts (`implementation-issue-1044`, `validation-issue-1044`,
+   `implementation-issue-1045`) were copied out of their worktrees to `~/.juli-backups/w2-artifacts/`
+   before teardown, with a README recording provenance. They are evidence, not a path to PASS —
+   their directories are gitignored by policy and must never be force-added.
+5. All Wave 2 worktrees were removed. No stale worktree remains.
+6. The CI guard named under *Consequences* was filed as **#1064** rather than left as prose for a
+   fifth time.
+
+## Conditions for the re-run
+
+The re-run is a **fresh loop, not a replay**. It reuses issues **#1036–#1045** rather than filing
+new ones — they carry the settled specs, acceptance criteria and constraints, and they now resolve
+through the Meta gate: `meta_prepare_executor.py --issue 1044` returns `readyForExecutor: true`
+since #1059. Each slice branches from `main`, passes the Meta gate before an Executor is assigned,
+and **keeps its worktree alive until Review has read its artifacts**. #1064 should land first so
+the failure is caught at the slice PR rather than at the wave boundary. The existing wave branches are the
+reference implementation and the source of the already-reviewed diffs; they are not the thing that
+gets merged. This is not ADR-062's rejected Option C — that option proposed re-emitting telemetry
+for code already on `main`, whereas here nothing has landed and the artifacts describe the run that
+actually produces the merge.
