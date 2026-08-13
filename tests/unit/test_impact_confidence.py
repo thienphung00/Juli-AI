@@ -128,14 +128,28 @@ class TestPrePeriodVolume:
         }
         assert pre_period_volume(daily, CTR, T) == Decimal(150)
 
-    def test_conversion_family_uses_impressions_as_the_documented_visitors_proxy(self):
+    def test_conversion_family_uses_visitors(self):
+        # AnalyticsPerformanceInterval.visitors is a real, distinct column
+        # from impressions (models.py:403) -- the conversion family's floor
+        # must read it directly, exactly matching ADR-077 decision 4's
+        # literal "visitors/day" wording.
         daily = {
-            PRE_START: RawDailyRecord(conversion_rate=Decimal("0.1"), impressions=Decimal(30)),
+            PRE_START: RawDailyRecord(conversion_rate=Decimal("0.1"), visitors=Decimal(30)),
             PRE_START + timedelta(days=1): RawDailyRecord(
-                conversion_rate=Decimal("0.2"), impressions=Decimal(10)
+                conversion_rate=Decimal("0.2"), visitors=Decimal(10)
             ),
         }
         assert pre_period_volume(daily, CONVERSION_RATE, T) == Decimal(20)
+
+    def test_conversion_family_ignores_impressions_entirely(self):
+        # Regression guard for the impressions-as-visitors-proxy substitution
+        # a prior revision made in error: impressions present and large,
+        # visitors absent -> the conversion volume must be None (no data),
+        # never fall back to reading impressions instead.
+        daily = {
+            PRE_START: RawDailyRecord(conversion_rate=Decimal("0.1"), impressions=Decimal(5000)),
+        }
+        assert pre_period_volume(daily, CONVERSION_RATE, T) is None
 
     def test_missing_days_are_skipped_not_zero_filled(self):
         daily = {PRE_START: RawDailyRecord(sku_orders=Decimal(10))}
@@ -150,6 +164,61 @@ class TestPrePeriodVolume:
             T: RawDailyRecord(sku_orders=Decimal(999)),
         }
         assert pre_period_volume(daily, GMV, T) == Decimal(10)
+
+
+class TestConversionFloorUsesVisitorsNotImpressions:
+    """Regression guard for a real defect a prior revision of this module
+    had: reading the conversion family's volume floor against `impressions`
+    (believing no `visitors` column existed) instead of the real, distinct
+    `AnalyticsPerformanceInterval.visitors` column (models.py:403).
+
+    Impressions and visitors differ by roughly the click-through ratio, so
+    impressions are typically one to two orders of magnitude larger than
+    visitors -- a >=20 floor applied to impressions is a far weaker gate
+    than ADR-077 decision 4 specifies (">=20 visitors/day"). This fixture
+    sets impressions far above the threshold (5000/day) while visitors sit
+    below it (5/day, floor is 20) -- if the volume indicator were ever
+    impressions instead of visitors again, this reading would wrongly clear
+    the floor and get published as a real tier instead of the designed
+    "Chua du du lieu de uoc tinh" (below_floor) state.
+    """
+
+    HIGH_IMPRESSIONS = Decimal(5000)
+    LOW_VISITORS = Decimal(5)  # below the conversion floor of 20
+
+    def _daily(self) -> dict:
+        days = [PRE_START + timedelta(days=i) for i in range(14)]
+        return {
+            d: RawDailyRecord(
+                conversion_rate=Decimal("0.1"),
+                impressions=self.HIGH_IMPRESSIONS,
+                visitors=self.LOW_VISITORS,
+            )
+            for d in days
+        }
+
+    def test_pre_period_volume_reads_the_low_visitor_count_not_high_impressions(self):
+        daily = self._daily()
+        assert pre_period_volume(daily, CONVERSION_RATE, T) == self.LOW_VISITORS
+        # Sanity: impressions really is far above the floor in this fixture
+        # -- proves the two columns diverge in this scenario, so the test
+        # is actually exercising the substitution, not a case where both
+        # columns happen to agree.
+        assert self.HIGH_IMPRESSIONS > volume_floor_for(CONVERSION_RATE) * 100
+        assert self.LOW_VISITORS < volume_floor_for(CONVERSION_RATE)
+
+    def test_reading_is_below_floor_despite_huge_impressions(self):
+        daily = self._daily()
+        volume = pre_period_volume(daily, CONVERSION_RATE, T)
+        result = assign_confidence(
+            metric=CONVERSION_RATE,
+            status="ok",
+            incremental=Decimal("0.05"),  # a real, large-looking signal
+            volume=volume,
+            noise_band=Decimal("0.001"),  # tiny band -- would easily be "cao"
+            used_fallback=False,
+        )
+        assert result == "below_floor"
 
 
 # ---------------------------------------------------------------------------

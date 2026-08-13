@@ -47,21 +47,20 @@ metric in that family is being read:
   → ``sku_orders`` (the literal order count all four ultimately derive from
   or correlate with).
 - impressions/CTR (``impressions``, ``ctr``) → ``impressions``.
-- conversion (``conversion_rate``) → ``impressions``, as the **documented
-  visitors proxy** — ``analytics_performance_intervals`` has no ``visitors``
-  column; ``impressions`` is the same "total-traffic proxy" limitation
-  ``metric_map.py`` already names for SEO visibility (search traffic is not
-  separable from other traffic sources in this data). The floor threshold
-  (20) differs from the impressions/CTR family's threshold (50) even though
-  both read the same underlying column, because they gate different
-  concerns (traffic reliable enough to read a *rate off of*, not enough to
-  read a *count* off of).
-
-  This proxy choice is a genuine interpretation of ADR-077 decision 4's
-  literal "visitors/day" wording against a schema that has no visitors
-  column — flagged explicitly in the PR body per the "report a mismatch,
-  don't silently adapt around it" instruction, rather than invented
-  silently.
+- conversion (``conversion_rate``) → ``visitors`` — a real, distinct column
+  on ``AnalyticsPerformanceInterval``/``RawDailyRecord``, exactly matching
+  ADR-077 decision 4's literal "≥20 visitors/day" wording. This is *not*
+  the same column impressions/CTR reads: visitors and impressions differ by
+  roughly the click-through ratio (impressions are typically one to two
+  orders of magnitude larger), so substituting impressions here would apply
+  a far weaker gate than the ADR specifies — a reading could clear "≥20"
+  on impressions while its real visitor volume sits nowhere near 20,
+  skipping the "Chưa đủ dữ liệu để ước tính" state the floor exists to
+  produce. (An earlier revision of this module made exactly that
+  substitution, believing no visitors column existed; it does, at
+  ``AnalyticsPerformanceInterval.visitors`` — see
+  ``TestConversionFloorUsesVisitorsNotImpressions`` in
+  ``tests/unit/test_impact_confidence.py`` for the regression guard.)
 
 **Interface contract with #1042 (control_pool.py).** ``control_pool.py``'s
 own ``volume_floor`` parameter (ADR-077 decision 3) is a *different*
@@ -168,7 +167,7 @@ METRIC_FAMILY: dict[str, MetricFamily] = {
 VOLUME_FLOORS: dict[MetricFamily, Decimal] = {
     MetricFamily.REVENUE_ORDERS: Decimal(1),  # >= 1 order/day
     MetricFamily.IMPRESSIONS_CTR: Decimal(50),  # >= 50 impressions/day
-    MetricFamily.CONVERSION: Decimal(20),  # >= 20 visitors/day (impressions proxy)
+    MetricFamily.CONVERSION: Decimal(20),  # >= 20 visitors/day
 }
 
 #: The raw column read as each family's volume signal — see the module
@@ -176,7 +175,7 @@ VOLUME_FLOORS: dict[MetricFamily, Decimal] = {
 _VOLUME_INDICATOR: dict[MetricFamily, Callable[[RawDailyRecord], Decimal | None]] = {
     MetricFamily.REVENUE_ORDERS: lambda day: day.sku_orders,
     MetricFamily.IMPRESSIONS_CTR: lambda day: day.impressions,
-    MetricFamily.CONVERSION: lambda day: day.impressions,
+    MetricFamily.CONVERSION: lambda day: day.visitors,
 }
 
 #: Tier boundary multipliers (ADR-077 decision 4) — the only declaration;

@@ -54,8 +54,16 @@ class MutationKind(str, Enum):
 class RawDailyRecord:
     """One product's one day of ``analytics_performance_intervals`` columns,
     normalized to ``Decimal`` (including the integer-typed columns —
-    ``impressions``, ``items_sold``, ``sku_orders`` — so every metric series
-    handled by this package is uniformly ``Mapping[date, Decimal | None]``).
+    ``impressions``, ``items_sold``, ``sku_orders``, ``visitors`` — so every
+    metric series handled by this package is uniformly ``Mapping[date,
+    Decimal | None]``).
+
+    ``visitors`` is not a target metric in ``METRIC_MAP`` below (no mutation
+    is judged against it directly) — it is carried here because
+    ``services.impact.confidence`` (#1043) reads it as the volume-floor
+    indicator for the conversion family (ADR-077 decision 4: "≥20
+    visitors/day"), a real column on ``AnalyticsPerformanceInterval``
+    distinct from ``impressions``.
 
     Building these from real ORM rows is deliberately out of this module's
     scope (no I/O in the compute path) — the caller reads
@@ -68,6 +76,7 @@ class RawDailyRecord:
     items_sold: Decimal | None = None
     gmv: Decimal | None = None
     sku_orders: Decimal | None = None
+    visitors: Decimal | None = None
 
 
 def _extract_gmv_per_order(day: RawDailyRecord) -> Decimal | None:
