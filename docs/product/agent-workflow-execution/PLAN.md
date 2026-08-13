@@ -57,7 +57,8 @@ wave→main PRs (#1060, #1061) are closed, not merged.
   wait for the re-run.
 - **W3-A is blocked** on W2-A reaching `main` (playbook↔registry cross-validation needs the
   playbook). That cost was accepted knowingly.
-- The path to `main` is a **re-run inside the harness contract**, now unblocked: #1057/#1058 gave
+- The path to `main` is a **re-run inside the harness contract** on the *same* issues —
+  **#1036–#1045 stay open** and are reused; they carry the settled specs and ACs. Now unblocked: #1057/#1058 gave
   the W2 issues real PRD parents and #1059 registered the epics and slice-routing rules, which
   demonstrably moves #1044 from `readyForExecutor: false` to `true`. Meta must run
   `meta_prepare_executor.py` per slice and halt unless it prints `readyForExecutor: true`, and

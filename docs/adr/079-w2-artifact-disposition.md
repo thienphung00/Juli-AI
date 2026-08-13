@@ -179,9 +179,12 @@ findings fixed. This ADR is about evidence of process, not about whether the wor
 
 ## Conditions for the re-run
 
-The re-run is a **fresh loop, not a replay**: new issues branched from `main`, each passing through
-`meta_prepare_executor.py` with `readyForExecutor: true` before an Executor is assigned, and each
-worktree kept alive until Review has read its artifacts. The existing wave branches are the
+The re-run is a **fresh loop, not a replay**. It reuses issues **#1036–#1045** rather than filing
+new ones — they carry the settled specs, acceptance criteria and constraints, and they now resolve
+through the Meta gate: `meta_prepare_executor.py --issue 1044` returns `readyForExecutor: true`
+since #1059. Each slice branches from `main`, passes the Meta gate before an Executor is assigned,
+and **keeps its worktree alive until Review has read its artifacts**. #1064 should land first so
+the failure is caught at the slice PR rather than at the wave boundary. The existing wave branches are the
 reference implementation and the source of the already-reviewed diffs; they are not the thing that
 gets merged. This is not ADR-062's rejected Option C — that option proposed re-emitting telemetry
 for code already on `main`, whereas here nothing has landed and the artifacts describe the run that
