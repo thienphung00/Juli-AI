@@ -11,8 +11,9 @@ recommend granting a third waiver.**
 [ADR-062](062-security-baseline-wave-artifact-waiver.md) (second waiver, same cause),
 [ADR-078](078-agent-w1-wave-artifact-waiver.md) (third waiver — which stated it must be the last).
 **Scope:** `wave-agent-w2-p12` and `wave-agent-w2-pim`, issues **#1036–#1043** only.
-**Not in scope:** #1044 and #1045, whose implementation artifacts survive and can reach genuine
-status records once Review and signoff run.
+**Not in scope as a separate path:** #1044 and #1045 retain their implementation artifacts, but
+see "The chain cannot be retro-fitted" below — they cannot reach PASS either, so there is no
+third option that salvages them independently.
 
 ## Context
 
@@ -51,6 +52,32 @@ the time — and then destroyed by over-eager cleanup.
 Unchanged from ADR-059, ADR-062 and ADR-078: validation cannot reach PASS without an
 implementation artifact carrying real telemetry. Writing one now fabricates exactly the evidence
 the gate exists to verify. This ADR does not propose doing so under any option.
+
+## The chain cannot be retro-fitted, even where artifacts survive
+
+An earlier reading of this situation held that #1044 and #1045 — the two slices whose
+implementation artifacts were not destroyed — could still reach genuine status records once the
+Meta gate and Review were run. **That is false, and was tested rather than assumed.**
+
+With #1059 merged, `meta_prepare_executor.py --issue 1044` now returns `readyForExecutor: true`,
+and validation improves from 8 failures to 6 (11 gates passing). But `phase_run_correlation`
+fails, and its detail is the decisive fact:
+
+```
+phase_run_correlation FAIL
+  "validation: phaseRunId None != '2026-08-13T0654Z-issue-1044'"
+  implementation: phaseRunId "2026-08-13T0654Z-issue-1044", status "matched"
+```
+
+The implementation artifact correlates correctly. What cannot be produced is a *validation*
+artifact carrying the same `phaseRunId`, because correlation requires the workflow cache and the
+executor run to be contemporaneous. A cache generated today necessarily post-dates an executor
+that ran yesterday. The remaining failures — `reviewer_signoff_present`,
+`critical_findings_resolved`, `findings_acknowledged`, `owner_signoff_present`,
+`ml_gates_enforced`, `unpushed_issue_work` — need a phase run that no longer exists.
+
+**Consequence for this decision:** there is no partial path. The choice is genuinely binary
+between the options below, applied to all eight (or ten) slices, not a salvage of the two.
 
 ## The tension this ADR exists to resolve
 
