@@ -2884,6 +2884,32 @@ SEC-13:
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
 
+# AGT-EVID — #1066 evidence-chain hardening (ADR-079), issue #1064
+AGT-EVID:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/003-ai-native-cicd-policy.md
+    - docs/adr/052-wave-free-merge-deferred-artifact-gate.md
+  requiredModules:
+    - .github/workflows/pr.yml
+    - agent-runtime/scripts/ci
+    - agent-runtime/scripts/validate
+  loadWhenNeeded:
+    - agent-runtime/scripts/meta_prepare_executor.py
+    - agent-runtime/config/agent-runtime.config.yml
+    - docs/adr/078-agent-w1-wave-artifact-waiver.md
+    - docs/adr/062-security-baseline-wave-artifact-waiver.md
+    - .gitignore
+  doNotLoad:
+    - apps/
+    - ios/
+    - backend/src/juli_backend/services/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
 # AGT-W2A — #1057 agent prompt architecture (ADR-072), issues #1036-#1039
 AGT-W2A:
   executorDomain: backend
