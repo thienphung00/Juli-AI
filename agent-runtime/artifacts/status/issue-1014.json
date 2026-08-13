@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 1014,
+  "metrics": {
+    "acceptanceMapped": 3,
+    "acceptanceTotal": 3,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/tools"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1014.json",
+    "sha256": "3cbb58849d554643cb26dcf98febcdcbd79cb6c10f5250676f3a78d1b2777920",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-13T11:28:09Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1014.json",
+    "sha256": "7c5019ab43917f6392ff72fedd8de239c0f03a5b25ccdd201ae02e583d6e9ee6",
+    "status": "FAIL"
+  },
+  "wave": null
+}
