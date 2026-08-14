@@ -69,19 +69,36 @@ PROHIBITION_KEYWORDS: dict[str, str] = {
 }
 
 # Reference-proven raw budget (ADR-072 d.6, #1037/#1038/#1039 W2-A run):
-# with `{playbook}` left un-rendered, the released prose measured ~2,687
-# proxy tokens and composed (playbook slot filled) to 2,967 -- 33 under the
-# 3,000 ceiling. `estimate_tokens()` is this repo's stdlib, tiktoken-free
-# proxy (backend/src/juli_backend/services/agent/sanitize/caps.py); ADR-072
-# d.6 says "tiktoken-measured" but `tiktoken` is an undeclared dependency
-# (not in backend/pyproject.toml or constraints.txt), so this test measures
-# with the proxy and records the divergence here rather than silently
-# swapping in a different measurement. A ~300-token margin is reserved
-# below for the `{playbook}` slot's eventual rendered content (#1036/#1038,
-# out of this issue's scope) so the full composed prompt has a realistic
-# chance of clearing 3,000 once assembled -- this file cannot prove that
-# directly without `compose()`.
-RAW_PROMPT_TOKEN_CEILING = 2750
+# with `{playbook}` left un-rendered, the released prose measured 2,687
+# proxy tokens and composed (playbook slot filled by the reference
+# Playbook) to 2,967 -- an observed render cost of 2,967 - 2,687 = 280
+# tokens for the `{playbook}` slot's content. `estimate_tokens()` is this
+# repo's stdlib, tiktoken-free proxy (backend/src/juli_backend/services/
+# agent/sanitize/caps.py); ADR-072 d.6 says "tiktoken-measured" but
+# `tiktoken` is an undeclared dependency (not in backend/pyproject.toml or
+# constraints.txt), so this test measures with the proxy and records the
+# divergence here rather than silently swapping in a different measurement.
+#
+# The ceiling below is chosen so this file cannot pass a raw prose that
+# would compose over budget, using the reference's own observed render
+# cost as the only number available from outside #1038's scope (this
+# file cannot run `compose()` itself):
+#
+#     reserved budget   = ADR-072 d.6 ceiling - observed render cost
+#                        = 3,000 - 280
+#                        = 2,720
+#     composed total at
+#     the ceiling        = ceiling + observed render cost
+#                        = 2,720 + 280
+#                        = 3,000  (at, not over, the hard limit)
+#
+# 2,720 is the loosest ceiling that still guarantees this invariant --
+# anything higher would let a raw file compose over 3,000 while this test
+# still passed, which is worse than no ceiling because it reads as
+# protection. Against the released v1.md's actual 2,687, this leaves 33
+# tokens of headroom: tight, but v1 is immutable (ADR-072 d.4) and not
+# expected to grow, so no further margin is needed or safe to add.
+RAW_PROMPT_TOKEN_CEILING = 2720
 
 
 @pytest.fixture(scope="module")
