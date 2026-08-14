@@ -23,7 +23,7 @@ from juli_backend.services.agent.playbooks.optimize_product import (
 )
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
-from juli_backend.services.agent.tools.registry import ToolPolicy, ToolRegistry
+from juli_backend.services.agent.tools.registry import ToolClassification, ToolPolicy, ToolRegistry
 from juli_backend.services.execution.tool_routing import WORKFLOW_TOOL_CATALOG
 
 # ADR-069 decision 1's documented order and policy column, reproduced
@@ -149,10 +149,30 @@ class TestTerminationPolicyFromADR073:
         assert policy.wall_clock_timeout_s == 300
         assert policy.approval_timeout_h == 4
 
+    def test_required_steps_pinned_to_the_two_adr073_confirmed_writes(self):
+        """ADR-073 decision 2: "did the job" is defined by the two
+        seller-confirmed writes -- the listing content change and the price
+        change. Pinned as an exact tuple (not just "contains" or
+        "is a subset of") so a silent addition, removal, or reordering of
+        required_steps fails here rather than passing under a weaker check."""
+        assert OPTIMIZE_PRODUCT_PLAYBOOK.termination_policy.required_steps == (
+            "update_product_listing",
+            "update_product_price",
+        )
+
     def test_required_steps_are_registered_write_capabilities(self):
+        """Acceptance criterion: required_steps names the writes whose
+        seller confirmation defines "did the job" -- not merely tool names
+        that happen to resolve against the registry (a READ tool would
+        resolve too). Asserts genuine WRITE classification on each entry,
+        not just registry.get() succeeding."""
         registry = _build_full_registry()
         for tool_name in OPTIMIZE_PRODUCT_PLAYBOOK.termination_policy.required_steps:
-            registry.get(tool_name)
+            spec = registry.get(tool_name)
+            assert spec.classification == ToolClassification.WRITE, (
+                f"required_steps entry {tool_name!r} must be a WRITE-classified "
+                f"tool, got {spec.classification!r}"
+            )
 
 
 class TestIntentIsBusinessEnglish:
