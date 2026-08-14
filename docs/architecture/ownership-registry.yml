@@ -280,6 +280,15 @@ celeryTasks:
       ADR-073 decisions 1/5 (#1129, reconciled against the real WorkflowRunner.resume
       by #1145). Carries an already-authorized `approved` decision through to the
       runner; does not itself validate or authorize it (W4-A's job).
+  juli_backend.reap_abandoned_workflow_runs:
+    owner: Workers & Async
+    wrapper: backend/src/juli_backend/workers/tasks/reaper.py
+    delegatesTo: workers.tasks.reaper.reap_workflow_runs
+    notes: >
+      ADR-074 decision 4 (#1130). Beat task every 5 minutes; closes stale
+      running/queued runs (no event + no live task -> worker_lost -> failed)
+      and expired waiting_approval runs (past approval_timeout_h ->
+      confirmation_expired -> cancelled) through the normal EventSink path.
 
 redisNamespaces:
   - pattern: "ratelimit:*"

@@ -58,6 +58,16 @@ celery_app.conf.update(
             "task": "juli_backend.daily_impact_reader",
             "schedule": crontab(hour=3, minute=0),
         },
+        # #1130, ADR-074 decision 4 — the reaper. Every 5 minutes, closes the
+        # two run-abandonment holes through the normal EventSink path: stale
+        # running/queued (no event + no live task -> worker_lost -> failed)
+        # and expired waiting_approval (past approval_timeout_h ->
+        # confirmation_expired -> cancelled). See
+        # workers/tasks/reaper.py for the full contract.
+        "reap-abandoned-workflow-runs": {
+            "task": "juli_backend.reap_abandoned_workflow_runs",
+            "schedule": crontab(minute="*/5"),
+        },
     },
 )
 
