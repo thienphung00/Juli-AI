@@ -31,6 +31,8 @@ and was not always re-annotated when an ADR settled the question differently.
 | Demo design-language files for the Optimize Product surfaces | older `docs/product/design` material | **ADR-076 + PUI-DESIGN.md** | PUI-DESIGN.md **deliberately overrides** them for these surfaces. Do not "reconcile" back. |
 | "the OpenAI SDK rides httpx like the TikTok client" — implying the SDK is used | ADR-071 d.6 | **Architect decision 2026-08-12 (Option A)** | The adapter is built directly on `httpx`; the `openai` SDK is **not** used. ADR-071's rationale (contain wire types, stay swappable, mirror the hand-rolled `integrations/tiktok` client) is satisfied without it. ADR-068 d.6(a)'s containment test still applies as a guard against future SDK creep. Revisit if we adopt streaming or structured outputs. |
 | Platform/rollback shape | ADR-035 | **ADR-057** (platform, in part) | Single-VPS pre-user delivery. Relevant when the public-release evidence gate fires. |
+| `WorkflowRunner` lives in `services/agent/runner.py` — a single file | **ADR-073 d.1** and `PLAN.md` §6, in agreement | **Implementation handoff §6, W3-A "Write paths"** — `services/agent/runner/`, a package | W3-A builds the **package** form (`status.py`, `state.py`, `conversation_store.py`, `core.py`, `tool_executor.py`, `termination.py`, `ledger.py`, `concurrency.py`). Seven of the eight P1 slices touch runner-owned logic and need disjoint write paths for Review to grade them independently; a single file makes every slice collide. Note this **inverts the usual authority order** — the handoff wins over two higher-authority documents on an operational point neither of them was deciding. Flagged for the Architect to ratify or correct at source. |
+| P8's phase gate is one flat list of green checks | **ADR-074 d.6** | Implementation handoff §6, W3-B — an explicit **2-stage** gate (contracts stage / live stage) | W3-B follows the handoff's two-stage split: the wave's parallelism contract (build against pinned I5/I6 while W3-A is in flight; live gate only after W3-A merges) is unbuildable without it. The ADR does not contradict the split — it simply does not name it. Recorded so the ADR can absorb the staging language rather than the handoff quietly outranking it twice. |
 
 ## Deferred — build to the seam, do not implement
 
@@ -63,3 +65,9 @@ Already landed on `main`; confirm with a test rather than reimplementing:
 2. The implementation handoff §6 W1-B "Trap" still asserts the superseded "lifted" claim
    and should be corrected at source.
 3. Handoff §9 pins `main` at `2db2b55b`; `main` has since advanced.
+4. **Handoff §6 W3-A/W3-B imply a wave branch per phase.** Wave 3 runs both phases on one
+   branch (`feature/agent-w3-wave`, manifest `wave-agent-w3`) because they share
+   `models/models.py`, one Alembic head, the `EventSink` seam, and a single wave-close gate —
+   and because two wave branches would put W3-A's runner slice on a sibling wave's branch,
+   which receives zero CI checks. Rationale recorded in `PLAN.md`'s "Wave 3 status" section;
+   the W1 precedent (#1034) is the same shape.
