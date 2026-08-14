@@ -160,7 +160,7 @@ pygments==2.20.0
     #   rich
 pyjwt==2.13.0
     # via juli-backend (pyproject.toml)
-pytest==8.4.2
+pytest==9.1.1
     # via
     #   juli-backend (pyproject.toml)
     #   pytest-asyncio
