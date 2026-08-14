@@ -76,16 +76,31 @@ from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 # `services.agent.runner.*`: the import-boundary contract (MMU-2/#552,
 # `.importlinter.toml`) caps a cross-package import from `api` at
 # `juli_backend.<top>.<direct_child>` (depth 2) -- `services.agent.events`
-# is depth 3 and `services.agent.events.persisting_sink`/`.subscriber` or
-# `services.agent.runner.status` are depth 4, all forbidden. The three
-# small things this route would otherwise reach into that subtree for
-# (the Redis channel name format, the terminal-status vocabulary, and the
-# live-subscription seam) are reproduced locally below instead -- exactly
-# the "prefer the route module" steer in this slice's own write-path
-# constraints. Cross-checked for drift against the real definitions in
-# `tests/unit/test_agent_run_events_stream.py` and
-# `test_agent_run_events_api.py` (unscanned by the import-boundary
-# checker, which only scans `backend/src/juli_backend`).
+# is depth 3 and `services.agent.events.persisting_sink` or
+# `services.agent.runner.status` are depth 4, all forbidden. Four things
+# this route would otherwise reach into that subtree for are reproduced
+# locally below instead -- exactly the "prefer the route module" steer in
+# this slice's own write-path constraints. Precisely what is guarded
+# against drift, and how, in `tests/unit/test_agent_run_events_route_helpers.py`
+# (unscanned by the import-boundary checker, which only scans
+# `backend/src/juli_backend`):
+#   - `_run_events_channel` -- cross-checked against
+#     `persisting_sink.run_events_channel`'s real output.
+#   - `_resolve_async_database_url` -- cross-checked against
+#     `workers/tasks/database.py::get_async_database_url`'s real output.
+#   - `TERMINAL_RUN_STATUSES` -- cross-checked against a value recomputed
+#     from the real `WorkflowRunStatus`/`NON_TERMINAL_STATUSES`
+#     (`services/agent/runner/status.py`), not hardcoded a second time.
+#   - `TERMINAL_EVENT_TYPES` -- cross-checked against the real
+#     `WorkflowCompletedEvent`/`WorkflowFailedEvent` `event_type` literals
+#     (`services/agent/events/envelope.py`).
+#   - `EventSubscriber`/`_RedisEventSubscriber` (the live-subscription
+#     seam) are NOT a reproduction of anything and have no drift check:
+#     `services/agent/events/subscriber.py` was deleted from this slice
+#     once this import-boundary constraint was understood, so this *is*
+#     the definition, not a copy of one. Only its externally-observable
+#     behavior (`None` when `REDIS_URL` is unset, a real subscriber
+#     instance otherwise) is tested.
 
 logger = logging.getLogger(__name__)
 
