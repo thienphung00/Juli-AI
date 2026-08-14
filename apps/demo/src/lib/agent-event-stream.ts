@@ -225,10 +225,11 @@ export interface AgentEventStreamConfig {
   baseUrl?: string;
   /** Injectable for tests; defaults to the global `fetch`. */
   fetchImpl?: typeof fetch;
-  /** Maximum reconnect attempts after a drop. Defaults to unlimited
-   *  (the helper keeps trying, same as it would sit on an open
-   *  `EventSource`). A 401/404 response never retries regardless of this
-   *  setting -- the credentials or the run id are wrong, not the network. */
+  /** Maximum reconnect attempts after a drop. Defaults to
+   *  `AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS` (see that
+   *  constant for the reasoning) -- **not** unlimited. A 401/404 response
+   *  never retries regardless of this setting -- the credentials or the
+   *  run id are wrong, not the network. */
   maxReconnectAttempts?: number;
   /** Delay before each reconnect attempt, or a function of the attempt
    *  number (1-indexed) for backoff. Defaults to capped exponential
@@ -241,6 +242,24 @@ export interface AgentEventStreamConfig {
 interface ConnectionOutcome {
   reason: "terminal-event" | "aborted" | "stream-ended";
 }
+
+/**
+ * Finite by design. An "unlimited retries, capped backoff" default sounds
+ * safe -- it's not a busy-loop, each attempt is seconds apart -- but it is
+ * only safe because this module has no caller yet. The moment P-UI (W4-B)
+ * wires this in, "unlimited" becomes "silently retries forever against a
+ * deterministically-failing stream," with no terminal `onClose` ever
+ * reaching the UI to let it show an error state. 10 attempts, at the
+ * default capped-exponential backoff (1s, 2s, 4s, 8s, 15s, 15s, ...), is
+ * a little over two minutes -- long enough to ride out a real transient
+ * blip, short enough that a persistent failure (a dead run, a
+ * misconfigured endpoint, a poison frame the server keeps re-sending)
+ * surfaces a terminal `exhausted-reconnect-attempts` close instead of
+ * hanging open indefinitely. Fully overridable via `maxReconnectAttempts`
+ * for a caller that wants different behavior (e.g. unlimited, by passing
+ * `Number.POSITIVE_INFINITY`).
+ */
+export const AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
 
 function defaultReconnectDelayMs(attempt: number): number {
   return Math.min(1000 * 2 ** (attempt - 1), 15_000);
@@ -423,7 +442,7 @@ export class AgentEventStreamClient {
           (streamError.kind === "unauthorized" || streamError.kind === "not_found");
 
         this.reconnectAttempt += 1;
-        const maxAttempts = this.config.maxReconnectAttempts ?? Number.POSITIVE_INFINITY;
+        const maxAttempts = this.config.maxReconnectAttempts ?? AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS;
         const willRetry = !isUnrecoverableHttpError && this.reconnectAttempt <= maxAttempts;
 
         this.handlers.onError?.(streamError, { attempt: this.reconnectAttempt, willRetry });
@@ -452,7 +471,7 @@ export class AgentEventStreamClient {
       // terminal event (e.g. a heartbeat timeout). Reconnect from
       // lastSequenceNumber -- never from 0, never from an arbitrary point.
       this.reconnectAttempt += 1;
-      const maxAttempts = this.config.maxReconnectAttempts ?? Number.POSITIVE_INFINITY;
+      const maxAttempts = this.config.maxReconnectAttempts ?? AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS;
       if (this.reconnectAttempt > maxAttempts) {
         this.finish("exhausted-reconnect-attempts");
         return;
