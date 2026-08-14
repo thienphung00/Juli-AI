@@ -1,0 +1,74 @@
+{
+  "planId": "agent-events-fetch-streaming-client-helper-2026-08-14",
+  "affectedPublicSurfaces": [
+    "None on merge. The slice adds one transport module under apps/demo/src/lib/ and its unit tests. Nothing imports it: no route, page, layout, or bundle entry point references the helper, so the demo app's rendered surface and shipped assets are byte-identical before and after. The helper becomes reachable only when P-UI (W4-B) wires it into a view, which is a separate slice with its own release evidence."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local workspace tests on feature/issue-1132-fetch-streaming-client. No VPS is contacted and no deployment occurs.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "fetch-streaming-transport-helper-unit",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "the helper uses fetch + ReadableStream and never constructs a native EventSource",
+          "the bearer token is sent in an Authorization header and never appears in a URL, query string, or log line",
+          "reconnect resumes from the last observed sequence number, so the caller sees no gap and no duplicate",
+          "401, 404 and 500 are distinguishable to the caller rather than collapsed into one opaque stream error",
+          "AbortController cancellation terminates the read loop without an unhandled rejection",
+          "the helper consumes the event union exported by packages/contracts and does not redeclare event shapes",
+          "no module under apps/demo imports the helper in this slice, so the built demo bundle is unchanged"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "No HTML route changes in this slice; the helper is unreferenced by any page."
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "vitest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No database migration and no public API schema change. The helper is a client of the SSE endpoint W3-B/P8-4 defines; it introduces no contract of its own. The event envelope it parses carries v: 1 and additive event types stay backward compatible by construction (ADR-074 d.2)."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. Nothing in the demo app depends on the helper, so not merging leaves the app exactly as it is today; P-UI simply has no transport to wire later.",
+    "postCutoverFailureBehavior": "Revert the commit. Because no module imports the helper, removing it cannot break a rendered surface, a route, or a build. The revert is a pure file deletion with no downstream reference to repair.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "pnpm --filter @juli/contracts build",
+    "pnpm --filter demo test",
+    "pnpm -w turbo run build"
+  ],
+  "notes": "Classified public-release because the slice writes into apps/demo/, which is a deployed surface, even though this particular change adds only an unreferenced module. The classification is treated as correct rather than worked around: the evidence below asserts the no-reference property instead of asserting that apps/ was untouched.",
+  "doNotInfer": [
+    "Do not infer that a live run was streamed to a browser. That is W3-B/P8-9's HITL gate and needs a real Redis broker plus W3-A's runner merged.",
+    "Do not infer that the demo app's UI consumes agent events. P-UI (W4-B) owns the reducer and the staged run view; this slice ships transport only.",
+    "Do not infer that reconnect was exercised against a real network partition. The reconnect assertions are unit-level against a scripted stream, not an offline-toggle in a browser.",
+    "Do not infer that the SSE endpoint is deployed or reachable. The helper is written against the contract W3-B/P8-4 defines; no server is contacted during verification."
+  ]
+}
