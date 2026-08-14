@@ -151,9 +151,14 @@ def _default_has_live_task(run_id: uuid.UUID) -> bool:
 
     Checks active, reserved, and scheduled tasks across every responding
     worker for `run_agent_workflow`/`resume_agent_workflow` carrying this
-    `run_id` as their first argument -- `workflow_runs` stores no Celery
-    task id (no migration in this slice), so this is the only liveness
-    signal available short of one.
+    `run_id`, matched either positionally (`args[0]`, how every caller in
+    this repo enqueues today) or by keyword (`kwargs["run_id"]`) -- no
+    caller enqueues by keyword yet, but matching positional-only would read
+    a future `enqueue(run_id=...)` call as "no live task" and expose a
+    genuinely live run to a false reap, which is exactly the failure
+    direction this reaper exists to prevent. `workflow_runs` stores no
+    Celery task id (no migration in this slice), so this is the only
+    liveness signal available short of one.
 
     Fails SAFE: any error talking to the broker (unreachable, timeout,
     unsupported transport) returns True -- "assume a live task exists" --
@@ -162,6 +167,7 @@ def _default_has_live_task(run_id: uuid.UUID) -> bool:
     task, reap it"; a probe failure just skips this run for this tick, and
     the next 5-minute tick tries again.
     """
+    run_id_str = str(run_id)
     try:
         inspector = celery_app.control.inspect()
         if inspector is None:
@@ -177,8 +183,15 @@ def _default_has_live_task(run_id: uuid.UUID) -> bool:
                         continue
                     request = task.get("request") if isinstance(task.get("request"), dict) else task
                     name = request.get("name") or task.get("name")
+                    if name not in _AGENT_WORKFLOW_TASK_NAMES:
+                        continue
                     args = request.get("args") or task.get("args") or []
-                    if name in _AGENT_WORKFLOW_TASK_NAMES and args and str(args[0]) == str(run_id):
+                    kwargs = request.get("kwargs") or task.get("kwargs") or {}
+                    if not isinstance(kwargs, dict):
+                        kwargs = {}
+                    matches_positional = bool(args) and str(args[0]) == run_id_str
+                    matches_keyword = "run_id" in kwargs and str(kwargs["run_id"]) == run_id_str
+                    if matches_positional or matches_keyword:
                         return True
         return False
     except Exception:
