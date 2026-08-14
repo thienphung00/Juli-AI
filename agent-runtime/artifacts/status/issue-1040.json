@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 1040,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/models",
+      "backend/database/migrations"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1040.json",
+    "sha256": "3d0fb1c8a0dcbfffbf507c80392d7673dcdc427139debd434b341d733169eb80",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T05:36:42Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1040.json",
+    "sha256": "ae9fe275c2768949a6472c4c2f4bfc6ec32b0d8f2e8a2daa33bb7b5c55ae8960",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2b"
+}

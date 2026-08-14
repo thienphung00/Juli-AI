@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import uuid
 from datetime import UTC, datetime
@@ -31,7 +32,33 @@ pytestmark = pytest.mark.migration_heavy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
-LATEST_REVISION = "032_close_public_schema_defaults"
+
+
+def _latest_revision() -> str:
+    """Derive the single head from the migration files, never pin it.
+
+    Pinning a literal here means every new migration fails this test for the
+    wrong reason: 033 (#1040) legitimately extends 032, and the assertion at
+    the round-trip below is about the round trip landing on head — not about
+    which revision happens to be head today. A genuinely branched graph still
+    fails, because more than one head raises.
+    """
+    versions = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
+    revisions: dict[str, str | None] = {}
+    for path in versions.glob("*.py"):
+        body = path.read_text(encoding="utf-8")
+        rev = re.search(r'^revision: str = "([^"]+)"', body, re.M)
+        down = re.search(r'^down_revision: str \| None = (?:"([^"]+)"|None)', body, re.M)
+        if rev:
+            revisions[rev.group(1)] = down.group(1) if down and down.group(1) else None
+    parents = {d for d in revisions.values() if d}
+    heads = [r for r in revisions if r not in parents]
+    if len(heads) != 1:
+        raise AssertionError(f"expected exactly one migration head, got {sorted(heads)}")
+    return heads[0]
+
+
+LATEST_REVISION = _latest_revision()
 
 sys.path.insert(0, str(REPO_ROOT / "agent-runtime" / "scripts" / "ci"))
 from check_public_schema_privileges import (  # noqa: E402
