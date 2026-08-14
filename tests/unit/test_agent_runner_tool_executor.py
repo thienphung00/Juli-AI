@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from juli_backend.integrations.tiktok.factories import (
     ProductionReadResources,
@@ -151,6 +152,39 @@ class TestBuildsProductToolContextFromBoundIdentityOnly:
         executor.execute(tool_name="get_product_information", params=spoofed_params)
 
         assert products.get_details_calls == ["bound-product-id"]
+
+    def test_execute_ignores_a_conflicting_identifier_carried_on_params(self):
+        """Owns the seam directly, independent of any particular tool's
+        schema.
+
+        Today none of the six real Optimize Product `input_model`s declare
+        an identifier field (ADR-070 decision 1), so `params` can never
+        actually carry a conflicting `product_id` in production — but that
+        protection is presently held up by that coincidence, not by an
+        assertion on `ProductToolExecutor.execute` itself. If a future tool
+        gains an id-ish input field for an unrelated reason, nothing here
+        would go red. This test constructs a `params` object that *does*
+        carry a conflicting `product_id` — deliberately not a real
+        `input_model` instance, since none can express this today — and
+        pins that `execute()` never reads identity from it: `context` is
+        built from the bound `product_id` alone, regardless of what
+        `params` claims.
+        """
+
+        class _ParamsWithConflictingProductId(BaseModel):
+            product_id: str
+
+        products = _FakeProductsResource()
+        executor = ProductToolExecutor(
+            registry=_full_registry(),
+            read_resources=_read_resources(products),
+            product_id="product-A",
+        )
+        conflicting_params = _ParamsWithConflictingProductId(product_id="product-B-attacker")
+
+        executor.execute(tool_name="get_product_information", params=conflicting_params)
+
+        assert products.get_details_calls == ["product-A"]
 
     def test_sku_refs_are_resolved_from_bound_context_not_arguments(self):
         products = _FakeProductsResource()
