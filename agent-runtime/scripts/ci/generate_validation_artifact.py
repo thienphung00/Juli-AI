@@ -48,6 +48,20 @@ CHECKS: list[tuple[str, str]] = [
     ("unpushed_issue_work", "check_unpushed_issue_work.py"),
 ]
 
+# Advisory gates report a real signal but never decide `status` or
+# `readyForMerge` — they are repo-health checks a slice author cannot act on
+# from inside a single worktree (issue #1076). This is a single named
+# constant, not a predicate or config key, so that widening it is a
+# deliberate, reviewable edit to this line rather than something that can
+# happen by accident: tests/unit/test_generate_validation_artifact.py pins
+# its exact contents and fails if anything is added or removed. Advisory
+# results still appear in full in `checks` (real PASS/FAIL + details) and are
+# additionally recorded in `advisoryFailures` when they fail — never hidden.
+#
+# Every other gate stays blocking. Do not add to this set without updating
+# the pinned test and agent-runtime/scripts/validate/checks.md.
+ADVISORY_CHECKS: frozenset[str] = frozenset({"unpushed_issue_work"})
+
 
 def load_checker(script_name: str) -> Callable[..., tuple[bool, str, dict[str, Any]]]:
     path = VALIDATE_DIR / script_name
@@ -60,36 +74,59 @@ def load_checker(script_name: str) -> Callable[..., tuple[bool, str, dict[str, A
     return module.run_check  # type: ignore[attr-defined]
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--issue", type=int, required=False)
-    args = parser.parse_args()
-    issue = resolve_issue_number(args.issue)
-    if issue is None:
-        print("error: could not resolve issue number", file=sys.stderr)
-        return 1
+def run_checks(issue: int) -> list[dict[str, Any]]:
+    """Run every registered gate and return one result dict per gate.
 
+    Each result carries an explicit ``classification`` ("blocking" or
+    "advisory") so the artifact is self-documenting about which gates decide
+    merge readiness — nothing is inferred silently downstream.
+    """
     results: list[dict[str, Any]] = []
-    failed = 0
     for check_name, script in CHECKS:
         run_check = load_checker(script)
         passed, description, details = run_check(issue)
-        if not passed:
-            failed += 1
+        is_advisory = check_name in ADVISORY_CHECKS
         results.append(
             {
                 "name": check_name,
                 "status": "PASS" if passed else "FAIL",
                 "description": description,
                 "details": details,
+                "classification": "advisory" if is_advisory else "blocking",
             }
         )
-        print(f"{check_name}: {'PASS' if passed else 'FAIL'}")
+        suffix = " (advisory — not merge-blocking)" if is_advisory else ""
+        print(f"{check_name}: {'PASS' if passed else 'FAIL'}{suffix}")
+    return results
 
-    status = "PASS" if failed == 0 else "FAIL"
-    review = load_review_artifact(issue)
-    warning_count = 0
+
+def build_artifact(
+    issue: int,
+    results: list[dict[str, Any]],
+    review: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Assemble the validation artifact from gate results and the review.
+
+    `status` and `readyForMerge` are computed from **blocking** gates only
+    (issue #1076) — a repo-wide advisory FAIL (e.g. ``unpushed_issue_work``)
+    is still fully reported in ``checks`` and in ``advisoryFailures``, but it
+    never flips `status` to FAIL or blocks merge on its own.
+    """
+    blocking_total = sum(1 for name, _ in CHECKS if name not in ADVISORY_CHECKS)
+    blocking_failures = [
+        r for r in results if r["status"] == "FAIL" and r["name"] not in ADVISORY_CHECKS
+    ]
+    advisory_failures = [
+        {"name": r["name"], "description": r["description"]}
+        for r in results
+        if r["status"] == "FAIL" and r["name"] in ADVISORY_CHECKS
+    ]
+    blocking_failed = len(blocking_failures)
+    total_failed = sum(1 for r in results if r["status"] == "FAIL")
+
+    status = "PASS" if blocking_failed == 0 else "FAIL"
     review_status = None
+    warning_count = 0
     if review:
         review_status = review.get("status")
         warning_count = sum(
@@ -98,23 +135,34 @@ def main() -> int:
             if finding.get("severity") == "WARNING"
         )
 
-    if failed == 0 and review_status == "PASS_WITH_WARNINGS":
+    if blocking_failed == 0 and review_status == "PASS_WITH_WARNINGS":
         overall = (
-            f"All {len(results)} validation checks passed; review has {warning_count} "
-            "gating warning(s) with explicit signoff (PASS_WITH_WARNINGS)."
+            f"All {blocking_total} blocking validation check(s) passed; review has "
+            f"{warning_count} gating warning(s) with explicit signoff (PASS_WITH_WARNINGS)."
         )
-    elif failed == 0:
-        overall = "All validation checks passed."
+    elif blocking_failed == 0:
+        overall = "All blocking validation checks passed."
     else:
-        overall = f"{failed} validation check(s) failed."
+        overall = f"{blocking_failed} blocking validation check(s) failed."
+
+    if advisory_failures:
+        names = ", ".join(f["name"] for f in advisory_failures)
+        overall += (
+            f" {len(advisory_failures)} advisory check(s) failed (repo-health signal, "
+            f"reported but not merge-blocking — see advisoryFailures): {names}."
+        )
 
     merge_blocked_by_warnings = (
         review_status == "PASS_WITH_WARNINGS"
-        and any(c["name"] in {
-            "findings_acknowledged",
-            "reviewer_signoff_present",
-            "owner_signoff_present",
-        } and c["status"] == "FAIL" for c in results)
+        and any(
+            r["name"] in {
+                "findings_acknowledged",
+                "reviewer_signoff_present",
+                "owner_signoff_present",
+            }
+            and r["status"] == "FAIL"
+            for r in results
+        )
     )
 
     merge_allowed_with_override = (
@@ -129,24 +177,44 @@ def main() -> int:
         "timestamp": utc_now_iso(),
         "validatedBy": "validate skill",
         "status": status,
-        "passedChecks": len(results) - failed,
-        "failedChecks": failed,
+        "passedChecks": len(results) - total_failed,
+        "failedChecks": total_failed,
         "checks": results,
         "overallSummary": overall,
-        "readyForMerge": failed == 0 and (review_status != "FAIL" or merge_allowed_with_override),
+        "readyForMerge": blocking_failed == 0
+        and (review_status != "FAIL" or merge_allowed_with_override),
         "warningGated": review_status == "PASS_WITH_WARNINGS",
         "mergeBlockedByWarnings": merge_blocked_by_warnings,
         "mergeOverrideActive": merge_allowed_with_override,
+        "advisoryFailures": advisory_failures,
     }
     if review_status:
         artifact["reviewStatus"] = review_status
         artifact["reviewWarningCount"] = warning_count
     enrich_validation_artifact(artifact, issue, review)
+    return artifact
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--issue", type=int, required=False)
+    args = parser.parse_args()
+    issue = resolve_issue_number(args.issue)
+    if issue is None:
+        print("error: could not resolve issue number", file=sys.stderr)
+        return 1
+
+    results = run_checks(issue)
+    review = load_review_artifact(issue)
+    artifact = build_artifact(issue, results, review)
 
     out = VALIDATION_DIR / f"validation-issue-{issue}.json"
     write_json(out, artifact)
     print(f"wrote {out}")
-    return 0 if failed == 0 else 1
+    blocking_failed = sum(
+        1 for r in results if r["status"] == "FAIL" and r["name"] not in ADVISORY_CHECKS
+    )
+    return 0 if blocking_failed == 0 else 1
 
 
 if __name__ == "__main__":
