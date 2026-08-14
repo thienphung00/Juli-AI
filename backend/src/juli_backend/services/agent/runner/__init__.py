@@ -9,8 +9,11 @@ implementation) — state and storage only, no runner. #1119 adds `core`
 (iteration cap / extensions, the paused wall clock, the shared checkpoint
 function) and wires it into `core`. #1123 adds the CONFIRM-policy
 pause/resume round trip (`WorkflowRunner.resume`, `NoPendingConfirmationError`)
-inside `core` — no new module. The idempotency ledger and basis-hash
-compare-before-write are later slices in this phase — do not add them here.
+inside `core` — no new module. #1121 adds `ledger` (`ToolExecutionLedger`,
+ADR-073 decision 3's idempotent WRITE-path machinery), imported eagerly
+below — unlike `core`/`tool_executor`, it has no import-cycle hazard with
+`events/` (it only imports `models/models.py`). Basis-hash
+compare-before-write is a later slice in this phase — do not add it here.
 
 **Why `core`/`tool_executor` are exported lazily (`__getattr__`, PEP 562)
 instead of imported at module scope like the rest of this file.**
@@ -38,6 +41,13 @@ from typing import TYPE_CHECKING
 from juli_backend.services.agent.runner.conversation_store import (
     ConversationStore,
     JsonbConversationStore,
+)
+from juli_backend.services.agent.runner.ledger import (
+    LedgerStatus,
+    ToolExecutionLedger,
+    ToolExecutionUnrecoverableError,
+    VerifyOutcome,
+    VerifyReadBack,
 )
 from juli_backend.services.agent.runner.state import (
     ConversationMessage,
@@ -100,6 +110,7 @@ __all__ = [
     "IterationGate",
     "IterationGateAction",
     "JsonbConversationStore",
+    "LedgerStatus",
     "NoPendingConfirmationError",
     "ProductToolExecutor",
     "RunResult",
@@ -107,7 +118,11 @@ __all__ = [
     "RunStateFieldMissingError",
     "StopReason",
     "ToolExecutionError",
+    "ToolExecutionLedger",
+    "ToolExecutionUnrecoverableError",
     "ToolExecutor",
+    "VerifyOutcome",
+    "VerifyReadBack",
     "WorkflowRunStatus",
     "WorkflowRunner",
     "accumulate_running_seconds",
