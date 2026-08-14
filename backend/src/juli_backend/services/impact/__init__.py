@@ -1,13 +1,16 @@
 """Incremental impact measurement — funnel-first metric map, ratio-form DiD
-compute, and control-pool selection (ADR-077 decisions 1-3, #1041, #1042).
+compute, control-pool selection, and confidence tiers / seller-facing copy
+(ADR-077 decisions 1-4, #1041, #1042, #1043).
 
-This package answers three questions: **which metric** does a mutation act
+This package answers four questions: **which metric** does a mutation act
 on (``metric_map.py``), **which sibling products form its control cohort**
-(``control_pool.py``), and **what is the control-adjusted incremental
-impact** for that metric given a target series, a control series, and the
-write's execution date T (``windows.py`` + ``compute.py`` + ``reading.py``).
-Everything else ADR-077 describes is explicitly out of scope here and owned
-by later, stacked issues in the same package:
+(``control_pool.py``), **what is the control-adjusted incremental impact**
+for that metric given a target series, a control series, and the write's
+execution date T (``windows.py`` + ``compute.py`` + ``reading.py``), and
+**how confident is that number, and what does a seller actually read**
+(``confidence.py`` + ``copy.py``). Everything else ADR-077 describes is
+explicitly out of scope here and owned by later, stacked issues in the same
+package:
 
 - Control-pool **candidate discovery I/O** — querying same-shop siblings,
   detecting a Juli-run touch, and resolving a product's first-active date —
@@ -15,21 +18,24 @@ by later, stacked issues in the same package:
   already-fetched ``Sequence[ControlCandidate]`` and the volume-floor value
   as plain arguments, mirroring how ``reading.py`` receives
   ``confounded: bool``.
-- **Confidence tiers**, per-metric volume-floor *config* (the numeric
-  thresholds themselves and the family→indicator mapping), and the
-  "Chưa đủ dữ liệu để ước tính" / seller-facing copy rules — ADR-077 decision
-  4, #1043. ``MetricReading.status`` here only ever distinguishes ``"ok"``
-  from ``"confounded"``; it is not a confidence tier. A HIGH-severity defect
-  in a prior implementation of *this* package's control-pool selection
-  compared a rate metric's own values against a count-calibrated volume
-  floor, silently disabling K-nearest-correlated selection for the Image and
-  Description mutation families — ``control_pool.select_control_pool``'s
-  ``volume_of`` parameter and ``metric_map.MetricSpec.is_rate`` exist
+- ``confidence.py``/``copy.py`` (this package, #1043) cover confidence-tier
+  assignment, per-metric volume-floor config, the below-floor/suppressed
+  designed states, and seller-facing copy rules — the *thresholds* and
+  *family→indicator* mapping live here as their single source of truth. A
+  HIGH-severity defect in a prior implementation of *this* package's
+  control-pool selection compared a rate metric's own values against a
+  count-calibrated volume floor, silently disabling K-nearest-correlated
+  selection for the Image and Description mutation families —
+  ``control_pool.select_control_pool``'s ``volume_of`` parameter,
+  ``metric_map.MetricSpec.is_rate``, and this module's
+  ``confidence.pre_period_volume``/``confidence.volume_indicator_for`` exist
   precisely so that comparison has one unambiguous, tested answer, and a
   rate metric with no ``volume_of`` raises rather than silently
   disqualifying every candidate (see ``control_pool.py``'s module docstring
   and ``tests/unit/test_impact_control_pool.py``'s
-  ``TestVolumeIndicatorNotMetricAgainstTheFloor``).
+  ``TestVolumeIndicatorNotMetricAgainstTheFloor``, plus
+  ``tests/unit/test_impact_confidence.py``'s own family-parametrized
+  regression guards).
 - The **daily impact-reader beat task**, legacy-envelope compatibility, and
   ``WORKFLOW_OUTCOME_SUCCESS_CRITERIA`` wiring — ADR-077 decision 5, #1044.
   Detecting a confounding second run (an execution-history query) and
@@ -88,6 +94,22 @@ from juli_backend.services.impact.compute import (
     compute_post,
     compute_pre,
 )
+from juli_backend.services.impact.confidence import (
+    BAND_MULTIPLIER_CAO,
+    BAND_MULTIPLIER_TRUNG_BINH,
+    FLOOR_MULTIPLIER_CAO,
+    VOLUME_FLOORS,
+    ConfidenceResult,
+    MetricFamily,
+    TierOutcome,
+    assign_confidence,
+    compute_confidence,
+    compute_noise_band,
+    metric_family_of,
+    pre_period_volume,
+    volume_floor_for,
+    volume_indicator_for,
+)
 from juli_backend.services.impact.control_pool import (
     MIN_ACTIVE_DAYS,
     MIN_CANDIDATES,
@@ -98,6 +120,18 @@ from juli_backend.services.impact.control_pool import (
     FallbackReason,
     SelectedControl,
     select_control_pool,
+)
+from juli_backend.services.impact.copy import (
+    BELOW_FLOOR_MESSAGE,
+    METHOD_DISCLAIMER_FALLBACK,
+    METHOD_DISCLAIMER_FULL_PATH,
+    RenderedReadingCopy,
+    metric_label_vi,
+    render_below_floor,
+    render_confounded,
+    render_reading,
+    render_suppressed,
+    render_tiered_reading,
 )
 from juli_backend.services.impact.metric_map import (
     ALL_METRICS,
@@ -138,24 +172,35 @@ from juli_backend.services.impact.windows import (
 
 __all__ = [
     "ALL_METRICS",
+    "BAND_MULTIPLIER_CAO",
+    "BAND_MULTIPLIER_TRUNG_BINH",
+    "BELOW_FLOOR_MESSAGE",
     "CONVERSION_RATE",
     "CTR",
+    "ConfidenceResult",
     "ControlCandidate",
     "ControlPoolResult",
+    "FLOOR_MULTIPLIER_CAO",
     "FallbackReason",
     "GMV",
     "GMV_PER_ORDER",
     "IMPRESSIONS",
     "ITEMS_SOLD",
+    "METHOD_DISCLAIMER_FALLBACK",
+    "METHOD_DISCLAIMER_FULL_PATH",
     "METRIC_MAP",
     "MIN_ACTIVE_DAYS",
     "MIN_CANDIDATES",
     "MIN_MEAN_CORRELATION",
+    "MetricFamily",
     "POST_WINDOW_DAYS",
     "PRE_WINDOW_DAYS",
+    "RenderedReadingCopy",
     "SKU_ORDERS",
     "SelectedControl",
     "TOP_K",
+    "TierOutcome",
+    "VOLUME_FLOORS",
     "MetricReading",
     "MetricSpec",
     "MutationKind",
@@ -167,20 +212,33 @@ __all__ = [
     "RunReadings",
     "WindowKind",
     "Windows",
+    "assign_confidence",
+    "compute_confidence",
     "compute_expected",
     "compute_growth",
     "compute_impact_pct",
     "compute_incremental",
     "compute_metric_reading",
     "compute_mutation_readings",
+    "compute_noise_band",
     "compute_post",
     "compute_pre",
     "compute_run_readings",
     "compute_windows",
     "date_range",
     "mean_over_window",
+    "metric_family_of",
+    "metric_label_vi",
     "post_window",
+    "pre_period_volume",
     "pre_window",
+    "render_below_floor",
+    "render_confounded",
+    "render_reading",
+    "render_suppressed",
+    "render_tiered_reading",
     "resolve_metric",
     "select_control_pool",
+    "volume_floor_for",
+    "volume_indicator_for",
 ]
