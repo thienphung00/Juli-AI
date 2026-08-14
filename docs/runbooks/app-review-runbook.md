@@ -545,7 +545,10 @@ Each deploy:
 3. Backend: creates `.venv`, `pip install`, `alembic upgrade head`.
 4. Frontend: copies `/etc/juli/web.env` → `apps/dashboard/.env.production`, runs `build-frontend-review.sh`.
 5. Atomically flips `~/releases/current` symlink.
-6. Restarts `juli-api`, `juli-web`, and (if installed) `juli-celery-worker` and `juli-celery-beat`. Celery units are guarded by a unit-existence check to tolerate hosts without them (e.g. App Review-only boxes).
+6. The API lane cuts over via blue/green rather than a direct restart of `juli-api.service` — see
+   "API cutover and the durable unit" below. `juli-celery-worker` and `juli-celery-beat` are
+   restarted directly (they have no candidate/cutover step of their own); both are guarded by a
+   unit-existence check to tolerate hosts without them (e.g. App Review-only boxes).
 7. Health-checks `http://127.0.0.1:8000/health` and `http://127.0.0.1:3000/` (60s timeout).
 8. Appends to `deploy-history.log` and prunes old worktrees via
    `infra/scripts/lib/prune-releases.sh`, which is shared with the Demo deploy
@@ -556,6 +559,32 @@ Each deploy:
    always resolve a target), or if it is the release being deployed right now.
    Everything else is removed. Each decision is printed as a `KEEP:`/`REMOVE:`
    line in the deploy output.
+
+### API cutover and the durable unit
+
+The API lane (`deploy_lane_api()` in `deploy.sh`) is blue/green, not a restart of
+`juli-api.service`:
+
+1. `deploy.sh` starts the new build as a **transient** `systemd-run --unit=juli-api-candidate-<port>`
+   process on whichever of the paired ports (8000/8020) is currently idle — the ports alternate
+   every deploy.
+2. The candidate is health-checked (`/health`) and its core-route response shape verified
+   before anything user-facing changes.
+3. Nginx's `api-upstream.conf` is flipped to the candidate's port — this is the actual cutover.
+4. `write_runtime_env` rewrites `/etc/juli/api-runtime.env` with the new live port and
+   reinstalls `juli-api.service`, then runs `systemctl daemon-reload`.
+5. `write_runtime_env` then stops and `reset-failed`s the durable `juli-api` unit
+   (`systemctl stop juli-api`, tolerant of it not already running). This step runs strictly
+   **after** step 4, never before — stopping first would widen the window in which a reboot
+   racing the deploy starts the API on the stale, not-yet-updated port.
+
+`juli-api.service` (the durable unit) is **not** the process serving traffic after a deploy —
+it exists only so a **reboot** brings the API back up, reading the last-known-good port from
+`/etc/juli/api-runtime.env` (`EnvironmentFile=-/etc/juli/api-runtime.env` overrides its baked
+`Environment=API_LIVE_PORT=8000` default). Stopping it at cutover time removes any orphan left
+running outside a fresh boot — previously invisible to nginx but still holding a port that a
+later deploy's candidate could collide with — without weakening reboot recovery, since by then
+the runtime env and unit file are already correct.
 
 ### systemd units
 
