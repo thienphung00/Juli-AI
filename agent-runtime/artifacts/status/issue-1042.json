@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 1042,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/impact/control_pool.py",
+      "backend/src/juli_backend/services/impact/metric_map.py",
+      "backend/src/juli_backend/services/impact/__init__.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1042.json",
+    "sha256": "1a05e122b872e1bde28ed73863036b7720b47fbd515957d280ccbaec51c2c323",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T06:08:24Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1042.json",
+    "sha256": "cf7be472b603c1c438c16ab20a0a7d2216510b6a1972e24f5df5a837d9963efa",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2b"
+}
