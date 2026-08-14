@@ -5,9 +5,11 @@ total mapping between them). #1118 added `state` (`RunState`) and
 `conversation_store` (`ConversationStore` protocol + its JSONB-blob
 implementation) — state and storage only, no runner. #1119 adds `core`
 (`WorkflowRunner`, the block-dispatch loop) and `tool_executor`
-(`ToolExecutor` protocol + `ProductToolExecutor`). Termination-policy
-evaluation, the idempotency ledger, basis-hash compare-before-write, and
-pause/resume are later slices in this phase — do not add them here.
+(`ToolExecutor` protocol + `ProductToolExecutor`). #1120 adds `termination`
+(iteration cap / extensions, the paused wall clock, the shared checkpoint
+function) and wires it into `core`. The idempotency ledger, basis-hash
+compare-before-write, and pause/resume are later slices in this phase — do
+not add them here.
 
 **Why `core`/`tool_executor` are exported lazily (`__getattr__`, PEP 562)
 instead of imported at module scope like the rest of this file.**
@@ -48,6 +50,16 @@ from juli_backend.services.agent.runner.status import (
     WorkflowRunStatus,
     status_for,
 )
+from juli_backend.services.agent.runner.termination import (
+    IterationGate,
+    IterationGateAction,
+    accumulate_running_seconds,
+    effective_iteration_cap,
+    evaluate_checkpoint,
+    evaluate_iteration_gate,
+    extension_grant_narration,
+    running_seconds_column_value,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - type checkers import eagerly, safely
     from juli_backend.services.agent.runner.core import RunResult, WorkflowRunner
@@ -80,6 +92,8 @@ __all__ = [
     "STOP_REASON_TO_STATUS",
     "ConversationMessage",
     "ConversationStore",
+    "IterationGate",
+    "IterationGateAction",
     "JsonbConversationStore",
     "ProductToolExecutor",
     "RunResult",
@@ -90,5 +104,11 @@ __all__ = [
     "ToolExecutor",
     "WorkflowRunStatus",
     "WorkflowRunner",
+    "accumulate_running_seconds",
+    "effective_iteration_cap",
+    "evaluate_checkpoint",
+    "evaluate_iteration_gate",
+    "extension_grant_narration",
+    "running_seconds_column_value",
     "status_for",
 ]
