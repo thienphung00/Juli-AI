@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 1036,
+  "metrics": {
+    "acceptanceMapped": 7,
+    "acceptanceTotal": 7,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/playbooks"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1036.json",
+    "sha256": "3bc3abf2617bda4d7bd67a465a9b4ed9f728f1fa98399382bfa029fde74d703c",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T05:36:51Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1036.json",
+    "sha256": "2af2f9d41e53bf1938901b6423ab37dfcbed62694fac1708cef62473f36b3b7a",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2a"
+}
