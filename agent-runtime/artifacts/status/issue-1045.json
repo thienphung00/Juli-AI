@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 1045,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "tests/unit/_impact_gate_support.py",
+      "tests/unit/test_impact_gate_envelope_compat.py",
+      "tests/unit/test_impact_gate_placebo.py",
+      "tests/unit/test_impact_gate_reader_idempotency.py",
+      "tests/unit/test_impact_gate_shock_cancellation.py",
+      "tests/unit/test_impact_gate_suppression_matrix.py",
+      "tests/unit/test_impact_gate_uplift_recovery.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1045.json",
+    "sha256": "22a7372bbaf756150495dab98ba40807966670b26e60dabc576a7d23fe9229a5",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T08:16:39Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1045.json",
+    "sha256": "6905e744824e838c121363ff1f7fd19733fab597d0ed17b117f31ac81bf551af",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2b"
+}
