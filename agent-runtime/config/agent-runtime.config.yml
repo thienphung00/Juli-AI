@@ -373,6 +373,27 @@ workflow_prompt_cache:
         - docs/product/design/
         - docs/integrations/tiktok_corpora/
         - Sibling issue context caches
+    1066:
+      defaultSliceId: AGT-EVID
+      handoffPath: docs/adr/079-w2-artifact-disposition.md
+      parentScopeBlock: "# Parent #1066 - Evidence-chain hardening, artifact contract fails fast (constant)\n## Product boundary\n- CI workflow configuration and agent-runtime harness scripts only\n- No application code, no UI, no API routes, no migrations, no product behaviour\n## Architect locks\n- Artifact bodies are gitignored by policy (agent-runtime/artifacts/implementations/ and the four sibling directories). The guard checks CI ARTIFACT RETENTION, never the git tree, and must never git add -f an artifact directory.\n- FAIL-CLOSED without exception: a missing upload fails, and a lookup error fails. The check must never pass because it could not determine an answer - that failure mode is the one being fixed.\n- Any skip path (docs-only slice, revert PR) is explicit and LOGGED WITH ITS REASON. A silent skip reproduces the bug at a different layer.\n- The guard fires on the SLICE PR, not at the wave boundary. artifact-gate already reports late; a second late reporter is not a fix.\n- This epic lands on main directly - no wave branch. It is a prerequisite for the W2 re-run (#1036-#1045), not a follow-up to it.\n## Epic deferrals\n- Forcing Meta through meta_prepare_executor.py, and forcing an Executor brief to state the artifact requirement and the worktree-survival rule - file once #1064 shows how much the guard already covers\n"
+      doNotLoad:
+        - apps/
+        - ios/
+        - backend/src/juli_backend/services/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
+    1077:
+      defaultSliceId: AGT-W1C-UI
+      handoffPath: docs/adr/070-agent-safe-sanitization-contract.md
+      parentScopeBlock: "# Parent #1077 - Single-source seller-copy contract, TypeScript consumers (constant)\n## Product boundary\n- TypeScript consumers of packages/contracts/seller-copy-banned-patterns.json only: packages/ui, packages/contracts' TS surface, apps/demo\n- The Python guard and services/agent/sanitize/ belong to #979 - never edit them from this epic\n- No backend code, no migrations, no API routes\n## Architect locks\n- packages/contracts/seller-copy-banned-patterns.json is the single source of truth. A slice may READ it; a slice may not fork it, shadow it, or edit it to make a consumer pass.\n- A pattern must compile in BOTH the JS and the Python regex dialect. A change that suits only the TypeScript side breaks the contract ADR-070 d.6 exists to hold.\n- The list governs Vietnamese seller-facing copy. It is not a general-purpose word filter and must not be applied to surfaces it was not designed for - see #1014, where extending it to English model-facing schema text was correctly declined and the decision pinned in a test.\n- Tests prove WIRING, not contents: mutating the shared source must change the consumer's behaviour. A test that hardcodes the expected patterns re-creates the drift this epic removes.\n## Why this epic is separate from #979\n- ADR-070 d.6 spans two runtimes. #979 is routed executorDomain backend, correct for the sanitize package. The TypeScript half is ui-ux work, and routing it as backend briefs the Executor with the wrong domain skill. #1002 proved this: the Executor correctly self-declared ui-ux and executor_domain_matches_cache caught the mismatch. The gate was right; the routing was wrong.\n## Epic deferrals\n- Any change to the pattern list's CONTENTS - that is a copy decision, not a plumbing one\n- The Python guard and services/agent/sanitize/ - #979\n"
+      doNotLoad:
+        - backend/
+        - ios/
+        - docs/product/design/
+        - docs/integrations/tiktok_corpora/
+        - Sibling issue context caches
     889:
       defaultSliceId: SEC-1
       handoffPath: docs/adr/061-first-user-security-baseline.md
