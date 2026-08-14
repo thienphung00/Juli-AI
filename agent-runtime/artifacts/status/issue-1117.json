@@ -1,0 +1,31 @@
+{
+  "gateVersion": 1,
+  "issue": 1117,
+  "metrics": {
+    "acceptanceMapped": 15,
+    "acceptanceTotal": 15,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/models/models.py",
+      "backend/src/juli_backend/database/migrations/versions/034_workflow_runs_table.py",
+      "backend/src/juli_backend/services/agent/runner/status.py",
+      "backend/src/juli_backend/services/agent/runner/__init__.py",
+      "tests/unit/test_workflow_run_status_mapping.py",
+      "tests/unit/test_workflow_runs_schema.py",
+      "tests/unit/test_impact_readings_model.py",
+      "docs/architecture/ownership-registry.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1117.json",
+    "sha256": "04c98dbd0b34a4932b15599787b7e04876f2ec9102c006d3623f60eff0729461",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T12:21:10Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1117.json",
+    "sha256": "4a1426cbf7811ef0f597f97d84b81ee43b069c6fb6c2e82d5363e0e2809a822e",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}
