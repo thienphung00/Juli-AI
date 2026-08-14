@@ -2895,7 +2895,12 @@ AGT-W1C-UI:
     - packages/contracts/src/seller-copy.ts
     - packages/ui/package.json
   loadWhenNeeded:
-    - apps/demo/src/lib/review-seller-copy.ts
+    # NOTE: do not list apps/** here. loadWhenNeeded paths feed the public-release
+    # classifier (ADR-035), so naming a demo path as mere reference material
+    # misclassifies every slice on this epic as publicRelease and demands a
+    # release evidence plan it does not need. A slice that genuinely touches
+    # apps/** should be classified public-release — by touching it, not by
+    # citing it.
     - dictionary.md
     - pnpm-workspace.yaml
   doNotLoad:
