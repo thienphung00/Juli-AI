@@ -167,7 +167,7 @@ pytest==8.4.2
     #   pytest-cov
     #   pytest-mock
     #   pytest-timeout
-pytest-asyncio==0.26.0
+pytest-asyncio==1.4.0
     # via juli-backend (pyproject.toml)
 pytest-cov==6.3.0
     # via juli-backend (pyproject.toml)
