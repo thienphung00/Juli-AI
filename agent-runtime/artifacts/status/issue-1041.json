@@ -1,0 +1,24 @@
+{
+  "gateVersion": 1,
+  "issue": 1041,
+  "metrics": {
+    "acceptanceMapped": 9,
+    "acceptanceTotal": 9,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/impact"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1041.json",
+    "sha256": "5f10d5e11b63713df70c3a8c8c4e305f28ee9cc27a196d4a3824f88d642bd630",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T05:37:33Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1041.json",
+    "sha256": "65c785c6befeee18ca6fe8275798c6c45452066ba71dcd31b2d1995aefc6607a",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2b"
+}
