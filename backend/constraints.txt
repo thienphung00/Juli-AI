@@ -132,7 +132,7 @@ packaging==26.3
     # via
     #   kombu
     #   pytest
-pandas==2.3.3
+pandas==3.0.5
     # via juli-backend (pyproject.toml)
 pathspec==1.1.1
     # via mypy
