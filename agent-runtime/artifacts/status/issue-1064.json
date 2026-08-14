@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 1064,
+  "metrics": {
+    "acceptanceMapped": 15,
+    "acceptanceTotal": 15,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      ".github/workflows/pr.yml",
+      "agent-runtime/scripts/ci",
+      "CLAUDE.md",
+      "docs/adr/052-wave-free-merge-deferred-artifact-gate.md",
+      ".gitignore",
+      "agent-runtime/docs/schemas",
+      "agent-runtime/config"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1064.json",
+    "sha256": "345ec80e519ac763d5cdb2ea9f3d2ee4bb89f46952d455147097e55d21c1488d",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T04:42:09Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1064.json",
+    "sha256": "a44bebb148a637d222b62f786aa23fc7d2886802736a9dac9056cac66e84fd8e",
+    "status": "FAIL"
+  },
+  "wave": null
+}
