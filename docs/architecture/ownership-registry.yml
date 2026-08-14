@@ -181,6 +181,10 @@ databaseTables:
       Deliberately standalone — not tool_executions/Workers & Async — because
       these rows must never be reachable by the Celery/Partner-write path;
       no worker or Celery task ever writes this table.
+  workflow_runs:
+    owner: Workers & Async
+    access: write
+    notes: WorkflowRunner (services/agent/runner) persists; Celery task (P8) drives the run.
   tool_executions:
     owner: Workers & Async
     access: write
@@ -192,8 +196,10 @@ databaseTables:
       Incremental impact measurement (P-IM, ADR-077 decision 5, #1040). Source of
       truth for every impact reading; will be written by the daily impact-reader
       beat task landing later in this wave (#1044). `tool_execution_id` FKs to
-      tool_executions; `run_id` is a deliberate nullable-no-FK column until W3-A
-      lands `workflow_runs` (ADR-073) — see migration 033 for the full rationale.
+      tool_executions; `run_id` now FKs to `workflow_runs` as of migration 034
+      (#1117, W3-A/ADR-073) — migration 033 shipped it as a plain nullable UUID
+      with no FK because `workflow_runs` did not exist yet, see that migration's
+      docstring for the original deferral rationale.
   workflow_outcome_records:
     owner: Workers & Async
     access: write
