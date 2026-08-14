@@ -2,9 +2,9 @@
   "gateVersion": 1,
   "issue": 1043,
   "metrics": {
-    "acceptanceMapped": 32,
-    "acceptanceTotal": 32,
-    "criticalFindings": 1,
+    "acceptanceMapped": 36,
+    "acceptanceTotal": 36,
+    "criticalFindings": 2,
     "modulesTouched": [
       "backend/src/juli_backend/services/impact/confidence.py",
       "backend/src/juli_backend/services/impact/copy.py",
@@ -13,13 +13,13 @@
   },
   "review": {
     "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1043.json",
-    "sha256": "a5eceb716010e10a6293c9d62d4b5a8d5511ea4d687d11564833fe79a7a9e576",
+    "sha256": "c3c3505aa9d0dc4252ec177258e0b43c89a1dccc4ddab8072b8a80d69d505254",
     "status": "PASS"
   },
-  "timestamp": "2026-08-14T07:31:28Z",
+  "timestamp": "2026-08-14T08:16:57Z",
   "validation": {
     "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1043.json",
-    "sha256": "159a1c443c4fa56afd5c2b5ba634fb79346fcfd226f12987a06adc29ef520c16",
+    "sha256": "c2252ad3098322453db4910a6199d726ab3f709bcc8cd78a7f3c248d4ba72890",
     "status": "PASS"
   },
   "wave": "wave-agent-w2b"
