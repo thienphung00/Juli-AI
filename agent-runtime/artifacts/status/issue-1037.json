@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 1037,
+  "metrics": {
+    "acceptanceMapped": 21,
+    "acceptanceTotal": 21,
+    "criticalFindings": 1,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/prompts/optimize_product",
+      "tests/unit"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1037.json",
+    "sha256": "e4237bf21650b4fc290f64dca7ec47ab4c78e8ad6a7ed97e3f9545e98cec818e",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T05:49:39Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1037.json",
+    "sha256": "ad96326f647aec326ecae1051879f05c50dc5182fcb998d98af9e4b9b25c4613",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2a"
+}

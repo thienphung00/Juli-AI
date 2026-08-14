@@ -19,54 +19,72 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 2 | P3+P4 — Tool registry + tool schemas (minimal) | ✅ implemented — [ADR-069](../../adr/069-agent-tool-registry-and-write-path.md); registry core + 6-tool Optimize Product set (#980–#984), registry×sanitizer integration (#996) | ✅ 2026-08-13 |
 | 3 | P5 — TikTok sanitization (product surface only) | ✅ implemented — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md); sanitize package (#990–#995), wired into the real READ handlers + golden re-pointed to the production path (#996) | ✅ 2026-08-13 |
 | 4 | P11 — Model abstraction (minimal LLM service) | ✅ implemented — [ADR-071](../../adr/071-llm-service-openai-adapter.md); `LLMService`/adapter/fake (#985–#989), `FakeLLMService` proven downstream against the real registry + sanitizer (#996) | ✅ 2026-08-13 |
-| 5 | P12 — Prompt architecture (system + Optimize Product) | 🟧 **implemented on `feature/agent-w2-p12-wave`, not on `main`** — [ADR-072](../../adr/072-agent-prompt-architecture.md); #1036–#1039 merged into the wave, green on every check except `artifact-gate`. Wave→main refused under [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B; must be re-run inside the harness contract | ⬜ |
+| 5 | P12 — Prompt architecture (system + Optimize Product) | 🟩 **re-run complete on `feature/agent-w2a-wave`, artifact gate PASS, landing on `main`** — [ADR-072](../../adr/072-agent-prompt-architecture.md); #1036–#1039 merged into the wave, green on every check except `artifact-gate`. Wave→main refused under [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B; must be re-run inside the harness contract | ⬜ |
 | 6 | P1 — Agent execution loop (blocks + runner) | 🟨 design grilled 2026-08-11 — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md) drafted; implementation pending | ⬜ |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
 | 8 | P8 — Streaming (SSE + Celery relay) | 🟨 design grilled 2026-08-12 — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md) drafted; implementation pending | ⬜ |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
-| 11b | P-IM — Incremental impact measurement (NEW) | 🟧 **implemented on `feature/agent-w2-pim-wave`, not on `main`** — [ADR-077](../../adr/077-incremental-impact-measurement.md); #1040–#1045 merged into the wave, green on every check except `artifact-gate`. Wave→main refused under [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B; must be re-run inside the harness contract | ⬜ |
+| 11b | P-IM — Incremental impact measurement (NEW) | 🟨 **re-run in flight on `feature/agent-w2b-wave`** — #1040–#1043 landed with records; #1044, #1045, #1068 outstanding — [ADR-077](../../adr/077-incremental-impact-measurement.md); #1040–#1045 merged into the wave, green on every check except `artifact-gate`. Wave→main refused under [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B; must be re-run inside the harness contract | ⬜ |
 | 12 | P10 — Observability baseline | ⬜ | ⬜ |
 | 13 | P15 — E2E prototype complete (Optimize Product) | ⬜ | ⬜ |
 | 14 | P13 — Edge cases + rollout to remaining 10 workflows | ⬜ | ⬜ |
 | 15 | P6 — Documentation retrieval tool (deferred, optional) | ⬜ | ⬜ |
 
-## Wave 2 status — code on wave branches, **not on `main`** (2026-08-13)
+## Wave 2 status — re-run inside the harness contract (2026-08-14)
 
-Both W2 waves are complete and merged into their wave branches. **Neither reached `main`**, and
-this is deliberate, not in-flight work:
+Wave 2 was **completed twice**. The first attempt is not what merges.
 
-| Wave | Branch | Issues | State |
+### First attempt — refused, retained as reference only
+
+`feature/agent-w2-p12-wave` and `feature/agent-w2-pim-wave` carry reviewed, working code that
+never reached `main`. `meta_prepare_executor.py` was never run for any slice, and the executor
+worktrees were torn down before Review, destroying the implementation artifacts. A fourth artifact
+waiver was **refused** under [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B, honouring
+[ADR-078](../../adr/078-agent-w1-wave-artifact-waiver.md) item 6. PRs #1060 and #1061 are closed
+unmerged.
+
+**Those two branches are the reference implementation. Do not build on them and do not merge them.**
+
+### The re-run — this is the path to `main`
+
+| Wave | Branch | Slices | State |
 | --- | --- | --- | --- |
-| W2-A (P12) | `feature/agent-w2-p12-wave` | #1036–#1039 | merged into the wave; every check green except `artifact-gate` |
-| W2-B (P-IM) | `feature/agent-w2-pim-wave` | #1040–#1045 | merged into the wave; every check green except `artifact-gate` |
+| W2-A (P12) | `feature/agent-w2a-wave` | #1036, #1037, #1038, #1039 | **complete** — `wave_artifact_gate: PASS`, all four status records committed |
+| W2-B (P-IM) | `feature/agent-w2b-wave` | #1040–#1045, #1068 | in flight — #1040–#1043 landed with records; #1044, #1045, #1068 outstanding |
 
-`artifact-gate` cannot pass: `meta_prepare_executor.py` was never run for any W2 slice, and the
-executor worktrees were torn down before Review, destroying the implementation artifacts for
-#1036–#1043. Even the two surviving artifacts (#1044, #1045) cannot reach PASS —
-`phase_run_correlation` requires the workflow cache and the executor run to be contemporaneous.
-A fourth waiver was **refused** under [ADR-079](../../adr/079-w2-artifact-disposition.md),
-Option B, honouring [ADR-078](../../adr/078-agent-w1-wave-artifact-waiver.md) item 6. The
-wave→main PRs (#1060, #1061) are closed, not merged.
+Every landed slice went through the full contract: Meta gate returning `readyForExecutor: true`,
+an executor whose worktree survived until Review had read its artifacts, an adversarial Review that
+proved each test by breaking what it guards, a committed status record, and
+`artifact-retention-guard` (#1064) flipping from red to green in CI. That guard is the control the
+first attempt lacked — it fails a slice PR whose status record is missing or not `PASS`.
 
-**What this means for agents picking up work here:**
+**What the re-run fixed that the first attempt shipped:**
 
-- Do **not** treat P12 or P-IM as landed. `main` does not contain them; anything importing
-  `services/agent/playbooks/` or `services/impact/` must branch from the relevant wave branch or
-  wait for the re-run.
-- **W3-A is blocked** on W2-A reaching `main` (playbook↔registry cross-validation needs the
-  playbook). That cost was accepted knowingly.
-- The path to `main` is a **re-run inside the harness contract** on the *same* issues —
-  **#1036–#1045 stay open** and are reused; they carry the settled specs and ACs. Now unblocked: #1057/#1058 gave
-  the W2 issues real PRD parents and #1059 registered the epics and slice-routing rules, which
-  demonstrably moves #1044 from `readyForExecutor: false` to `true`. Meta must run
-  `meta_prepare_executor.py` per slice and halt unless it prints `readyForExecutor: true`, and
-  **worktrees must survive until Review has read their artifacts.** The CI guard that would have
-  caught all four occurrences of this failure is filed as **#1064** and should land first.
-- The W2 code is not suspect. A full retrospective Review pass verified both waves by execution
-  and found and fixed a HIGH-severity defect (#1062) plus three lesser ones. ADR-079 is about
-  evidence of process, not about whether the work is sound.
+- The GMV monoculture. Every gate family in the old #1045 suite drove one metric family, which is
+  how a HIGH-severity control-pool defect survived five green gates — a count-calibrated volume
+  floor compared against a rate metric, silently disabling K-nearest sibling selection for `ctr`
+  and `conversion_rate`. The re-run covers all three families and pins the defect by mutation.
+- `classify.py` had **no dedicated tests at all**, and its `IMAGE` and `SEO_KEYWORDS_TITLE`
+  branches — the two feeding `impressions_ctr` — were never exercised. Now #1068.
+- ADR-069 decision 4's **reverse** cross-validation direction did not exist: nothing checked that
+  every registered tool appears in a playbook. Built in #1039, proven by registering a seventh tool.
+- A proxy token ceiling that reserved less headroom than the real render cost, admitting an
+  over-budget composition. Retired in #1039 in favour of measuring the composed prompt directly:
+  **2,967 against the 3,000 ceiling, 33 tokens of headroom.**
+
+### Still open after the re-run
+
+- **#1071 — human voice review** of the Vietnamese prompt against `dictionary.md`. The one P12
+  gate clause no agent can close; the mechanical gates cannot judge register.
+- **#1091, #1100** — two holes in the artifact guard itself: it does not run on slice PRs targeting
+  `main`, and a stale `PASS` record satisfies it on later commits.
+- ADR-077's **one real end-to-end reading** from a backdated sandbox run needs W3-A's
+  `workflow_runs` table and runner, which do not exist yet.
+
+**W3-A** depends on W2-A reaching `main` for playbook↔registry cross-validation. That dependency is
+satisfied the moment this wave lands — it is no longer blocked pending a waiver decision.
 
 ## Phases — minimal specs + gate to proceed
 

@@ -1,0 +1,22 @@
+{
+  "gateVersion": 1,
+  "issue": 1039,
+  "metrics": {
+    "acceptanceMapped": 17,
+    "acceptanceTotal": 17,
+    "criticalFindings": 0,
+    "modulesTouched": []
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1039.json",
+    "sha256": "be4110b6c2241a16ea92be77edbc3922feb2b28541a8a6af8f8537525e126f22",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T07:30:03Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1039.json",
+    "sha256": "fdf7e7d6ba05881cc411a292f3a9b224f9e5d286f5f65b3b28e9fc6dd48d2b6f",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2a"
+}
