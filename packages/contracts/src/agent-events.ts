@@ -8,6 +8,21 @@
  * test_agent_events_contract.py` proves both sides agree via shared golden
  * fixtures in `packages/contracts/fixtures/agent-events/`.
  *
+ * Two independent guards against drift, at two layers:
+ *  - Interfaces (this module, e.g. `WorkflowStartedEvent`, `ToolCompletedPayload`)
+ *    -- what a consumer actually imports and types against (#1132's client
+ *    helper, future UI slices). TypeScript types are erased at runtime, so
+ *    the guard here is `tsc` itself: `PAYLOAD_FIELDS`/`ENVELOPE_FIELDS` are
+ *    *derived* from `GOLDEN_*_EVENT` constants -- fresh object literals
+ *    assigned directly to their interface types -- so an interface field
+ *    added, removed, or the envelope `v` literal changed, with nothing else
+ *    touched, fails compilation (excess/missing-property checking) rather
+ *    than silently landing. See the comment above `GOLDEN_AGENT_EVENTS`.
+ *  - `validateAgentEvent`'s runtime checks -- what actually parses a wire
+ *    payload. `tests/unit/test_agent_events_contract.py` proves this layer
+ *    with fixtures (including two that exploit a real per-language runtime
+ *    leniency difference, since interfaces vanish before this layer runs).
+ *
  * `assistant.text.delta` (ADR-071) stays reserved: there is no payload
  * type, no envelope member, and no discriminant literal for it anywhere in
  * this module, on purpose -- `validateAgentEvent` rejects it by name.
@@ -214,37 +229,174 @@ export type AgentEvent =
   | WorkflowFailedEvent;
 
 // ---------------------------------------------------------------------------
-// Exact payload field sets -- mirrors each Pydantic payload model's
-// `model_fields`. Used by `validateAgentEvent` below and read directly by
-// the Python-side dual-language contract test (via `node`) to diff both
-// languages' field sets per type.
+// Canonical golden instances -- one per event type, each a *fresh object
+// literal* assigned directly to its specific interface type.
+//
+// This is the interface-drift guard (Review's Option 1, #1126 follow-up):
+// TypeScript performs excess-property and missing-property checking on a
+// fresh object literal assigned to a named type, recursively into nested
+// literals (`payload` included). That means:
+//   - a field added to an interface only, with no matching literal update,
+//     fails `tsc` with "Property '<x>' is missing" (the literal is now
+//     short a required field);
+//   - a field removed from an interface only, with the literal still
+//     carrying it, fails `tsc` with "Object literal may only specify known
+//     properties" (the literal now has an excess field);
+//   - `v: 1` narrowed/widened to any other literal in the envelope base
+//     fails `tsc` with "Type '1' is not assignable to type '<x>'" on every
+//     one of these eight literals at once.
+// `PAYLOAD_FIELDS`/`ENVELOPE_FIELDS` below are *derived* from these
+// instances via `Object.keys` rather than hand-authored in parallel, so
+// there is no second table for a field edit to forget -- the field lists
+// literally cannot diverge from what these compiler-checked instances
+// contain. Values are the same as the corresponding golden fixture JSON
+// under `packages/contracts/fixtures/agent-events/` (asserted equal by
+// `packages/contracts/src/__tests__/agent-events.test.ts`), so this is not
+// a second, independently-drifting source of *values* -- only of *shape*,
+// where `tsc` is the enforcement.
 // ---------------------------------------------------------------------------
 
-export const PAYLOAD_FIELDS: Readonly<Record<AgentEventType, readonly string[]>> = {
-  "workflow.started": ["workflow_key", "product_ref", "prompt_version"],
-  "workflow.status": ["phase_narration"],
-  "assistant.text": ["text"],
-  "tool.started": ["tool_call_id", "tool_name"],
-  "tool.completed": ["tool_call_id", "tool_name", "ok", "summary"],
-  "workflow.approval_required": [
-    "tool_call_id",
-    "tool_name",
-    "proposed_change",
-    "expires_at",
-  ],
-  "workflow.completed": ["stop_reason"],
-  "workflow.failed": ["status", "stop_reason"],
+const GOLDEN_RUN_ID = "17c048f5-53e3-4ec7-9c3f-7a39a272d07a";
+
+export const GOLDEN_WORKFLOW_STARTED_EVENT: WorkflowStartedEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 0,
+  event_type: "workflow.started",
+  timestamp: "2026-08-14T12:00:00Z",
+  payload: {
+    workflow_key: "optimize_product",
+    product_ref: "prod-123",
+    prompt_version: "optimize_product.v1",
+  },
+  v: 1,
 };
 
+export const GOLDEN_WORKFLOW_STATUS_EVENT: WorkflowStatusEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 1,
+  event_type: "workflow.status",
+  timestamp: "2026-08-14T12:00:01Z",
+  payload: {
+    phase_narration: "Đang xem lại nội dung sản phẩm...",
+  },
+  v: 1,
+};
+
+export const GOLDEN_ASSISTANT_TEXT_EVENT: AssistantTextEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 2,
+  event_type: "assistant.text",
+  timestamp: "2026-08-14T12:00:02Z",
+  payload: {
+    text: "Tôi đã lên kế hoạch tối ưu sản phẩm của bạn.",
+  },
+  v: 1,
+};
+
+export const GOLDEN_TOOL_STARTED_EVENT: ToolStartedEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 3,
+  event_type: "tool.started",
+  timestamp: "2026-08-14T12:00:03Z",
+  payload: {
+    tool_call_id: "call_1",
+    tool_name: "update_price",
+  },
+  v: 1,
+};
+
+export const GOLDEN_TOOL_COMPLETED_EVENT: ToolCompletedEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 4,
+  event_type: "tool.completed",
+  timestamp: "2026-08-14T12:00:04Z",
+  payload: {
+    tool_call_id: "call_1",
+    tool_name: "update_price",
+    ok: true,
+    summary: "Đã cập nhật giá thành công.",
+  },
+  v: 1,
+};
+
+export const GOLDEN_WORKFLOW_APPROVAL_REQUIRED_EVENT: WorkflowApprovalRequiredEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 5,
+  event_type: "workflow.approval_required",
+  timestamp: "2026-08-14T12:00:05Z",
+  payload: {
+    tool_call_id: "call_2",
+    tool_name: "update_price",
+    proposed_change: {
+      price: { from: "199000", to: "179000" },
+    },
+    expires_at: "2026-08-14T16:00:05Z",
+  },
+  v: 1,
+};
+
+export const GOLDEN_WORKFLOW_COMPLETED_EVENT: WorkflowCompletedEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 6,
+  event_type: "workflow.completed",
+  timestamp: "2026-08-14T12:00:06Z",
+  payload: {
+    stop_reason: "final_response",
+  },
+  v: 1,
+};
+
+export const GOLDEN_WORKFLOW_FAILED_EVENT: WorkflowFailedEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 7,
+  event_type: "workflow.failed",
+  timestamp: "2026-08-14T12:00:07Z",
+  payload: {
+    status: "failed",
+    stop_reason: "llm_error",
+  },
+  v: 1,
+};
+
+/**
+ * All eight canonical instances, keyed by discriminant. Built from the
+ * already-typed constants above (not fresh literals), so this assignment
+ * itself carries no additional excess/missing-property checking -- the
+ * checking already happened where each constant was declared.
+ */
+export const GOLDEN_AGENT_EVENTS: Readonly<Record<AgentEventType, AgentEvent>> = {
+  "workflow.started": GOLDEN_WORKFLOW_STARTED_EVENT,
+  "workflow.status": GOLDEN_WORKFLOW_STATUS_EVENT,
+  "assistant.text": GOLDEN_ASSISTANT_TEXT_EVENT,
+  "tool.started": GOLDEN_TOOL_STARTED_EVENT,
+  "tool.completed": GOLDEN_TOOL_COMPLETED_EVENT,
+  "workflow.approval_required": GOLDEN_WORKFLOW_APPROVAL_REQUIRED_EVENT,
+  "workflow.completed": GOLDEN_WORKFLOW_COMPLETED_EVENT,
+  "workflow.failed": GOLDEN_WORKFLOW_FAILED_EVENT,
+};
+
+// ---------------------------------------------------------------------------
+// Exact payload/envelope field sets -- *derived* from `GOLDEN_AGENT_EVENTS`
+// via `Object.keys`, mirroring each Pydantic payload model's `model_fields`.
+// Used by `validateAgentEvent` below and read directly by the Python-side
+// dual-language contract test (via `node`) to diff both languages' field
+// sets per type. See the comment above `GOLDEN_AGENT_EVENTS` for why these
+// are computed rather than hand-authored in parallel.
+// ---------------------------------------------------------------------------
+
+export const PAYLOAD_FIELDS: Readonly<Record<AgentEventType, readonly string[]>> = Object.freeze(
+  Object.fromEntries(
+    (Object.keys(GOLDEN_AGENT_EVENTS) as AgentEventType[]).map((type) => [
+      type,
+      Object.freeze(Object.keys(GOLDEN_AGENT_EVENTS[type].payload)),
+    ]),
+  ),
+) as Readonly<Record<AgentEventType, readonly string[]>>;
+
 /** Mirrors `_EventEnvelope`'s fields plus each subclass's `event_type`/`payload`. */
-export const ENVELOPE_FIELDS = [
-  "workflow_run_id",
-  "sequence_number",
-  "event_type",
-  "timestamp",
-  "payload",
-  "v",
-] as const;
+export const ENVELOPE_FIELDS: readonly string[] = Object.freeze(
+  Object.keys(GOLDEN_WORKFLOW_STARTED_EVENT),
+);
 
 // ---------------------------------------------------------------------------
 // Runtime structural validator.

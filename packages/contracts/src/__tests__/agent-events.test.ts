@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_EVENT_TYPES,
   ENVELOPE_FIELDS,
+  GOLDEN_AGENT_EVENTS,
   PAYLOAD_FIELDS,
   STOP_REASONS,
   validateAgentEvent,
@@ -93,6 +94,35 @@ describe("validateAgentEvent -- negative fixtures", () => {
     // fixture, naming tool.started.
     const event = validateAgentEvent(tsOnlyValidFixture);
     expect(event.event_type).toBe("tool.started");
+  });
+});
+
+describe("GOLDEN_AGENT_EVENTS -- interface-drift guard (#1126 review follow-up)", () => {
+  // Each GOLDEN_*_EVENT constant in agent-events.ts is a *fresh object
+  // literal* assigned directly to its specific interface (e.g.
+  // `WorkflowStartedEvent`), which makes `tsc` enforce, at compile time,
+  // that the literal has exactly the interface's fields -- no more, no
+  // less -- and that `v` is exactly `1`. `PAYLOAD_FIELDS`/`ENVELOPE_FIELDS`
+  // are *derived* from these instances (see agent-events.ts), so this test
+  // only needs to prove the two remaining things `tsc` alone can't: the
+  // instances' *values* agree with the golden JSON fixtures both languages
+  // parse, and the derived tables genuinely reflect the instances (not a
+  // stale snapshot).
+  it.each(GOLDEN_FIXTURES)("GOLDEN_AGENT_EVENTS[%s] equals the JSON fixture exactly", (eventType) => {
+    const jsonFixture = GOLDEN_FIXTURES.find(([type]) => type === eventType)?.[1];
+    expect(GOLDEN_AGENT_EVENTS[eventType as keyof typeof GOLDEN_AGENT_EVENTS]).toEqual(jsonFixture);
+  });
+
+  it("PAYLOAD_FIELDS[type] is exactly Object.keys(GOLDEN_AGENT_EVENTS[type].payload)", () => {
+    for (const type of AGENT_EVENT_TYPES) {
+      expect(PAYLOAD_FIELDS[type]).toEqual(Object.keys(GOLDEN_AGENT_EVENTS[type].payload));
+    }
+  });
+
+  it("ENVELOPE_FIELDS is exactly Object.keys of a golden instance", () => {
+    expect([...ENVELOPE_FIELDS].sort()).toEqual(
+      Object.keys(GOLDEN_AGENT_EVENTS["workflow.started"]).sort(),
+    );
   });
 });
 

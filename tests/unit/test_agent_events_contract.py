@@ -13,11 +13,29 @@ shapes agree byte-for-byte, per event type.
 The golden fixtures (one per event type, plus an envelope `v: 1` snapshot)
 live in `packages/contracts/fixtures/agent-events/`. Two additional
 `invalid/` fixtures deliberately exploit a real per-language leniency
-difference (Pydantic's lax int coercion vs. this hand-rolled TS validator's
-strict `typeof` checks, and Pydantic's strict `datetime` parsing vs. the TS
-validator's bare `typeof "string"` check) to prove that if a real divergence
-ever entered the picture, this test would catch it and *name* which of the
-eight event types drifted -- not just fail vaguely.
+difference at the `validateAgentEvent` *runtime-validator* layer (Pydantic's
+lax int coercion vs. this hand-rolled TS validator's strict `typeof` checks,
+and Pydantic's strict `datetime` parsing vs. the TS validator's bare
+`typeof "string"` check) to prove that if a real divergence ever entered
+that layer, this test would catch it and *name* which of the eight event
+types drifted -- not just fail vaguely.
+
+There is a second, structurally distinct divergence layer this file cannot
+exercise via a fixture: the *interface* layer (`WorkflowStartedEvent`,
+`ToolCompletedPayload`, etc. in `agent-events.ts`), which is what #1132's
+client helper and future UI slices actually import and type against.
+TypeScript interfaces are erased at runtime, so no JSON fixture can prove an
+interface stayed in sync -- that guard lives in `agent-events.ts` itself:
+`PAYLOAD_FIELDS`/`ENVELOPE_FIELDS` are *derived* via `Object.keys()` from
+eight `GOLDEN_*_EVENT` constants, each a fresh object literal assigned
+directly to its specific interface type, so `tsc` performs excess/missing-
+property checking on every one of them. An interface field added, removed,
+or an envelope `v` literal changed -- with nothing else touched -- fails
+`tsc`, not this test file. (Verified by mutation during #1126 review
+follow-up: interface-only field add/remove and `v: 1` -> `v: 2` each
+produced a real `tsc` error naming the offending literal/property, then
+reverted; `pnpm --filter @juli/contracts run build`/`type-check` in the
+Definition of Done is what re-proves this on every run, not a fixture here.)
 """
 
 from __future__ import annotations
@@ -33,6 +51,7 @@ from pydantic import ValidationError
 
 from juli_backend.services.agent.events import (
     EVENT_TYPES,
+    FAILURE_STOP_REASONS,
     AssistantTextPayload,
     ToolCompletedPayload,
     ToolStartedPayload,
@@ -43,6 +62,7 @@ from juli_backend.services.agent.events import (
     WorkflowStartedPayload,
     WorkflowStatusPayload,
 )
+from juli_backend.services.agent.runner.status import STOP_REASON_TO_STATUS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_DIR = REPO_ROOT / "packages" / "contracts"
@@ -152,6 +172,7 @@ process.stdout.write(JSON.stringify({
   payloadFields: mod.PAYLOAD_FIELDS,
   envelopeFields: mod.ENVELOPE_FIELDS,
   stopReasons: mod.STOP_REASONS,
+  workflowFailedStopReasonToStatus: mod.WORKFLOW_FAILED_STOP_REASON_TO_STATUS,
 }));
 """
 
@@ -241,6 +262,46 @@ def test_payload_field_sets_match_between_python_and_typescript(event_type):
         f"{event_type}: payload field-set diverges between languages -- "
         f"python-only={python_fields - ts_fields}, ts-only={ts_fields - python_fields}"
     )
+
+
+# ---------------------------------------------------------------------------
+# `WORKFLOW_FAILED_STOP_REASON_TO_STATUS` (TS) mirrors the failure-class
+# subset of `STOP_REASON_TO_STATUS` (Python, ADR-073's single authority) --
+# all 9 members, not just the 1 exercised by the workflow.failed golden
+# fixture (review follow-up, #1126).
+# ---------------------------------------------------------------------------
+
+
+def test_workflow_failed_stop_reason_to_status_mapping_matches_python_for_all_nine_members():
+    introspected = _ts_introspect()
+    ts_mapping = introspected["workflowFailedStopReasonToStatus"]
+
+    python_mapping = {
+        reason.value: STOP_REASON_TO_STATUS[reason].value for reason in FAILURE_STOP_REASONS
+    }
+
+    assert set(python_mapping) == {
+        "cancelled_by_seller",
+        "confirmation_expired",
+        "iteration_cap_exceeded",
+        "wall_clock_timeout",
+        "tool_error_unrecoverable",
+        "llm_error",
+        "concurrency_conflict",
+        "output_validation_failed",
+        "worker_lost",
+    }
+    assert len(python_mapping) == 9
+
+    assert set(ts_mapping) == set(python_mapping), (
+        f"stop_reason membership diverges -- python-only={set(python_mapping) - set(ts_mapping)}, "
+        f"ts-only={set(ts_mapping) - set(python_mapping)}"
+    )
+    for reason, expected_status in python_mapping.items():
+        assert ts_mapping[reason] == expected_status, (
+            f"workflow.failed: stop_reason {reason!r} maps to {ts_mapping[reason]!r} in "
+            f"TypeScript but {expected_status!r} in Python (STOP_REASON_TO_STATUS, ADR-073)"
+        )
 
 
 # ---------------------------------------------------------------------------
