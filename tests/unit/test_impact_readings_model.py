@@ -48,13 +48,19 @@ def test_impact_readings_table_columns():
     }
 
 
-def test_run_id_has_no_foreign_key_but_tool_execution_id_does():
-    """ADR-077 d.5 known dependency constraint: `workflow_runs` does not exist
-    yet (W3-A/ADR-073), so `run_id` must be a plain nullable UUID column with
-    no FK, while `tool_execution_id` — which targets the pre-existing
-    `tool_executions` table — does get a real FK."""
+def test_run_id_and_tool_execution_id_both_have_foreign_keys():
+    """ADR-077 d.5's deferred constraint, fulfilled: migration 033 shipped
+    `run_id` as a plain nullable UUID because `workflow_runs` (W3-A/ADR-073)
+    did not exist yet; migration 034 (#1117 / AGT-W3A) adds the FK now that
+    it does. `run_id` stays nullable (legacy readings predate
+    `workflow_runs`). `tool_execution_id` — which targets the pre-existing
+    `tool_executions` table — keeps its own real FK, untouched by 034."""
     table = ImpactReading.__table__
-    assert table.c.run_id.foreign_keys == set()
+
+    run_fks = table.c.run_id.foreign_keys
+    assert len(run_fks) == 1
+    run_fk = next(iter(run_fks))
+    assert run_fk.target_fullname == "workflow_runs.id"
     assert table.c.run_id.nullable is True
 
     execution_fks = table.c.tool_execution_id.foreign_keys
