@@ -1,0 +1,157 @@
+"""Incremental impact measurement — funnel-first metric map + ratio-form DiD
+compute (ADR-077 decisions 1 and 2, #1041).
+
+This package answers two questions, and only two: **which metric** does a
+mutation act on (``metric_map.py``), and **what is the control-adjusted
+incremental impact** for that metric given a target series, a control
+series, and the write's execution date T (``windows.py`` + ``compute.py`` +
+``reading.py``). Everything else ADR-077 describes is explicitly out of
+scope here and owned by later, stacked issues in the same package:
+
+- Control-pool **selection** (K-nearest-correlated siblings, Pearson
+  correlation, the volume/correlation/duration disqualifiers, the plain
+  pre/post fallback) — ADR-077 decision 3, #1042. This package accepts an
+  already-resolved control daily series per metric; it does not query for
+  candidates or compute correlations.
+- **Confidence tiers**, per-metric volume floors, and the
+  "Chưa đủ dữ liệu để ước tính" / seller-facing copy rules — ADR-077 decision
+  4, #1043. ``MetricReading.status`` here only ever distinguishes ``"ok"``
+  from ``"confounded"``; it is not a confidence tier. A HIGH-severity defect
+  in a prior implementation of that later decision compared a rate metric's
+  own values against a count-calibrated volume floor — this package exposes
+  ``MetricSpec.is_rate`` precisely so that comparison has one unambiguous,
+  tested answer to consult instead of being re-derived incorrectly.
+- The **daily impact-reader beat task**, legacy-envelope compatibility, and
+  ``WORKFLOW_OUTCOME_SUCCESS_CRITERIA`` wiring — ADR-077 decision 5, #1044.
+  Detecting a confounding second run (an execution-history query) and
+  building ``RawDailyRecord`` series from ``AnalyticsPerformanceInterval``
+  rows (a DB read) are both I/O and belong there; this package receives the
+  already-resolved `confounded: bool` and already-built daily series as
+  plain arguments.
+
+**The formula (ADR-077 decision 2), ratio-form DiD:**
+
+    pre         = mean(metric, T-14 … T-1)
+    post        = mean(metric, T+1 … T+7)   ("preliminary")
+                = mean(metric, T+1 … T+14)  ("final")
+    growth      = mean(control metric, post window) ÷ mean(control metric, pre window)
+    expected    = pre × growth
+    incremental = post − expected
+    impact_pct  = incremental ÷ expected
+
+**Rules, all implemented here:**
+
+- Day **T is excluded everywhere** — from `pre`, from `post`, and from the
+  control windows (the control series is read over the *same* window
+  boundaries as the target series). See ``windows.mean_over_window``'s
+  ``exclude`` parameter.
+- A second Juli run on the same product inside either window marks the
+  reading ``confounded`` — the caller decides this (it requires a DB query)
+  and passes ``confounded=True`` in; every numeric field on the resulting
+  reading is then ``None``.
+- **Rate metrics use the arithmetic mean of daily values in v1** (``ctr``,
+  ``conversion_rate``, and the derived ``gmv_per_order``) — not a pooled
+  rate (sum of numerators ÷ sum of denominators). This is a documented,
+  deliberate approximation: raw daily click/visit counts behind
+  ``ctr``/``conversion_rate`` are not stored, only the pre-computed ratio
+  column is, so a pooled rate is not computable from the data this package
+  can read. The pooled-rate upgrade is named future work, not a silent
+  approximation — see ``metric_map.MetricSpec.is_rate``.
+- ``pre = 0`` and ``expected ≤ 0`` are two *different* inputs that both
+  suppress the ``%`` form (``impact_pct``) without raising — see
+  ``compute.compute_impact_pct`` and its ``PercentSuppressedReason``.
+
+**Purity.** No function in this package performs network I/O, calls a model,
+touches the filesystem, or reads the wall clock (no ``date.today()`` /
+``datetime.now()`` anywhere in this package). Every function's output is a
+deterministic function of its arguments — the same fixture in produces the
+same reading out, in any process, forever.
+"""
+
+from __future__ import annotations
+
+from juli_backend.services.impact.compute import (
+    PercentSuppressedReason,
+    compute_expected,
+    compute_growth,
+    compute_impact_pct,
+    compute_incremental,
+    compute_post,
+    compute_pre,
+)
+from juli_backend.services.impact.metric_map import (
+    ALL_METRICS,
+    CONVERSION_RATE,
+    CTR,
+    GMV,
+    GMV_PER_ORDER,
+    IMPRESSIONS,
+    ITEMS_SOLD,
+    METRIC_MAP,
+    SKU_ORDERS,
+    MetricSpec,
+    MutationKind,
+    MutationMetrics,
+    RawDailyRecord,
+    resolve_metric,
+)
+from juli_backend.services.impact.reading import (
+    MetricReading,
+    MutationReadings,
+    ReadingStatus,
+    RunReadings,
+    compute_metric_reading,
+    compute_mutation_readings,
+    compute_run_readings,
+)
+from juli_backend.services.impact.windows import (
+    POST_WINDOW_DAYS,
+    PRE_WINDOW_DAYS,
+    WindowKind,
+    Windows,
+    compute_windows,
+    date_range,
+    mean_over_window,
+    post_window,
+    pre_window,
+)
+
+__all__ = [
+    "ALL_METRICS",
+    "CONVERSION_RATE",
+    "CTR",
+    "GMV",
+    "GMV_PER_ORDER",
+    "IMPRESSIONS",
+    "ITEMS_SOLD",
+    "METRIC_MAP",
+    "POST_WINDOW_DAYS",
+    "PRE_WINDOW_DAYS",
+    "SKU_ORDERS",
+    "MetricReading",
+    "MetricSpec",
+    "MutationKind",
+    "MutationMetrics",
+    "MutationReadings",
+    "PercentSuppressedReason",
+    "RawDailyRecord",
+    "ReadingStatus",
+    "RunReadings",
+    "WindowKind",
+    "Windows",
+    "compute_expected",
+    "compute_growth",
+    "compute_impact_pct",
+    "compute_incremental",
+    "compute_metric_reading",
+    "compute_mutation_readings",
+    "compute_post",
+    "compute_pre",
+    "compute_run_readings",
+    "compute_windows",
+    "date_range",
+    "mean_over_window",
+    "post_window",
+    "pre_window",
+    "resolve_metric",
+]
