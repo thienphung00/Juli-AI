@@ -55,21 +55,20 @@ module may reach into it: `juli_backend.services.agent` (depth 2) is the
 deepest allowed target, exactly the seam `workers/tasks/agent_workflow.py`
 already uses for `WorkflowRunner` (`from juli_backend.services.agent import
 runner`). This module does the same for `runner` (re-exports
-`StopReason`/`WorkflowRunStatus`, `services/agent/runner/__init__.py`) and
+`StopReason`/`WorkflowRunStatus`, `services/agent/runner/__init__.py`),
 `events` (re-exports `WorkflowFailedEvent`/`WorkflowFailedPayload`,
-`services/agent/events/__init__.py`) -- both packages already publish the
-names this module needs from their facade. `services/agent/playbooks/`'s
-facade, by contrast, re-exports only the generic base types (`Playbook`,
-`TerminationPolicy`, ...), never a concrete playbook instance -- reaching
-`OPTIMIZE_PRODUCT_TERMINATION_POLICY` itself would need
-`services.agent.playbooks.optimize_product` (depth 4), which the contract
-forbids, and widening that facade is outside this slice's write paths
-(`workers/`, `tests/unit/` only). `WALL_CLOCK_TIMEOUT_S`/`APPROVAL_TIMEOUT_H`
-below are therefore local literals mirroring that policy's two fields, not
-an import of it; `test_workflow_run_reaper.py` pins them against the real
-`OPTIMIZE_PRODUCT_TERMINATION_POLICY` object directly (test code sits
-outside the checker's `scan_root`), so any future change to the real policy
-fails that test loudly instead of silently drifting here.
+`services/agent/events/__init__.py`), and `playbooks` (re-exports
+`OPTIMIZE_PRODUCT_TERMINATION_POLICY`, `services/agent/playbooks/__init__.py`
+-- widened by this slice to close exactly this gap; see that module's
+docstring). Termination values are READ off `OPTIMIZE_PRODUCT_TERMINATION_POLICY`
+here, never redefined as a local literal -- the same discipline the runner
+and #1120's in-loop termination follow, per this phase's architect lock: a
+literal `300` or `4` reproducing one of the policy's fields anywhere else is
+a defect, not a style choice, because it lets the reaper's threshold and the
+runner's threshold drift apart silently. `reap_workflow_runs`'s `policy=`
+parameter defaults to the real object but is injectable, so
+`test_workflow_run_reaper.py` can prove the reaper's thresholds move with an
+arbitrary policy rather than merely matching one pinned pair of numbers.
 """
 
 from __future__ import annotations
@@ -87,6 +86,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from juli_backend.models.models import WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent import events as _agent_events
+from juli_backend.services.agent import playbooks as _agent_playbooks
 from juli_backend.services.agent import runner as _agent_runner
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
@@ -99,21 +99,21 @@ StopReason = _agent_runner.StopReason
 WorkflowRunStatus = _agent_runner.WorkflowRunStatus
 WorkflowFailedEvent = _agent_events.WorkflowFailedEvent
 WorkflowFailedPayload = _agent_events.WorkflowFailedPayload
+TerminationPolicy = _agent_playbooks.TerminationPolicy
+
+# The default policy every workflow_runs row is scored against -- see the
+# module docstring's "Playbook resolution" note. Termination values are read
+# off this object's fields wherever needed below; `reap_workflow_runs`'s
+# `policy=` parameter can override it (tests do, to prove the reaper's
+# thresholds genuinely move with the policy rather than a copied constant).
+_DEFAULT_TERMINATION_POLICY = _agent_playbooks.OPTIMIZE_PRODUCT_TERMINATION_POLICY
 
 # Judgment call -- issue #1130 does not pin a number. Slack margin added on
-# top of the playbook's wall_clock_timeout_s before a running/queued run is
+# top of the policy's wall_clock_timeout_s before a running/queued run is
 # considered abandoned, sized to one beat interval: a run whose last event
 # landed just before a scheduled reaper tick must survive that tick on
 # scheduling jitter alone. Only silence spanning two beat cycles is reaped.
 STALE_RUN_SLACK_S = 300
-
-# Mirrors services/agent/playbooks/optimize_product.py's
-# OPTIMIZE_PRODUCT_TERMINATION_POLICY (wall_clock_timeout_s=300,
-# approval_timeout_h=4) -- see the module docstring for why this is a local
-# literal, not an import of that object, and how test_workflow_run_reaper.py
-# guards it from drifting.
-WALL_CLOCK_TIMEOUT_S = 300
-APPROVAL_TIMEOUT_H = 4
 
 _AGENT_WORKFLOW_TASK_NAMES = frozenset(
     {"juli_backend.run_agent_workflow", "juli_backend.resume_agent_workflow"}
@@ -282,12 +282,13 @@ async def _reap_stale_running_and_queued(
     sink: object,
     now: datetime,
     has_live_task: TaskLivenessCheck,
+    policy: TerminationPolicy,
 ) -> tuple[uuid.UUID, ...]:
     active_statuses = (WorkflowRunStatus.QUEUED.value, WorkflowRunStatus.RUNNING.value)
     stmt = select(WorkflowRun).where(WorkflowRun.status.in_(active_statuses))
     result = await session.execute(stmt)
     runs = result.scalars().all()
-    threshold_s = WALL_CLOCK_TIMEOUT_S + STALE_RUN_SLACK_S
+    threshold_s = policy.wall_clock_timeout_s + STALE_RUN_SLACK_S
 
     reaped: list[uuid.UUID] = []
     for run in runs:
@@ -313,12 +314,13 @@ async def _reap_expired_waiting_approval(
     session: AsyncSession,
     sink: object,
     now: datetime,
+    policy: TerminationPolicy,
 ) -> tuple[uuid.UUID, ...]:
     result = await session.execute(
         select(WorkflowRun).where(WorkflowRun.status == WorkflowRunStatus.WAITING_APPROVAL.value)
     )
     runs = result.scalars().all()
-    threshold_s = APPROVAL_TIMEOUT_H * 3600
+    threshold_s = policy.approval_timeout_h * 3600
 
     reaped: list[uuid.UUID] = []
     for run in runs:
@@ -345,20 +347,26 @@ async def reap_workflow_runs(
     now: datetime | None = None,
     has_live_task: TaskLivenessCheck | None = None,
     sink: object | None = None,
+    policy: TerminationPolicy | None = None,
 ) -> ReapResult:
     """The reaper's core logic -- the seam every test in
     `test_workflow_run_reaper.py` drives directly. `now` and `has_live_task`
     are injectable so boundary behaviour is deterministic (no real sleeping,
     no wall-clock flakiness); `sink` is injectable so tests can prove the
     reaper drives the `EventSink` path rather than writing
-    `workflow_runs.status` itself.
+    `workflow_runs.status` itself; `policy` is injectable so tests can prove
+    the reaper's thresholds are genuinely read off a `TerminationPolicy`
+    object rather than a copied constant -- defaults to the real
+    `OPTIMIZE_PRODUCT_TERMINATION_POLICY`, the only playbook registered in
+    this repo today (see the module docstring's "Playbook resolution" note).
     """
     now = now if now is not None else _utcnow()
     has_live_task = has_live_task if has_live_task is not None else _default_has_live_task
     sink = sink if sink is not None else _ReaperEventSink(session)
+    policy = policy if policy is not None else _DEFAULT_TERMINATION_POLICY
 
-    stale = await _reap_stale_running_and_queued(session, sink, now, has_live_task)
-    expired = await _reap_expired_waiting_approval(session, sink, now)
+    stale = await _reap_stale_running_and_queued(session, sink, now, has_live_task, policy)
+    expired = await _reap_expired_waiting_approval(session, sink, now, policy)
     return ReapResult(stale_runs_reaped=stale, expired_approvals_reaped=expired)
 
 
