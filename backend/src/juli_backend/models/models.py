@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -568,6 +569,74 @@ class WorkflowOutcomeRecord(Base):
             "shop_id",
             "execution_id",
             name="uq_workflow_outcome_records_shop_execution",
+        ),
+    )
+
+
+class ImpactReading(Base):
+    """Incremental-impact reading — control-adjusted pre/post per (execution, metric,
+    kind) — ADR-077 decision 5, I9 (#1040).
+
+    Source of truth for every impact reading computed by the daily impact-reader
+    beat task: the four-metric business-impact aggregation and the eval pipeline
+    need cross-run *queries* over this table, not JSON parsing of the legacy
+    outcome envelope.
+
+    ``run_id`` is a deliberate deferred constraint, not an oversight: ADR-077 d.5
+    names ``run_id`` alongside ``tool_execution_id``, but the ``workflow_runs``
+    table (W3-A, ADR-073) does not exist yet — P-IM "depends on nothing in the
+    agent stack" per the wave handoff, so this column is a plain nullable UUID
+    with no foreign key until W3-A lands ``workflow_runs``. W3-A should add the
+    FK once that table exists; do not backfill it here.
+
+    Numeric precision deliberately reuses the two scales
+    ``AnalyticsPerformanceInterval`` already established rather than inventing a
+    third: ``pre``/``post``/``expected``/``incremental`` carry the raw metric
+    reading on the same money/count scale as ``gmv`` (``Numeric(18, 2)``);
+    ``impact_pct`` is always a ratio (``incremental / expected``) regardless of
+    which underlying metric produced it, so it uses the same rate scale as
+    ``ctr``/``conversion_rate`` (``Numeric(10, 6)``).
+    """
+
+    __tablename__ = "impact_readings"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # Deliberately NOT a ForeignKey — see class docstring. W3-A adds the FK once
+    # `workflow_runs` exists.
+    run_id: Mapped[uuid.UUID | None] = mapped_column()
+    tool_execution_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tool_executions.id"), nullable=False
+    )
+    metric: Mapped[str] = mapped_column(String(50), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    pre: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    post: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    expected: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    incremental: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    impact_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Chosen control set (IDs, correlations, windows) — required on every reading
+    # for audit and placebo verification (ADR-077 d.3), not only on Cao/Trung
+    # binh readings.
+    control_set_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_impact_readings_run_id", "run_id"),
+        Index("ix_impact_readings_tool_execution", "tool_execution_id"),
+        UniqueConstraint(
+            "tool_execution_id",
+            "metric",
+            "kind",
+            name="uq_impact_readings_execution_metric_kind",
+        ),
+        CheckConstraint(
+            "kind IN ('preliminary', 'final')",
+            name="ck_impact_readings_kind",
+        ),
+        CheckConstraint(
+            "confidence IN ('cao', 'trung_binh', 'thap', 'suppressed', 'confounded')",
+            name="ck_impact_readings_confidence",
         ),
     )
 
