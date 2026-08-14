@@ -1,26 +1,35 @@
-"""Incremental impact measurement — funnel-first metric map + ratio-form DiD
-compute (ADR-077 decisions 1 and 2, #1041).
+"""Incremental impact measurement — funnel-first metric map, ratio-form DiD
+compute, and control-pool selection (ADR-077 decisions 1-3, #1041, #1042).
 
-This package answers two questions, and only two: **which metric** does a
-mutation act on (``metric_map.py``), and **what is the control-adjusted
-incremental impact** for that metric given a target series, a control
-series, and the write's execution date T (``windows.py`` + ``compute.py`` +
-``reading.py``). Everything else ADR-077 describes is explicitly out of
-scope here and owned by later, stacked issues in the same package:
+This package answers three questions: **which metric** does a mutation act
+on (``metric_map.py``), **which sibling products form its control cohort**
+(``control_pool.py``), and **what is the control-adjusted incremental
+impact** for that metric given a target series, a control series, and the
+write's execution date T (``windows.py`` + ``compute.py`` + ``reading.py``).
+Everything else ADR-077 describes is explicitly out of scope here and owned
+by later, stacked issues in the same package:
 
-- Control-pool **selection** (K-nearest-correlated siblings, Pearson
-  correlation, the volume/correlation/duration disqualifiers, the plain
-  pre/post fallback) — ADR-077 decision 3, #1042. This package accepts an
-  already-resolved control daily series per metric; it does not query for
-  candidates or compute correlations.
-- **Confidence tiers**, per-metric volume floors, and the
+- Control-pool **candidate discovery I/O** — querying same-shop siblings,
+  detecting a Juli-run touch, and resolving a product's first-active date —
+  is not performed here; ``control_pool.select_control_pool`` receives an
+  already-fetched ``Sequence[ControlCandidate]`` and the volume-floor value
+  as plain arguments, mirroring how ``reading.py`` receives
+  ``confounded: bool``.
+- **Confidence tiers**, per-metric volume-floor *config* (the numeric
+  thresholds themselves and the family→indicator mapping), and the
   "Chưa đủ dữ liệu để ước tính" / seller-facing copy rules — ADR-077 decision
   4, #1043. ``MetricReading.status`` here only ever distinguishes ``"ok"``
   from ``"confounded"``; it is not a confidence tier. A HIGH-severity defect
-  in a prior implementation of that later decision compared a rate metric's
-  own values against a count-calibrated volume floor — this package exposes
-  ``MetricSpec.is_rate`` precisely so that comparison has one unambiguous,
-  tested answer to consult instead of being re-derived incorrectly.
+  in a prior implementation of *this* package's control-pool selection
+  compared a rate metric's own values against a count-calibrated volume
+  floor, silently disabling K-nearest-correlated selection for the Image and
+  Description mutation families — ``control_pool.select_control_pool``'s
+  ``volume_of`` parameter and ``metric_map.MetricSpec.is_rate`` exist
+  precisely so that comparison has one unambiguous, tested answer, and a
+  rate metric with no ``volume_of`` raises rather than silently
+  disqualifying every candidate (see ``control_pool.py``'s module docstring
+  and ``tests/unit/test_impact_control_pool.py``'s
+  ``TestVolumeIndicatorNotMetricAgainstTheFloor``).
 - The **daily impact-reader beat task**, legacy-envelope compatibility, and
   ``WORKFLOW_OUTCOME_SUCCESS_CRITERIA`` wiring — ADR-077 decision 5, #1044.
   Detecting a confounding second run (an execution-history query) and
@@ -79,6 +88,17 @@ from juli_backend.services.impact.compute import (
     compute_post,
     compute_pre,
 )
+from juli_backend.services.impact.control_pool import (
+    MIN_ACTIVE_DAYS,
+    MIN_CANDIDATES,
+    MIN_MEAN_CORRELATION,
+    TOP_K,
+    ControlCandidate,
+    ControlPoolResult,
+    FallbackReason,
+    SelectedControl,
+    select_control_pool,
+)
 from juli_backend.services.impact.metric_map import (
     ALL_METRICS,
     CONVERSION_RATE,
@@ -120,14 +140,22 @@ __all__ = [
     "ALL_METRICS",
     "CONVERSION_RATE",
     "CTR",
+    "ControlCandidate",
+    "ControlPoolResult",
+    "FallbackReason",
     "GMV",
     "GMV_PER_ORDER",
     "IMPRESSIONS",
     "ITEMS_SOLD",
     "METRIC_MAP",
+    "MIN_ACTIVE_DAYS",
+    "MIN_CANDIDATES",
+    "MIN_MEAN_CORRELATION",
     "POST_WINDOW_DAYS",
     "PRE_WINDOW_DAYS",
     "SKU_ORDERS",
+    "SelectedControl",
+    "TOP_K",
     "MetricReading",
     "MetricSpec",
     "MutationKind",
@@ -154,4 +182,5 @@ __all__ = [
     "post_window",
     "pre_window",
     "resolve_metric",
+    "select_control_pool",
 ]
