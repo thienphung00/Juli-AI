@@ -57,6 +57,34 @@ precedent for the request/worker async surfaces elsewhere — see
 `workers/tasks/database.py` for why *those* surfaces must stay async
 (#741: sync psycopg2 crashes inside `asyncio.run()`-per-task worker code,
 a different hazard than the one here).
+
+**Bounded lock wait (#1121 Review follow-up).** Review reproduced a real,
+indefinite hang: with `_insert_in_flight`'s commit removed, a blocked claim
+waited on Postgres's row lock forever. That is worse than an error — a
+hung claim holds its `in_flight` row and (transitively) the
+`(shop_id, product_id)` one-active-run partial unique index open forever
+too, so the seller cannot start another run on that product, and #1130's
+reaper cannot help a task that is technically still alive, only crashed or
+redelivered ones. `_apply_bounded_wait` issues Postgres-only
+`SET LOCAL lock_timeout` / `SET LOCAL statement_timeout` at the top of
+every `execute_write` call (and again immediately after the
+`IntegrityError` rollback in `_claim_and_execute`, since `ROLLBACK` ends
+the transaction those `SET LOCAL`s were scoped to) — a no-op on SQLite,
+which has no such GUCs. Bound chosen here, on the **session**, not the
+Celery task: `task_time_limit` bounds a task's *total* wall-clock budget
+(already ADR-073 decision 2's `wall_clock_timeout_s=300` territory, owned
+by #1120's termination policy, not this seam) and fires with a `SIGKILL`
+that does not distinguish "stuck on a lock" from "legitimately slow vendor
+call" — it cannot single out this one seam without either being too tight
+for a real 300s run or too loose to protect the one-active-run index in
+good time. `lock_timeout`/`statement_timeout` are precise to the exact
+statement that can block on contention (the INSERT), leaving the rest of
+the run's own timeout budget untouched. Defaults: `lock_timeout=3000ms`,
+`statement_timeout=10000ms` — an order of magnitude below the smallest
+`ToolSpec.timeout_seconds` in this codebase (20s, `UPDATE_PRODUCT_LISTING_SPEC`
+/ `UPDATE_PRODUCT_PRICE_SPEC` — `tools/product_write.py`) so a bounded
+claim never eats a meaningful fraction of a tool's own budget, and
+comfortably above the milliseconds a real (non-hung) race resolves in.
 """
 
 from __future__ import annotations
@@ -68,11 +96,14 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from juli_backend.models.models import ToolExecution
+
+_DEFAULT_LOCK_TIMEOUT_MS = 3_000
+_DEFAULT_STATEMENT_TIMEOUT_MS = 10_000
 
 
 class LedgerStatus(str, enum.Enum):
@@ -149,6 +180,11 @@ class ToolExecutionLedger:
     `_insert_in_flight`, `_mark_succeeded`, `_mark_succeeded_retroactive`,
     `_mark_failed`) precisely so a test can spy on the ordering of "the
     ledger's DB access boundary" without reaching into SQLAlchemy internals.
+
+    `lock_timeout_ms`/`statement_timeout_ms` bound how long a claim can
+    block on Postgres row-lock contention — see the module docstring's
+    "Bounded lock wait" section for why these live here (session-scoped)
+    rather than on the Celery task.
     """
 
     def __init__(
@@ -157,10 +193,18 @@ class ToolExecutionLedger:
         *,
         shop_id: uuid.UUID,
         approval_id_prefix: str = "agent-ledger",
+        lock_timeout_ms: int = _DEFAULT_LOCK_TIMEOUT_MS,
+        statement_timeout_ms: int = _DEFAULT_STATEMENT_TIMEOUT_MS,
     ) -> None:
+        if not isinstance(lock_timeout_ms, int) or lock_timeout_ms <= 0:
+            raise ValueError("lock_timeout_ms must be a positive int")
+        if not isinstance(statement_timeout_ms, int) or statement_timeout_ms <= 0:
+            raise ValueError("statement_timeout_ms must be a positive int")
         self._session = session
         self._shop_id = shop_id
         self._approval_id_prefix = approval_id_prefix
+        self._lock_timeout_ms = lock_timeout_ms
+        self._statement_timeout_ms = statement_timeout_ms
 
     def execute_write(
         self,
@@ -177,8 +221,12 @@ class ToolExecutionLedger:
         before `perform` (the vendor call) ever runs, on every branch below
         — including the fresh-dispatch branch, where `_insert_in_flight`
         follows the SELECT and is itself strictly before `perform`, with
-        `_mark_succeeded`/`_mark_failed` strictly after.
+        `_mark_succeeded`/`_mark_failed` strictly after. `_apply_bounded_wait`
+        runs first of all (Postgres-only; a no-op on SQLite) so the
+        transaction this call opens never blocks on lock contention past
+        the configured bound.
         """
+        self._apply_bounded_wait()
         row = self._select(workflow_run_id, tool_call_id, operation)
 
         if row is not None:
@@ -190,6 +238,27 @@ class ToolExecutionLedger:
             operation=operation,
             perform=perform,
             verify_applied=verify_applied,
+        )
+
+    # --- bounded-wait boundary ------------------------------------------
+
+    def _dialect_name(self) -> str:
+        return self._session.get_bind().dialect.name
+
+    def _apply_bounded_wait(self) -> None:
+        """`SET LOCAL lock_timeout` / `SET LOCAL statement_timeout` for the
+        current transaction — Postgres-only (SQLite has no such GUCs; this
+        is a no-op there, including in this module's own SQLite test
+        matrix). `SET LOCAL` only lasts for the current transaction, so
+        this must be re-issued after any `ROLLBACK`/`COMMIT` that ends one
+        — `_claim_and_execute`'s `IntegrityError` handler calls this again
+        immediately after its `rollback()` for exactly that reason.
+        """
+        if self._dialect_name() != "postgresql":
+            return
+        self._session.execute(text(f"SET LOCAL lock_timeout = '{self._lock_timeout_ms}ms'"))
+        self._session.execute(
+            text(f"SET LOCAL statement_timeout = '{self._statement_timeout_ms}ms'")
         )
 
     # --- DB-access boundary (individually spy-able) -------------------------
@@ -305,6 +374,7 @@ class ToolExecutionLedger:
             # through to a second vendor call — resolve through the
             # winner's row exactly like any other retry that finds a row.
             self._session.rollback()
+            self._apply_bounded_wait()  # ROLLBACK ended the prior SET LOCAL's scope
             winner = self._select(workflow_run_id, tool_call_id, operation)
             if winner is None:  # pragma: no cover - defensive, should be unreachable
                 raise

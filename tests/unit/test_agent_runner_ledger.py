@@ -34,18 +34,37 @@ credentials) but its own name — via the module-scoped
 `_disposable_postgres_url` fixture, and drops it at module teardown. This
 is what the issue calls "disposable database, dropped afterwards": this
 module's Postgres tests never touch `DATABASE_URL`'s own database at all.
+
+**Genuine concurrency (Review follow-up).** `TestUniqueIndexRace`'s two
+tests run sequentially to completion, so the second attempt's own SELECT
+always finds an already-`succeeded` row — `_claim_and_execute`'s `except
+IntegrityError` branch (the actual mechanism behind "a concurrent duplicate
+loses on the unique index") was unexercised. `TestGenuineConcurrentClaim`
+closes that gap with two real threads against two independent Postgres
+sessions, synchronized via `_signal_after` so the second session's own
+`_select` provably runs (and returns `None`) before the first commits.
+`TestBoundedLockWait` proves the companion fix: a blocked claim raises
+within a configured bound (`ledger.py`'s `_apply_bounded_wait`) instead of
+hanging indefinitely, which is what Review reproduced by removing
+`_insert_in_flight`'s commit. Both use `postgres_only_session_factory`
+(Postgres-only, skips cleanly without `DATABASE_URL`) rather than the
+dual-backend `session`/`sync_engine` fixtures, since SQLite has no
+cross-connection row-level locking to block on at all.
 """
 
 from __future__ import annotations
 
+import json
 import os
+import threading
+import time
 import uuid
 from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from juli_backend.core.config.runtime import sync_database_url
@@ -156,6 +175,18 @@ def _disposable_postgres_url():
         admin_engine.dispose()
 
 
+def _build_postgres_engine(url: str):
+    engine = create_engine(url, pool_pre_ping=True)
+    # `models/models.py` schema-qualifies some tables (bronze/silver/gold/
+    # ops) that only exist in a fully Alembic-migrated database — a fresh
+    # disposable CREATE DATABASE never has them, so create them directly.
+    with engine.begin() as conn:
+        for schema_name in ("bronze", "silver", "gold", "ops"):
+            conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
+    Base.metadata.create_all(engine, checkfirst=True)
+    return engine
+
+
 @pytest.fixture(params=_BACKEND_PARAMS)
 def sync_engine(request, _disposable_postgres_url):
     if request.param == "sqlite":
@@ -167,16 +198,9 @@ def sync_engine(request, _disposable_postgres_url):
             "sqlite:///:memory:",
             execution_options={"schema_translate_map": _SQLITE_SCHEMA_TRANSLATE_MAP},
         )
+        Base.metadata.create_all(engine, checkfirst=True)
     else:
-        engine = create_engine(_disposable_postgres_url, pool_pre_ping=True)
-        # `models/models.py` schema-qualifies some tables (bronze/silver/
-        # gold/ops) that only exist in a fully Alembic-migrated database —
-        # this disposable database is bare, so create them directly; a
-        # fresh CREATE DATABASE never has them.
-        with engine.begin() as conn:
-            for schema_name in ("bronze", "silver", "gold", "ops"):
-                conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
-    Base.metadata.create_all(engine, checkfirst=True)
+        engine = _build_postgres_engine(_disposable_postgres_url)
     yield engine
     engine.dispose()
 
@@ -191,6 +215,27 @@ def session(session_factory):
     sess = session_factory()
     yield sess
     sess.close()
+
+
+@pytest.fixture
+def postgres_only_session_factory(_disposable_postgres_url):
+    """Like `session_factory`, but Postgres-only and never parametrized over
+    SQLite — for tests that need genuine cross-connection concurrency
+    (real row-level locking), which SQLite cannot express (module
+    docstring). Skips cleanly when `DATABASE_URL` is not a reachable
+    Postgres instance, mirroring `tests/integration/test_migrations.py`'s
+    `requires_postgres` convention.
+    """
+    if _disposable_postgres_url is None:
+        pytest.skip(
+            "DATABASE_URL is not set to a reachable Postgres instance — genuine "
+            "cross-connection concurrency cannot be proven on SQLite."
+        )
+    engine = _build_postgres_engine(_disposable_postgres_url)
+    try:
+        yield sessionmaker(bind=engine)
+    finally:
+        engine.dispose()
 
 
 # --- seed helpers -----------------------------------------------------------
@@ -296,6 +341,22 @@ def _spy_method(obj: object, name: str, log: list[str]) -> None:
     def wrapper(*args, **kwargs):
         log.append(name)
         return original(*args, **kwargs)
+
+    object.__setattr__(obj, name, wrapper)
+
+
+def _signal_after(obj: object, name: str, event: threading.Event) -> None:
+    """Wrap the bound method `name` on `obj` so `event` is set immediately
+    after the original returns — used to hand cross-thread control back
+    at a precise point in the ledger's own call sequence (e.g. "the
+    loser's own SELECT has run") rather than an approximate `time.sleep`.
+    """
+    original = getattr(obj, name)
+
+    def wrapper(*args, **kwargs):
+        result = original(*args, **kwargs)
+        event.set()
+        return result
 
     object.__setattr__(obj, name, wrapper)
 
@@ -573,7 +634,19 @@ class TestUniqueIndexRace:
     """True concurrency is not exercisable in a single unit-test process
     (the issue text names this limitation explicitly) — simulated here with
     two sequential attempts against the same key, from two independent
-    `Session`s (standing in for two worker processes)."""
+    `Session`s (standing in for two worker processes).
+
+    Review (#1121 follow-up) correctly flagged that neither test below
+    actually reaches `_claim_and_execute`'s `except IntegrityError` branch:
+    because each attempt here runs to full completion before the next
+    starts, the second attempt's own `_select` always finds an
+    already-`succeeded` row and resolves via the replay path
+    (`_resolve_existing`), never touching `_insert_in_flight` at all. Both
+    are kept for what they do prove (the raw unique constraint itself, and
+    end-to-end idempotency across sequential attempts) — `TestGenuineConcurrentClaim`
+    below is what actually drives two real, simultaneously-in-flight claims
+    so the second one's own INSERT is what collides.
+    """
 
     def test_second_raw_insert_with_same_key_loses_on_unique_constraint(
         self, session, session_factory
@@ -621,6 +694,166 @@ class TestUniqueIndexRace:
 
         assert shared_perform.calls == 1
         assert result1 == result2 == {"ok": True}
+
+
+# --- AC: genuine cross-connection concurrency reaches the IntegrityError
+# catch branch itself (Review follow-up, #1121) -----------------------------
+
+
+class TestGenuineConcurrentClaim:
+    """Drives two real, independent Postgres sessions so both `_select`
+    calls return `None` before either commits, forcing the second
+    `_insert_in_flight` to genuinely collide with the first's (still
+    uncommitted) row rather than the second attempt's own SELECT finding
+    an already-completed one. Postgres-only: SQLite has no cross-connection
+    row-level lock semantics to block on (module docstring).
+    """
+
+    def test_second_claim_racing_a_truly_concurrent_first_resolves_through_winners_row(
+        self, postgres_only_session_factory
+    ):
+        winner_session = postgres_only_session_factory()
+        loser_session = postgres_only_session_factory()
+        loser_selected = threading.Event()
+        loser_outcome: dict[str, object] = {}
+        winner_perform = _CallSpy(result={"price": "1000"})
+        loser_perform = _CallSpy(result={"price": "SHOULD-NEVER-BE-CALLED"})
+
+        try:
+            shop_id, run_id = _seed_run(winner_session)
+            tool_call_id = _fresh_tool_call_id()
+            operation = "update_product_price"
+
+            # Winner claims the row directly (bypassing
+            # ToolExecutionLedger._insert_in_flight, which would commit
+            # immediately) so the INSERT is sent but the transaction stays
+            # open while the loser's own SELECT runs underneath it — the
+            # genuine race window Review's finding named.
+            winner_row = ToolExecution(
+                shop_id=shop_id,
+                approval_id=f"race:{tool_call_id}",
+                tool_name=operation,
+                status=LedgerStatus.IN_FLIGHT.value,
+                workflow_run_id=run_id,
+                tool_call_id=tool_call_id,
+                operation=operation,
+            )
+            winner_session.add(winner_row)
+            winner_session.flush()  # INSERT sent, NOT committed -- lock held
+
+            def _run_loser() -> None:
+                try:
+                    loser_ledger = ToolExecutionLedger(loser_session, shop_id=shop_id)
+                    _signal_after(loser_ledger, "_select", loser_selected)
+                    result = loser_ledger.execute_write(
+                        workflow_run_id=run_id,
+                        tool_call_id=tool_call_id,
+                        operation=operation,
+                        perform=loser_perform,
+                    )
+                    loser_outcome["result"] = result
+                except BaseException as exc:  # noqa: BLE001 - captured across the thread boundary
+                    loser_outcome["error"] = exc
+
+            loser_thread = threading.Thread(target=_run_loser)
+            loser_thread.start()
+
+            # Block here until the loser's own SELECT has run (and seen
+            # nothing, since the winner's insert above is still
+            # uncommitted) -- only then does the winner finalize. This is
+            # what forces the loser's own INSERT, not its SELECT, to be
+            # the thing that discovers the conflict.
+            assert loser_selected.wait(timeout=10), "loser's _select never ran"
+
+            # Winner "calls the vendor" and finalizes in one commit, so the
+            # loser's now-unblocking INSERT never observes an intermediate
+            # in_flight-only state -- it sees `succeeded` directly.
+            winner_result = winner_perform()
+            winner_row.status = LedgerStatus.SUCCEEDED.value
+            winner_row.outcome_json = json.dumps(winner_result)
+            winner_session.flush()
+            winner_session.commit()
+
+            loser_thread.join(timeout=15)
+            assert not loser_thread.is_alive(), "loser thread did not finish in time"
+        finally:
+            winner_session.close()
+            loser_session.close()
+
+        assert "error" not in loser_outcome, repr(loser_outcome.get("error"))
+        assert loser_outcome["result"] == winner_result
+        assert winner_perform.calls == 1
+        assert loser_perform.calls == 0
+
+
+# --- Bounded lock wait (Review follow-up, #1121): a blocked claim raises
+# within the configured bound instead of hanging indefinitely ---------------
+
+
+class TestBoundedLockWait:
+    """Review reproduced a real, indefinite hang by removing
+    `_insert_in_flight`'s commit: a blocked claim then waited on Postgres's
+    row lock forever, which -- because the claim also holds the
+    `(shop_id, product_id)` one-active-run partial unique index open --
+    would permanently block the seller from starting another run on that
+    product, with #1130's reaper unable to help a task that is technically
+    still alive. `ledger.py`'s `_apply_bounded_wait` (`SET LOCAL
+    lock_timeout`/`statement_timeout`, Postgres-only) bounds exactly this.
+    """
+
+    def test_blocked_claim_raises_within_the_bound_instead_of_hanging(
+        self, postgres_only_session_factory
+    ):
+        winner_session = postgres_only_session_factory()
+        loser_session = postgres_only_session_factory()
+        try:
+            shop_id, run_id = _seed_run(winner_session)
+            tool_call_id = _fresh_tool_call_id()
+            operation = "update_product_listing"
+
+            # Hold the row's INSERT open (uncommitted) well past the
+            # loser's bound below -- stands in for Review's "commit never
+            # happens" hang, from the loser's point of view.
+            winner_row = ToolExecution(
+                shop_id=shop_id,
+                approval_id=f"lock:{tool_call_id}",
+                tool_name=operation,
+                status=LedgerStatus.IN_FLIGHT.value,
+                workflow_run_id=run_id,
+                tool_call_id=tool_call_id,
+                operation=operation,
+            )
+            winner_session.add(winner_row)
+            winner_session.flush()  # lock held, deliberately never committed here
+
+            bound_ms = 500
+            loser_ledger = ToolExecutionLedger(
+                loser_session,
+                shop_id=shop_id,
+                lock_timeout_ms=bound_ms,
+                statement_timeout_ms=bound_ms + 5_000,
+            )
+            loser_perform = _CallSpy(result={"should": "never run"})
+
+            started = time.monotonic()
+            with pytest.raises(OperationalError):
+                loser_ledger.execute_write(
+                    workflow_run_id=run_id,
+                    tool_call_id=tool_call_id,
+                    operation=operation,
+                    perform=loser_perform,
+                )
+            elapsed = time.monotonic() - started
+
+            assert elapsed < (bound_ms / 1000) + 5, (
+                f"blocked claim took {elapsed:.2f}s -- exceeded the {bound_ms}ms bound "
+                "plus generous slack; the lock wait is not actually bounded"
+            )
+            assert loser_perform.calls == 0
+        finally:
+            winner_session.rollback()
+            winner_session.close()
+            loser_session.close()
 
 
 # --- AC: redelivery resolves through existing branches, never a new key ---
