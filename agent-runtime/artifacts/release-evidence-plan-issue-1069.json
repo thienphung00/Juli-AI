@@ -1,0 +1,71 @@
+{
+  "planId": "deploy-stop-durable-unit-at-cutover-2026-08-14",
+  "affectedPublicSurfaces": [
+    "None in this slice \u2014 the change edits infra/scripts/deploy.sh and its runbook. No route, asset, schema, or deployed artifact changes as a result of merging. The public API surface changes only when a human subsequently runs a deploy, which is explicitly out of scope here."
+  ],
+  "candidateVerificationJourney": {
+    "mode": "candidate_verification",
+    "stableTrafficPercent": 100,
+    "candidatePublicTrafficPercent": 0,
+    "restrictedRoute": "Local script-level tests on feature/issue-1069-deploy-stop-durable-unit. No VPS is contacted.",
+    "syntheticShopRequired": false,
+    "workersDisabledOnCandidate": true,
+    "apiSideEffectsInScope": false,
+    "journeys": [
+      {
+        "name": "deploy-script-cutover-ordering",
+        "entryUrl": "https://github.com/thienphung00/Juli-AI/actions",
+        "assertions": [
+          "write_runtime_env stops the durable juli-api unit only AFTER the unit file and /etc/juli/api-runtime.env have been rewritten",
+          "stopping a unit that is not running does not fail the deploy (idempotent, tolerant of a non-existent or already-stopped unit)",
+          "the transient systemd-run candidate unit remains the serving process; the durable unit is not promoted",
+          "nginx upstream switching is unchanged by this slice",
+          "no VPS is contacted and no deployment occurs during verification"
+        ]
+      }
+    ]
+  },
+  "staticAssetChecks": {
+    "required": false,
+    "htmlRoutes": [
+      "GitHub Actions run summary for the deploy-script unit tests"
+    ],
+    "discoverFromHtml": false,
+    "assetTypes": [
+      "pytest-report"
+    ],
+    "failOnMissing": false,
+    "failOnNon200": false
+  },
+  "migrationCompatibility": {
+    "schemaChangeInScope": false,
+    "expandContractOnly": true,
+    "stableAndCandidateCompatible": true,
+    "destructiveMigrationAllowed": false,
+    "notes": "No database or public API schema change. This edits shell cutover ordering in a deploy script and its runbook."
+  },
+  "rollbackAssertion": {
+    "preCutoverFailureBehavior": "Do not merge. The durable juli-api unit continues to survive cutover as an orphan bound to a stale port, which is the pre-existing condition \u2014 no new risk is introduced by not merging.",
+    "postCutoverFailureBehavior": "Revert the deploy.sh commit. The prior behaviour is restored exactly: the durable unit is left running, which is the state the VPS is in today. The failure mode being fixed is a latent port collision between deploys, not an active outage, so reverting returns to a known-tolerated state rather than an unsafe one.",
+    "retainedStableRequired": true,
+    "automatic": false
+  },
+  "requiredArtifacts": {
+    "implementation": true,
+    "intentReview": true,
+    "review": true,
+    "validation": true,
+    "releaseMetadataHonest": true
+  },
+  "acceptanceCommands": [
+    "python -m pytest tests/unit -q -k 'deploy'",
+    "bash -n infra/scripts/deploy.sh"
+  ],
+  "notes": "Deploying this change to the VPS is a deliberate human follow-up, not part of this slice. The issue states 'Code and docs only. No SSH, no server changes.' This plan asserts local verification only; it does not claim a candidate deploy was performed.",
+  "doNotInfer": [
+    "Do not infer that the fix was verified on the VPS. No server is contacted by this slice; deploying it is a separate, human-run step.",
+    "Do not infer that an orphaned juli-api process has been observed in production. This is a structural finding from reading deploy.sh, not a recorded incident.",
+    "Do not infer that blue/green cutover was exercised end to end. Verification is script-level only \u2014 the transient candidate unit, nginx upstream switch, and reboot recovery path are not executed here.",
+    "Do not infer that the durable unit's reboot-recovery behaviour is unchanged in production until a real reboot has been observed after this ships."
+  ]
+}
