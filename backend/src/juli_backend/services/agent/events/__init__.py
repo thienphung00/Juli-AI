@@ -34,6 +34,11 @@ from juli_backend.services.agent.events.payloads import (
     WorkflowStartedPayload,
     WorkflowStatusPayload,
 )
+from juli_backend.services.agent.events.persisting_sink import (
+    EventPublisher,
+    PersistingEventSink,
+    run_events_channel,
+)
 from juli_backend.services.agent.events.sink import EventSink, InMemoryEventSink
 
 __all__ = [
@@ -41,8 +46,10 @@ __all__ = [
     "FAILURE_STOP_REASONS",
     "AssistantTextEvent",
     "AssistantTextPayload",
+    "EventPublisher",
     "EventSink",
     "InMemoryEventSink",
+    "PersistingEventSink",
     "ToolCompletedEvent",
     "ToolCompletedPayload",
     "ToolStartedEvent",
@@ -59,4 +66,5 @@ __all__ = [
     "WorkflowStartedPayload",
     "WorkflowStatusEvent",
     "WorkflowStatusPayload",
+    "run_events_channel",
 ]
