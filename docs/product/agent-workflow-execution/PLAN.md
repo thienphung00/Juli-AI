@@ -20,9 +20,9 @@ Status: **approved 2026-08-11**. Sequential, minimal-first implementation; one w
 | 3 | P5 — TikTok sanitization (product surface only) | ✅ implemented — [ADR-070](../../adr/070-agent-safe-sanitization-contract.md); sanitize package (#990–#995), wired into the real READ handlers + golden re-pointed to the production path (#996) | ✅ 2026-08-13 |
 | 4 | P11 — Model abstraction (minimal LLM service) | ✅ implemented — [ADR-071](../../adr/071-llm-service-openai-adapter.md); `LLMService`/adapter/fake (#985–#989), `FakeLLMService` proven downstream against the real registry + sanitizer (#996) | ✅ 2026-08-13 |
 | 5 | P12 — Prompt architecture (system + Optimize Product) | ✅ implemented — [ADR-072](../../adr/072-agent-prompt-architecture.md); re-run wave merged to `main` (#1107, 2026-08-14) with all four status records after the [ADR-079](../../adr/079-w2-artifact-disposition.md) Option B refusal of the first attempt | ✅ 2026-08-14 (mechanical gates; human voice review #1071 open) |
-| 6 | P1 — Agent execution loop (blocks + runner) | 🟨 design grilled 2026-08-11 — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md) drafted; implementation pending | ⬜ |
+| 6 | P1 — Agent execution loop (blocks + runner) | 🟦 **in flight — W3-A, `wave-agent-w3`** — [ADR-073](../../adr/073-agent-execution-loop-and-write-path-hardening.md); PRD #1115, slices #1117–#1124 | ⬜ |
 | 7 | P-CS — Conversation & state storage (NEW) | ⏸ deferred (user, 2026-08-11) until real users exist — stand-in: `workflow_runs.state` JSONB blob behind the `ConversationStore` protocol (ADR-073 d.5) | ⬜ |
-| 8 | P8 — Streaming (SSE + Celery relay) | 🟨 design grilled 2026-08-12 — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md) drafted; implementation pending | ⬜ |
+| 8 | P8 — Streaming (SSE + Celery relay) | 🟦 **in flight — W3-B, `wave-agent-w3`** — [ADR-074](../../adr/074-agent-event-streaming-and-relay.md); PRD #1116, slices #1125–#1133 | ⬜ |
 | 9 | P7 — Structured output contract | ⏸ deferred (user, 2026-08-11) — loop runs on ADR-072 prose output; wires in via `FinalResponse` block + prompt v2 bump (ADR-073 d.5) | ⬜ |
 | 10 | P9+P14 — Approval, safety & security prerequisites | 🟨 design grilled 2026-08-12 — [ADR-075](../../adr/075-agent-approval-gate-and-security-prerequisites.md) drafted; implementation pending | ⬜ |
 | 11 | P-UI — Demo UI polish + wiring (Optimize Product) (NEW) | 🟨 design grilled 2026-08-12 — [ADR-076](../../adr/076-agent-demo-execution-experience.md) + [PUI-DESIGN.md](PUI-DESIGN.md) drafted; implementation pending | ⬜ |
@@ -90,6 +90,83 @@ first attempt lacked — it fails a slice PR whose status record is missing or n
 **W3-A** depends on W2-A reaching `main` for playbook↔registry cross-validation. That dependency is
 **satisfied as of #1107 (2026-08-14) — W3-A is unblocked** and is the next implementation phase,
 in parallel with W3-B per the [2026-08-12 handoff](../../handoffs/2026-08-12-agent-execution-implementation-handoff.md).
+
+## Wave 3 status — kickoff (2026-08-14)
+
+Wave 3 implements the two phases that converge everything Waves 1 and 2 built: the agent loop
+that consumes blocks, prompts, tools and sanitized results (**W3-A / P1 / ADR-073**), and the
+event log that makes a run watchable (**W3-B / P8 / ADR-074**).
+
+### One wave branch, both phases — a deliberate deviation from the handoff
+
+The [2026-08-12 handoff](../../handoffs/2026-08-12-agent-execution-implementation-handoff.md) §6
+gives W3-A and W3-B separate worktrees and implies a wave branch each. They run on **one** branch,
+`feature/agent-w3-wave` (manifest `wave-agent-w3`), because the two phases are not disjoint:
+
+- both add tables to `models/models.py` with migrations chained on `033_impact_readings_table`,
+  and the wave must end with exactly one Alembic head;
+- W3-A's runner emits through the `EventSink` protocol **W3-B/P8-1 defines**, so on two wave
+  branches the runner slice would be based on a sibling wave's branch — the shape that receives
+  zero CI checks and reads as green;
+- the §8 wave-close gate is a *single* observed event (ActionCard → runner → tools → sandbox
+  write → `final_response`, streamed live with reconnect replay). Splitting the waves splits a
+  gate that has to be watched once.
+
+This follows the W1 precedent (#1034 landed three phases in one wave). W2's split was correct
+only because P12 and P-IM genuinely shared nothing. Context isolation is preserved where it
+matters: two epics with `doNotLoad` lists that exclude each other's ADR, so no executor ever
+dual-loads both.
+
+### Landing order
+
+`#1117` (P1-1, `workflow_runs` + revision `034`) and `#1125` (P8-1, `workflow_run_events` +
+the `EventSink` seam) land **sequentially, in that order** — P8-1's FK targets `workflow_runs.id`,
+so it chains onto P1-1. Every other slice opens in parallel once both are in. These are the only
+two slices in the wave with a fixed sequence.
+
+| Slice | Issue | Depends on |
+| --- | --- | --- |
+| W3-A/P1-1 workflow_runs, ledger columns, total stop_reason mapping | #1117 | — |
+| W3-B/P8-1 workflow_run_events, 8-event union, EventSink protocol | #1125 | #1117 |
+| W3-A/P1-2 run-state object, ConversationStore, JSONB round-trip | #1118 | #1117 |
+| W3-B/P8-2 TS event mirror + dual-language golden fixtures | #1126 | #1125 |
+| W3-B/P8-3 PersistingEventSink — insert, commit, then publish | #1127 | #1125 |
+| W3-B/P8-5 Celery agent_runs queue + fail-closed broker assertion | #1129 | #1125 |
+| W3-A/P1-3 WorkflowRunner core loop, block dispatch, tool executor seam | #1119 | #1118, #1125 |
+| W3-B/P8-4 SSE endpoint, cancel, reserved confirmations shape | #1128 | #1127 |
+| W3-A/P1-4 termination policy, paused clock, checkpoint cancellation | #1120 | #1119 |
+| W3-A/P1-5 idempotent mutation execution on the ToolExecution ledger | #1121 | #1119 |
+| W3-B/P8-6 the five-minute reaper — worker_lost, confirmation_expired | #1130 | #1129, #1117 |
+| W3-B/P8-7 integration suite against a scripted fake runner | #1131 | #1128 |
+| W3-B/P8-8 fetch-streaming client helper (ui-ux, public-release) | #1132 | #1126 |
+| W3-A/P1-6 basis-hash concurrency + one bounded revalidation | #1122 | #1121 |
+| W3-A/P1-7 pause and resume across worker processes | #1123 | #1120 |
+| W3-A/P1-8 **HITL** two live GPT-5.4 nano smokes | #1124 | all W3-A |
+| W3-B/P8-9 **HITL** live gate — real Redis, browser run with reconnect | #1133 | #1131, #1124 |
+
+### Harness registration
+
+Both epics are registered before any executor is assigned — the control ADR-079 records as
+missing from the first Wave 2 attempt. `AGT-W3A` and `AGT-W3B` route to `backend`; `AGT-W3B-UI`
+splits #1132 out to `ui-ux` because it writes into `apps/demo/`, which also makes it genuinely
+public-release and gives it a committed release evidence plan. `meta_prepare_executor.py`
+returns `readyForExecutor: true` for #1117, #1125, #1132 and #1133.
+
+### Conflicts found during issue authoring — recorded, not reconciled
+
+Two live documents disagree with the merged ADRs. Both are logged in
+[the authority map](../../handoffs/agent-execution-authority-map.md) and neither was silently
+adapted around:
+
+1. **Runner module shape.** ADR-073 d.1 and PLAN.md §6 both say `services/agent/runner.py` — a
+   single file. The handoff §6 says `services/agent/runner/` — a package. The package form is
+   what W3-A builds, because seven of its eight slices touch runner-owned logic and need disjoint
+   write paths for Review to grade independently. Flagged for the Architect to ratify.
+2. **P8's phase gate shape.** ADR-074 d.6 states one flat gate list; the handoff §6 splits it into
+   a contracts stage and a live stage. W3-B follows the handoff's two-stage split, because the
+   parallelism contract (build against pinned I5/I6 while W3-A is in flight, live gate after)
+   only makes sense under it — but the ADR does not name the split, so it is recorded as a
+   divergence rather than treated as settled.
 
 ## Phases — minimal specs + gate to proceed
 
