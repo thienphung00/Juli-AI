@@ -6,16 +6,20 @@ numeric termination value this module consults — `max_iterations`,
 `max_extensions`, `extension_iterations`, `wall_clock_timeout_s`,
 `approval_timeout_h` — comes from the `TerminationPolicy` a caller passes
 in, read off `OPTIMIZE_PRODUCT_TERMINATION_POLICY` on the active
-`Playbook`. **This module never defines its own numeric termination
-constant.** A bare `6`, `8`, `300`, or `4` literal anywhere below (outside
-a docstring) is a defect — `tests/unit/test_agent_runner_termination.py`'s
-`TestNoHardcodedPolicyLiterals` AST-scans this file and fails the build if
-one appears. #1119's review mutated `core.py` to hard-code the iteration
-cap and no test caught it, because no scripted scenario exceeded ~3
-iterations (issue #1120's first inherited finding) — the fix is two-layered:
-scenarios that genuinely reach the boundaries (this module + its test file),
-plus this static guard, so a literal creeping back in breaks a test even if
-some future scenario is under-scripted again.
+`Playbook`. **Neither this module nor `core.py` may define its own numeric
+termination constant.** A bare `6`, `8`, `300`, or `4` literal anywhere in
+either module (outside a docstring) is a defect —
+`tests/unit/test_agent_runner_termination.py`'s `TestNoHardcodedPolicyLiterals`
+AST-scans *both* files and fails the build if one appears. #1119's review
+mutated `core.py` to hard-code the iteration cap and no test caught it,
+because no scripted scenario exceeded ~3 iterations (issue #1120's first
+inherited finding) — the fix is two-layered: scenarios that genuinely reach
+the boundaries (this module + its test file), plus this static guard, so a
+literal creeping back in breaks a test even if some future scenario is
+under-scripted again. `core.py` is the higher-risk file for this specific
+mistake (it is where a developer reaches for a policy number while writing
+loop control flow), which is exactly why the guard was extended to cover it
+too rather than trusting the behavioural scenarios alone.
 
 **Two independent decision surfaces, one shared checkpoint.**
 
@@ -66,6 +70,38 @@ non-termination at 299.6s both come out consistently regardless of which
 representation (float vs. the column mirror) a caller mistakenly consulted
 — which is the whole reason the float, never the mirror, backs
 `evaluate_checkpoint`.
+
+**Stated limitation: per-iteration granularity bounds the wall clock's
+precision, not its correctness.** `state.running_seconds_elapsed` is only
+updated once, after a full iteration's block-dispatch loop completes
+(`core.py`); the pre-tool-execution checkpoint within that same iteration
+therefore reads the value as of the *start* of the iteration, not a live
+figure. If that stale value is already under `wall_clock_timeout_s`, an
+iteration already in progress runs to completion — its
+`LLMService.complete()` call plus every `ToolExecutor.execute()` call its
+turn dispatches — before the next checkpoint (top of the following
+iteration) can notice the budget was exceeded mid-iteration. This is
+**bounded, not open-ended**: one iteration's LLM call is itself bounded by
+`LLMConfig.request_timeout_seconds` (default `DEFAULT_REQUEST_TIMEOUT_SECONDS`
+= 30s, `llm/config.py`), and each tool call within it is bounded by its own
+`ToolSpec.timeout_seconds` (`tools/registry.py`). For the Optimize Product
+playbook specifically (`playbooks/optimize_product.py`), the six registered
+tools carry `timeout_seconds` of 10 (`get_product_information`), 15
+(`get_seo_keywords`), 30 (`upload_product_image`), 20
+(`update_product_listing`), 20 (`update_product_price`), and 10
+(`check_product_status`) — summing to 105s if a single turn's blocks
+dispatched every one of them. So the true worst-case overshoot for one
+iteration is `request_timeout_seconds + Σ(tool timeouts dispatched that
+turn)` ≤ 30 + 105 = 135s, and the true worst-case total run duration before
+`wall_clock_timeout` can be observed is `wall_clock_timeout_s +
+(request_timeout_seconds + Σtool timeouts)` ≤ 300 + 135 = 435s for this
+playbook — bounded by the LLM/tool timeout configuration, just not by this
+module. `tests/unit/test_agent_runner_termination.py`'s
+`TestWallClockOvershootBound` computes this figure independently from the
+real `LLMConfig` default and the real `OPTIMIZE_PRODUCT_PLAYBOOK`/`ToolSpec`
+registry, so a future change to any tool's `timeout_seconds` (or the LLM
+config default) that would move this number fails a test rather than
+silently going stale here.
 """
 
 from __future__ import annotations

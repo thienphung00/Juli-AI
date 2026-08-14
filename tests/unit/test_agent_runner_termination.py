@@ -44,8 +44,10 @@ import pytest
 
 from juli_backend.services.agent.events import EventSink, InMemoryEventSink, WorkflowStatusEvent
 from juli_backend.services.agent.llm import (
+    DEFAULT_REQUEST_TIMEOUT_SECONDS,
     AssistantTurn,
     FinalResponse,
+    LLMConfig,
     TextBlock,
     ToolCallBlock,
     Usage,
@@ -244,28 +246,38 @@ class TestNoHardcodedPolicyLiterals:
     finding: "Termination values are READ off OPTIMIZE_PRODUCT_TERMINATION_POLICY.
     The runner never defines its own constants; a literal 6 or 300 in
     runner code is a defect." AST-scans the *numeric constants actually
-    parsed* out of `termination.py` — not a text grep — so a docstring
-    mentioning "300s" never false-triggers, and no amount of rewording the
-    source can hide a real `ast.Constant(6)` from this check.
+    parsed* out of `termination.py` **and `core.py`** — not a text grep —
+    so a docstring mentioning "300s" never false-triggers, and no amount of
+    rewording the source can hide a real `ast.Constant(6)` from this check.
+
+    Both modules are scanned: `core.py` is where a hard-coded policy number
+    is most tempting to introduce (a developer reaching for a literal while
+    writing loop control flow), and it is exactly where #1119's review
+    introduced one that no scripted scenario caught (issue #1120's first
+    inherited finding). Scanning only `termination.py` would have left that
+    exact regression class covered by behavioural scenarios alone — this
+    guard makes it two-layered in practice, not just in description.
     """
 
     _FORBIDDEN_INT_LITERALS = frozenset({6, 8, 300, 4})
+    _SCANNED_MODULES = (TERMINATION_MODULE_PATH, CORE_MODULE_PATH)
 
-    def test_termination_module_contains_no_forbidden_policy_literals(self):
-        tree = ast.parse(TERMINATION_MODULE_PATH.read_text(encoding="utf-8"))
-        found = {
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and isinstance(node.value, int)
-            and not isinstance(node.value, bool)
-            and node.value in self._FORBIDDEN_INT_LITERALS
-        }
-        assert found == set(), (
-            f"termination.py contains forbidden hard-coded policy literal(s) {sorted(found)} "
-            "— every termination number must be read off TerminationPolicy, never redefined "
-            "in this module."
-        )
+    def test_no_scanned_module_contains_forbidden_policy_literals(self):
+        for path in self._SCANNED_MODULES:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            found = {
+                node.value
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Constant)
+                and isinstance(node.value, int)
+                and not isinstance(node.value, bool)
+                and node.value in self._FORBIDDEN_INT_LITERALS
+            }
+            assert found == set(), (
+                f"{path.name} contains forbidden hard-coded policy literal(s) {sorted(found)} "
+                "— every termination number must be read off TerminationPolicy, never "
+                "redefined in runner code."
+            )
 
 
 class TestSharedCheckpointMechanism:
@@ -438,6 +450,49 @@ class TestWallClockPausesAcrossWaitingApproval:
         elapsed = accumulate_running_seconds(elapsed, delta_seconds=15.0)
         assert elapsed == 35.0  # 20.0 (pre-pause) + 15.0 (post-resume); the 10,000s never counted
         assert wall_clock.value == 10_035.0  # real elapsed time was far larger than running time
+
+
+class TestWallClockOvershootBound:
+    """Meta review follow-up on #1120: `state.running_seconds_elapsed` is
+    only updated once, after a full iteration completes — the pre-tool
+    checkpoint within that iteration reads a stale, pre-iteration value, so
+    an iteration already in progress can run past `wall_clock_timeout_s`
+    before the next checkpoint notices. Review's framing ("unbounded") was
+    too strong: one iteration's overshoot is bounded by
+    `LLMConfig.request_timeout_seconds` plus the sum of the `ToolSpec.timeout_seconds`
+    of every tool call that iteration's turn dispatches — this test computes
+    that bound from the *real* `LLMConfig` default and the *real* Optimize
+    Product tool registry (never a value copied by hand), so a future change
+    to any tool's declared timeout — or the LLM default — fails this test
+    instead of silently making `termination.py`'s documented figure stale.
+    """
+
+    def test_the_documented_worst_case_bound_matches_the_real_registry_and_llm_default(self):
+        assert LLMConfig().request_timeout_seconds == DEFAULT_REQUEST_TIMEOUT_SECONDS
+        assert DEFAULT_REQUEST_TIMEOUT_SECONDS == 30.0
+
+        registry = _full_registry()
+        tool_names = {
+            tool_name for step in OPTIMIZE_PRODUCT_PLAYBOOK.steps for tool_name in step.tools
+        }
+        total_tool_timeout_seconds = sum(
+            registry.get(tool_name).timeout_seconds for tool_name in tool_names
+        )
+
+        # Every registered Optimize Product tool, summed -- the worst case
+        # is a single turn whose blocks call all six.
+        assert total_tool_timeout_seconds == 105
+
+        per_iteration_overshoot_ceiling = (
+            DEFAULT_REQUEST_TIMEOUT_SECONDS + total_tool_timeout_seconds
+        )
+        assert per_iteration_overshoot_ceiling == 135.0
+
+        worst_case_total_duration = (
+            OPTIMIZE_PRODUCT_TERMINATION_POLICY.wall_clock_timeout_s
+            + per_iteration_overshoot_ceiling
+        )
+        assert worst_case_total_duration == 435.0  # 300s budget + 135s worst-case overshoot
 
 
 # --- Iteration gate / extension arithmetic ------------------------------------
