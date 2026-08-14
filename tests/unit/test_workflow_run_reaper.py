@@ -10,6 +10,8 @@ AC -> test map:
   not re-asserted here to avoid a duplicate authority.
 - expired waiting_approval -> confirmation_expired/cancelled ->
   test_waiting_approval_run_past_4h_is_reaped_as_confirmation_expired
+- approval expiry is liveness-INDEPENDENT (ADR-073 design, not accidental) ->
+  test_waiting_approval_run_past_4h_is_reaped_even_with_a_live_task
 - explicit trap: never tool_error_unrecoverable ->
   test_reaper_module_never_references_tool_error_unrecoverable,
   test_reap_stop_reasons_are_limited_to_worker_lost_and_confirmation_expired
@@ -30,6 +32,8 @@ AC -> test map:
   (this phase's architect lock) ->
   test_reap_stale_threshold_moves_with_injected_policy_not_the_default,
   test_reap_approval_threshold_moves_with_injected_policy_not_the_default
+- liveness probe matches by keyword arg too, not positional-only ->
+  test_default_has_live_task_true_when_matching_active_task_by_keyword_arg
 
 Time is always injected (`now=`), and the Celery liveness probe is always
 injected (`has_live_task=`) except in the small dedicated section testing
@@ -292,6 +296,31 @@ async def test_waiting_approval_run_past_4h_is_reaped_as_confirmation_expired(
     assert len(events) == 1
     assert events[0].payload["stop_reason"] == "confirmation_expired"
     assert events[0].payload["status"] == "cancelled"
+
+
+async def test_waiting_approval_run_past_4h_is_reaped_even_with_a_live_task(session, shop, product):
+    """Approval expiry is liveness-INDEPENDENT (ADR-073's design, not an
+    accident): a seller's 4h approval window expires on time alone, whether
+    or not a worker happens to be alive has no bearing on whether the
+    seller answered. Every other waiting_approval test in this file uses
+    `_never_live`, so nothing else proves the closure does not accidentally
+    gate on liveness the way the stale-run closure legitimately does --
+    this is that proof. A mutation that adds a `has_live_task` gate to
+    `_reap_expired_waiting_approval` must fail this test."""
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="waiting_approval",
+        waiting_approval_since=NOW - timedelta(seconds=APPROVAL_THRESHOLD_S + 1),
+    )
+
+    result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_always_live)
+
+    assert result.expired_approvals_reaped == (run.id,)
+    reloaded = await _reload(session, run)
+    assert reloaded.status == WorkflowRunStatus.CANCELLED.value
+    assert reloaded.stop_reason == StopReason.CONFIRMATION_EXPIRED.value
 
 
 async def test_waiting_approval_run_with_no_waiting_approval_since_is_skipped(
@@ -657,6 +686,38 @@ def test_default_has_live_task_true_when_matching_active_task_found(monkeypatch)
             return None
 
     monkeypatch.setattr(celery_app.control, "inspect", lambda: _MatchingInspect())
+
+    assert reaper._default_has_live_task(run_id) is True
+    assert reaper._default_has_live_task(uuid.uuid4()) is False
+
+
+def test_default_has_live_task_true_when_matching_active_task_by_keyword_arg(monkeypatch):
+    """No caller in this repo enqueues `run_agent_workflow`/`resume_agent_workflow`
+    by keyword today, but matching `args[0]` only would read a future
+    `enqueue(run_id=...)` call as "no live task" and expose a genuinely
+    live run to a false reap -- the costly failure direction. This proves
+    the keyword path is checked too, not just positional."""
+    run_id = uuid.uuid4()
+
+    class _KeywordMatchingInspect:
+        def active(self):
+            return {
+                "worker1@host": [
+                    {
+                        "name": "juli_backend.run_agent_workflow",
+                        "args": [],
+                        "kwargs": {"run_id": str(run_id)},
+                    }
+                ]
+            }
+
+        def reserved(self):
+            return None
+
+        def scheduled(self):
+            return None
+
+    monkeypatch.setattr(celery_app.control, "inspect", lambda: _KeywordMatchingInspect())
 
     assert reaper._default_has_live_task(run_id) is True
     assert reaper._default_has_live_task(uuid.uuid4()) is False
