@@ -10,5 +10,6 @@ test_beat_schedule_tasks_are_registered pins this.
 from juli_backend.workers.tasks import (
     analytics_backfill_topup,  # noqa: F401
     cdp_batch_reconcile,  # noqa: F401
+    impact_reader,  # noqa: F401
     mock_analytics_reconcile,  # noqa: F401
 )

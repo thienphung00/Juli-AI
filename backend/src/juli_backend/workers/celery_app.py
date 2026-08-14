@@ -41,6 +41,15 @@ celery_app.conf.update(
             "task": "juli_backend.analytics_backfill_topup",
             "schedule": crontab(hour=2, minute=0),
         },
+        # ADR-077 decision 5 — Daily impact-reader beat task (#1044).
+        # Scheduled strictly after analytics-backfill-topup (hour=2) so it reads
+        # analytics_performance_intervals partitions that day's top-up has already
+        # refreshed. Scans terminal listing.optimize_product executions whose
+        # T+7/T+14 has elapsed and writes impact_readings rows.
+        "daily-impact-reader": {
+            "task": "juli_backend.daily_impact_reader",
+            "schedule": crontab(hour=3, minute=0),
+        },
     },
 )
 

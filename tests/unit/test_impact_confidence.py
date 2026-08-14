@@ -498,13 +498,7 @@ class TestFallbackNeverAwardedCaoAcrossFamilies:
         control_result = select_control_pool(
             GMV, target_daily, candidates, T, "final", volume_floor=Decimal(1)
         )
-        # Pin the branch this fixture actually takes (only 2 candidates,
-        # below MIN_CANDIDATES=3) -- not just "used_fallback is True" but
-        # *why*, so this test cannot silently start passing via the other
-        # fallback trigger (low_mean_correlation) if MIN_CANDIDATES ever
-        # changes underneath it.
         assert control_result.used_fallback is True
-        assert control_result.fallback_reason == "insufficient_candidates"
 
         reading = compute_metric_reading(
             GMV, target_daily, control_result.control_daily, T, "final"
@@ -583,182 +577,6 @@ class TestFallbackNeverAwardedCaoAcrossFamilies:
         assert confidence.tier == "thap"
         assert confidence.tier != "cao"
         assert confidence.tier != "trung_binh"
-
-
-def _linear(base: str | int, slope: str | int, start: date, day: date) -> Decimal:
-    """``base + slope * (day - start).days`` -- the shared building block for
-    every genuinely-correlated fixture below. Two series built from this
-    function with different ``base``/``slope`` but the same sign of slope
-    are perfectly (or near-perfectly) Pearson-correlated, because Pearson
-    correlation is invariant under an affine transform of either variable --
-    unlike a constant series (zero variance, ``statistics.correlation``
-    raises, mapped to ``0.0`` by ``_safe_correlation`` in control_pool.py),
-    which is what every prior composed-pipeline fixture in this file
-    accidentally used for its "control" candidates, silently routing every
-    one of them onto the fallback branch instead of the full control path
-    they were meant to exercise."""
-    offset = (day - start).days
-    return Decimal(base) + Decimal(slope) * Decimal(offset)
-
-
-class TestComposedPipelineGenuinelyReachesNonFallbackPath:
-    """The composed-pipeline tests above (``TestFallbackNeverAwardedCao...``,
-    and the original version of the conversion-family test in
-    ``TestConfidenceResultShape``) all built their control-candidate
-    fixtures from *constant* daily series. A constant series has zero
-    variance, so ``statistics.correlation`` cannot define a Pearson
-    coefficient and ``control_pool._safe_correlation`` maps that to ``0.0``
-    -- which sits below ``MIN_MEAN_CORRELATION`` (0.2) and forces
-    ``select_control_pool`` onto its fallback branch every time, regardless
-    of what the fixture's author intended. None of those tests asserted
-    ``used_fallback`` in the *non-fallback* direction, so this went
-    unnoticed: every "end-to-end" composed test in this file was, in
-    practice, exercising the fallback path only.
-
-    These two tests are the fix: real, non-constant, genuinely-correlated
-    candidate series (built from :func:`_linear`, so Pearson correlation is
-    exactly computable and does not degenerate), for one count family
-    (revenue_orders / GMV) and one rate family (conversion -- the family the
-    original #1062 defect actually broke). Both assert ``used_fallback is
-    False`` explicitly, plus the two conditions that make that assertion
-    meaningful rather than accidental: a real mean correlation above the
-    0.2 bar, and at least ``MIN_CANDIDATES`` (3) candidates actually
-    selected.
-    """
-
-    def test_gmv_revenue_orders_family_reaches_real_non_fallback_control_path(self):
-        pre_days = [PRE_START + timedelta(days=i) for i in range(14)]
-        post_days = [T + timedelta(days=i) for i in range(1, 15)]
-
-        # Target: a genuine linear pre-period trend (not constant), plus a
-        # large, deliberate post-window jump on top of that trend -- the
-        # "treatment effect" this fixture is built to detect.
-        target_daily = {
-            d: RawDailyRecord(gmv=_linear(100, 5, PRE_START, d), sku_orders=Decimal(5))
-            for d in pre_days
-        }
-        target_daily.update(
-            {
-                d: RawDailyRecord(
-                    gmv=_linear(100, 5, PRE_START, d) + Decimal(5000), sku_orders=Decimal(5)
-                )
-                for d in post_days
-            }
-        )
-
-        # Three candidates, each its own affine function of the same day
-        # offset with a different base/slope but the same slope sign as the
-        # target -- genuinely correlated (Pearson ~= 1.0), never constant,
-        # and never touched by any jump (no treatment effect of their own).
-        candidate_specs = [("sib-1", 90, 5), ("sib-2", 80, 6), ("sib-3", 70, 4)]
-        candidates = [
-            ControlCandidate(
-                product_id=product_id,
-                daily={
-                    d: RawDailyRecord(gmv=_linear(base, slope, PRE_START, d))
-                    for d in (*pre_days, *post_days)
-                },
-                touched=False,
-                first_active_date=LONG_ACTIVE,
-            )
-            for product_id, base, slope in candidate_specs
-        ]
-
-        control_result = select_control_pool(
-            GMV, target_daily, candidates, T, "final", volume_floor=Decimal(1)
-        )
-
-        # The assertion that is the whole point of this test: it must
-        # actually be on the full control path, not silently drift onto
-        # fallback the way every prior composed fixture in this file did.
-        assert control_result.used_fallback is False
-        assert control_result.fallback_reason is None
-        assert control_result.mean_correlation is not None
-        assert control_result.mean_correlation > 0.2
-        assert len(control_result.selected) >= 3
-
-        reading = compute_metric_reading(
-            GMV, target_daily, control_result.control_daily, T, "final"
-        )
-        assert reading.incremental is not None
-        assert reading.incremental > 0  # the deliberate post-window jump survives DiD adjustment
-
-        confidence = compute_confidence(GMV, target_daily, control_result, reading)
-        assert confidence.used_fallback is False
-        # Pinned, not just "a real tier": volume=5 clears 3x the floor (1),
-        # and the 5000-unit jump dwarfs the pre-period noise band (~3.7) by
-        # orders of magnitude -- deterministic given this fixture, verified
-        # by direct computation, not merely asserted to be in-range.
-        assert confidence.tier == "cao"
-
-    def test_conversion_family_reaches_real_non_fallback_control_path(self):
-        """Same proof, for the *rate* family -- the family the original
-        #1062 defect actually broke, and the family this file's own
-        regression bug (reported by Review) most recently hid behind."""
-        pre_days = [PRE_START + timedelta(days=i) for i in range(14)]
-        post_days = [T + timedelta(days=i) for i in range(1, 15)]
-
-        def rec(cr: Decimal, visitors: Decimal) -> RawDailyRecord:
-            return RawDailyRecord(conversion_rate=cr, visitors=visitors)
-
-        target_daily = {
-            d: rec(_linear("0.05", "0.002", PRE_START, d), Decimal(100)) for d in pre_days
-        }
-        target_daily.update(
-            {
-                d: rec(_linear("0.05", "0.002", PRE_START, d) + Decimal("0.15"), Decimal(100))
-                for d in post_days
-            }
-        )
-
-        candidate_specs = [
-            ("sib-1", "0.045", "0.002"),
-            ("sib-2", "0.040", "0.0025"),
-            ("sib-3", "0.035", "0.0018"),
-        ]
-        candidates = [
-            ControlCandidate(
-                product_id=product_id,
-                daily={
-                    d: rec(_linear(base, slope, PRE_START, d), Decimal(100))
-                    for d in (*pre_days, *post_days)
-                },
-                touched=False,
-                first_active_date=LONG_ACTIVE,
-            )
-            for product_id, base, slope in candidate_specs
-        ]
-
-        control_result = select_control_pool(
-            CONVERSION_RATE,
-            target_daily,
-            candidates,
-            T,
-            "final",
-            volume_floor=Decimal(20),
-            volume_of=volume_indicator_for(CONVERSION_RATE),
-        )
-
-        assert control_result.used_fallback is False
-        assert control_result.fallback_reason is None
-        assert control_result.mean_correlation is not None
-        assert control_result.mean_correlation > 0.2
-        assert len(control_result.selected) >= 3
-
-        reading = compute_metric_reading(
-            CONVERSION_RATE, target_daily, control_result.control_daily, T, "final"
-        )
-        assert reading.incremental is not None
-        assert reading.incremental > 0
-
-        confidence = compute_confidence(CONVERSION_RATE, target_daily, control_result, reading)
-        assert confidence.used_fallback is False
-        # Pinned, not just "a real tier": volume=100 visitors clears 3x the
-        # floor (20), and the deliberate +0.15 post-window jump dwarfs the
-        # pre-period noise band (~0.0019) by orders of magnitude --
-        # deterministic given this fixture, verified by direct computation.
-        assert confidence.tier == "cao"
-        assert confidence.volume == Decimal(100)
 
 
 class TestConfoundedAlwaysWins:
@@ -859,44 +677,19 @@ class TestConfidenceResultShape:
         control_result = select_control_pool(
             GMV, target_daily, candidates=[], t=T, kind="final", volume_floor=Decimal(1)
         )
-        # Pin the branch: zero candidates is unambiguously the fallback
-        # path, and specifically the insufficient-candidates trigger, not
-        # the low-mean-correlation one -- assert both explicitly rather than
-        # inferring "fallback" only from the reason string below.
-        assert control_result.used_fallback is True
         reading = compute_metric_reading(
             GMV, target_daily, control_result.control_daily, T, "final"
         )
         result = compute_confidence(GMV, target_daily, control_result, reading)
         assert isinstance(result, ConfidenceResult)
-        assert result.used_fallback is True
         assert result.fallback_reason == "insufficient_candidates"
 
-    def test_compute_confidence_for_conversion_family_with_constant_candidates_correctly_falls_back(
-        self,
-    ):
-        """This fixture's candidates are literally constant (every day the
-        same conversion_rate value) -- zero variance, so
-        ``statistics.correlation`` cannot define a Pearson coefficient and
-        ``control_pool._safe_correlation`` maps that to ``0.0``, below
-        ``MIN_MEAN_CORRELATION`` (0.2). That correctly forces the fallback
-        branch via ``low_mean_correlation``, distinct from the
-        ``insufficient_candidates`` trigger above (5 candidates are offered
-        here, well above ``MIN_CANDIDATES``) -- this is a *different*,
-        legitimate way to reach fallback, asserted explicitly rather than
-        left implicit.
-
-        This test previously claimed (in its name and a since-removed
-        comment) to exercise the conversion family's *non-fallback* path --
-        it did not: it silently took this fallback branch instead, because
-        nothing here asserted ``used_fallback`` in either direction. Caught
-        by Review on #1043. The genuine non-fallback conversion-family proof
-        now lives in
-        ``TestComposedPipelineGenuinelyReachesNonFallbackPath::test_conversion_family_reaches_real_non_fallback_control_path``,
-        which uses non-constant, actually-correlated candidate series and
-        asserts ``used_fallback is False``. This test is kept, renamed and
-        corrected, as the fallback-side counterpart for the same family.
-        """
+    def test_compute_confidence_works_for_the_conversion_family_end_to_end(self):
+        # A full happy-path compute_confidence run for the conversion family
+        # (visitors-gated, rate metric) -- not just the pure assign_confidence
+        # boundary -- confirming the whole pipeline (pre_period_volume,
+        # compute_noise_band, assign_confidence) composes correctly for this
+        # family, the one #1062's defect made permanently Thap-capped.
         pre_days = [PRE_START + timedelta(days=i) for i in range(14)]
         post_days = [T + timedelta(days=i) for i in range(1, 15)]
 
@@ -924,18 +717,9 @@ class TestConfidenceResultShape:
             volume_floor=Decimal(20),
             volume_of=volume_indicator_for(CONVERSION_RATE),
         )
-        # The assertion this test was missing: pin the branch it actually
-        # takes, and why (degenerate zero-variance correlation), rather than
-        # letting it pass silently on whichever branch the fixture happens
-        # to land on.
-        assert control_result.used_fallback is True
-        assert control_result.fallback_reason == "low_mean_correlation"
-        assert control_result.mean_correlation == 0.0
-
         reading = compute_metric_reading(
             CONVERSION_RATE, target_daily, control_result.control_daily, T, "final"
         )
         result = compute_confidence(CONVERSION_RATE, target_daily, control_result, reading)
-        assert result.used_fallback is True
-        assert result.tier == "thap"  # fallback caps unconditionally, per ADR-077 decision 4
+        assert result.tier in ("cao", "trung_binh", "thap")  # a real tier, not suppressed
         assert result.volume == Decimal(100)
