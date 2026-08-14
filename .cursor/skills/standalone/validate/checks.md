@@ -5,6 +5,35 @@ Each gate is a single Python script under
 on FAIL. The validation artifact's `checks[]` array has one entry per gate
 listed below, in this order.
 
+## Blocking vs advisory (issue #1076)
+
+Every gate is one of two classes, recorded per-check as `classification` in
+`checks[]`:
+
+- **Blocking** (the default — every gate below except the one listed as
+  advisory) — issue-scoped and slice-author-actionable. A FAIL here fails the
+  artifact's `status` and sets `readyForMerge: false`.
+- **Advisory** — a repo-health signal, not something the author of the issue
+  under review can act on. A FAIL here still appears in full in `checks[]`
+  (real `PASS`/`FAIL` and `details`, nothing hidden) and is additionally
+  recorded in the artifact's `advisoryFailures[]`, but it never flips
+  `status` or `readyForMerge`.
+
+The advisory set is a single named constant in
+[`generate_validation_artifact.py`](../../../agent-runtime/scripts/ci/generate_validation_artifact.py)
+(`ADVISORY_CHECKS`), not a predicate or config key, and it contains exactly
+one gate today: **`unpushed_issue_work`**. It is advisory because it is a
+repo-wide gate — its own docstring says so — that scans every branch and
+worktree in the repo, not just the issue under review; a slice author cannot
+fix someone else's stale branch from inside their own worktree, and
+remediating it (deleting/landing other people's branches) is explicitly out
+of scope for a Review agent. Before this split, that one repo-wide gate made
+**every** issue's validation FAIL for reasons no author could act on.
+`tests/unit/test_generate_validation_artifact.py` pins `ADVISORY_CHECKS` to
+exactly `{"unpushed_issue_work"}` — adding or removing a member fails that
+test and forces a human to look. No other gate's classification or logic
+changed.
+
 ## 1. `review_artifact_present`
 
 **Script:** [`agent-runtime/scripts/validate/check_review_artifact.py`](../../../agent-runtime/scripts/validate/check_review_artifact.py)
@@ -219,9 +248,14 @@ Post-deploy, link incidents via `productionOutcome.incidents[].linkedFinding`.
 
 **Skipped when:** no ML modules touched.
 
-## 14. `unpushed_issue_work`
+## 14. `unpushed_issue_work` (advisory)
 
 **Script:** [`agent-runtime/scripts/validate/check_unpushed_issue_work.py`](../../../agent-runtime/scripts/validate/check_unpushed_issue_work.py)
+
+**Classification: advisory** (see "Blocking vs advisory" above) — a FAIL here
+is fully reported in `checks[]` and `advisoryFailures[]` but never fails
+`status` or blocks merge. The check itself is unchanged: it still scans
+exactly what it scanned before this classification existed.
 
 **Repo-wide, not issue-scoped** — unlike the other gates, this one ignores the
 issue under review and scans every local branch and `.worktrees/` entry. It
@@ -254,9 +288,12 @@ checks), `--repo-root`.
 
 | Review status | Blocks merge? |
 |---------------|---------------|
-| `PASS` | No (when all 13 checks pass) |
+| `PASS` | No (when all blocking checks pass — see "Blocking vs advisory" above) |
 | `PASS_WITH_WARNINGS` | Yes until **every** WARNING has per-finding ack + global signoffs |
 | `FAIL` | Yes — unless valid `overriddenMerge` clears overridable mandatory fails |
+
+A FAIL on the sole advisory check (`unpushed_issue_work`) never blocks merge
+by itself; it is reported in `advisoryFailures[]` instead.
 
 **Per-finding rule:** All WARNING findings must pass `finding_is_acknowledged()`
 individually; one unacked finding blocks the entire review (no partial merge).

@@ -208,6 +208,15 @@ Validate → Ship + Meta objective-quality signal.
 `readyForShip` mirrors `readyForMerge` when both are present; CI continues to read
 `readyForMerge`.
 
+**Blocking vs advisory gates (issue #1076):** each entry in `checks[]` carries
+a `classification` of `"blocking"` or `"advisory"`. `status` and
+`readyForMerge` are derived from blocking gates only. Advisory gates (today,
+exactly `unpushed_issue_work` — a repo-wide, not issue-scoped, signal) still
+report their real `PASS`/`FAIL` in `checks[]` and, when failing, are also
+listed in `advisoryFailures[]`. See
+[`.cursor/skills/standalone/validate/checks.md`](../../.cursor/skills/standalone/validate/checks.md)
+for the full rationale and the pinned test.
+
 ### harness-optimization-artifact
 
 Meta → Harness config. Emitted after every complete agent-phase run (Agentic Version 1 automation).
