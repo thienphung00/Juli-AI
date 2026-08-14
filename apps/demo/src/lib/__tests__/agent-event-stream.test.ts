@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import * as contracts from "@juli/contracts";
 import { GOLDEN_AGENT_EVENTS } from "@juli/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS,
   AgentEventStreamClient,
   AgentEventStreamHttpError,
   AgentEventStreamNetworkError,
@@ -17,6 +19,7 @@ import {
   parseSseFrame,
   type AgentEventStreamCloseReason,
   type AgentEventStreamError,
+  type AgentEventStreamHandlers,
 } from "../agent-event-stream";
 
 const RUN_ID = "11111111-1111-4111-8111-111111111111";
@@ -361,6 +364,63 @@ describe("AgentEventStreamClient", () => {
     expect(captured).not.toBeInstanceOf(AgentEventStreamHttpError);
   });
 
+  it("gives up after the configured maximum reconnect attempts and reports a terminal failure, instead of retrying a persistently-failing connection forever", async () => {
+    // Every attempt fails the same way (a deterministically-failing
+    // stream, e.g. the poison-frame scenario Review's mutation surfaced
+    // as a 5s test timeout when retries were unbounded).
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("this endpoint never comes back");
+    }) as unknown as typeof fetch;
+
+    const errors: Array<{ error: AgentEventStreamError; attempt: number; willRetry: boolean }> = [];
+    let closeReason: AgentEventStreamCloseReason | undefined;
+
+    const client = new AgentEventStreamClient(
+      { runId: RUN_ID, token: TOKEN, fetchImpl, maxReconnectAttempts: 3, scheduleReconnect: (_d, run) => run() },
+      {
+        onEvent: () => {},
+        onError: (error, ctx) => errors.push({ error, attempt: ctx.attempt, willRetry: ctx.willRetry }),
+        onClose: (reason) => {
+          closeReason = reason;
+        },
+      },
+    );
+
+    await client.start();
+
+    // 1 initial attempt + 3 retries = 4 fetch calls, then it stops.
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(errors).toHaveLength(4);
+    expect(errors.map((e) => e.attempt)).toEqual([1, 2, 3, 4]);
+    expect(errors.slice(0, 3).every((e) => e.willRetry)).toBe(true);
+    expect(errors[3]!.willRetry).toBe(false);
+    expect(closeReason).toBe("exhausted-reconnect-attempts");
+  });
+
+  it("defaults to a finite number of reconnect attempts (AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS), not unlimited", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("this endpoint never comes back");
+    }) as unknown as typeof fetch;
+
+    let closeReason: AgentEventStreamCloseReason | undefined;
+
+    // No maxReconnectAttempts configured -- exercising the module's own
+    // default. reconnectDelayMs is overridden to 0 purely so the test
+    // doesn't have to sit through real backoff; the attempt *count* is
+    // the module's default, unmodified.
+    const client = new AgentEventStreamClient(
+      { runId: RUN_ID, token: TOKEN, fetchImpl, reconnectDelayMs: 0, scheduleReconnect: (_d, run) => run() },
+      { onEvent: () => {}, onClose: (reason) => (closeReason = reason) },
+    );
+
+    await client.start();
+
+    expect(AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS).toBeGreaterThan(0);
+    expect(Number.isFinite(AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS)).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(AGENT_EVENT_STREAM_DEFAULT_MAX_RECONNECT_ATTEMPTS + 1);
+    expect(closeReason).toBe("exhausted-reconnect-attempts");
+  });
+
   it("stops the read loop cleanly on AbortController.abort(): no further callback fires, and abort itself raises no unhandled rejection", async () => {
     const unhandled: unknown[] = [];
     const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
@@ -444,6 +504,49 @@ describe("AgentEventStreamClient", () => {
     expect(closeReason).toBe("aborted");
   });
 
+  it("releases the ReadableStream reader lock when the stream is aborted mid-read (no leaked reader)", async () => {
+    // Spies on the real global ReadableStreamDefaultReader -- this is the
+    // exact class response.body.getReader() returns, so it observes every
+    // releaseLock() call the implementation makes, without needing the
+    // implementation to expose its internal reader.
+    const releaseLockSpy = vi.spyOn(ReadableStreamDefaultReader.prototype, "releaseLock");
+
+    try {
+      let resolveFirstEvent!: () => void;
+      const firstEventReceived = new Promise<void>((resolve) => {
+        resolveFirstEvent = resolve;
+      });
+
+      const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const signal = init?.signal ?? null;
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(makeFrame(0, "workflow.started")));
+            signal?.addEventListener("abort", () => {
+              controller.error(new DOMException("The operation was aborted.", "AbortError"));
+            });
+          },
+        });
+        return new Response(stream, { status: 200 });
+      }) as unknown as typeof fetch;
+
+      const callsBeforeThisStream = releaseLockSpy.mock.calls.length;
+
+      const { abort, done } = openAgentEventStream(
+        { runId: RUN_ID, token: TOKEN, fetchImpl },
+        { onEvent: () => resolveFirstEvent() },
+      );
+
+      await firstEventReceived;
+      abort();
+      await done;
+
+      expect(releaseLockSpy.mock.calls.length).toBeGreaterThan(callsBeforeThisStream);
+    } finally {
+      releaseLockSpy.mockRestore();
+    }
+  });
+
   it("surfaces a malformed/unrecognized event_type as an inspectable parse error and keeps streaming instead of choking", async () => {
     const reservedDeltaFrame = makeFrame(0, "assistant.text.delta", { text_delta: "hi" });
     const notJsonFrame = "id: 1\nevent: workflow.status\ndata: { not valid json\n\n";
@@ -485,6 +588,60 @@ describe("AgentEventStreamClient", () => {
     expect(events).toEqual([2]);
     // ...but the read loop kept going and reached the clean terminal close.
     expect(closeReason).toBe("terminal-event");
+  });
+
+  it("binds to @juli/contracts's validateAgentEvent by identity, not by re-implementing an equivalent parser locally", async () => {
+    // A source-text scan (see "module dependency hygiene" below) can only
+    // see that a `from "@juli/contracts"` import statement exists -- it
+    // cannot see whether the code that actually runs at parse time is the
+    // literal imported function or a separately-declared, structurally
+    // faithful lookalike (TypeScript's type system is structural, so a
+    // faithful duplicate type-checks either way). Spying on the real
+    // export binds this assertion to *value* identity instead: a
+    // locally-reimplemented validator, however faithful, is a different
+    // function object and would never trigger this spy.
+    const validateSpy = vi.spyOn(contracts, "validateAgentEvent");
+    try {
+      const { fetchImpl } = fetchMockSequence([
+        () =>
+          new Response(scriptedStream([{ chunk: makeFrame(0, "workflow.completed") }]), { status: 200 }),
+      ]);
+
+      const events: number[] = [];
+      const client = new AgentEventStreamClient(
+        { runId: RUN_ID, token: TOKEN, fetchImpl },
+        { onEvent: (event) => events.push(event.sequence_number) },
+      );
+
+      await client.start();
+
+      expect(events).toEqual([0]);
+      expect(validateSpy).toHaveBeenCalled();
+      expect(validateSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      validateSpy.mockRestore();
+    }
+  });
+
+  it("accepts @juli/contracts's GOLDEN_AGENT_EVENTS directly through onEvent -- a type-level smoke test alongside the identity spy above", () => {
+    const received: contracts.AgentEvent[] = [];
+    const handlers: AgentEventStreamHandlers = {
+      onEvent: (event) => {
+        received.push(event);
+      },
+    };
+
+    // No cast, no `as AgentEvent` escape hatch: every golden fixture typed
+    // against @juli/contracts's own AgentEvent flows straight into the
+    // handler's parameter type. (This alone would not catch a faithful
+    // structural duplicate -- only the identity spy above does that -- but
+    // it does catch the kind of divergent local redeclaration Review's
+    // mutation produced, the same way tsc caught it incidentally there.)
+    for (const event of Object.values(contracts.GOLDEN_AGENT_EVENTS)) {
+      handlers.onEvent(event);
+    }
+
+    expect(received).toHaveLength(Object.keys(contracts.GOLDEN_AGENT_EVENTS).length);
   });
 });
 
