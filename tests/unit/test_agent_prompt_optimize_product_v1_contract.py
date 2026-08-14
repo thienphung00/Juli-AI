@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from juli_backend.services.agent.sanitize import estimate_tokens, load_banned_patterns
+from juli_backend.services.agent.sanitize import load_banned_patterns
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROMPT_PATH = (
@@ -68,37 +68,27 @@ PROHIBITION_KEYWORDS: dict[str, str] = {
     "Prohibition 7": "honestly",
 }
 
-# Reference-proven raw budget (ADR-072 d.6, #1037/#1038/#1039 W2-A run):
-# with `{playbook}` left un-rendered, the released prose measured 2,687
-# proxy tokens and composed (playbook slot filled by the reference
-# Playbook) to 2,967 -- an observed render cost of 2,967 - 2,687 = 280
-# tokens for the `{playbook}` slot's content. `estimate_tokens()` is this
-# repo's stdlib, tiktoken-free proxy (backend/src/juli_backend/services/
-# agent/sanitize/caps.py); ADR-072 d.6 says "tiktoken-measured" but
-# `tiktoken` is an undeclared dependency (not in backend/pyproject.toml or
-# constraints.txt), so this test measures with the proxy and records the
-# divergence here rather than silently swapping in a different measurement.
+# ---------------------------------------------------------------------------
+# Token budget: RETIRED here (issue #1039 acceptance criterion).
 #
-# The ceiling below is chosen so this file cannot pass a raw prose that
-# would compose over budget, using the reference's own observed render
-# cost as the only number available from outside #1038's scope (this
-# file cannot run `compose()` itself):
+# This file used to carry a *proxy* raw-file budget test
+# (`RAW_PROMPT_TOKEN_CEILING = 2720`, reserving `3000 - 280` against an
+# assumed `{playbook}` render cost of 280 tokens) as a stand-in for the
+# real gate, because `compose()` (#1038) and the typed `Playbook` (#1036)
+# did not exist yet when this file was written.
 #
-#     reserved budget   = ADR-072 d.6 ceiling - observed render cost
-#                        = 3,000 - 280
-#                        = 2,720
-#     composed total at
-#     the ceiling        = ceiling + observed render cost
-#                        = 2,720 + 280
-#                        = 3,000  (at, not over, the hard limit)
-#
-# 2,720 is the loosest ceiling that still guarantees this invariant --
-# anything higher would let a raw file compose over 3,000 while this test
-# still passed, which is worse than no ceiling because it reads as
-# protection. Against the released v1.md's actual 2,687, this leaves 33
-# tokens of headroom: tight, but v1 is immutable (ADR-072 d.4) and not
-# expected to grow, so no further margin is needed or safe to add.
-RAW_PROMPT_TOKEN_CEILING = 2720
+# Both now exist. Issue #1039's budget gate
+# (`tests/unit/test_agent_prompt_budget_gate.py`) measures the **composed**
+# prompt -- `compose("optimize_product_2", 1)`'s actual output -- in a
+# single `estimate_tokens()` call against the real 3,000-token ADR-072 d.6
+# ceiling, superseding this proxy. The proxy is removed here, in the same
+# change that lands the real gate, rather than left running alongside it:
+# two independently-maintained ceilings on the same file can drift apart
+# and disagree, which is worse than one. For the record: the real composed
+# prompt measures 2,967 tokens (raw v1.md 2,687 + 280 rendered playbook),
+# 33 tokens of headroom under 3,000 -- see the budget gate module's
+# docstring for the full accounting.
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
@@ -389,15 +379,8 @@ def test_worked_example_has_zero_avoid_aliases_from_dictionary(prompt_text, dict
 
 
 # ---------------------------------------------------------------------------
-# Token budget (ADR-072 d.6): raw file, `{playbook}` left un-rendered, must
-# leave realistic headroom below 3,000 once the playbook slot is filled.
+# Token budget (ADR-072 d.6): RETIRED here -- see the module-level note
+# above ("Token budget: RETIRED here"). The real gate is
+# tests/unit/test_agent_prompt_budget_gate.py, measuring compose()'s
+# output in a single estimate_tokens() call against the 3,000 ceiling.
 # ---------------------------------------------------------------------------
-
-
-def test_raw_prompt_token_estimate_leaves_headroom_for_playbook_rendering(prompt_text):
-    estimate = estimate_tokens(prompt_text)
-    assert estimate <= RAW_PROMPT_TOKEN_CEILING, (
-        f"raw v1.md estimates to {estimate} proxy tokens, over the "
-        f"{RAW_PROMPT_TOKEN_CEILING}-token ceiling reserved to leave "
-        "headroom for the {playbook} slot's rendered content"
-    )
