@@ -191,8 +191,11 @@ def _sku_price(sku: Mapping[str, Any]) -> dict[str, Any]:
 
 
 class GetProductInformationInput(BaseModel):
-    """No fields. The bound product identity comes from `ProductToolContext`,
-    never from model input (ADR-070 decision 1)."""
+    # Rationale for the empty schema (bound product identity, never model
+    # input) is documented in this module's docstring, "Context-bound
+    # identity" section — kept out of the model-facing docstring below so it
+    # never ships into the LLM's context (issue #1014).
+    """No parameters — reads the product already selected for this run."""
 
 
 class GetProductInformationOutput(BaseModel):
@@ -263,8 +266,9 @@ GET_PRODUCT_INFORMATION_SPEC = ToolSpec(
 
 
 class GetSeoKeywordsInput(BaseModel):
-    """No fields. The bound product identity comes from `ProductToolContext`,
-    never from model input (ADR-070 decision 1)."""
+    # Rationale: see module docstring, "Context-bound identity" section.
+    """No parameters — reads SEO keyword data for the product already
+    selected for this run."""
 
 
 class GetSeoKeywordsOutput(BaseModel):
@@ -349,8 +353,9 @@ GET_SEO_KEYWORDS_SPEC = ToolSpec(
 
 
 class CheckProductStatusInput(BaseModel):
-    """No fields. The bound product identity comes from `ProductToolContext`,
-    never from model input (ADR-070 decision 1)."""
+    # Rationale: see module docstring, "Context-bound identity" section.
+    """No parameters — checks the status of the product already selected
+    for this run."""
 
 
 class CheckProductStatusOutput(BaseModel):
@@ -370,9 +375,8 @@ def handle_check_product_status(
 CHECK_PRODUCT_STATUS_SPEC = ToolSpec(
     name="check_product_status",
     description=(
-        "Get an in-run snapshot of the bound product's current status. Not the "
-        "authoritative confirmation of a status change — that arrives later via "
-        "the product-status webhook."
+        "Get an in-run snapshot of the bound product's current status. This snapshot is "
+        "not authoritative — the confirmed status arrives later, outside this tool call."
     ),
     input_model=CheckProductStatusInput,
     output_model=CheckProductStatusOutput,

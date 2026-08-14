@@ -1,40 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { SELLER_COPY_BANNED_PATTERNS } from "@juli/contracts";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FileUploadField } from "../file-upload-field";
 
-// Banned patterns in seller-facing copy — must match SELLER_COPY_BANNED_PATTERNS in @juli/contracts
-// The demo-side test asserts these two lists stay in sync to prevent drift
-const SELLER_COPY_BANNED_PATTERNS = [
-  /tool_name/i,
-  /workflow_key/i,
-  /feature_id/i,
-  /\bwebhook\b/i,
-  /\bendpoint\b/i,
-  /\bFBS\b/,
-  /\bFBT\b/,
-  /Độ tin cậy:/,
-  /Công cụ:/,
-  /Khả năng:/,
-  /Get Product/i,
-  /Unresolved\/Unfilled/i,
-  /listing\./,
-  /inventory\./,
-  /fulfillment\./,
-  /returns\./,
-  /promotion\./,
-  // False security claims — file validation is MIME type and truncation only
-  /\bvirus\b/i,
-  /\bviruses\b/i,
-  /antivirus/i,
-  /malware/i,
-  /\ban toàn\b/i,  // Vietnamese: "safe/safety" — forbid affirmative safety claims
-  /kiểm tra an toàn/i,
-  /tệp an toàn/i,
-] as const;
+// Banned patterns in seller-facing copy. Read from the single shared source
+// (ADR-070 decision 6, #990) instead of a hand-maintained local copy — see
+// packages/contracts/src/seller-copy.ts and
+// packages/contracts/seller-copy-banned-patterns.json (issue #1002).
 
 beforeEach(() => {
   // Mock createImageBitmap for tests to verify image decode
@@ -415,6 +391,19 @@ describe("FileUploadField", () => {
     SELLER_COPY_BANNED_PATTERNS.forEach((pattern) => {
       expect(text).not.toMatch(pattern);
     });
+  });
+
+  it("flags banned text that only the shared @juli/contracts source defines (drift check)", () => {
+    // "ship" (\bship\b, issue #1002 / ADR-070 decision 6) is banned in the shared
+    // packages/contracts/seller-copy-banned-patterns.json but was never part of this
+    // file's old hand-maintained copy. This proves SELLER_COPY_BANNED_PATTERNS here
+    // is read from the shared source, not a stale local list that happens to still
+    // pass the other assertions in this file.
+    expect(
+      SELLER_COPY_BANNED_PATTERNS.some((pattern) =>
+        pattern.test("please ship this order"),
+      ),
+    ).toBe(true);
   });
 
   it("displays helper text about accepted file types", () => {

@@ -118,9 +118,11 @@ class UnresolvedStagedImageError(UnresolvedAgentRefError):
 
 
 class UploadProductImageInput(BaseModel):
-    """No fields. The seller-supplied image bytes come from
-    `context.pending_image_bytes`, never from model output (ADR-070 decision
-    1) — a model cannot be asked to emit raw image bytes as output tokens."""
+    # Rationale: see module docstring, "Context-bound identity AND
+    # raw-ID-free schemas" section — no field exists because a model cannot
+    # emit raw image bytes as output tokens.
+    """No parameters — uploads the candidate listing image already staged
+    for this run."""
 
 
 class UploadProductImageOutput(BaseModel):
@@ -170,10 +172,11 @@ UPLOAD_PRODUCT_IMAGE_SPEC = ToolSpec(
 
 
 class UpdateProductListingInput(BaseModel):
-    """Agent-authored listing content for the bound product. No identifier
-    field, and no raw asset URI — the bound product identity comes from
-    `ProductToolContext.product_id`, and a staged image is referenced only by
-    the boolean `attach_staged_image` (ADR-070 decisions 1 and 2)."""
+    # Rationale for the field shape (no identifier, no raw asset URI): see
+    # module docstring, "Context-bound identity AND raw-ID-free schemas".
+    """New title and/or description to apply to the listing of the product
+    already selected for this run, and whether to attach the image already
+    uploaded for this run."""
 
     title: str | None = None
     description: str | None = None
@@ -236,10 +239,11 @@ UPDATE_PRODUCT_LISTING_SPEC = ToolSpec(
 
 
 class ProductSkuPrice(BaseModel):
-    """A single SKU's proposed price. `sku_ref` is a server-minted opaque
-    token (ADR-070 decision 1's reserved extension, e.g. `"S1"`) resolved
-    against `context.sku_refs` — never the raw vendor SKU id, and not a
-    second product identifier either way."""
+    # Rationale for sku_ref (an opaque per-run token, not a vendor SKU id):
+    # see module docstring, "Context-bound identity AND raw-ID-free schemas".
+    """One SKU's proposed new price. Identify the SKU by the sku_ref token
+    given earlier in this run (for example "S1"), not by any marketplace
+    code."""
 
     sku_ref: str
     amount: str
@@ -247,11 +251,12 @@ class ProductSkuPrice(BaseModel):
 
 
 class UpdateProductPriceInput(BaseModel):
-    """No product identifier field, and no raw vendor SKU id — the bound
-    product identity comes from `ProductToolContext.product_id`, and each
-    SKU is targeted by opaque `sku_ref` only (ADR-070 decision 1).
-    Independently rejectable from `update_product_listing` — a separate
-    CONFIRM capability, not a bundled step."""
+    # Rationale for the field shape: see module docstring, "Context-bound
+    # identity AND raw-ID-free schemas". Independently rejectable from
+    # update_product_listing — a separate CONFIRM step, not a bundled one
+    # (ADR-069 decision 1).
+    """New prices to apply to one or more SKUs of the product already
+    selected for this run."""
 
     skus: list[ProductSkuPrice] = Field(default_factory=list)
 
