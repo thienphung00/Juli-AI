@@ -26,6 +26,10 @@ AC -> test map:
   test_reaper_beat_entry_runs_every_five_minutes,
   test_beat_schedule_has_exactly_the_five_expected_entries,
   test_reaper_task_is_registered_on_the_worker
+- termination values are READ off TerminationPolicy, never a copied literal
+  (this phase's architect lock) ->
+  test_reap_stale_threshold_moves_with_injected_policy_not_the_default,
+  test_reap_approval_threshold_moves_with_injected_policy_not_the_default
 
 Time is always injected (`now=`), and the Celery liveness probe is always
 injected (`has_live_task=`) except in the small dedicated section testing
@@ -46,6 +50,7 @@ from juli_backend.models.models import Product, Shop, WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowFailedEvent
 from juli_backend.services.agent.events.sink import EventSink
+from juli_backend.services.agent.playbooks.base import TerminationPolicy
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
@@ -67,6 +72,20 @@ def _never_live(_run_id: uuid.UUID) -> bool:
 
 def _always_live(_run_id: uuid.UUID) -> bool:
     return True
+
+
+def _custom_policy(*, wall_clock_timeout_s: int, approval_timeout_h: int) -> TerminationPolicy:
+    """A `TerminationPolicy` with unusual, non-default numbers -- used to
+    prove the reaper's thresholds move with whatever policy it is given
+    rather than a value copied at import time."""
+    return TerminationPolicy(
+        max_iterations=6,
+        max_extensions=1,
+        extension_iterations=2,
+        wall_clock_timeout_s=wall_clock_timeout_s,
+        approval_timeout_h=approval_timeout_h,
+        required_steps=("some_step",),
+    )
 
 
 class _RecordingNoopSink:
@@ -433,18 +452,63 @@ async def test_reaped_run_has_both_the_event_row_and_the_status_update(session, 
 # ---------------------------------------------------------------------------
 
 
-def test_reaper_local_termination_constants_match_the_real_playbook_policy():
-    """`reaper.WALL_CLOCK_TIMEOUT_S`/`APPROVAL_TIMEOUT_H` are local literals,
-    not an import of `OPTIMIZE_PRODUCT_TERMINATION_POLICY` -- workers/ reaching
-    `services.agent.playbooks.optimize_product` is a depth-4 cross-package
-    deep import the MMU-2 import-boundary contract forbids (see the module
-    docstring). This is the drift guard: if the real policy's numbers ever
-    change, this test (not scanned by the import-boundary checker, since it
-    lives outside `backend/src/juli_backend`) fails loudly instead of the
-    reaper silently scoring runs against a stale threshold.
-    """
-    assert reaper.WALL_CLOCK_TIMEOUT_S == OPTIMIZE_PRODUCT_TERMINATION_POLICY.wall_clock_timeout_s
-    assert reaper.APPROVAL_TIMEOUT_H == OPTIMIZE_PRODUCT_TERMINATION_POLICY.approval_timeout_h
+def test_reap_defaults_to_the_real_optimize_product_termination_policy(session, shop, product):
+    """`reap_workflow_runs`'s `policy=` default (no override at all) really
+    is `OPTIMIZE_PRODUCT_TERMINATION_POLICY` -- not a copy, the object
+    itself -- so every other test in this file that never passes `policy=`
+    is genuinely exercising the real policy, not a stand-in."""
+    assert reaper._DEFAULT_TERMINATION_POLICY is OPTIMIZE_PRODUCT_TERMINATION_POLICY
+
+
+async def test_reap_stale_threshold_moves_with_injected_policy_not_the_default(
+    session, shop, product
+):
+    """Proves `wall_clock_timeout_s` is READ off whichever `TerminationPolicy`
+    is passed in, not a value copied once at import time (this phase's
+    architect lock: a literal reproducing a policy field anywhere else is a
+    defect). 400s elapsed sits strictly between a tiny injected policy's
+    threshold (10 + the fixed 300s slack = 310s -- reaped) and the real
+    default's (300 + 300 = 600s -- not reaped): only the injected policy
+    changes the outcome, proving the number really moved."""
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="running",
+        started_at=NOW - timedelta(seconds=400),
+    )
+
+    default_result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
+    assert default_result.stale_runs_reaped == ()
+
+    tiny_policy = _custom_policy(wall_clock_timeout_s=10, approval_timeout_h=APPROVAL_TIMEOUT_H)
+    custom_result = await reaper.reap_workflow_runs(
+        session, now=NOW, has_live_task=_never_live, policy=tiny_policy
+    )
+    assert custom_result.stale_runs_reaped == (run.id,)
+
+
+async def test_reap_approval_threshold_moves_with_injected_policy_not_the_default(
+    session, shop, product
+):
+    """Same proof for `approval_timeout_h`: 2h elapsed is under the real
+    default's 4h (not reaped) but past a tiny injected policy's 1h (reaped)."""
+    run = await _make_run(
+        session,
+        shop.id,
+        product.id,
+        status="waiting_approval",
+        waiting_approval_since=NOW - timedelta(hours=2),
+    )
+
+    default_result = await reaper.reap_workflow_runs(session, now=NOW, has_live_task=_never_live)
+    assert default_result.expired_approvals_reaped == ()
+
+    tiny_policy = _custom_policy(wall_clock_timeout_s=WALL_CLOCK_TIMEOUT_S, approval_timeout_h=1)
+    custom_result = await reaper.reap_workflow_runs(
+        session, now=NOW, has_live_task=_never_live, policy=tiny_policy
+    )
+    assert custom_result.expired_approvals_reaped == (run.id,)
 
 
 def test_reaper_module_never_references_tool_error_unrecoverable():
