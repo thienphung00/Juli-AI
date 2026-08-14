@@ -187,9 +187,29 @@ class FailingSubscriber:
         raise RuntimeError("redis subscribe failed")
 
 
-class NeverCalledSubscriber:
+class CountingSubscriber:
+    """Records how many times `subscribe()` was called, without raising.
+
+    An earlier version of this fake (`NeverCalledSubscriber`) proved
+    "never subscribed" by raising `AssertionError` from `subscribe()`.
+    That signal is untrustworthy: `event_stream`'s own subscribe-failure
+    handling wraps the call in a blanket `except Exception` (the same
+    mechanism that implements the graceful degrade-to-polling in AC7), so
+    a raise from inside `subscribe()` is caught, logged, and silently
+    treated as "Redis unavailable, fall back" -- indistinguishable from
+    every other subscribe failure. If the already-terminal short-circuit
+    ever regressed and started subscribing anyway, the raise would still
+    be swallowed and the replayed output would look identical, so that
+    test could never go red. Recording a plain counter and asserting on
+    it *after* the stream completes is a signal the route cannot eat.
+    """
+
+    def __init__(self) -> None:
+        self.call_count = 0
+
     async def subscribe(self, channel: str) -> QueueSubscription:
-        raise AssertionError("subscribe must never be called for an already-terminal run")
+        self.call_count += 1
+        return QueueSubscription()
 
 
 # ---------------------------------------------------------------------------
@@ -202,17 +222,19 @@ async def test_after_seq_replay_is_strictly_ordered_no_gaps_no_duplicates(sessio
     for seq in range(1, 6):
         await _insert_event(session_factory, run_id, seq)
 
+    subscriber = CountingSubscriber()
     chunks = await _drain(
         event_stream(
             run_id=run_id,
             after_seq=2,
             run_is_terminal=True,  # skip subscribe entirely -- pure replay ordering proof
             session_factory=session_factory,
-            subscriber=NeverCalledSubscriber(),
+            subscriber=subscriber,
         )
     )
 
     assert _chunk_ids(chunks) == [3, 4, 5]
+    assert subscriber.call_count == 0
 
 
 # ---------------------------------------------------------------------------
@@ -398,17 +420,21 @@ async def test_already_terminal_run_at_connect_replays_and_never_subscribes(sess
         payload={"stop_reason": "final_response"},
     )
 
+    subscriber = CountingSubscriber()
     chunks = await _drain(
         event_stream(
             run_id=run_id,
             after_seq=0,
             run_is_terminal=True,
             session_factory=session_factory,
-            subscriber=NeverCalledSubscriber(),
+            subscriber=subscriber,
         )
     )
 
     assert _chunk_ids(chunks) == [1, 2]
+    assert subscriber.call_count == 0, (
+        "an already-terminal run at connect must never attempt to subscribe"
+    )
 
 
 # ---------------------------------------------------------------------------
