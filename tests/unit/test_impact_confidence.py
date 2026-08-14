@@ -760,6 +760,80 @@ class TestComposedPipelineGenuinelyReachesNonFallbackPath:
         assert confidence.tier == "cao"
         assert confidence.volume == Decimal(100)
 
+    def test_ctr_impressions_ctr_family_reaches_real_non_fallback_control_path(self):
+        """Same proof, for impressions_ctr -- the family the original #1062
+        defect actually broke (this module's own docstring and
+        ``test_composed_pipeline_real_fallback_result_never_yields_cao_for_ctr``
+        above both name CTR as that family). That existing test is a
+        *fallback*-side proof only; before this test, CTR was the one family
+        with no non-fallback composed counterpart -- exactly the asymmetry
+        that let the mis-described conversion-family test go unnoticed.
+        """
+        pre_days = [PRE_START + timedelta(days=i) for i in range(14)]
+        post_days = [T + timedelta(days=i) for i in range(1, 15)]
+
+        def rec(ctr: Decimal, impressions: Decimal) -> RawDailyRecord:
+            return RawDailyRecord(ctr=ctr, impressions=impressions)
+
+        target_daily = {
+            d: rec(_linear("0.05", "0.002", PRE_START, d), Decimal(200)) for d in pre_days
+        }
+        target_daily.update(
+            {
+                d: rec(_linear("0.05", "0.002", PRE_START, d) + Decimal("0.15"), Decimal(200))
+                for d in post_days
+            }
+        )
+
+        candidate_specs = [
+            ("sib-1", "0.045", "0.002"),
+            ("sib-2", "0.040", "0.0025"),
+            ("sib-3", "0.035", "0.0018"),
+        ]
+        candidates = [
+            ControlCandidate(
+                product_id=product_id,
+                daily={
+                    d: rec(_linear(base, slope, PRE_START, d), Decimal(200))
+                    for d in (*pre_days, *post_days)
+                },
+                touched=False,
+                first_active_date=LONG_ACTIVE,
+            )
+            for product_id, base, slope in candidate_specs
+        ]
+
+        control_result = select_control_pool(
+            CTR,
+            target_daily,
+            candidates,
+            T,
+            "final",
+            volume_floor=Decimal(50),
+            volume_of=volume_indicator_for(CTR),
+        )
+
+        assert control_result.used_fallback is False
+        assert control_result.fallback_reason is None
+        assert control_result.mean_correlation is not None
+        assert control_result.mean_correlation > 0.2
+        assert len(control_result.selected) >= 3
+
+        reading = compute_metric_reading(
+            CTR, target_daily, control_result.control_daily, T, "final"
+        )
+        assert reading.incremental is not None
+        assert reading.incremental > 0
+
+        confidence = compute_confidence(CTR, target_daily, control_result, reading)
+        assert confidence.used_fallback is False
+        # Pinned, not just "a real tier": volume=200 impressions clears 3x
+        # the floor (50), and the deliberate +0.15 post-window jump dwarfs
+        # the pre-period noise band (~0.0019) by orders of magnitude --
+        # deterministic given this fixture, verified by direct computation.
+        assert confidence.tier == "cao"
+        assert confidence.volume == Decimal(200)
+
 
 class TestConfoundedAlwaysWins:
     @pytest.mark.parametrize("metric,band", _FAMILY_CASES)
