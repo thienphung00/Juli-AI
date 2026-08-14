@@ -2884,6 +2884,32 @@ SEC-13:
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
 
+# AGT-W1C-UI — #1077 seller-copy contract, TypeScript consumers (ADR-070 d.6), issue #1002
+AGT-W1C-UI:
+  executorDomain: ui-ux
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+  requiredModules:
+    - packages/contracts/seller-copy-banned-patterns.json
+    - packages/contracts/src/seller-copy.ts
+    - packages/ui/package.json
+  loadWhenNeeded:
+    # NOTE: do not list apps/** here. loadWhenNeeded paths feed the public-release
+    # classifier (ADR-035), so naming a demo path as mere reference material
+    # misclassifies every slice on this epic as publicRelease and demands a
+    # release evidence plan it does not need. A slice that genuinely touches
+    # apps/** should be classified public-release — by touching it, not by
+    # citing it.
+    - dictionary.md
+    - pnpm-workspace.yaml
+  doNotLoad:
+    - backend/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
 # AGT-EVID — #1066 evidence-chain hardening (ADR-079), issue #1064
 AGT-EVID:
   executorDomain: backend

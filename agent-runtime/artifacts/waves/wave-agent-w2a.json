@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactType": "wave_manifest",
+  "waveId": "wave-agent-w2a",
+  "branch": "feature/agent-w2a-wave",
+  "issues": [1036, 1037, 1038, 1039]
+}

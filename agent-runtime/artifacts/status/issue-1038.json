@@ -1,0 +1,25 @@
+{
+  "gateVersion": 1,
+  "issue": 1038,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/prompts",
+      "tests/unit"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1038.json",
+    "sha256": "f52cfdc40ef242a0f20bb7973305ccc3e3b88ba21bcd009256bdf0e54cfee851",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T06:23:36Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1038.json",
+    "sha256": "d0116c009b259260ab6fb8479318f399d6b184fe7a7213f35851109dc31a8d4c",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2a"
+}
