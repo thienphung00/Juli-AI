@@ -22,6 +22,19 @@ remains in app-level libs until a later migration.
   (`backend/src/juli_backend/services/agent/sanitize`). Extraction only — this
   package must never add, remove, or alter a pattern without updating the JSON
   and re-verifying `tests/unit/test_agent_banned_patterns_contract.py`.
+- `AgentEvent` (`agent-events.ts`, ADR-074 decision 2, #1125/#1126, AGT-W3B) —
+  discriminated union (on `event_type`) mirroring the eight
+  `workflow_run_events` Pydantic event types in
+  `backend/src/juli_backend/services/agent/events/{payloads,envelope}.py`
+  field-for-field. `assistant.text.delta` (ADR-071) has no member and never
+  will in this slice. `validateAgentEvent` is a hand-rolled runtime
+  structural check (no schema library — ADR-074 d.2 rejects adding one) that
+  throws naming the offending `event_type`; `PAYLOAD_FIELDS`/
+  `ENVELOPE_FIELDS` expose the exact field sets for cross-language diffing.
+  Golden fixtures (one per event type, plus an envelope-`v:1` snapshot and
+  negative fixtures) live in `packages/contracts/fixtures/agent-events/` and
+  are tested byte-equal-in-shape from both languages by
+  `tests/unit/test_agent_events_contract.py`.
 
 ## Dependencies
 

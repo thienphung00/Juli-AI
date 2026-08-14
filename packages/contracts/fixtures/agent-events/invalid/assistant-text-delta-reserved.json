@@ -1,0 +1,10 @@
+{
+  "workflow_run_id": "26e92379-919e-4091-937c-5003403c62da",
+  "sequence_number": 0,
+  "event_type": "assistant.text.delta",
+  "timestamp": "2026-08-14T12:00:00Z",
+  "payload": {
+    "text": "partial"
+  },
+  "v": 1
+}
