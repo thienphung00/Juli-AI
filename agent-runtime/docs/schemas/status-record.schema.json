@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://juli.ai/schemas/agent-runtime/status-record.schema.json",
   "title": "Per-Issue Status Record",
-  "description": "Compact committed record at agent-runtime/artifacts/status/issue-<N>.json (#670 P1 Option A). Replaces in-tree verbose review/validation bodies as the wave->main artifact-gate read path; verbose bodies move to CI artifact retention with sha256 integrity references recorded here.",
+  "description": "Compact committed record at agent-runtime/artifacts/status/issue-<N>.json (#670 P1 Option A). Replaces in-tree verbose review/validation bodies as the wave->main artifact-gate read path (and, per #1064, the issue-tier artifact-retention-guard read path); verbose bodies stay local only (gitignored, never committed, never uploaded), with sha256 integrity references recorded here.",
   "type": "object",
   "additionalProperties": false,
   "required": ["issue", "review", "validation", "gateVersion"],

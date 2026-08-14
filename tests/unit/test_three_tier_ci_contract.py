@@ -400,3 +400,33 @@ def test_main_tier_wave_to_main_checkpoint_unchanged() -> None:
     assert "merge_group" in workflow
     live_sandbox_block = _job_block(workflow, "test-live-sandbox:")
     assert "github.event_name == 'merge_group'" in live_sandbox_block
+
+
+def test_artifact_retention_guard_runs_only_on_issue_tier() -> None:
+    """#1064: existence + PASS check of agent-runtime/artifacts/status/issue-<N>.json,
+    scoped to the issue tier only, reusing classify-tier / resolve-issue rather than
+    inventing a new branch-name convention."""
+    workflow = _workflow()
+
+    assert "artifact-retention-guard:" in workflow
+    guard_job = _job_block(workflow, "artifact-retention-guard:")
+    assert "needs.classify-tier.outputs.tier == 'issue'" in guard_job
+    assert "classify-tier" in guard_job
+    assert "resolve-issue" in guard_job
+    assert "check_artifact_retention_guard.py" in guard_job
+
+
+def test_status_check_requires_artifact_retention_guard_without_allowing_skip() -> None:
+    """#1064: a skipped or cancelled artifact-retention-guard must never read green.
+    Pins allow_skip == "false" inside the issue-tier require block specifically, so a
+    future edit loosening that to "true" is caught here instead of silently reopening
+    the hole this guard exists to close."""
+    workflow = _workflow()
+
+    status_job = workflow.split("status-check:", 1)[1]
+    needs_block = status_job.split("needs:", 1)[1].split("if: always()", 1)[0]
+    assert "- artifact-retention-guard" in needs_block
+    assert 'artifact_retention_guard="${{ needs.artifact-retention-guard.result }}"' in status_job
+
+    issue_block = status_job.split('"$tier" == "issue"', 1)[1].split("elif", 1)[0]
+    assert 'require "artifact-retention-guard" "$artifact_retention_guard" "false"' in issue_block

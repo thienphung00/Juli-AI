@@ -76,8 +76,9 @@ agent-runtime/artifacts/grill-cache/
 # review/validation PASS status, sha256 of each body). These five dirs'
 # JSON bodies still get WRITTEN locally during the agent loop (Executor/
 # Review/Validate read/write them via agent-runtime/scripts/ci/common.py
-# filesystem paths, unaffected by gitignore) and are uploaded to CI
-# artifact retention on the issue-tier run — they are just never committed.
+# filesystem paths, unaffected by gitignore) but are never committed and
+# never uploaded anywhere — they stay local to the machine that wrote
+# them. CI reads the committed status/issue-<N>.json record only (#1064).
 # agent-runtime/artifacts/status/ itself stays tracked (not ignored below).
 agent-runtime/artifacts/reviews/**/*.json
 agent-runtime/artifacts/implementations/**/*.json

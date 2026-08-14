@@ -5,10 +5,11 @@ review + validation artifact pairs (#670 P1 Option A).
 Reconciles the audit's committed-artifact-volume cost driver with ADR-052's
 locked intent to keep a committed merge-time source of truth: a small
 compact record replaces the verbose bodies as the wave->main artifact-gate
-read path (see wave_manifest.py `_validate_issue_artifacts`), while the
-verbose bodies themselves move to CI artifact retention (`git rm` is a
-separate step — see the issue's migration recipe; this script only reads
-and never deletes).
+read path (see wave_manifest.py `_validate_issue_artifacts`) and, per #1064,
+the issue-tier artifact-retention-guard read path, while the verbose bodies
+themselves stay local only — gitignored, never committed, never uploaded
+anywhere (`git rm` from history is a separate step — see the issue's
+migration recipe; this script only reads and never deletes).
 
 Idempotent: re-running overwrites each status/issue-<N>.json deterministically
 from the current on-disk review/validation body content, so it is safe to run

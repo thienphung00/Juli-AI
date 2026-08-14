@@ -140,8 +140,9 @@ def _sha256_file(path: Path) -> str | None:
 def _validate_issue_artifacts(issue: int, *, verify_integrity: bool = False) -> list[str]:
     """Read the compact status/issue-<N>.json record (#670 P1 Option A).
 
-    Verbose review/validation bodies moved to CI artifact retention; the
-    wave->main gate asserts PASS from the compact record only. When
+    Verbose review/validation bodies stay local only — gitignored, never
+    committed, never uploaded anywhere; the wave->main gate asserts PASS
+    from the compact record only. When
     ``verify_integrity`` is set and a verbose body still exists on disk
     (e.g. in the working tree during an agent loop, before it is gitignored
     away at commit time), its sha256 is checked against the record.
@@ -187,8 +188,9 @@ def _verify_body_integrity(
 
     body_path = body_dir / f"{kind}-issue-{issue}.json"
     if not body_path.is_file():
-        # Verbose body not present locally (expected once bodies live only in
-        # CI artifact retention) — nothing to verify against.
+        # Verbose body not present locally (expected once the working tree
+        # that wrote it is gone — bodies are never committed or uploaded
+        # anywhere else) — nothing to verify against.
         return []
 
     actual = _sha256_file(body_path)

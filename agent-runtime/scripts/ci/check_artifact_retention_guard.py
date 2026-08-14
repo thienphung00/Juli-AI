@@ -35,9 +35,7 @@ from typing import Any
 from common import AGENT_RUNTIME_ROOT, STATUS_DIR, print_check_result
 from json_schema_validate import validate_json_schema
 
-STATUS_SCHEMA_PATH = (
-    AGENT_RUNTIME_ROOT / "docs" / "schemas" / "status-record.schema.json"
-)
+STATUS_SCHEMA_PATH = AGENT_RUNTIME_ROOT / "docs" / "schemas" / "status-record.schema.json"
 
 # The command an Executor/Review agent runs to (re)produce a missing record from the
 # review + validation artifacts already written to the working tree during the loop.
@@ -116,9 +114,8 @@ def evaluate(issue: int, *, status_dir: Path = STATUS_DIR) -> tuple[bool, str]:
 
     schema_errors = validate_json_schema(payload, schema)
     if schema_errors:
-        return False, (
-            f"{record_path} does not match the status-record schema: {schema_errors[0]}"
-        )
+        detail = f"{record_path} does not match the status-record schema: {schema_errors[0]}"
+        return False, detail
 
     if payload.get("issue") != issue:
         return False, (
