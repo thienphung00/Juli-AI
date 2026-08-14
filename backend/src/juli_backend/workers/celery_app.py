@@ -20,6 +20,14 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # ADR-074 decision 4 — dedicated queue for the two agent-run tasks
+    # (`workers/tasks/agent_workflow.py`) so multi-minute runs never starve
+    # beat or the analytics tasks below, which stay on the (unlisted, thus
+    # default) "celery" queue unchanged.
+    task_routes={
+        "juli_backend.run_agent_workflow": {"queue": "agent_runs"},
+        "juli_backend.resume_agent_workflow": {"queue": "agent_runs"},
+    },
     beat_schedule={
         # ADR-038 §5 — Mock-mode hourly reconciliation for DEMO_REFERENCE_SHOP_ID only (#533).
         "mock-analytics-hourly-reconcile": {
@@ -55,6 +63,12 @@ celery_app.conf.update(
 
 celery_app.autodiscover_tasks(["juli_backend.workers.tasks"])
 
+from juli_backend.workers.agent_broker_guard import run_agent_broker_startup_check  # noqa: E402
 from juli_backend.workers.dispatch_binding import bind_celery_dispatchers  # noqa: E402
 
 bind_celery_dispatchers()
+
+# ADR-074 decision 4, "the trap" — agent-enabled deployments must not boot on
+# the in-memory broker. No-op (memory:// stays the unit-test default) unless
+# AGENT_WORKFLOWS_ENABLED is set; see agent_broker_guard for the full story.
+run_agent_broker_startup_check(celery_app.conf.broker_url)
