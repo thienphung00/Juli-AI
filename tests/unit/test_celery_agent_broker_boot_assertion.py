@@ -49,6 +49,25 @@ def test_assertion_does_not_crash_when_agent_enabled_and_broker_is_real():
     assert_agent_broker_is_durable("redis://localhost:6379/0", enabled=True)
 
 
+@pytest.mark.parametrize("broker_url", ["memory://redis", "memory://?redis=1"])
+def test_assertion_crashes_on_memory_transport_even_when_url_contains_redis(broker_url):
+    """Pin the check as a `memory://` *prefix* test, not a `"redis" not in url` substring test.
+
+    A broker URL can merely *mention* "redis" (query param, path segment, a sloppy
+    copy-paste) while still being the in-memory kombu transport underneath —
+    `memory://redis` and `memory://?redis=1` are both still `memory://`. A substring
+    check (`"redis" not in broker_url`) would wrongly treat either as durable and
+    silently defeat the entire assertion this module exists for. Mutating
+    `assert_agent_broker_is_durable`'s `broker_url.startswith(MEMORY_BROKER_PREFIX)`
+    check to `"redis" not in broker_url` makes this exact test fail (verified by
+    hand during review follow-up for #1129) — the other tests in this file do not
+    catch that mutation because none of them exercise a `memory://` URL that also
+    contains a durable-broker substring.
+    """
+    with pytest.raises(RuntimeError, match="memory://"):
+        assert_agent_broker_is_durable(broker_url, enabled=True)
+
+
 @pytest.mark.parametrize("broker_url", ["memory://", "redis://localhost:6379/0"])
 def test_assertion_does_not_crash_when_not_agent_enabled(broker_url):
     # Gated to agent-enabled deployments only (issue text) -- disabled must never raise,
