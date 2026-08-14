@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 1069,
+  "metrics": {
+    "acceptanceMapped": 4,
+    "acceptanceTotal": 4,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "infra/scripts/deploy.sh",
+      "docs/runbooks/app-review-runbook.md",
+      "tests/unit/test_deploy_stop_durable_unit_ordering.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1069.json",
+    "sha256": "f64d6c50e095f01a5dc3655d21364b9f414c7ae746fb4c5aff7633182e1be7d4",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T05:49:23Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1069.json",
+    "sha256": "fc658a702a4d96382f2a9ad9131785f86e7517414058bd992f07da5977760361",
+    "status": "PASS"
+  },
+  "wave": null
+}
