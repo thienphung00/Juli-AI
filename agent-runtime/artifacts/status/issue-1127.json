@@ -1,0 +1,26 @@
+{
+  "gateVersion": 1,
+  "issue": 1127,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/services/agent/events/persisting_sink.py",
+      "backend/src/juli_backend/services/agent/events/__init__.py",
+      "tests/unit/test_persisting_event_sink.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1127.json",
+    "sha256": "838e74c95b100ed0d45563999b13c97b55b4110b11382e352921cb48c14e242a",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T14:37:02Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1127.json",
+    "sha256": "cee09d3c509f950615771fe66210b04b8736f273ca7bfa21664ceaa0a8bec8a5",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}
