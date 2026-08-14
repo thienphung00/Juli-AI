@@ -2936,6 +2936,97 @@ AGT-EVID:
     - docs/integrations/tiktok_corpora/
     - Sibling issue context caches
 
+# AGT-W3A — #1115 agent execution loop (ADR-073), issues #1117-#1124
+AGT-W3A:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/069-agent-tool-registry-and-write-path.md
+    - docs/adr/071-llm-service-openai-adapter.md
+    - docs/adr/072-agent-prompt-architecture.md
+  requiredModules:
+    - backend/src/juli_backend/services/agent/llm/service.py
+    - backend/src/juli_backend/services/agent/llm/blocks.py
+    - backend/src/juli_backend/services/agent/llm/fake.py
+    - backend/src/juli_backend/services/agent/tools/registry.py
+    - backend/src/juli_backend/services/agent/tools/product.py
+    - backend/src/juli_backend/services/agent/tools/product_write.py
+    - backend/src/juli_backend/services/agent/playbooks/base.py
+    - backend/src/juli_backend/services/agent/playbooks/optimize_product.py
+    - backend/src/juli_backend/services/agent/prompts/composer.py
+    - backend/src/juli_backend/services/agent/sanitize/chokepoints.py
+    - backend/src/juli_backend/models/models.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - docs/adr/068-agent-workflow-execution-boundary.md
+    - docs/adr/070-agent-safe-sanitization-contract.md
+    - backend/src/juli_backend/database/migrations/versions/
+    - backend/src/juli_backend/services/agent/sanitize/errors.py
+    - tests/integration/test_schema_parity.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+    - docs/adr/076-agent-demo-execution-experience.md
+    - docs/adr/077-incremental-impact-measurement.md
+    - Sibling issue context caches
+
+# AGT-W3B — #1116 agent event streaming and relay (ADR-074), issues #1125-#1131, #1133
+AGT-W3B:
+  executorDomain: backend
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+    - docs/adr/073-agent-execution-loop-and-write-path-hardening.md
+  requiredModules:
+    - backend/src/juli_backend/models/models.py
+    - backend/src/juli_backend/workers/celery_app.py
+    - backend/src/juli_backend/api/dependencies.py
+    - backend/src/juli_backend/api/routes/products.py
+  loadWhenNeeded:
+    - docs/product/agent-workflow-execution/PLAN.md
+    - docs/adr/068-agent-workflow-execution-boundary.md
+    - backend/src/juli_backend/database/migrations/versions/
+    - backend/src/juli_backend/workers/tasks/
+    - tests/unit/test_agent_banned_patterns_contract.py
+    - tests/integration/test_schema_parity.py
+  doNotLoad:
+    - apps/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - docs/adr/072-agent-prompt-architecture.md
+    - docs/adr/075-agent-approval-gate-and-security-prerequisites.md
+    - docs/adr/076-agent-demo-execution-experience.md
+    - docs/adr/077-incremental-impact-measurement.md
+    - Sibling issue context caches
+
+# AGT-W3B-UI — #1116 fetch-streaming client helper (ADR-074 d.5), issue #1132
+# Split out of AGT-W3B because the helper lives in apps/demo: a different executor
+# domain (ui-ux) AND a genuine public-release classification, which the backend
+# slices must not inherit.
+AGT-W3B-UI:
+  executorDomain: ui-ux
+  requiredDocs:
+    - "{handoffPath}"
+    - CONTEXT.md
+  requiredModules:
+    - packages/contracts/src/agent-events.ts
+    - packages/contracts/src/index.ts
+    - apps/demo/package.json
+  loadWhenNeeded:
+    - dictionary.md
+    - pnpm-workspace.yaml
+  doNotLoad:
+    - backend/
+    - ios/
+    - docs/product/design/
+    - docs/integrations/tiktok_corpora/
+    - Sibling issue context caches
+
 # AGT-W2A — #1057 agent prompt architecture (ADR-072), issues #1036-#1039
 AGT-W2A:
   executorDomain: backend
