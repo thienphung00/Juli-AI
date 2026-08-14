@@ -49,7 +49,24 @@
             "enum": ["PASS", "FAIL", "WARN", "SKIP"]
           },
           "description": { "type": "string" },
-          "details": { "type": "object" }
+          "details": { "type": "object" },
+          "classification": {
+            "type": "string",
+            "enum": ["blocking", "advisory"],
+            "description": "Issue #1076: advisory gates (e.g. unpushed_issue_work) are reported here in full but excluded from status/readyForMerge; see advisoryFailures."
+          }
+        }
+      }
+    },
+    "advisoryFailures": {
+      "type": "array",
+      "description": "Issue #1076: failed advisory (non-merge-blocking) gates, reported distinctly so a green status is never readable as \"the repo is clean\" when it isn't. Never affects status or readyForMerge.",
+      "items": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
         }
       }
     },
