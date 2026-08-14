@@ -44,8 +44,19 @@ def test_migration_revision_chain_extends_current_head():
 
     parents = [d for d in revisions.values() if d]
     heads = [r for r in revisions if r not in parents]
-    assert heads == ["032_close_public_schema_defaults"], (
-        f"expected this migration to be the only head, got {sorted(heads)}"
+    # 033_impact_readings_table (#1040, W2-B) now extends this migration, so 032
+    # is no longer the head — by design. What must still hold is that the chain
+    # has exactly ONE head and that 032 is on the path to it; a second head means
+    # a branched migration graph, which is what this assertion exists to catch.
+    assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
+    assert "032_close_public_schema_defaults" in revisions, "032 must remain in the revision chain"
+    ancestry: list[str] = []
+    cursor: str | None = heads[0]
+    while cursor:
+        ancestry.append(cursor)
+        cursor = revisions.get(cursor)
+    assert "032_close_public_schema_defaults" in ancestry, (
+        f"032 must be an ancestor of the head {heads[0]}, chain: {ancestry}"
     )
     assert len(parents) == len(set(parents)), (
         "a revision has two children — the migration graph has branched: "
