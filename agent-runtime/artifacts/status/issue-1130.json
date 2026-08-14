@@ -1,0 +1,30 @@
+{
+  "gateVersion": 1,
+  "issue": 1130,
+  "metrics": {
+    "acceptanceMapped": 8,
+    "acceptanceTotal": 8,
+    "criticalFindings": 0,
+    "modulesTouched": [
+      "backend/src/juli_backend/workers/tasks/reaper.py",
+      "backend/src/juli_backend/workers/celery_app.py",
+      "backend/src/juli_backend/workers/tasks/__init__.py",
+      "backend/src/juli_backend/services/agent/playbooks/__init__.py",
+      "docs/architecture/ownership-registry.yml",
+      "tests/unit/test_agent_workflow_celery_tasks.py",
+      "tests/unit/test_workflow_run_reaper.py"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1130.json",
+    "sha256": "116daa88410e434096b990603874744b782c534ba905e651e3c02fded857aa1e",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T16:23:57Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1130.json",
+    "sha256": "d2378e9e76dbef31ec353cfe7711f8b5533d96b839f90b598e059d539c455352",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w3"
+}
