@@ -241,6 +241,14 @@ celeryTasks:
     wrapper: backend/src/juli_backend/workers/tasks/analytics_backfill_topup.py
     delegatesTo: services.analytics_backfill.backfill_analytics_history
     notes: A1 automatic analytics history top-up for reference shop only (#791). Idempotent via resumable checkpoints.
+  juli_backend.daily_impact_reader:
+    owner: Intelligence
+    wrapper: backend/src/juli_backend/workers/tasks/impact_reader.py
+    delegatesTo: workers.impact_reader.pipeline.run_daily_impact_reader
+    notes: >
+      ADR-077 decision 5 (#1044). Scheduled strictly after analytics-backfill-topup.
+      Scans terminal listing.optimize_product executions whose T+7/T+14 has elapsed
+      and writes impact_readings rows; matches that table's own owner (Intelligence).
 
 redisNamespaces:
   - pattern: "ratelimit:*"
