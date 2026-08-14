@@ -225,6 +225,22 @@ write_runtime_env() {
     install -m 0644 "${CANONICAL_ROOT}/infra/systemd/juli-${lane}.service" \
         "/etc/systemd/system/juli-${lane}.service"
     systemctl daemon-reload
+
+    # #1069: the durable juli-api unit exists only so a REBOOT brings the API back on
+    # the last-known-good port (transient candidates do not survive one) — it is never
+    # the process serving traffic after a deploy. If it is ever running outside a fresh
+    # boot, leaving it up here orphans it: invisible to nginx (already pointed at the
+    # candidate above) but still holding a port that a later deploy's candidate can
+    # collide with, since live/candidate ports alternate 8000<->8020 every deploy.
+    #
+    # This MUST run after the two writes above, never before: the runtime env and unit
+    # file are already correct by this point, so stopping costs nothing (the next reboot
+    # still starts on the live port) — but stopping first would widen the window in
+    # which a reboot racing this deploy starts the API on the stale, pre-cutover port.
+    if [ "${lane}" = "api" ]; then
+        systemctl stop juli-api >/dev/null 2>&1 || true
+        systemctl reset-failed juli-api >/dev/null 2>&1 || true
+    fi
 }
 
 rollback_lane() {
