@@ -185,6 +185,14 @@ databaseTables:
     owner: Workers & Async
     access: write
     notes: WorkflowRunner (services/agent/runner) persists; Celery task (P8) drives the run.
+  workflow_run_events:
+    owner: Workers & Async
+    access: write
+    notes: >
+      Postgres-authoritative event log for a workflow_runs row (ADR-074 decision 1,
+      #1125 / AGT-W3B) — same owner as workflow_runs per MODULES.md §8 (Workers &
+      Async owns the Celery-driven run records); P8-3's PersistingEventSink (a later
+      slice) is the write path, invoked from the WorkflowRunner's Celery task.
   tool_executions:
     owner: Workers & Async
     access: write

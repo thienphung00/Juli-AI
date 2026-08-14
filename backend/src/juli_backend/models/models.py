@@ -594,6 +594,50 @@ class WorkflowRun(Base):
     )
 
 
+class WorkflowRunEvent(Base):
+    """Append-only event-log row for a `workflow_runs` row — the Postgres
+    replay authority ADR-074 decision 1 establishes (#1125 / AGT-W3B):
+    anything a client sees on the SSE stream must exist as a row here
+    first, Redis (a later slice) only makes it fast.
+
+    Mirrors the Pydantic envelope in ``services/agent/events/envelope.py``
+    field-for-field (``workflow_run_id``, ``sequence_number``,
+    ``event_type``, ``timestamp``, ``payload``, ``v``) plus the ORM-only
+    surrogate primary key ``id``. ``sequence_number`` is minted by the
+    ``WorkflowRunner`` (a later slice) from its run-state blob, never by
+    this table or any code in this slice.
+
+    The unique ``(workflow_run_id, sequence_number)`` index is the
+    mechanism, not decoration: exactly one writer per run exists (a
+    partial-unique active-run index plus one Celery task per
+    ``workflow_run_id``), so a crash-replayed emit racing the same
+    sequence number hits this constraint and becomes a no-op instead of a
+    duplicate row.
+    """
+
+    __tablename__ = "workflow_run_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id"), nullable=False
+    )
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    v: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
+    __table_args__ = (
+        Index(
+            "uq_workflow_run_events_run_sequence",
+            "workflow_run_id",
+            "sequence_number",
+            unique=True,
+        ),
+        Index("ix_workflow_run_events_run_id", "workflow_run_id"),
+    )
+
+
 class ToolExecution(Base):
     """Approved tool call dispatched to Celery — P2-B4 (#305).
 

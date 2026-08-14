@@ -140,7 +140,20 @@ def test_migration_034_down_revision_is_033():
 
 def test_exactly_one_migration_head_after_034():
     """Walks the entire chain (not just 034) so a second, unrelated branch
-    anywhere in the tree also fails this."""
+    anywhere in the tree also fails this.
+
+    Asserts the chain-invariant this test actually cares about -- no
+    accidental branch, exactly one head -- without pinning which revision
+    that head is. `034_workflow_runs_table` was head the day this test was
+    written, but is a valid, expected non-head the moment a later slice
+    (`035_workflow_run_events_table`, #1125 / AGT-W3B) chains onto it; a
+    literal-pinned assertion here would fail every subsequent migration for
+    the wrong reason, exactly the anti-pattern
+    `tests/integration/test_migrations.py`'s `_latest_revision()` docstring
+    already warns against. `034` itself being a real, present, non-orphaned
+    node in the chain is asserted separately by
+    `test_migration_035_down_revision_is_034` in
+    `test_workflow_run_events_schema.py`."""
     revisions: dict[str, str | None] = {}
     for path in MIGRATIONS_DIR.glob("*.py"):
         body = path.read_text(encoding="utf-8")
@@ -150,7 +163,7 @@ def test_exactly_one_migration_head_after_034():
             revisions[rev.group(1)] = down.group(1) if down and down.group(1) else None
     parents = {d for d in revisions.values() if d}
     heads = [r for r in revisions if r not in parents]
-    assert heads == ["034_workflow_runs_table"], f"expected exactly one head, got {sorted(heads)}"
+    assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
 
 
 # ---------------------------------------------------------------------------
