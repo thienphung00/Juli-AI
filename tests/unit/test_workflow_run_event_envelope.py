@@ -240,6 +240,53 @@ def test_v_correct_passes():
 
 
 # ---------------------------------------------------------------------------
+# `sequence_number` is minted by the runner (ADR-074 d.1) -- this layer must
+# never assign or default one. A future change quietly adding a default
+# (e.g. `= 0`) would let two events for the same run construct successfully
+# with no sequence number supplied, and a defaulted `0` would collide on the
+# unique (workflow_run_id, sequence_number) index the moment two such events
+# existed. Reviewed via mutation: temporarily adding `sequence_number: int =
+# 0` to `_EventEnvelope` in envelope.py made this exact test fail (an event
+# built with `sequence_number` omitted from kwargs constructed successfully
+# instead of raising), then the default was removed and the suite re-ran
+# green -- proving the test is not vacuous.
+# ---------------------------------------------------------------------------
+
+
+def test_sequence_number_missing_fails_validation():
+    kwargs = _envelope_kwargs("assistant.text", AssistantTextPayload(text="hi"))
+    del kwargs["sequence_number"]
+    with pytest.raises(ValidationError):
+        AssistantTextEvent(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# `WorkflowRunEvent` is a genuinely *discriminated* union (`Field(
+# discriminator="event_type")`), not merely a union Pydantic's smart-mode
+# Literal fallback happens to route correctly. Removing the discriminator
+# entirely would still pass every parsing-outcome test above, so this
+# inspects the union's actual field metadata / compiled core schema rather
+# than only asserting that parsing routes to the right class.
+# ---------------------------------------------------------------------------
+
+
+def test_workflow_run_event_union_declares_discriminator_field_metadata():
+    import typing
+
+    union_type, field_info = typing.get_args(WorkflowRunEvent)
+    assert getattr(field_info, "discriminator", None) == "event_type"
+
+
+def test_workflow_run_event_adapter_compiles_to_a_tagged_union_on_event_type():
+    core_schema = WorkflowRunEventAdapter.core_schema
+    assert core_schema["type"] == "tagged-union", (
+        "expected a discriminator-compiled tagged-union core schema, got "
+        f"{core_schema['type']!r} -- did Field(discriminator=...) get removed?"
+    )
+    assert core_schema["discriminator"] == "event_type"
+
+
+# ---------------------------------------------------------------------------
 # `assistant.text.delta` stays reserved / unimplemented.
 # ---------------------------------------------------------------------------
 
