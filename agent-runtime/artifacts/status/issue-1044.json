@@ -1,0 +1,32 @@
+{
+  "gateVersion": 1,
+  "issue": 1044,
+  "metrics": {
+    "acceptanceMapped": 6,
+    "acceptanceTotal": 6,
+    "criticalFindings": 2,
+    "modulesTouched": [
+      "backend/src/juli_backend/workers/impact_reader/__init__.py",
+      "backend/src/juli_backend/workers/impact_reader/classify.py",
+      "backend/src/juli_backend/workers/impact_reader/queries.py",
+      "backend/src/juli_backend/workers/impact_reader/pipeline.py",
+      "backend/src/juli_backend/workers/tasks/impact_reader.py",
+      "backend/src/juli_backend/workers/tasks/__init__.py",
+      "backend/src/juli_backend/workers/celery_app.py",
+      "backend/src/juli_backend/services/operations/outcome_tracking.py",
+      "docs/architecture/ownership-registry.yml"
+    ]
+  },
+  "review": {
+    "artifactRef": "git-history:agent-runtime/artifacts/reviews/review-issue-1044.json",
+    "sha256": "3f0263c72be9ef64aa422e287c0a0ad2612173623a110fdb96b383a66daff889",
+    "status": "PASS"
+  },
+  "timestamp": "2026-08-14T07:50:07Z",
+  "validation": {
+    "artifactRef": "git-history:agent-runtime/artifacts/validation/validation-issue-1044.json",
+    "sha256": "cceea9d5ca3625a9526b7109674efd9dc07b32470765e26be28d5db9be877f73",
+    "status": "PASS"
+  },
+  "wave": "wave-agent-w2b"
+}
