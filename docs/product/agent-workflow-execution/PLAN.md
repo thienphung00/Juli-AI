@@ -168,6 +168,79 @@ adapted around:
    only makes sense under it — but the ADR does not name the split, so it is recorded as a
    divergence rather than treated as settled.
 
+## Wave 3 progress — 13 of 17 slices reviewed and recorded (2026-08-15)
+
+Every slice below lives on its own `feature/issue-11xx-*` branch, stacked in dependency
+order. **Nothing has merged to `main`** — PR #1137 (#1117) is green and open; the whole
+stack waits behind it.
+
+### Reviewed PASS with a committed status record
+
+| Slice | Issue | Notes |
+| --- | --- | --- |
+| P1-1 schema + total `stop_reason` mapping | #1117 | 12 mutations; value-level mapping proven, not key-presence |
+| P1-2 run-state + `ConversationStore` | #1118 | real-Postgres JSONB round-trip; 10 of 11 divergence cases identical |
+| P1-3 `WorkflowRunner` core loop | #1119 | 16 mutations, 14 caught; 2 gaps closed in follow-up |
+| P1-4 termination policy | #1120 | AST literal guard + a hard cap of 7 (neither 6 nor 8) |
+| P1-5 idempotency ledger | #1121 | genuine two-thread race test; bounded lock wait |
+| P1-6 basis-hash concurrency | #1122 | LLM-invisibility asserted at two layers, not incidental |
+| P1-7 pause/resume across processes | #1123 | weakref proof that the resuming runner shares no state |
+| P8-1 events table + `EventSink` | #1125 | `sequence_number` pinned non-defaultable |
+| P8-2 TS mirror + dual-language goldens | #1126 | FAIL→PASS; interfaces now guarded, not just the field table |
+| P8-3 `PersistingEventSink` | #1127 | cross-session visibility proof of insert-commit-then-publish |
+| P8-5 Celery `agent_runs` + boot assertion | #1129 | all four broker directions mutation-tested |
+| P8-6 five-minute reaper | #1130 | approval expiry proven liveness-independent |
+| P8-7 integration matrix | #1131 | FAIL→PASS; CI-breaking fixture isolation caught and fixed |
+
+### Blocked on the human owner, not on code
+
+**#1128** (SSE endpoint) and **#1132** (fetch-streaming client) are reviewed with every
+warning **fixed** and reviewer signoff given. Both sit at exactly two red gates —
+`findings_acknowledged` and `owner_signoff_present` — because `ownerAck` and
+`ownerSignoff` are human attestations. Every agent asked declined to forge them, including
+when it was the only thing between them and a clean gate. That is the control working.
+
+### Not started — require credentials no agent holds
+
+**#1124** (two live GPT-5.4 nano smokes: `OPENAI_API_KEY`, sandbox shop) and **#1133**
+(live gate: real Redis broker, VPS worker, observed browser reconnect).
+
+#1133 also inherits a requirement from #1129's review: `AGENT_WORKFLOWS_ENABLED` is wired
+into no systemd unit and no `api.env.example`, so the fail-closed broker assertion **cannot
+currently fire on a real deployment**. A guard that cannot fire reads as protection without
+being any.
+
+### Defects found outside the wave's own scope
+
+| Issue | What |
+| --- | --- |
+| #1136 | `services/agent/` unmapped in `MODULES.md` across seven merged ADRs |
+| #1138 | `OrdersRepo.confirm_shipment` writes an aware datetime into a naive column — asyncpg `DataError` in production |
+| #1139 | `events`↔`runner` import cycle and no depth-2 public surface; three consumers, three different workarounds |
+| #1140 | `workflow.status.phase_narration` ships English where ADR-074 d.2 specifies Vietnamese |
+| #1141 | `PASS_WITH_WARNINGS` is a valid ship state for validate but impossible to land past `artifact-retention-guard` |
+| #1142 | Unguarded `int(last_event_id)` — a non-numeric `Last-Event-ID` returns HTTP 500 instead of degrading |
+| #1143 | `phase_run_correlation` reads the previous generation's validation artifact — a read-before-write off-by-one |
+
+### Two limitations recorded deliberately
+
+The **idempotency ledger (#1121)** and **basis-hash concurrency (#1122)** are both
+implemented, unit-proven, and **structurally inert on the live path**: no non-test call site
+constructs `ProductToolExecutor`, and `core.py` passes no `tool_call_id`, `ledger` or
+`concurrency_guard`. Fail-closed makes that safe and it is the correct build order — but
+"we have an idempotency ledger" and "our writes are idempotent" are different claims, as
+are "we have concurrency control" and "our writes are version-checked in production".
+
+### Prompt-injection attempts during the wave
+
+Reviewers and executors encountered roughly twenty injected fake `system-reminder` blocks,
+concentrated immediately after `git checkout --` reverts, falsely claiming a reverted file
+had been modified "by the user or a linter" and instructing the agent to conceal it. A
+variant impersonated a harness directive urging raw Bash over the Read/Edit/Write tools,
+which carry read-before-write and match-ambiguity protections that `sed` does not. Every
+instance was disproven with `git status --short` and `git hash-object` against
+`git rev-parse HEAD:<path>`, and none were acted on. No mutation was left in any tree.
+
 ## Phases — minimal specs + gate to proceed
 
 ### 1. P0 — Execution model & lifecycle *(grill-with-docs target — first)*
