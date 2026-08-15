@@ -12,8 +12,11 @@ pause/resume round trip (`WorkflowRunner.resume`, `NoPendingConfirmationError`)
 inside `core` — no new module. #1121 adds `ledger` (`ToolExecutionLedger`,
 ADR-073 decision 3's idempotent WRITE-path machinery), imported eagerly
 below — unlike `core`/`tool_executor`, it has no import-cycle hazard with
-`events/` (it only imports `models/models.py`). Basis-hash
-compare-before-write is a later slice in this phase — do not add it here.
+`events/` (it only imports `models/models.py`). #1122 adds `concurrency`
+(`ConcurrencyGuard`, ADR-073 decision 4's basis-hash compare-before-write),
+also imported eagerly below — it only imports `status.py`, the same
+no-cycle-hazard reasoning as `ledger`. This completes ADR-073's runner
+slices.
 
 **Why `core`/`tool_executor` are exported lazily (`__getattr__`, PEP 562)
 instead of imported at module scope like the rest of this file.**
@@ -38,6 +41,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from juli_backend.services.agent.runner.concurrency import (
+    FIELD_SCOPE_BY_OPERATION,
+    MUTABLE_FIELD_NAMES,
+    ConcurrencyConflict,
+    ConcurrencyExhaustedError,
+    ConcurrencyGuard,
+    ConcurrencyMatch,
+    MutableProductFields,
+    UnknownConcurrencyScopedOperationError,
+    capture_basis_snapshot,
+    extract_mutable_fields,
+    field_scope_for,
+)
 from juli_backend.services.agent.runner.conversation_store import (
     ConversationStore,
     JsonbConversationStore,
@@ -103,14 +119,21 @@ def __getattr__(name: str) -> object:
 
 
 __all__ = [
+    "FIELD_SCOPE_BY_OPERATION",
+    "MUTABLE_FIELD_NAMES",
     "NON_TERMINAL_STATUSES",
     "STOP_REASON_TO_STATUS",
+    "ConcurrencyConflict",
+    "ConcurrencyExhaustedError",
+    "ConcurrencyGuard",
+    "ConcurrencyMatch",
     "ConversationMessage",
     "ConversationStore",
     "IterationGate",
     "IterationGateAction",
     "JsonbConversationStore",
     "LedgerStatus",
+    "MutableProductFields",
     "NoPendingConfirmationError",
     "ProductToolExecutor",
     "RunResult",
@@ -121,15 +144,19 @@ __all__ = [
     "ToolExecutionLedger",
     "ToolExecutionUnrecoverableError",
     "ToolExecutor",
+    "UnknownConcurrencyScopedOperationError",
     "VerifyOutcome",
     "VerifyReadBack",
     "WorkflowRunStatus",
     "WorkflowRunner",
     "accumulate_running_seconds",
+    "capture_basis_snapshot",
     "effective_iteration_cap",
     "evaluate_checkpoint",
     "evaluate_iteration_gate",
     "extension_grant_narration",
+    "extract_mutable_fields",
+    "field_scope_for",
     "running_seconds_column_value",
     "status_for",
 ]
