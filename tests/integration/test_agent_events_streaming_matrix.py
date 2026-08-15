@@ -56,6 +56,7 @@ import pytest_asyncio
 import uvicorn
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, select, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -77,15 +78,6 @@ from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent.events.envelope import WorkflowRunEventAdapter
 from juli_backend.services.agent.events.persisting_sink import PersistingEventSink
-
-# The four data-pipeline schemas some unrelated models declare
-# (`silver.orders` etc.) -- irrelevant to this slice, translated to the
-# default `public` schema for test setup exactly like `tests/unit/conftest.py`
-# and `tests/integration/conftest.py`'s own `engine` fixtures already do for
-# sqlite (`Base.metadata.create_all` otherwise tries to create schemas this
-# suite has no reason to provision).
-_SCHEMA_TRANSLATE_MAP = {"ops": None, "bronze": None, "gold": None, "silver": None}
-
 
 # ---------------------------------------------------------------------------
 # Postgres reachability -- ADR-074 d.6 requires real Postgres, not sqlite.
@@ -131,31 +123,92 @@ pytestmark = [pytest.mark.asyncio, requires_postgres]
 
 
 # ---------------------------------------------------------------------------
-# Schema setup -- a plain SYNC engine (psycopg2), deliberately not async.
+# A throwaway Postgres database, created from `DATABASE_URL`'s own connection
+# parameters (same host/port/credentials) but its own name, and dropped at
+# session teardown -- never `DATABASE_URL`'s own database directly.
+#
+# The first draft of this module ran `Base.metadata.create_all` straight
+# against `DATABASE_URL`. That collides with `tests/integration/test_migrations.py`
+# / `test_schema_parity.py`, which run a full Alembic `downgrade("base")` /
+# `upgrade("head")` round trip against that same database
+# (`postgres_at_head`): pytest collects `tests/integration/*.py`
+# alphabetically, so this module's session-scoped setup ran first and
+# pre-created tables Alembic then failed to create a second time
+# (`DuplicateTable`). Reproduced on a fresh database with
+# `pytest test_agent_events_streaming_matrix.py test_migrations.py
+# test_schema_parity.py` before this fix, and confirmed clean after it (see
+# the executor's report). `test_schema_parity.py`'s `schema_parity` marker is
+# NOT in `pr.yml`'s issue-tier deselect list, so this would have broken every
+# subsequent issue-tier PR's CI run.
+#
+# Fixed the way #1121's `tests/unit/test_agent_runner_ledger.py` (module
+# docstring, `_disposable_postgres_url` fixture) already solved the identical
+# collision: spin up one throwaway database per test session, run schema
+# setup against THAT, and drop it afterward via an admin connection to the
+# `postgres` maintenance database. `Base.metadata.create_all`/DDL setup is
+# still a plain SYNC engine (psycopg2), deliberately not async --
 # pytest-asyncio's default fixture-loop scope is per-function here (no
 # `asyncio_default_fixture_loop_scope` override in pytest.ini), so a
 # session-scoped asyncpg connection would be reused across event loops --
 # exactly the "Future attached to a different loop" failure mode
-# `tests/unit/conftest.py` already documents for Redis. DDL runs once, via a
-# loop-independent sync driver; every async fixture below is function-scoped.
+# `tests/unit/conftest.py` already documents for Redis. Every async fixture
+# below is function-scoped and connects to the disposable database only.
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
-def _postgres_schema_ready() -> None:
-    url = sync_database_url(_database_url())
-    engine = create_engine(url, execution_options={"schema_translate_map": _SCHEMA_TRANSLATE_MAP})
+def _disposable_postgres_url():
+    """Create a throwaway Postgres database from `DATABASE_URL`'s connection
+    parameters (own name, same server/credentials) and drop it at session
+    teardown -- see the module-level comment above for why this module never
+    runs DDL against `DATABASE_URL`'s own database. Tests never reach this
+    fixture's body when Postgres is unreachable: `requires_postgres` skips
+    the whole module before any fixture in this chain executes.
+    """
+    base_url = _database_url()
+    admin_url = make_url(sync_database_url(base_url)).set(database="postgres")
+    db_name = f"juli_agt_w3b_1131_{uuid.uuid4().hex[:12]}"
+
+    admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as conn:
+        conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+    admin_engine.dispose()
+
+    disposable_url = make_url(sync_database_url(base_url)).set(database=db_name)
+    try:
+        yield str(disposable_url)
+    finally:
+        admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+        with admin_engine.connect() as conn:
+            conn.execute(
+                text(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname = :name AND pid <> pg_backend_pid()"
+                ),
+                {"name": db_name},
+            )
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{db_name}"'))
+        admin_engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def _postgres_schema_ready(_disposable_postgres_url: str) -> None:
+    engine = create_engine(_disposable_postgres_url, pool_pre_ping=True)
+    # `models/models.py` schema-qualifies some tables (bronze/silver/gold/
+    # ops) that only exist in a fully Alembic-migrated database -- a fresh
+    # disposable `CREATE DATABASE` never has them, so create them directly
+    # (mirrors #1121's `_build_postgres_engine` exactly).
     with engine.begin() as conn:
-        Base.metadata.create_all(conn)
+        for schema_name in ("bronze", "silver", "gold", "ops"):
+            conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
+        Base.metadata.create_all(conn, checkfirst=True)
     engine.dispose()
 
 
 @pytest_asyncio.fixture
-async def pg_engine(_postgres_schema_ready: None):
-    url = async_database_url(_database_url())
-    engine = create_async_engine(
-        url, execution_options={"schema_translate_map": _SCHEMA_TRANSLATE_MAP}
-    )
+async def pg_engine(_disposable_postgres_url: str, _postgres_schema_ready: None):
+    url = async_database_url(_disposable_postgres_url)
+    engine = create_async_engine(url)
     yield engine
     await engine.dispose()
 
@@ -167,10 +220,8 @@ async def pg_session_factory(pg_engine) -> async_sessionmaker[AsyncSession]:
 
 # ---------------------------------------------------------------------------
 # Seeding helpers -- every row uses a fresh uuid4 so tests never collide
-# despite sharing one disposable database for the whole session (dropped
-# after the run by the executor, per #1131's constraints -- not by this
-# fixture, since dropping the actual OS-level database from inside pytest
-# would race the next test still using the same connection pool).
+# despite sharing one disposable database for the whole session (created and
+# dropped by `_disposable_postgres_url` above).
 # ---------------------------------------------------------------------------
 
 
@@ -872,6 +923,14 @@ async def test_last_event_id_header_non_numeric_should_degrade_not_500(pg_sessio
     real HTTP 500 (`{"detail": "Internal server error"}`) -- proven against
     the real ASGI stack here, not inferred from reading the source.
 
+    Asserts the *desired* degrade behaviour, not merely the absence of a
+    500: a "fix" that swallows the `ValueError` but then silently drops
+    every event (or always resets to sequence 0 regardless of `?after=`)
+    would satisfy a bare `status_code != 500` check while still being
+    wrong. The two requests below pin both halves of the issue thread's
+    spec -- "falls through to `?after=`, then to `0`" -- by checking the
+    actual replayed sequence ids, not just the HTTP status.
+
     `xfail(strict=True)`: if a future change to the route (not this test
     slice, per the hard constraint against touching production code here)
     makes this degrade correctly, this test flips to an unexpected pass and
@@ -895,14 +954,34 @@ async def test_last_event_id_header_non_numeric_should_degrade_not_500(pg_sessio
 
     app = _build_app(pg_session_factory, subscriber=None)
     async with _authenticated_client(app, user, shop) as client:
-        resp = await client.get(
+        # Malformed header, ?after=1 also present: correct degrade falls
+        # through to ?after=, replaying exactly the events after it.
+        via_after = await client.get(
+            f"/v1/demo/runs/{run.id}/events",
+            params={"after": 1},
+            headers={"Last-Event-ID": "not-a-number"},
+        )
+        # Malformed header, no ?after= at all: falls all the way through to 0.
+        via_default = await client.get(
             f"/v1/demo/runs/{run.id}/events",
             headers={"Last-Event-ID": "not-a-number"},
         )
 
-    assert resp.status_code != 500, (
-        "a non-numeric Last-Event-ID header must degrade (per the #1131 issue "
-        f"thread), never 500 -- got {resp.status_code}: {resp.text!r}"
+    assert via_after.status_code == 200, (
+        "malformed Last-Event-ID with ?after= present must not 500 -- got "
+        f"{via_after.status_code}: {via_after.text!r}"
+    )
+    assert _record_ids(via_after.text) == [2], (
+        "malformed Last-Event-ID must degrade to ?after=, replaying exactly "
+        f"the events after it -- got ids {_record_ids(via_after.text)}"
+    )
+    assert via_default.status_code == 200, (
+        "malformed Last-Event-ID with no ?after= must not 500 -- got "
+        f"{via_default.status_code}: {via_default.text!r}"
+    )
+    assert _record_ids(via_default.text) == [1, 2], (
+        "malformed Last-Event-ID with no ?after= must degrade all the way to "
+        f"0, replaying the full history -- got ids {_record_ids(via_default.text)}"
     )
 
 
