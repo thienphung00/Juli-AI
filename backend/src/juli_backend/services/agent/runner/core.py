@@ -57,17 +57,32 @@ is accumulated once per completed iteration via
 does not itself write (no direct database access here, same as
 `prompt_version`/`prompt_sha256`/`status`).
 
-**What this slice still deliberately does not do (see issue #1119's
-"Boundaries", now narrowed by #1120's own boundaries).** No idempotency
-ledger / claim-then-execute (#1121); no basis-hash compare-before-write
-(#1122); no pause/resume round-trip for a CONFIRM-policy tool (#1123) — a
-`ToolCallBlock` naming a CONFIRM tool is still dispatched exactly like an
-AUTO one in this slice, once it clears the allowlist and validation checks;
-a later slice is what actually pauses the run before invoking the handler,
-so `paused_for_confirmation`/`confirmation_declined`/`confirmation_expired`/
-`concurrency_conflict` are not produced by any code in this module — see
-`tests/unit/test_agent_runner_termination.py` for the explicit reachability
-assertion.
+**Pause/resume for a CONFIRM-policy tool (ADR-073 decisions 1 and 5, issue
+#1123 / AGT-W3A).** Once a `ToolCallBlock` clears the allowlist and
+`input_model` validation, `_dispatch_tool_call` checks the target
+`ToolSpec.policy` (the registry's own `ToolPolicy`, never a second copy):
+AUTO dispatches immediately, exactly as before; CONFIRM never reaches
+`ToolExecutor.execute` in this call. Instead the call is recorded on
+`state.pending_confirmation`, a `workflow.approval_required` event is
+emitted (the only event this module bothers with here — ADR-073 decision
+2's paused wall clock and #1118's `next_sequence` counter both already do
+the right thing with no special-casing: nothing calls
+`accumulate_running_seconds`/`allocate_sequence` again until the run
+resumes), and the run ends with `stop_reason=paused_for_confirmation`
+(`status.py`'s total mapping: `waiting_approval`). `resume()` is the
+second-worker-process entry point: it loads a **fresh** `RunState` from the
+injected `ConversationStore` — never anything held by whatever
+`WorkflowRunner` instance originally paused, which may not even exist
+anymore in this process — and either dispatches the now-approved pending
+call and re-enters the same block-dispatch loop `run()` uses
+(`_drive_loop`), or ends the run with `stop_reason=confirmation_declined`
+without ever calling `ToolExecutor.execute`. `resume()` consumes an
+already-authorized `approved: bool`; validating *who* may approve and
+recording consent is W4-A's approval endpoint, entirely outside this
+module. What remains out of scope here: the idempotency ledger /
+claim-then-execute (#1121), basis-hash compare-before-write (#1122), and
+the reaper's 4h `confirmation_expired` sweep (#1130) — so
+`concurrency_conflict` is still not produced by any code in this module.
 
 **`compose()`/prompt stamping (ADR-072 decision 4).** `compose()`,
 `prompt_version()`, and `prompt_sha256()` are called exactly once, at the
@@ -86,7 +101,7 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
 from typing import Any
 
@@ -100,6 +115,8 @@ from juli_backend.services.agent.events import (
     ToolCompletedPayload,
     ToolStartedEvent,
     ToolStartedPayload,
+    WorkflowApprovalRequiredEvent,
+    WorkflowApprovalRequiredPayload,
     WorkflowCompletedEvent,
     WorkflowCompletedPayload,
     WorkflowFailedEvent,
@@ -136,7 +153,7 @@ from juli_backend.services.agent.sanitize import (
     guard_outbound_agent_output,
     to_error_envelope,
 )
-from juli_backend.services.agent.tools import ToolRegistry, UnknownToolError
+from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry, UnknownToolError
 from juli_backend.services.execution.types import ExecutionErrorCategory
 
 
@@ -169,6 +186,21 @@ class _ToolCallOutcome(Enum):
     SUCCESS = auto()
     REFUSED = auto()
     MALFORMED = auto()
+    # A validated CONFIRM-policy call — never dispatched to ToolExecutor in
+    # this call, recorded on state.pending_confirmation instead (#1123).
+    # Resets the self-correction streak exactly like SUCCESS/REFUSED: it is
+    # not a malformed-params outcome.
+    PAUSED = auto()
+
+
+class NoPendingConfirmationError(RuntimeError):
+    """Raised by `WorkflowRunner.resume` when the loaded `RunState` has no
+    `pending_confirmation` to resume from (issue #1123).
+
+    Resuming a run that was never paused (or whose pending confirmation was
+    already resolved by an earlier `resume` call) is a caller bug — this
+    module never treats it as a silent no-op.
+    """
 
 
 # Two consecutive malformed-params attempts on a tool call end the run
@@ -235,11 +267,11 @@ class WorkflowRunner:
 
         Loads `RunState` from the injected `ConversationStore`, composes the
         system prompt exactly once, then alternates `LLMService.complete()`
-        calls with block dispatch until a `FinalResponse` or a self-correction
-        give-up ends the run. `RunState` is persisted after every iteration
-        (ADR-073 decision 1: "written per iteration") so a later slice's
-        resume path has a fresh blob to load from, even though resuming a
-        paused run is not this slice's concern.
+        calls with block dispatch until a `FinalResponse`, a self-correction
+        give-up, or a CONFIRM-policy pause ends the run. `RunState` is
+        persisted after every iteration (ADR-073 decision 1: "written per
+        iteration") so `resume` (below) always has a fresh blob to load
+        from — from this same process or a different one.
 
         Raises `BannedPatternGuardFailure` (propagated from
         `guard_outbound_agent_output`, uncaught) if a `FinalResponse`'s
@@ -265,6 +297,171 @@ class WorkflowRunner:
             ),
         )
 
+        return await self._drive_loop(
+            workflow_run_id,
+            state,
+            system_prompt=system_prompt,
+            version_str=version_str,
+            sha256=sha256,
+            tool_definitions=tool_definitions,
+        )
+
+    async def resume(self, workflow_run_id: uuid.UUID, *, approved: bool) -> RunResult:
+        """Resume a run paused at `waiting_approval` (ADR-073 decisions 1
+        and 5's resume seam; issue #1123 — the P-CS kill-and-resume gate in
+        miniature).
+
+        Loads a **fresh** `RunState` from the injected `ConversationStore`
+        — nothing about this call reaches into whatever `WorkflowRunner`
+        instance originally paused the run; that instance may live in a
+        different process, or may no longer exist at all. This is the
+        whole property a CONFIRM pause needs: the resuming worker
+        constructs its own `WorkflowRunner` around its own collaborators
+        (its own `ConversationStore` implementation pointed at the same
+        `workflow_runs` row, its own `ToolExecutor`, its own `EventSink`)
+        and calls `resume` — the blob is the only channel of information
+        that crosses the boundary.
+
+        `approved` is the already-authorized seller decision. W4-A's
+        approval endpoint is what validates *who* may decide and records
+        consent; this method only ever consumes the resulting boolean,
+        never a raw request — see the module docstring's boundary note.
+        A declined confirmation ends the run immediately with
+        `stop_reason=confirmation_declined` (`status.py`'s total mapping:
+        `completed`) without ever calling `ToolExecutor.execute`. An
+        approved confirmation dispatches the pending call through the same
+        `ToolExecutor.execute` -> `guard_inbound_tool_result` -> append
+        path `_dispatch_tool_call` uses for an AUTO tool, then re-enters
+        `_drive_loop` — the same block-dispatch loop `run()` uses — to
+        drive the rest of the scripted scenario to completion.
+
+        Because nothing calls `accumulate_running_seconds` or
+        `allocate_sequence` while the run sat paused (the pause mechanism
+        `termination.py`'s module docstring describes: there is no
+        `pause`/`resume` pair to forget), `state.running_seconds_elapsed`
+        and `state.next_sequence` both simply continue from whatever the
+        blob says — the elapsed real-world duration of the pause is
+        invisible to both, by construction, not by any special-casing in
+        this method.
+
+        Raises `NoPendingConfirmationError` if the loaded `RunState` has no
+        `pending_confirmation` — resuming a run that was never paused (or
+        whose pause was already resolved) is a caller bug, never a silent
+        no-op.
+        """
+        state = await self._conversation_store.load(workflow_run_id)
+        if state.pending_confirmation is None:
+            raise NoPendingConfirmationError(
+                f"WorkflowRunner.resume: run {workflow_run_id} has no "
+                "pending_confirmation to resume from."
+            )
+
+        system_prompt = compose(self._playbook.workflow_key, self._playbook.version)
+        version_str = prompt_version(self._playbook.workflow_key, self._playbook.version)
+        sha256 = prompt_sha256(self._playbook.workflow_key, self._playbook.version)
+        tool_definitions = self._tool_definitions()
+
+        pending = state.pending_confirmation
+        state.pending_confirmation = None
+        call_id = pending["call_id"]
+        tool_name = pending["tool_name"]
+        arguments = pending["arguments"]
+
+        if not approved:
+            stop_reason = StopReason.CONFIRMATION_DECLINED
+            status = status_for(stop_reason)
+            state.conversation_window.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "tool_name": tool_name,
+                    "content": {"confirmation": {"decision": "declined"}},
+                }
+            )
+            await self._emit(
+                workflow_run_id,
+                state,
+                ToolCompletedEvent,
+                ToolCompletedPayload(
+                    tool_call_id=call_id,
+                    tool_name=tool_name,
+                    ok=False,
+                    summary="declined by the seller",
+                ),
+            )
+            await self._emit(
+                workflow_run_id,
+                state,
+                WorkflowCompletedEvent,
+                WorkflowCompletedPayload(stop_reason=stop_reason),
+            )
+            await self._conversation_store.persist(workflow_run_id, state)
+            return RunResult(
+                stop_reason=stop_reason,
+                status=status,
+                final_response=None,
+                prompt_version=version_str,
+                prompt_sha256=sha256,
+                iteration_count=state.iteration_count,
+            )
+
+        spec = self._registry.get(tool_name)
+        params = spec.input_model.model_validate(arguments)
+        await self._emit(
+            workflow_run_id,
+            state,
+            ToolStartedEvent,
+            ToolStartedPayload(tool_call_id=call_id, tool_name=tool_name),
+        )
+        raw_result = self._tool_executor.execute(tool_name=tool_name, params=params)
+        sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
+        ok = sanitized is raw_result
+        await self._emit(
+            workflow_run_id,
+            state,
+            ToolCompletedEvent,
+            ToolCompletedPayload(
+                tool_call_id=call_id,
+                tool_name=tool_name,
+                ok=ok,
+                summary=("completed" if ok else "blocked by the inbound safety guard"),
+            ),
+        )
+        state.conversation_window.append(
+            {
+                "role": "tool",
+                "tool_call_id": call_id,
+                "tool_name": tool_name,
+                "content": dict(sanitized),
+            }
+        )
+        await self._conversation_store.persist(workflow_run_id, state)
+
+        return await self._drive_loop(
+            workflow_run_id,
+            state,
+            system_prompt=system_prompt,
+            version_str=version_str,
+            sha256=sha256,
+            tool_definitions=tool_definitions,
+        )
+
+    async def _drive_loop(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        *,
+        system_prompt: str,
+        version_str: str,
+        sha256: str,
+        tool_definitions: tuple[ToolDefinition, ...],
+    ) -> RunResult:
+        """The block-dispatch loop shared by `run()` (a fresh run) and
+        `resume()` (continuing past a resolved CONFIRM pause) — everything
+        about *how* a run proceeds from here on lives in this one method,
+        so the two entry points cannot drift apart on checkpoint,
+        iteration-gate, or block-dispatch behavior.
+        """
         consecutive_malformed = 0
         policy = self._playbook.termination_policy
 
@@ -348,6 +545,11 @@ class WorkflowRunner:
                         )
                         break
                     outcome = await self._dispatch_tool_call(workflow_run_id, state, block)
+                    if outcome is _ToolCallOutcome.PAUSED:
+                        stop = await self._pause_for_confirmation(
+                            workflow_run_id, state, version_str, sha256
+                        )
+                        break
                     if outcome is _ToolCallOutcome.MALFORMED:
                         consecutive_malformed += 1
                         if consecutive_malformed >= _MAX_CONSECUTIVE_MALFORMED_ATTEMPTS:
@@ -430,6 +632,10 @@ class WorkflowRunner:
             )
             return _ToolCallOutcome.MALFORMED
 
+        if spec.policy is ToolPolicy.CONFIRM:
+            await self._pause_pending_confirmation(workflow_run_id, state, block)
+            return _ToolCallOutcome.PAUSED
+
         state.conversation_window.append(self._tool_call_message(block))
         await self._emit(
             workflow_run_id,
@@ -501,6 +707,66 @@ class WorkflowRunner:
             ToolCompletedPayload(
                 tool_call_id=block.call_id, tool_name=block.tool_name, ok=False, summary=message
             ),
+        )
+
+    async def _pause_pending_confirmation(
+        self, workflow_run_id: uuid.UUID, state: RunState, block: ToolCallBlock
+    ) -> None:
+        """Record a validated CONFIRM-policy `ToolCallBlock` as this run's
+        pending confirmation (issue #1123) — the proposal is appended to the
+        conversation exactly like an AUTO call's, but `ToolExecutor.execute`
+        is never reached from here; `resume` is what dispatches it once
+        approved.
+
+        `expires_at` is computed from `self._playbook.termination_policy
+        .approval_timeout_h` (ADR-073 decision 2's `approval_timeout_h`,
+        never a literal) — the reaper's 4h expiry sweep (#1130) is what
+        actually enforces it; this module only surfaces the deadline on the
+        `workflow.approval_required` event.
+        """
+        state.conversation_window.append(self._tool_call_message(block))
+        state.pending_confirmation = {
+            "call_id": block.call_id,
+            "tool_name": block.tool_name,
+            "arguments": dict(block.arguments),
+        }
+        policy = self._playbook.termination_policy
+        expires_at = datetime.now(UTC) + timedelta(hours=policy.approval_timeout_h)
+        await self._emit(
+            workflow_run_id,
+            state,
+            WorkflowApprovalRequiredEvent,
+            WorkflowApprovalRequiredPayload(
+                tool_call_id=block.call_id,
+                tool_name=block.tool_name,
+                proposed_change=dict(block.arguments),
+                expires_at=expires_at,
+            ),
+        )
+
+    async def _pause_for_confirmation(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        version_str: str,
+        sha256: str,
+    ) -> RunResult:
+        """Build the `RunResult` for a run ending at `waiting_approval`
+        (issue #1123). No further event is emitted here — the
+        `workflow.approval_required` event `_pause_pending_confirmation`
+        already emitted at the pause site is the client-facing signal;
+        unlike `_terminate`/`_give_up`, this is not a failure-class status
+        (`status.py`'s total mapping: `paused_for_confirmation` ->
+        `waiting_approval`), so no `workflow.failed` follows it either.
+        """
+        stop_reason = StopReason.PAUSED_FOR_CONFIRMATION
+        return RunResult(
+            stop_reason=stop_reason,
+            status=status_for(stop_reason),
+            final_response=None,
+            prompt_version=version_str,
+            prompt_sha256=sha256,
+            iteration_count=state.iteration_count,
         )
 
     async def _finalize(
@@ -636,4 +902,4 @@ class WorkflowRunner:
         await self._event_sink.emit(event)
 
 
-__all__ = ["RunResult", "WorkflowRunner"]
+__all__ = ["NoPendingConfirmationError", "RunResult", "WorkflowRunner"]

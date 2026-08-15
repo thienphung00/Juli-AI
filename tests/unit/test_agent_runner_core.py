@@ -319,7 +319,17 @@ class TestSelfCorrection:
         assert result.stop_reason == StopReason.TOOL_ERROR_UNRECOVERABLE
         assert len(llm.recorded_calls) == 2  # never asked for the 3rd, unscripted, retry
 
-    async def test_one_malformed_attempt_gets_exactly_one_corrected_retry_and_can_succeed(self):
+    async def test_one_malformed_attempt_gets_one_corrected_retry_then_pauses(
+        self,
+    ):
+        """`update_product_price`'s own `ToolSpec.policy` is CONFIRM
+        (`product_write.py`) — once the corrected retry clears
+        `input_model` validation, issue #1123's pause behavior takes over:
+        the call is never dispatched to `ToolExecutor`, it is recorded as
+        this run's pending confirmation instead. Self-correction and
+        CONFIRM-pausing are independent mechanisms; this pins that a
+        successful correction of a CONFIRM tool's malformed params still
+        routes through the pause path, not straight to execution."""
         run_id = uuid.uuid4()
         store = _InMemoryConversationStore()
         store.seed(run_id)
@@ -340,7 +350,6 @@ class TestSelfCorrection:
                         arguments={"skus": [{"sku_ref": "S1", "amount": "1000"}]},
                     )
                 ),
-                _turn(FinalResponse(content="Price updated.")),
             ],
             tool_executor=spy,
             event_sink=InMemoryEventSink(),
@@ -351,8 +360,14 @@ class TestSelfCorrection:
 
         result = await runner.run(run_id, product_ref="prod-1")
 
-        assert result.stop_reason == StopReason.FINAL_RESPONSE
-        assert len(spy.calls) == 1  # the corrected retry dispatched, once
+        assert result.stop_reason == StopReason.PAUSED_FOR_CONFIRMATION
+        assert result.status == WorkflowRunStatus.WAITING_APPROVAL
+        assert spy.calls == []  # never dispatched -- pending confirmation, not executed
+        assert store._store[run_id].pending_confirmation == {
+            "call_id": "c2",
+            "tool_name": "update_product_price",
+            "arguments": {"skus": [{"sku_ref": "S1", "amount": "1000"}]},
+        }
 
 
 # --- AC: inbound chokepoint bracketing every tool result -----------------------
