@@ -160,7 +160,12 @@ def _disposable_postgres_url():
 
     disposable_url = make_url(sync_database_url(base_url)).set(database=db_name)
     try:
-        yield str(disposable_url)
+        # `str(URL)` masks the password as `***` (SQLAlchemy renders it that
+        # way deliberately so URLs are log-safe), and this value is handed
+        # straight to `create_engine`, so the connection authenticates with a
+        # literal `***`. `render_as_string(hide_password=False)` is the
+        # documented way to get a usable URL back out.
+        yield disposable_url.render_as_string(hide_password=False)
     finally:
         admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
         with admin_engine.connect() as conn:
