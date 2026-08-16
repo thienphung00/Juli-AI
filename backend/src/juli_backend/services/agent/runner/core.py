@@ -275,6 +275,7 @@ class WorkflowRunner:
                 running_seconds_elapsed=state.running_seconds_elapsed,
                 policy=policy,
             )
+            stop: RunResult | None
             if checkpoint_reason is not None:
                 stop = await self._terminate(
                     workflow_run_id, state, checkpoint_reason, version_str, sha256
